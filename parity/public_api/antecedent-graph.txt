@@ -12,6 +12,7 @@ impl !core::marker::Freeze for antecedent_graph::Pag [auto]
 impl !core::marker::Freeze for antecedent_graph::PagCompletion [auto]
 impl !core::marker::Freeze for antecedent_graph::PagReview [auto]
 impl !core::marker::Freeze for antecedent_graph::UnfoldedTemporalPag [auto]
+impl antecedent_core::canonical_encode::CanonicalEncode for antecedent_graph::TieredBackground
 impl antecedent_graph::algo::MaskWord for u16
 impl antecedent_graph::algo::MaskWord for u32
 impl antecedent_graph::algo::MaskWord for u64

@@ -3,6 +3,7 @@
 # One line per public item; do not edit by hand.
 #[doc(hidden)] pub fn antecedent_validate::joint_mechanism_sensitivity::joint_sensitivity_bootstrap_interval_internal(diagram: &antecedent_graph::selection::SelectionDiagram, functional: &antecedent_identify::sid::z_transport::BoundZTransportFunctional, data: &antecedent_expr::exact::ExactTransportData, spec: &antecedent_validate::JointDeviationSpec, replicates: u32, level: f64, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<core::result::Result<antecedent_validate::JointSensitivityInterval, &'static str>, antecedent_validate::JointSensitivityError>
 #[doc(hidden)] pub struct antecedent_validate::JointSensitivityInterval
+#[non_exhaustive] pub enum antecedent_validate::StalenessError
 #[non_exhaustive] pub enum antecedent_validate::ValidationError
 #[non_exhaustive] pub struct antecedent_validate::RefutationReport
 impl !core::marker::Send for antecedent_validate::common::AlignedRefit [auto]
@@ -30,7 +31,9 @@ impl !core::panic::unwind_safe::UnwindSafe for antecedent_validate::SyntheticNul
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_validate::ValidationSuite [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_validate::common::AlignedRefit [auto]
 impl core::clone::Clone for antecedent_validate::AlphaThresholdSensitivity
+impl core::clone::Clone for antecedent_validate::AssumptionRange
 impl core::clone::Clone for antecedent_validate::AxisTipping
+impl core::clone::Clone for antecedent_validate::BenchmarkBound
 impl core::clone::Clone for antecedent_validate::BlockBootstrapStability
 impl core::clone::Clone for antecedent_validate::BootstrapRefute
 impl core::clone::Clone for antecedent_validate::CiTestSensitivity
@@ -45,10 +48,14 @@ impl core::clone::Clone for antecedent_validate::DiscreteKernelSensitivityError
 impl core::clone::Clone for antecedent_validate::DiscreteKernelSensitivityResult
 impl core::clone::Clone for antecedent_validate::DummyOutcome
 impl core::clone::Clone for antecedent_validate::EValue
+impl core::clone::Clone for antecedent_validate::EValueBounds
+impl core::clone::Clone for antecedent_validate::EffectInterval
+impl core::clone::Clone for antecedent_validate::EffectScale
 impl core::clone::Clone for antecedent_validate::EnvironmentHoldout
 impl core::clone::Clone for antecedent_validate::EnvironmentHoldoutReport
 impl core::clone::Clone for antecedent_validate::FalsePositiveCheck
 impl core::clone::Clone for antecedent_validate::FalsePositiveCheckReport
+impl core::clone::Clone for antecedent_validate::FindingKind
 impl core::clone::Clone for antecedent_validate::FixedGraphConditionalMechanismSensitivityResult
 impl core::clone::Clone for antecedent_validate::FixedGraphMechanismSensitivityResult
 impl core::clone::Clone for antecedent_validate::FixedGraphMechanismSensitivitySpec
@@ -67,8 +74,14 @@ impl core::clone::Clone for antecedent_validate::JointSensitivityRange
 impl core::clone::Clone for antecedent_validate::JointSensitivityReceipt
 impl core::clone::Clone for antecedent_validate::JointSensitivityUncertainty
 impl core::clone::Clone for antecedent_validate::LagWindowSensitivity
+impl core::clone::Clone for antecedent_validate::LinearAdjustmentFit
+impl core::clone::Clone for antecedent_validate::LinearAdjustmentSummary
 impl core::clone::Clone for antecedent_validate::LinearSensitivity
 impl core::clone::Clone for antecedent_validate::LinkStability
+impl core::clone::Clone for antecedent_validate::MatchedSet
+impl core::clone::Clone for antecedent_validate::MatchedSetBound
+impl core::clone::Clone for antecedent_validate::MatchedSetScore
+impl core::clone::Clone for antecedent_validate::MediationSensitivitySummary
 impl core::clone::Clone for antecedent_validate::MsmOutcomeLaw
 impl core::clone::Clone for antecedent_validate::MsmPoint
 impl core::clone::Clone for antecedent_validate::MsmSensitivityError
@@ -78,6 +91,7 @@ impl core::clone::Clone for antecedent_validate::MsmSensitivityUncertainty
 impl core::clone::Clone for antecedent_validate::MsmStratum
 impl core::clone::Clone for antecedent_validate::MsmTipping
 impl core::clone::Clone for antecedent_validate::MsmTippingDirection
+impl core::clone::Clone for antecedent_validate::Multiplicity
 impl core::clone::Clone for antecedent_validate::NeighborhoodSensitivity
 impl core::clone::Clone for antecedent_validate::NonparametricSensitivity
 impl core::clone::Clone for antecedent_validate::NullCalibrationReport
@@ -97,17 +111,35 @@ impl core::clone::Clone for antecedent_validate::PriorPredictiveCheck
 impl core::clone::Clone for antecedent_validate::PriorSensitivity
 impl core::clone::Clone for antecedent_validate::QueryRefutationPlan
 impl core::clone::Clone for antecedent_validate::RandomCommonCause
+impl core::clone::Clone for antecedent_validate::RangePoint
+impl core::clone::Clone for antecedent_validate::Recommendation
 impl core::clone::Clone for antecedent_validate::RefutationReport
+impl core::clone::Clone for antecedent_validate::RefutationTarget
 impl core::clone::Clone for antecedent_validate::RegimeStability
 impl core::clone::Clone for antecedent_validate::RegimeStabilityReport
 impl core::clone::Clone for antecedent_validate::RieszSensitivity
 impl core::clone::Clone for antecedent_validate::SbcReport
+impl core::clone::Clone for antecedent_validate::SensitivityAssumption
 impl core::clone::Clone for antecedent_validate::SerialDiscrepancy
+impl core::clone::Clone for antecedent_validate::SignedRankSensitivity
 impl core::clone::Clone for antecedent_validate::SimulationBasedCalibration
 impl core::clone::Clone for antecedent_validate::SourceOutcomeKernelRow
 impl core::clone::Clone for antecedent_validate::SourceParentLawRow
+impl core::clone::Clone for antecedent_validate::StalenessBaseline
+impl core::clone::Clone for antecedent_validate::StalenessFinding
+impl core::clone::Clone for antecedent_validate::StalenessPlan
+impl core::clone::Clone for antecedent_validate::StalenessPolicy
+impl core::clone::Clone for antecedent_validate::StalenessReport
 impl core::clone::Clone for antecedent_validate::SyntheticNullCalibration
+impl core::clone::Clone for antecedent_validate::TargetCertificate
+impl core::clone::Clone for antecedent_validate::TargetCertificationError
+impl core::clone::Clone for antecedent_validate::TargetFamily
 impl core::clone::Clone for antecedent_validate::TargetParentLawRow
+impl core::clone::Clone for antecedent_validate::TargetQuadrant
+impl core::clone::Clone for antecedent_validate::TargetRefutationPlan
+impl core::clone::Clone for antecedent_validate::TargetRefutationReport
+impl core::clone::Clone for antecedent_validate::TargetRefuterKind
+impl core::clone::Clone for antecedent_validate::TargetSuite
 impl core::clone::Clone for antecedent_validate::TippingBracket
 impl core::clone::Clone for antecedent_validate::TippingStatus
 impl core::clone::Clone for antecedent_validate::UndirectedLinkStability
@@ -159,18 +191,44 @@ impl core::clone::Clone for antecedent_validate::predictive_assessment::ScoreInt
 impl core::clone::Clone for antecedent_validate::predictive_assessment::ScoreKind
 impl core::clone::Clone for antecedent_validate::predictive_assessment::ScoreSummary
 impl core::clone::Clone for antecedent_validate::predictive_assessment::ValidationDesign
+impl core::clone::Clone for antecedent_validate::rosenbaum::SignedRankStatistic
+impl core::clone::Clone for antecedent_validate::target_native::DerivativeCheckPoint
+impl core::clone::Clone for antecedent_validate::target_native::DerivativeConsistency
+impl core::clone::Clone for antecedent_validate::target_native::JointStatistic
+impl core::clone::Clone for antecedent_validate::target_native::JointStatisticKind
+impl core::clone::Clone for antecedent_validate::target_native::LocalLinearity
+impl core::clone::Clone for antecedent_validate::target_native::RefuterExpectation
+impl core::clone::Clone for antecedent_validate::target_native::TargetPerturbation
+impl core::clone::Clone for antecedent_validate::target_native::TargetRefitError
+impl core::clone::Clone for antecedent_validate::target_native::TargetRefutationConfig
+impl core::clone::Clone for antecedent_validate::target_native::TargetRefutationRun
+impl core::clone::Clone for antecedent_validate::target_native::TargetRefuterRefusal
 impl core::cmp::Eq for antecedent_validate::DiscreteKernelSensitivityError
+impl core::cmp::Eq for antecedent_validate::EffectScale
+impl core::cmp::Eq for antecedent_validate::FindingKind
 impl core::cmp::Eq for antecedent_validate::FixedGraphSensitivityError
 impl core::cmp::Eq for antecedent_validate::JointFactor
 impl core::cmp::Eq for antecedent_validate::JointSensitivityLimits
 impl core::cmp::Eq for antecedent_validate::JointSensitivityUncertainty
+impl core::cmp::Eq for antecedent_validate::MatchedSetScore
 impl core::cmp::Eq for antecedent_validate::MsmSensitivityUncertainty
 impl core::cmp::Eq for antecedent_validate::MsmTippingDirection
+impl core::cmp::Eq for antecedent_validate::Multiplicity
 impl core::cmp::Eq for antecedent_validate::NullTransform
 impl core::cmp::Eq for antecedent_validate::PlaceboMode
 impl core::cmp::Eq for antecedent_validate::PredictiveCheckKind
 impl core::cmp::Eq for antecedent_validate::PredictiveNoise
 impl core::cmp::Eq for antecedent_validate::QueryRefutationPlan
+impl core::cmp::Eq for antecedent_validate::Recommendation
+impl core::cmp::Eq for antecedent_validate::RefutationTarget
+impl core::cmp::Eq for antecedent_validate::SensitivityAssumption
+impl core::cmp::Eq for antecedent_validate::StalenessPlan
+impl core::cmp::Eq for antecedent_validate::TargetCertificationError
+impl core::cmp::Eq for antecedent_validate::TargetFamily
+impl core::cmp::Eq for antecedent_validate::TargetQuadrant
+impl core::cmp::Eq for antecedent_validate::TargetRefutationPlan
+impl core::cmp::Eq for antecedent_validate::TargetRefuterKind
+impl core::cmp::Eq for antecedent_validate::TargetSuite
 impl core::cmp::Eq for antecedent_validate::TippingStatus
 impl core::cmp::Eq for antecedent_validate::ValidationError
 impl core::cmp::Eq for antecedent_validate::ValidatorId
@@ -193,15 +251,27 @@ impl core::cmp::Eq for antecedent_validate::predictive_assessment::ProviderIdent
 impl core::cmp::Eq for antecedent_validate::predictive_assessment::ProviderTrustLabel
 impl core::cmp::Eq for antecedent_validate::predictive_assessment::ScoreKind
 impl core::cmp::Eq for antecedent_validate::predictive_assessment::ValidationDesign
+impl core::cmp::Eq for antecedent_validate::target_native::JointStatisticKind
+impl core::cmp::Eq for antecedent_validate::target_native::RefuterExpectation
+impl core::cmp::Eq for antecedent_validate::target_native::TargetRefitError
+impl core::cmp::Eq for antecedent_validate::target_native::TargetRefuterRefusal
+impl core::cmp::Ord for antecedent_validate::FindingKind
 impl core::cmp::Ord for antecedent_validate::JointFactor
+impl core::cmp::Ord for antecedent_validate::Recommendation
 impl core::cmp::Ord for antecedent_validate::predictive_assessment::ObservationKey
 impl core::cmp::Ord for antecedent_validate::predictive_assessment::ScoreKind
+impl core::cmp::PartialEq for antecedent_validate::AssumptionRange
 impl core::cmp::PartialEq for antecedent_validate::AxisTipping
+impl core::cmp::PartialEq for antecedent_validate::BenchmarkBound
 impl core::cmp::PartialEq for antecedent_validate::ConflictPolicy
 impl core::cmp::PartialEq for antecedent_validate::ConflictSignals
 impl core::cmp::PartialEq for antecedent_validate::DiscreteKernelOptimizationReceipt
 impl core::cmp::PartialEq for antecedent_validate::DiscreteKernelSensitivityError
 impl core::cmp::PartialEq for antecedent_validate::DiscreteKernelSensitivityResult
+impl core::cmp::PartialEq for antecedent_validate::EValueBounds
+impl core::cmp::PartialEq for antecedent_validate::EffectInterval
+impl core::cmp::PartialEq for antecedent_validate::EffectScale
+impl core::cmp::PartialEq for antecedent_validate::FindingKind
 impl core::cmp::PartialEq for antecedent_validate::FixedGraphConditionalMechanismSensitivityResult
 impl core::cmp::PartialEq for antecedent_validate::FixedGraphMechanismSensitivityResult
 impl core::cmp::PartialEq for antecedent_validate::FixedGraphRootMechanismSensitivityResult
@@ -217,7 +287,13 @@ impl core::cmp::PartialEq for antecedent_validate::JointSensitivityLimits
 impl core::cmp::PartialEq for antecedent_validate::JointSensitivityRange
 impl core::cmp::PartialEq for antecedent_validate::JointSensitivityReceipt
 impl core::cmp::PartialEq for antecedent_validate::JointSensitivityUncertainty
+impl core::cmp::PartialEq for antecedent_validate::LinearAdjustmentFit
+impl core::cmp::PartialEq for antecedent_validate::LinearAdjustmentSummary
 impl core::cmp::PartialEq for antecedent_validate::LinkStability
+impl core::cmp::PartialEq for antecedent_validate::MatchedSet
+impl core::cmp::PartialEq for antecedent_validate::MatchedSetBound
+impl core::cmp::PartialEq for antecedent_validate::MatchedSetScore
+impl core::cmp::PartialEq for antecedent_validate::MediationSensitivitySummary
 impl core::cmp::PartialEq for antecedent_validate::MsmOutcomeLaw
 impl core::cmp::PartialEq for antecedent_validate::MsmPoint
 impl core::cmp::PartialEq for antecedent_validate::MsmSensitivityError
@@ -227,12 +303,31 @@ impl core::cmp::PartialEq for antecedent_validate::MsmSensitivityUncertainty
 impl core::cmp::PartialEq for antecedent_validate::MsmStratum
 impl core::cmp::PartialEq for antecedent_validate::MsmTipping
 impl core::cmp::PartialEq for antecedent_validate::MsmTippingDirection
+impl core::cmp::PartialEq for antecedent_validate::Multiplicity
 impl core::cmp::PartialEq for antecedent_validate::NullTransform
 impl core::cmp::PartialEq for antecedent_validate::PlaceboMode
 impl core::cmp::PartialEq for antecedent_validate::PredictiveCheckKind
 impl core::cmp::PartialEq for antecedent_validate::PredictiveNoise
 impl core::cmp::PartialEq for antecedent_validate::QueryRefutationPlan
+impl core::cmp::PartialEq for antecedent_validate::RangePoint
+impl core::cmp::PartialEq for antecedent_validate::Recommendation
+impl core::cmp::PartialEq for antecedent_validate::RefutationTarget
+impl core::cmp::PartialEq for antecedent_validate::SensitivityAssumption
 impl core::cmp::PartialEq for antecedent_validate::SerialDiscrepancy
+impl core::cmp::PartialEq for antecedent_validate::SignedRankSensitivity
+impl core::cmp::PartialEq for antecedent_validate::StalenessBaseline
+impl core::cmp::PartialEq for antecedent_validate::StalenessFinding
+impl core::cmp::PartialEq for antecedent_validate::StalenessPlan
+impl core::cmp::PartialEq for antecedent_validate::StalenessPolicy
+impl core::cmp::PartialEq for antecedent_validate::StalenessReport
+impl core::cmp::PartialEq for antecedent_validate::TargetCertificate
+impl core::cmp::PartialEq for antecedent_validate::TargetCertificationError
+impl core::cmp::PartialEq for antecedent_validate::TargetFamily
+impl core::cmp::PartialEq for antecedent_validate::TargetQuadrant
+impl core::cmp::PartialEq for antecedent_validate::TargetRefutationPlan
+impl core::cmp::PartialEq for antecedent_validate::TargetRefutationReport
+impl core::cmp::PartialEq for antecedent_validate::TargetRefuterKind
+impl core::cmp::PartialEq for antecedent_validate::TargetSuite
 impl core::cmp::PartialEq for antecedent_validate::TippingBracket
 impl core::cmp::PartialEq for antecedent_validate::TippingStatus
 impl core::cmp::PartialEq for antecedent_validate::UndirectedLinkStability
@@ -281,14 +376,30 @@ impl core::cmp::PartialEq for antecedent_validate::predictive_assessment::ScoreI
 impl core::cmp::PartialEq for antecedent_validate::predictive_assessment::ScoreKind
 impl core::cmp::PartialEq for antecedent_validate::predictive_assessment::ScoreSummary
 impl core::cmp::PartialEq for antecedent_validate::predictive_assessment::ValidationDesign
+impl core::cmp::PartialEq for antecedent_validate::rosenbaum::SignedRankStatistic
+impl core::cmp::PartialEq for antecedent_validate::target_native::DerivativeCheckPoint
+impl core::cmp::PartialEq for antecedent_validate::target_native::DerivativeConsistency
+impl core::cmp::PartialEq for antecedent_validate::target_native::JointStatistic
+impl core::cmp::PartialEq for antecedent_validate::target_native::JointStatisticKind
+impl core::cmp::PartialEq for antecedent_validate::target_native::LocalLinearity
+impl core::cmp::PartialEq for antecedent_validate::target_native::RefuterExpectation
+impl core::cmp::PartialEq for antecedent_validate::target_native::TargetPerturbation
+impl core::cmp::PartialEq for antecedent_validate::target_native::TargetRefitError
+impl core::cmp::PartialEq for antecedent_validate::target_native::TargetRefutationConfig
+impl core::cmp::PartialEq for antecedent_validate::target_native::TargetRefutationRun
+impl core::cmp::PartialEq for antecedent_validate::target_native::TargetRefuterRefusal
+impl core::cmp::PartialOrd for antecedent_validate::FindingKind
 impl core::cmp::PartialOrd for antecedent_validate::JointFactor
+impl core::cmp::PartialOrd for antecedent_validate::Recommendation
 impl core::cmp::PartialOrd for antecedent_validate::predictive_assessment::ObservationKey
 impl core::cmp::PartialOrd for antecedent_validate::predictive_assessment::ScoreKind
+impl core::convert::From<antecedent_data::error::DataError> for antecedent_validate::StalenessError
 impl core::convert::From<antecedent_data::error::DataError> for antecedent_validate::ValidationError
 impl core::convert::From<antecedent_discovery::error::DiscoveryError> for antecedent_validate::ValidationError
 impl core::convert::From<antecedent_estimate::error::EstimationError> for antecedent_validate::ValidationError
 impl core::convert::From<antecedent_prob::error::ProbError> for antecedent_validate::ValidationError
 impl core::convert::From<antecedent_stats::error::StatsError> for antecedent_validate::ValidationError
+impl core::convert::From<antecedent_validate::ValidationError> for antecedent_validate::target_native::TargetRefitError
 impl core::default::Default for antecedent_validate::BlockBootstrapStability
 impl core::default::Default for antecedent_validate::BootstrapRefute
 impl core::default::Default for antecedent_validate::ConflictPolicy
@@ -314,19 +425,26 @@ impl core::default::Default for antecedent_validate::PriorSensitivity
 impl core::default::Default for antecedent_validate::RandomCommonCause
 impl core::default::Default for antecedent_validate::RieszSensitivity
 impl core::default::Default for antecedent_validate::SimulationBasedCalibration
+impl core::default::Default for antecedent_validate::StalenessPlan
+impl core::default::Default for antecedent_validate::StalenessPolicy
 impl core::default::Default for antecedent_validate::UnobservedCommonCause
 impl core::default::Default for antecedent_validate::ValidationSuite
 impl core::default::Default for antecedent_validate::predictive_assessment::EnsembleCrpsForm
 impl core::default::Default for antecedent_validate::predictive_assessment::OverlapPolicy
+impl core::default::Default for antecedent_validate::target_native::TargetRefutationConfig
 impl core::error::Error for antecedent_validate::DiscreteKernelSensitivityError
 impl core::error::Error for antecedent_validate::FixedGraphSensitivityError
 impl core::error::Error for antecedent_validate::JointSensitivityError
 impl core::error::Error for antecedent_validate::MsmSensitivityError
+impl core::error::Error for antecedent_validate::StalenessError
+impl core::error::Error for antecedent_validate::TargetCertificationError
 impl core::error::Error for antecedent_validate::ValidationError
 impl core::error::Error for antecedent_validate::ZTransportSensitivityError
 impl core::error::Error for antecedent_validate::predictive_assessment::PredictiveAssessmentError
 impl core::fmt::Debug for antecedent_validate::AlphaThresholdSensitivity
+impl core::fmt::Debug for antecedent_validate::AssumptionRange
 impl core::fmt::Debug for antecedent_validate::AxisTipping
+impl core::fmt::Debug for antecedent_validate::BenchmarkBound
 impl core::fmt::Debug for antecedent_validate::BlockBootstrapStability
 impl core::fmt::Debug for antecedent_validate::BootstrapRefute
 impl core::fmt::Debug for antecedent_validate::CiTestSensitivity
@@ -341,10 +459,14 @@ impl core::fmt::Debug for antecedent_validate::DiscreteKernelSensitivityError
 impl core::fmt::Debug for antecedent_validate::DiscreteKernelSensitivityResult
 impl core::fmt::Debug for antecedent_validate::DummyOutcome
 impl core::fmt::Debug for antecedent_validate::EValue
+impl core::fmt::Debug for antecedent_validate::EValueBounds
+impl core::fmt::Debug for antecedent_validate::EffectInterval
+impl core::fmt::Debug for antecedent_validate::EffectScale
 impl core::fmt::Debug for antecedent_validate::EnvironmentHoldout
 impl core::fmt::Debug for antecedent_validate::EnvironmentHoldoutReport
 impl core::fmt::Debug for antecedent_validate::FalsePositiveCheck
 impl core::fmt::Debug for antecedent_validate::FalsePositiveCheckReport
+impl core::fmt::Debug for antecedent_validate::FindingKind
 impl core::fmt::Debug for antecedent_validate::FixedGraphConditionalMechanismSensitivityResult
 impl core::fmt::Debug for antecedent_validate::FixedGraphMechanismSensitivityResult
 impl core::fmt::Debug for antecedent_validate::FixedGraphMechanismSensitivitySpec
@@ -363,8 +485,14 @@ impl core::fmt::Debug for antecedent_validate::JointSensitivityRange
 impl core::fmt::Debug for antecedent_validate::JointSensitivityReceipt
 impl core::fmt::Debug for antecedent_validate::JointSensitivityUncertainty
 impl core::fmt::Debug for antecedent_validate::LagWindowSensitivity
+impl core::fmt::Debug for antecedent_validate::LinearAdjustmentFit
+impl core::fmt::Debug for antecedent_validate::LinearAdjustmentSummary
 impl core::fmt::Debug for antecedent_validate::LinearSensitivity
 impl core::fmt::Debug for antecedent_validate::LinkStability
+impl core::fmt::Debug for antecedent_validate::MatchedSet
+impl core::fmt::Debug for antecedent_validate::MatchedSetBound
+impl core::fmt::Debug for antecedent_validate::MatchedSetScore
+impl core::fmt::Debug for antecedent_validate::MediationSensitivitySummary
 impl core::fmt::Debug for antecedent_validate::MsmOutcomeLaw
 impl core::fmt::Debug for antecedent_validate::MsmPoint
 impl core::fmt::Debug for antecedent_validate::MsmSensitivityError
@@ -374,6 +502,7 @@ impl core::fmt::Debug for antecedent_validate::MsmSensitivityUncertainty
 impl core::fmt::Debug for antecedent_validate::MsmStratum
 impl core::fmt::Debug for antecedent_validate::MsmTipping
 impl core::fmt::Debug for antecedent_validate::MsmTippingDirection
+impl core::fmt::Debug for antecedent_validate::Multiplicity
 impl core::fmt::Debug for antecedent_validate::NeighborhoodSensitivity
 impl core::fmt::Debug for antecedent_validate::NonparametricSensitivity
 impl core::fmt::Debug for antecedent_validate::NullCalibrationReport
@@ -393,17 +522,36 @@ impl core::fmt::Debug for antecedent_validate::PriorPredictiveCheck
 impl core::fmt::Debug for antecedent_validate::PriorSensitivity
 impl core::fmt::Debug for antecedent_validate::QueryRefutationPlan
 impl core::fmt::Debug for antecedent_validate::RandomCommonCause
+impl core::fmt::Debug for antecedent_validate::RangePoint
+impl core::fmt::Debug for antecedent_validate::Recommendation
 impl core::fmt::Debug for antecedent_validate::RefutationReport
+impl core::fmt::Debug for antecedent_validate::RefutationTarget
 impl core::fmt::Debug for antecedent_validate::RegimeStability
 impl core::fmt::Debug for antecedent_validate::RegimeStabilityReport
 impl core::fmt::Debug for antecedent_validate::RieszSensitivity
 impl core::fmt::Debug for antecedent_validate::SbcReport
+impl core::fmt::Debug for antecedent_validate::SensitivityAssumption
 impl core::fmt::Debug for antecedent_validate::SerialDiscrepancy
+impl core::fmt::Debug for antecedent_validate::SignedRankSensitivity
 impl core::fmt::Debug for antecedent_validate::SimulationBasedCalibration
 impl core::fmt::Debug for antecedent_validate::SourceOutcomeKernelRow
 impl core::fmt::Debug for antecedent_validate::SourceParentLawRow
+impl core::fmt::Debug for antecedent_validate::StalenessBaseline
+impl core::fmt::Debug for antecedent_validate::StalenessError
+impl core::fmt::Debug for antecedent_validate::StalenessFinding
+impl core::fmt::Debug for antecedent_validate::StalenessPlan
+impl core::fmt::Debug for antecedent_validate::StalenessPolicy
+impl core::fmt::Debug for antecedent_validate::StalenessReport
 impl core::fmt::Debug for antecedent_validate::SyntheticNullCalibration
+impl core::fmt::Debug for antecedent_validate::TargetCertificate
+impl core::fmt::Debug for antecedent_validate::TargetCertificationError
+impl core::fmt::Debug for antecedent_validate::TargetFamily
 impl core::fmt::Debug for antecedent_validate::TargetParentLawRow
+impl core::fmt::Debug for antecedent_validate::TargetQuadrant
+impl core::fmt::Debug for antecedent_validate::TargetRefutationPlan
+impl core::fmt::Debug for antecedent_validate::TargetRefutationReport
+impl core::fmt::Debug for antecedent_validate::TargetRefuterKind
+impl core::fmt::Debug for antecedent_validate::TargetSuite
 impl core::fmt::Debug for antecedent_validate::TippingBracket
 impl core::fmt::Debug for antecedent_validate::TippingStatus
 impl core::fmt::Debug for antecedent_validate::UndirectedLinkStability
@@ -456,19 +604,45 @@ impl core::fmt::Debug for antecedent_validate::predictive_assessment::ScoreInter
 impl core::fmt::Debug for antecedent_validate::predictive_assessment::ScoreKind
 impl core::fmt::Debug for antecedent_validate::predictive_assessment::ScoreSummary
 impl core::fmt::Debug for antecedent_validate::predictive_assessment::ValidationDesign
+impl core::fmt::Debug for antecedent_validate::rosenbaum::SignedRankStatistic
+impl core::fmt::Debug for antecedent_validate::target_native::DerivativeCheckPoint
+impl core::fmt::Debug for antecedent_validate::target_native::DerivativeConsistency
+impl core::fmt::Debug for antecedent_validate::target_native::JointStatistic
+impl core::fmt::Debug for antecedent_validate::target_native::JointStatisticKind
+impl core::fmt::Debug for antecedent_validate::target_native::LocalLinearity
+impl core::fmt::Debug for antecedent_validate::target_native::RefuterExpectation
+impl core::fmt::Debug for antecedent_validate::target_native::TargetPerturbation
+impl core::fmt::Debug for antecedent_validate::target_native::TargetRefitError
+impl core::fmt::Debug for antecedent_validate::target_native::TargetRefutationConfig
+impl core::fmt::Debug for antecedent_validate::target_native::TargetRefutationRun
+impl core::fmt::Debug for antecedent_validate::target_native::TargetRefuterRefusal
 impl core::fmt::Display for antecedent_validate::DiscreteKernelSensitivityError
 impl core::fmt::Display for antecedent_validate::FixedGraphSensitivityError
 impl core::fmt::Display for antecedent_validate::JointSensitivityError
 impl core::fmt::Display for antecedent_validate::MsmSensitivityError
+impl core::fmt::Display for antecedent_validate::StalenessError
+impl core::fmt::Display for antecedent_validate::TargetCertificationError
 impl core::fmt::Display for antecedent_validate::ValidationError
 impl core::fmt::Display for antecedent_validate::ValidatorId
 impl core::fmt::Display for antecedent_validate::ZTransportSensitivityError
 impl core::fmt::Display for antecedent_validate::predictive_assessment::PredictiveAssessmentError
+impl core::fmt::Display for antecedent_validate::target_native::TargetRefitError
+impl core::hash::Hash for antecedent_validate::EffectScale
+impl core::hash::Hash for antecedent_validate::FindingKind
 impl core::hash::Hash for antecedent_validate::JointFactor
 impl core::hash::Hash for antecedent_validate::JointSensitivityLimits
+impl core::hash::Hash for antecedent_validate::MatchedSetScore
 impl core::hash::Hash for antecedent_validate::MsmTippingDirection
+impl core::hash::Hash for antecedent_validate::Multiplicity
 impl core::hash::Hash for antecedent_validate::PredictiveCheckKind
 impl core::hash::Hash for antecedent_validate::PredictiveNoise
+impl core::hash::Hash for antecedent_validate::Recommendation
+impl core::hash::Hash for antecedent_validate::RefutationTarget
+impl core::hash::Hash for antecedent_validate::SensitivityAssumption
+impl core::hash::Hash for antecedent_validate::TargetFamily
+impl core::hash::Hash for antecedent_validate::TargetQuadrant
+impl core::hash::Hash for antecedent_validate::TargetRefuterKind
+impl core::hash::Hash for antecedent_validate::TargetSuite
 impl core::hash::Hash for antecedent_validate::TippingStatus
 impl core::hash::Hash for antecedent_validate::ValidatorId
 impl core::hash::Hash for antecedent_validate::bayesian_checks::ResidualStatistic
@@ -482,25 +656,44 @@ impl core::hash::Hash for antecedent_validate::predictive_assessment::Predictive
 impl core::hash::Hash for antecedent_validate::predictive_assessment::ProviderIdentity
 impl core::hash::Hash for antecedent_validate::predictive_assessment::ProviderTrustLabel
 impl core::hash::Hash for antecedent_validate::predictive_assessment::ScoreKind
+impl core::hash::Hash for antecedent_validate::target_native::JointStatisticKind
+impl core::hash::Hash for antecedent_validate::target_native::RefuterExpectation
 impl core::marker::Copy for antecedent_validate::AxisTipping
+impl core::marker::Copy for antecedent_validate::BenchmarkBound
 impl core::marker::Copy for antecedent_validate::ConflictPolicy
 impl core::marker::Copy for antecedent_validate::ConflictSignals
+impl core::marker::Copy for antecedent_validate::EValueBounds
+impl core::marker::Copy for antecedent_validate::EffectInterval
+impl core::marker::Copy for antecedent_validate::EffectScale
+impl core::marker::Copy for antecedent_validate::FindingKind
 impl core::marker::Copy for antecedent_validate::FrontierPoint
 impl core::marker::Copy for antecedent_validate::JointFactor
 impl core::marker::Copy for antecedent_validate::JointFactorBound
 impl core::marker::Copy for antecedent_validate::JointSensitivityLimits
 impl core::marker::Copy for antecedent_validate::JointSensitivityUncertainty
+impl core::marker::Copy for antecedent_validate::LinearAdjustmentSummary
 impl core::marker::Copy for antecedent_validate::LinkStability
+impl core::marker::Copy for antecedent_validate::MatchedSetBound
+impl core::marker::Copy for antecedent_validate::MatchedSetScore
+impl core::marker::Copy for antecedent_validate::MediationSensitivitySummary
 impl core::marker::Copy for antecedent_validate::MsmPoint
 impl core::marker::Copy for antecedent_validate::MsmSensitivityUncertainty
 impl core::marker::Copy for antecedent_validate::MsmTipping
 impl core::marker::Copy for antecedent_validate::MsmTippingDirection
+impl core::marker::Copy for antecedent_validate::Multiplicity
 impl core::marker::Copy for antecedent_validate::NullTransform
 impl core::marker::Copy for antecedent_validate::PlaceboMode
 impl core::marker::Copy for antecedent_validate::PredictiveCheckKind
 impl core::marker::Copy for antecedent_validate::PredictiveNoise
 impl core::marker::Copy for antecedent_validate::QueryRefutationPlan
+impl core::marker::Copy for antecedent_validate::RangePoint
+impl core::marker::Copy for antecedent_validate::Recommendation
+impl core::marker::Copy for antecedent_validate::SensitivityAssumption
 impl core::marker::Copy for antecedent_validate::SerialDiscrepancy
+impl core::marker::Copy for antecedent_validate::TargetFamily
+impl core::marker::Copy for antecedent_validate::TargetQuadrant
+impl core::marker::Copy for antecedent_validate::TargetRefuterKind
+impl core::marker::Copy for antecedent_validate::TargetSuite
 impl core::marker::Copy for antecedent_validate::TippingBracket
 impl core::marker::Copy for antecedent_validate::TippingStatus
 impl core::marker::Copy for antecedent_validate::UndirectedLinkStability
@@ -515,8 +708,16 @@ impl core::marker::Copy for antecedent_validate::predictive_assessment::Observat
 impl core::marker::Copy for antecedent_validate::predictive_assessment::OverlapPolicy
 impl core::marker::Copy for antecedent_validate::predictive_assessment::ProviderTrustLabel
 impl core::marker::Copy for antecedent_validate::predictive_assessment::ScoreKind
+impl core::marker::Copy for antecedent_validate::target_native::DerivativeCheckPoint
+impl core::marker::Copy for antecedent_validate::target_native::JointStatistic
+impl core::marker::Copy for antecedent_validate::target_native::JointStatisticKind
+impl core::marker::Copy for antecedent_validate::target_native::RefuterExpectation
+impl core::marker::Copy for antecedent_validate::target_native::TargetPerturbation
+impl core::marker::Copy for antecedent_validate::target_native::TargetRefutationConfig
 impl core::marker::Freeze for antecedent_validate::AlphaThresholdSensitivity [auto]
+impl core::marker::Freeze for antecedent_validate::AssumptionRange [auto]
 impl core::marker::Freeze for antecedent_validate::AxisTipping [auto]
+impl core::marker::Freeze for antecedent_validate::BenchmarkBound [auto]
 impl core::marker::Freeze for antecedent_validate::BlockBootstrapStability [auto]
 impl core::marker::Freeze for antecedent_validate::BootstrapRefute [auto]
 impl core::marker::Freeze for antecedent_validate::CiTestSensitivity [auto]
@@ -531,10 +732,14 @@ impl core::marker::Freeze for antecedent_validate::DiscreteKernelSensitivityErro
 impl core::marker::Freeze for antecedent_validate::DiscreteKernelSensitivityResult [auto]
 impl core::marker::Freeze for antecedent_validate::DummyOutcome [auto]
 impl core::marker::Freeze for antecedent_validate::EValue [auto]
+impl core::marker::Freeze for antecedent_validate::EValueBounds [auto]
+impl core::marker::Freeze for antecedent_validate::EffectInterval [auto]
+impl core::marker::Freeze for antecedent_validate::EffectScale [auto]
 impl core::marker::Freeze for antecedent_validate::EnvironmentHoldout [auto]
 impl core::marker::Freeze for antecedent_validate::EnvironmentHoldoutReport [auto]
 impl core::marker::Freeze for antecedent_validate::FalsePositiveCheck [auto]
 impl core::marker::Freeze for antecedent_validate::FalsePositiveCheckReport [auto]
+impl core::marker::Freeze for antecedent_validate::FindingKind [auto]
 impl core::marker::Freeze for antecedent_validate::FixedGraphConditionalMechanismSensitivityResult [auto]
 impl core::marker::Freeze for antecedent_validate::FixedGraphMechanismSensitivityResult [auto]
 impl core::marker::Freeze for antecedent_validate::FixedGraphMechanismSensitivitySpec [auto]
@@ -552,8 +757,14 @@ impl core::marker::Freeze for antecedent_validate::JointSensitivityRange [auto]
 impl core::marker::Freeze for antecedent_validate::JointSensitivityReceipt [auto]
 impl core::marker::Freeze for antecedent_validate::JointSensitivityUncertainty [auto]
 impl core::marker::Freeze for antecedent_validate::LagWindowSensitivity [auto]
+impl core::marker::Freeze for antecedent_validate::LinearAdjustmentFit [auto]
+impl core::marker::Freeze for antecedent_validate::LinearAdjustmentSummary [auto]
 impl core::marker::Freeze for antecedent_validate::LinearSensitivity [auto]
 impl core::marker::Freeze for antecedent_validate::LinkStability [auto]
+impl core::marker::Freeze for antecedent_validate::MatchedSet [auto]
+impl core::marker::Freeze for antecedent_validate::MatchedSetBound [auto]
+impl core::marker::Freeze for antecedent_validate::MatchedSetScore [auto]
+impl core::marker::Freeze for antecedent_validate::MediationSensitivitySummary [auto]
 impl core::marker::Freeze for antecedent_validate::MsmOutcomeLaw [auto]
 impl core::marker::Freeze for antecedent_validate::MsmPoint [auto]
 impl core::marker::Freeze for antecedent_validate::MsmSensitivityError [auto]
@@ -563,6 +774,7 @@ impl core::marker::Freeze for antecedent_validate::MsmSensitivityUncertainty [au
 impl core::marker::Freeze for antecedent_validate::MsmStratum [auto]
 impl core::marker::Freeze for antecedent_validate::MsmTipping [auto]
 impl core::marker::Freeze for antecedent_validate::MsmTippingDirection [auto]
+impl core::marker::Freeze for antecedent_validate::Multiplicity [auto]
 impl core::marker::Freeze for antecedent_validate::NeighborhoodSensitivity [auto]
 impl core::marker::Freeze for antecedent_validate::NonparametricSensitivity [auto]
 impl core::marker::Freeze for antecedent_validate::NullCalibrationReport [auto]
@@ -582,17 +794,36 @@ impl core::marker::Freeze for antecedent_validate::PriorPredictiveCheck [auto]
 impl core::marker::Freeze for antecedent_validate::PriorSensitivity [auto]
 impl core::marker::Freeze for antecedent_validate::QueryRefutationPlan [auto]
 impl core::marker::Freeze for antecedent_validate::RandomCommonCause [auto]
+impl core::marker::Freeze for antecedent_validate::RangePoint [auto]
+impl core::marker::Freeze for antecedent_validate::Recommendation [auto]
 impl core::marker::Freeze for antecedent_validate::RefutationReport [auto]
+impl core::marker::Freeze for antecedent_validate::RefutationTarget [auto]
 impl core::marker::Freeze for antecedent_validate::RegimeStability [auto]
 impl core::marker::Freeze for antecedent_validate::RegimeStabilityReport [auto]
 impl core::marker::Freeze for antecedent_validate::RieszSensitivity [auto]
 impl core::marker::Freeze for antecedent_validate::SbcReport [auto]
+impl core::marker::Freeze for antecedent_validate::SensitivityAssumption [auto]
 impl core::marker::Freeze for antecedent_validate::SerialDiscrepancy [auto]
+impl core::marker::Freeze for antecedent_validate::SignedRankSensitivity [auto]
 impl core::marker::Freeze for antecedent_validate::SimulationBasedCalibration [auto]
 impl core::marker::Freeze for antecedent_validate::SourceOutcomeKernelRow [auto]
 impl core::marker::Freeze for antecedent_validate::SourceParentLawRow [auto]
+impl core::marker::Freeze for antecedent_validate::StalenessBaseline [auto]
+impl core::marker::Freeze for antecedent_validate::StalenessError [auto]
+impl core::marker::Freeze for antecedent_validate::StalenessFinding [auto]
+impl core::marker::Freeze for antecedent_validate::StalenessPlan [auto]
+impl core::marker::Freeze for antecedent_validate::StalenessPolicy [auto]
+impl core::marker::Freeze for antecedent_validate::StalenessReport [auto]
 impl core::marker::Freeze for antecedent_validate::SyntheticNullCalibration [auto]
+impl core::marker::Freeze for antecedent_validate::TargetCertificate [auto]
+impl core::marker::Freeze for antecedent_validate::TargetCertificationError [auto]
+impl core::marker::Freeze for antecedent_validate::TargetFamily [auto]
 impl core::marker::Freeze for antecedent_validate::TargetParentLawRow [auto]
+impl core::marker::Freeze for antecedent_validate::TargetQuadrant [auto]
+impl core::marker::Freeze for antecedent_validate::TargetRefutationPlan [auto]
+impl core::marker::Freeze for antecedent_validate::TargetRefutationReport [auto]
+impl core::marker::Freeze for antecedent_validate::TargetRefuterKind [auto]
+impl core::marker::Freeze for antecedent_validate::TargetSuite [auto]
 impl core::marker::Freeze for antecedent_validate::TippingBracket [auto]
 impl core::marker::Freeze for antecedent_validate::TippingStatus [auto]
 impl core::marker::Freeze for antecedent_validate::UndirectedLinkStability [auto]
@@ -645,8 +876,22 @@ impl core::marker::Freeze for antecedent_validate::predictive_assessment::ScoreI
 impl core::marker::Freeze for antecedent_validate::predictive_assessment::ScoreKind [auto]
 impl core::marker::Freeze for antecedent_validate::predictive_assessment::ScoreSummary [auto]
 impl core::marker::Freeze for antecedent_validate::predictive_assessment::ValidationDesign [auto]
+impl core::marker::Freeze for antecedent_validate::rosenbaum::SignedRankStatistic [auto]
+impl core::marker::Freeze for antecedent_validate::target_native::DerivativeCheckPoint [auto]
+impl core::marker::Freeze for antecedent_validate::target_native::DerivativeConsistency [auto]
+impl core::marker::Freeze for antecedent_validate::target_native::JointStatistic [auto]
+impl core::marker::Freeze for antecedent_validate::target_native::JointStatisticKind [auto]
+impl core::marker::Freeze for antecedent_validate::target_native::LocalLinearity [auto]
+impl core::marker::Freeze for antecedent_validate::target_native::RefuterExpectation [auto]
+impl core::marker::Freeze for antecedent_validate::target_native::TargetPerturbation [auto]
+impl core::marker::Freeze for antecedent_validate::target_native::TargetRefitError [auto]
+impl core::marker::Freeze for antecedent_validate::target_native::TargetRefutationConfig [auto]
+impl core::marker::Freeze for antecedent_validate::target_native::TargetRefutationRun [auto]
+impl core::marker::Freeze for antecedent_validate::target_native::TargetRefuterRefusal [auto]
 impl core::marker::Send for antecedent_validate::AlphaThresholdSensitivity [auto]
+impl core::marker::Send for antecedent_validate::AssumptionRange [auto]
 impl core::marker::Send for antecedent_validate::AxisTipping [auto]
+impl core::marker::Send for antecedent_validate::BenchmarkBound [auto]
 impl core::marker::Send for antecedent_validate::BlockBootstrapStability [auto]
 impl core::marker::Send for antecedent_validate::BootstrapRefute [auto]
 impl core::marker::Send for antecedent_validate::CiTestSensitivity [auto]
@@ -661,10 +906,14 @@ impl core::marker::Send for antecedent_validate::DiscreteKernelSensitivityError 
 impl core::marker::Send for antecedent_validate::DiscreteKernelSensitivityResult [auto]
 impl core::marker::Send for antecedent_validate::DummyOutcome [auto]
 impl core::marker::Send for antecedent_validate::EValue [auto]
+impl core::marker::Send for antecedent_validate::EValueBounds [auto]
+impl core::marker::Send for antecedent_validate::EffectInterval [auto]
+impl core::marker::Send for antecedent_validate::EffectScale [auto]
 impl core::marker::Send for antecedent_validate::EnvironmentHoldout [auto]
 impl core::marker::Send for antecedent_validate::EnvironmentHoldoutReport [auto]
 impl core::marker::Send for antecedent_validate::FalsePositiveCheck [auto]
 impl core::marker::Send for antecedent_validate::FalsePositiveCheckReport [auto]
+impl core::marker::Send for antecedent_validate::FindingKind [auto]
 impl core::marker::Send for antecedent_validate::FixedGraphConditionalMechanismSensitivityResult [auto]
 impl core::marker::Send for antecedent_validate::FixedGraphMechanismSensitivityResult [auto]
 impl core::marker::Send for antecedent_validate::FixedGraphMechanismSensitivitySpec [auto]
@@ -682,8 +931,14 @@ impl core::marker::Send for antecedent_validate::JointSensitivityRange [auto]
 impl core::marker::Send for antecedent_validate::JointSensitivityReceipt [auto]
 impl core::marker::Send for antecedent_validate::JointSensitivityUncertainty [auto]
 impl core::marker::Send for antecedent_validate::LagWindowSensitivity [auto]
+impl core::marker::Send for antecedent_validate::LinearAdjustmentFit [auto]
+impl core::marker::Send for antecedent_validate::LinearAdjustmentSummary [auto]
 impl core::marker::Send for antecedent_validate::LinearSensitivity [auto]
 impl core::marker::Send for antecedent_validate::LinkStability [auto]
+impl core::marker::Send for antecedent_validate::MatchedSet [auto]
+impl core::marker::Send for antecedent_validate::MatchedSetBound [auto]
+impl core::marker::Send for antecedent_validate::MatchedSetScore [auto]
+impl core::marker::Send for antecedent_validate::MediationSensitivitySummary [auto]
 impl core::marker::Send for antecedent_validate::MsmOutcomeLaw [auto]
 impl core::marker::Send for antecedent_validate::MsmPoint [auto]
 impl core::marker::Send for antecedent_validate::MsmSensitivityError [auto]
@@ -693,6 +948,7 @@ impl core::marker::Send for antecedent_validate::MsmSensitivityUncertainty [auto
 impl core::marker::Send for antecedent_validate::MsmStratum [auto]
 impl core::marker::Send for antecedent_validate::MsmTipping [auto]
 impl core::marker::Send for antecedent_validate::MsmTippingDirection [auto]
+impl core::marker::Send for antecedent_validate::Multiplicity [auto]
 impl core::marker::Send for antecedent_validate::NeighborhoodSensitivity [auto]
 impl core::marker::Send for antecedent_validate::NonparametricSensitivity [auto]
 impl core::marker::Send for antecedent_validate::NullCalibrationReport [auto]
@@ -712,17 +968,36 @@ impl core::marker::Send for antecedent_validate::PriorPredictiveCheck [auto]
 impl core::marker::Send for antecedent_validate::PriorSensitivity [auto]
 impl core::marker::Send for antecedent_validate::QueryRefutationPlan [auto]
 impl core::marker::Send for antecedent_validate::RandomCommonCause [auto]
+impl core::marker::Send for antecedent_validate::RangePoint [auto]
+impl core::marker::Send for antecedent_validate::Recommendation [auto]
 impl core::marker::Send for antecedent_validate::RefutationReport [auto]
+impl core::marker::Send for antecedent_validate::RefutationTarget [auto]
 impl core::marker::Send for antecedent_validate::RegimeStability [auto]
 impl core::marker::Send for antecedent_validate::RegimeStabilityReport [auto]
 impl core::marker::Send for antecedent_validate::RieszSensitivity [auto]
 impl core::marker::Send for antecedent_validate::SbcReport [auto]
+impl core::marker::Send for antecedent_validate::SensitivityAssumption [auto]
 impl core::marker::Send for antecedent_validate::SerialDiscrepancy [auto]
+impl core::marker::Send for antecedent_validate::SignedRankSensitivity [auto]
 impl core::marker::Send for antecedent_validate::SimulationBasedCalibration [auto]
 impl core::marker::Send for antecedent_validate::SourceOutcomeKernelRow [auto]
 impl core::marker::Send for antecedent_validate::SourceParentLawRow [auto]
+impl core::marker::Send for antecedent_validate::StalenessBaseline [auto]
+impl core::marker::Send for antecedent_validate::StalenessError [auto]
+impl core::marker::Send for antecedent_validate::StalenessFinding [auto]
+impl core::marker::Send for antecedent_validate::StalenessPlan [auto]
+impl core::marker::Send for antecedent_validate::StalenessPolicy [auto]
+impl core::marker::Send for antecedent_validate::StalenessReport [auto]
 impl core::marker::Send for antecedent_validate::SyntheticNullCalibration [auto]
+impl core::marker::Send for antecedent_validate::TargetCertificate [auto]
+impl core::marker::Send for antecedent_validate::TargetCertificationError [auto]
+impl core::marker::Send for antecedent_validate::TargetFamily [auto]
 impl core::marker::Send for antecedent_validate::TargetParentLawRow [auto]
+impl core::marker::Send for antecedent_validate::TargetQuadrant [auto]
+impl core::marker::Send for antecedent_validate::TargetRefutationPlan [auto]
+impl core::marker::Send for antecedent_validate::TargetRefutationReport [auto]
+impl core::marker::Send for antecedent_validate::TargetRefuterKind [auto]
+impl core::marker::Send for antecedent_validate::TargetSuite [auto]
 impl core::marker::Send for antecedent_validate::TippingBracket [auto]
 impl core::marker::Send for antecedent_validate::TippingStatus [auto]
 impl core::marker::Send for antecedent_validate::UndirectedLinkStability [auto]
@@ -774,12 +1049,30 @@ impl core::marker::Send for antecedent_validate::predictive_assessment::ScoreInt
 impl core::marker::Send for antecedent_validate::predictive_assessment::ScoreKind [auto]
 impl core::marker::Send for antecedent_validate::predictive_assessment::ScoreSummary [auto]
 impl core::marker::Send for antecedent_validate::predictive_assessment::ValidationDesign [auto]
+impl core::marker::Send for antecedent_validate::rosenbaum::SignedRankStatistic [auto]
+impl core::marker::Send for antecedent_validate::target_native::DerivativeCheckPoint [auto]
+impl core::marker::Send for antecedent_validate::target_native::DerivativeConsistency [auto]
+impl core::marker::Send for antecedent_validate::target_native::JointStatistic [auto]
+impl core::marker::Send for antecedent_validate::target_native::JointStatisticKind [auto]
+impl core::marker::Send for antecedent_validate::target_native::LocalLinearity [auto]
+impl core::marker::Send for antecedent_validate::target_native::RefuterExpectation [auto]
+impl core::marker::Send for antecedent_validate::target_native::TargetPerturbation [auto]
+impl core::marker::Send for antecedent_validate::target_native::TargetRefitError [auto]
+impl core::marker::Send for antecedent_validate::target_native::TargetRefutationConfig [auto]
+impl core::marker::Send for antecedent_validate::target_native::TargetRefutationRun [auto]
+impl core::marker::Send for antecedent_validate::target_native::TargetRefuterRefusal [auto]
+impl core::marker::StructuralPartialEq for antecedent_validate::AssumptionRange
 impl core::marker::StructuralPartialEq for antecedent_validate::AxisTipping
+impl core::marker::StructuralPartialEq for antecedent_validate::BenchmarkBound
 impl core::marker::StructuralPartialEq for antecedent_validate::ConflictPolicy
 impl core::marker::StructuralPartialEq for antecedent_validate::ConflictSignals
 impl core::marker::StructuralPartialEq for antecedent_validate::DiscreteKernelOptimizationReceipt
 impl core::marker::StructuralPartialEq for antecedent_validate::DiscreteKernelSensitivityError
 impl core::marker::StructuralPartialEq for antecedent_validate::DiscreteKernelSensitivityResult
+impl core::marker::StructuralPartialEq for antecedent_validate::EValueBounds
+impl core::marker::StructuralPartialEq for antecedent_validate::EffectInterval
+impl core::marker::StructuralPartialEq for antecedent_validate::EffectScale
+impl core::marker::StructuralPartialEq for antecedent_validate::FindingKind
 impl core::marker::StructuralPartialEq for antecedent_validate::FixedGraphConditionalMechanismSensitivityResult
 impl core::marker::StructuralPartialEq for antecedent_validate::FixedGraphMechanismSensitivityResult
 impl core::marker::StructuralPartialEq for antecedent_validate::FixedGraphRootMechanismSensitivityResult
@@ -795,7 +1088,13 @@ impl core::marker::StructuralPartialEq for antecedent_validate::JointSensitivity
 impl core::marker::StructuralPartialEq for antecedent_validate::JointSensitivityRange
 impl core::marker::StructuralPartialEq for antecedent_validate::JointSensitivityReceipt
 impl core::marker::StructuralPartialEq for antecedent_validate::JointSensitivityUncertainty
+impl core::marker::StructuralPartialEq for antecedent_validate::LinearAdjustmentFit
+impl core::marker::StructuralPartialEq for antecedent_validate::LinearAdjustmentSummary
 impl core::marker::StructuralPartialEq for antecedent_validate::LinkStability
+impl core::marker::StructuralPartialEq for antecedent_validate::MatchedSet
+impl core::marker::StructuralPartialEq for antecedent_validate::MatchedSetBound
+impl core::marker::StructuralPartialEq for antecedent_validate::MatchedSetScore
+impl core::marker::StructuralPartialEq for antecedent_validate::MediationSensitivitySummary
 impl core::marker::StructuralPartialEq for antecedent_validate::MsmOutcomeLaw
 impl core::marker::StructuralPartialEq for antecedent_validate::MsmPoint
 impl core::marker::StructuralPartialEq for antecedent_validate::MsmSensitivityError
@@ -805,12 +1104,31 @@ impl core::marker::StructuralPartialEq for antecedent_validate::MsmSensitivityUn
 impl core::marker::StructuralPartialEq for antecedent_validate::MsmStratum
 impl core::marker::StructuralPartialEq for antecedent_validate::MsmTipping
 impl core::marker::StructuralPartialEq for antecedent_validate::MsmTippingDirection
+impl core::marker::StructuralPartialEq for antecedent_validate::Multiplicity
 impl core::marker::StructuralPartialEq for antecedent_validate::NullTransform
 impl core::marker::StructuralPartialEq for antecedent_validate::PlaceboMode
 impl core::marker::StructuralPartialEq for antecedent_validate::PredictiveCheckKind
 impl core::marker::StructuralPartialEq for antecedent_validate::PredictiveNoise
 impl core::marker::StructuralPartialEq for antecedent_validate::QueryRefutationPlan
+impl core::marker::StructuralPartialEq for antecedent_validate::RangePoint
+impl core::marker::StructuralPartialEq for antecedent_validate::Recommendation
+impl core::marker::StructuralPartialEq for antecedent_validate::RefutationTarget
+impl core::marker::StructuralPartialEq for antecedent_validate::SensitivityAssumption
 impl core::marker::StructuralPartialEq for antecedent_validate::SerialDiscrepancy
+impl core::marker::StructuralPartialEq for antecedent_validate::SignedRankSensitivity
+impl core::marker::StructuralPartialEq for antecedent_validate::StalenessBaseline
+impl core::marker::StructuralPartialEq for antecedent_validate::StalenessFinding
+impl core::marker::StructuralPartialEq for antecedent_validate::StalenessPlan
+impl core::marker::StructuralPartialEq for antecedent_validate::StalenessPolicy
+impl core::marker::StructuralPartialEq for antecedent_validate::StalenessReport
+impl core::marker::StructuralPartialEq for antecedent_validate::TargetCertificate
+impl core::marker::StructuralPartialEq for antecedent_validate::TargetCertificationError
+impl core::marker::StructuralPartialEq for antecedent_validate::TargetFamily
+impl core::marker::StructuralPartialEq for antecedent_validate::TargetQuadrant
+impl core::marker::StructuralPartialEq for antecedent_validate::TargetRefutationPlan
+impl core::marker::StructuralPartialEq for antecedent_validate::TargetRefutationReport
+impl core::marker::StructuralPartialEq for antecedent_validate::TargetRefuterKind
+impl core::marker::StructuralPartialEq for antecedent_validate::TargetSuite
 impl core::marker::StructuralPartialEq for antecedent_validate::TippingBracket
 impl core::marker::StructuralPartialEq for antecedent_validate::TippingStatus
 impl core::marker::StructuralPartialEq for antecedent_validate::UndirectedLinkStability
@@ -858,8 +1176,22 @@ impl core::marker::StructuralPartialEq for antecedent_validate::predictive_asses
 impl core::marker::StructuralPartialEq for antecedent_validate::predictive_assessment::ScoreKind
 impl core::marker::StructuralPartialEq for antecedent_validate::predictive_assessment::ScoreSummary
 impl core::marker::StructuralPartialEq for antecedent_validate::predictive_assessment::ValidationDesign
+impl core::marker::StructuralPartialEq for antecedent_validate::rosenbaum::SignedRankStatistic
+impl core::marker::StructuralPartialEq for antecedent_validate::target_native::DerivativeCheckPoint
+impl core::marker::StructuralPartialEq for antecedent_validate::target_native::DerivativeConsistency
+impl core::marker::StructuralPartialEq for antecedent_validate::target_native::JointStatistic
+impl core::marker::StructuralPartialEq for antecedent_validate::target_native::JointStatisticKind
+impl core::marker::StructuralPartialEq for antecedent_validate::target_native::LocalLinearity
+impl core::marker::StructuralPartialEq for antecedent_validate::target_native::RefuterExpectation
+impl core::marker::StructuralPartialEq for antecedent_validate::target_native::TargetPerturbation
+impl core::marker::StructuralPartialEq for antecedent_validate::target_native::TargetRefitError
+impl core::marker::StructuralPartialEq for antecedent_validate::target_native::TargetRefutationConfig
+impl core::marker::StructuralPartialEq for antecedent_validate::target_native::TargetRefutationRun
+impl core::marker::StructuralPartialEq for antecedent_validate::target_native::TargetRefuterRefusal
 impl core::marker::Sync for antecedent_validate::AlphaThresholdSensitivity [auto]
+impl core::marker::Sync for antecedent_validate::AssumptionRange [auto]
 impl core::marker::Sync for antecedent_validate::AxisTipping [auto]
+impl core::marker::Sync for antecedent_validate::BenchmarkBound [auto]
 impl core::marker::Sync for antecedent_validate::BlockBootstrapStability [auto]
 impl core::marker::Sync for antecedent_validate::BootstrapRefute [auto]
 impl core::marker::Sync for antecedent_validate::CiTestSensitivity [auto]
@@ -874,10 +1206,14 @@ impl core::marker::Sync for antecedent_validate::DiscreteKernelSensitivityError 
 impl core::marker::Sync for antecedent_validate::DiscreteKernelSensitivityResult [auto]
 impl core::marker::Sync for antecedent_validate::DummyOutcome [auto]
 impl core::marker::Sync for antecedent_validate::EValue [auto]
+impl core::marker::Sync for antecedent_validate::EValueBounds [auto]
+impl core::marker::Sync for antecedent_validate::EffectInterval [auto]
+impl core::marker::Sync for antecedent_validate::EffectScale [auto]
 impl core::marker::Sync for antecedent_validate::EnvironmentHoldout [auto]
 impl core::marker::Sync for antecedent_validate::EnvironmentHoldoutReport [auto]
 impl core::marker::Sync for antecedent_validate::FalsePositiveCheck [auto]
 impl core::marker::Sync for antecedent_validate::FalsePositiveCheckReport [auto]
+impl core::marker::Sync for antecedent_validate::FindingKind [auto]
 impl core::marker::Sync for antecedent_validate::FixedGraphConditionalMechanismSensitivityResult [auto]
 impl core::marker::Sync for antecedent_validate::FixedGraphMechanismSensitivityResult [auto]
 impl core::marker::Sync for antecedent_validate::FixedGraphMechanismSensitivitySpec [auto]
@@ -895,8 +1231,14 @@ impl core::marker::Sync for antecedent_validate::JointSensitivityRange [auto]
 impl core::marker::Sync for antecedent_validate::JointSensitivityReceipt [auto]
 impl core::marker::Sync for antecedent_validate::JointSensitivityUncertainty [auto]
 impl core::marker::Sync for antecedent_validate::LagWindowSensitivity [auto]
+impl core::marker::Sync for antecedent_validate::LinearAdjustmentFit [auto]
+impl core::marker::Sync for antecedent_validate::LinearAdjustmentSummary [auto]
 impl core::marker::Sync for antecedent_validate::LinearSensitivity [auto]
 impl core::marker::Sync for antecedent_validate::LinkStability [auto]
+impl core::marker::Sync for antecedent_validate::MatchedSet [auto]
+impl core::marker::Sync for antecedent_validate::MatchedSetBound [auto]
+impl core::marker::Sync for antecedent_validate::MatchedSetScore [auto]
+impl core::marker::Sync for antecedent_validate::MediationSensitivitySummary [auto]
 impl core::marker::Sync for antecedent_validate::MsmOutcomeLaw [auto]
 impl core::marker::Sync for antecedent_validate::MsmPoint [auto]
 impl core::marker::Sync for antecedent_validate::MsmSensitivityError [auto]
@@ -906,6 +1248,7 @@ impl core::marker::Sync for antecedent_validate::MsmSensitivityUncertainty [auto
 impl core::marker::Sync for antecedent_validate::MsmStratum [auto]
 impl core::marker::Sync for antecedent_validate::MsmTipping [auto]
 impl core::marker::Sync for antecedent_validate::MsmTippingDirection [auto]
+impl core::marker::Sync for antecedent_validate::Multiplicity [auto]
 impl core::marker::Sync for antecedent_validate::NeighborhoodSensitivity [auto]
 impl core::marker::Sync for antecedent_validate::NonparametricSensitivity [auto]
 impl core::marker::Sync for antecedent_validate::NullCalibrationReport [auto]
@@ -925,17 +1268,36 @@ impl core::marker::Sync for antecedent_validate::PriorPredictiveCheck [auto]
 impl core::marker::Sync for antecedent_validate::PriorSensitivity [auto]
 impl core::marker::Sync for antecedent_validate::QueryRefutationPlan [auto]
 impl core::marker::Sync for antecedent_validate::RandomCommonCause [auto]
+impl core::marker::Sync for antecedent_validate::RangePoint [auto]
+impl core::marker::Sync for antecedent_validate::Recommendation [auto]
 impl core::marker::Sync for antecedent_validate::RefutationReport [auto]
+impl core::marker::Sync for antecedent_validate::RefutationTarget [auto]
 impl core::marker::Sync for antecedent_validate::RegimeStability [auto]
 impl core::marker::Sync for antecedent_validate::RegimeStabilityReport [auto]
 impl core::marker::Sync for antecedent_validate::RieszSensitivity [auto]
 impl core::marker::Sync for antecedent_validate::SbcReport [auto]
+impl core::marker::Sync for antecedent_validate::SensitivityAssumption [auto]
 impl core::marker::Sync for antecedent_validate::SerialDiscrepancy [auto]
+impl core::marker::Sync for antecedent_validate::SignedRankSensitivity [auto]
 impl core::marker::Sync for antecedent_validate::SimulationBasedCalibration [auto]
 impl core::marker::Sync for antecedent_validate::SourceOutcomeKernelRow [auto]
 impl core::marker::Sync for antecedent_validate::SourceParentLawRow [auto]
+impl core::marker::Sync for antecedent_validate::StalenessBaseline [auto]
+impl core::marker::Sync for antecedent_validate::StalenessError [auto]
+impl core::marker::Sync for antecedent_validate::StalenessFinding [auto]
+impl core::marker::Sync for antecedent_validate::StalenessPlan [auto]
+impl core::marker::Sync for antecedent_validate::StalenessPolicy [auto]
+impl core::marker::Sync for antecedent_validate::StalenessReport [auto]
 impl core::marker::Sync for antecedent_validate::SyntheticNullCalibration [auto]
+impl core::marker::Sync for antecedent_validate::TargetCertificate [auto]
+impl core::marker::Sync for antecedent_validate::TargetCertificationError [auto]
+impl core::marker::Sync for antecedent_validate::TargetFamily [auto]
 impl core::marker::Sync for antecedent_validate::TargetParentLawRow [auto]
+impl core::marker::Sync for antecedent_validate::TargetQuadrant [auto]
+impl core::marker::Sync for antecedent_validate::TargetRefutationPlan [auto]
+impl core::marker::Sync for antecedent_validate::TargetRefutationReport [auto]
+impl core::marker::Sync for antecedent_validate::TargetRefuterKind [auto]
+impl core::marker::Sync for antecedent_validate::TargetSuite [auto]
 impl core::marker::Sync for antecedent_validate::TippingBracket [auto]
 impl core::marker::Sync for antecedent_validate::TippingStatus [auto]
 impl core::marker::Sync for antecedent_validate::UndirectedLinkStability [auto]
@@ -987,8 +1349,22 @@ impl core::marker::Sync for antecedent_validate::predictive_assessment::ScoreInt
 impl core::marker::Sync for antecedent_validate::predictive_assessment::ScoreKind [auto]
 impl core::marker::Sync for antecedent_validate::predictive_assessment::ScoreSummary [auto]
 impl core::marker::Sync for antecedent_validate::predictive_assessment::ValidationDesign [auto]
+impl core::marker::Sync for antecedent_validate::rosenbaum::SignedRankStatistic [auto]
+impl core::marker::Sync for antecedent_validate::target_native::DerivativeCheckPoint [auto]
+impl core::marker::Sync for antecedent_validate::target_native::DerivativeConsistency [auto]
+impl core::marker::Sync for antecedent_validate::target_native::JointStatistic [auto]
+impl core::marker::Sync for antecedent_validate::target_native::JointStatisticKind [auto]
+impl core::marker::Sync for antecedent_validate::target_native::LocalLinearity [auto]
+impl core::marker::Sync for antecedent_validate::target_native::RefuterExpectation [auto]
+impl core::marker::Sync for antecedent_validate::target_native::TargetPerturbation [auto]
+impl core::marker::Sync for antecedent_validate::target_native::TargetRefitError [auto]
+impl core::marker::Sync for antecedent_validate::target_native::TargetRefutationConfig [auto]
+impl core::marker::Sync for antecedent_validate::target_native::TargetRefutationRun [auto]
+impl core::marker::Sync for antecedent_validate::target_native::TargetRefuterRefusal [auto]
 impl core::marker::Unpin for antecedent_validate::AlphaThresholdSensitivity [auto]
+impl core::marker::Unpin for antecedent_validate::AssumptionRange [auto]
 impl core::marker::Unpin for antecedent_validate::AxisTipping [auto]
+impl core::marker::Unpin for antecedent_validate::BenchmarkBound [auto]
 impl core::marker::Unpin for antecedent_validate::BlockBootstrapStability [auto]
 impl core::marker::Unpin for antecedent_validate::BootstrapRefute [auto]
 impl core::marker::Unpin for antecedent_validate::CiTestSensitivity [auto]
@@ -1003,10 +1379,14 @@ impl core::marker::Unpin for antecedent_validate::DiscreteKernelSensitivityError
 impl core::marker::Unpin for antecedent_validate::DiscreteKernelSensitivityResult [auto]
 impl core::marker::Unpin for antecedent_validate::DummyOutcome [auto]
 impl core::marker::Unpin for antecedent_validate::EValue [auto]
+impl core::marker::Unpin for antecedent_validate::EValueBounds [auto]
+impl core::marker::Unpin for antecedent_validate::EffectInterval [auto]
+impl core::marker::Unpin for antecedent_validate::EffectScale [auto]
 impl core::marker::Unpin for antecedent_validate::EnvironmentHoldout [auto]
 impl core::marker::Unpin for antecedent_validate::EnvironmentHoldoutReport [auto]
 impl core::marker::Unpin for antecedent_validate::FalsePositiveCheck [auto]
 impl core::marker::Unpin for antecedent_validate::FalsePositiveCheckReport [auto]
+impl core::marker::Unpin for antecedent_validate::FindingKind [auto]
 impl core::marker::Unpin for antecedent_validate::FixedGraphConditionalMechanismSensitivityResult [auto]
 impl core::marker::Unpin for antecedent_validate::FixedGraphMechanismSensitivityResult [auto]
 impl core::marker::Unpin for antecedent_validate::FixedGraphMechanismSensitivitySpec [auto]
@@ -1024,8 +1404,14 @@ impl core::marker::Unpin for antecedent_validate::JointSensitivityRange [auto]
 impl core::marker::Unpin for antecedent_validate::JointSensitivityReceipt [auto]
 impl core::marker::Unpin for antecedent_validate::JointSensitivityUncertainty [auto]
 impl core::marker::Unpin for antecedent_validate::LagWindowSensitivity [auto]
+impl core::marker::Unpin for antecedent_validate::LinearAdjustmentFit [auto]
+impl core::marker::Unpin for antecedent_validate::LinearAdjustmentSummary [auto]
 impl core::marker::Unpin for antecedent_validate::LinearSensitivity [auto]
 impl core::marker::Unpin for antecedent_validate::LinkStability [auto]
+impl core::marker::Unpin for antecedent_validate::MatchedSet [auto]
+impl core::marker::Unpin for antecedent_validate::MatchedSetBound [auto]
+impl core::marker::Unpin for antecedent_validate::MatchedSetScore [auto]
+impl core::marker::Unpin for antecedent_validate::MediationSensitivitySummary [auto]
 impl core::marker::Unpin for antecedent_validate::MsmOutcomeLaw [auto]
 impl core::marker::Unpin for antecedent_validate::MsmPoint [auto]
 impl core::marker::Unpin for antecedent_validate::MsmSensitivityError [auto]
@@ -1035,6 +1421,7 @@ impl core::marker::Unpin for antecedent_validate::MsmSensitivityUncertainty [aut
 impl core::marker::Unpin for antecedent_validate::MsmStratum [auto]
 impl core::marker::Unpin for antecedent_validate::MsmTipping [auto]
 impl core::marker::Unpin for antecedent_validate::MsmTippingDirection [auto]
+impl core::marker::Unpin for antecedent_validate::Multiplicity [auto]
 impl core::marker::Unpin for antecedent_validate::NeighborhoodSensitivity [auto]
 impl core::marker::Unpin for antecedent_validate::NonparametricSensitivity [auto]
 impl core::marker::Unpin for antecedent_validate::NullCalibrationReport [auto]
@@ -1054,17 +1441,36 @@ impl core::marker::Unpin for antecedent_validate::PriorPredictiveCheck [auto]
 impl core::marker::Unpin for antecedent_validate::PriorSensitivity [auto]
 impl core::marker::Unpin for antecedent_validate::QueryRefutationPlan [auto]
 impl core::marker::Unpin for antecedent_validate::RandomCommonCause [auto]
+impl core::marker::Unpin for antecedent_validate::RangePoint [auto]
+impl core::marker::Unpin for antecedent_validate::Recommendation [auto]
 impl core::marker::Unpin for antecedent_validate::RefutationReport [auto]
+impl core::marker::Unpin for antecedent_validate::RefutationTarget [auto]
 impl core::marker::Unpin for antecedent_validate::RegimeStability [auto]
 impl core::marker::Unpin for antecedent_validate::RegimeStabilityReport [auto]
 impl core::marker::Unpin for antecedent_validate::RieszSensitivity [auto]
 impl core::marker::Unpin for antecedent_validate::SbcReport [auto]
+impl core::marker::Unpin for antecedent_validate::SensitivityAssumption [auto]
 impl core::marker::Unpin for antecedent_validate::SerialDiscrepancy [auto]
+impl core::marker::Unpin for antecedent_validate::SignedRankSensitivity [auto]
 impl core::marker::Unpin for antecedent_validate::SimulationBasedCalibration [auto]
 impl core::marker::Unpin for antecedent_validate::SourceOutcomeKernelRow [auto]
 impl core::marker::Unpin for antecedent_validate::SourceParentLawRow [auto]
+impl core::marker::Unpin for antecedent_validate::StalenessBaseline [auto]
+impl core::marker::Unpin for antecedent_validate::StalenessError [auto]
+impl core::marker::Unpin for antecedent_validate::StalenessFinding [auto]
+impl core::marker::Unpin for antecedent_validate::StalenessPlan [auto]
+impl core::marker::Unpin for antecedent_validate::StalenessPolicy [auto]
+impl core::marker::Unpin for antecedent_validate::StalenessReport [auto]
 impl core::marker::Unpin for antecedent_validate::SyntheticNullCalibration [auto]
+impl core::marker::Unpin for antecedent_validate::TargetCertificate [auto]
+impl core::marker::Unpin for antecedent_validate::TargetCertificationError [auto]
+impl core::marker::Unpin for antecedent_validate::TargetFamily [auto]
 impl core::marker::Unpin for antecedent_validate::TargetParentLawRow [auto]
+impl core::marker::Unpin for antecedent_validate::TargetQuadrant [auto]
+impl core::marker::Unpin for antecedent_validate::TargetRefutationPlan [auto]
+impl core::marker::Unpin for antecedent_validate::TargetRefutationReport [auto]
+impl core::marker::Unpin for antecedent_validate::TargetRefuterKind [auto]
+impl core::marker::Unpin for antecedent_validate::TargetSuite [auto]
 impl core::marker::Unpin for antecedent_validate::TippingBracket [auto]
 impl core::marker::Unpin for antecedent_validate::TippingStatus [auto]
 impl core::marker::Unpin for antecedent_validate::UndirectedLinkStability [auto]
@@ -1117,7 +1523,21 @@ impl core::marker::Unpin for antecedent_validate::predictive_assessment::ScoreIn
 impl core::marker::Unpin for antecedent_validate::predictive_assessment::ScoreKind [auto]
 impl core::marker::Unpin for antecedent_validate::predictive_assessment::ScoreSummary [auto]
 impl core::marker::Unpin for antecedent_validate::predictive_assessment::ValidationDesign [auto]
+impl core::marker::Unpin for antecedent_validate::rosenbaum::SignedRankStatistic [auto]
+impl core::marker::Unpin for antecedent_validate::target_native::DerivativeCheckPoint [auto]
+impl core::marker::Unpin for antecedent_validate::target_native::DerivativeConsistency [auto]
+impl core::marker::Unpin for antecedent_validate::target_native::JointStatistic [auto]
+impl core::marker::Unpin for antecedent_validate::target_native::JointStatisticKind [auto]
+impl core::marker::Unpin for antecedent_validate::target_native::LocalLinearity [auto]
+impl core::marker::Unpin for antecedent_validate::target_native::RefuterExpectation [auto]
+impl core::marker::Unpin for antecedent_validate::target_native::TargetPerturbation [auto]
+impl core::marker::Unpin for antecedent_validate::target_native::TargetRefitError [auto]
+impl core::marker::Unpin for antecedent_validate::target_native::TargetRefutationConfig [auto]
+impl core::marker::Unpin for antecedent_validate::target_native::TargetRefutationRun [auto]
+impl core::marker::Unpin for antecedent_validate::target_native::TargetRefuterRefusal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::AssumptionRange [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::AxisTipping [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::BenchmarkBound [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::BootstrapRefute [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::ConfiguredValidator [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::ConflictPolicy [auto]
@@ -1130,8 +1550,12 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::DiscreteKe
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::DiscreteKernelSensitivityResult [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::DummyOutcome [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::EValue [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::EValueBounds [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::EffectInterval [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::EffectScale [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::EnvironmentHoldoutReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::FalsePositiveCheckReport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::FindingKind [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::FixedGraphConditionalMechanismSensitivityResult [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::FixedGraphMechanismSensitivityResult [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::FixedGraphMechanismSensitivitySpec [auto]
@@ -1148,8 +1572,14 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::JointSensi
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::JointSensitivityRange [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::JointSensitivityReceipt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::JointSensitivityUncertainty [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::LinearAdjustmentFit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::LinearAdjustmentSummary [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::LinearSensitivity [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::LinkStability [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::MatchedSet [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::MatchedSetBound [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::MatchedSetScore [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::MediationSensitivitySummary [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::MsmOutcomeLaw [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::MsmPoint [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::MsmSensitivityError [auto]
@@ -1159,6 +1589,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::MsmSensiti
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::MsmStratum [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::MsmTipping [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::MsmTippingDirection [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::Multiplicity [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::NeighborhoodSensitivity [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::NonparametricSensitivity [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::NullCalibrationReport [auto]
@@ -1177,15 +1608,34 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::PriorPredi
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::PriorSensitivity [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::QueryRefutationPlan [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::RandomCommonCause [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::RangePoint [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::Recommendation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::RefutationReport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::RefutationTarget [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::RegimeStabilityReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::RieszSensitivity [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::SbcReport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::SensitivityAssumption [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::SerialDiscrepancy [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::SignedRankSensitivity [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::SimulationBasedCalibration [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::SourceOutcomeKernelRow [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::SourceParentLawRow [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::StalenessBaseline [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::StalenessError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::StalenessFinding [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::StalenessPlan [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::StalenessPolicy [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::StalenessReport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::TargetCertificate [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::TargetCertificationError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::TargetFamily [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::TargetParentLawRow [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::TargetQuadrant [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::TargetRefutationPlan [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::TargetRefutationReport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::TargetRefuterKind [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::TargetSuite [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::TippingBracket [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::TippingStatus [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::UndirectedLinkStability [auto]
@@ -1236,7 +1686,21 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::predictive
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::predictive_assessment::ScoreKind [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::predictive_assessment::ScoreSummary [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::predictive_assessment::ValidationDesign [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::rosenbaum::SignedRankStatistic [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::target_native::DerivativeCheckPoint [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::target_native::DerivativeConsistency [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::target_native::JointStatistic [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::target_native::JointStatisticKind [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::target_native::LocalLinearity [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::target_native::RefuterExpectation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::target_native::TargetPerturbation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::target_native::TargetRefitError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::target_native::TargetRefutationConfig [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::target_native::TargetRefutationRun [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::target_native::TargetRefuterRefusal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::AssumptionRange [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::AxisTipping [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::BenchmarkBound [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::BootstrapRefute [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::ConfiguredValidator [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::ConflictPolicy [auto]
@@ -1249,8 +1713,12 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::DiscreteKerne
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::DiscreteKernelSensitivityResult [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::DummyOutcome [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::EValue [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::EValueBounds [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::EffectInterval [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::EffectScale [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::EnvironmentHoldoutReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::FalsePositiveCheckReport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::FindingKind [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::FixedGraphConditionalMechanismSensitivityResult [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::FixedGraphMechanismSensitivityResult [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::FixedGraphMechanismSensitivitySpec [auto]
@@ -1267,8 +1735,14 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::JointSensitiv
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::JointSensitivityRange [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::JointSensitivityReceipt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::JointSensitivityUncertainty [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::LinearAdjustmentFit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::LinearAdjustmentSummary [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::LinearSensitivity [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::LinkStability [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::MatchedSet [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::MatchedSetBound [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::MatchedSetScore [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::MediationSensitivitySummary [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::MsmOutcomeLaw [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::MsmPoint [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::MsmSensitivityError [auto]
@@ -1278,6 +1752,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::MsmSensitivit
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::MsmStratum [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::MsmTipping [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::MsmTippingDirection [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::Multiplicity [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::NeighborhoodSensitivity [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::NonparametricSensitivity [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::NullCalibrationReport [auto]
@@ -1296,15 +1771,34 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::PriorPredicti
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::PriorSensitivity [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::QueryRefutationPlan [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::RandomCommonCause [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::RangePoint [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::Recommendation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::RefutationReport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::RefutationTarget [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::RegimeStabilityReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::RieszSensitivity [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::SbcReport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::SensitivityAssumption [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::SerialDiscrepancy [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::SignedRankSensitivity [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::SimulationBasedCalibration [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::SourceOutcomeKernelRow [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::SourceParentLawRow [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::StalenessBaseline [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::StalenessError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::StalenessFinding [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::StalenessPlan [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::StalenessPolicy [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::StalenessReport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::TargetCertificate [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::TargetCertificationError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::TargetFamily [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::TargetParentLawRow [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::TargetQuadrant [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::TargetRefutationPlan [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::TargetRefutationReport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::TargetRefuterKind [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::TargetSuite [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::TippingBracket [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::TippingStatus [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::UndirectedLinkStability [auto]
@@ -1355,6 +1849,18 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::predictive_as
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::predictive_assessment::ScoreKind [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::predictive_assessment::ScoreSummary [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::predictive_assessment::ValidationDesign [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::rosenbaum::SignedRankStatistic [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::target_native::DerivativeCheckPoint [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::target_native::DerivativeConsistency [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::target_native::JointStatistic [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::target_native::JointStatisticKind [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::target_native::LocalLinearity [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::target_native::RefuterExpectation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::target_native::TargetPerturbation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::target_native::TargetRefitError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::target_native::TargetRefutationConfig [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::target_native::TargetRefutationRun [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::target_native::TargetRefuterRefusal [auto]
 impl<'a> !core::marker::Send for antecedent_validate::PreparedRefutation<'a> [auto]
 impl<'a> !core::marker::Send for antecedent_validate::RefutationProblem<'a> [auto]
 impl<'a> !core::marker::Sync for antecedent_validate::PreparedRefutation<'a> [auto]
@@ -1389,13 +1895,19 @@ impl<'a> core::clone::Clone for antecedent_validate::PreparedRefutation<'a>
 impl<'a> core::clone::Clone for antecedent_validate::RefutationProblem<'a>
 impl<'a> core::clone::Clone for antecedent_validate::TemporalRefitContext<'a>
 impl<'a> core::clone::Clone for antecedent_validate::predictive_assessment::IntervalFacts<'a>
+impl<'a> core::clone::Clone for antecedent_validate::target_native::PosteriorPredictiveTarget<'a>
+impl<'a> core::clone::Clone for antecedent_validate::target_native::PriorSensitivityTarget<'a>
 impl<'a> core::cmp::PartialEq for antecedent_validate::predictive_assessment::IntervalFacts<'a>
+impl<'a> core::cmp::PartialEq for antecedent_validate::target_native::PosteriorPredictiveTarget<'a>
+impl<'a> core::cmp::PartialEq for antecedent_validate::target_native::PriorSensitivityTarget<'a>
 impl<'a> core::fmt::Debug for antecedent_validate::ExternalAlphaSensitivity<'a>
 impl<'a> core::fmt::Debug for antecedent_validate::PanelSliceTemplate<'a>
 impl<'a> core::fmt::Debug for antecedent_validate::PreparedRefutation<'a>
 impl<'a> core::fmt::Debug for antecedent_validate::RefutationProblem<'a>
 impl<'a> core::fmt::Debug for antecedent_validate::TemporalRefitContext<'a>
 impl<'a> core::fmt::Debug for antecedent_validate::predictive_assessment::IntervalFacts<'a>
+impl<'a> core::fmt::Debug for antecedent_validate::target_native::PosteriorPredictiveTarget<'a>
+impl<'a> core::fmt::Debug for antecedent_validate::target_native::PriorSensitivityTarget<'a>
 impl<'a> core::marker::Copy for antecedent_validate::ExternalAlphaSensitivity<'a>
 impl<'a> core::marker::Copy for antecedent_validate::RefutationProblem<'a>
 impl<'a> core::marker::Copy for antecedent_validate::TemporalRefitContext<'a>
@@ -1406,17 +1918,25 @@ impl<'a> core::marker::Freeze for antecedent_validate::PreparedRefutation<'a> [a
 impl<'a> core::marker::Freeze for antecedent_validate::RefutationProblem<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_validate::TemporalRefitContext<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_validate::predictive_assessment::IntervalFacts<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_validate::target_native::PosteriorPredictiveTarget<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_validate::target_native::PriorSensitivityTarget<'a> [auto]
 impl<'a> core::marker::Send for antecedent_validate::BayesianSuiteContext<'a> [auto]
 impl<'a> core::marker::Send for antecedent_validate::ExternalAlphaSensitivity<'a> [auto]
 impl<'a> core::marker::Send for antecedent_validate::PanelSliceTemplate<'a> [auto]
 impl<'a> core::marker::Send for antecedent_validate::TemporalRefitContext<'a> [auto]
 impl<'a> core::marker::Send for antecedent_validate::predictive_assessment::IntervalFacts<'a> [auto]
+impl<'a> core::marker::Send for antecedent_validate::target_native::PosteriorPredictiveTarget<'a> [auto]
+impl<'a> core::marker::Send for antecedent_validate::target_native::PriorSensitivityTarget<'a> [auto]
 impl<'a> core::marker::StructuralPartialEq for antecedent_validate::predictive_assessment::IntervalFacts<'a>
+impl<'a> core::marker::StructuralPartialEq for antecedent_validate::target_native::PosteriorPredictiveTarget<'a>
+impl<'a> core::marker::StructuralPartialEq for antecedent_validate::target_native::PriorSensitivityTarget<'a>
 impl<'a> core::marker::Sync for antecedent_validate::BayesianSuiteContext<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_validate::ExternalAlphaSensitivity<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_validate::PanelSliceTemplate<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_validate::TemporalRefitContext<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_validate::predictive_assessment::IntervalFacts<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_validate::target_native::PosteriorPredictiveTarget<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_validate::target_native::PriorSensitivityTarget<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_validate::BayesianSuiteContext<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_validate::ExternalAlphaSensitivity<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_validate::PanelSliceTemplate<'a> [auto]
@@ -1424,11 +1944,22 @@ impl<'a> core::marker::Unpin for antecedent_validate::PreparedRefutation<'a> [au
 impl<'a> core::marker::Unpin for antecedent_validate::RefutationProblem<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_validate::TemporalRefitContext<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_validate::predictive_assessment::IntervalFacts<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_validate::target_native::PosteriorPredictiveTarget<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_validate::target_native::PriorSensitivityTarget<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::BayesianSuiteContext<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::ExternalAlphaSensitivity<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::predictive_assessment::IntervalFacts<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::target_native::PosteriorPredictiveTarget<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::target_native::PriorSensitivityTarget<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_validate::ExternalAlphaSensitivity<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_validate::predictive_assessment::IntervalFacts<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_validate::target_native::PosteriorPredictiveTarget<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_validate::target_native::PriorSensitivityTarget<'a> [auto]
+pub const <antecedent_validate::TargetQuadrant>::STATIC_BAYESIAN: Self
+pub const <antecedent_validate::TargetQuadrant>::STATIC_FREQUENTIST: Self
+pub const <antecedent_validate::TargetQuadrant>::TEMPORAL_BAYESIAN: Self
+pub const <antecedent_validate::TargetQuadrant>::TEMPORAL_FREQUENTIST: Self
+pub const <antecedent_validate::TargetRefuterKind>::ALL: [Self; 14]
 pub const <antecedent_validate::bayesian_checks::ResidualStatistic>::ALL: [Self; 4]
 pub const <antecedent_validate::predictive_assessment::ScoreKind>::ALL: [Self; 4]
 pub const antecedent_validate::DEFAULT_EVALUE_THRESHOLD: f64
@@ -1501,18 +2032,32 @@ pub const antecedent_validate::predictive_assessment::detail::SCORE_NOT_PROBABIL
 pub const antecedent_validate::predictive_assessment::detail::SERIAL_LAG_BELOW_HORIZON: &str
 pub const antecedent_validate::predictive_assessment::detail::TARGET_MISMATCH: &str
 pub const antecedent_validate::predictive_assessment::detail::TOO_FEW_CLUSTERS: &str
+pub const antecedent_validate::rosenbaum::DEFAULT_GAMMA_GRID: [f64; 10]
+pub const antecedent_validate::rosenbaum::EXACT_PAIRS_LIMIT: usize
+pub const antecedent_validate::target_native::TARGET_NATIVE_NEXT_ATTEMPT: &str
 pub const fn antecedent_validate::predictive_assessment::dependence_label(dependence: core::option::Option<&antecedent_validate::predictive_assessment::DependenceDeclaration>) -> &'static str
 pub enum antecedent_validate::ConfiguredValidator
 pub enum antecedent_validate::DiscreteKernelSensitivityError
+pub enum antecedent_validate::EffectInterval
+pub enum antecedent_validate::EffectScale
+pub enum antecedent_validate::FindingKind
 pub enum antecedent_validate::FixedGraphSensitivityError
 pub enum antecedent_validate::JointFactor
 pub enum antecedent_validate::JointSensitivityError
+pub enum antecedent_validate::MatchedSetScore
 pub enum antecedent_validate::MsmTippingDirection
+pub enum antecedent_validate::Multiplicity
 pub enum antecedent_validate::NullTransform
 pub enum antecedent_validate::PlaceboMode
 pub enum antecedent_validate::PredictiveCheckKind
 pub enum antecedent_validate::PredictiveNoise
 pub enum antecedent_validate::QueryRefutationPlan
+pub enum antecedent_validate::Recommendation
+pub enum antecedent_validate::SensitivityAssumption
+pub enum antecedent_validate::TargetCertificationError
+pub enum antecedent_validate::TargetFamily
+pub enum antecedent_validate::TargetRefuterKind
+pub enum antecedent_validate::TargetSuite
 pub enum antecedent_validate::TippingStatus
 pub enum antecedent_validate::ValidationOutcome
 pub enum antecedent_validate::ValidatorId
@@ -1532,8 +2077,20 @@ pub enum antecedent_validate::predictive_assessment::OverlapStatus
 pub enum antecedent_validate::predictive_assessment::ProviderTrustLabel
 pub enum antecedent_validate::predictive_assessment::ScoreKind
 pub enum antecedent_validate::predictive_assessment::ValidationDesign
+pub enum antecedent_validate::target_native::JointStatisticKind
+pub enum antecedent_validate::target_native::RefuterExpectation
+pub enum antecedent_validate::target_native::TargetPerturbation
+pub enum antecedent_validate::target_native::TargetRefitError
 pub field antecedent_validate::AlphaThresholdSensitivity::alphas: alloc::sync::Arc<[f64]>
 pub field antecedent_validate::AlphaThresholdSensitivity::pcmci: antecedent_discovery::pcmci::Pcmci
+pub field antecedent_validate::AssumptionRange::assumption: antecedent_validate::SensitivityAssumption
+pub field antecedent_validate::AssumptionRange::break_even: core::option::Option<f64>
+pub field antecedent_validate::AssumptionRange::break_even_significance: core::option::Option<f64>
+pub field antecedent_validate::AssumptionRange::identity: [u8; 32]
+pub field antecedent_validate::AssumptionRange::null_parameter: f64
+pub field antecedent_validate::AssumptionRange::parameter: alloc::sync::Arc<str>
+pub field antecedent_validate::AssumptionRange::target: antecedent_validate::RefutationTarget
+pub field antecedent_validate::AssumptionRange::tested: alloc::sync::Arc<[antecedent_validate::RangePoint]>
 pub field antecedent_validate::AxisTipping::analytic: core::option::Option<f64>
 pub field antecedent_validate::AxisTipping::bracket: core::option::Option<antecedent_validate::TippingBracket>
 pub field antecedent_validate::AxisTipping::factor: antecedent_validate::JointFactor
@@ -1545,6 +2102,10 @@ pub field antecedent_validate::BayesianSuiteContext::posterior: &'a antecedent_e
 pub field antecedent_validate::BayesianSuiteContext::ppc_alpha: f64
 pub field antecedent_validate::BayesianSuiteContext::prepared: &'a antecedent_estimate::bayesian::gcomp::PreparedBayesianProblem
 pub field antecedent_validate::BayesianSuiteContext::workspace: &'a mut antecedent_estimate::bayesian::gcomp::BayesianGCompWorkspace
+pub field antecedent_validate::BenchmarkBound::kd: f64
+pub field antecedent_validate::BenchmarkBound::ky: f64
+pub field antecedent_validate::BenchmarkBound::r2dz: f64
+pub field antecedent_validate::BenchmarkBound::r2yz: f64
 pub field antecedent_validate::BlockBootstrapStability::block_size: usize
 pub field antecedent_validate::BlockBootstrapStability::pcmci: antecedent_discovery::pcmci::Pcmci
 pub field antecedent_validate::BlockBootstrapStability::replicates: u32
@@ -1583,6 +2144,10 @@ pub field antecedent_validate::DummyOutcome::alpha: f64
 pub field antecedent_validate::DummyOutcome::estimator: antecedent_estimate::adjustment::LinearAdjustmentAte
 pub field antecedent_validate::DummyOutcome::replicates: u32
 pub field antecedent_validate::EValue::threshold: f64
+pub field antecedent_validate::EValueBounds::limit: core::option::Option<f64>
+pub field antecedent_validate::EValueBounds::point: f64
+pub field antecedent_validate::EValueBounds::risk_ratio: f64
+pub field antecedent_validate::EValueBounds::risk_ratio_limit: core::option::Option<f64>
 pub field antecedent_validate::EnvironmentHoldout::jpcmci: antecedent_discovery::jpcmci_plus::JpcmciPlus
 pub field antecedent_validate::EnvironmentHoldout::split: antecedent_data::split::EnvHoldoutSplit
 pub field antecedent_validate::EnvironmentHoldoutReport::discovery_links: alloc::sync::Arc<[antecedent_discovery::result::LaggedLink]>
@@ -1713,11 +2278,28 @@ pub field antecedent_validate::JointSensitivityUncertainty::method: &'static str
 pub field antecedent_validate::JointSensitivityUncertainty::reason_code: &'static str
 pub field antecedent_validate::LagWindowSensitivity::max_lags: alloc::sync::Arc<[u32]>
 pub field antecedent_validate::LagWindowSensitivity::pcmci: antecedent_discovery::pcmci::Pcmci
+pub field antecedent_validate::LinearAdjustmentFit::r2_outcome: alloc::vec::Vec<f64>
+pub field antecedent_validate::LinearAdjustmentFit::r2_treatment: alloc::vec::Vec<f64>
+pub field antecedent_validate::LinearAdjustmentFit::summary: antecedent_validate::LinearAdjustmentSummary
+pub field antecedent_validate::LinearAdjustmentSummary::dof: f64
+pub field antecedent_validate::LinearAdjustmentSummary::estimate: f64
+pub field antecedent_validate::LinearAdjustmentSummary::standard_error: f64
 pub field antecedent_validate::LinearSensitivity::estimator: antecedent_estimate::adjustment::LinearAdjustmentAte
 pub field antecedent_validate::LinearSensitivity::partial_r2_grid: alloc::vec::Vec<f64>
 pub field antecedent_validate::LinearSensitivity::pass_threshold: f64
 pub field antecedent_validate::LinkStability::frequency: f64
 pub field antecedent_validate::LinkStability::link: antecedent_discovery::result::LaggedLink
+pub field antecedent_validate::MatchedSet::outcomes: alloc::vec::Vec<f64>
+pub field antecedent_validate::MatchedSet::treated: usize
+pub field antecedent_validate::MatchedSetBound::expectation: f64
+pub field antecedent_validate::MatchedSetBound::gamma: f64
+pub field antecedent_validate::MatchedSetBound::p_value: f64
+pub field antecedent_validate::MatchedSetBound::statistic: f64
+pub field antecedent_validate::MatchedSetBound::variance: f64
+pub field antecedent_validate::MediationSensitivitySummary::beta_mediator: f64
+pub field antecedent_validate::MediationSensitivitySummary::rho_tilde: f64
+pub field antecedent_validate::MediationSensitivitySummary::sigma_mediator: f64
+pub field antecedent_validate::MediationSensitivitySummary::sigma_total: f64
 pub field antecedent_validate::MsmOutcomeLaw::probabilities: alloc::vec::Vec<f64>
 pub field antecedent_validate::MsmOutcomeLaw::values: alloc::vec::Vec<f64>
 pub field antecedent_validate::MsmPoint::lambda: f64
@@ -1824,6 +2406,9 @@ pub field antecedent_validate::PriorSensitivity::variance_multipliers: alloc::sy
 pub field antecedent_validate::RandomCommonCause::alpha: f64
 pub field antecedent_validate::RandomCommonCause::estimator: antecedent_estimate::adjustment::LinearAdjustmentAte
 pub field antecedent_validate::RandomCommonCause::replicates: u32
+pub field antecedent_validate::RangePoint::parameter: f64
+pub field antecedent_validate::RangePoint::target: f64
+pub field antecedent_validate::RangePoint::test: core::option::Option<f64>
 pub field antecedent_validate::RefutationProblem::data: &'a antecedent_data::dataset::TabularData
 pub field antecedent_validate::RefutationProblem::effect_refit: core::option::Option<&'a dyn antecedent_validate::common::EffectRefit>
 pub field antecedent_validate::RefutationProblem::estimand: &'a antecedent_expr::estimand::IdentifiedEstimand
@@ -1836,6 +2421,7 @@ pub field antecedent_validate::RefutationReport::failure_condition: core::option
 pub field antecedent_validate::RefutationReport::informative: bool
 pub field antecedent_validate::RefutationReport::original_ate: f64
 pub field antecedent_validate::RefutationReport::passed: bool
+pub field antecedent_validate::RefutationReport::produced_by: core::option::Option<[u8; 32]>
 pub field antecedent_validate::RefutationReport::refuted_ate: f64
 pub field antecedent_validate::RefutationReport::refuter: alloc::sync::Arc<str>
 pub field antecedent_validate::RefutationReport::replicates: u32
@@ -1861,6 +2447,12 @@ pub field antecedent_validate::SerialDiscrepancy::p_value: f64
 pub field antecedent_validate::SerialDiscrepancy::predictive_mean: f64
 pub field antecedent_validate::SerialDiscrepancy::tails: [f64; 2]
 pub field antecedent_validate::SerialDiscrepancy::tempering_kappa: core::option::Option<f64>
+pub field antecedent_validate::SignedRankSensitivity::alpha: f64
+pub field antecedent_validate::SignedRankSensitivity::exact: bool
+pub field antecedent_validate::SignedRankSensitivity::gamma_break_even: core::option::Option<f64>
+pub field antecedent_validate::SignedRankSensitivity::grid: alloc::vec::Vec<(f64, f64)>
+pub field antecedent_validate::SignedRankSensitivity::pairs: usize
+pub field antecedent_validate::SignedRankSensitivity::statistic: f64
 pub field antecedent_validate::SimulationBasedCalibration::n_draws: usize
 pub field antecedent_validate::SimulationBasedCalibration::n_reps: u32
 pub field antecedent_validate::SimulationBasedCalibration::seed: u64
@@ -1868,15 +2460,87 @@ pub field antecedent_validate::SourceOutcomeKernelRow::outcome_probabilities: al
 pub field antecedent_validate::SourceOutcomeKernelRow::parent_levels: alloc::vec::Vec<usize>
 pub field antecedent_validate::SourceParentLawRow::parent_levels: alloc::vec::Vec<usize>
 pub field antecedent_validate::SourceParentLawRow::probability: f64
+pub field antecedent_validate::StalenessFinding::adjusted_p_value: core::option::Option<f64>
+pub field antecedent_validate::StalenessFinding::auxiliary: alloc::vec::Vec<(alloc::string::String, f64)>
+pub field antecedent_validate::StalenessFinding::detail: alloc::string::String
+pub field antecedent_validate::StalenessFinding::exceeded: bool
+pub field antecedent_validate::StalenessFinding::forces: antecedent_validate::Recommendation
+pub field antecedent_validate::StalenessFinding::keys: alloc::vec::Vec<antecedent_core::recalc::Stage>
+pub field antecedent_validate::StalenessFinding::kind: antecedent_validate::FindingKind
+pub field antecedent_validate::StalenessFinding::p_value: core::option::Option<f64>
+pub field antecedent_validate::StalenessFinding::statistic: f64
+pub field antecedent_validate::StalenessFinding::statistic_name: &'static str
+pub field antecedent_validate::StalenessFinding::subject: alloc::string::String
+pub field antecedent_validate::StalenessFinding::threshold: f64
+pub field antecedent_validate::StalenessFinding::threshold_name: &'static str
+pub field antecedent_validate::StalenessPlan::adjustment: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_validate::StalenessPlan::bayesian: bool
+pub field antecedent_validate::StalenessPlan::outcome: core::option::Option<alloc::string::String>
+pub field antecedent_validate::StalenessPlan::plan_identity: alloc::string::String
+pub field antecedent_validate::StalenessPlan::treatment: core::option::Option<alloc::string::String>
+pub field antecedent_validate::StalenessPolicy::alpha: f64
+pub field antecedent_validate::StalenessPolicy::balance_threshold: f64
+pub field antecedent_validate::StalenessPolicy::bins: usize
+pub field antecedent_validate::StalenessPolicy::mahalanobis_threshold: f64
+pub field antecedent_validate::StalenessPolicy::max_condition: f64
+pub field antecedent_validate::StalenessPolicy::max_extreme_fraction: f64
+pub field antecedent_validate::StalenessPolicy::min_complete_fraction: f64
+pub field antecedent_validate::StalenessPolicy::min_ess_ratio_change: f64
+pub field antecedent_validate::StalenessPolicy::min_level_rows: u64
+pub field antecedent_validate::StalenessPolicy::min_rows: u64
+pub field antecedent_validate::StalenessPolicy::min_rows_per_arm: u64
+pub field antecedent_validate::StalenessPolicy::min_rows_per_period: u64
+pub field antecedent_validate::StalenessPolicy::missingness_threshold: f64
+pub field antecedent_validate::StalenessPolicy::multiplicity: antecedent_validate::Multiplicity
+pub field antecedent_validate::StalenessPolicy::period_column: core::option::Option<alloc::string::String>
+pub field antecedent_validate::StalenessPolicy::permutations: u32
+pub field antecedent_validate::StalenessPolicy::positivity_epsilon: f64
+pub field antecedent_validate::StalenessPolicy::prior_rate: f64
+pub field antecedent_validate::StalenessPolicy::prior_shape: f64
+pub field antecedent_validate::StalenessPolicy::prior_variance: f64
+pub field antecedent_validate::StalenessPolicy::psi_threshold: f64
+pub field antecedent_validate::StalenessPolicy::seed: u64
+pub field antecedent_validate::StalenessPolicy::smd_threshold: f64
+pub field antecedent_validate::StalenessPolicy::subsample: usize
+pub field antecedent_validate::StalenessPolicy::support_tolerance: f64
+pub field antecedent_validate::StalenessReport::baseline_identity: alloc::string::String
+pub field antecedent_validate::StalenessReport::changed_classes: alloc::vec::Vec<antecedent_io_core::dependency_key::DependencyClass>
+pub field antecedent_validate::StalenessReport::changed_keys: alloc::vec::Vec<antecedent_core::recalc::Stage>
+pub field antecedent_validate::StalenessReport::evaluations: alloc::vec::Vec<antecedent_validate::StalenessFinding>
+pub field antecedent_validate::StalenessReport::identity: alloc::string::String
+pub field antecedent_validate::StalenessReport::invalidated: alloc::vec::Vec<antecedent_core::recalc::Stage>
+pub field antecedent_validate::StalenessReport::invalidated_products: alloc::vec::Vec<antecedent_io_core::dependency_key::ReusableProduct>
+pub field antecedent_validate::StalenessReport::new_rows: u64
+pub field antecedent_validate::StalenessReport::new_snapshot: alloc::string::String
+pub field antecedent_validate::StalenessReport::next_attempt: alloc::string::String
+pub field antecedent_validate::StalenessReport::not_evaluated: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
+pub field antecedent_validate::StalenessReport::old_snapshot: alloc::string::String
+pub field antecedent_validate::StalenessReport::plan_identity: alloc::string::String
+pub field antecedent_validate::StalenessReport::policy_identity: alloc::string::String
+pub field antecedent_validate::StalenessReport::recommendation: antecedent_validate::Recommendation
 pub field antecedent_validate::SyntheticNullCalibration::alpha: f64
 pub field antecedent_validate::SyntheticNullCalibration::band_tol: f64
 pub field antecedent_validate::SyntheticNullCalibration::n_obs: usize
 pub field antecedent_validate::SyntheticNullCalibration::n_sim: u32
 pub field antecedent_validate::SyntheticNullCalibration::n_vars: usize
 pub field antecedent_validate::SyntheticNullCalibration::pcmci: antecedent_discovery::pcmci::Pcmci
+pub field antecedent_validate::TargetCertificate::identity: [u8; 32]
+pub field antecedent_validate::TargetCertificate::reports: alloc::sync::Arc<[antecedent_validate::TargetRefutationReport]>
+pub field antecedent_validate::TargetCertificate::target: antecedent_validate::RefutationTarget
 pub field antecedent_validate::TargetParentLawRow::parent_levels: alloc::vec::Vec<usize>
 pub field antecedent_validate::TargetParentLawRow::probability: f64
 pub field antecedent_validate::TargetParentLawRow::treatment_level: usize
+pub field antecedent_validate::TargetQuadrant::bayesian: bool
+pub field antecedent_validate::TargetQuadrant::temporal: bool
+pub field antecedent_validate::TargetRefutationReport::failure: core::option::Option<alloc::sync::Arc<str>>
+pub field antecedent_validate::TargetRefutationReport::informative: bool
+pub field antecedent_validate::TargetRefutationReport::kind: antecedent_validate::TargetRefuterKind
+pub field antecedent_validate::TargetRefutationReport::original: alloc::sync::Arc<[f64]>
+pub field antecedent_validate::TargetRefutationReport::passed: bool
+pub field antecedent_validate::TargetRefutationReport::refuted: alloc::sync::Arc<[f64]>
+pub field antecedent_validate::TargetRefutationReport::replicates: u32
+pub field antecedent_validate::TargetRefutationReport::statistic: antecedent_validate::target_native::JointStatistic
+pub field antecedent_validate::TargetRefutationReport::target: antecedent_validate::RefutationTarget
 pub field antecedent_validate::TemporalRefitContext::gaps: bool
 pub field antecedent_validate::TemporalRefitContext::indexer: &'a antecedent_core::temporal::TemporalIndexer
 pub field antecedent_validate::TemporalRefitContext::kernel_policy: &'a antecedent_core::execution::KernelPolicy
@@ -2048,8 +2712,49 @@ pub field antecedent_validate::predictive_assessment::ScoreSummary::folds: alloc
 pub field antecedent_validate::predictive_assessment::ScoreSummary::kind: antecedent_validate::predictive_assessment::ScoreKind
 pub field antecedent_validate::predictive_assessment::ScoreSummary::mean: f64
 pub field antecedent_validate::predictive_assessment::ScoreSummary::per_case: alloc::vec::Vec<f64>
+pub field antecedent_validate::rosenbaum::SignedRankStatistic::pairs: usize
+pub field antecedent_validate::target_native::DerivativeCheckPoint::reported: f64
+pub field antecedent_validate::target_native::DerivativeCheckPoint::x: f64
+pub field antecedent_validate::target_native::DerivativeConsistency::finite_difference: alloc::vec::Vec<f64>
+pub field antecedent_validate::target_native::DerivativeConsistency::points: alloc::vec::Vec<f64>
+pub field antecedent_validate::target_native::DerivativeConsistency::reported: alloc::vec::Vec<f64>
+pub field antecedent_validate::target_native::DerivativeConsistency::standardized: alloc::vec::Vec<f64>
+pub field antecedent_validate::target_native::DerivativeConsistency::step: f64
+pub field antecedent_validate::target_native::DerivativeConsistency::tolerance: f64
+pub field antecedent_validate::target_native::DerivativeConsistency::truncation_error: alloc::vec::Vec<f64>
+pub field antecedent_validate::target_native::JointStatistic::df: usize
+pub field antecedent_validate::target_native::JointStatistic::kind: antecedent_validate::target_native::JointStatisticKind
+pub field antecedent_validate::target_native::JointStatistic::p_value: core::option::Option<f64>
+pub field antecedent_validate::target_native::JointStatistic::value: f64
+pub field antecedent_validate::target_native::LocalLinearity::curvature: alloc::vec::Vec<f64>
+pub field antecedent_validate::target_native::LocalLinearity::nonlinearity: alloc::vec::Vec<f64>
+pub field antecedent_validate::target_native::LocalLinearity::points: alloc::vec::Vec<f64>
+pub field antecedent_validate::target_native::LocalLinearity::slope: alloc::vec::Vec<f64>
+pub field antecedent_validate::target_native::LocalLinearity::step: f64
+pub field antecedent_validate::target_native::LocalLinearity::tolerance: f64
+pub field antecedent_validate::target_native::PosteriorPredictiveTarget::alpha: f64
+pub field antecedent_validate::target_native::PosteriorPredictiveTarget::draws: &'a [f64]
+pub field antecedent_validate::target_native::PosteriorPredictiveTarget::observed: &'a [f64]
+pub field antecedent_validate::target_native::PosteriorPredictiveTarget::replicated: &'a [f64]
+pub field antecedent_validate::target_native::PosteriorPredictiveTarget::target: &'a antecedent_validate::RefutationTarget
+pub field antecedent_validate::target_native::PriorSensitivityTarget::alternatives: &'a [(alloc::sync::Arc<str>, alloc::vec::Vec<f64>)]
+pub field antecedent_validate::target_native::PriorSensitivityTarget::baseline: &'a [f64]
+pub field antecedent_validate::target_native::PriorSensitivityTarget::target: &'a antecedent_validate::RefutationTarget
+pub field antecedent_validate::target_native::PriorSensitivityTarget::tolerance: f64
+pub field antecedent_validate::target_native::TargetRefutationConfig::alpha: f64
+pub field antecedent_validate::target_native::TargetRefutationConfig::pre_trend_lead: u32
+pub field antecedent_validate::target_native::TargetRefutationConfig::replicates: u32
+pub field antecedent_validate::target_native::TargetRefutationConfig::subset_fraction: f64
+pub field antecedent_validate::target_native::TargetRefutationRun::refused: alloc::vec::Vec<antecedent_validate::target_native::TargetRefuterRefusal>
+pub field antecedent_validate::target_native::TargetRefutationRun::reports: alloc::vec::Vec<antecedent_validate::TargetRefutationReport>
+pub field antecedent_validate::target_native::TargetRefuterRefusal::kind: antecedent_validate::TargetRefuterKind
+pub field antecedent_validate::target_native::TargetRefuterRefusal::next_attempt: alloc::sync::Arc<str>
+pub field antecedent_validate::target_native::TargetRefuterRefusal::reason: alloc::sync::Arc<str>
 pub fn <antecedent_validate::AlphaThresholdSensitivity>::fn new(pcmci: antecedent_discovery::pcmci::Pcmci, alphas: impl core::convert::Into<alloc::sync::Arc<[f64]>>) -> Self
 pub fn <antecedent_validate::AlphaThresholdSensitivity>::fn run(&self, data: &antecedent_data::dataset::TimeSeriesData, variables: &[antecedent_core::ids::VariableId], workspace: &mut antecedent_discovery::engine::DiscoveryWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_validate::DiscoveryStabilityReport, antecedent_validate::ValidationError>
+pub fn <antecedent_validate::AssumptionRange>::fn bound_to(&self, claim: &antecedent_validate::RefutationTarget) -> core::result::Result<&Self, antecedent_validate::TargetCertificationError>
+pub fn <antecedent_validate::AssumptionRange>::fn identity_hex(&self) -> alloc::string::String
+pub fn <antecedent_validate::AssumptionRange>::fn new(target: antecedent_validate::RefutationTarget, assumption: antecedent_validate::SensitivityAssumption, parameter: &str, null_parameter: f64, tested: alloc::vec::Vec<antecedent_validate::RangePoint>, break_even: core::option::Option<f64>, break_even_significance: core::option::Option<f64>) -> Self
 pub fn <antecedent_validate::BayesianSuiteContext<'a>>::fn new(estimator: &'a antecedent_estimate::bayesian::gcomp::BayesianGComputationAte, prepared: &'a antecedent_estimate::bayesian::gcomp::PreparedBayesianProblem, posterior: &'a antecedent_estimate::bayesian::CausalPosterior, identification: antecedent_core::identification::IdentificationStatus, workspace: &'a mut antecedent_estimate::bayesian::gcomp::BayesianGCompWorkspace, original_ate: f64) -> Self
 pub fn <antecedent_validate::BlockBootstrapStability>::fn new() -> Self
 pub fn <antecedent_validate::BlockBootstrapStability>::fn run(&self, data: &antecedent_data::dataset::TimeSeriesData, variables: &[antecedent_core::ids::VariableId], _workspace: &mut antecedent_discovery::engine::DiscoveryWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_validate::DiscoveryStabilityReport, antecedent_validate::ValidationError>
@@ -2068,10 +2773,13 @@ pub fn <antecedent_validate::DummyOutcome>::fn refute(&self, problem: &anteceden
 pub fn <antecedent_validate::EValue>::fn new() -> Self
 pub fn <antecedent_validate::EValue>::fn refute(&self, problem: &antecedent_validate::RefutationProblem<'_>) -> core::result::Result<antecedent_validate::RefutationReport, antecedent_validate::ValidationError>
 pub fn <antecedent_validate::EValue>::fn with_threshold(threshold: f64) -> Self
+pub fn <antecedent_validate::EffectScale>::const fn as_str(self) -> &'static str
+pub fn <antecedent_validate::EffectScale>::fn parse(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_validate::EnvironmentHoldout>::fn new(jpcmci: antecedent_discovery::jpcmci_plus::JpcmciPlus, split: antecedent_data::split::EnvHoldoutSplit) -> Self
 pub fn <antecedent_validate::EnvironmentHoldout>::fn run(&self, data: &antecedent_data::multi_env::MultiEnvironmentData, variables: &[antecedent_core::ids::VariableId], workspace: &mut antecedent_discovery::engine::DiscoveryWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_validate::EnvironmentHoldoutReport, antecedent_validate::ValidationError>
 pub fn <antecedent_validate::FalsePositiveCheck>::fn new(pcmci: antecedent_discovery::pcmci::Pcmci, transform: antecedent_validate::NullTransform, replicates: u32) -> Self
 pub fn <antecedent_validate::FalsePositiveCheck>::fn run(&self, data: &antecedent_data::dataset::TimeSeriesData, variables: &[antecedent_core::ids::VariableId], _workspace: &mut antecedent_discovery::engine::DiscoveryWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_validate::FalsePositiveCheckReport, antecedent_validate::ValidationError>
+pub fn <antecedent_validate::FindingKind>::const fn label(self) -> &'static str
 pub fn <antecedent_validate::GraphRefuter>::fn new() -> Self
 pub fn <antecedent_validate::GraphRefuter>::fn refute(&self, problem: &antecedent_validate::RefutationProblem<'_>, workspace: &mut antecedent_estimate::adjustment::EstimationWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_validate::RefutationReport, antecedent_validate::ValidationError>
 pub fn <antecedent_validate::JointDeviationSpec>::fn fraction(&self, factor: antecedent_validate::JointFactor) -> f64
@@ -2084,14 +2792,26 @@ pub fn <antecedent_validate::JointSensitivityError>::const fn reason_code(&self)
 pub fn <antecedent_validate::JointSensitivityUncertainty>::const fn withheld() -> Self
 pub fn <antecedent_validate::LagWindowSensitivity>::fn new(pcmci: antecedent_discovery::pcmci::Pcmci, max_lags: impl core::convert::Into<alloc::sync::Arc<[u32]>>) -> Self
 pub fn <antecedent_validate::LagWindowSensitivity>::fn run(&self, data: &antecedent_data::dataset::TimeSeriesData, variables: &[antecedent_core::ids::VariableId], workspace: &mut antecedent_discovery::engine::DiscoveryWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_validate::DiscoveryStabilityReport, antecedent_validate::ValidationError>
+pub fn <antecedent_validate::LinearAdjustmentSummary>::fn adjusted_estimate(&self, r2dz: f64, r2yz: f64) -> f64
+pub fn <antecedent_validate::LinearAdjustmentSummary>::fn adjusted_standard_error(&self, r2dz: f64, r2yz: f64) -> f64
+pub fn <antecedent_validate::LinearAdjustmentSummary>::fn bias_bound(&self, r2dz: f64, r2yz: f64) -> f64
+pub fn <antecedent_validate::LinearAdjustmentSummary>::fn break_even_r2dz(&self, r2yz: f64, q: f64) -> f64
+pub fn <antecedent_validate::LinearAdjustmentSummary>::fn new(estimate: f64, standard_error: f64, dof: f64) -> core::result::Result<Self, antecedent_validate::ValidationError>
+pub fn <antecedent_validate::LinearAdjustmentSummary>::fn partial_f(&self) -> f64
+pub fn <antecedent_validate::LinearAdjustmentSummary>::fn partial_r2_treatment(&self) -> f64
+pub fn <antecedent_validate::LinearAdjustmentSummary>::fn robustness_value(&self, q: f64, alpha: core::option::Option<f64>) -> f64
+pub fn <antecedent_validate::LinearAdjustmentSummary>::fn t_statistic(&self) -> f64
 pub fn <antecedent_validate::LinearSensitivity>::fn new() -> Self
 pub fn <antecedent_validate::LinearSensitivity>::fn refute(&self, problem: &antecedent_validate::RefutationProblem<'_>, workspace: &mut antecedent_estimate::adjustment::EstimationWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_validate::RefutationReport, antecedent_validate::ValidationError>
+pub fn <antecedent_validate::MediationSensitivitySummary>::fn acme(&self, rho: f64) -> core::result::Result<f64, antecedent_validate::ValidationError>
 pub fn <antecedent_validate::MsmSensitivityError>::const fn detail(&self) -> &'static str
 pub fn <antecedent_validate::MsmSensitivityError>::const fn reason_code(&self) -> &'static str
 pub fn <antecedent_validate::MsmSensitivitySpec>::fn new(lambda_max: f64) -> Self
 pub fn <antecedent_validate::MsmSensitivitySpec>::fn with_threshold(self, threshold: f64) -> Self
 pub fn <antecedent_validate::MsmSensitivityUncertainty>::const fn withheld() -> Self
 pub fn <antecedent_validate::MsmTippingDirection>::const fn name(self) -> &'static str
+pub fn <antecedent_validate::Multiplicity>::const fn label(self) -> &'static str
+pub fn <antecedent_validate::Multiplicity>::fn parse(label: &str) -> core::option::Option<Self>
 pub fn <antecedent_validate::NeighborhoodSensitivity>::fn new() -> Self
 pub fn <antecedent_validate::NeighborhoodSensitivity>::fn refute(&self, problem: &antecedent_validate::RefutationProblem<'_>, workspace: &mut antecedent_estimate::adjustment::EstimationWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_validate::RefutationReport, antecedent_validate::ValidationError>
 pub fn <antecedent_validate::NonparametricSensitivity>::fn new() -> Self
@@ -2139,22 +2859,64 @@ pub fn <antecedent_validate::QueryRefutationPlan>::fn mix_weighted(items: impl c
 pub fn <antecedent_validate::QueryRefutationPlan>::fn refute_temporal_atom(self, data: &antecedent_data::dataset::TimeSeriesData, estimand: &antecedent_expr::estimand::IdentifiedEstimand, query: &antecedent_core::query::mediation::MediationQuery, original: &antecedent_estimate::temporal_mediation::TemporalMediationEstimate, adjustment: &[antecedent_data::sample::LaggedColumn], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_validate::RefutationReport>, antecedent_validate::ValidationError>
 pub fn <antecedent_validate::RandomCommonCause>::fn new() -> Self
 pub fn <antecedent_validate::RandomCommonCause>::fn refute(&self, problem: &antecedent_validate::RefutationProblem<'_>, workspace: &mut antecedent_estimate::adjustment::EstimationWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_validate::RefutationReport, antecedent_validate::ValidationError>
+pub fn <antecedent_validate::Recommendation>::const fn label(self) -> &'static str
 pub fn <antecedent_validate::RefutationProblem<'_>>::fn outcome(&self) -> antecedent_core::ids::VariableId
 pub fn <antecedent_validate::RefutationProblem<'_>>::fn treatment(&self) -> antecedent_core::ids::VariableId
 pub fn <antecedent_validate::RefutationProblem<'a>>::fn new(data: &'a antecedent_data::dataset::TabularData, estimand: &'a antecedent_expr::estimand::IdentifiedEstimand, query: &'a antecedent_core::query::average::AverageEffectQuery, original: &'a antecedent_estimate::effect_estimate::EffectEstimate, estimator: core::option::Option<&'a str>, temporal: core::option::Option<antecedent_validate::TemporalRefitContext<'a>>) -> Self
 pub fn <antecedent_validate::RefutationProblem<'a>>::fn with_effect_refit(self, refit: &'a dyn antecedent_validate::common::EffectRefit) -> Self
 pub fn <antecedent_validate::RefutationReport>::fn mixture_weighted(items: &[(f64, &Self)]) -> core::option::Option<Self>
 pub fn <antecedent_validate::RefutationReport>::fn new(refuter: impl core::convert::Into<alloc::sync::Arc<str>>, original_ate: f64, refuted_ate: f64, comparison: f64, informative: bool, passed: bool, failure_condition: core::option::Option<alloc::sync::Arc<str>>, replicates: u32) -> Self
+pub fn <antecedent_validate::RefutationReport>::fn stamp_producer(&mut self, program: [u8; 32])
+pub fn <antecedent_validate::RefutationReport>::fn stamped_by(&self, program: &[u8; 32]) -> bool
+pub fn <antecedent_validate::RefutationTarget>::const fn family(&self) -> antecedent_validate::TargetFamily
+pub fn <antecedent_validate::RefutationTarget>::const fn identity(&self) -> &[u8; 32]
+pub fn <antecedent_validate::RefutationTarget>::const fn quadrant(&self) -> antecedent_validate::TargetQuadrant
+pub fn <antecedent_validate::RefutationTarget>::const fn source(&self) -> &[u8; 32]
+pub fn <antecedent_validate::RefutationTarget>::fn dimension(&self) -> usize
+pub fn <antecedent_validate::RefutationTarget>::fn identity_hex(&self) -> alloc::string::String
+pub fn <antecedent_validate::RefutationTarget>::fn labels(&self) -> &[alloc::sync::Arc<str>]
+pub fn <antecedent_validate::RefutationTarget>::fn new(family: antecedent_validate::TargetFamily, quadrant: antecedent_validate::TargetQuadrant, labels: impl core::iter::traits::collect::IntoIterator<Item = impl core::convert::Into<alloc::sync::Arc<str>>>, source: [u8; 32]) -> core::result::Result<Self, antecedent_validate::ValidationError>
+pub fn <antecedent_validate::RefutationTarget>::fn scalar_average_effect(quadrant: antecedent_validate::TargetQuadrant, source: [u8; 32]) -> Self
 pub fn <antecedent_validate::RegimeStability>::fn new(rpcmci: antecedent_discovery::rpcmci::Rpcmci, assignment: antecedent_discovery::rpcmci::RegimeAssignment) -> Self
 pub fn <antecedent_validate::RegimeStability>::fn run(&self, data: &antecedent_data::dataset::TimeSeriesData, variables: &[antecedent_core::ids::VariableId], _workspace: &mut antecedent_discovery::engine::DiscoveryWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_validate::RegimeStabilityReport, antecedent_validate::ValidationError>
 pub fn <antecedent_validate::RieszSensitivity>::fn new() -> Self
 pub fn <antecedent_validate::RieszSensitivity>::fn refute(&self, problem: &antecedent_validate::RefutationProblem<'_>, _workspace: &mut antecedent_estimate::adjustment::EstimationWorkspace, _ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_validate::RefutationReport, antecedent_validate::ValidationError>
 pub fn <antecedent_validate::RieszSensitivity>::fn refute_with_propensity(&self, problem: &antecedent_validate::RefutationProblem<'_>, propensity: &mut antecedent_stats::propensity::PropensityWorkspace) -> core::result::Result<antecedent_validate::RefutationReport, antecedent_validate::ValidationError>
+pub fn <antecedent_validate::SensitivityAssumption>::const fn as_str(self) -> &'static str
+pub fn <antecedent_validate::SensitivityAssumption>::const fn statement(self) -> &'static str
 pub fn <antecedent_validate::SimulationBasedCalibration>::fn check(&self, estimator: &antecedent_estimate::bayesian::gcomp::BayesianGComputationAte, problem: &antecedent_estimate::bayesian::gcomp::PreparedBayesianProblem, identification: antecedent_core::identification::IdentificationStatus, _workspace: &mut antecedent_estimate::bayesian::gcomp::BayesianGCompWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_validate::SbcReport, antecedent_validate::ValidationError>
 pub fn <antecedent_validate::SimulationBasedCalibration>::fn new(n_reps: u32) -> Self
 pub fn <antecedent_validate::SimulationBasedCalibration>::fn to_report(&self, report: &antecedent_validate::SbcReport, original_ate: f64) -> antecedent_validate::RefutationReport
+pub fn <antecedent_validate::StalenessBaseline>::const fn wire(&self) -> &antecedent_io_core::staleness_artifact::StalenessBaselineWire
+pub fn <antecedent_validate::StalenessBaseline>::fn assess(&self, data: &antecedent_data::dataset::TabularData, policy: &antecedent_validate::StalenessPolicy, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_validate::StalenessReport, antecedent_validate::StalenessError>
+pub fn <antecedent_validate::StalenessBaseline>::fn build(data: &antecedent_data::dataset::TabularData, plan: &antecedent_validate::StalenessPlan, policy: &antecedent_validate::StalenessPolicy, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_validate::StalenessError>
+pub fn <antecedent_validate::StalenessBaseline>::fn consume(bytes: &[u8]) -> core::result::Result<Self, antecedent_validate::StalenessError>
+pub fn <antecedent_validate::StalenessBaseline>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_validate::StalenessError>
+pub fn <antecedent_validate::StalenessBaseline>::fn from_wire(wire: antecedent_io_core::staleness_artifact::StalenessBaselineWire) -> core::result::Result<Self, antecedent_validate::StalenessError>
+pub fn <antecedent_validate::StalenessBaseline>::fn identity(&self) -> &str
+pub fn <antecedent_validate::StalenessBaseline>::fn plan_identity(&self) -> &str
+pub fn <antecedent_validate::StalenessBaseline>::fn snapshot(&self) -> &str
+pub fn <antecedent_validate::StalenessPolicy>::fn identity(&self) -> alloc::string::String
+pub fn <antecedent_validate::StalenessPolicy>::fn validate(&self) -> core::result::Result<(), antecedent_validate::StalenessError>
+pub fn <antecedent_validate::StalenessReport>::fn changed_key_labels(&self) -> alloc::vec::Vec<alloc::string::String>
+pub fn <antecedent_validate::StalenessReport>::fn findings(&self) -> impl core::iter::traits::iterator::Iterator<Item = &antecedent_validate::StalenessFinding>
+pub fn <antecedent_validate::StalenessReport>::fn invalidated_labels(&self) -> alloc::vec::Vec<alloc::string::String>
 pub fn <antecedent_validate::SyntheticNullCalibration>::fn new(pcmci: antecedent_discovery::pcmci::Pcmci, alpha: f64, n_sim: u32, n_obs: usize, n_vars: usize) -> Self
 pub fn <antecedent_validate::SyntheticNullCalibration>::fn run(&self, _workspace: &mut antecedent_discovery::engine::DiscoveryWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_validate::NullCalibrationReport, antecedent_validate::ValidationError>
+pub fn <antecedent_validate::TargetCertificate>::fn all_passed(&self) -> bool
+pub fn <antecedent_validate::TargetFamily>::const fn as_str(self) -> &'static str
+pub fn <antecedent_validate::TargetFamily>::fn parse(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_validate::TargetQuadrant>::const fn as_str(self) -> &'static str
+pub fn <antecedent_validate::TargetRefutationPlan>::const fn suite(&self) -> antecedent_validate::TargetSuite
+pub fn <antecedent_validate::TargetRefutationPlan>::const fn target(&self) -> &antecedent_validate::RefutationTarget
+pub fn <antecedent_validate::TargetRefutationPlan>::fn for_target(target: antecedent_validate::RefutationTarget, suite: antecedent_validate::TargetSuite) -> Self
+pub fn <antecedent_validate::TargetRefutationPlan>::fn refuters(&self) -> &[antecedent_validate::TargetRefuterKind]
+pub fn <antecedent_validate::TargetRefutationReport>::const fn refuter(&self) -> &'static str
+pub fn <antecedent_validate::TargetRefuterKind>::const fn as_str(self) -> &'static str
+pub fn <antecedent_validate::TargetRefuterKind>::const fn expectation(self) -> antecedent_validate::target_native::RefuterExpectation
+pub fn <antecedent_validate::TargetRefuterKind>::fn parse(id: &str) -> core::option::Option<Self>
+pub fn <antecedent_validate::TargetSuite>::const fn as_str(self) -> &'static str
+pub fn <antecedent_validate::TargetSuite>::fn parse(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_validate::TemporalRefitContext<'_>>::fn is_panel(&self) -> bool
 pub fn <antecedent_validate::TippingStatus>::const fn name(self) -> &'static str
 pub fn <antecedent_validate::UnobservedCommonCause>::fn new() -> Self
@@ -2216,11 +2978,31 @@ pub fn <antecedent_validate::predictive_assessment::ScoreKind>::const fn name(se
 pub fn <antecedent_validate::predictive_assessment::ScoreKind>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_validate::predictive_assessment::ValidationDesign>::const fn is_dependent_by_construction(&self) -> bool
 pub fn <antecedent_validate::predictive_assessment::ValidationDesign>::const fn name(&self) -> &'static str
+pub fn <antecedent_validate::rosenbaum::SignedRankStatistic>::fn new(differences: &[f64]) -> core::result::Result<Self, antecedent_validate::ValidationError>
+pub fn <antecedent_validate::rosenbaum::SignedRankStatistic>::fn statistic(&self) -> f64
+pub fn <antecedent_validate::rosenbaum::SignedRankStatistic>::fn upper_p_value(&self, gamma: f64, ctx: core::option::Option<&antecedent_core::execution::ExecutionContext>) -> core::result::Result<(f64, bool), antecedent_validate::ValidationError>
+pub fn <antecedent_validate::target_native::DerivativeConsistency>::fn max_standardized(&self) -> f64
+pub fn <antecedent_validate::target_native::DerivativeConsistency>::fn passed(&self) -> bool
+pub fn <antecedent_validate::target_native::DerivativeConsistency>::fn to_report(&self, target: &antecedent_validate::RefutationTarget) -> core::result::Result<antecedent_validate::TargetRefutationReport, antecedent_validate::ValidationError>
+pub fn <antecedent_validate::target_native::JointStatisticKind>::const fn as_str(self) -> &'static str
+pub fn <antecedent_validate::target_native::LocalLinearity>::fn max_nonlinearity(&self) -> f64
+pub fn <antecedent_validate::target_native::LocalLinearity>::fn passed(&self) -> bool
+pub fn <antecedent_validate::target_native::LocalLinearity>::fn to_report(&self, target: &antecedent_validate::RefutationTarget) -> core::result::Result<antecedent_validate::TargetRefutationReport, antecedent_validate::ValidationError>
+pub fn antecedent_validate::amplify(gamma: f64, lambda: f64) -> core::option::Option<f64>
 pub fn antecedent_validate::apply_conflict_and_compose(sources: &[antecedent_prob::external_prior::ExternalPriorSource], baseline: &antecedent_prob::prior::PriorSet, policy: &antecedent_validate::ConflictPolicy, signals: &[antecedent_validate::ConflictSignals]) -> core::result::Result<(antecedent_prob::external_prior::ComposedPrior, antecedent_prob::diagnostics::ConflictSummary), antecedent_validate::ValidationError>
+pub fn antecedent_validate::assess_exported_baseline(bytes: &[u8], data: &antecedent_data::dataset::TabularData, policy: &antecedent_validate::StalenessPolicy, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_validate::StalenessReport, antecedent_validate::StalenessError>
 pub fn antecedent_validate::bayesian_checks::with_prior_sensitivity(posterior: antecedent_estimate::bayesian::CausalPosterior, summary: antecedent_prob::diagnostics::PriorSensitivitySummary) -> antecedent_estimate::bayesian::CausalPosterior
+pub fn antecedent_validate::benchmark_bound(r2dxj: f64, r2yxj: f64, kd: f64, ky: f64) -> core::result::Result<antecedent_validate::BenchmarkBound, antecedent_validate::ValidationError>
+pub fn antecedent_validate::certify_target_refutations(claim: &antecedent_validate::RefutationTarget, reports: &[antecedent_validate::TargetRefutationReport]) -> core::result::Result<antecedent_validate::TargetCertificate, antecedent_validate::TargetCertificationError>
 pub fn antecedent_validate::common::stack_panel_tabular(panel: &antecedent_data::panel::PanelData) -> core::result::Result<antecedent_data::dataset::TabularData, antecedent_validate::ValidationError>
 pub fn antecedent_validate::compose_with_conflict_policy(sources: &[antecedent_prob::external_prior::ExternalPriorSource], baseline: &antecedent_prob::prior::PriorSet, policy: &antecedent_validate::ConflictPolicy, problem: &antecedent_estimate::bayesian::gcomp::PreparedBayesianProblem, ctx: &antecedent_core::execution::ExecutionContext, ppc: &antecedent_validate::PriorPredictiveCheck) -> core::result::Result<(antecedent_prob::external_prior::ComposedPrior, antecedent_prob::diagnostics::ConflictSummary), antecedent_validate::ValidationError>
 pub fn antecedent_validate::conflict::with_conflict_summary(posterior: antecedent_estimate::bayesian::CausalPosterior, summary: antecedent_prob::diagnostics::ConflictSummary) -> antecedent_estimate::bayesian::CausalPosterior
+pub fn antecedent_validate::evalue_bounds(interval: antecedent_validate::EffectInterval, scale: antecedent_validate::EffectScale) -> core::result::Result<antecedent_validate::EValueBounds, antecedent_validate::ValidationError>
+pub fn antecedent_validate::evalue_of_risk_ratio(rr: f64) -> f64
+pub fn antecedent_validate::evalue_range(target: antecedent_validate::RefutationTarget, interval: antecedent_validate::EffectInterval, scale: antecedent_validate::EffectScale) -> core::result::Result<(antecedent_validate::EValueBounds, antecedent_validate::AssumptionRange), antecedent_validate::ValidationError>
+pub fn antecedent_validate::evalue_scales::bounding_factor(strength: f64) -> f64
+pub fn antecedent_validate::evalue_scales::ratio_to_risk_ratio(value: f64, scale: antecedent_validate::EffectScale) -> core::result::Result<f64, antecedent_validate::ValidationError>
+pub fn antecedent_validate::evalue_scales::smd_to_risk_ratio(d: f64) -> f64
 pub fn antecedent_validate::fixed_graph_conditional_mechanism_sensitivity(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::sid::ClassicalTransportQuery, functional: &antecedent_identify::sid::BoundTransportFunctional, spec: &antecedent_validate::FixedGraphMechanismSensitivitySpec, mechanism: antecedent_core::ids::VariableId, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_validate::FixedGraphConditionalMechanismSensitivityResult, antecedent_validate::FixedGraphSensitivityError>
 pub fn antecedent_validate::fixed_graph_mechanism_sensitivity(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::sid::ClassicalTransportQuery, functional: &antecedent_identify::sid::BoundTransportFunctional, spec: &antecedent_validate::FixedGraphMechanismSensitivitySpec, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_validate::FixedGraphMechanismSensitivityResult, antecedent_validate::FixedGraphSensitivityError>
 pub fn antecedent_validate::fixed_graph_root_mechanism_sensitivity(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::sid::ClassicalTransportQuery, functional: &antecedent_identify::sid::BoundTransportFunctional, spec: &antecedent_validate::FixedGraphMechanismSensitivitySpec, mechanism: antecedent_core::ids::VariableId, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_validate::FixedGraphRootMechanismSensitivityResult, antecedent_validate::FixedGraphSensitivityError>
@@ -2228,13 +3010,20 @@ pub fn antecedent_validate::fixed_graph_treatment_level_sensitivity(diagram: &an
 pub fn antecedent_validate::functional::refute_distribution(data: &antecedent_data::dataset::TabularData, query: &antecedent_core::query::distribution::InterventionalDistributionQuery, identification: &antecedent_identify::result::IdentificationResult, estimand: &antecedent_expr::estimand::IdentifiedEstimand, original: &antecedent_estimate::functional_distribution::InterventionalDistributionEstimate, full: bool, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_validate::RefutationReport>, antecedent_validate::ValidationError>
 pub fn antecedent_validate::functional::refute_path(data: &antecedent_data::dataset::TabularData, query: &antecedent_core::query::distribution::PathSpecificEffectQuery, identification: &antecedent_identify::result::IdentificationResult, estimand: &antecedent_expr::estimand::IdentifiedEstimand, original: f64, full: bool, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_validate::RefutationReport>, antecedent_validate::ValidationError>
 pub fn antecedent_validate::joint_mechanism_sensitivity::z_transport_joint_mechanism_sensitivity(diagram: &antecedent_graph::selection::SelectionDiagram, functional: &antecedent_identify::sid::z_transport::BoundZTransportFunctional, data: &antecedent_expr::exact::ExactTransportData, spec: &antecedent_validate::JointDeviationSpec, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_validate::JointMechanismSensitivityResult, antecedent_validate::JointSensitivityError>
+pub fn antecedent_validate::linear_adjustment_fit(outcome: &[f64], treatment: &[f64], covariates: &[alloc::vec::Vec<f64>]) -> core::result::Result<antecedent_validate::LinearAdjustmentFit, antecedent_validate::ValidationError>
+pub fn antecedent_validate::matched_sets_break_even(sets: &[antecedent_validate::MatchedSet], score: antecedent_validate::MatchedSetScore, alpha: f64) -> core::result::Result<core::option::Option<f64>, antecedent_validate::ValidationError>
+pub fn antecedent_validate::matched_sets_upper_p(sets: &[antecedent_validate::MatchedSet], score: antecedent_validate::MatchedSetScore, gamma: f64) -> core::result::Result<antecedent_validate::MatchedSetBound, antecedent_validate::ValidationError>
 pub fn antecedent_validate::mechanism_sensitivity::z_transport_mechanism_sensitivity(diagram: &antecedent_graph::selection::SelectionDiagram, functional: &antecedent_identify::sid::z_transport::BoundZTransportFunctional, data: &antecedent_expr::exact::ExactTransportData, max_fraction: f64, decision_threshold: core::option::Option<f64>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_validate::ZTransportMechanismSensitivityResult, antecedent_validate::ZTransportSensitivityError>
 pub fn antecedent_validate::mediation::refute_static_mediation(data: &antecedent_data::dataset::TabularData, graph: &antecedent_graph::dag::Dag, query: &antecedent_core::query::mediation::MediationQuery, original: &antecedent_estimate::temporal_mediation::TemporalMediationEstimate, full: bool, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_validate::RefutationReport>, antecedent_validate::ValidationError>
 pub fn antecedent_validate::mediation::refute_temporal_mediation_adjusted(data: &antecedent_data::dataset::TimeSeriesData, estimand: &antecedent_expr::estimand::IdentifiedEstimand, query: &antecedent_core::query::mediation::MediationQuery, original: &antecedent_estimate::temporal_mediation::TemporalMediationEstimate, full: bool, adjustment: &[antecedent_data::sample::LaggedColumn], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_validate::RefutationReport>, antecedent_validate::ValidationError>
 pub fn antecedent_validate::mediation::refute_temporal_mediation_with_gaps(data: &antecedent_data::dataset::TimeSeriesData, estimand: &antecedent_expr::estimand::IdentifiedEstimand, query: &antecedent_core::query::mediation::MediationQuery, original: &antecedent_estimate::temporal_mediation::TemporalMediationEstimate, full: bool, adjustment: &[antecedent_data::sample::LaggedColumn], gaps: bool, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_validate::RefutationReport>, antecedent_validate::ValidationError>
+pub fn antecedent_validate::mediation_range(target: antecedent_validate::RefutationTarget, summary: &antecedent_validate::MediationSensitivitySummary) -> core::result::Result<antecedent_validate::AssumptionRange, antecedent_validate::ValidationError>
+pub fn antecedent_validate::mediation_sensitivity::mediation_sensitivity_fit(treatment: &[f64], mediator: &[f64], outcome: &[f64], covariates: &[alloc::vec::Vec<f64>]) -> core::result::Result<antecedent_validate::MediationSensitivitySummary, antecedent_validate::ValidationError>
 pub fn antecedent_validate::msm_ate_bounds_at(strata: &[antecedent_validate::MsmStratum], lambda: f64) -> core::result::Result<antecedent_validate::MsmPoint, antecedent_validate::MsmSensitivityError>
 pub fn antecedent_validate::msm_ate_sensitivity(strata: &[antecedent_validate::MsmStratum], spec: &antecedent_validate::MsmSensitivitySpec) -> core::result::Result<antecedent_validate::MsmSensitivityResult, antecedent_validate::MsmSensitivityError>
 pub fn antecedent_validate::msm_dirichlet_posterior(strata: &[antecedent_validate::MsmStratum], request: antecedent_estimate::posterior_mean::PosteriorRequest) -> core::result::Result<f64, antecedent_estimate::error::EstimationError>
+pub fn antecedent_validate::omitted_variable_bias::ovb_range(target: antecedent_validate::RefutationTarget, summary: &antecedent_validate::LinearAdjustmentSummary, q: f64, alpha: f64, r2yz_extreme: f64) -> core::result::Result<antecedent_validate::AssumptionRange, antecedent_validate::ValidationError>
+pub fn antecedent_validate::omitted_variable_bias::partial_r2_from_t(t: f64, dof: f64) -> f64
 pub fn antecedent_validate::predictive_assessment::assess_predictive_laws(spec: &antecedent_validate::predictive_assessment::PredictiveAssessmentSpec, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_validate::predictive_assessment::PredictiveAssessmentReport, antecedent_validate::predictive_assessment::PredictiveAssessmentError>
 pub fn antecedent_validate::predictive_assessment::brier_binary(probability: f64, outcome: bool) -> f64
 pub fn antecedent_validate::predictive_assessment::brier_categorical(probabilities: &[f64], outcome: usize) -> f64
@@ -2252,6 +3041,20 @@ pub fn antecedent_validate::predictive_assessment::score_case(kind: antecedent_v
 pub fn antecedent_validate::predictive_assessment::score_interval_basis(facts: &antecedent_validate::predictive_assessment::IntervalFacts<'_>) -> antecedent_io_core::calibration::CalibrationBasisWire
 pub fn antecedent_validate::predictive_assessment::score_interval_construction(dependence: &str) -> (&'static str, &'static str)
 pub fn antecedent_validate::predictive_assessment::variance_of_mean(d: &[f64], dependence: &antecedent_validate::predictive_assessment::DependenceDeclaration, cluster: core::option::Option<&[u32]>) -> core::result::Result<f64, antecedent_validate::predictive_assessment::PredictiveAssessmentError>
+pub fn antecedent_validate::refuse_scalar_reports_for_target(claim: &antecedent_validate::RefutationTarget, scalar: &[antecedent_validate::RefutationReport]) -> core::result::Result<(), antecedent_validate::TargetCertificationError>
+pub fn antecedent_validate::rosenbaum::gamma_of(lambda: f64, delta: f64) -> f64
+pub fn antecedent_validate::rosenbaum::rosenbaum_range(target: antecedent_validate::RefutationTarget, differences: &[f64], gammas: &[f64], alpha: f64, ctx: core::option::Option<&antecedent_core::execution::ExecutionContext>) -> core::result::Result<(antecedent_validate::SignedRankSensitivity, antecedent_validate::AssumptionRange), antecedent_validate::ValidationError>
+pub fn antecedent_validate::rosenbaum::signed_rank_sensitivity(differences: &[f64], gammas: &[f64], alpha: f64, ctx: core::option::Option<&antecedent_core::execution::ExecutionContext>) -> core::result::Result<antecedent_validate::SignedRankSensitivity, antecedent_validate::ValidationError>
+pub fn antecedent_validate::run_target_plan(plan: &antecedent_validate::TargetRefutationPlan, refit: &dyn antecedent_validate::TargetRefit, config: &antecedent_validate::target_native::TargetRefutationConfig, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_validate::target_native::TargetRefutationRun, antecedent_validate::ValidationError>
+pub fn antecedent_validate::staleness::dependency_class(stage: antecedent_core::recalc::Stage) -> core::option::Option<antecedent_io_core::dependency_key::DependencyClass>
+pub fn antecedent_validate::staleness::snapshot_identity(data: &antecedent_data::dataset::TabularData) -> alloc::string::String
+pub fn antecedent_validate::target_native::finite_difference_consistency(response: impl core::ops::function::FnMut(f64) -> core::result::Result<f64, antecedent_validate::ValidationError>, points: &[antecedent_validate::target_native::DerivativeCheckPoint], step: f64, tolerance: f64) -> core::result::Result<antecedent_validate::target_native::DerivativeConsistency, antecedent_validate::ValidationError>
+pub fn antecedent_validate::target_native::joint_mahalanobis(expected: &[f64], replicates: &[f64], k: usize) -> core::result::Result<antecedent_validate::target_native::JointStatistic, antecedent_validate::ValidationError>
+pub fn antecedent_validate::target_native::local_linearity(response: impl core::ops::function::FnMut(f64) -> core::result::Result<f64, antecedent_validate::ValidationError>, points: &[f64], step: f64, tolerance: f64, slope_floor: f64) -> core::result::Result<antecedent_validate::target_native::LocalLinearity, antecedent_validate::ValidationError>
+pub fn antecedent_validate::target_native::posterior_predictive_target_check(input: &antecedent_validate::target_native::PosteriorPredictiveTarget<'_>) -> core::result::Result<antecedent_validate::TargetRefutationReport, antecedent_validate::ValidationError>
+pub fn antecedent_validate::target_native::prior_sensitivity_target_check(input: &antecedent_validate::target_native::PriorSensitivityTarget<'_>) -> core::result::Result<antecedent_validate::TargetRefutationReport, antecedent_validate::ValidationError>
+pub fn antecedent_validate::target_native::target_refuter_stream(kind: antecedent_validate::TargetRefuterKind, replicate: u32, ctx: &antecedent_core::execution::ExecutionContext) -> antecedent_core::execution::CausalRng
+pub mod antecedent_validate::assumption_range
 pub mod antecedent_validate::bayesian_checks
 pub mod antecedent_validate::bootstrap_refute
 pub mod antecedent_validate::common
@@ -2261,12 +3064,15 @@ pub mod antecedent_validate::data_subset
 pub mod antecedent_validate::dummy_outcome
 pub mod antecedent_validate::error
 pub mod antecedent_validate::evalue
+pub mod antecedent_validate::evalue_scales
 pub mod antecedent_validate::functional
 pub mod antecedent_validate::graph_refute
 pub mod antecedent_validate::joint_mechanism_sensitivity
 pub mod antecedent_validate::mechanism_sensitivity
 pub mod antecedent_validate::mediation
+pub mod antecedent_validate::mediation_sensitivity
 pub mod antecedent_validate::msm_sensitivity
+pub mod antecedent_validate::omitted_variable_bias
 pub mod antecedent_validate::overlap
 pub mod antecedent_validate::overlap_rule
 pub mod antecedent_validate::placebo
@@ -2274,14 +3080,19 @@ pub mod antecedent_validate::predictive_assessment
 pub mod antecedent_validate::predictive_assessment::detail
 pub mod antecedent_validate::rcc
 pub mod antecedent_validate::riesz
+pub mod antecedent_validate::rosenbaum
 pub mod antecedent_validate::sensitivity
 pub mod antecedent_validate::stability
+pub mod antecedent_validate::staleness
 pub mod antecedent_validate::suite
+pub mod antecedent_validate::target_native
 pub mod antecedent_validate::unobserved_common_cause
 pub mod antecedent_validate::validator
 pub struct antecedent_validate::AlphaThresholdSensitivity
+pub struct antecedent_validate::AssumptionRange
 pub struct antecedent_validate::AxisTipping
 pub struct antecedent_validate::BayesianSuiteContext<'a>
+pub struct antecedent_validate::BenchmarkBound
 pub struct antecedent_validate::BlockBootstrapStability
 pub struct antecedent_validate::BootstrapRefute
 pub struct antecedent_validate::CiTestSensitivity
@@ -2294,6 +3105,7 @@ pub struct antecedent_validate::DiscreteKernelSensitivity
 pub struct antecedent_validate::DiscreteKernelSensitivityResult
 pub struct antecedent_validate::DummyOutcome
 pub struct antecedent_validate::EValue
+pub struct antecedent_validate::EValueBounds
 pub struct antecedent_validate::EnvironmentHoldout
 pub struct antecedent_validate::EnvironmentHoldoutReport
 pub struct antecedent_validate::ExternalAlphaSensitivity<'a>
@@ -2313,8 +3125,13 @@ pub struct antecedent_validate::JointSensitivityRange
 pub struct antecedent_validate::JointSensitivityReceipt
 pub struct antecedent_validate::JointSensitivityUncertainty
 pub struct antecedent_validate::LagWindowSensitivity
+pub struct antecedent_validate::LinearAdjustmentFit
+pub struct antecedent_validate::LinearAdjustmentSummary
 pub struct antecedent_validate::LinearSensitivity
 pub struct antecedent_validate::LinkStability
+pub struct antecedent_validate::MatchedSet
+pub struct antecedent_validate::MatchedSetBound
+pub struct antecedent_validate::MediationSensitivitySummary
 pub struct antecedent_validate::MsmOutcomeLaw
 pub struct antecedent_validate::MsmPoint
 pub struct antecedent_validate::MsmSensitivityError
@@ -2340,18 +3157,33 @@ pub struct antecedent_validate::PreparedRefutation<'a>
 pub struct antecedent_validate::PriorPredictiveCheck
 pub struct antecedent_validate::PriorSensitivity
 pub struct antecedent_validate::RandomCommonCause
+pub struct antecedent_validate::RangePoint
 pub struct antecedent_validate::RefutationProblem has private fields
 pub struct antecedent_validate::RefutationProblem<'a>
+pub struct antecedent_validate::RefutationTarget
+pub struct antecedent_validate::RefutationTarget has private fields
 pub struct antecedent_validate::RegimeStability
 pub struct antecedent_validate::RegimeStabilityReport
 pub struct antecedent_validate::RieszSensitivity
 pub struct antecedent_validate::SbcReport
 pub struct antecedent_validate::SerialDiscrepancy
+pub struct antecedent_validate::SignedRankSensitivity
 pub struct antecedent_validate::SimulationBasedCalibration
 pub struct antecedent_validate::SourceOutcomeKernelRow
 pub struct antecedent_validate::SourceParentLawRow
+pub struct antecedent_validate::StalenessBaseline
+pub struct antecedent_validate::StalenessBaseline has private fields
+pub struct antecedent_validate::StalenessFinding
+pub struct antecedent_validate::StalenessPlan
+pub struct antecedent_validate::StalenessPolicy
+pub struct antecedent_validate::StalenessReport
 pub struct antecedent_validate::SyntheticNullCalibration
+pub struct antecedent_validate::TargetCertificate
 pub struct antecedent_validate::TargetParentLawRow
+pub struct antecedent_validate::TargetQuadrant
+pub struct antecedent_validate::TargetRefutationPlan
+pub struct antecedent_validate::TargetRefutationPlan has private fields
+pub struct antecedent_validate::TargetRefutationReport
 pub struct antecedent_validate::TemporalRefitContext<'a>
 pub struct antecedent_validate::TippingBracket
 pub struct antecedent_validate::UndirectedLinkStability
@@ -2389,11 +3221,27 @@ pub struct antecedent_validate::predictive_assessment::ScoreInterval
 pub struct antecedent_validate::predictive_assessment::ScoreIntervalQuery
 pub struct antecedent_validate::predictive_assessment::ScoreIntervalRequest
 pub struct antecedent_validate::predictive_assessment::ScoreSummary
+pub struct antecedent_validate::rosenbaum::SignedRankStatistic
+pub struct antecedent_validate::rosenbaum::SignedRankStatistic has private fields
+pub struct antecedent_validate::target_native::DerivativeCheckPoint
+pub struct antecedent_validate::target_native::DerivativeConsistency
+pub struct antecedent_validate::target_native::JointStatistic
+pub struct antecedent_validate::target_native::LocalLinearity
+pub struct antecedent_validate::target_native::PosteriorPredictiveTarget<'a>
+pub struct antecedent_validate::target_native::PriorSensitivityTarget<'a>
+pub struct antecedent_validate::target_native::TargetRefutationConfig
+pub struct antecedent_validate::target_native::TargetRefutationRun
+pub struct antecedent_validate::target_native::TargetRefuterRefusal
 pub trait antecedent_validate::CustomEffectValidator: core::marker::Send + core::marker::Sync
+pub trait antecedent_validate::TargetRefit
 pub trait antecedent_validate::Validator<A>: sealed::Sealed
 pub trait antecedent_validate::common::EffectRefit: core::fmt::Debug
 pub trait fn fn antecedent_validate::CustomEffectValidator::name(&self) -> &str
 pub trait fn fn antecedent_validate::CustomEffectValidator::validate(&self, problem: &antecedent_validate::RefutationProblem<'_>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_validate::RefutationReport, antecedent_validate::ValidationError>
+pub trait fn fn antecedent_validate::TargetRefit::native_check(&self, kind: antecedent_validate::TargetRefuterKind, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_validate::TargetRefutationReport, antecedent_validate::target_native::TargetRefitError> {default}
+pub trait fn fn antecedent_validate::TargetRefit::original(&self) -> &[f64]
+pub trait fn fn antecedent_validate::TargetRefit::refit(&self, perturbation: antecedent_validate::target_native::TargetPerturbation, rng: &mut antecedent_core::execution::CausalRng, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_validate::target_native::TargetRefitError>
+pub trait fn fn antecedent_validate::TargetRefit::target(&self) -> &antecedent_validate::RefutationTarget
 pub trait fn fn antecedent_validate::Validator::prepare(&self, artifact: &A, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<<Self as antecedent_validate::Validator>::Prepared, antecedent_validate::ValidationError>
 pub trait fn fn antecedent_validate::Validator::validate(&self, prepared: &mut <Self as antecedent_validate::Validator>::Prepared, workspace: &mut antecedent_estimate::adjustment::EstimationWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<<Self as antecedent_validate::Validator>::Report, antecedent_validate::ValidationError>
 pub trait fn fn antecedent_validate::common::EffectRefit::prepare_aligned(&self, data: &antecedent_data::dataset::TabularData, ctx: &antecedent_core::execution::ExecutionContext) -> core::option::Option<core::result::Result<antecedent_validate::common::AlignedRefit, antecedent_validate::ValidationError>> {default}
@@ -2402,6 +3250,9 @@ pub trait fn fn antecedent_validate::common::EffectRefit::refit(&self, data: &an
 pub trait type antecedent_validate::Validator::Prepared
 pub trait type antecedent_validate::Validator::Report
 pub type antecedent_validate::common::WindowCompleteness = alloc::vec::Vec<bool>
+pub use antecedent_validate::assumption_range::AssumptionRange = antecedent_validate::AssumptionRange
+pub use antecedent_validate::assumption_range::RangePoint = antecedent_validate::RangePoint
+pub use antecedent_validate::assumption_range::SensitivityAssumption = antecedent_validate::SensitivityAssumption
 pub use antecedent_validate::bayesian_checks::ExternalAlphaSensitivity = antecedent_validate::ExternalAlphaSensitivity
 pub use antecedent_validate::bayesian_checks::PosteriorPredictiveCheck = antecedent_validate::PosteriorPredictiveCheck
 pub use antecedent_validate::bayesian_checks::PredictiveCheckKind = antecedent_validate::PredictiveCheckKind
@@ -2426,6 +3277,12 @@ pub use antecedent_validate::dummy_outcome::DummyOutcome = antecedent_validate::
 pub use antecedent_validate::error::ValidationError = antecedent_validate::ValidationError
 pub use antecedent_validate::evalue::DEFAULT_EVALUE_THRESHOLD = antecedent_validate::DEFAULT_EVALUE_THRESHOLD
 pub use antecedent_validate::evalue::EValue = antecedent_validate::EValue
+pub use antecedent_validate::evalue_scales::EValueBounds = antecedent_validate::EValueBounds
+pub use antecedent_validate::evalue_scales::EffectInterval = antecedent_validate::EffectInterval
+pub use antecedent_validate::evalue_scales::EffectScale = antecedent_validate::EffectScale
+pub use antecedent_validate::evalue_scales::evalue_bounds = antecedent_validate::evalue_bounds
+pub use antecedent_validate::evalue_scales::evalue_of_risk_ratio = antecedent_validate::evalue_of_risk_ratio
+pub use antecedent_validate::evalue_scales::evalue_range = antecedent_validate::evalue_range
 pub use antecedent_validate::graph_refute::GraphRefuter = antecedent_validate::GraphRefuter
 pub use antecedent_validate::joint_mechanism_sensitivity::AxisTipping = antecedent_validate::AxisTipping
 pub use antecedent_validate::joint_mechanism_sensitivity::FrontierPoint = antecedent_validate::FrontierPoint
@@ -2461,6 +3318,9 @@ pub use antecedent_validate::mechanism_sensitivity::fixed_graph_mechanism_sensit
 pub use antecedent_validate::mechanism_sensitivity::fixed_graph_root_mechanism_sensitivity = antecedent_validate::fixed_graph_root_mechanism_sensitivity
 pub use antecedent_validate::mechanism_sensitivity::fixed_graph_treatment_level_sensitivity = antecedent_validate::fixed_graph_treatment_level_sensitivity
 pub use antecedent_validate::mediation::QueryRefutationPlan = antecedent_validate::QueryRefutationPlan
+pub use antecedent_validate::mediation_sensitivity::MediationSensitivitySummary = antecedent_validate::MediationSensitivitySummary
+pub use antecedent_validate::mediation_sensitivity::mediation_range = antecedent_validate::mediation_range
+pub use antecedent_validate::mediation_sensitivity_fit = antecedent_validate::mediation_sensitivity::mediation_sensitivity_fit
 pub use antecedent_validate::msm_sensitivity::MsmOutcomeLaw = antecedent_validate::MsmOutcomeLaw
 pub use antecedent_validate::msm_sensitivity::MsmPoint = antecedent_validate::MsmPoint
 pub use antecedent_validate::msm_sensitivity::MsmSensitivityError = antecedent_validate::MsmSensitivityError
@@ -2473,16 +3333,31 @@ pub use antecedent_validate::msm_sensitivity::MsmTippingDirection = antecedent_v
 pub use antecedent_validate::msm_sensitivity::msm_ate_bounds_at = antecedent_validate::msm_ate_bounds_at
 pub use antecedent_validate::msm_sensitivity::msm_ate_sensitivity = antecedent_validate::msm_ate_sensitivity
 pub use antecedent_validate::msm_sensitivity::msm_dirichlet_posterior = antecedent_validate::msm_dirichlet_posterior
+pub use antecedent_validate::omitted_variable_bias::BenchmarkBound = antecedent_validate::BenchmarkBound
+pub use antecedent_validate::omitted_variable_bias::LinearAdjustmentFit = antecedent_validate::LinearAdjustmentFit
+pub use antecedent_validate::omitted_variable_bias::LinearAdjustmentSummary = antecedent_validate::LinearAdjustmentSummary
+pub use antecedent_validate::omitted_variable_bias::benchmark_bound = antecedent_validate::benchmark_bound
+pub use antecedent_validate::omitted_variable_bias::linear_adjustment_fit = antecedent_validate::linear_adjustment_fit
+pub use antecedent_validate::ovb_range = antecedent_validate::omitted_variable_bias::ovb_range
 pub use antecedent_validate::overlap::OverlapRefuter = antecedent_validate::OverlapRefuter
 pub use antecedent_validate::overlap_rule::OverlapRuleRefuter = antecedent_validate::OverlapRuleRefuter
 pub use antecedent_validate::placebo::PlaceboMode = antecedent_validate::PlaceboMode
 pub use antecedent_validate::placebo::PlaceboTreatment = antecedent_validate::PlaceboTreatment
 pub use antecedent_validate::rcc::RandomCommonCause = antecedent_validate::RandomCommonCause
 pub use antecedent_validate::riesz::RieszSensitivity = antecedent_validate::RieszSensitivity
+pub use antecedent_validate::rosenbaum::MatchedSet = antecedent_validate::MatchedSet
+pub use antecedent_validate::rosenbaum::MatchedSetBound = antecedent_validate::MatchedSetBound
+pub use antecedent_validate::rosenbaum::MatchedSetScore = antecedent_validate::MatchedSetScore
+pub use antecedent_validate::rosenbaum::SignedRankSensitivity = antecedent_validate::SignedRankSensitivity
+pub use antecedent_validate::rosenbaum::amplify = antecedent_validate::amplify
+pub use antecedent_validate::rosenbaum::matched_sets_break_even = antecedent_validate::matched_sets_break_even
+pub use antecedent_validate::rosenbaum::matched_sets_upper_p = antecedent_validate::matched_sets_upper_p
+pub use antecedent_validate::rosenbaum_range = antecedent_validate::rosenbaum::rosenbaum_range
 pub use antecedent_validate::sensitivity::LinearSensitivity = antecedent_validate::LinearSensitivity
 pub use antecedent_validate::sensitivity::NeighborhoodSensitivity = antecedent_validate::NeighborhoodSensitivity
 pub use antecedent_validate::sensitivity::NonparametricSensitivity = antecedent_validate::NonparametricSensitivity
 pub use antecedent_validate::sensitivity::PartialLinearSensitivity = antecedent_validate::PartialLinearSensitivity
+pub use antecedent_validate::signed_rank_sensitivity = antecedent_validate::rosenbaum::signed_rank_sensitivity
 pub use antecedent_validate::stability::AlphaThresholdSensitivity = antecedent_validate::AlphaThresholdSensitivity
 pub use antecedent_validate::stability::BlockBootstrapStability = antecedent_validate::BlockBootstrapStability
 pub use antecedent_validate::stability::CiTestSensitivity = antecedent_validate::CiTestSensitivity
@@ -2502,11 +3377,34 @@ pub use antecedent_validate::stability::RegimeStabilityReport = antecedent_valid
 pub use antecedent_validate::stability::SyntheticNullCalibration = antecedent_validate::SyntheticNullCalibration
 pub use antecedent_validate::stability::UndirectedLinkStability = antecedent_validate::UndirectedLinkStability
 pub use antecedent_validate::stack_panel_tabular = antecedent_validate::common::stack_panel_tabular
+pub use antecedent_validate::staleness::FindingKind = antecedent_validate::FindingKind
+pub use antecedent_validate::staleness::Multiplicity = antecedent_validate::Multiplicity
+pub use antecedent_validate::staleness::Recommendation = antecedent_validate::Recommendation
+pub use antecedent_validate::staleness::StalenessBaseline = antecedent_validate::StalenessBaseline
+pub use antecedent_validate::staleness::StalenessError = antecedent_validate::StalenessError
+pub use antecedent_validate::staleness::StalenessFinding = antecedent_validate::StalenessFinding
+pub use antecedent_validate::staleness::StalenessPlan = antecedent_validate::StalenessPlan
+pub use antecedent_validate::staleness::StalenessPolicy = antecedent_validate::StalenessPolicy
+pub use antecedent_validate::staleness::StalenessReport = antecedent_validate::StalenessReport
+pub use antecedent_validate::staleness::assess_exported_baseline = antecedent_validate::assess_exported_baseline
 pub use antecedent_validate::suite::BayesianSuiteContext = antecedent_validate::BayesianSuiteContext
 pub use antecedent_validate::suite::ConfiguredValidator = antecedent_validate::ConfiguredValidator
 pub use antecedent_validate::suite::ValidationOutcome = antecedent_validate::ValidationOutcome
 pub use antecedent_validate::suite::ValidationSuite = antecedent_validate::ValidationSuite
 pub use antecedent_validate::suite::ValidatorId = antecedent_validate::ValidatorId
+pub use antecedent_validate::target_native::RefutationTarget = antecedent_validate::RefutationTarget
+pub use antecedent_validate::target_native::TargetCertificate = antecedent_validate::TargetCertificate
+pub use antecedent_validate::target_native::TargetCertificationError = antecedent_validate::TargetCertificationError
+pub use antecedent_validate::target_native::TargetFamily = antecedent_validate::TargetFamily
+pub use antecedent_validate::target_native::TargetQuadrant = antecedent_validate::TargetQuadrant
+pub use antecedent_validate::target_native::TargetRefit = antecedent_validate::TargetRefit
+pub use antecedent_validate::target_native::TargetRefutationPlan = antecedent_validate::TargetRefutationPlan
+pub use antecedent_validate::target_native::TargetRefutationReport = antecedent_validate::TargetRefutationReport
+pub use antecedent_validate::target_native::TargetRefuterKind = antecedent_validate::TargetRefuterKind
+pub use antecedent_validate::target_native::TargetSuite = antecedent_validate::TargetSuite
+pub use antecedent_validate::target_native::certify_target_refutations = antecedent_validate::certify_target_refutations
+pub use antecedent_validate::target_native::refuse_scalar_reports_for_target = antecedent_validate::refuse_scalar_reports_for_target
+pub use antecedent_validate::target_native::run_target_plan = antecedent_validate::run_target_plan
 pub use antecedent_validate::unobserved_common_cause::UnobservedCommonCause = antecedent_validate::UnobservedCommonCause
 pub use antecedent_validate::validator::PreparedRefutation = antecedent_validate::PreparedRefutation
 pub use antecedent_validate::validator::Validator = antecedent_validate::Validator
@@ -2536,6 +3434,25 @@ pub variant antecedent_validate::DiscreteKernelSensitivityError::InvalidContrast
 pub variant antecedent_validate::DiscreteKernelSensitivityError::InvalidDimensions
 pub variant antecedent_validate::DiscreteKernelSensitivityError::InvalidFraction
 pub variant antecedent_validate::DiscreteKernelSensitivityError::InvalidKernel
+pub variant antecedent_validate::EffectInterval::Ratio { estimate: f64, lower: core::option::Option<f64>, upper: core::option::Option<f64> }
+pub variant antecedent_validate::EffectInterval::Standardized { estimate: f64, standard_error: core::option::Option<f64> }
+pub variant antecedent_validate::EffectScale::HazardRatio { common_outcome: bool }
+pub variant antecedent_validate::EffectScale::OddsRatio { common_outcome: bool }
+pub variant antecedent_validate::EffectScale::RiskRatio
+pub variant antecedent_validate::EffectScale::StandardizedMeanDifference
+pub variant antecedent_validate::FindingKind::AssumptionRegression
+pub variant antecedent_validate::FindingKind::CovariateShift
+pub variant antecedent_validate::FindingKind::InsufficientData
+pub variant antecedent_validate::FindingKind::JointShift
+pub variant antecedent_validate::FindingKind::LevelChange
+pub variant antecedent_validate::FindingKind::MissingnessChange
+pub variant antecedent_validate::FindingKind::OverlapChange
+pub variant antecedent_validate::FindingKind::PeriodDrift
+pub variant antecedent_validate::FindingKind::PositivityChange
+pub variant antecedent_validate::FindingKind::PriorLikelihoodConflict
+pub variant antecedent_validate::FindingKind::SchemaChange
+pub variant antecedent_validate::FindingKind::SupportLoss
+pub variant antecedent_validate::FindingKind::TargetIncompatible
 pub variant antecedent_validate::FixedGraphSensitivityError::InvalidParentLaw
 pub variant antecedent_validate::FixedGraphSensitivityError::InvalidQuery
 pub variant antecedent_validate::FixedGraphSensitivityError::InvalidTransportProof
@@ -2551,8 +3468,12 @@ pub variant antecedent_validate::JointFactor::SourceTargetDiscrepancy
 pub variant antecedent_validate::JointFactor::TreatmentMechanism
 pub variant antecedent_validate::JointSensitivityError::Budget(antecedent_core::search::SearchReceipt)
 pub variant antecedent_validate::JointSensitivityError::Refused { code: &'static str, detail: &'static str, message: alloc::string::String }
+pub variant antecedent_validate::MatchedSetScore::AlignedRanks
+pub variant antecedent_validate::MatchedSetScore::Outcomes
 pub variant antecedent_validate::MsmTippingDirection::LowerBoundFalls
 pub variant antecedent_validate::MsmTippingDirection::UpperBoundRises
+pub variant antecedent_validate::Multiplicity::BenjaminiHochberg
+pub variant antecedent_validate::Multiplicity::Holm
 pub variant antecedent_validate::NullTransform::ColumnPermute
 pub variant antecedent_validate::NullTransform::PhaseRandomize
 pub variant antecedent_validate::PlaceboMode::Permute
@@ -2562,6 +3483,46 @@ pub variant antecedent_validate::PredictiveCheckKind::Prior
 pub variant antecedent_validate::PredictiveNoise::Likelihood
 pub variant antecedent_validate::PredictiveNoise::MeanOnlyImproperScale
 pub variant antecedent_validate::QueryRefutationPlan::TemporalMediation { full: bool }
+pub variant antecedent_validate::Recommendation::Refresh
+pub variant antecedent_validate::Recommendation::Refuse
+pub variant antecedent_validate::Recommendation::Reidentify
+pub variant antecedent_validate::Recommendation::Reuse
+pub variant antecedent_validate::SensitivityAssumption::HiddenBiasInMatchedAssignment
+pub variant antecedent_validate::SensitivityAssumption::MediatorOutcomeConfounding
+pub variant antecedent_validate::SensitivityAssumption::UnmeasuredConfoundingPartialR2
+pub variant antecedent_validate::SensitivityAssumption::UnmeasuredConfoundingRiskRatio
+pub variant antecedent_validate::StalenessError::Admission { bytes: u64, reason: alloc::string::String }
+pub variant antecedent_validate::StalenessError::Artifact(alloc::string::String)
+pub variant antecedent_validate::StalenessError::Cancelled
+pub variant antecedent_validate::StalenessError::Data(antecedent_data::error::DataError)
+pub variant antecedent_validate::StalenessError::Plan(alloc::string::String)
+pub variant antecedent_validate::StalenessError::Policy(&'static str)
+pub variant antecedent_validate::TargetCertificationError::ScalarRefuterForOtherTarget { refuter: alloc::sync::Arc<str>, claim_family: antecedent_validate::TargetFamily, next_attempt: &'static str }
+pub variant antecedent_validate::TargetCertificationError::TargetMismatch { refuter: alloc::sync::Arc<str>, claim_target: alloc::string::String, report_target: alloc::string::String, next_attempt: &'static str }
+pub variant antecedent_validate::TargetFamily::ConditionalEffect
+pub variant antecedent_validate::TargetFamily::JointContrast
+pub variant antecedent_validate::TargetFamily::Mediation
+pub variant antecedent_validate::TargetFamily::ResponseDerivative
+pub variant antecedent_validate::TargetFamily::ScalarAverageEffect
+pub variant antecedent_validate::TargetFamily::TemporalEffect
+pub variant antecedent_validate::TargetFamily::WorldValued
+pub variant antecedent_validate::TargetRefuterKind::Anticipation
+pub variant antecedent_validate::TargetRefuterKind::BootstrapStability
+pub variant antecedent_validate::TargetRefuterKind::FiniteDifferenceConsistency
+pub variant antecedent_validate::TargetRefuterKind::LocalLinearity
+pub variant antecedent_validate::TargetRefuterKind::NegativeControlExposure
+pub variant antecedent_validate::TargetRefuterKind::NegativeControlOutcome
+pub variant antecedent_validate::TargetRefuterKind::PlaceboOutcome
+pub variant antecedent_validate::TargetRefuterKind::PlaceboTreatment
+pub variant antecedent_validate::TargetRefuterKind::PosteriorPredictive
+pub variant antecedent_validate::TargetRefuterKind::PreTrend
+pub variant antecedent_validate::TargetRefuterKind::PriorSensitivity
+pub variant antecedent_validate::TargetRefuterKind::RandomCommonCause
+pub variant antecedent_validate::TargetRefuterKind::SequentialIgnorability
+pub variant antecedent_validate::TargetRefuterKind::SubsetStability
+pub variant antecedent_validate::TargetSuite::Cheap
+pub variant antecedent_validate::TargetSuite::Full
+pub variant antecedent_validate::TargetSuite::Placebo
 pub variant antecedent_validate::TippingStatus::Bracketed
 pub variant antecedent_validate::TippingStatus::NotReachedInBox
 pub variant antecedent_validate::TippingStatus::ReachedAtOrigin
@@ -2660,3 +3621,22 @@ pub variant antecedent_validate::predictive_assessment::ValidationDesign::Blocke
 pub variant antecedent_validate::predictive_assessment::ValidationDesign::HeldOutSplit
 pub variant antecedent_validate::predictive_assessment::ValidationDesign::RollingOrigin { origins: alloc::vec::Vec<u64>, horizon_steps: u32 }
 pub variant antecedent_validate::predictive_assessment::ValidationDesign::SimulationStream { stream: alloc::string::String }
+pub variant antecedent_validate::target_native::JointStatisticKind::BreakEven
+pub variant antecedent_validate::target_native::JointStatisticKind::MahalanobisChiSquare
+pub variant antecedent_validate::target_native::JointStatisticKind::MaxStandardizedDiscrepancy
+pub variant antecedent_validate::target_native::JointStatisticKind::PosteriorShift
+pub variant antecedent_validate::target_native::JointStatisticKind::PredictiveTail
+pub variant antecedent_validate::target_native::RefuterExpectation::Diagnostic
+pub variant antecedent_validate::target_native::RefuterExpectation::Null
+pub variant antecedent_validate::target_native::RefuterExpectation::Original
+pub variant antecedent_validate::target_native::TargetPerturbation::Anticipation { replicate: u32 }
+pub variant antecedent_validate::target_native::TargetPerturbation::Bootstrap { replicate: u32 }
+pub variant antecedent_validate::target_native::TargetPerturbation::NegativeControlExposure { replicate: u32 }
+pub variant antecedent_validate::target_native::TargetPerturbation::NegativeControlOutcome { replicate: u32 }
+pub variant antecedent_validate::target_native::TargetPerturbation::PlaceboOutcome { replicate: u32 }
+pub variant antecedent_validate::target_native::TargetPerturbation::PlaceboTreatment { replicate: u32 }
+pub variant antecedent_validate::target_native::TargetPerturbation::PreTrend { replicate: u32, lead: u32 }
+pub variant antecedent_validate::target_native::TargetPerturbation::RandomCommonCause { replicate: u32 }
+pub variant antecedent_validate::target_native::TargetPerturbation::Subset { replicate: u32, fraction: f64 }
+pub variant antecedent_validate::target_native::TargetRefitError::Failed(antecedent_validate::ValidationError)
+pub variant antecedent_validate::target_native::TargetRefitError::Unsupported { reason: alloc::sync::Arc<str>, next_attempt: alloc::sync::Arc<str> }

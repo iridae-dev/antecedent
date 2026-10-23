@@ -564,6 +564,7 @@ pub const <antecedent_state::retention::RetainedOperation>::ALL: [Self; 8]
 pub const <antecedent_state::retention::RetentionMode>::ALL: [Self; 3]
 pub const antecedent_state::MERGE_ABS_TOL: f64
 pub const antecedent_state::MERGE_REL_TOL: f64
+pub const antecedent_state::particle_filter::MAX_PARTICLES: usize
 pub const fn antecedent_state::merge_within_tolerance(left: f64, right: f64) -> bool
 pub const fn antecedent_state::refresh_contract::route_contract(route: antecedent_state::RefreshRoute, change: antecedent_state::RefreshChange) -> antecedent_state::RefreshDisposition
 pub enum antecedent_state::InvalidationTarget

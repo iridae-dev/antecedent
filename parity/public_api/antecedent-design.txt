@@ -51,6 +51,7 @@ impl !core::panic::unwind_safe::UnwindSafe for antecedent_design::prior_signal::
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_design::prior_signal::PriorSignalRequest [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_design::signal::PreparedLaw [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_design::signal::PreparedSignal [auto]
+impl antecedent_core::refusal::Refused for antecedent_design::planning::PlanningRefusal
 impl antecedent_design::DecisionSignal<f64> for antecedent_design::BinomialSignal
 impl antecedent_design::DecisionSignal<f64> for antecedent_design::GaussianMeanSignal
 impl antecedent_design::ObjectiveScorer for antecedent_design::DesignObjective
@@ -490,6 +491,30 @@ impl core::clone::Clone for antecedent_design::joint_coupling::CouplingAbsent
 impl core::clone::Clone for antecedent_design::joint_coupling::CouplingSource
 impl core::clone::Clone for antecedent_design::joint_coupling::JointCoupling
 impl core::clone::Clone for antecedent_design::joint_coupling::SupportMarginal
+impl core::clone::Clone for antecedent_design::planning::AnalyticCharacteristics
+impl core::clone::Clone for antecedent_design::planning::ArmComparison
+impl core::clone::Clone for antecedent_design::planning::FactorialContrast
+impl core::clone::Clone for antecedent_design::planning::FamilyCharacteristics
+impl core::clone::Clone for antecedent_design::planning::FamilyPower
+impl core::clone::Clone for antecedent_design::planning::FamilySimulation
+impl core::clone::Clone for antecedent_design::planning::InterferenceExposure
+impl core::clone::Clone for antecedent_design::planning::Multiplicity
+impl core::clone::Clone for antecedent_design::planning::NormalPrior
+impl core::clone::Clone for antecedent_design::planning::OutcomeModel
+impl core::clone::Clone for antecedent_design::planning::PlannedDesign
+impl core::clone::Clone for antecedent_design::planning::PlanningAssumptions
+impl core::clone::Clone for antecedent_design::planning::PlanningCriterion
+impl core::clone::Clone for antecedent_design::planning::PlanningGoal
+impl core::clone::Clone for antecedent_design::planning::PlanningRefusal
+impl core::clone::Clone for antecedent_design::planning::PlanningRequest
+impl core::clone::Clone for antecedent_design::planning::PlanningResult
+impl core::clone::Clone for antecedent_design::planning::SequentialCharacteristics
+impl core::clone::Clone for antecedent_design::planning::SequentialSimulation
+impl core::clone::Clone for antecedent_design::planning::SimulatedCharacteristics
+impl core::clone::Clone for antecedent_design::planning::SimulationSpec
+impl core::clone::Clone for antecedent_design::planning::StratumSpec
+impl core::clone::Clone for antecedent_design::planning::SuccessCriterion
+impl core::clone::Clone for antecedent_design::planning::TestSidedness
 impl core::clone::Clone for antecedent_design::prior_signal::CandidateSignalPrior
 impl core::clone::Clone for antecedent_design::prior_signal::CandidateSignalSource
 impl core::clone::Clone for antecedent_design::prior_signal::NativeSignalFamily
@@ -843,6 +868,14 @@ impl core::cmp::Eq for antecedent_design::joint_coupling::CouplingAbsent
 impl core::cmp::Eq for antecedent_design::joint_coupling::CouplingSource
 impl core::cmp::Eq for antecedent_design::joint_coupling::JointCoupling
 impl core::cmp::Eq for antecedent_design::joint_coupling::SupportMarginal
+impl core::cmp::Eq for antecedent_design::planning::ArmComparison
+impl core::cmp::Eq for antecedent_design::planning::FactorialContrast
+impl core::cmp::Eq for antecedent_design::planning::FamilyPower
+impl core::cmp::Eq for antecedent_design::planning::Multiplicity
+impl core::cmp::Eq for antecedent_design::planning::PlanningGoal
+impl core::cmp::Eq for antecedent_design::planning::PlanningRefusal
+impl core::cmp::Eq for antecedent_design::planning::SimulationSpec
+impl core::cmp::Eq for antecedent_design::planning::TestSidedness
 impl core::cmp::Eq for antecedent_design::prior_signal::PriorSignalError
 impl core::cmp::Eq for antecedent_design::prior_signal::TransportPolicyDecl
 impl core::cmp::Eq for antecedent_design::program_search::ProgramSearchScope
@@ -1305,6 +1338,30 @@ impl core::cmp::PartialEq for antecedent_design::joint_coupling::CouplingAbsent
 impl core::cmp::PartialEq for antecedent_design::joint_coupling::CouplingSource
 impl core::cmp::PartialEq for antecedent_design::joint_coupling::JointCoupling
 impl core::cmp::PartialEq for antecedent_design::joint_coupling::SupportMarginal
+impl core::cmp::PartialEq for antecedent_design::planning::AnalyticCharacteristics
+impl core::cmp::PartialEq for antecedent_design::planning::ArmComparison
+impl core::cmp::PartialEq for antecedent_design::planning::FactorialContrast
+impl core::cmp::PartialEq for antecedent_design::planning::FamilyCharacteristics
+impl core::cmp::PartialEq for antecedent_design::planning::FamilyPower
+impl core::cmp::PartialEq for antecedent_design::planning::FamilySimulation
+impl core::cmp::PartialEq for antecedent_design::planning::InterferenceExposure
+impl core::cmp::PartialEq for antecedent_design::planning::Multiplicity
+impl core::cmp::PartialEq for antecedent_design::planning::NormalPrior
+impl core::cmp::PartialEq for antecedent_design::planning::OutcomeModel
+impl core::cmp::PartialEq for antecedent_design::planning::PlannedDesign
+impl core::cmp::PartialEq for antecedent_design::planning::PlanningAssumptions
+impl core::cmp::PartialEq for antecedent_design::planning::PlanningCriterion
+impl core::cmp::PartialEq for antecedent_design::planning::PlanningGoal
+impl core::cmp::PartialEq for antecedent_design::planning::PlanningRefusal
+impl core::cmp::PartialEq for antecedent_design::planning::PlanningRequest
+impl core::cmp::PartialEq for antecedent_design::planning::PlanningResult
+impl core::cmp::PartialEq for antecedent_design::planning::SequentialCharacteristics
+impl core::cmp::PartialEq for antecedent_design::planning::SequentialSimulation
+impl core::cmp::PartialEq for antecedent_design::planning::SimulatedCharacteristics
+impl core::cmp::PartialEq for antecedent_design::planning::SimulationSpec
+impl core::cmp::PartialEq for antecedent_design::planning::StratumSpec
+impl core::cmp::PartialEq for antecedent_design::planning::SuccessCriterion
+impl core::cmp::PartialEq for antecedent_design::planning::TestSidedness
 impl core::cmp::PartialEq for antecedent_design::prior_signal::NativeSignalFamily
 impl core::cmp::PartialEq for antecedent_design::prior_signal::PriorSignalDiagnostics
 impl core::cmp::PartialEq for antecedent_design::prior_signal::PriorSignalError
@@ -1569,6 +1626,7 @@ impl core::error::Error for antecedent_design::evsi::FutureStudyError
 impl core::error::Error for antecedent_design::inverse_forward_source::ForwardSourceRefusal
 impl core::error::Error for antecedent_design::inverse_observational_scenarios::ObservationalScenarioError
 impl core::error::Error for antecedent_design::joint_coupling::CouplingAbsent
+impl core::error::Error for antecedent_design::planning::PlanningRefusal
 impl core::error::Error for antecedent_design::program_search::ProgramSearchError
 impl core::error::Error for antecedent_design::proposal_receipt::ProposalReceiptError
 impl core::error::Error for antecedent_design::robust_decision::RobustDecisionError
@@ -1995,6 +2053,30 @@ impl core::fmt::Debug for antecedent_design::joint_coupling::CouplingAbsent
 impl core::fmt::Debug for antecedent_design::joint_coupling::CouplingSource
 impl core::fmt::Debug for antecedent_design::joint_coupling::JointCoupling
 impl core::fmt::Debug for antecedent_design::joint_coupling::SupportMarginal
+impl core::fmt::Debug for antecedent_design::planning::AnalyticCharacteristics
+impl core::fmt::Debug for antecedent_design::planning::ArmComparison
+impl core::fmt::Debug for antecedent_design::planning::FactorialContrast
+impl core::fmt::Debug for antecedent_design::planning::FamilyCharacteristics
+impl core::fmt::Debug for antecedent_design::planning::FamilyPower
+impl core::fmt::Debug for antecedent_design::planning::FamilySimulation
+impl core::fmt::Debug for antecedent_design::planning::InterferenceExposure
+impl core::fmt::Debug for antecedent_design::planning::Multiplicity
+impl core::fmt::Debug for antecedent_design::planning::NormalPrior
+impl core::fmt::Debug for antecedent_design::planning::OutcomeModel
+impl core::fmt::Debug for antecedent_design::planning::PlannedDesign
+impl core::fmt::Debug for antecedent_design::planning::PlanningAssumptions
+impl core::fmt::Debug for antecedent_design::planning::PlanningCriterion
+impl core::fmt::Debug for antecedent_design::planning::PlanningGoal
+impl core::fmt::Debug for antecedent_design::planning::PlanningRefusal
+impl core::fmt::Debug for antecedent_design::planning::PlanningRequest
+impl core::fmt::Debug for antecedent_design::planning::PlanningResult
+impl core::fmt::Debug for antecedent_design::planning::SequentialCharacteristics
+impl core::fmt::Debug for antecedent_design::planning::SequentialSimulation
+impl core::fmt::Debug for antecedent_design::planning::SimulatedCharacteristics
+impl core::fmt::Debug for antecedent_design::planning::SimulationSpec
+impl core::fmt::Debug for antecedent_design::planning::StratumSpec
+impl core::fmt::Debug for antecedent_design::planning::SuccessCriterion
+impl core::fmt::Debug for antecedent_design::planning::TestSidedness
 impl core::fmt::Debug for antecedent_design::prior_signal::CandidateSignalPrior
 impl core::fmt::Debug for antecedent_design::prior_signal::NativeSignalFamily
 impl core::fmt::Debug for antecedent_design::prior_signal::PriorSignalDiagnostics
@@ -2203,6 +2285,7 @@ impl core::fmt::Display for antecedent_design::evsi::FutureStudyError
 impl core::fmt::Display for antecedent_design::inverse_forward_source::ForwardSourceRefusal
 impl core::fmt::Display for antecedent_design::inverse_observational_scenarios::ObservationalScenarioError
 impl core::fmt::Display for antecedent_design::joint_coupling::CouplingAbsent
+impl core::fmt::Display for antecedent_design::planning::PlanningRefusal
 impl core::fmt::Display for antecedent_design::program_search::ProgramSearchError
 impl core::fmt::Display for antecedent_design::proposal_receipt::ProposalReceiptError
 impl core::fmt::Display for antecedent_design::robust_decision::RobustDecisionError
@@ -2233,6 +2316,13 @@ impl core::hash::Hash for antecedent_design::decision_contract::UncertaintyRequi
 impl core::hash::Hash for antecedent_design::decision_reliability::DrawSegment
 impl core::hash::Hash for antecedent_design::decision_reliability::StreamId
 impl core::hash::Hash for antecedent_design::decision_reliability::StreamPurpose
+impl core::hash::Hash for antecedent_design::planning::ArmComparison
+impl core::hash::Hash for antecedent_design::planning::FactorialContrast
+impl core::hash::Hash for antecedent_design::planning::FamilyPower
+impl core::hash::Hash for antecedent_design::planning::Multiplicity
+impl core::hash::Hash for antecedent_design::planning::PlanningGoal
+impl core::hash::Hash for antecedent_design::planning::SimulationSpec
+impl core::hash::Hash for antecedent_design::planning::TestSidedness
 impl core::hash::Hash for antecedent_design::proposal_receipt::EvidenceState
 impl core::hash::Hash for antecedent_design::sequential_evaluation::ActionRole
 impl core::hash::Hash for antecedent_design::sequential_evaluation::CensoringRule
@@ -2385,6 +2475,21 @@ impl core::marker::Copy for antecedent_design::joint_coupling::CouplingAbsent
 impl core::marker::Copy for antecedent_design::joint_coupling::CouplingSource
 impl core::marker::Copy for antecedent_design::joint_coupling::JointCoupling
 impl core::marker::Copy for antecedent_design::joint_coupling::SupportMarginal
+impl core::marker::Copy for antecedent_design::planning::ArmComparison
+impl core::marker::Copy for antecedent_design::planning::FactorialContrast
+impl core::marker::Copy for antecedent_design::planning::FamilyPower
+impl core::marker::Copy for antecedent_design::planning::FamilySimulation
+impl core::marker::Copy for antecedent_design::planning::InterferenceExposure
+impl core::marker::Copy for antecedent_design::planning::Multiplicity
+impl core::marker::Copy for antecedent_design::planning::NormalPrior
+impl core::marker::Copy for antecedent_design::planning::OutcomeModel
+impl core::marker::Copy for antecedent_design::planning::PlanningAssumptions
+impl core::marker::Copy for antecedent_design::planning::PlanningCriterion
+impl core::marker::Copy for antecedent_design::planning::PlanningGoal
+impl core::marker::Copy for antecedent_design::planning::SimulationSpec
+impl core::marker::Copy for antecedent_design::planning::StratumSpec
+impl core::marker::Copy for antecedent_design::planning::SuccessCriterion
+impl core::marker::Copy for antecedent_design::planning::TestSidedness
 impl core::marker::Copy for antecedent_design::prior_signal::NativeSignalFamily
 impl core::marker::Copy for antecedent_design::prior_signal::SourceToTarget
 impl core::marker::Copy for antecedent_design::program_search::continuous::ContinuousSearchStop
@@ -2838,6 +2943,30 @@ impl core::marker::Freeze for antecedent_design::joint_coupling::CouplingAbsent 
 impl core::marker::Freeze for antecedent_design::joint_coupling::CouplingSource [auto]
 impl core::marker::Freeze for antecedent_design::joint_coupling::JointCoupling [auto]
 impl core::marker::Freeze for antecedent_design::joint_coupling::SupportMarginal [auto]
+impl core::marker::Freeze for antecedent_design::planning::AnalyticCharacteristics [auto]
+impl core::marker::Freeze for antecedent_design::planning::ArmComparison [auto]
+impl core::marker::Freeze for antecedent_design::planning::FactorialContrast [auto]
+impl core::marker::Freeze for antecedent_design::planning::FamilyCharacteristics [auto]
+impl core::marker::Freeze for antecedent_design::planning::FamilyPower [auto]
+impl core::marker::Freeze for antecedent_design::planning::FamilySimulation [auto]
+impl core::marker::Freeze for antecedent_design::planning::InterferenceExposure [auto]
+impl core::marker::Freeze for antecedent_design::planning::Multiplicity [auto]
+impl core::marker::Freeze for antecedent_design::planning::NormalPrior [auto]
+impl core::marker::Freeze for antecedent_design::planning::OutcomeModel [auto]
+impl core::marker::Freeze for antecedent_design::planning::PlannedDesign [auto]
+impl core::marker::Freeze for antecedent_design::planning::PlanningAssumptions [auto]
+impl core::marker::Freeze for antecedent_design::planning::PlanningCriterion [auto]
+impl core::marker::Freeze for antecedent_design::planning::PlanningGoal [auto]
+impl core::marker::Freeze for antecedent_design::planning::PlanningRefusal [auto]
+impl core::marker::Freeze for antecedent_design::planning::PlanningRequest [auto]
+impl core::marker::Freeze for antecedent_design::planning::PlanningResult [auto]
+impl core::marker::Freeze for antecedent_design::planning::SequentialCharacteristics [auto]
+impl core::marker::Freeze for antecedent_design::planning::SequentialSimulation [auto]
+impl core::marker::Freeze for antecedent_design::planning::SimulatedCharacteristics [auto]
+impl core::marker::Freeze for antecedent_design::planning::SimulationSpec [auto]
+impl core::marker::Freeze for antecedent_design::planning::StratumSpec [auto]
+impl core::marker::Freeze for antecedent_design::planning::SuccessCriterion [auto]
+impl core::marker::Freeze for antecedent_design::planning::TestSidedness [auto]
 impl core::marker::Freeze for antecedent_design::prior_signal::CandidateSignalPrior [auto]
 impl core::marker::Freeze for antecedent_design::prior_signal::CandidateSignalSource [auto]
 impl core::marker::Freeze for antecedent_design::prior_signal::NativeSignalFamily [auto]
@@ -3450,6 +3579,30 @@ impl core::marker::Send for antecedent_design::joint_coupling::CouplingAbsent [a
 impl core::marker::Send for antecedent_design::joint_coupling::CouplingSource [auto]
 impl core::marker::Send for antecedent_design::joint_coupling::JointCoupling [auto]
 impl core::marker::Send for antecedent_design::joint_coupling::SupportMarginal [auto]
+impl core::marker::Send for antecedent_design::planning::AnalyticCharacteristics [auto]
+impl core::marker::Send for antecedent_design::planning::ArmComparison [auto]
+impl core::marker::Send for antecedent_design::planning::FactorialContrast [auto]
+impl core::marker::Send for antecedent_design::planning::FamilyCharacteristics [auto]
+impl core::marker::Send for antecedent_design::planning::FamilyPower [auto]
+impl core::marker::Send for antecedent_design::planning::FamilySimulation [auto]
+impl core::marker::Send for antecedent_design::planning::InterferenceExposure [auto]
+impl core::marker::Send for antecedent_design::planning::Multiplicity [auto]
+impl core::marker::Send for antecedent_design::planning::NormalPrior [auto]
+impl core::marker::Send for antecedent_design::planning::OutcomeModel [auto]
+impl core::marker::Send for antecedent_design::planning::PlannedDesign [auto]
+impl core::marker::Send for antecedent_design::planning::PlanningAssumptions [auto]
+impl core::marker::Send for antecedent_design::planning::PlanningCriterion [auto]
+impl core::marker::Send for antecedent_design::planning::PlanningGoal [auto]
+impl core::marker::Send for antecedent_design::planning::PlanningRefusal [auto]
+impl core::marker::Send for antecedent_design::planning::PlanningRequest [auto]
+impl core::marker::Send for antecedent_design::planning::PlanningResult [auto]
+impl core::marker::Send for antecedent_design::planning::SequentialCharacteristics [auto]
+impl core::marker::Send for antecedent_design::planning::SequentialSimulation [auto]
+impl core::marker::Send for antecedent_design::planning::SimulatedCharacteristics [auto]
+impl core::marker::Send for antecedent_design::planning::SimulationSpec [auto]
+impl core::marker::Send for antecedent_design::planning::StratumSpec [auto]
+impl core::marker::Send for antecedent_design::planning::SuccessCriterion [auto]
+impl core::marker::Send for antecedent_design::planning::TestSidedness [auto]
 impl core::marker::Send for antecedent_design::prior_signal::CandidateSignalPrior [auto]
 impl core::marker::Send for antecedent_design::prior_signal::CandidateSignalSource [auto]
 impl core::marker::Send for antecedent_design::prior_signal::NativeSignalFamily [auto]
@@ -4009,6 +4162,30 @@ impl core::marker::StructuralPartialEq for antecedent_design::joint_coupling::Co
 impl core::marker::StructuralPartialEq for antecedent_design::joint_coupling::CouplingSource
 impl core::marker::StructuralPartialEq for antecedent_design::joint_coupling::JointCoupling
 impl core::marker::StructuralPartialEq for antecedent_design::joint_coupling::SupportMarginal
+impl core::marker::StructuralPartialEq for antecedent_design::planning::AnalyticCharacteristics
+impl core::marker::StructuralPartialEq for antecedent_design::planning::ArmComparison
+impl core::marker::StructuralPartialEq for antecedent_design::planning::FactorialContrast
+impl core::marker::StructuralPartialEq for antecedent_design::planning::FamilyCharacteristics
+impl core::marker::StructuralPartialEq for antecedent_design::planning::FamilyPower
+impl core::marker::StructuralPartialEq for antecedent_design::planning::FamilySimulation
+impl core::marker::StructuralPartialEq for antecedent_design::planning::InterferenceExposure
+impl core::marker::StructuralPartialEq for antecedent_design::planning::Multiplicity
+impl core::marker::StructuralPartialEq for antecedent_design::planning::NormalPrior
+impl core::marker::StructuralPartialEq for antecedent_design::planning::OutcomeModel
+impl core::marker::StructuralPartialEq for antecedent_design::planning::PlannedDesign
+impl core::marker::StructuralPartialEq for antecedent_design::planning::PlanningAssumptions
+impl core::marker::StructuralPartialEq for antecedent_design::planning::PlanningCriterion
+impl core::marker::StructuralPartialEq for antecedent_design::planning::PlanningGoal
+impl core::marker::StructuralPartialEq for antecedent_design::planning::PlanningRefusal
+impl core::marker::StructuralPartialEq for antecedent_design::planning::PlanningRequest
+impl core::marker::StructuralPartialEq for antecedent_design::planning::PlanningResult
+impl core::marker::StructuralPartialEq for antecedent_design::planning::SequentialCharacteristics
+impl core::marker::StructuralPartialEq for antecedent_design::planning::SequentialSimulation
+impl core::marker::StructuralPartialEq for antecedent_design::planning::SimulatedCharacteristics
+impl core::marker::StructuralPartialEq for antecedent_design::planning::SimulationSpec
+impl core::marker::StructuralPartialEq for antecedent_design::planning::StratumSpec
+impl core::marker::StructuralPartialEq for antecedent_design::planning::SuccessCriterion
+impl core::marker::StructuralPartialEq for antecedent_design::planning::TestSidedness
 impl core::marker::StructuralPartialEq for antecedent_design::prior_signal::NativeSignalFamily
 impl core::marker::StructuralPartialEq for antecedent_design::prior_signal::PriorSignalDiagnostics
 impl core::marker::StructuralPartialEq for antecedent_design::prior_signal::PriorSignalError
@@ -4592,6 +4769,30 @@ impl core::marker::Sync for antecedent_design::joint_coupling::CouplingAbsent [a
 impl core::marker::Sync for antecedent_design::joint_coupling::CouplingSource [auto]
 impl core::marker::Sync for antecedent_design::joint_coupling::JointCoupling [auto]
 impl core::marker::Sync for antecedent_design::joint_coupling::SupportMarginal [auto]
+impl core::marker::Sync for antecedent_design::planning::AnalyticCharacteristics [auto]
+impl core::marker::Sync for antecedent_design::planning::ArmComparison [auto]
+impl core::marker::Sync for antecedent_design::planning::FactorialContrast [auto]
+impl core::marker::Sync for antecedent_design::planning::FamilyCharacteristics [auto]
+impl core::marker::Sync for antecedent_design::planning::FamilyPower [auto]
+impl core::marker::Sync for antecedent_design::planning::FamilySimulation [auto]
+impl core::marker::Sync for antecedent_design::planning::InterferenceExposure [auto]
+impl core::marker::Sync for antecedent_design::planning::Multiplicity [auto]
+impl core::marker::Sync for antecedent_design::planning::NormalPrior [auto]
+impl core::marker::Sync for antecedent_design::planning::OutcomeModel [auto]
+impl core::marker::Sync for antecedent_design::planning::PlannedDesign [auto]
+impl core::marker::Sync for antecedent_design::planning::PlanningAssumptions [auto]
+impl core::marker::Sync for antecedent_design::planning::PlanningCriterion [auto]
+impl core::marker::Sync for antecedent_design::planning::PlanningGoal [auto]
+impl core::marker::Sync for antecedent_design::planning::PlanningRefusal [auto]
+impl core::marker::Sync for antecedent_design::planning::PlanningRequest [auto]
+impl core::marker::Sync for antecedent_design::planning::PlanningResult [auto]
+impl core::marker::Sync for antecedent_design::planning::SequentialCharacteristics [auto]
+impl core::marker::Sync for antecedent_design::planning::SequentialSimulation [auto]
+impl core::marker::Sync for antecedent_design::planning::SimulatedCharacteristics [auto]
+impl core::marker::Sync for antecedent_design::planning::SimulationSpec [auto]
+impl core::marker::Sync for antecedent_design::planning::StratumSpec [auto]
+impl core::marker::Sync for antecedent_design::planning::SuccessCriterion [auto]
+impl core::marker::Sync for antecedent_design::planning::TestSidedness [auto]
 impl core::marker::Sync for antecedent_design::prior_signal::CandidateSignalPrior [auto]
 impl core::marker::Sync for antecedent_design::prior_signal::CandidateSignalSource [auto]
 impl core::marker::Sync for antecedent_design::prior_signal::NativeSignalFamily [auto]
@@ -5205,6 +5406,30 @@ impl core::marker::Unpin for antecedent_design::joint_coupling::CouplingAbsent [
 impl core::marker::Unpin for antecedent_design::joint_coupling::CouplingSource [auto]
 impl core::marker::Unpin for antecedent_design::joint_coupling::JointCoupling [auto]
 impl core::marker::Unpin for antecedent_design::joint_coupling::SupportMarginal [auto]
+impl core::marker::Unpin for antecedent_design::planning::AnalyticCharacteristics [auto]
+impl core::marker::Unpin for antecedent_design::planning::ArmComparison [auto]
+impl core::marker::Unpin for antecedent_design::planning::FactorialContrast [auto]
+impl core::marker::Unpin for antecedent_design::planning::FamilyCharacteristics [auto]
+impl core::marker::Unpin for antecedent_design::planning::FamilyPower [auto]
+impl core::marker::Unpin for antecedent_design::planning::FamilySimulation [auto]
+impl core::marker::Unpin for antecedent_design::planning::InterferenceExposure [auto]
+impl core::marker::Unpin for antecedent_design::planning::Multiplicity [auto]
+impl core::marker::Unpin for antecedent_design::planning::NormalPrior [auto]
+impl core::marker::Unpin for antecedent_design::planning::OutcomeModel [auto]
+impl core::marker::Unpin for antecedent_design::planning::PlannedDesign [auto]
+impl core::marker::Unpin for antecedent_design::planning::PlanningAssumptions [auto]
+impl core::marker::Unpin for antecedent_design::planning::PlanningCriterion [auto]
+impl core::marker::Unpin for antecedent_design::planning::PlanningGoal [auto]
+impl core::marker::Unpin for antecedent_design::planning::PlanningRefusal [auto]
+impl core::marker::Unpin for antecedent_design::planning::PlanningRequest [auto]
+impl core::marker::Unpin for antecedent_design::planning::PlanningResult [auto]
+impl core::marker::Unpin for antecedent_design::planning::SequentialCharacteristics [auto]
+impl core::marker::Unpin for antecedent_design::planning::SequentialSimulation [auto]
+impl core::marker::Unpin for antecedent_design::planning::SimulatedCharacteristics [auto]
+impl core::marker::Unpin for antecedent_design::planning::SimulationSpec [auto]
+impl core::marker::Unpin for antecedent_design::planning::StratumSpec [auto]
+impl core::marker::Unpin for antecedent_design::planning::SuccessCriterion [auto]
+impl core::marker::Unpin for antecedent_design::planning::TestSidedness [auto]
 impl core::marker::Unpin for antecedent_design::prior_signal::CandidateSignalPrior [auto]
 impl core::marker::Unpin for antecedent_design::prior_signal::CandidateSignalSource [auto]
 impl core::marker::Unpin for antecedent_design::prior_signal::NativeSignalFamily [auto]
@@ -5815,6 +6040,30 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::joint_coupli
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::joint_coupling::CouplingSource [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::joint_coupling::JointCoupling [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::joint_coupling::SupportMarginal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::planning::AnalyticCharacteristics [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::planning::ArmComparison [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::planning::FactorialContrast [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::planning::FamilyCharacteristics [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::planning::FamilyPower [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::planning::FamilySimulation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::planning::InterferenceExposure [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::planning::Multiplicity [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::planning::NormalPrior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::planning::OutcomeModel [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::planning::PlannedDesign [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::planning::PlanningAssumptions [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::planning::PlanningCriterion [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::planning::PlanningGoal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::planning::PlanningRefusal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::planning::PlanningRequest [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::planning::PlanningResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::planning::SequentialCharacteristics [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::planning::SequentialSimulation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::planning::SimulatedCharacteristics [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::planning::SimulationSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::planning::StratumSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::planning::SuccessCriterion [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::planning::TestSidedness [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::prior_signal::NativeSignalFamily [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::prior_signal::PriorSignalDiagnostics [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::prior_signal::PriorSignalError [auto]
@@ -6420,6 +6669,30 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::joint_coupling:
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::joint_coupling::CouplingSource [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::joint_coupling::JointCoupling [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::joint_coupling::SupportMarginal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::planning::AnalyticCharacteristics [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::planning::ArmComparison [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::planning::FactorialContrast [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::planning::FamilyCharacteristics [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::planning::FamilyPower [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::planning::FamilySimulation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::planning::InterferenceExposure [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::planning::Multiplicity [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::planning::NormalPrior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::planning::OutcomeModel [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::planning::PlannedDesign [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::planning::PlanningAssumptions [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::planning::PlanningCriterion [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::planning::PlanningGoal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::planning::PlanningRefusal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::planning::PlanningRequest [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::planning::PlanningResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::planning::SequentialCharacteristics [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::planning::SequentialSimulation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::planning::SimulatedCharacteristics [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::planning::SimulationSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::planning::StratumSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::planning::SuccessCriterion [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::planning::TestSidedness [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::prior_signal::NativeSignalFamily [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::prior_signal::PriorSignalDiagnostics [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::prior_signal::PriorSignalError [auto]
@@ -7087,12 +7360,20 @@ impl<O> core::panic::unwind_safe::RefUnwindSafe for antecedent_design::DecisionP
 impl<O> core::panic::unwind_safe::UnwindSafe for antecedent_design::DecisionPrior<O> where O: core::panic::unwind_safe::UnwindSafe [auto]
 pub const <antecedent_design::adaptive_trial_transport::AdaptiveTransportPremises>::DECLARED: Self
 pub const <antecedent_design::composition_bundle::BundleStage>::ALL: [Self; 11]
+pub const <antecedent_design::composition_bundle::EvidenceRelationship>::ALL: [Self; 5]
 pub const <antecedent_design::composition_bundle::NodeKind>::ALL: [Self; 18]
 pub const <antecedent_design::decision_artifact::DecisionResultArtifact>::CLAIM_LINK_ID: &'static str
 pub const <antecedent_design::decision_reliability::PublishedRoute>::ALL: [Self; 4]
 pub const <antecedent_design::decision_robust_artifact::RobustResultArtifact>::CLAIM_LINK_ID: &'static str
 pub const <antecedent_design::joint_coupling::JointCoupling>::ROWS_0_0_AND_2_2: Self
 pub const <antecedent_design::joint_coupling::JointCoupling>::ROWS_0_2_AND_2_0: Self
+pub const <antecedent_design::planning::FactorialContrast>::ALL: [Self; 2]
+pub const <antecedent_design::planning::FamilyPower>::ALL: [Self; 3]
+pub const <antecedent_design::planning::Multiplicity>::ALL: [Self; 3]
+pub const <antecedent_design::planning::TestSidedness>::ALL: [Self; 2]
+pub const <antecedent_design::sequential_evaluation::ActionRole>::ALL: [Self; 2]
+pub const <antecedent_design::sequential_evaluation::CensoringRule>::ALL: [Self; 2]
+pub const <antecedent_design::sequential_evaluation::ComparisonKind>::ALL: [Self; 4]
 pub const <antecedent_design::sequential_evaluation::SequentialAssumptions>::DECLARED: Self
 pub const <antecedent_design::transport_sensitivity::TransportRoute>::ALL: [Self; 13]
 pub const <antecedent_design::transported_policy::TransportPremises>::DECLARED: Self
@@ -7196,6 +7477,19 @@ pub const antecedent_design::joint_coupling::NOT_ACTING_UTILITY: i64
 pub const antecedent_design::joint_coupling::PROBABILITY_DENOMINATOR: i64
 pub const antecedent_design::joint_coupling::SUPPORT_TWO: i64
 pub const antecedent_design::joint_coupling::SUPPORT_ZERO: i64
+pub const antecedent_design::planning::COVARIATE_ADJUSTED_DESIGN: antecedent_core::refusal::NextAttempt
+pub const antecedent_design::planning::DECLARE_CONTROL_MEAN: antecedent_core::refusal::NextAttempt
+pub const antecedent_design::planning::DECLARE_EXPOSURE_MODEL: antecedent_core::refusal::NextAttempt
+pub const antecedent_design::planning::DECLARE_WASHOUT: antecedent_core::refusal::NextAttempt
+pub const antecedent_design::planning::MAX_COVARIATES: u32
+pub const antecedent_design::planning::MAX_SIMULATION_REPLICATES: u32
+pub const antecedent_design::planning::MAX_STRATA: usize
+pub const antecedent_design::planning::PLANNING_CALIBRATION: &str
+pub const antecedent_design::planning::PLANNING_NEXT_ATTEMPTS: [antecedent_core::refusal::NextAttempt; 8]
+pub const antecedent_design::planning::PRESPECIFY_STOPPING_RULE: antecedent_core::refusal::NextAttempt
+pub const antecedent_design::planning::RELAX_TARGET: antecedent_core::refusal::NextAttempt
+pub const antecedent_design::planning::SIMULATE_ADAPTIVE_PROCEDURE: antecedent_core::refusal::NextAttempt
+pub const antecedent_design::planning::SINGLE_CONTRAST_BAYESIAN: antecedent_core::refusal::NextAttempt
 pub const antecedent_design::repair::REPAIR_MAX_CANDIDATES: usize
 pub const antecedent_design::repair::REPAIR_MAX_DEPTH: usize
 pub const antecedent_design::repair::REPAIR_MAX_MEMORY_BYTES: u64
@@ -7387,6 +7681,17 @@ pub enum antecedent_design::inverse_query_artifact::SelectionWire
 pub enum antecedent_design::inverse_query_artifact::TailWire
 pub enum antecedent_design::joint_coupling::Action
 pub enum antecedent_design::joint_coupling::CouplingSource
+pub enum antecedent_design::planning::ArmComparison
+pub enum antecedent_design::planning::FactorialContrast
+pub enum antecedent_design::planning::FamilyPower
+pub enum antecedent_design::planning::InterferenceExposure
+pub enum antecedent_design::planning::Multiplicity
+pub enum antecedent_design::planning::OutcomeModel
+pub enum antecedent_design::planning::PlannedDesign
+pub enum antecedent_design::planning::PlanningCriterion
+pub enum antecedent_design::planning::PlanningGoal
+pub enum antecedent_design::planning::SuccessCriterion
+pub enum antecedent_design::planning::TestSidedness
 pub enum antecedent_design::prior_signal::CandidateSignalSource
 pub enum antecedent_design::prior_signal::NativeSignalFamily
 pub enum antecedent_design::prior_signal::SourceToTarget
@@ -8674,6 +8979,84 @@ pub field antecedent_design::joint_coupling::ChosenAction::action: antecedent_de
 pub field antecedent_design::joint_coupling::ChosenAction::expected_acting_utility: i64
 pub field antecedent_design::joint_coupling::SupportMarginal::mass_two: i64
 pub field antecedent_design::joint_coupling::SupportMarginal::mass_zero: i64
+pub field antecedent_design::planning::AnalyticCharacteristics::critical_value: core::option::Option<f64>
+pub field antecedent_design::planning::AnalyticCharacteristics::design_effect: core::option::Option<f64>
+pub field antecedent_design::planning::AnalyticCharacteristics::estimator_variance: f64
+pub field antecedent_design::planning::AnalyticCharacteristics::family: core::option::Option<antecedent_design::planning::FamilyCharacteristics>
+pub field antecedent_design::planning::AnalyticCharacteristics::method: &'static str
+pub field antecedent_design::planning::AnalyticCharacteristics::noncentrality: core::option::Option<f64>
+pub field antecedent_design::planning::AnalyticCharacteristics::power: core::option::Option<f64>
+pub field antecedent_design::planning::AnalyticCharacteristics::reference_df: core::option::Option<f64>
+pub field antecedent_design::planning::AnalyticCharacteristics::sequential: core::option::Option<antecedent_design::planning::SequentialCharacteristics>
+pub field antecedent_design::planning::AnalyticCharacteristics::value: f64
+pub field antecedent_design::planning::FamilyCharacteristics::all: f64
+pub field antecedent_design::planning::FamilyCharacteristics::any: f64
+pub field antecedent_design::planning::FamilyCharacteristics::correlation: f64
+pub field antecedent_design::planning::FamilyCharacteristics::critical: alloc::vec::Vec<f64>
+pub field antecedent_design::planning::FamilyCharacteristics::per_comparison: f64
+pub field antecedent_design::planning::FamilySimulation::all: f64
+pub field antecedent_design::planning::FamilySimulation::any: f64
+pub field antecedent_design::planning::FamilySimulation::per_comparison: f64
+pub field antecedent_design::planning::NormalPrior::mean: f64
+pub field antecedent_design::planning::NormalPrior::sd: f64
+pub field antecedent_design::planning::PlanningAssumptions::allocation_ratio: f64
+pub field antecedent_design::planning::PlanningAssumptions::alpha: f64
+pub field antecedent_design::planning::PlanningAssumptions::attrition: f64
+pub field antecedent_design::planning::PlanningAssumptions::covariate_r_squared: f64
+pub field antecedent_design::planning::PlanningAssumptions::covariates: u32
+pub field antecedent_design::planning::PlanningAssumptions::effect: core::option::Option<f64>
+pub field antecedent_design::planning::PlanningAssumptions::outcome: antecedent_design::planning::OutcomeModel
+pub field antecedent_design::planning::PlanningAssumptions::sidedness: antecedent_design::planning::TestSidedness
+pub field antecedent_design::planning::PlanningRefusal::code: &'static str
+pub field antecedent_design::planning::PlanningRefusal::detail: &'static str
+pub field antecedent_design::planning::PlanningRefusal::message: alloc::string::String
+pub field antecedent_design::planning::PlanningRefusal::next_attempt: core::option::Option<antecedent_core::refusal::NextAttempt>
+pub field antecedent_design::planning::PlanningRequest::assumptions: antecedent_design::planning::PlanningAssumptions
+pub field antecedent_design::planning::PlanningRequest::criterion: antecedent_design::planning::PlanningCriterion
+pub field antecedent_design::planning::PlanningRequest::design: antecedent_design::planning::PlannedDesign
+pub field antecedent_design::planning::PlanningRequest::goal: antecedent_design::planning::PlanningGoal
+pub field antecedent_design::planning::PlanningRequest::simulation: core::option::Option<antecedent_design::planning::SimulationSpec>
+pub field antecedent_design::planning::PlanningResult::analysed_individuals: f64
+pub field antecedent_design::planning::PlanningResult::analysis: &'static str
+pub field antecedent_design::planning::PlanningResult::analytic: antecedent_design::planning::AnalyticCharacteristics
+pub field antecedent_design::planning::PlanningResult::arm_units: alloc::vec::Vec<u64>
+pub field antecedent_design::planning::PlanningResult::assumptions: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_design::planning::PlanningResult::calibration: &'static str
+pub field antecedent_design::planning::PlanningResult::criterion: &'static str
+pub field antecedent_design::planning::PlanningResult::design: &'static str
+pub field antecedent_design::planning::PlanningResult::effect: core::option::Option<f64>
+pub field antecedent_design::planning::PlanningResult::enrolled_individuals: f64
+pub field antecedent_design::planning::PlanningResult::goal: &'static str
+pub field antecedent_design::planning::PlanningResult::request_identity: antecedent_core::identity::SemanticDigest
+pub field antecedent_design::planning::PlanningResult::simulation: core::option::Option<antecedent_design::planning::SimulatedCharacteristics>
+pub field antecedent_design::planning::PlanningResult::target: f64
+pub field antecedent_design::planning::PlanningResult::target_met: bool
+pub field antecedent_design::planning::PlanningResult::unit: &'static str
+pub field antecedent_design::planning::PlanningResult::units: u64
+pub field antecedent_design::planning::SequentialCharacteristics::critical: alloc::vec::Vec<f64>
+pub field antecedent_design::planning::SequentialCharacteristics::expected_units_alternative: f64
+pub field antecedent_design::planning::SequentialCharacteristics::expected_units_null: f64
+pub field antecedent_design::planning::SequentialCharacteristics::fixed_design_units: core::option::Option<u64>
+pub field antecedent_design::planning::SequentialCharacteristics::look_units: alloc::vec::Vec<u64>
+pub field antecedent_design::planning::SequentialCharacteristics::stop_probability_alternative: alloc::vec::Vec<f64>
+pub field antecedent_design::planning::SequentialCharacteristics::stop_probability_null: alloc::vec::Vec<f64>
+pub field antecedent_design::planning::SequentialSimulation::expected_units: f64
+pub field antecedent_design::planning::SequentialSimulation::expected_units_se: f64
+pub field antecedent_design::planning::SequentialSimulation::stop_frequency: alloc::vec::Vec<f64>
+pub field antecedent_design::planning::SimulatedCharacteristics::agreement_z: core::option::Option<f64>
+pub field antecedent_design::planning::SimulatedCharacteristics::estimate_sd: f64
+pub field antecedent_design::planning::SimulatedCharacteristics::failed_replicates: u32
+pub field antecedent_design::planning::SimulatedCharacteristics::family: core::option::Option<antecedent_design::planning::FamilySimulation>
+pub field antecedent_design::planning::SimulatedCharacteristics::mean_estimate: f64
+pub field antecedent_design::planning::SimulatedCharacteristics::monte_carlo_se: f64
+pub field antecedent_design::planning::SimulatedCharacteristics::replicates: u32
+pub field antecedent_design::planning::SimulatedCharacteristics::seed: u64
+pub field antecedent_design::planning::SimulatedCharacteristics::sequential: core::option::Option<antecedent_design::planning::SequentialSimulation>
+pub field antecedent_design::planning::SimulatedCharacteristics::value: f64
+pub field antecedent_design::planning::SimulationSpec::replicates: u32
+pub field antecedent_design::planning::SimulationSpec::seed: u64
+pub field antecedent_design::planning::StratumSpec::share: f64
+pub field antecedent_design::planning::StratumSpec::within: f64
 pub field antecedent_design::prior_signal::CandidateSignalPrior::diagnostics: antecedent_design::prior_signal::PriorSignalDiagnostics
 pub field antecedent_design::prior_signal::CandidateSignalPrior::prior: antecedent_design::DecisionPrior<f64>
 pub field antecedent_design::prior_signal::CandidateSignalPrior::prior_id: alloc::string::String
@@ -8993,7 +9376,7 @@ pub field antecedent_design::rollout_artifact::RolloutSource::identity: antecede
 pub field antecedent_design::rollout_artifact::RolloutSource::trust: antecedent_io_core::distribution_artifact::DistributionTrust
 pub field antecedent_design::scientific_source::ScientificProjectionBasis::quantity: antecedent_contract::quantity::ScientificQuantity
 pub field antecedent_design::scientific_source::ScientificProjectionBasis::variable: antecedent_core::ids::VariableId
-pub field antecedent_design::scientific_source::ScientificProjectionBasis::world: antecedent_core::scientific_target::ScientificWorldId
+pub field antecedent_design::scientific_source::ScientificProjectionBasis::world: antecedent_core::scientific_target::model::ScientificWorldId
 pub field antecedent_design::scientific_source::ScientificProjectionOutput::quantity: antecedent_contract::quantity::ScientificQuantity
 pub field antecedent_design::scientific_source::ScientificProjectionOutput::terms: alloc::vec::Vec<(usize, f64)>
 pub field antecedent_design::scientific_source::ScientificSourceProjection::basis: alloc::vec::Vec<antecedent_design::scientific_source::ScientificProjectionBasis>
@@ -9810,6 +10193,43 @@ pub fn <antecedent_design::joint_coupling::JointCoupling>::const fn marginal_x(s
 pub fn <antecedent_design::joint_coupling::JointCoupling>::const fn marginal_y(self) -> antecedent_design::joint_coupling::SupportMarginal
 pub fn <antecedent_design::joint_coupling::JointCoupling>::const fn mass_numerator(self, x: i64, y: i64) -> core::option::Option<i64>
 pub fn <antecedent_design::joint_coupling::SupportMarginal>::const fn is_equal_halves(self) -> bool
+pub fn <antecedent_design::planning::FactorialContrast>::const fn as_str(self) -> &'static str
+pub fn <antecedent_design::planning::FactorialContrast>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_design::planning::FamilyPower>::const fn as_str(self) -> &'static str
+pub fn <antecedent_design::planning::FamilyPower>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_design::planning::Multiplicity>::const fn as_str(self) -> &'static str
+pub fn <antecedent_design::planning::Multiplicity>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_design::planning::OutcomeModel>::const fn as_str(&self) -> &'static str
+pub fn <antecedent_design::planning::OutcomeModel>::const fn is_binary(&self) -> bool
+pub fn <antecedent_design::planning::PlannedDesign>::const fn as_str(&self) -> &'static str
+pub fn <antecedent_design::planning::PlannedDesign>::const fn unit(&self) -> &'static str
+pub fn <antecedent_design::planning::PlannedDesign>::fn analysis(&self, assumptions: &antecedent_design::planning::PlanningAssumptions) -> &'static str
+pub fn <antecedent_design::planning::PlanningAssumptions>::const fn binary(control_rate: f64) -> Self
+pub fn <antecedent_design::planning::PlanningAssumptions>::const fn continuous(sd: f64) -> Self
+pub fn <antecedent_design::planning::PlanningAssumptions>::const fn with_allocation_ratio(self, ratio: f64) -> Self
+pub fn <antecedent_design::planning::PlanningAssumptions>::const fn with_attrition(self, attrition: f64) -> Self
+pub fn <antecedent_design::planning::PlanningAssumptions>::const fn with_control_mean(self, mean: f64) -> Self
+pub fn <antecedent_design::planning::PlanningAssumptions>::const fn with_covariates(self, r_squared: f64, covariates: u32) -> Self
+pub fn <antecedent_design::planning::PlanningAssumptions>::const fn with_effect(self, effect: f64) -> Self
+pub fn <antecedent_design::planning::PlanningAssumptions>::const fn with_test(self, alpha: f64, sidedness: antecedent_design::planning::TestSidedness) -> Self
+pub fn <antecedent_design::planning::PlanningCriterion>::const fn as_str(&self) -> &'static str
+pub fn <antecedent_design::planning::PlanningCriterion>::const fn is_bayesian(&self) -> bool
+pub fn <antecedent_design::planning::PlanningCriterion>::const fn larger_is_better(&self) -> bool
+pub fn <antecedent_design::planning::PlanningCriterion>::const fn target(&self) -> f64
+pub fn <antecedent_design::planning::PlanningCriterion>::fn credible_half_width(analysis_prior: antecedent_design::planning::NormalPrior, level: f64, half_width: f64) -> Self
+pub fn <antecedent_design::planning::PlanningGoal>::const fn as_str(&self) -> &'static str
+pub fn <antecedent_design::planning::PlanningRequest>::const fn new(design: antecedent_design::planning::PlannedDesign, assumptions: antecedent_design::planning::PlanningAssumptions, criterion: antecedent_design::planning::PlanningCriterion, goal: antecedent_design::planning::PlanningGoal) -> Self
+pub fn <antecedent_design::planning::PlanningRequest>::const fn with_simulation(self, replicates: u32, seed: u64) -> Self
+pub fn <antecedent_design::planning::PlanningRequest>::fn effective_design(&self) -> antecedent_design::planning::PlannedDesign
+pub fn <antecedent_design::planning::PlanningRequest>::fn identity(&self) -> antecedent_core::identity::SemanticDigest
+pub fn <antecedent_design::planning::PlanningRequest>::fn validate(&self) -> core::result::Result<(), antecedent_design::planning::PlanningRefusal>
+pub fn <antecedent_design::planning::PlanningResult>::fn experiment_candidate(&self, targets: alloc::sync::Arc<[antecedent_core::ids::VariableId]>, cost_per_individual: f64, tag: u64) -> antecedent_design::CandidateDesign
+pub fn <antecedent_design::planning::PlanningResult>::fn future_data(&self) -> core::result::Result<antecedent_design::evsi::NormalMeanFutureData, antecedent_design::evsi::FutureStudyError>
+pub fn <antecedent_design::planning::PlanningResult>::fn sample_size(&self) -> u64
+pub fn <antecedent_design::planning::PlanningResult>::fn sampling_candidate(&self, cost_per_individual: f64, tag: u64) -> antecedent_design::CandidateDesign
+pub fn <antecedent_design::planning::TestSidedness>::const fn as_str(self) -> &'static str
+pub fn <antecedent_design::planning::TestSidedness>::const fn is_two_sided(self) -> bool
+pub fn <antecedent_design::planning::TestSidedness>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_design::prior_signal::PriorSignalError>::fn to_refusal(&self) -> antecedent_contract::external_refusal::ExternalRefusal
 pub fn <antecedent_design::program_search::FiniteProgramSearchResult>::fn admitted_bytes(&self) -> u64
 pub fn <antecedent_design::program_search::PreparedFiniteProgramSearch>::fn compile(contract: antecedent_design::decision_contract::ProgramSearchContract, domain: antecedent_design::program_search::FiniteProgramDomain, candidates: alloc::vec::Vec<antecedent_design::program_search::ProgramCandidate>, scope: antecedent_design::program_search::ProgramSearchScope, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_design::program_search::ProgramSearchError>
@@ -9852,15 +10272,15 @@ pub fn <antecedent_design::scientific_source::ScientificDecisionSource>::fn as_n
 pub fn <antecedent_design::scientific_source::ScientificDecisionSource>::fn authorize(&self, scope: antecedent_design::scientific_source::ScientificConsumptionScope) -> core::result::Result<(), antecedent_design::scientific_source::ScientificSourceError>
 pub fn <antecedent_design::scientific_source::ScientificDecisionSource>::fn evaluate(&self, contract: &antecedent_design::DecisionContract, scope: antecedent_design::scientific_source::ScientificConsumptionScope) -> core::result::Result<antecedent_design::scientific_source::ScopedDecisionResult, antecedent_design::scientific_source::ScientificSourceError>
 pub fn <antecedent_design::scientific_source::ScientificDecisionSource>::fn identification(&self) -> &antecedent_identify::compiled_product::CompiledIdentificationProduct
-pub fn <antecedent_design::scientific_source::ScientificDecisionSource>::fn new(target: antecedent_core::scientific_target::ScientificTarget, identification: antecedent_identify::compiled_product::CompiledIdentificationProduct, dependency: antecedent_core::identity::SemanticDigest, payload: antecedent_design::scientific_source::ScientificSourcePayload) -> core::result::Result<Self, antecedent_design::scientific_source::ScientificSourceError>
-pub fn <antecedent_design::scientific_source::ScientificDecisionSource>::fn new_projected(target: antecedent_core::scientific_target::ScientificTarget, identification: antecedent_identify::compiled_product::CompiledIdentificationProduct, dependency: antecedent_core::identity::SemanticDigest, payload: antecedent_design::scientific_source::ScientificSourcePayload, projection: antecedent_design::scientific_source::ScientificSourceProjection) -> core::result::Result<Self, antecedent_design::scientific_source::ScientificSourceError>
-pub fn <antecedent_design::scientific_source::ScientificDecisionSource>::fn new_shared(target: alloc::sync::Arc<antecedent_core::scientific_target::ScientificTarget>, identification: alloc::sync::Arc<antecedent_identify::compiled_product::CompiledIdentificationProduct>, dependency: antecedent_core::identity::SemanticDigest, payload: antecedent_design::scientific_source::ScientificSourcePayload) -> core::result::Result<Self, antecedent_design::scientific_source::ScientificSourceError>
+pub fn <antecedent_design::scientific_source::ScientificDecisionSource>::fn new(target: antecedent_core::scientific_target::identity::ScientificTarget, identification: antecedent_identify::compiled_product::CompiledIdentificationProduct, dependency: antecedent_core::identity::SemanticDigest, payload: antecedent_design::scientific_source::ScientificSourcePayload) -> core::result::Result<Self, antecedent_design::scientific_source::ScientificSourceError>
+pub fn <antecedent_design::scientific_source::ScientificDecisionSource>::fn new_projected(target: antecedent_core::scientific_target::identity::ScientificTarget, identification: antecedent_identify::compiled_product::CompiledIdentificationProduct, dependency: antecedent_core::identity::SemanticDigest, payload: antecedent_design::scientific_source::ScientificSourcePayload, projection: antecedent_design::scientific_source::ScientificSourceProjection) -> core::result::Result<Self, antecedent_design::scientific_source::ScientificSourceError>
+pub fn <antecedent_design::scientific_source::ScientificDecisionSource>::fn new_shared(target: alloc::sync::Arc<antecedent_core::scientific_target::identity::ScientificTarget>, identification: alloc::sync::Arc<antecedent_identify::compiled_product::CompiledIdentificationProduct>, dependency: antecedent_core::identity::SemanticDigest, payload: antecedent_design::scientific_source::ScientificSourcePayload) -> core::result::Result<Self, antecedent_design::scientific_source::ScientificSourceError>
 pub fn <antecedent_design::scientific_source::ScientificDecisionSource>::fn projection(&self) -> core::option::Option<&antecedent_design::scientific_source::ScientificSourceProjection>
 pub fn <antecedent_design::scientific_source::ScientificDecisionSource>::fn question_identity(&self) -> antecedent_core::identity::SemanticDigest
 pub fn <antecedent_design::scientific_source::ScientificDecisionSource>::fn retain_admission(self, lease: alloc::sync::Arc<antecedent_core::execution::AdmissionLease>) -> Self
 pub fn <antecedent_design::scientific_source::ScientificDecisionSource>::fn search(&self, search: &antecedent_design::program_search::PreparedFiniteProgramSearch, scope: antecedent_design::scientific_source::ScientificConsumptionScope, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_design::scientific_source::ScopedProgramSearchResult, antecedent_design::scientific_source::ScientificSourceError>
-pub fn <antecedent_design::scientific_source::ScientificDecisionSource>::fn target(&self) -> &antecedent_core::scientific_target::ScientificTarget
-pub fn <antecedent_design::scientific_source::ScientificSourceProjection>::fn identity(&self, target: &antecedent_core::scientific_target::ScientificTarget) -> antecedent_core::identity::SemanticDigest
+pub fn <antecedent_design::scientific_source::ScientificDecisionSource>::fn target(&self) -> &antecedent_core::scientific_target::identity::ScientificTarget
+pub fn <antecedent_design::scientific_source::ScientificSourceProjection>::fn identity(&self, target: &antecedent_core::scientific_target::identity::ScientificTarget) -> antecedent_core::identity::SemanticDigest
 pub fn <antecedent_design::sensitivity_decision::SensitivityDecisionError>::const fn detail(&self) -> &'static str
 pub fn <antecedent_design::sensitivity_decision::SensitivityDecisionError>::const fn reason_code(&self) -> &'static str
 pub fn <antecedent_design::sequential_evaluation::ActionRole>::const fn as_str(self) -> &'static str
@@ -10088,6 +10508,8 @@ pub fn antecedent_design::obligation_adapters::factor_obligations(catalog: &ante
 pub fn antecedent_design::obligation_adapters::support_obligations(report: &antecedent_core::response::SupportReport, population: &str, treatments: &[antecedent_core::ids::VariableId], source: &str) -> core::result::Result<alloc::vec::Vec<antecedent_contract::evidence_obligation::EvidenceObligation>, antecedent_contract::evidence_obligation::EvidenceObligationError>
 pub fn antecedent_design::plan_studies(graph: &antecedent_graph::admg::Admg, route: &antecedent_identify::sid::study_planning::StudyPlanRoute, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, candidates: &[antecedent_design::StudyCandidate], limits: antecedent_identify::sid::study_planning::StudyPlanLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_design::StudyPlanResult, antecedent_design::StudyPlanError>
 pub fn antecedent_design::plan_z_transport_evidence(snapshot: &alloc::sync::Arc<antecedent_design::ZTransportFailureSnapshot>, spec: &antecedent_design::ZTransportPlanSpec, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_design::ZTransportPlanResult, antecedent_design::ZTransportPlanningError>
+pub fn antecedent_design::planning::allocate(total: u64, weights: &[f64]) -> alloc::vec::Vec<u64>
+pub fn antecedent_design::planning::plan_analytic(request: &antecedent_design::planning::PlanningRequest) -> core::result::Result<antecedent_design::planning::PlanningResult, antecedent_design::planning::PlanningRefusal>
 pub fn antecedent_design::preposterior::evsi_replicate_rng(rng: &antecedent_core::execution::RngFactory, replicate: u64) -> antecedent_core::execution::CausalRng
 pub fn antecedent_design::preposterior::update_finite_belief(prior: &[f64], log_likelihood: &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_design::DesignError>
 pub fn antecedent_design::prior_signal::adapt_prior_to_signal(catalog: &antecedent_io_core::prior_bank::PriorCatalog, target: &antecedent_io_core::prior_bank::TargetDesign, request: &antecedent_design::prior_signal::PriorSignalRequest) -> core::result::Result<antecedent_design::prior_signal::CandidateSignalPrior, antecedent_design::prior_signal::PriorSignalError>
@@ -10164,6 +10586,7 @@ pub mod antecedent_design::inverse_query_artifact
 pub mod antecedent_design::joint_coupling
 pub mod antecedent_design::objective
 pub mod antecedent_design::obligation_adapters
+pub mod antecedent_design::planning
 pub mod antecedent_design::preposterior
 pub mod antecedent_design::prior_signal
 pub mod antecedent_design::program_search
@@ -10510,6 +10933,19 @@ pub struct antecedent_design::joint_coupling::CouplingAbsent has private fields
 pub struct antecedent_design::joint_coupling::JointCoupling
 pub struct antecedent_design::joint_coupling::JointCoupling has private fields
 pub struct antecedent_design::joint_coupling::SupportMarginal
+pub struct antecedent_design::planning::AnalyticCharacteristics
+pub struct antecedent_design::planning::FamilyCharacteristics
+pub struct antecedent_design::planning::FamilySimulation
+pub struct antecedent_design::planning::NormalPrior
+pub struct antecedent_design::planning::PlanningAssumptions
+pub struct antecedent_design::planning::PlanningRefusal
+pub struct antecedent_design::planning::PlanningRequest
+pub struct antecedent_design::planning::PlanningResult
+pub struct antecedent_design::planning::SequentialCharacteristics
+pub struct antecedent_design::planning::SequentialSimulation
+pub struct antecedent_design::planning::SimulatedCharacteristics
+pub struct antecedent_design::planning::SimulationSpec
+pub struct antecedent_design::planning::StratumSpec
 pub struct antecedent_design::prior_signal::CandidateSignalPrior
 pub struct antecedent_design::prior_signal::PriorSignalDiagnostics
 pub struct antecedent_design::prior_signal::PriorSignalRequest
@@ -11591,6 +12027,40 @@ pub variant antecedent_design::joint_coupling::Action::Act
 pub variant antecedent_design::joint_coupling::Action::NotAct
 pub variant antecedent_design::joint_coupling::CouplingSource::MarginalsOnly
 pub variant antecedent_design::joint_coupling::CouplingSource::Supplied(antecedent_design::joint_coupling::JointCoupling)
+pub variant antecedent_design::planning::ArmComparison::ManyToOne { multiplicity: antecedent_design::planning::Multiplicity, power: antecedent_design::planning::FamilyPower }
+pub variant antecedent_design::planning::ArmComparison::Omnibus
+pub variant antecedent_design::planning::FactorialContrast::Interaction
+pub variant antecedent_design::planning::FactorialContrast::MainEffect
+pub variant antecedent_design::planning::FamilyPower::All
+pub variant antecedent_design::planning::FamilyPower::Any
+pub variant antecedent_design::planning::FamilyPower::PerComparison
+pub variant antecedent_design::planning::InterferenceExposure::ContainedInClusters { mean_cluster_size: f64, icc: f64, cluster_size_cv: f64 }
+pub variant antecedent_design::planning::Multiplicity::Bonferroni
+pub variant antecedent_design::planning::Multiplicity::Dunnett
+pub variant antecedent_design::planning::Multiplicity::Holm
+pub variant antecedent_design::planning::OutcomeModel::Binary { control_rate: f64 }
+pub variant antecedent_design::planning::OutcomeModel::Continuous { sd: f64, control_mean: core::option::Option<f64> }
+pub variant antecedent_design::planning::PlannedDesign::Bernoulli
+pub variant antecedent_design::planning::PlannedDesign::Cluster { mean_cluster_size: f64, icc: f64, cluster_size_cv: f64 }
+pub variant antecedent_design::planning::PlannedDesign::Complete
+pub variant antecedent_design::planning::PlannedDesign::Factorial { contrast: antecedent_design::planning::FactorialContrast }
+pub variant antecedent_design::planning::PlannedDesign::GroupSequential { information_fractions: alloc::vec::Vec<f64>, spending: antecedent_stats::adaptive_inference::group_sequential::SpendingFunction }
+pub variant antecedent_design::planning::PlannedDesign::Interference { exposure: core::option::Option<antecedent_design::planning::InterferenceExposure> }
+pub variant antecedent_design::planning::PlannedDesign::MultiArm { treatment_arms: usize, comparison: antecedent_design::planning::ArmComparison }
+pub variant antecedent_design::planning::PlannedDesign::OutcomeAdaptive { rule: core::option::Option<alloc::string::String> }
+pub variant antecedent_design::planning::PlannedDesign::Stratified { strata: alloc::vec::Vec<antecedent_design::planning::StratumSpec> }
+pub variant antecedent_design::planning::PlannedDesign::Switchback { sequences: u64, periods_per_block: u64, autocorrelation: f64, carryover: f64, washout_periods: u64 }
+pub variant antecedent_design::planning::PlanningCriterion::Assurance { design_prior: antecedent_design::planning::NormalPrior, success: antecedent_design::planning::SuccessCriterion, target: f64 }
+pub variant antecedent_design::planning::PlanningCriterion::CorrectDecision { design_prior: antecedent_design::planning::NormalPrior, analysis_prior: antecedent_design::planning::NormalPrior, threshold: f64, probability: f64, target: f64 }
+pub variant antecedent_design::planning::PlanningCriterion::PosteriorPrecision { analysis_prior: antecedent_design::planning::NormalPrior, max_posterior_sd: f64 }
+pub variant antecedent_design::planning::PlanningCriterion::Power { target: f64 }
+pub variant antecedent_design::planning::PlanningGoal::Evaluate { units: u64 }
+pub variant antecedent_design::planning::PlanningGoal::MinimumDetectableEffect { units: u64 }
+pub variant antecedent_design::planning::PlanningGoal::SampleSize { max_units: u64 }
+pub variant antecedent_design::planning::SuccessCriterion::Posterior { analysis_prior: antecedent_design::planning::NormalPrior, threshold: f64, probability: f64 }
+pub variant antecedent_design::planning::SuccessCriterion::Significance
+pub variant antecedent_design::planning::TestSidedness::OneSided
+pub variant antecedent_design::planning::TestSidedness::TwoSided
 pub variant antecedent_design::prior_signal::CandidateSignalSource::CoefficientPriorOnly
 pub variant antecedent_design::prior_signal::CandidateSignalSource::Native(antecedent_design::prior_signal::NativeSignalFamily)
 pub variant antecedent_design::prior_signal::CandidateSignalSource::Provider(alloc::sync::Arc<dyn antecedent_design::signal::SignalProvider>)

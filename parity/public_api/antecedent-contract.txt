@@ -17,7 +17,6 @@
 #[non_exhaustive] pub enum antecedent_contract::JointAxisKind
 #[non_exhaustive] pub enum antecedent_contract::JointConsumer
 #[non_exhaustive] pub enum antecedent_contract::JointCovariance
-#[non_exhaustive] pub enum antecedent_contract::JointNextAttempt
 #[non_exhaustive] pub enum antecedent_contract::LawCoupling
 #[non_exhaustive] pub enum antecedent_contract::MassFate
 #[non_exhaustive] pub enum antecedent_contract::ObligationKind
@@ -74,7 +73,6 @@
 #[non_exhaustive] pub enum antecedent_contract::mixed_module::CutFeedback
 #[non_exhaustive] pub enum antecedent_contract::mixed_module::MixedModulePolicy
 #[non_exhaustive] pub enum antecedent_contract::mixed_module::MixedModuleRefusal
-#[non_exhaustive] pub enum antecedent_contract::rewrite_legality::NextAttempt
 #[non_exhaustive] pub enum antecedent_contract::rewrite_legality::NuisanceEffect
 #[non_exhaustive] pub enum antecedent_contract::rewrite_legality::PreparationEffect
 #[non_exhaustive] pub enum antecedent_contract::rewrite_legality::PreservationAxis
@@ -82,7 +80,6 @@
 #[non_exhaustive] pub enum antecedent_contract::rewrite_legality::SummaryEffect
 #[non_exhaustive] pub enum antecedent_contract::rewrite_legality::TileEffect
 #[non_exhaustive] pub enum antecedent_contract::summary_observation::FrequentistSummaryKind
-#[non_exhaustive] pub enum antecedent_contract::summary_observation::SummaryNextAttempt
 #[non_exhaustive] pub enum antecedent_contract::summary_observation::SummaryUse
 #[non_exhaustive] pub enum antecedent_contract::transport_revalidation::TransportReason
 #[non_exhaustive] pub struct antecedent_contract::AcceptanceReport
@@ -108,6 +105,13 @@
 #[non_exhaustive] pub struct antecedent_contract::UncertaintyComponent
 #[non_exhaustive] pub struct antecedent_contract::UncertaintySlot
 #[non_exhaustive] pub struct antecedent_contract::bridge::BridgedClaim
+impl antecedent_core::refusal::Refused for antecedent_contract::DependenceError
+impl antecedent_core::refusal::Refused for antecedent_contract::EvidenceEffectError
+impl antecedent_core::refusal::Refused for antecedent_contract::EvidenceEnvelopeError
+impl antecedent_core::refusal::Refused for antecedent_contract::EvidencePortError
+impl antecedent_core::refusal::Refused for antecedent_contract::JointAlignmentError
+impl antecedent_core::refusal::Refused for antecedent_contract::evidence_ledger::LedgerError
+impl antecedent_core::refusal::Refused for antecedent_contract::summary_observation::SummaryObservationError
 impl core::clone::Clone for antecedent_contract::AcceptanceReport
 impl core::clone::Clone for antecedent_contract::AdmissionBasis
 impl core::clone::Clone for antecedent_contract::AdmissionCoordinate
@@ -152,7 +156,6 @@ impl core::clone::Clone for antecedent_contract::DerivedClaimOutcome
 impl core::clone::Clone for antecedent_contract::DistributionMeaning
 impl core::clone::Clone for antecedent_contract::DomainStatus
 impl core::clone::Clone for antecedent_contract::EffectId
-impl core::clone::Clone for antecedent_contract::EffectNextAttempt
 impl core::clone::Clone for antecedent_contract::EquivalenceScope
 impl core::clone::Clone for antecedent_contract::EvidenceBinding
 impl core::clone::Clone for antecedent_contract::EvidenceCalibration
@@ -207,7 +210,6 @@ impl core::clone::Clone for antecedent_contract::JointAxis
 impl core::clone::Clone for antecedent_contract::JointAxisKind
 impl core::clone::Clone for antecedent_contract::JointConsumer
 impl core::clone::Clone for antecedent_contract::JointCovariance
-impl core::clone::Clone for antecedent_contract::JointNextAttempt
 impl core::clone::Clone for antecedent_contract::KernelSelection
 impl core::clone::Clone for antecedent_contract::LatentCauseDeclaration
 impl core::clone::Clone for antecedent_contract::LawArray
@@ -438,6 +440,7 @@ impl core::clone::Clone for antecedent_contract::interface_contract::ComposedInt
 impl core::clone::Clone for antecedent_contract::interface_contract::Connection
 impl core::clone::Clone for antecedent_contract::interface_contract::ConsumedPort
 impl core::clone::Clone for antecedent_contract::interface_contract::ContractOperation
+impl core::clone::Clone for antecedent_contract::interface_contract::CyclicComponentDeclaration
 impl core::clone::Clone for antecedent_contract::interface_contract::DependenceRequirement
 impl core::clone::Clone for antecedent_contract::interface_contract::EvidenceBasis
 impl core::clone::Clone for antecedent_contract::interface_contract::InterfaceContract
@@ -463,7 +466,6 @@ impl core::clone::Clone for antecedent_contract::provider_transport::Transported
 impl core::clone::Clone for antecedent_contract::provider_transport::TransportedInputPolicy
 impl core::clone::Clone for antecedent_contract::rewrite_legality::FrameContents
 impl core::clone::Clone for antecedent_contract::rewrite_legality::FrameFingerprint
-impl core::clone::Clone for antecedent_contract::rewrite_legality::NextAttempt
 impl core::clone::Clone for antecedent_contract::rewrite_legality::NuisanceEffect
 impl core::clone::Clone for antecedent_contract::rewrite_legality::PreparationEffect
 impl core::clone::Clone for antecedent_contract::rewrite_legality::PreservationAxis
@@ -482,7 +484,6 @@ impl core::clone::Clone for antecedent_contract::summary_observation::Origin
 impl core::clone::Clone for antecedent_contract::summary_observation::SamplingApproximation
 impl core::clone::Clone for antecedent_contract::summary_observation::Selection
 impl core::clone::Clone for antecedent_contract::summary_observation::SummaryCovariance
-impl core::clone::Clone for antecedent_contract::summary_observation::SummaryNextAttempt
 impl core::clone::Clone for antecedent_contract::summary_observation::SummaryObservationError
 impl core::clone::Clone for antecedent_contract::summary_observation::SummaryObservationModel
 impl core::clone::Clone for antecedent_contract::summary_observation::SummaryUse
@@ -528,7 +529,6 @@ impl core::cmp::Eq for antecedent_contract::DependenceStatus
 impl core::cmp::Eq for antecedent_contract::DistributionMeaning
 impl core::cmp::Eq for antecedent_contract::DomainStatus
 impl core::cmp::Eq for antecedent_contract::EffectId
-impl core::cmp::Eq for antecedent_contract::EffectNextAttempt
 impl core::cmp::Eq for antecedent_contract::EquivalenceScope
 impl core::cmp::Eq for antecedent_contract::EvidenceBinding
 impl core::cmp::Eq for antecedent_contract::EvidenceCalibration
@@ -571,7 +571,6 @@ impl core::cmp::Eq for antecedent_contract::JointAxis
 impl core::cmp::Eq for antecedent_contract::JointAxisKind
 impl core::cmp::Eq for antecedent_contract::JointConsumer
 impl core::cmp::Eq for antecedent_contract::JointCovariance
-impl core::cmp::Eq for antecedent_contract::JointNextAttempt
 impl core::cmp::Eq for antecedent_contract::KernelSelection
 impl core::cmp::Eq for antecedent_contract::LatentCauseDeclaration
 impl core::cmp::Eq for antecedent_contract::LawArray
@@ -736,6 +735,7 @@ impl core::cmp::Eq for antecedent_contract::interface_contract::ComponentConnect
 impl core::cmp::Eq for antecedent_contract::interface_contract::ComposedInterfaces
 impl core::cmp::Eq for antecedent_contract::interface_contract::Connection
 impl core::cmp::Eq for antecedent_contract::interface_contract::ContractOperation
+impl core::cmp::Eq for antecedent_contract::interface_contract::CyclicComponentDeclaration
 impl core::cmp::Eq for antecedent_contract::interface_contract::DependenceRequirement
 impl core::cmp::Eq for antecedent_contract::interface_contract::EvidenceBasis
 impl core::cmp::Eq for antecedent_contract::interface_contract::SupportDomain
@@ -754,7 +754,6 @@ impl core::cmp::Eq for antecedent_contract::provider_transport::TransportedHando
 impl core::cmp::Eq for antecedent_contract::provider_transport::TransportedInputPolicy
 impl core::cmp::Eq for antecedent_contract::rewrite_legality::FrameContents
 impl core::cmp::Eq for antecedent_contract::rewrite_legality::FrameFingerprint
-impl core::cmp::Eq for antecedent_contract::rewrite_legality::NextAttempt
 impl core::cmp::Eq for antecedent_contract::rewrite_legality::NuisanceEffect
 impl core::cmp::Eq for antecedent_contract::rewrite_legality::PreparationEffect
 impl core::cmp::Eq for antecedent_contract::rewrite_legality::PreservationAxis
@@ -773,7 +772,6 @@ impl core::cmp::Eq for antecedent_contract::summary_observation::Origin
 impl core::cmp::Eq for antecedent_contract::summary_observation::SamplingApproximation
 impl core::cmp::Eq for antecedent_contract::summary_observation::Selection
 impl core::cmp::Eq for antecedent_contract::summary_observation::SummaryCovariance
-impl core::cmp::Eq for antecedent_contract::summary_observation::SummaryNextAttempt
 impl core::cmp::Eq for antecedent_contract::summary_observation::SummaryObservationError
 impl core::cmp::Eq for antecedent_contract::summary_observation::SummaryObservationModel
 impl core::cmp::Eq for antecedent_contract::summary_observation::SummaryUse
@@ -798,7 +796,6 @@ impl core::cmp::Ord for antecedent_contract::JointAxis
 impl core::cmp::Ord for antecedent_contract::JointAxisKind
 impl core::cmp::Ord for antecedent_contract::JointConsumer
 impl core::cmp::Ord for antecedent_contract::JointCovariance
-impl core::cmp::Ord for antecedent_contract::JointNextAttempt
 impl core::cmp::Ord for antecedent_contract::LawCoupling
 impl core::cmp::Ord for antecedent_contract::MassFate
 impl core::cmp::Ord for antecedent_contract::MechanismOriginKind
@@ -845,7 +842,6 @@ impl core::cmp::Ord for antecedent_contract::evidence_ledger::SourceId
 impl core::cmp::Ord for antecedent_contract::evidence_ledger::SourceKind
 impl core::cmp::Ord for antecedent_contract::interface_contract::ContractOperation
 impl core::cmp::Ord for antecedent_contract::joint_alignment::ProducingLaw
-impl core::cmp::Ord for antecedent_contract::rewrite_legality::NextAttempt
 impl core::cmp::Ord for antecedent_contract::rewrite_legality::PreservationAxis
 impl core::cmp::Ord for antecedent_contract::transport_revalidation::SceneClaimKind
 impl core::cmp::Ord for antecedent_contract::transport_revalidation::TransportReason
@@ -893,7 +889,6 @@ impl core::cmp::PartialEq for antecedent_contract::DerivedClaimOutcome
 impl core::cmp::PartialEq for antecedent_contract::DistributionMeaning
 impl core::cmp::PartialEq for antecedent_contract::DomainStatus
 impl core::cmp::PartialEq for antecedent_contract::EffectId
-impl core::cmp::PartialEq for antecedent_contract::EffectNextAttempt
 impl core::cmp::PartialEq for antecedent_contract::EquivalenceScope
 impl core::cmp::PartialEq for antecedent_contract::EvidenceBinding
 impl core::cmp::PartialEq for antecedent_contract::EvidenceCalibration
@@ -948,7 +943,6 @@ impl core::cmp::PartialEq for antecedent_contract::JointAxis
 impl core::cmp::PartialEq for antecedent_contract::JointAxisKind
 impl core::cmp::PartialEq for antecedent_contract::JointConsumer
 impl core::cmp::PartialEq for antecedent_contract::JointCovariance
-impl core::cmp::PartialEq for antecedent_contract::JointNextAttempt
 impl core::cmp::PartialEq for antecedent_contract::KernelSelection
 impl core::cmp::PartialEq for antecedent_contract::LatentCauseDeclaration
 impl core::cmp::PartialEq for antecedent_contract::LawArray
@@ -1177,6 +1171,7 @@ impl core::cmp::PartialEq for antecedent_contract::interface_contract::ComposedI
 impl core::cmp::PartialEq for antecedent_contract::interface_contract::Connection
 impl core::cmp::PartialEq for antecedent_contract::interface_contract::ConsumedPort
 impl core::cmp::PartialEq for antecedent_contract::interface_contract::ContractOperation
+impl core::cmp::PartialEq for antecedent_contract::interface_contract::CyclicComponentDeclaration
 impl core::cmp::PartialEq for antecedent_contract::interface_contract::DependenceRequirement
 impl core::cmp::PartialEq for antecedent_contract::interface_contract::EvidenceBasis
 impl core::cmp::PartialEq for antecedent_contract::interface_contract::InterfaceContract
@@ -1202,7 +1197,6 @@ impl core::cmp::PartialEq for antecedent_contract::provider_transport::Transport
 impl core::cmp::PartialEq for antecedent_contract::provider_transport::TransportedInputPolicy
 impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::FrameContents
 impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::FrameFingerprint
-impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::NextAttempt
 impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::NuisanceEffect
 impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::PreparationEffect
 impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::PreservationAxis
@@ -1221,7 +1215,6 @@ impl core::cmp::PartialEq for antecedent_contract::summary_observation::Origin
 impl core::cmp::PartialEq for antecedent_contract::summary_observation::SamplingApproximation
 impl core::cmp::PartialEq for antecedent_contract::summary_observation::Selection
 impl core::cmp::PartialEq for antecedent_contract::summary_observation::SummaryCovariance
-impl core::cmp::PartialEq for antecedent_contract::summary_observation::SummaryNextAttempt
 impl core::cmp::PartialEq for antecedent_contract::summary_observation::SummaryObservationError
 impl core::cmp::PartialEq for antecedent_contract::summary_observation::SummaryObservationModel
 impl core::cmp::PartialEq for antecedent_contract::summary_observation::SummaryUse
@@ -1246,7 +1239,6 @@ impl core::cmp::PartialOrd for antecedent_contract::JointAxis
 impl core::cmp::PartialOrd for antecedent_contract::JointAxisKind
 impl core::cmp::PartialOrd for antecedent_contract::JointConsumer
 impl core::cmp::PartialOrd for antecedent_contract::JointCovariance
-impl core::cmp::PartialOrd for antecedent_contract::JointNextAttempt
 impl core::cmp::PartialOrd for antecedent_contract::LawCoupling
 impl core::cmp::PartialOrd for antecedent_contract::MassFate
 impl core::cmp::PartialOrd for antecedent_contract::MechanismOriginKind
@@ -1293,7 +1285,6 @@ impl core::cmp::PartialOrd for antecedent_contract::evidence_ledger::SourceId
 impl core::cmp::PartialOrd for antecedent_contract::evidence_ledger::SourceKind
 impl core::cmp::PartialOrd for antecedent_contract::interface_contract::ContractOperation
 impl core::cmp::PartialOrd for antecedent_contract::joint_alignment::ProducingLaw
-impl core::cmp::PartialOrd for antecedent_contract::rewrite_legality::NextAttempt
 impl core::cmp::PartialOrd for antecedent_contract::rewrite_legality::PreservationAxis
 impl core::cmp::PartialOrd for antecedent_contract::transport_revalidation::SceneClaimKind
 impl core::cmp::PartialOrd for antecedent_contract::transport_revalidation::TransportReason
@@ -1366,7 +1357,6 @@ impl core::fmt::Debug for antecedent_contract::DerivedClaimOutcome
 impl core::fmt::Debug for antecedent_contract::DistributionMeaning
 impl core::fmt::Debug for antecedent_contract::DomainStatus
 impl core::fmt::Debug for antecedent_contract::EffectId
-impl core::fmt::Debug for antecedent_contract::EffectNextAttempt
 impl core::fmt::Debug for antecedent_contract::EquivalenceScope
 impl core::fmt::Debug for antecedent_contract::EvidenceBinding
 impl core::fmt::Debug for antecedent_contract::EvidenceCalibration
@@ -1421,7 +1411,6 @@ impl core::fmt::Debug for antecedent_contract::JointAxis
 impl core::fmt::Debug for antecedent_contract::JointAxisKind
 impl core::fmt::Debug for antecedent_contract::JointConsumer
 impl core::fmt::Debug for antecedent_contract::JointCovariance
-impl core::fmt::Debug for antecedent_contract::JointNextAttempt
 impl core::fmt::Debug for antecedent_contract::KernelSelection
 impl core::fmt::Debug for antecedent_contract::LatentCauseDeclaration
 impl core::fmt::Debug for antecedent_contract::LawArray
@@ -1652,6 +1641,7 @@ impl core::fmt::Debug for antecedent_contract::interface_contract::ComposedInter
 impl core::fmt::Debug for antecedent_contract::interface_contract::Connection
 impl core::fmt::Debug for antecedent_contract::interface_contract::ConsumedPort
 impl core::fmt::Debug for antecedent_contract::interface_contract::ContractOperation
+impl core::fmt::Debug for antecedent_contract::interface_contract::CyclicComponentDeclaration
 impl core::fmt::Debug for antecedent_contract::interface_contract::DependenceRequirement
 impl core::fmt::Debug for antecedent_contract::interface_contract::EvidenceBasis
 impl core::fmt::Debug for antecedent_contract::interface_contract::InterfaceContract
@@ -1677,7 +1667,6 @@ impl core::fmt::Debug for antecedent_contract::provider_transport::TransportedHa
 impl core::fmt::Debug for antecedent_contract::provider_transport::TransportedInputPolicy
 impl core::fmt::Debug for antecedent_contract::rewrite_legality::FrameContents
 impl core::fmt::Debug for antecedent_contract::rewrite_legality::FrameFingerprint
-impl core::fmt::Debug for antecedent_contract::rewrite_legality::NextAttempt
 impl core::fmt::Debug for antecedent_contract::rewrite_legality::NuisanceEffect
 impl core::fmt::Debug for antecedent_contract::rewrite_legality::PreparationEffect
 impl core::fmt::Debug for antecedent_contract::rewrite_legality::PreservationAxis
@@ -1696,7 +1685,6 @@ impl core::fmt::Debug for antecedent_contract::summary_observation::Origin
 impl core::fmt::Debug for antecedent_contract::summary_observation::SamplingApproximation
 impl core::fmt::Debug for antecedent_contract::summary_observation::Selection
 impl core::fmt::Debug for antecedent_contract::summary_observation::SummaryCovariance
-impl core::fmt::Debug for antecedent_contract::summary_observation::SummaryNextAttempt
 impl core::fmt::Debug for antecedent_contract::summary_observation::SummaryObservationError
 impl core::fmt::Debug for antecedent_contract::summary_observation::SummaryObservationModel
 impl core::fmt::Debug for antecedent_contract::summary_observation::SummaryUse
@@ -1712,7 +1700,6 @@ impl core::fmt::Debug for antecedent_contract::transport_revalidation::Transport
 impl core::fmt::Display for antecedent_contract::DependenceError
 impl core::fmt::Display for antecedent_contract::DependenceSourceId
 impl core::fmt::Display for antecedent_contract::EffectId
-impl core::fmt::Display for antecedent_contract::EffectNextAttempt
 impl core::fmt::Display for antecedent_contract::EvidenceEffectError
 impl core::fmt::Display for antecedent_contract::EvidenceEnvelopeError
 impl core::fmt::Display for antecedent_contract::EvidenceObligationError
@@ -1721,7 +1708,6 @@ impl core::fmt::Display for antecedent_contract::EvidencePortError
 impl core::fmt::Display for antecedent_contract::JointAlignmentError
 impl core::fmt::Display for antecedent_contract::JointAxis
 impl core::fmt::Display for antecedent_contract::JointAxisKind
-impl core::fmt::Display for antecedent_contract::JointNextAttempt
 impl core::fmt::Display for antecedent_contract::ProvenanceError
 impl core::fmt::Display for antecedent_contract::SharedFactor
 impl core::fmt::Display for antecedent_contract::SharedFactorId
@@ -1737,11 +1723,9 @@ impl core::fmt::Display for antecedent_contract::joint_alignment::ProducingLaw
 impl core::fmt::Display for antecedent_contract::mixed_module::CutFeedback
 impl core::fmt::Display for antecedent_contract::mixed_module::MixedModuleRefusal
 impl core::fmt::Display for antecedent_contract::mixed_module::ReconciliationRecord
-impl core::fmt::Display for antecedent_contract::rewrite_legality::NextAttempt
 impl core::fmt::Display for antecedent_contract::rewrite_legality::PreservationAxis
 impl core::fmt::Display for antecedent_contract::rewrite_legality::RewriteRefusal
 impl core::fmt::Display for antecedent_contract::summary_observation::FrequentistSummaryKind
-impl core::fmt::Display for antecedent_contract::summary_observation::SummaryNextAttempt
 impl core::fmt::Display for antecedent_contract::summary_observation::SummaryObservationError
 impl core::fmt::Display for antecedent_contract::summary_observation::SummaryUse
 impl core::hash::Hash for antecedent_contract::AdmissionCoordinate
@@ -1759,7 +1743,6 @@ impl core::hash::Hash for antecedent_contract::DependenceStatus
 impl core::hash::Hash for antecedent_contract::DistributionMeaning
 impl core::hash::Hash for antecedent_contract::DomainStatus
 impl core::hash::Hash for antecedent_contract::EffectId
-impl core::hash::Hash for antecedent_contract::EffectNextAttempt
 impl core::hash::Hash for antecedent_contract::EvidenceDependence
 impl core::hash::Hash for antecedent_contract::EvidenceObligationKind
 impl core::hash::Hash for antecedent_contract::EvidenceOperator
@@ -1773,7 +1756,6 @@ impl core::hash::Hash for antecedent_contract::JointAxis
 impl core::hash::Hash for antecedent_contract::JointAxisKind
 impl core::hash::Hash for antecedent_contract::JointConsumer
 impl core::hash::Hash for antecedent_contract::JointCovariance
-impl core::hash::Hash for antecedent_contract::JointNextAttempt
 impl core::hash::Hash for antecedent_contract::KernelSelection
 impl core::hash::Hash for antecedent_contract::LawArray
 impl core::hash::Hash for antecedent_contract::LawCoupling
@@ -1857,7 +1839,6 @@ impl core::hash::Hash for antecedent_contract::mixed_module::ReconciliationRecor
 impl core::hash::Hash for antecedent_contract::provider_transport::SourceTrustRequirement
 impl core::hash::Hash for antecedent_contract::provider_transport::TransportedInputPolicy
 impl core::hash::Hash for antecedent_contract::rewrite_legality::FrameFingerprint
-impl core::hash::Hash for antecedent_contract::rewrite_legality::NextAttempt
 impl core::hash::Hash for antecedent_contract::rewrite_legality::NuisanceEffect
 impl core::hash::Hash for antecedent_contract::rewrite_legality::PreparationEffect
 impl core::hash::Hash for antecedent_contract::rewrite_legality::PreservationAxis
@@ -1873,7 +1854,6 @@ impl core::hash::Hash for antecedent_contract::summary_observation::Origin
 impl core::hash::Hash for antecedent_contract::summary_observation::SamplingApproximation
 impl core::hash::Hash for antecedent_contract::summary_observation::Selection
 impl core::hash::Hash for antecedent_contract::summary_observation::SummaryCovariance
-impl core::hash::Hash for antecedent_contract::summary_observation::SummaryNextAttempt
 impl core::hash::Hash for antecedent_contract::summary_observation::SummaryObservationModel
 impl core::hash::Hash for antecedent_contract::summary_observation::SummaryUse
 impl core::hash::Hash for antecedent_contract::transport_revalidation::SceneClaimKind
@@ -1894,7 +1874,6 @@ impl core::marker::Copy for antecedent_contract::DependenceStatus
 impl core::marker::Copy for antecedent_contract::DistributionMeaning
 impl core::marker::Copy for antecedent_contract::DomainStatus
 impl core::marker::Copy for antecedent_contract::EffectId
-impl core::marker::Copy for antecedent_contract::EffectNextAttempt
 impl core::marker::Copy for antecedent_contract::EvidenceDependence
 impl core::marker::Copy for antecedent_contract::EvidenceEnvelopeError
 impl core::marker::Copy for antecedent_contract::EvidenceObligationKind
@@ -1911,7 +1890,6 @@ impl core::marker::Copy for antecedent_contract::InputRole
 impl core::marker::Copy for antecedent_contract::JointAxisKind
 impl core::marker::Copy for antecedent_contract::JointConsumer
 impl core::marker::Copy for antecedent_contract::JointCovariance
-impl core::marker::Copy for antecedent_contract::JointNextAttempt
 impl core::marker::Copy for antecedent_contract::KernelSelection
 impl core::marker::Copy for antecedent_contract::LawCoupling
 impl core::marker::Copy for antecedent_contract::MassAccount
@@ -2013,7 +1991,6 @@ impl core::marker::Copy for antecedent_contract::mixed_module::MixedModuleRefusa
 impl core::marker::Copy for antecedent_contract::provider_transport::SourceTrustRequirement
 impl core::marker::Copy for antecedent_contract::provider_transport::TransportedInputPolicy
 impl core::marker::Copy for antecedent_contract::rewrite_legality::FrameFingerprint
-impl core::marker::Copy for antecedent_contract::rewrite_legality::NextAttempt
 impl core::marker::Copy for antecedent_contract::rewrite_legality::NuisanceEffect
 impl core::marker::Copy for antecedent_contract::rewrite_legality::PreparationEffect
 impl core::marker::Copy for antecedent_contract::rewrite_legality::PreservationAxis
@@ -2021,7 +1998,6 @@ impl core::marker::Copy for antecedent_contract::rewrite_legality::PushdownEffec
 impl core::marker::Copy for antecedent_contract::rewrite_legality::SummaryEffect
 impl core::marker::Copy for antecedent_contract::rewrite_legality::TileEffect
 impl core::marker::Copy for antecedent_contract::summary_observation::FrequentistSummaryKind
-impl core::marker::Copy for antecedent_contract::summary_observation::SummaryNextAttempt
 impl core::marker::Copy for antecedent_contract::summary_observation::SummaryUse
 impl core::marker::Copy for antecedent_contract::transport_revalidation::SceneClaimKind
 impl core::marker::Freeze for antecedent_contract::AcceptanceReport [auto]
@@ -2068,7 +2044,6 @@ impl core::marker::Freeze for antecedent_contract::DerivedClaimOutcome [auto]
 impl core::marker::Freeze for antecedent_contract::DistributionMeaning [auto]
 impl core::marker::Freeze for antecedent_contract::DomainStatus [auto]
 impl core::marker::Freeze for antecedent_contract::EffectId [auto]
-impl core::marker::Freeze for antecedent_contract::EffectNextAttempt [auto]
 impl core::marker::Freeze for antecedent_contract::EquivalenceScope [auto]
 impl core::marker::Freeze for antecedent_contract::EvidenceBinding [auto]
 impl core::marker::Freeze for antecedent_contract::EvidenceCalibration [auto]
@@ -2123,7 +2098,6 @@ impl core::marker::Freeze for antecedent_contract::JointAxis [auto]
 impl core::marker::Freeze for antecedent_contract::JointAxisKind [auto]
 impl core::marker::Freeze for antecedent_contract::JointConsumer [auto]
 impl core::marker::Freeze for antecedent_contract::JointCovariance [auto]
-impl core::marker::Freeze for antecedent_contract::JointNextAttempt [auto]
 impl core::marker::Freeze for antecedent_contract::KernelSelection [auto]
 impl core::marker::Freeze for antecedent_contract::LatentCauseDeclaration [auto]
 impl core::marker::Freeze for antecedent_contract::LawArray [auto]
@@ -2354,6 +2328,7 @@ impl core::marker::Freeze for antecedent_contract::interface_contract::ComposedI
 impl core::marker::Freeze for antecedent_contract::interface_contract::Connection [auto]
 impl core::marker::Freeze for antecedent_contract::interface_contract::ConsumedPort [auto]
 impl core::marker::Freeze for antecedent_contract::interface_contract::ContractOperation [auto]
+impl core::marker::Freeze for antecedent_contract::interface_contract::CyclicComponentDeclaration [auto]
 impl core::marker::Freeze for antecedent_contract::interface_contract::DependenceRequirement [auto]
 impl core::marker::Freeze for antecedent_contract::interface_contract::EvidenceBasis [auto]
 impl core::marker::Freeze for antecedent_contract::interface_contract::InterfaceContract [auto]
@@ -2379,7 +2354,6 @@ impl core::marker::Freeze for antecedent_contract::provider_transport::Transport
 impl core::marker::Freeze for antecedent_contract::provider_transport::TransportedInputPolicy [auto]
 impl core::marker::Freeze for antecedent_contract::rewrite_legality::FrameContents [auto]
 impl core::marker::Freeze for antecedent_contract::rewrite_legality::FrameFingerprint [auto]
-impl core::marker::Freeze for antecedent_contract::rewrite_legality::NextAttempt [auto]
 impl core::marker::Freeze for antecedent_contract::rewrite_legality::NuisanceEffect [auto]
 impl core::marker::Freeze for antecedent_contract::rewrite_legality::PreparationEffect [auto]
 impl core::marker::Freeze for antecedent_contract::rewrite_legality::PreservationAxis [auto]
@@ -2398,7 +2372,6 @@ impl core::marker::Freeze for antecedent_contract::summary_observation::Origin [
 impl core::marker::Freeze for antecedent_contract::summary_observation::SamplingApproximation [auto]
 impl core::marker::Freeze for antecedent_contract::summary_observation::Selection [auto]
 impl core::marker::Freeze for antecedent_contract::summary_observation::SummaryCovariance [auto]
-impl core::marker::Freeze for antecedent_contract::summary_observation::SummaryNextAttempt [auto]
 impl core::marker::Freeze for antecedent_contract::summary_observation::SummaryObservationError [auto]
 impl core::marker::Freeze for antecedent_contract::summary_observation::SummaryObservationModel [auto]
 impl core::marker::Freeze for antecedent_contract::summary_observation::SummaryUse [auto]
@@ -2455,7 +2428,6 @@ impl core::marker::Send for antecedent_contract::DerivedClaimOutcome [auto]
 impl core::marker::Send for antecedent_contract::DistributionMeaning [auto]
 impl core::marker::Send for antecedent_contract::DomainStatus [auto]
 impl core::marker::Send for antecedent_contract::EffectId [auto]
-impl core::marker::Send for antecedent_contract::EffectNextAttempt [auto]
 impl core::marker::Send for antecedent_contract::EquivalenceScope [auto]
 impl core::marker::Send for antecedent_contract::EvidenceBinding [auto]
 impl core::marker::Send for antecedent_contract::EvidenceCalibration [auto]
@@ -2510,7 +2482,6 @@ impl core::marker::Send for antecedent_contract::JointAxis [auto]
 impl core::marker::Send for antecedent_contract::JointAxisKind [auto]
 impl core::marker::Send for antecedent_contract::JointConsumer [auto]
 impl core::marker::Send for antecedent_contract::JointCovariance [auto]
-impl core::marker::Send for antecedent_contract::JointNextAttempt [auto]
 impl core::marker::Send for antecedent_contract::KernelSelection [auto]
 impl core::marker::Send for antecedent_contract::LatentCauseDeclaration [auto]
 impl core::marker::Send for antecedent_contract::LawArray [auto]
@@ -2741,6 +2712,7 @@ impl core::marker::Send for antecedent_contract::interface_contract::ComposedInt
 impl core::marker::Send for antecedent_contract::interface_contract::Connection [auto]
 impl core::marker::Send for antecedent_contract::interface_contract::ConsumedPort [auto]
 impl core::marker::Send for antecedent_contract::interface_contract::ContractOperation [auto]
+impl core::marker::Send for antecedent_contract::interface_contract::CyclicComponentDeclaration [auto]
 impl core::marker::Send for antecedent_contract::interface_contract::DependenceRequirement [auto]
 impl core::marker::Send for antecedent_contract::interface_contract::EvidenceBasis [auto]
 impl core::marker::Send for antecedent_contract::interface_contract::InterfaceContract [auto]
@@ -2766,7 +2738,6 @@ impl core::marker::Send for antecedent_contract::provider_transport::Transported
 impl core::marker::Send for antecedent_contract::provider_transport::TransportedInputPolicy [auto]
 impl core::marker::Send for antecedent_contract::rewrite_legality::FrameContents [auto]
 impl core::marker::Send for antecedent_contract::rewrite_legality::FrameFingerprint [auto]
-impl core::marker::Send for antecedent_contract::rewrite_legality::NextAttempt [auto]
 impl core::marker::Send for antecedent_contract::rewrite_legality::NuisanceEffect [auto]
 impl core::marker::Send for antecedent_contract::rewrite_legality::PreparationEffect [auto]
 impl core::marker::Send for antecedent_contract::rewrite_legality::PreservationAxis [auto]
@@ -2785,7 +2756,6 @@ impl core::marker::Send for antecedent_contract::summary_observation::Origin [au
 impl core::marker::Send for antecedent_contract::summary_observation::SamplingApproximation [auto]
 impl core::marker::Send for antecedent_contract::summary_observation::Selection [auto]
 impl core::marker::Send for antecedent_contract::summary_observation::SummaryCovariance [auto]
-impl core::marker::Send for antecedent_contract::summary_observation::SummaryNextAttempt [auto]
 impl core::marker::Send for antecedent_contract::summary_observation::SummaryObservationError [auto]
 impl core::marker::Send for antecedent_contract::summary_observation::SummaryObservationModel [auto]
 impl core::marker::Send for antecedent_contract::summary_observation::SummaryUse [auto]
@@ -2842,7 +2812,6 @@ impl core::marker::StructuralPartialEq for antecedent_contract::DerivedClaimOutc
 impl core::marker::StructuralPartialEq for antecedent_contract::DistributionMeaning
 impl core::marker::StructuralPartialEq for antecedent_contract::DomainStatus
 impl core::marker::StructuralPartialEq for antecedent_contract::EffectId
-impl core::marker::StructuralPartialEq for antecedent_contract::EffectNextAttempt
 impl core::marker::StructuralPartialEq for antecedent_contract::EquivalenceScope
 impl core::marker::StructuralPartialEq for antecedent_contract::EvidenceBinding
 impl core::marker::StructuralPartialEq for antecedent_contract::EvidenceCalibration
@@ -2897,7 +2866,6 @@ impl core::marker::StructuralPartialEq for antecedent_contract::JointAxis
 impl core::marker::StructuralPartialEq for antecedent_contract::JointAxisKind
 impl core::marker::StructuralPartialEq for antecedent_contract::JointConsumer
 impl core::marker::StructuralPartialEq for antecedent_contract::JointCovariance
-impl core::marker::StructuralPartialEq for antecedent_contract::JointNextAttempt
 impl core::marker::StructuralPartialEq for antecedent_contract::KernelSelection
 impl core::marker::StructuralPartialEq for antecedent_contract::LatentCauseDeclaration
 impl core::marker::StructuralPartialEq for antecedent_contract::LawArray
@@ -3126,6 +3094,7 @@ impl core::marker::StructuralPartialEq for antecedent_contract::interface_contra
 impl core::marker::StructuralPartialEq for antecedent_contract::interface_contract::Connection
 impl core::marker::StructuralPartialEq for antecedent_contract::interface_contract::ConsumedPort
 impl core::marker::StructuralPartialEq for antecedent_contract::interface_contract::ContractOperation
+impl core::marker::StructuralPartialEq for antecedent_contract::interface_contract::CyclicComponentDeclaration
 impl core::marker::StructuralPartialEq for antecedent_contract::interface_contract::DependenceRequirement
 impl core::marker::StructuralPartialEq for antecedent_contract::interface_contract::EvidenceBasis
 impl core::marker::StructuralPartialEq for antecedent_contract::interface_contract::InterfaceContract
@@ -3151,7 +3120,6 @@ impl core::marker::StructuralPartialEq for antecedent_contract::provider_transpo
 impl core::marker::StructuralPartialEq for antecedent_contract::provider_transport::TransportedInputPolicy
 impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::FrameContents
 impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::FrameFingerprint
-impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::NextAttempt
 impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::NuisanceEffect
 impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::PreparationEffect
 impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::PreservationAxis
@@ -3168,7 +3136,6 @@ impl core::marker::StructuralPartialEq for antecedent_contract::summary_observat
 impl core::marker::StructuralPartialEq for antecedent_contract::summary_observation::Origin
 impl core::marker::StructuralPartialEq for antecedent_contract::summary_observation::SamplingApproximation
 impl core::marker::StructuralPartialEq for antecedent_contract::summary_observation::Selection
-impl core::marker::StructuralPartialEq for antecedent_contract::summary_observation::SummaryNextAttempt
 impl core::marker::StructuralPartialEq for antecedent_contract::summary_observation::SummaryObservationError
 impl core::marker::StructuralPartialEq for antecedent_contract::summary_observation::SummaryObservationModel
 impl core::marker::StructuralPartialEq for antecedent_contract::summary_observation::SummaryUse
@@ -3225,7 +3192,6 @@ impl core::marker::Sync for antecedent_contract::DerivedClaimOutcome [auto]
 impl core::marker::Sync for antecedent_contract::DistributionMeaning [auto]
 impl core::marker::Sync for antecedent_contract::DomainStatus [auto]
 impl core::marker::Sync for antecedent_contract::EffectId [auto]
-impl core::marker::Sync for antecedent_contract::EffectNextAttempt [auto]
 impl core::marker::Sync for antecedent_contract::EquivalenceScope [auto]
 impl core::marker::Sync for antecedent_contract::EvidenceBinding [auto]
 impl core::marker::Sync for antecedent_contract::EvidenceCalibration [auto]
@@ -3280,7 +3246,6 @@ impl core::marker::Sync for antecedent_contract::JointAxis [auto]
 impl core::marker::Sync for antecedent_contract::JointAxisKind [auto]
 impl core::marker::Sync for antecedent_contract::JointConsumer [auto]
 impl core::marker::Sync for antecedent_contract::JointCovariance [auto]
-impl core::marker::Sync for antecedent_contract::JointNextAttempt [auto]
 impl core::marker::Sync for antecedent_contract::KernelSelection [auto]
 impl core::marker::Sync for antecedent_contract::LatentCauseDeclaration [auto]
 impl core::marker::Sync for antecedent_contract::LawArray [auto]
@@ -3511,6 +3476,7 @@ impl core::marker::Sync for antecedent_contract::interface_contract::ComposedInt
 impl core::marker::Sync for antecedent_contract::interface_contract::Connection [auto]
 impl core::marker::Sync for antecedent_contract::interface_contract::ConsumedPort [auto]
 impl core::marker::Sync for antecedent_contract::interface_contract::ContractOperation [auto]
+impl core::marker::Sync for antecedent_contract::interface_contract::CyclicComponentDeclaration [auto]
 impl core::marker::Sync for antecedent_contract::interface_contract::DependenceRequirement [auto]
 impl core::marker::Sync for antecedent_contract::interface_contract::EvidenceBasis [auto]
 impl core::marker::Sync for antecedent_contract::interface_contract::InterfaceContract [auto]
@@ -3536,7 +3502,6 @@ impl core::marker::Sync for antecedent_contract::provider_transport::Transported
 impl core::marker::Sync for antecedent_contract::provider_transport::TransportedInputPolicy [auto]
 impl core::marker::Sync for antecedent_contract::rewrite_legality::FrameContents [auto]
 impl core::marker::Sync for antecedent_contract::rewrite_legality::FrameFingerprint [auto]
-impl core::marker::Sync for antecedent_contract::rewrite_legality::NextAttempt [auto]
 impl core::marker::Sync for antecedent_contract::rewrite_legality::NuisanceEffect [auto]
 impl core::marker::Sync for antecedent_contract::rewrite_legality::PreparationEffect [auto]
 impl core::marker::Sync for antecedent_contract::rewrite_legality::PreservationAxis [auto]
@@ -3555,7 +3520,6 @@ impl core::marker::Sync for antecedent_contract::summary_observation::Origin [au
 impl core::marker::Sync for antecedent_contract::summary_observation::SamplingApproximation [auto]
 impl core::marker::Sync for antecedent_contract::summary_observation::Selection [auto]
 impl core::marker::Sync for antecedent_contract::summary_observation::SummaryCovariance [auto]
-impl core::marker::Sync for antecedent_contract::summary_observation::SummaryNextAttempt [auto]
 impl core::marker::Sync for antecedent_contract::summary_observation::SummaryObservationError [auto]
 impl core::marker::Sync for antecedent_contract::summary_observation::SummaryObservationModel [auto]
 impl core::marker::Sync for antecedent_contract::summary_observation::SummaryUse [auto]
@@ -3612,7 +3576,6 @@ impl core::marker::Unpin for antecedent_contract::DerivedClaimOutcome [auto]
 impl core::marker::Unpin for antecedent_contract::DistributionMeaning [auto]
 impl core::marker::Unpin for antecedent_contract::DomainStatus [auto]
 impl core::marker::Unpin for antecedent_contract::EffectId [auto]
-impl core::marker::Unpin for antecedent_contract::EffectNextAttempt [auto]
 impl core::marker::Unpin for antecedent_contract::EquivalenceScope [auto]
 impl core::marker::Unpin for antecedent_contract::EvidenceBinding [auto]
 impl core::marker::Unpin for antecedent_contract::EvidenceCalibration [auto]
@@ -3667,7 +3630,6 @@ impl core::marker::Unpin for antecedent_contract::JointAxis [auto]
 impl core::marker::Unpin for antecedent_contract::JointAxisKind [auto]
 impl core::marker::Unpin for antecedent_contract::JointConsumer [auto]
 impl core::marker::Unpin for antecedent_contract::JointCovariance [auto]
-impl core::marker::Unpin for antecedent_contract::JointNextAttempt [auto]
 impl core::marker::Unpin for antecedent_contract::KernelSelection [auto]
 impl core::marker::Unpin for antecedent_contract::LatentCauseDeclaration [auto]
 impl core::marker::Unpin for antecedent_contract::LawArray [auto]
@@ -3898,6 +3860,7 @@ impl core::marker::Unpin for antecedent_contract::interface_contract::ComposedIn
 impl core::marker::Unpin for antecedent_contract::interface_contract::Connection [auto]
 impl core::marker::Unpin for antecedent_contract::interface_contract::ConsumedPort [auto]
 impl core::marker::Unpin for antecedent_contract::interface_contract::ContractOperation [auto]
+impl core::marker::Unpin for antecedent_contract::interface_contract::CyclicComponentDeclaration [auto]
 impl core::marker::Unpin for antecedent_contract::interface_contract::DependenceRequirement [auto]
 impl core::marker::Unpin for antecedent_contract::interface_contract::EvidenceBasis [auto]
 impl core::marker::Unpin for antecedent_contract::interface_contract::InterfaceContract [auto]
@@ -3923,7 +3886,6 @@ impl core::marker::Unpin for antecedent_contract::provider_transport::Transporte
 impl core::marker::Unpin for antecedent_contract::provider_transport::TransportedInputPolicy [auto]
 impl core::marker::Unpin for antecedent_contract::rewrite_legality::FrameContents [auto]
 impl core::marker::Unpin for antecedent_contract::rewrite_legality::FrameFingerprint [auto]
-impl core::marker::Unpin for antecedent_contract::rewrite_legality::NextAttempt [auto]
 impl core::marker::Unpin for antecedent_contract::rewrite_legality::NuisanceEffect [auto]
 impl core::marker::Unpin for antecedent_contract::rewrite_legality::PreparationEffect [auto]
 impl core::marker::Unpin for antecedent_contract::rewrite_legality::PreservationAxis [auto]
@@ -3942,7 +3904,6 @@ impl core::marker::Unpin for antecedent_contract::summary_observation::Origin [a
 impl core::marker::Unpin for antecedent_contract::summary_observation::SamplingApproximation [auto]
 impl core::marker::Unpin for antecedent_contract::summary_observation::Selection [auto]
 impl core::marker::Unpin for antecedent_contract::summary_observation::SummaryCovariance [auto]
-impl core::marker::Unpin for antecedent_contract::summary_observation::SummaryNextAttempt [auto]
 impl core::marker::Unpin for antecedent_contract::summary_observation::SummaryObservationError [auto]
 impl core::marker::Unpin for antecedent_contract::summary_observation::SummaryObservationModel [auto]
 impl core::marker::Unpin for antecedent_contract::summary_observation::SummaryUse [auto]
@@ -3999,7 +3960,6 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::DerivedCla
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::DistributionMeaning [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::DomainStatus [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::EffectId [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::EffectNextAttempt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::EquivalenceScope [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::EvidenceBinding [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::EvidenceCalibration [auto]
@@ -4054,7 +4014,6 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::JointAxis 
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::JointAxisKind [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::JointConsumer [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::JointCovariance [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::JointNextAttempt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::KernelSelection [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::LatentCauseDeclaration [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::LawArray [auto]
@@ -4285,6 +4244,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::interface_
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::interface_contract::Connection [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::interface_contract::ConsumedPort [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::interface_contract::ContractOperation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::interface_contract::CyclicComponentDeclaration [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::interface_contract::DependenceRequirement [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::interface_contract::EvidenceBasis [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::interface_contract::InterfaceContract [auto]
@@ -4310,7 +4270,6 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::provider_t
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::provider_transport::TransportedInputPolicy [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::FrameContents [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::FrameFingerprint [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::NextAttempt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::NuisanceEffect [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::PreparationEffect [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::PreservationAxis [auto]
@@ -4329,7 +4288,6 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::summary_ob
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::summary_observation::SamplingApproximation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::summary_observation::Selection [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::summary_observation::SummaryCovariance [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::summary_observation::SummaryNextAttempt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::summary_observation::SummaryObservationError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::summary_observation::SummaryObservationModel [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::summary_observation::SummaryUse [auto]
@@ -4386,7 +4344,6 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::DerivedClaimO
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::DistributionMeaning [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::DomainStatus [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::EffectId [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::EffectNextAttempt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::EquivalenceScope [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::EvidenceBinding [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::EvidenceCalibration [auto]
@@ -4441,7 +4398,6 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::JointAxis [au
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::JointAxisKind [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::JointConsumer [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::JointCovariance [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::JointNextAttempt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::KernelSelection [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::LatentCauseDeclaration [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::LawArray [auto]
@@ -4672,6 +4628,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::interface_con
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::interface_contract::Connection [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::interface_contract::ConsumedPort [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::interface_contract::ContractOperation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::interface_contract::CyclicComponentDeclaration [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::interface_contract::DependenceRequirement [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::interface_contract::EvidenceBasis [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::interface_contract::InterfaceContract [auto]
@@ -4697,7 +4654,6 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::provider_tran
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::provider_transport::TransportedInputPolicy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::FrameContents [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::FrameFingerprint [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::NextAttempt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::NuisanceEffect [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::PreparationEffect [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::PreservationAxis [auto]
@@ -4716,7 +4672,6 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::summary_obser
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::summary_observation::SamplingApproximation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::summary_observation::Selection [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::summary_observation::SummaryCovariance [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::summary_observation::SummaryNextAttempt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::summary_observation::SummaryObservationError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::summary_observation::SummaryObservationModel [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::summary_observation::SummaryUse [auto]
@@ -4797,27 +4752,35 @@ impl<T> core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::SlotAva
 impl<T> core::panic::unwind_safe::UnwindSafe for antecedent_contract::SlotAvailability<T> where T: core::panic::unwind_safe::UnwindSafe [auto]
 pub const <antecedent_contract::AlignedLaw>::ALL: [Self; 2]
 pub const <antecedent_contract::BoundExternalClaim>::CLAIM_LINK_ID: &'static str
+pub const <antecedent_contract::ClaimKind>::ALL: [Self; 7]
 pub const <antecedent_contract::ColumnClaim>::DTYPE: &'static str
-pub const <antecedent_contract::EffectNextAttempt>::DEPENDENT_PHRASE: &'static str
-pub const <antecedent_contract::EffectNextAttempt>::PHRASE: &'static str
+pub const <antecedent_contract::CompositionStage>::ALL: [Self; 10]
+pub const <antecedent_contract::DomainStatus>::ALL: [Self; 6]
 pub const <antecedent_contract::EvidenceObligationKind>::ALL: [Self; 9]
 pub const <antecedent_contract::EvidenceOperator>::ALL: [Self; 9]
 pub const <antecedent_contract::EvidencePort>::ALL: [Self; 10]
+pub const <antecedent_contract::InputRole>::ALL: [Self; 5]
 pub const <antecedent_contract::JointAxisKind>::ALL: [Self; 7]
 pub const <antecedent_contract::JointConsumer>::ALL: [Self; 3]
 pub const <antecedent_contract::JointCovariance>::ALL: [Self; 2]
-pub const <antecedent_contract::JointNextAttempt>::ALL: [Self; 4]
 pub const <antecedent_contract::LawCoupling>::ALL: [Self; 4]
 pub const <antecedent_contract::MassFate>::ALL: [Self; 2]
+pub const <antecedent_contract::PropagationOperation>::ALL: [Self; 9]
+pub const <antecedent_contract::PropagationRoute>::ALL: [Self; 5]
+pub const <antecedent_contract::RequestedReading>::ALL: [Self; 5]
 pub const <antecedent_contract::SharedFactorKind>::ALL: [Self; 7]
 pub const <antecedent_contract::UncertaintyAxis>::ALL: [Self; 7]
+pub const <antecedent_contract::VerifiedContractKind>::ALL: [Self; 6]
 pub const <antecedent_contract::adaptive_design::AssignmentFamily>::ALL: &'static [Self]
+pub const <antecedent_contract::adaptive_design::BoundarySidedness>::ALL: [Self; 2]
 pub const <antecedent_contract::adaptive_design::InferenceParadigm>::ALL: &'static [Self]
 pub const <antecedent_contract::adaptive_design::MonitoringStrategy>::ALL: &'static [Self]
 pub const <antecedent_contract::adaptive_design::OutcomeStructure>::ALL: &'static [Self]
+pub const <antecedent_contract::adaptive_design::SpendingKind>::ALL: [Self; 2]
 pub const <antecedent_contract::adaptive_design::StoppingRuleKind>::ALL: &'static [Self]
 pub const <antecedent_contract::bridge::AssumptionKind>::ALL: [Self; 7]
 pub const <antecedent_contract::bridge::BridgeKind>::ALL: [Self; 6]
+pub const <antecedent_contract::bridge::MappingKind>::ALL: [Self; 4]
 pub const <antecedent_contract::bridge::QuantityClass>::ALL: [Self; 14]
 pub const <antecedent_contract::bridge::ValueKind>::ALL: [Self; 5]
 pub const <antecedent_contract::callback_protocol::CallbackKind>::ALL: [Self; 3]
@@ -4825,14 +4788,18 @@ pub const <antecedent_contract::callback_protocol::CallbackOperation>::ALL: [Sel
 pub const <antecedent_contract::callback_protocol::DependencyKind>::ALL: [Self; 6]
 pub const <antecedent_contract::composition_verification::DependencyKind>::ALL: [Self; 7]
 pub const <antecedent_contract::composition_verification::NodeKind>::ALL: [Self; 12]
+pub const <antecedent_contract::composition_verification::TrustStanding>::ALL: [Self; 4]
 pub const <antecedent_contract::evidence_ledger::SourceKind>::ALL: [Self; 5]
 pub const <antecedent_contract::evidence_ledger::SynthesisKind>::ALL: [Self; 5]
+pub const <antecedent_contract::interface_contract::CalibrationRequirement>::ALL: [Self; 2]
 pub const <antecedent_contract::interface_contract::ContractOperation>::ALL: [Self; 8]
+pub const <antecedent_contract::interface_contract::DependenceRequirement>::ALL: [Self; 3]
 pub const <antecedent_contract::interface_contract::UncertaintyMeaning>::ALL_MEANINGS: [antecedent_contract::DistributionMeaning; 7]
 pub const <antecedent_contract::interface_contract::UncertaintyParadigm>::ALL: [Self; 4]
 pub const <antecedent_contract::mixed_module::CutFeedback>::ALL: [Self; 2]
+pub const <antecedent_contract::provider_transport::SourceTrustRequirement>::ALL: [Self; 2]
 pub const <antecedent_contract::provider_transport::TransportedHandoff>::STANDING: &'static str
-pub const <antecedent_contract::rewrite_legality::NextAttempt>::ALL: [Self; 7]
+pub const <antecedent_contract::provider_transport::TransportedInputPolicy>::ALL: [Self; 2]
 pub const <antecedent_contract::rewrite_legality::NuisanceEffect>::ALL: [Self; 7]
 pub const <antecedent_contract::rewrite_legality::PreparationEffect>::ALL: [Self; 7]
 pub const <antecedent_contract::rewrite_legality::PreservationAxis>::ALL: [Self; 6]
@@ -4845,7 +4812,6 @@ pub const <antecedent_contract::rewrite_legality::Rewrite>::TILED_EVALUATION: &'
 pub const <antecedent_contract::rewrite_legality::SummaryEffect>::ALL: [Self; 7]
 pub const <antecedent_contract::rewrite_legality::TileEffect>::ALL: [Self; 7]
 pub const <antecedent_contract::summary_observation::FrequentistSummaryKind>::ALL: [Self; 2]
-pub const <antecedent_contract::summary_observation::SummaryNextAttempt>::ALL: [Self; 4]
 pub const <antecedent_contract::summary_observation::SummaryUse>::ALL: [Self; 2]
 pub const antecedent_contract::ASSUMPTION_RANGE_LABEL: &str
 pub const antecedent_contract::EFFECT_IDENTITY_VERSION: u64
@@ -4861,6 +4827,8 @@ pub const antecedent_contract::MECHANISM_VALUE_FUNCTIONAL: &str
 pub const antecedent_contract::OBSERVATIONAL_REGIME: &str
 pub const antecedent_contract::OBSERVATION_QUERY_STAGE: &str
 pub const antecedent_contract::POINT_ONLY_LABEL: &str
+pub const antecedent_contract::RECORD_DEPENDENT_POOLING: antecedent_core::refusal::NextAttempt
+pub const antecedent_contract::RECORD_THEN_COMBINE: antecedent_core::refusal::NextAttempt
 pub const antecedent_contract::UNCALIBRATED_SPREAD_LABEL: &str
 pub const antecedent_contract::VERSION: &str
 pub const antecedent_contract::adaptive_design::ADAPTIVE_DESIGN_VERSION: u64
@@ -4890,6 +4858,7 @@ pub const antecedent_contract::composition_verification::MAX_ITEMS_PER_NODE: usi
 pub const antecedent_contract::composition_verification::MAX_NODES: usize
 pub const antecedent_contract::composition_verification::MAX_OVERLAP_CHECKS: usize
 pub const antecedent_contract::composition_verification::MAX_TEXT_BYTES: usize
+pub const antecedent_contract::dependence::MAX_FACTORS_PER_SOURCE: usize
 pub const antecedent_contract::evidence_ledger::LEDGER_IDENTITY_VERSION: u64
 pub const antecedent_contract::evidence_ledger::MAX_COMBINATION_SOURCES: usize
 pub const antecedent_contract::evidence_ledger::MAX_OBSERVATIONS_PER_SOURCE: usize
@@ -4905,6 +4874,11 @@ pub const antecedent_contract::interface_contract::MAX_COMPOSITION_CONNECTIONS: 
 pub const antecedent_contract::interface_contract::MAX_INTERFACE_PORTS: usize
 pub const antecedent_contract::interface_contract::MAX_INTERFACE_TEXT_BYTES: usize
 pub const antecedent_contract::interface_contract::MAX_PORT_SET_ITEMS: usize
+pub const antecedent_contract::joint_alignment::DECLARE_PRODUCT_LAW: antecedent_core::refusal::NextAttempt
+pub const antecedent_contract::joint_alignment::DECLARE_SHARED_AXES: antecedent_core::refusal::NextAttempt
+pub const antecedent_contract::joint_alignment::NEXT_ATTEMPTS: [antecedent_core::refusal::NextAttempt; 4]
+pub const antecedent_contract::joint_alignment::REPAIR_DECLARATION: antecedent_core::refusal::NextAttempt
+pub const antecedent_contract::joint_alignment::RETAIN_DROPPED_MASS: antecedent_core::refusal::NextAttempt
 pub const antecedent_contract::measurement::MEASUREMENT_CONSTRUCT_PORT: &str
 pub const antecedent_contract::measurement::MEASUREMENT_INDICATOR_PORT: &str
 pub const antecedent_contract::mechanism_composition::MECHANISM_PLAN_IDENTITY_VERSION: u64
@@ -4913,8 +4887,22 @@ pub const antecedent_contract::provider_transport::MAX_PROVIDER_TRANSPORT_TEXT_B
 pub const antecedent_contract::provider_transport::PROVIDER_SOURCE_PORT: &str
 pub const antecedent_contract::provider_transport::PROVIDER_TRANSPORT_VERSION: u64
 pub const antecedent_contract::provider_transport::TRANSPORT_SOURCE_PORT: &str
+pub const antecedent_contract::rewrite_legality::NAME_PRESERVED_IDENTITY: antecedent_core::refusal::NextAttempt
+pub const antecedent_contract::rewrite_legality::NEXT_ATTEMPTS: [antecedent_core::refusal::NextAttempt; 7]
+pub const antecedent_contract::rewrite_legality::RETAIN_DEPENDENCE: antecedent_core::refusal::NextAttempt
+pub const antecedent_contract::rewrite_legality::RETAIN_FOLDS: antecedent_core::refusal::NextAttempt
+pub const antecedent_contract::rewrite_legality::RETAIN_HISTORY: antecedent_core::refusal::NextAttempt
+pub const antecedent_contract::rewrite_legality::RETAIN_POPULATION: antecedent_core::refusal::NextAttempt
+pub const antecedent_contract::rewrite_legality::RETAIN_SAMPLE_SELECTION: antecedent_core::refusal::NextAttempt
+pub const antecedent_contract::rewrite_legality::RETAIN_UNCERTAINTY: antecedent_core::refusal::NextAttempt
+pub const antecedent_contract::summary_observation::ADAPT_ESTIMATE_COVARIANCE: antecedent_core::refusal::NextAttempt
 pub const antecedent_contract::summary_observation::FREQUENTIST_SUMMARY_TAG: &str
+pub const antecedent_contract::summary_observation::MAX_COVARIANCE_DIMENSION: usize
+pub const antecedent_contract::summary_observation::NEXT_ATTEMPTS: [antecedent_core::refusal::NextAttempt; 4]
+pub const antecedent_contract::summary_observation::REPORT_AS_FREQUENTIST_INTERVAL: antecedent_core::refusal::NextAttempt
 pub const antecedent_contract::summary_observation::SUMMARY_OBSERVATION_TAG: &str
+pub const antecedent_contract::summary_observation::SUPPLY_ESTIMATE_COVARIANCE: antecedent_core::refusal::NextAttempt
+pub const antecedent_contract::summary_observation::USE_AS_LIKELIHOOD_UPDATE: antecedent_core::refusal::NextAttempt
 pub const antecedent_contract::transport_revalidation::TRANSPORT_REVALIDATION_VERSION: u64
 pub const fn antecedent_contract::capability_name(capability: antecedent_contract::ExternalCapability) -> &'static str
 pub const fn antecedent_contract::external_refusal::probe_name(kind: antecedent_contract::VerificationProbeKind) -> &'static str
@@ -5770,6 +5758,9 @@ pub field antecedent_contract::interface_contract::ConsumedPort::quantity: antec
 pub field antecedent_contract::interface_contract::ConsumedPort::semantic_identity: alloc::string::String
 pub field antecedent_contract::interface_contract::ConsumedPort::support: antecedent_contract::interface_contract::SupportDomain
 pub field antecedent_contract::interface_contract::ConsumedPort::uncertainty: core::option::Option<antecedent_contract::interface_contract::UncertaintyMeaning>
+pub field antecedent_contract::interface_contract::CyclicComponentDeclaration::component: alloc::string::String
+pub field antecedent_contract::interface_contract::CyclicComponentDeclaration::cyclic_solution: antecedent_core::identity::SemanticDigest
+pub field antecedent_contract::interface_contract::CyclicComponentDeclaration::program: antecedent_core::identity::SemanticDigest
 pub field antecedent_contract::interface_contract::InterfaceContract::component: alloc::string::String
 pub field antecedent_contract::interface_contract::InterfaceContract::consumes: alloc::vec::Vec<antecedent_contract::interface_contract::ConsumedPort>
 pub field antecedent_contract::interface_contract::InterfaceContract::produces: alloc::vec::Vec<antecedent_contract::interface_contract::ProducedPort>
@@ -5946,11 +5937,6 @@ pub fn <antecedent_contract::DomainStatus>::const fn as_str(self) -> &'static st
 pub fn <antecedent_contract::DomainStatus>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_contract::EffectId>::const fn digest(self) -> antecedent_core::identity::SemanticDigest
 pub fn <antecedent_contract::EffectId>::const fn from_digest(digest: antecedent_core::identity::SemanticDigest) -> Self
-pub fn <antecedent_contract::EffectNextAttempt>::const fn is_dependent(self) -> bool
-pub fn <antecedent_contract::EffectNextAttempt>::const fn operator(self) -> antecedent_contract::EvidenceOperator
-pub fn <antecedent_contract::EffectNextAttempt>::const fn phrase(self) -> &'static str
-pub fn <antecedent_contract::EffectNextAttempt>::const fn record_dependent_pooling() -> Self
-pub fn <antecedent_contract::EffectNextAttempt>::const fn record_then_combine(operator: antecedent_contract::EvidenceOperator) -> Self
 pub fn <antecedent_contract::EvidenceBinding>::fn try_new(quantity: antecedent_contract::ScientificQuantity, world: antecedent_contract::WorldTime, premises: alloc::sync::Arc<[alloc::sync::Arc<str>]>, origins: antecedent_contract::EvidenceOrigins, support: antecedent_contract::EvidenceSupport, calibration: antecedent_contract::EvidenceCalibration) -> core::result::Result<Self, antecedent_contract::EvidenceEnvelopeError>
 pub fn <antecedent_contract::EvidenceBinding>::fn validate(&self) -> core::result::Result<(), antecedent_contract::EvidenceEnvelopeError>
 pub fn <antecedent_contract::EvidenceDependence>::const fn as_str(self) -> &'static str
@@ -5982,7 +5968,7 @@ pub fn <antecedent_contract::EvidenceEffect>::fn transport(transported: impl cor
 pub fn <antecedent_contract::EvidenceEffect>::fn transported_sources(&self) -> core::option::Option<&[antecedent_contract::evidence_ledger::SourceId]>
 pub fn <antecedent_contract::EvidenceEffectError>::const fn code(&self) -> &'static str
 pub fn <antecedent_contract::EvidenceEffectError>::const fn detail(&self) -> &'static str
-pub fn <antecedent_contract::EvidenceEffectError>::const fn next_attempt(&self) -> core::option::Option<antecedent_contract::EffectNextAttempt>
+pub fn <antecedent_contract::EvidenceEffectError>::const fn next_attempt(&self) -> core::option::Option<antecedent_core::refusal::NextAttempt>
 pub fn <antecedent_contract::EvidenceEffectError>::const fn recorded_operator(&self) -> core::option::Option<antecedent_contract::EvidenceOperator>
 pub fn <antecedent_contract::EvidenceEffectError>::const fn requested_operator(&self) -> core::option::Option<antecedent_contract::EvidenceOperator>
 pub fn <antecedent_contract::EvidenceEffectError>::fn message(&self) -> &str
@@ -6068,7 +6054,7 @@ pub fn <antecedent_contract::JointAlignment>::fn consumers(&self) -> &[anteceden
 pub fn <antecedent_contract::JointAlignment>::fn shared_axes(&self) -> &[antecedent_contract::JointAxis]
 pub fn <antecedent_contract::JointAlignmentError>::const fn code(&self) -> &'static str
 pub fn <antecedent_contract::JointAlignmentError>::const fn detail(&self) -> &'static str
-pub fn <antecedent_contract::JointAlignmentError>::const fn next_attempt(&self) -> antecedent_contract::JointNextAttempt
+pub fn <antecedent_contract::JointAlignmentError>::const fn next_attempt(&self) -> antecedent_core::refusal::NextAttempt
 pub fn <antecedent_contract::JointAlignmentError>::fn message(&self) -> &str
 pub fn <antecedent_contract::JointAlignmentRequest>::const fn coupling(&self) -> antecedent_contract::LawCoupling
 pub fn <antecedent_contract::JointAlignmentRequest>::fn align(&self) -> core::result::Result<antecedent_contract::JointAlignment, antecedent_contract::JointAlignmentError>
@@ -6084,9 +6070,6 @@ pub fn <antecedent_contract::JointConsumer>::const fn as_str(self) -> &'static s
 pub fn <antecedent_contract::JointConsumer>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_contract::JointCovariance>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::JointCovariance>::fn from_name(name: &str) -> core::option::Option<Self>
-pub fn <antecedent_contract::JointNextAttempt>::const fn as_str(self) -> &'static str
-pub fn <antecedent_contract::JointNextAttempt>::const fn sentence(self) -> &'static str
-pub fn <antecedent_contract::JointNextAttempt>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_contract::LawArray>::const fn consumer(&self) -> antecedent_contract::JointConsumer
 pub fn <antecedent_contract::LawArray>::const fn is_empty(&self) -> bool
 pub fn <antecedent_contract::LawArray>::const fn len(&self) -> usize
@@ -6199,10 +6182,12 @@ pub fn <antecedent_contract::SharedFactor>::const fn id(&self) -> &antecedent_co
 pub fn <antecedent_contract::SharedFactor>::const fn kind(&self) -> antecedent_contract::SharedFactorKind
 pub fn <antecedent_contract::SharedFactorId>::fn as_str(&self) -> &str
 pub fn <antecedent_contract::SharedFactorKind>::const fn as_str(self) -> &'static str
+pub fn <antecedent_contract::SharedFactorKind>::const fn index(self) -> usize
 pub fn <antecedent_contract::SharedFactorKind>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_contract::SharedFactorSets>::const fn empty() -> Self
 pub fn <antecedent_contract::SharedFactorSets>::fn ids(&self, kind: antecedent_contract::SharedFactorKind) -> &alloc::collections::btree::set::BTreeSet<antecedent_contract::SharedFactorId>
 pub fn <antecedent_contract::SharedFactorSets>::fn is_empty(&self) -> bool
+pub fn <antecedent_contract::SharedFactorSets>::fn len(&self) -> usize
 pub fn <antecedent_contract::SharedFactorSets>::fn try_insert(&mut self, kind: antecedent_contract::SharedFactorKind, id: impl core::convert::AsRef<str>) -> core::result::Result<(), antecedent_contract::DependenceError>
 pub fn <antecedent_contract::SlotAvailability<T>>::const fn as_ref(&self) -> core::option::Option<&T>
 pub fn <antecedent_contract::SlotAvailability<T>>::const fn is_available(&self) -> bool
@@ -6574,9 +6559,6 @@ pub fn <antecedent_contract::rewrite_legality::FrameFingerprint>::const fn folds
 pub fn <antecedent_contract::rewrite_legality::FrameFingerprint>::const fn history(&self) -> antecedent_core::identity::SemanticDigest
 pub fn <antecedent_contract::rewrite_legality::FrameFingerprint>::const fn population(&self) -> antecedent_core::identity::SemanticDigest
 pub fn <antecedent_contract::rewrite_legality::FrameFingerprint>::const fn selected_rows(&self) -> antecedent_core::identity::SemanticDigest
-pub fn <antecedent_contract::rewrite_legality::NextAttempt>::const fn as_str(self) -> &'static str
-pub fn <antecedent_contract::rewrite_legality::NextAttempt>::const fn sentence(self) -> &'static str
-pub fn <antecedent_contract::rewrite_legality::NextAttempt>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_contract::rewrite_legality::NuisanceEffect>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::rewrite_legality::NuisanceEffect>::const fn defect(self) -> core::option::Option<(antecedent_contract::rewrite_legality::PreservationAxis, &'static str)>
 pub fn <antecedent_contract::rewrite_legality::NuisanceEffect>::fn from_name(name: &str) -> core::option::Option<Self>
@@ -6584,7 +6566,7 @@ pub fn <antecedent_contract::rewrite_legality::PreparationEffect>::const fn as_s
 pub fn <antecedent_contract::rewrite_legality::PreparationEffect>::const fn defect(self) -> core::option::Option<(antecedent_contract::rewrite_legality::PreservationAxis, &'static str)>
 pub fn <antecedent_contract::rewrite_legality::PreparationEffect>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_contract::rewrite_legality::PreservationAxis>::const fn as_str(self) -> &'static str
-pub fn <antecedent_contract::rewrite_legality::PreservationAxis>::const fn next_attempt(self) -> antecedent_contract::rewrite_legality::NextAttempt
+pub fn <antecedent_contract::rewrite_legality::PreservationAxis>::const fn next_attempt(self) -> antecedent_core::refusal::NextAttempt
 pub fn <antecedent_contract::rewrite_legality::PreservationAxis>::const fn phrase(self) -> &'static str
 pub fn <antecedent_contract::rewrite_legality::PreservationAxis>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_contract::rewrite_legality::PreservedIdentities>::fn identity(&self, axis: antecedent_contract::rewrite_legality::PreservationAxis) -> &str
@@ -6609,7 +6591,7 @@ pub fn <antecedent_contract::rewrite_legality::RewriteRefusal>::const fn axis(&s
 pub fn <antecedent_contract::rewrite_legality::RewriteRefusal>::const fn code(&self) -> &'static str
 pub fn <antecedent_contract::rewrite_legality::RewriteRefusal>::const fn detail(&self) -> &'static str
 pub fn <antecedent_contract::rewrite_legality::RewriteRefusal>::const fn kind(&self) -> core::option::Option<&'static str>
-pub fn <antecedent_contract::rewrite_legality::RewriteRefusal>::const fn next_attempt(&self) -> antecedent_contract::rewrite_legality::NextAttempt
+pub fn <antecedent_contract::rewrite_legality::RewriteRefusal>::const fn next_attempt(&self) -> antecedent_core::refusal::NextAttempt
 pub fn <antecedent_contract::rewrite_legality::RewriteRefusal>::fn message(&self) -> &str
 pub fn <antecedent_contract::rewrite_legality::SummaryEffect>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::rewrite_legality::SummaryEffect>::const fn defect(self) -> core::option::Option<(antecedent_contract::rewrite_legality::PreservationAxis, &'static str)>
@@ -6650,12 +6632,9 @@ pub fn <antecedent_contract::summary_observation::Selection>::fn new(name: impl 
 pub fn <antecedent_contract::summary_observation::SummaryCovariance>::const fn dimension(&self) -> usize
 pub fn <antecedent_contract::summary_observation::SummaryCovariance>::fn entries(&self) -> &[f64]
 pub fn <antecedent_contract::summary_observation::SummaryCovariance>::fn matrix(dimension: usize, entries: alloc::vec::Vec<f64>) -> core::result::Result<Self, antecedent_contract::summary_observation::SummaryObservationError>
-pub fn <antecedent_contract::summary_observation::SummaryNextAttempt>::const fn as_str(self) -> &'static str
-pub fn <antecedent_contract::summary_observation::SummaryNextAttempt>::const fn phrase(self) -> &'static str
-pub fn <antecedent_contract::summary_observation::SummaryNextAttempt>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_contract::summary_observation::SummaryObservationError>::const fn code(&self) -> &'static str
 pub fn <antecedent_contract::summary_observation::SummaryObservationError>::const fn detail(&self) -> &'static str
-pub fn <antecedent_contract::summary_observation::SummaryObservationError>::const fn next_attempt(&self) -> core::option::Option<antecedent_contract::summary_observation::SummaryNextAttempt>
+pub fn <antecedent_contract::summary_observation::SummaryObservationError>::const fn next_attempt(&self) -> core::option::Option<antecedent_core::refusal::NextAttempt>
 pub fn <antecedent_contract::summary_observation::SummaryObservationError>::const fn summary_kind(&self) -> core::option::Option<antecedent_contract::summary_observation::FrequentistSummaryKind>
 pub fn <antecedent_contract::summary_observation::SummaryObservationError>::fn message(&self) -> &str
 pub fn <antecedent_contract::summary_observation::SummaryObservationError>::fn refusal(&self) -> (&'static str, &'static str, &str)
@@ -6771,6 +6750,7 @@ pub fn antecedent_contract::external_binding::external_values_digest(values: &[f
 pub fn antecedent_contract::external_refusal::probe_from_name(name: &str) -> core::option::Option<antecedent_contract::VerificationProbeKind>
 pub fn antecedent_contract::intent_effects(intent: antecedent_contract::TransformIntent) -> alloc::sync::Arc<[antecedent_contract::LayerEffect]>
 pub fn antecedent_contract::interface_contract::check_composition(components: &[antecedent_contract::interface_contract::InterfaceContract], connections: &[antecedent_contract::interface_contract::ComponentConnection]) -> core::result::Result<antecedent_contract::interface_contract::ComposedInterfaces, alloc::vec::Vec<antecedent_contract::interface_contract::InterfaceRefusal>>
+pub fn antecedent_contract::interface_contract::check_composition_with_cyclic_components(components: &[antecedent_contract::interface_contract::InterfaceContract], connections: &[antecedent_contract::interface_contract::ComponentConnection], cyclic: &[antecedent_contract::interface_contract::CyclicComponentDeclaration], ledger: core::option::Option<&antecedent_contract::evidence_ledger::EvidenceLedger>) -> core::result::Result<antecedent_contract::interface_contract::ComposedInterfaces, alloc::vec::Vec<antecedent_contract::interface_contract::InterfaceRefusal>>
 pub fn antecedent_contract::interface_contract::check_composition_with_ledger(components: &[antecedent_contract::interface_contract::InterfaceContract], connections: &[antecedent_contract::interface_contract::ComponentConnection], ledger: &antecedent_contract::evidence_ledger::EvidenceLedger) -> core::result::Result<antecedent_contract::interface_contract::ComposedInterfaces, alloc::vec::Vec<antecedent_contract::interface_contract::InterfaceRefusal>>
 pub fn antecedent_contract::interface_contract::check_connection(producer: &antecedent_contract::interface_contract::InterfaceContract, produced_port: &str, consumer: &antecedent_contract::interface_contract::InterfaceContract, consumed_port: &str) -> core::result::Result<antecedent_contract::interface_contract::Connection, alloc::vec::Vec<antecedent_contract::interface_contract::InterfaceRefusal>>
 pub fn antecedent_contract::interface_contract::disjoint_requirements_without_ledger(components: &[antecedent_contract::interface_contract::InterfaceContract]) -> alloc::vec::Vec<antecedent_contract::interface_contract::InterfaceRefusal>
@@ -6868,8 +6848,6 @@ pub struct antecedent_contract::DependenceSourceId
 pub struct antecedent_contract::DependenceSourceId has private fields
 pub struct antecedent_contract::EffectId
 pub struct antecedent_contract::EffectId has private fields
-pub struct antecedent_contract::EffectNextAttempt
-pub struct antecedent_contract::EffectNextAttempt has private fields
 pub struct antecedent_contract::EvidenceBinding
 pub struct antecedent_contract::EvidenceEffect
 pub struct antecedent_contract::EvidenceEffect has private fields
@@ -7054,6 +7032,7 @@ pub struct antecedent_contract::interface_contract::ComponentConnection
 pub struct antecedent_contract::interface_contract::ComposedInterfaces
 pub struct antecedent_contract::interface_contract::Connection
 pub struct antecedent_contract::interface_contract::ConsumedPort
+pub struct antecedent_contract::interface_contract::CyclicComponentDeclaration
 pub struct antecedent_contract::interface_contract::InterfaceContract
 pub struct antecedent_contract::interface_contract::PortFacts
 pub struct antecedent_contract::interface_contract::ProducedPort
@@ -7114,6 +7093,9 @@ pub type antecedent_contract::callback_protocol::CallbackRefusal = antecedent_co
 pub type antecedent_contract::evidence_ledger::SharedObservations = alloc::vec::Vec<antecedent_contract::evidence_ledger::ObservationId>
 pub type antecedent_contract::interface_contract::InterfaceRefusal = antecedent_contract::ExternalRefusal
 pub type antecedent_contract::measurement::MeasurementRefusal = antecedent_contract::ExternalRefusal
+pub use antecedent_contract::NextAttempt = antecedent_core::refusal::NextAttempt
+pub use antecedent_contract::Refusal = antecedent_core::refusal::Refusal
+pub use antecedent_contract::Refused = antecedent_core::refusal::Refused
 pub use antecedent_contract::STRUCTURAL_ENVELOPE_LABEL = joint_law_rule::STRUCTURAL_ENVELOPE_LABEL
 pub use antecedent_contract::callback_protocol::refusal::CallbackRefusal = antecedent_contract::callback_protocol::CallbackRefusal
 pub use antecedent_contract::capability::BlockedOperation = antecedent_contract::BlockedOperation
@@ -7169,8 +7151,9 @@ pub use antecedent_contract::evidence_effects::EvidenceEffectError = antecedent_
 pub use antecedent_contract::evidence_effects::EvidenceEffectLedger = antecedent_contract::EvidenceEffectLedger
 pub use antecedent_contract::evidence_effects::EvidenceOperator = antecedent_contract::EvidenceOperator
 pub use antecedent_contract::evidence_effects::MAX_RECORDED_EFFECTS = antecedent_contract::MAX_RECORDED_EFFECTS
-pub use antecedent_contract::evidence_effects::NextAttempt = antecedent_contract::EffectNextAttempt
 pub use antecedent_contract::evidence_effects::NumericalAdmission = antecedent_contract::NumericalAdmission
+pub use antecedent_contract::evidence_effects::RECORD_DEPENDENT_POOLING = antecedent_contract::RECORD_DEPENDENT_POOLING
+pub use antecedent_contract::evidence_effects::RECORD_THEN_COMBINE = antecedent_contract::RECORD_THEN_COMBINE
 pub use antecedent_contract::evidence_effects::RecordedEffect = antecedent_contract::RecordedEffect
 pub use antecedent_contract::evidence_envelope::AxisInterval = antecedent_contract::AxisInterval
 pub use antecedent_contract::evidence_envelope::EvidenceBinding = antecedent_contract::EvidenceBinding
@@ -7246,7 +7229,6 @@ pub use antecedent_contract::joint_alignment::LawArray = antecedent_contract::La
 pub use antecedent_contract::joint_alignment::LawCoupling = antecedent_contract::LawCoupling
 pub use antecedent_contract::joint_alignment::MassAccount = antecedent_contract::MassAccount
 pub use antecedent_contract::joint_alignment::MassFate = antecedent_contract::MassFate
-pub use antecedent_contract::joint_alignment::NextAttempt = antecedent_contract::JointNextAttempt
 pub use antecedent_contract::joint_law_rule::ASSUMPTION_RANGE_LABEL = antecedent_contract::ASSUMPTION_RANGE_LABEL
 pub use antecedent_contract::joint_law_rule::ComposedCoordinate = antecedent_contract::ComposedCoordinate
 pub use antecedent_contract::joint_law_rule::ComposedIntervalPlan = antecedent_contract::ComposedIntervalPlan
@@ -7566,10 +7548,6 @@ pub variant antecedent_contract::JointConsumer::Coordinate
 pub variant antecedent_contract::JointConsumer::ResponseSurface
 pub variant antecedent_contract::JointCovariance::CrossTerms
 pub variant antecedent_contract::JointCovariance::NotMeasured
-pub variant antecedent_contract::JointNextAttempt::DeclareProductLaw
-pub variant antecedent_contract::JointNextAttempt::DeclareSharedAxes
-pub variant antecedent_contract::JointNextAttempt::RepairDeclaration
-pub variant antecedent_contract::JointNextAttempt::RetainDroppedMass
 pub variant antecedent_contract::KernelSelection::DenseBackend
 pub variant antecedent_contract::KernelSelection::PortableOptimized
 pub variant antecedent_contract::KernelSelection::Scalar
@@ -8078,13 +8056,6 @@ pub variant antecedent_contract::provider_transport::SourceTrustRequirement::Att
 pub variant antecedent_contract::provider_transport::SourceTrustRequirement::ExactRequestVerified
 pub variant antecedent_contract::provider_transport::TransportedInputPolicy::AcceptsTransported
 pub variant antecedent_contract::provider_transport::TransportedInputPolicy::NativeTargetOnly
-pub variant antecedent_contract::rewrite_legality::NextAttempt::NamePreservedIdentity
-pub variant antecedent_contract::rewrite_legality::NextAttempt::RetainDependence
-pub variant antecedent_contract::rewrite_legality::NextAttempt::RetainFolds
-pub variant antecedent_contract::rewrite_legality::NextAttempt::RetainHistory
-pub variant antecedent_contract::rewrite_legality::NextAttempt::RetainPopulation
-pub variant antecedent_contract::rewrite_legality::NextAttempt::RetainSampleSelection
-pub variant antecedent_contract::rewrite_legality::NextAttempt::RetainUncertainty
 pub variant antecedent_contract::rewrite_legality::NuisanceEffect::Certified
 pub variant antecedent_contract::rewrite_legality::NuisanceEffect::ChangesEstimationSample
 pub variant antecedent_contract::rewrite_legality::NuisanceEffect::DropsSharedFactor
@@ -8128,10 +8099,6 @@ pub variant antecedent_contract::rewrite_legality::TileEffect::RetargetsPopulati
 pub variant antecedent_contract::rewrite_legality::TileEffect::SplitsFold
 pub variant antecedent_contract::summary_observation::FrequentistSummaryKind::EstimateCovariance
 pub variant antecedent_contract::summary_observation::FrequentistSummaryKind::Interval
-pub variant antecedent_contract::summary_observation::SummaryNextAttempt::AdaptEstimateCovariance
-pub variant antecedent_contract::summary_observation::SummaryNextAttempt::ReportAsFrequentistInterval
-pub variant antecedent_contract::summary_observation::SummaryNextAttempt::SupplyEstimateCovariance
-pub variant antecedent_contract::summary_observation::SummaryNextAttempt::UseAsLikelihoodUpdate
 pub variant antecedent_contract::summary_observation::SummaryUse::BayesianLaw
 pub variant antecedent_contract::summary_observation::SummaryUse::LikelihoodUpdate
 pub variant antecedent_contract::transport_revalidation::SceneCalibration::Held { record: antecedent_core::identity::SemanticDigest, established_at_target: antecedent_core::identity::SemanticDigest }

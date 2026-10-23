@@ -2,12 +2,22 @@
 #   python3 scripts/gate_public_api.py --write
 # One line per public item; do not edit by hand.
 #[non_exhaustive] pub enum antecedent_data::DataError
+#[non_exhaustive] pub enum antecedent_data::ImputationModel
 #[non_exhaustive] pub enum antecedent_data::MaskPolicy
 #[non_exhaustive] pub enum antecedent_data::MissingPolicy
+#[non_exhaustive] pub enum antecedent_data::MissingnessAssumption
 #[non_exhaustive] pub enum antecedent_data::PermutationScheme
 #[non_exhaustive] pub enum antecedent_data::ReferencePointPolicy
+#[non_exhaustive] pub enum antecedent_data::column_closure::ClosureError
+#[non_exhaustive] pub enum antecedent_data::file_source::FileSourceError
+#[non_exhaustive] pub enum antecedent_data::file_source::FileSourceErrorKind
+#[non_exhaustive] pub enum antecedent_data::file_source::MemoryStage
+impl !core::marker::Freeze for antecedent_data::file_source::FileChunk [auto]
+impl !core::marker::Send for antecedent_data::file_source::TableChunkReader [auto]
 impl !core::marker::Sync for antecedent_data::ArrowCColumn [auto]
 impl !core::marker::Sync for antecedent_data::arrow_ffi::ArrowCStream [auto]
+impl !core::marker::Sync for antecedent_data::file_source::TableChunkReader [auto]
+impl !core::marker::Sync for antecedent_data::file_source::TableStream [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::ArrowFrameView [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::ArrowLoadResult [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::EventData [auto]
@@ -26,6 +36,9 @@ impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::TabularData [
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::TimeSeriesData [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::arrow_adapter::EstimatorFrame [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::arrow_adapter::FrozenArrowStudy [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::file_source::FileChunk [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::file_source::MaterializedTable [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::file_source::TableChunkReader [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::ArrowFrameView [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::ArrowLoadResult [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::EventData [auto]
@@ -44,6 +57,10 @@ impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::TabularData [aut
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::TimeSeriesData [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::arrow_adapter::EstimatorFrame [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::arrow_adapter::FrozenArrowStudy [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::file_source::FileChunk [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::file_source::MaterializedTable [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::file_source::TableChunkReader [auto]
+impl antecedent_core::refusal::Refused for antecedent_data::PanelPreparationError
 impl antecedent_data::TableView for antecedent_data::EventData
 impl antecedent_data::TableView for antecedent_data::OwnedColumnarStorage
 impl antecedent_data::TableView for antecedent_data::PanelUnitView<'_>
@@ -51,6 +68,9 @@ impl antecedent_data::TableView for antecedent_data::TabularData
 impl antecedent_data::TableView for antecedent_data::TimeSeriesData
 impl core::clone::Clone for antecedent_data::ArrowFrameView
 impl core::clone::Clone for antecedent_data::ArrowLoadResult
+impl core::clone::Clone for antecedent_data::AttritionBaseline
+impl core::clone::Clone for antecedent_data::AttritionRow
+impl core::clone::Clone for antecedent_data::BalanceRequirement
 impl core::clone::Clone for antecedent_data::BooleanColumn
 impl core::clone::Clone for antecedent_data::BorrowError
 impl core::clone::Clone for antecedent_data::CalendarSpan
@@ -78,6 +98,8 @@ impl core::clone::Clone for antecedent_data::GlobalId
 impl core::clone::Clone for antecedent_data::GlobalIndexError
 impl core::clone::Clone for antecedent_data::GroupAccounting
 impl core::clone::Clone for antecedent_data::IdRemap
+impl core::clone::Clone for antecedent_data::ImputationModel
+impl core::clone::Clone for antecedent_data::ImputationSpec
 impl core::clone::Clone for antecedent_data::Int64Column
 impl core::clone::Clone for antecedent_data::LagMap
 impl core::clone::Clone for antecedent_data::LagRefusal
@@ -90,17 +112,24 @@ impl core::clone::Clone for antecedent_data::MaskPolicy
 impl core::clone::Clone for antecedent_data::MissingCell
 impl core::clone::Clone for antecedent_data::MissingDeclaration
 impl core::clone::Clone for antecedent_data::MissingPolicy
+impl core::clone::Clone for antecedent_data::MissingnessAssumption
 impl core::clone::Clone for antecedent_data::MultiEnvironmentData
 impl core::clone::Clone for antecedent_data::NetworkData
 impl core::clone::Clone for antecedent_data::NetworkEdge
 impl core::clone::Clone for antecedent_data::OwnedColumn
 impl core::clone::Clone for antecedent_data::OwnedColumnarStorage
+impl core::clone::Clone for antecedent_data::PanelBalanceReport
 impl core::clone::Clone for antecedent_data::PanelData
+impl core::clone::Clone for antecedent_data::PanelLayout
+impl core::clone::Clone for antecedent_data::PanelPreparationError
 impl core::clone::Clone for antecedent_data::PanelUnit
 impl core::clone::Clone for antecedent_data::PanelWindow
+impl core::clone::Clone for antecedent_data::PeriodRun
 impl core::clone::Clone for antecedent_data::PermutationScheme
 impl core::clone::Clone for antecedent_data::PooledLaggedFrame
 impl core::clone::Clone for antecedent_data::PopulationUnit
+impl core::clone::Clone for antecedent_data::PreparationMode
+impl core::clone::Clone for antecedent_data::PreparedPanel
 impl core::clone::Clone for antecedent_data::ReferencePointPolicy
 impl core::clone::Clone for antecedent_data::ResamplingPlan
 impl core::clone::Clone for antecedent_data::RowAccounting
@@ -113,6 +142,8 @@ impl core::clone::Clone for antecedent_data::TimeSeriesData
 impl core::clone::Clone for antecedent_data::TimestampColumn
 impl core::clone::Clone for antecedent_data::UnitAccounting
 impl core::clone::Clone for antecedent_data::UnitPartition
+impl core::clone::Clone for antecedent_data::UnitRun
+impl core::clone::Clone for antecedent_data::UnitSummary
 impl core::clone::Clone for antecedent_data::UnknownCategoryPolicy
 impl core::clone::Clone for antecedent_data::ValidityBitmap
 impl core::clone::Clone for antecedent_data::VectorVariableGroups
@@ -125,9 +156,34 @@ impl core::clone::Clone for antecedent_data::backend_boundary::LazyBackendRefusa
 impl core::clone::Clone for antecedent_data::backend_boundary::PreparationBackend
 impl core::clone::Clone for antecedent_data::categorical::CategoryConversion
 impl core::clone::Clone for antecedent_data::categorical::ExpandedContrast
+impl core::clone::Clone for antecedent_data::column_closure::ClosureError
+impl core::clone::Clone for antecedent_data::column_closure::ClosureInputs
+impl core::clone::Clone for antecedent_data::column_closure::Cohort
+impl core::clone::Clone for antecedent_data::column_closure::ColumnClosure
+impl core::clone::Clone for antecedent_data::column_closure::ColumnDuty
+impl core::clone::Clone for antecedent_data::column_closure::ColumnFilter
+impl core::clone::Clone for antecedent_data::column_closure::ColumnRole
+impl core::clone::Clone for antecedent_data::column_closure::ObservationFrame
+impl core::clone::Clone for antecedent_data::column_closure::PushdownRefusal
+impl core::clone::Clone for antecedent_data::column_closure::RequiredColumn
 impl core::clone::Clone for antecedent_data::design_layout::LayoutError
 impl core::clone::Clone for antecedent_data::design_layout::OwnershipCopy
 impl core::clone::Clone for antecedent_data::design_layout::OwnershipReceipt
+impl core::clone::Clone for antecedent_data::file_source::ChunkQuote
+impl core::clone::Clone for antecedent_data::file_source::FileColumn
+impl core::clone::Clone for antecedent_data::file_source::FileColumnKind
+impl core::clone::Clone for antecedent_data::file_source::FileContentIdentity
+impl core::clone::Clone for antecedent_data::file_source::FileSourceError
+impl core::clone::Clone for antecedent_data::file_source::FileSourceErrorKind
+impl core::clone::Clone for antecedent_data::file_source::MaterializationQuote
+impl core::clone::Clone for antecedent_data::file_source::MemoryStage
+impl core::clone::Clone for antecedent_data::file_source::ReadOptions
+impl core::clone::Clone for antecedent_data::file_source::ReadPlan
+impl core::clone::Clone for antecedent_data::file_source::RowCursor
+impl core::clone::Clone for antecedent_data::file_source::ScanReceipt
+impl core::clone::Clone for antecedent_data::file_source::TableFile
+impl core::clone::Clone for antecedent_data::file_source::TableFileFormat
+impl core::clone::Clone for antecedent_data::file_source::WriteOptions
 impl core::clone::Clone for antecedent_data::materialize::AdmissionRecord
 impl core::clone::Clone for antecedent_data::materialize::CategoryLevels
 impl core::clone::Clone for antecedent_data::materialize::DeliveryRecord
@@ -147,6 +203,8 @@ impl core::clone::Clone for antecedent_data::materialize::StreamQuote
 impl core::clone::Clone for antecedent_data::materialize::StreamingScan
 impl core::clone::Clone for antecedent_data::missing::ChunkMissing
 impl core::clone::Clone for antecedent_data::missing::MissingConversion
+impl core::cmp::Eq for antecedent_data::AttritionRow
+impl core::cmp::Eq for antecedent_data::BalanceRequirement
 impl core::cmp::Eq for antecedent_data::BooleanColumn
 impl core::cmp::Eq for antecedent_data::BorrowError
 impl core::cmp::Eq for antecedent_data::CalendarSpan
@@ -165,6 +223,8 @@ impl core::cmp::Eq for antecedent_data::EnvHoldoutSplit
 impl core::cmp::Eq for antecedent_data::GlobalId
 impl core::cmp::Eq for antecedent_data::GlobalIndexError
 impl core::cmp::Eq for antecedent_data::GroupAccounting
+impl core::cmp::Eq for antecedent_data::ImputationModel
+impl core::cmp::Eq for antecedent_data::ImputationSpec
 impl core::cmp::Eq for antecedent_data::Int64Column
 impl core::cmp::Eq for antecedent_data::LagMap
 impl core::cmp::Eq for antecedent_data::LagRefusal
@@ -174,9 +234,16 @@ impl core::cmp::Eq for antecedent_data::MaskPolicy
 impl core::cmp::Eq for antecedent_data::MissingCell
 impl core::cmp::Eq for antecedent_data::MissingDeclaration
 impl core::cmp::Eq for antecedent_data::MissingPolicy
+impl core::cmp::Eq for antecedent_data::MissingnessAssumption
+impl core::cmp::Eq for antecedent_data::PanelBalanceReport
+impl core::cmp::Eq for antecedent_data::PanelLayout
+impl core::cmp::Eq for antecedent_data::PanelPreparationError
 impl core::cmp::Eq for antecedent_data::PanelWindow
+impl core::cmp::Eq for antecedent_data::PeriodRun
 impl core::cmp::Eq for antecedent_data::PermutationScheme
 impl core::cmp::Eq for antecedent_data::PopulationUnit
+impl core::cmp::Eq for antecedent_data::PreparationMode
+impl core::cmp::Eq for antecedent_data::PreparedPanel
 impl core::cmp::Eq for antecedent_data::ReferencePointPolicy
 impl core::cmp::Eq for antecedent_data::RowAccounting
 impl core::cmp::Eq for antecedent_data::SamplingRegularity
@@ -186,6 +253,8 @@ impl core::cmp::Eq for antecedent_data::TimeRange
 impl core::cmp::Eq for antecedent_data::TimestampColumn
 impl core::cmp::Eq for antecedent_data::UnitAccounting
 impl core::cmp::Eq for antecedent_data::UnitPartition
+impl core::cmp::Eq for antecedent_data::UnitRun
+impl core::cmp::Eq for antecedent_data::UnitSummary
 impl core::cmp::Eq for antecedent_data::UnknownCategoryPolicy
 impl core::cmp::Eq for antecedent_data::ValidityBitmap
 impl core::cmp::Eq for antecedent_data::VectorVariableGroups
@@ -195,9 +264,33 @@ impl core::cmp::Eq for antecedent_data::WindowNextAttempt
 impl core::cmp::Eq for antecedent_data::backend_boundary::LazyBackendRefusal
 impl core::cmp::Eq for antecedent_data::backend_boundary::PreparationBackend
 impl core::cmp::Eq for antecedent_data::categorical::CategoryConversion
+impl core::cmp::Eq for antecedent_data::column_closure::ClosureError
+impl core::cmp::Eq for antecedent_data::column_closure::ClosureInputs
+impl core::cmp::Eq for antecedent_data::column_closure::Cohort
+impl core::cmp::Eq for antecedent_data::column_closure::ColumnClosure
+impl core::cmp::Eq for antecedent_data::column_closure::ColumnDuty
+impl core::cmp::Eq for antecedent_data::column_closure::ColumnFilter
+impl core::cmp::Eq for antecedent_data::column_closure::ColumnRole
+impl core::cmp::Eq for antecedent_data::column_closure::ObservationFrame
+impl core::cmp::Eq for antecedent_data::column_closure::PushdownRefusal
+impl core::cmp::Eq for antecedent_data::column_closure::RequiredColumn
 impl core::cmp::Eq for antecedent_data::design_layout::LayoutError
 impl core::cmp::Eq for antecedent_data::design_layout::OwnershipCopy
 impl core::cmp::Eq for antecedent_data::design_layout::OwnershipReceipt
+impl core::cmp::Eq for antecedent_data::file_source::ChunkQuote
+impl core::cmp::Eq for antecedent_data::file_source::FileColumn
+impl core::cmp::Eq for antecedent_data::file_source::FileColumnKind
+impl core::cmp::Eq for antecedent_data::file_source::FileContentIdentity
+impl core::cmp::Eq for antecedent_data::file_source::FileSourceError
+impl core::cmp::Eq for antecedent_data::file_source::FileSourceErrorKind
+impl core::cmp::Eq for antecedent_data::file_source::MaterializationQuote
+impl core::cmp::Eq for antecedent_data::file_source::MemoryStage
+impl core::cmp::Eq for antecedent_data::file_source::ReadOptions
+impl core::cmp::Eq for antecedent_data::file_source::ReadPlan
+impl core::cmp::Eq for antecedent_data::file_source::RowCursor
+impl core::cmp::Eq for antecedent_data::file_source::ScanReceipt
+impl core::cmp::Eq for antecedent_data::file_source::TableFileFormat
+impl core::cmp::Eq for antecedent_data::file_source::WriteOptions
 impl core::cmp::Eq for antecedent_data::materialize::AdmissionRecord
 impl core::cmp::Eq for antecedent_data::materialize::CategoryLevels
 impl core::cmp::Eq for antecedent_data::materialize::DeliveryRecord
@@ -219,6 +312,10 @@ impl core::cmp::Eq for antecedent_data::missing::MissingConversion
 impl core::cmp::Ord for antecedent_data::CategoryCode
 impl core::cmp::Ord for antecedent_data::ChunkIndex
 impl core::cmp::Ord for antecedent_data::GlobalId
+impl core::cmp::Ord for antecedent_data::column_closure::ColumnRole
+impl core::cmp::PartialEq for antecedent_data::AttritionBaseline
+impl core::cmp::PartialEq for antecedent_data::AttritionRow
+impl core::cmp::PartialEq for antecedent_data::BalanceRequirement
 impl core::cmp::PartialEq for antecedent_data::BooleanColumn
 impl core::cmp::PartialEq for antecedent_data::BorrowError
 impl core::cmp::PartialEq for antecedent_data::CalendarSpan
@@ -243,6 +340,8 @@ impl core::cmp::PartialEq for antecedent_data::Float64Column
 impl core::cmp::PartialEq for antecedent_data::GlobalId
 impl core::cmp::PartialEq for antecedent_data::GlobalIndexError
 impl core::cmp::PartialEq for antecedent_data::GroupAccounting
+impl core::cmp::PartialEq for antecedent_data::ImputationModel
+impl core::cmp::PartialEq for antecedent_data::ImputationSpec
 impl core::cmp::PartialEq for antecedent_data::Int64Column
 impl core::cmp::PartialEq for antecedent_data::LagMap
 impl core::cmp::PartialEq for antecedent_data::LagRefusal
@@ -252,10 +351,17 @@ impl core::cmp::PartialEq for antecedent_data::MaskPolicy
 impl core::cmp::PartialEq for antecedent_data::MissingCell
 impl core::cmp::PartialEq for antecedent_data::MissingDeclaration
 impl core::cmp::PartialEq for antecedent_data::MissingPolicy
+impl core::cmp::PartialEq for antecedent_data::MissingnessAssumption
 impl core::cmp::PartialEq for antecedent_data::NetworkEdge
+impl core::cmp::PartialEq for antecedent_data::PanelBalanceReport
+impl core::cmp::PartialEq for antecedent_data::PanelLayout
+impl core::cmp::PartialEq for antecedent_data::PanelPreparationError
 impl core::cmp::PartialEq for antecedent_data::PanelWindow
+impl core::cmp::PartialEq for antecedent_data::PeriodRun
 impl core::cmp::PartialEq for antecedent_data::PermutationScheme
 impl core::cmp::PartialEq for antecedent_data::PopulationUnit
+impl core::cmp::PartialEq for antecedent_data::PreparationMode
+impl core::cmp::PartialEq for antecedent_data::PreparedPanel
 impl core::cmp::PartialEq for antecedent_data::ReferencePointPolicy
 impl core::cmp::PartialEq for antecedent_data::ResamplingPlan
 impl core::cmp::PartialEq for antecedent_data::RowAccounting
@@ -266,6 +372,8 @@ impl core::cmp::PartialEq for antecedent_data::TimeRange
 impl core::cmp::PartialEq for antecedent_data::TimestampColumn
 impl core::cmp::PartialEq for antecedent_data::UnitAccounting
 impl core::cmp::PartialEq for antecedent_data::UnitPartition
+impl core::cmp::PartialEq for antecedent_data::UnitRun
+impl core::cmp::PartialEq for antecedent_data::UnitSummary
 impl core::cmp::PartialEq for antecedent_data::UnknownCategoryPolicy
 impl core::cmp::PartialEq for antecedent_data::ValidityBitmap
 impl core::cmp::PartialEq for antecedent_data::VectorVariableGroups
@@ -275,9 +383,33 @@ impl core::cmp::PartialEq for antecedent_data::WindowNextAttempt
 impl core::cmp::PartialEq for antecedent_data::backend_boundary::LazyBackendRefusal
 impl core::cmp::PartialEq for antecedent_data::backend_boundary::PreparationBackend
 impl core::cmp::PartialEq for antecedent_data::categorical::CategoryConversion
+impl core::cmp::PartialEq for antecedent_data::column_closure::ClosureError
+impl core::cmp::PartialEq for antecedent_data::column_closure::ClosureInputs
+impl core::cmp::PartialEq for antecedent_data::column_closure::Cohort
+impl core::cmp::PartialEq for antecedent_data::column_closure::ColumnClosure
+impl core::cmp::PartialEq for antecedent_data::column_closure::ColumnDuty
+impl core::cmp::PartialEq for antecedent_data::column_closure::ColumnFilter
+impl core::cmp::PartialEq for antecedent_data::column_closure::ColumnRole
+impl core::cmp::PartialEq for antecedent_data::column_closure::ObservationFrame
+impl core::cmp::PartialEq for antecedent_data::column_closure::PushdownRefusal
+impl core::cmp::PartialEq for antecedent_data::column_closure::RequiredColumn
 impl core::cmp::PartialEq for antecedent_data::design_layout::LayoutError
 impl core::cmp::PartialEq for antecedent_data::design_layout::OwnershipCopy
 impl core::cmp::PartialEq for antecedent_data::design_layout::OwnershipReceipt
+impl core::cmp::PartialEq for antecedent_data::file_source::ChunkQuote
+impl core::cmp::PartialEq for antecedent_data::file_source::FileColumn
+impl core::cmp::PartialEq for antecedent_data::file_source::FileColumnKind
+impl core::cmp::PartialEq for antecedent_data::file_source::FileContentIdentity
+impl core::cmp::PartialEq for antecedent_data::file_source::FileSourceError
+impl core::cmp::PartialEq for antecedent_data::file_source::FileSourceErrorKind
+impl core::cmp::PartialEq for antecedent_data::file_source::MaterializationQuote
+impl core::cmp::PartialEq for antecedent_data::file_source::MemoryStage
+impl core::cmp::PartialEq for antecedent_data::file_source::ReadOptions
+impl core::cmp::PartialEq for antecedent_data::file_source::ReadPlan
+impl core::cmp::PartialEq for antecedent_data::file_source::RowCursor
+impl core::cmp::PartialEq for antecedent_data::file_source::ScanReceipt
+impl core::cmp::PartialEq for antecedent_data::file_source::TableFileFormat
+impl core::cmp::PartialEq for antecedent_data::file_source::WriteOptions
 impl core::cmp::PartialEq for antecedent_data::materialize::AdmissionRecord
 impl core::cmp::PartialEq for antecedent_data::materialize::CategoryLevels
 impl core::cmp::PartialEq for antecedent_data::materialize::DeliveryRecord
@@ -299,31 +431,51 @@ impl core::cmp::PartialEq for antecedent_data::missing::MissingConversion
 impl core::cmp::PartialOrd for antecedent_data::CategoryCode
 impl core::cmp::PartialOrd for antecedent_data::ChunkIndex
 impl core::cmp::PartialOrd for antecedent_data::GlobalId
+impl core::cmp::PartialOrd for antecedent_data::column_closure::ColumnRole
+impl core::convert::AsRef<str> for antecedent_data::column_closure::ColumnRole
+impl core::convert::From<&str> for antecedent_data::column_closure::ColumnRole
 impl core::convert::From<alloc::sync::Arc<[f64]>> for antecedent_data::F64Buffer
+impl core::convert::From<alloc::sync::Arc<str>> for antecedent_data::column_closure::ColumnRole
 impl core::convert::From<alloc::vec::Vec<f64>> for antecedent_data::F64Buffer
 impl core::convert::From<antecedent_core::error::SchemaError> for antecedent_data::DataError
+impl core::convert::From<antecedent_data::DataError> for antecedent_data::file_source::FileSourceError
+impl core::convert::From<antecedent_data::PanelPreparationError> for antecedent_data::DataError
+impl core::convert::From<antecedent_data::column_closure::ClosureError> for antecedent_data::file_source::FileSourceError
 impl core::convert::From<u32> for antecedent_data::ChunkIndex
 impl core::convert::From<u32> for antecedent_data::GlobalId
 impl core::convert::TryFrom<antecedent_data::GlobalId> for antecedent_data::ChunkIndex
 impl core::default::Default for antecedent_data::DropSummary
 impl core::default::Default for antecedent_data::DummyOptions
+impl core::default::Default for antecedent_data::ImputationModel
+impl core::default::Default for antecedent_data::ImputationSpec
 impl core::default::Default for antecedent_data::LaggedFrameOptions
 impl core::default::Default for antecedent_data::LaggedSampleWorkspace
 impl core::default::Default for antecedent_data::MaskPolicy
 impl core::default::Default for antecedent_data::MissingPolicy
+impl core::default::Default for antecedent_data::MissingnessAssumption
+impl core::default::Default for antecedent_data::PanelLayout
 impl core::default::Default for antecedent_data::ReferencePointPolicy
 impl core::default::Default for antecedent_data::TimeDummyEncoding
 impl core::default::Default for antecedent_data::UnitAccounting
 impl core::default::Default for antecedent_data::ValidityBitmap
 impl core::default::Default for antecedent_data::VectorVariableGroups
+impl core::default::Default for antecedent_data::file_source::ReadOptions
+impl core::default::Default for antecedent_data::file_source::RowCursor
+impl core::default::Default for antecedent_data::file_source::WriteOptions
 impl core::error::Error for antecedent_data::BorrowError
 impl core::error::Error for antecedent_data::DataError
 impl core::error::Error for antecedent_data::GlobalIndexError
 impl core::error::Error for antecedent_data::LagRefusal
+impl core::error::Error for antecedent_data::PanelPreparationError
 impl core::error::Error for antecedent_data::backend_boundary::LazyBackendRefusal
+impl core::error::Error for antecedent_data::column_closure::ClosureError
 impl core::error::Error for antecedent_data::design_layout::LayoutError
+impl core::error::Error for antecedent_data::file_source::FileSourceError
 impl core::fmt::Debug for antecedent_data::ArrowFrameView
 impl core::fmt::Debug for antecedent_data::ArrowLoadResult
+impl core::fmt::Debug for antecedent_data::AttritionBaseline
+impl core::fmt::Debug for antecedent_data::AttritionRow
+impl core::fmt::Debug for antecedent_data::BalanceRequirement
 impl core::fmt::Debug for antecedent_data::BooleanColumn
 impl core::fmt::Debug for antecedent_data::BorrowError
 impl core::fmt::Debug for antecedent_data::CalendarSpan
@@ -351,6 +503,8 @@ impl core::fmt::Debug for antecedent_data::GlobalId
 impl core::fmt::Debug for antecedent_data::GlobalIndexError
 impl core::fmt::Debug for antecedent_data::GroupAccounting
 impl core::fmt::Debug for antecedent_data::IdRemap
+impl core::fmt::Debug for antecedent_data::ImputationModel
+impl core::fmt::Debug for antecedent_data::ImputationSpec
 impl core::fmt::Debug for antecedent_data::Int64Column
 impl core::fmt::Debug for antecedent_data::LagMap
 impl core::fmt::Debug for antecedent_data::LagRefusal
@@ -363,17 +517,24 @@ impl core::fmt::Debug for antecedent_data::MaskPolicy
 impl core::fmt::Debug for antecedent_data::MissingCell
 impl core::fmt::Debug for antecedent_data::MissingDeclaration
 impl core::fmt::Debug for antecedent_data::MissingPolicy
+impl core::fmt::Debug for antecedent_data::MissingnessAssumption
 impl core::fmt::Debug for antecedent_data::MultiEnvironmentData
 impl core::fmt::Debug for antecedent_data::NetworkData
 impl core::fmt::Debug for antecedent_data::NetworkEdge
 impl core::fmt::Debug for antecedent_data::OwnedColumn
 impl core::fmt::Debug for antecedent_data::OwnedColumnarStorage
+impl core::fmt::Debug for antecedent_data::PanelBalanceReport
 impl core::fmt::Debug for antecedent_data::PanelData
+impl core::fmt::Debug for antecedent_data::PanelLayout
+impl core::fmt::Debug for antecedent_data::PanelPreparationError
 impl core::fmt::Debug for antecedent_data::PanelUnit
 impl core::fmt::Debug for antecedent_data::PanelWindow
+impl core::fmt::Debug for antecedent_data::PeriodRun
 impl core::fmt::Debug for antecedent_data::PermutationScheme
 impl core::fmt::Debug for antecedent_data::PooledLaggedFrame
 impl core::fmt::Debug for antecedent_data::PopulationUnit
+impl core::fmt::Debug for antecedent_data::PreparationMode
+impl core::fmt::Debug for antecedent_data::PreparedPanel
 impl core::fmt::Debug for antecedent_data::ReferencePointPolicy
 impl core::fmt::Debug for antecedent_data::ResamplingPlan
 impl core::fmt::Debug for antecedent_data::RowAccounting
@@ -386,6 +547,8 @@ impl core::fmt::Debug for antecedent_data::TimeSeriesData
 impl core::fmt::Debug for antecedent_data::TimestampColumn
 impl core::fmt::Debug for antecedent_data::UnitAccounting
 impl core::fmt::Debug for antecedent_data::UnitPartition
+impl core::fmt::Debug for antecedent_data::UnitRun
+impl core::fmt::Debug for antecedent_data::UnitSummary
 impl core::fmt::Debug for antecedent_data::UnknownCategoryPolicy
 impl core::fmt::Debug for antecedent_data::ValidityBitmap
 impl core::fmt::Debug for antecedent_data::VectorVariableGroups
@@ -398,9 +561,38 @@ impl core::fmt::Debug for antecedent_data::backend_boundary::LazyBackendRefusal
 impl core::fmt::Debug for antecedent_data::backend_boundary::PreparationBackend
 impl core::fmt::Debug for antecedent_data::categorical::CategoryConversion
 impl core::fmt::Debug for antecedent_data::categorical::ExpandedContrast
+impl core::fmt::Debug for antecedent_data::column_closure::ClosureError
+impl core::fmt::Debug for antecedent_data::column_closure::ClosureInputs
+impl core::fmt::Debug for antecedent_data::column_closure::Cohort
+impl core::fmt::Debug for antecedent_data::column_closure::ColumnClosure
+impl core::fmt::Debug for antecedent_data::column_closure::ColumnDuty
+impl core::fmt::Debug for antecedent_data::column_closure::ColumnFilter
+impl core::fmt::Debug for antecedent_data::column_closure::ColumnRole
+impl core::fmt::Debug for antecedent_data::column_closure::ObservationFrame
+impl core::fmt::Debug for antecedent_data::column_closure::PushdownRefusal
+impl core::fmt::Debug for antecedent_data::column_closure::RequiredColumn
 impl core::fmt::Debug for antecedent_data::design_layout::LayoutError
 impl core::fmt::Debug for antecedent_data::design_layout::OwnershipCopy
 impl core::fmt::Debug for antecedent_data::design_layout::OwnershipReceipt
+impl core::fmt::Debug for antecedent_data::file_source::ChunkQuote
+impl core::fmt::Debug for antecedent_data::file_source::FileChunk
+impl core::fmt::Debug for antecedent_data::file_source::FileColumn
+impl core::fmt::Debug for antecedent_data::file_source::FileColumnKind
+impl core::fmt::Debug for antecedent_data::file_source::FileContentIdentity
+impl core::fmt::Debug for antecedent_data::file_source::FileSourceError
+impl core::fmt::Debug for antecedent_data::file_source::FileSourceErrorKind
+impl core::fmt::Debug for antecedent_data::file_source::MaterializationQuote
+impl core::fmt::Debug for antecedent_data::file_source::MaterializedTable
+impl core::fmt::Debug for antecedent_data::file_source::MemoryStage
+impl core::fmt::Debug for antecedent_data::file_source::ReadOptions
+impl core::fmt::Debug for antecedent_data::file_source::ReadPlan
+impl core::fmt::Debug for antecedent_data::file_source::RowCursor
+impl core::fmt::Debug for antecedent_data::file_source::ScanReceipt
+impl core::fmt::Debug for antecedent_data::file_source::TableChunkReader
+impl core::fmt::Debug for antecedent_data::file_source::TableFile
+impl core::fmt::Debug for antecedent_data::file_source::TableFileFormat
+impl core::fmt::Debug for antecedent_data::file_source::TableStream
+impl core::fmt::Debug for antecedent_data::file_source::WriteOptions
 impl core::fmt::Debug for antecedent_data::materialize::AdmissionRecord
 impl core::fmt::Debug for antecedent_data::materialize::CategoryLevels
 impl core::fmt::Debug for antecedent_data::materialize::DeliveryRecord
@@ -424,28 +616,54 @@ impl core::fmt::Display for antecedent_data::BorrowError
 impl core::fmt::Display for antecedent_data::DataError
 impl core::fmt::Display for antecedent_data::GlobalIndexError
 impl core::fmt::Display for antecedent_data::LagRefusal
+impl core::fmt::Display for antecedent_data::PanelPreparationError
 impl core::fmt::Display for antecedent_data::PopulationUnit
 impl core::fmt::Display for antecedent_data::backend_boundary::LazyBackendRefusal
+impl core::fmt::Display for antecedent_data::column_closure::ClosureError
+impl core::fmt::Display for antecedent_data::column_closure::ColumnRole
 impl core::fmt::Display for antecedent_data::design_layout::LayoutError
+impl core::fmt::Display for antecedent_data::file_source::FileColumnKind
+impl core::fmt::Display for antecedent_data::file_source::FileSourceError
+impl core::fmt::Display for antecedent_data::file_source::TableFileFormat
+impl core::hash::Hash for antecedent_data::AttritionRow
+impl core::hash::Hash for antecedent_data::BalanceRequirement
 impl core::hash::Hash for antecedent_data::CalendarSpan
 impl core::hash::Hash for antecedent_data::CategoryCode
 impl core::hash::Hash for antecedent_data::ChunkIndex
 impl core::hash::Hash for antecedent_data::DiscoveryEstimationSplit
 impl core::hash::Hash for antecedent_data::DropReason
 impl core::hash::Hash for antecedent_data::GlobalId
+impl core::hash::Hash for antecedent_data::ImputationModel
+impl core::hash::Hash for antecedent_data::ImputationSpec
 impl core::hash::Hash for antecedent_data::LaggedColumn
 impl core::hash::Hash for antecedent_data::LaggedFrameOptions
 impl core::hash::Hash for antecedent_data::MaskPolicy
 impl core::hash::Hash for antecedent_data::MissingDeclaration
 impl core::hash::Hash for antecedent_data::MissingPolicy
+impl core::hash::Hash for antecedent_data::MissingnessAssumption
+impl core::hash::Hash for antecedent_data::PeriodRun
 impl core::hash::Hash for antecedent_data::PermutationScheme
 impl core::hash::Hash for antecedent_data::PopulationUnit
+impl core::hash::Hash for antecedent_data::PreparationMode
 impl core::hash::Hash for antecedent_data::ReferencePointPolicy
 impl core::hash::Hash for antecedent_data::TimeDummyEncoding
 impl core::hash::Hash for antecedent_data::TimeRange
 impl core::hash::Hash for antecedent_data::UnknownCategoryPolicy
 impl core::hash::Hash for antecedent_data::WindowBoundary
 impl core::hash::Hash for antecedent_data::backend_boundary::PreparationBackend
+impl core::hash::Hash for antecedent_data::column_closure::ColumnDuty
+impl core::hash::Hash for antecedent_data::column_closure::ColumnRole
+impl core::hash::Hash for antecedent_data::file_source::ChunkQuote
+impl core::hash::Hash for antecedent_data::file_source::FileColumn
+impl core::hash::Hash for antecedent_data::file_source::FileColumnKind
+impl core::hash::Hash for antecedent_data::file_source::FileContentIdentity
+impl core::hash::Hash for antecedent_data::file_source::FileSourceErrorKind
+impl core::hash::Hash for antecedent_data::file_source::MaterializationQuote
+impl core::hash::Hash for antecedent_data::file_source::MemoryStage
+impl core::hash::Hash for antecedent_data::file_source::ReadOptions
+impl core::hash::Hash for antecedent_data::file_source::RowCursor
+impl core::hash::Hash for antecedent_data::file_source::TableFileFormat
+impl core::hash::Hash for antecedent_data::file_source::WriteOptions
 impl core::hash::Hash for antecedent_data::materialize::AdmissionRecord
 impl core::hash::Hash for antecedent_data::materialize::DeliveryRecord
 impl core::hash::Hash for antecedent_data::materialize::EstimatorStreamNeed
@@ -455,6 +673,9 @@ impl core::hash::Hash for antecedent_data::materialize::PreparationStep
 impl core::hash::Hash for antecedent_data::materialize::ReceiptSource
 impl core::hash::Hash for antecedent_data::materialize::RouteBound
 impl core::hash::Hash for antecedent_data::materialize::SchemaValueKind
+impl core::marker::Copy for antecedent_data::AttritionBaseline
+impl core::marker::Copy for antecedent_data::AttritionRow
+impl core::marker::Copy for antecedent_data::BalanceRequirement
 impl core::marker::Copy for antecedent_data::CalendarSpan
 impl core::marker::Copy for antecedent_data::CategoryCode
 impl core::marker::Copy for antecedent_data::ChunkIndex
@@ -464,13 +685,19 @@ impl core::marker::Copy for antecedent_data::DropSummary
 impl core::marker::Copy for antecedent_data::DummyOptions
 impl core::marker::Copy for antecedent_data::GlobalId
 impl core::marker::Copy for antecedent_data::GlobalIndexError
+impl core::marker::Copy for antecedent_data::ImputationModel
+impl core::marker::Copy for antecedent_data::ImputationSpec
 impl core::marker::Copy for antecedent_data::LaggedColumn
 impl core::marker::Copy for antecedent_data::LaggedFrameOptions
 impl core::marker::Copy for antecedent_data::MaskPolicy
 impl core::marker::Copy for antecedent_data::MissingPolicy
+impl core::marker::Copy for antecedent_data::MissingnessAssumption
 impl core::marker::Copy for antecedent_data::NetworkEdge
+impl core::marker::Copy for antecedent_data::PanelLayout
+impl core::marker::Copy for antecedent_data::PeriodRun
 impl core::marker::Copy for antecedent_data::PermutationScheme
 impl core::marker::Copy for antecedent_data::PopulationUnit
+impl core::marker::Copy for antecedent_data::PreparationMode
 impl core::marker::Copy for antecedent_data::ReferencePointPolicy
 impl core::marker::Copy for antecedent_data::ResamplingPlan
 impl core::marker::Copy for antecedent_data::TimeDummyEncoding
@@ -480,8 +707,18 @@ impl core::marker::Copy for antecedent_data::UnknownCategoryPolicy
 impl core::marker::Copy for antecedent_data::WindowBoundary
 impl core::marker::Copy for antecedent_data::backend_boundary::LazyBackendRefusal
 impl core::marker::Copy for antecedent_data::backend_boundary::PreparationBackend
+impl core::marker::Copy for antecedent_data::column_closure::ColumnDuty
 impl core::marker::Copy for antecedent_data::design_layout::LayoutError
 impl core::marker::Copy for antecedent_data::design_layout::OwnershipCopy
+impl core::marker::Copy for antecedent_data::file_source::ChunkQuote
+impl core::marker::Copy for antecedent_data::file_source::FileContentIdentity
+impl core::marker::Copy for antecedent_data::file_source::FileSourceErrorKind
+impl core::marker::Copy for antecedent_data::file_source::MaterializationQuote
+impl core::marker::Copy for antecedent_data::file_source::MemoryStage
+impl core::marker::Copy for antecedent_data::file_source::ReadOptions
+impl core::marker::Copy for antecedent_data::file_source::RowCursor
+impl core::marker::Copy for antecedent_data::file_source::TableFileFormat
+impl core::marker::Copy for antecedent_data::file_source::WriteOptions
 impl core::marker::Copy for antecedent_data::materialize::AdmissionRecord
 impl core::marker::Copy for antecedent_data::materialize::DeliveryRecord
 impl core::marker::Copy for antecedent_data::materialize::EstimatorStreamNeed
@@ -494,6 +731,9 @@ impl core::marker::Copy for antecedent_data::materialize::SchemaValueKind
 impl core::marker::Freeze for antecedent_data::ArrowCColumn [auto]
 impl core::marker::Freeze for antecedent_data::ArrowFrameView [auto]
 impl core::marker::Freeze for antecedent_data::ArrowLoadResult [auto]
+impl core::marker::Freeze for antecedent_data::AttritionBaseline [auto]
+impl core::marker::Freeze for antecedent_data::AttritionRow [auto]
+impl core::marker::Freeze for antecedent_data::BalanceRequirement [auto]
 impl core::marker::Freeze for antecedent_data::BooleanColumn [auto]
 impl core::marker::Freeze for antecedent_data::BorrowError [auto]
 impl core::marker::Freeze for antecedent_data::CalendarSpan [auto]
@@ -521,6 +761,8 @@ impl core::marker::Freeze for antecedent_data::GlobalId [auto]
 impl core::marker::Freeze for antecedent_data::GlobalIndexError [auto]
 impl core::marker::Freeze for antecedent_data::GroupAccounting [auto]
 impl core::marker::Freeze for antecedent_data::IdRemap [auto]
+impl core::marker::Freeze for antecedent_data::ImputationModel [auto]
+impl core::marker::Freeze for antecedent_data::ImputationSpec [auto]
 impl core::marker::Freeze for antecedent_data::Int64Column [auto]
 impl core::marker::Freeze for antecedent_data::LagMap [auto]
 impl core::marker::Freeze for antecedent_data::LagRefusal [auto]
@@ -533,17 +775,24 @@ impl core::marker::Freeze for antecedent_data::MaskPolicy [auto]
 impl core::marker::Freeze for antecedent_data::MissingCell [auto]
 impl core::marker::Freeze for antecedent_data::MissingDeclaration [auto]
 impl core::marker::Freeze for antecedent_data::MissingPolicy [auto]
+impl core::marker::Freeze for antecedent_data::MissingnessAssumption [auto]
 impl core::marker::Freeze for antecedent_data::MultiEnvironmentData [auto]
 impl core::marker::Freeze for antecedent_data::NetworkData [auto]
 impl core::marker::Freeze for antecedent_data::NetworkEdge [auto]
 impl core::marker::Freeze for antecedent_data::OwnedColumn [auto]
 impl core::marker::Freeze for antecedent_data::OwnedColumnarStorage [auto]
+impl core::marker::Freeze for antecedent_data::PanelBalanceReport [auto]
 impl core::marker::Freeze for antecedent_data::PanelData [auto]
+impl core::marker::Freeze for antecedent_data::PanelLayout [auto]
+impl core::marker::Freeze for antecedent_data::PanelPreparationError [auto]
 impl core::marker::Freeze for antecedent_data::PanelUnit [auto]
 impl core::marker::Freeze for antecedent_data::PanelWindow [auto]
+impl core::marker::Freeze for antecedent_data::PeriodRun [auto]
 impl core::marker::Freeze for antecedent_data::PermutationScheme [auto]
 impl core::marker::Freeze for antecedent_data::PooledLaggedFrame [auto]
 impl core::marker::Freeze for antecedent_data::PopulationUnit [auto]
+impl core::marker::Freeze for antecedent_data::PreparationMode [auto]
+impl core::marker::Freeze for antecedent_data::PreparedPanel [auto]
 impl core::marker::Freeze for antecedent_data::ReferencePointPolicy [auto]
 impl core::marker::Freeze for antecedent_data::ResamplingPlan [auto]
 impl core::marker::Freeze for antecedent_data::RowAccounting [auto]
@@ -556,6 +805,8 @@ impl core::marker::Freeze for antecedent_data::TimeSeriesData [auto]
 impl core::marker::Freeze for antecedent_data::TimestampColumn [auto]
 impl core::marker::Freeze for antecedent_data::UnitAccounting [auto]
 impl core::marker::Freeze for antecedent_data::UnitPartition [auto]
+impl core::marker::Freeze for antecedent_data::UnitRun [auto]
+impl core::marker::Freeze for antecedent_data::UnitSummary [auto]
 impl core::marker::Freeze for antecedent_data::UnknownCategoryPolicy [auto]
 impl core::marker::Freeze for antecedent_data::ValidityBitmap [auto]
 impl core::marker::Freeze for antecedent_data::VectorVariableGroups [auto]
@@ -569,9 +820,37 @@ impl core::marker::Freeze for antecedent_data::backend_boundary::LazyBackendRefu
 impl core::marker::Freeze for antecedent_data::backend_boundary::PreparationBackend [auto]
 impl core::marker::Freeze for antecedent_data::categorical::CategoryConversion [auto]
 impl core::marker::Freeze for antecedent_data::categorical::ExpandedContrast [auto]
+impl core::marker::Freeze for antecedent_data::column_closure::ClosureError [auto]
+impl core::marker::Freeze for antecedent_data::column_closure::ClosureInputs [auto]
+impl core::marker::Freeze for antecedent_data::column_closure::Cohort [auto]
+impl core::marker::Freeze for antecedent_data::column_closure::ColumnClosure [auto]
+impl core::marker::Freeze for antecedent_data::column_closure::ColumnDuty [auto]
+impl core::marker::Freeze for antecedent_data::column_closure::ColumnFilter [auto]
+impl core::marker::Freeze for antecedent_data::column_closure::ColumnRole [auto]
+impl core::marker::Freeze for antecedent_data::column_closure::ObservationFrame [auto]
+impl core::marker::Freeze for antecedent_data::column_closure::PushdownRefusal [auto]
+impl core::marker::Freeze for antecedent_data::column_closure::RequiredColumn [auto]
 impl core::marker::Freeze for antecedent_data::design_layout::LayoutError [auto]
 impl core::marker::Freeze for antecedent_data::design_layout::OwnershipCopy [auto]
 impl core::marker::Freeze for antecedent_data::design_layout::OwnershipReceipt [auto]
+impl core::marker::Freeze for antecedent_data::file_source::ChunkQuote [auto]
+impl core::marker::Freeze for antecedent_data::file_source::FileColumn [auto]
+impl core::marker::Freeze for antecedent_data::file_source::FileColumnKind [auto]
+impl core::marker::Freeze for antecedent_data::file_source::FileContentIdentity [auto]
+impl core::marker::Freeze for antecedent_data::file_source::FileSourceError [auto]
+impl core::marker::Freeze for antecedent_data::file_source::FileSourceErrorKind [auto]
+impl core::marker::Freeze for antecedent_data::file_source::MaterializationQuote [auto]
+impl core::marker::Freeze for antecedent_data::file_source::MaterializedTable [auto]
+impl core::marker::Freeze for antecedent_data::file_source::MemoryStage [auto]
+impl core::marker::Freeze for antecedent_data::file_source::ReadOptions [auto]
+impl core::marker::Freeze for antecedent_data::file_source::ReadPlan [auto]
+impl core::marker::Freeze for antecedent_data::file_source::RowCursor [auto]
+impl core::marker::Freeze for antecedent_data::file_source::ScanReceipt [auto]
+impl core::marker::Freeze for antecedent_data::file_source::TableChunkReader [auto]
+impl core::marker::Freeze for antecedent_data::file_source::TableFile [auto]
+impl core::marker::Freeze for antecedent_data::file_source::TableFileFormat [auto]
+impl core::marker::Freeze for antecedent_data::file_source::TableStream [auto]
+impl core::marker::Freeze for antecedent_data::file_source::WriteOptions [auto]
 impl core::marker::Freeze for antecedent_data::materialize::AdmissionRecord [auto]
 impl core::marker::Freeze for antecedent_data::materialize::CategoryLevels [auto]
 impl core::marker::Freeze for antecedent_data::materialize::DeliveryRecord [auto]
@@ -594,6 +873,9 @@ impl core::marker::Freeze for antecedent_data::missing::MissingConversion [auto]
 impl core::marker::Send for antecedent_data::ArrowCColumn [auto]
 impl core::marker::Send for antecedent_data::ArrowFrameView [auto]
 impl core::marker::Send for antecedent_data::ArrowLoadResult [auto]
+impl core::marker::Send for antecedent_data::AttritionBaseline [auto]
+impl core::marker::Send for antecedent_data::AttritionRow [auto]
+impl core::marker::Send for antecedent_data::BalanceRequirement [auto]
 impl core::marker::Send for antecedent_data::BooleanColumn [auto]
 impl core::marker::Send for antecedent_data::BorrowError [auto]
 impl core::marker::Send for antecedent_data::CalendarSpan [auto]
@@ -621,6 +903,8 @@ impl core::marker::Send for antecedent_data::GlobalId [auto]
 impl core::marker::Send for antecedent_data::GlobalIndexError [auto]
 impl core::marker::Send for antecedent_data::GroupAccounting [auto]
 impl core::marker::Send for antecedent_data::IdRemap [auto]
+impl core::marker::Send for antecedent_data::ImputationModel [auto]
+impl core::marker::Send for antecedent_data::ImputationSpec [auto]
 impl core::marker::Send for antecedent_data::Int64Column [auto]
 impl core::marker::Send for antecedent_data::LagMap [auto]
 impl core::marker::Send for antecedent_data::LagRefusal [auto]
@@ -633,17 +917,24 @@ impl core::marker::Send for antecedent_data::MaskPolicy [auto]
 impl core::marker::Send for antecedent_data::MissingCell [auto]
 impl core::marker::Send for antecedent_data::MissingDeclaration [auto]
 impl core::marker::Send for antecedent_data::MissingPolicy [auto]
+impl core::marker::Send for antecedent_data::MissingnessAssumption [auto]
 impl core::marker::Send for antecedent_data::MultiEnvironmentData [auto]
 impl core::marker::Send for antecedent_data::NetworkData [auto]
 impl core::marker::Send for antecedent_data::NetworkEdge [auto]
 impl core::marker::Send for antecedent_data::OwnedColumn [auto]
 impl core::marker::Send for antecedent_data::OwnedColumnarStorage [auto]
+impl core::marker::Send for antecedent_data::PanelBalanceReport [auto]
 impl core::marker::Send for antecedent_data::PanelData [auto]
+impl core::marker::Send for antecedent_data::PanelLayout [auto]
+impl core::marker::Send for antecedent_data::PanelPreparationError [auto]
 impl core::marker::Send for antecedent_data::PanelUnit [auto]
 impl core::marker::Send for antecedent_data::PanelWindow [auto]
+impl core::marker::Send for antecedent_data::PeriodRun [auto]
 impl core::marker::Send for antecedent_data::PermutationScheme [auto]
 impl core::marker::Send for antecedent_data::PooledLaggedFrame [auto]
 impl core::marker::Send for antecedent_data::PopulationUnit [auto]
+impl core::marker::Send for antecedent_data::PreparationMode [auto]
+impl core::marker::Send for antecedent_data::PreparedPanel [auto]
 impl core::marker::Send for antecedent_data::ReferencePointPolicy [auto]
 impl core::marker::Send for antecedent_data::ResamplingPlan [auto]
 impl core::marker::Send for antecedent_data::RowAccounting [auto]
@@ -656,6 +947,8 @@ impl core::marker::Send for antecedent_data::TimeSeriesData [auto]
 impl core::marker::Send for antecedent_data::TimestampColumn [auto]
 impl core::marker::Send for antecedent_data::UnitAccounting [auto]
 impl core::marker::Send for antecedent_data::UnitPartition [auto]
+impl core::marker::Send for antecedent_data::UnitRun [auto]
+impl core::marker::Send for antecedent_data::UnitSummary [auto]
 impl core::marker::Send for antecedent_data::UnknownCategoryPolicy [auto]
 impl core::marker::Send for antecedent_data::ValidityBitmap [auto]
 impl core::marker::Send for antecedent_data::VectorVariableGroups [auto]
@@ -669,9 +962,37 @@ impl core::marker::Send for antecedent_data::backend_boundary::LazyBackendRefusa
 impl core::marker::Send for antecedent_data::backend_boundary::PreparationBackend [auto]
 impl core::marker::Send for antecedent_data::categorical::CategoryConversion [auto]
 impl core::marker::Send for antecedent_data::categorical::ExpandedContrast [auto]
+impl core::marker::Send for antecedent_data::column_closure::ClosureError [auto]
+impl core::marker::Send for antecedent_data::column_closure::ClosureInputs [auto]
+impl core::marker::Send for antecedent_data::column_closure::Cohort [auto]
+impl core::marker::Send for antecedent_data::column_closure::ColumnClosure [auto]
+impl core::marker::Send for antecedent_data::column_closure::ColumnDuty [auto]
+impl core::marker::Send for antecedent_data::column_closure::ColumnFilter [auto]
+impl core::marker::Send for antecedent_data::column_closure::ColumnRole [auto]
+impl core::marker::Send for antecedent_data::column_closure::ObservationFrame [auto]
+impl core::marker::Send for antecedent_data::column_closure::PushdownRefusal [auto]
+impl core::marker::Send for antecedent_data::column_closure::RequiredColumn [auto]
 impl core::marker::Send for antecedent_data::design_layout::LayoutError [auto]
 impl core::marker::Send for antecedent_data::design_layout::OwnershipCopy [auto]
 impl core::marker::Send for antecedent_data::design_layout::OwnershipReceipt [auto]
+impl core::marker::Send for antecedent_data::file_source::ChunkQuote [auto]
+impl core::marker::Send for antecedent_data::file_source::FileChunk [auto]
+impl core::marker::Send for antecedent_data::file_source::FileColumn [auto]
+impl core::marker::Send for antecedent_data::file_source::FileColumnKind [auto]
+impl core::marker::Send for antecedent_data::file_source::FileContentIdentity [auto]
+impl core::marker::Send for antecedent_data::file_source::FileSourceError [auto]
+impl core::marker::Send for antecedent_data::file_source::FileSourceErrorKind [auto]
+impl core::marker::Send for antecedent_data::file_source::MaterializationQuote [auto]
+impl core::marker::Send for antecedent_data::file_source::MaterializedTable [auto]
+impl core::marker::Send for antecedent_data::file_source::MemoryStage [auto]
+impl core::marker::Send for antecedent_data::file_source::ReadOptions [auto]
+impl core::marker::Send for antecedent_data::file_source::ReadPlan [auto]
+impl core::marker::Send for antecedent_data::file_source::RowCursor [auto]
+impl core::marker::Send for antecedent_data::file_source::ScanReceipt [auto]
+impl core::marker::Send for antecedent_data::file_source::TableFile [auto]
+impl core::marker::Send for antecedent_data::file_source::TableFileFormat [auto]
+impl core::marker::Send for antecedent_data::file_source::TableStream [auto]
+impl core::marker::Send for antecedent_data::file_source::WriteOptions [auto]
 impl core::marker::Send for antecedent_data::materialize::AdmissionRecord [auto]
 impl core::marker::Send for antecedent_data::materialize::CategoryLevels [auto]
 impl core::marker::Send for antecedent_data::materialize::DeliveryRecord [auto]
@@ -691,6 +1012,9 @@ impl core::marker::Send for antecedent_data::materialize::StreamQuote [auto]
 impl core::marker::Send for antecedent_data::materialize::StreamingScan [auto]
 impl core::marker::Send for antecedent_data::missing::ChunkMissing [auto]
 impl core::marker::Send for antecedent_data::missing::MissingConversion [auto]
+impl core::marker::StructuralPartialEq for antecedent_data::AttritionBaseline
+impl core::marker::StructuralPartialEq for antecedent_data::AttritionRow
+impl core::marker::StructuralPartialEq for antecedent_data::BalanceRequirement
 impl core::marker::StructuralPartialEq for antecedent_data::BooleanColumn
 impl core::marker::StructuralPartialEq for antecedent_data::BorrowError
 impl core::marker::StructuralPartialEq for antecedent_data::CalendarSpan
@@ -714,6 +1038,8 @@ impl core::marker::StructuralPartialEq for antecedent_data::Float64Column
 impl core::marker::StructuralPartialEq for antecedent_data::GlobalId
 impl core::marker::StructuralPartialEq for antecedent_data::GlobalIndexError
 impl core::marker::StructuralPartialEq for antecedent_data::GroupAccounting
+impl core::marker::StructuralPartialEq for antecedent_data::ImputationModel
+impl core::marker::StructuralPartialEq for antecedent_data::ImputationSpec
 impl core::marker::StructuralPartialEq for antecedent_data::Int64Column
 impl core::marker::StructuralPartialEq for antecedent_data::LagMap
 impl core::marker::StructuralPartialEq for antecedent_data::LagRefusal
@@ -723,10 +1049,17 @@ impl core::marker::StructuralPartialEq for antecedent_data::MaskPolicy
 impl core::marker::StructuralPartialEq for antecedent_data::MissingCell
 impl core::marker::StructuralPartialEq for antecedent_data::MissingDeclaration
 impl core::marker::StructuralPartialEq for antecedent_data::MissingPolicy
+impl core::marker::StructuralPartialEq for antecedent_data::MissingnessAssumption
 impl core::marker::StructuralPartialEq for antecedent_data::NetworkEdge
+impl core::marker::StructuralPartialEq for antecedent_data::PanelBalanceReport
+impl core::marker::StructuralPartialEq for antecedent_data::PanelLayout
+impl core::marker::StructuralPartialEq for antecedent_data::PanelPreparationError
 impl core::marker::StructuralPartialEq for antecedent_data::PanelWindow
+impl core::marker::StructuralPartialEq for antecedent_data::PeriodRun
 impl core::marker::StructuralPartialEq for antecedent_data::PermutationScheme
 impl core::marker::StructuralPartialEq for antecedent_data::PopulationUnit
+impl core::marker::StructuralPartialEq for antecedent_data::PreparationMode
+impl core::marker::StructuralPartialEq for antecedent_data::PreparedPanel
 impl core::marker::StructuralPartialEq for antecedent_data::ReferencePointPolicy
 impl core::marker::StructuralPartialEq for antecedent_data::ResamplingPlan
 impl core::marker::StructuralPartialEq for antecedent_data::RowAccounting
@@ -737,6 +1070,8 @@ impl core::marker::StructuralPartialEq for antecedent_data::TimeRange
 impl core::marker::StructuralPartialEq for antecedent_data::TimestampColumn
 impl core::marker::StructuralPartialEq for antecedent_data::UnitAccounting
 impl core::marker::StructuralPartialEq for antecedent_data::UnitPartition
+impl core::marker::StructuralPartialEq for antecedent_data::UnitRun
+impl core::marker::StructuralPartialEq for antecedent_data::UnitSummary
 impl core::marker::StructuralPartialEq for antecedent_data::UnknownCategoryPolicy
 impl core::marker::StructuralPartialEq for antecedent_data::VectorVariableGroups
 impl core::marker::StructuralPartialEq for antecedent_data::WindowBoundary
@@ -745,9 +1080,33 @@ impl core::marker::StructuralPartialEq for antecedent_data::WindowNextAttempt
 impl core::marker::StructuralPartialEq for antecedent_data::backend_boundary::LazyBackendRefusal
 impl core::marker::StructuralPartialEq for antecedent_data::backend_boundary::PreparationBackend
 impl core::marker::StructuralPartialEq for antecedent_data::categorical::CategoryConversion
+impl core::marker::StructuralPartialEq for antecedent_data::column_closure::ClosureError
+impl core::marker::StructuralPartialEq for antecedent_data::column_closure::ClosureInputs
+impl core::marker::StructuralPartialEq for antecedent_data::column_closure::Cohort
+impl core::marker::StructuralPartialEq for antecedent_data::column_closure::ColumnClosure
+impl core::marker::StructuralPartialEq for antecedent_data::column_closure::ColumnDuty
+impl core::marker::StructuralPartialEq for antecedent_data::column_closure::ColumnFilter
+impl core::marker::StructuralPartialEq for antecedent_data::column_closure::ColumnRole
+impl core::marker::StructuralPartialEq for antecedent_data::column_closure::ObservationFrame
+impl core::marker::StructuralPartialEq for antecedent_data::column_closure::PushdownRefusal
+impl core::marker::StructuralPartialEq for antecedent_data::column_closure::RequiredColumn
 impl core::marker::StructuralPartialEq for antecedent_data::design_layout::LayoutError
 impl core::marker::StructuralPartialEq for antecedent_data::design_layout::OwnershipCopy
 impl core::marker::StructuralPartialEq for antecedent_data::design_layout::OwnershipReceipt
+impl core::marker::StructuralPartialEq for antecedent_data::file_source::ChunkQuote
+impl core::marker::StructuralPartialEq for antecedent_data::file_source::FileColumn
+impl core::marker::StructuralPartialEq for antecedent_data::file_source::FileColumnKind
+impl core::marker::StructuralPartialEq for antecedent_data::file_source::FileContentIdentity
+impl core::marker::StructuralPartialEq for antecedent_data::file_source::FileSourceError
+impl core::marker::StructuralPartialEq for antecedent_data::file_source::FileSourceErrorKind
+impl core::marker::StructuralPartialEq for antecedent_data::file_source::MaterializationQuote
+impl core::marker::StructuralPartialEq for antecedent_data::file_source::MemoryStage
+impl core::marker::StructuralPartialEq for antecedent_data::file_source::ReadOptions
+impl core::marker::StructuralPartialEq for antecedent_data::file_source::ReadPlan
+impl core::marker::StructuralPartialEq for antecedent_data::file_source::RowCursor
+impl core::marker::StructuralPartialEq for antecedent_data::file_source::ScanReceipt
+impl core::marker::StructuralPartialEq for antecedent_data::file_source::TableFileFormat
+impl core::marker::StructuralPartialEq for antecedent_data::file_source::WriteOptions
 impl core::marker::StructuralPartialEq for antecedent_data::materialize::AdmissionRecord
 impl core::marker::StructuralPartialEq for antecedent_data::materialize::CategoryLevels
 impl core::marker::StructuralPartialEq for antecedent_data::materialize::DeliveryRecord
@@ -768,6 +1127,9 @@ impl core::marker::StructuralPartialEq for antecedent_data::missing::ChunkMissin
 impl core::marker::StructuralPartialEq for antecedent_data::missing::MissingConversion
 impl core::marker::Sync for antecedent_data::ArrowFrameView [auto]
 impl core::marker::Sync for antecedent_data::ArrowLoadResult [auto]
+impl core::marker::Sync for antecedent_data::AttritionBaseline [auto]
+impl core::marker::Sync for antecedent_data::AttritionRow [auto]
+impl core::marker::Sync for antecedent_data::BalanceRequirement [auto]
 impl core::marker::Sync for antecedent_data::BooleanColumn [auto]
 impl core::marker::Sync for antecedent_data::BorrowError [auto]
 impl core::marker::Sync for antecedent_data::CalendarSpan [auto]
@@ -795,6 +1157,8 @@ impl core::marker::Sync for antecedent_data::GlobalId [auto]
 impl core::marker::Sync for antecedent_data::GlobalIndexError [auto]
 impl core::marker::Sync for antecedent_data::GroupAccounting [auto]
 impl core::marker::Sync for antecedent_data::IdRemap [auto]
+impl core::marker::Sync for antecedent_data::ImputationModel [auto]
+impl core::marker::Sync for antecedent_data::ImputationSpec [auto]
 impl core::marker::Sync for antecedent_data::Int64Column [auto]
 impl core::marker::Sync for antecedent_data::LagMap [auto]
 impl core::marker::Sync for antecedent_data::LagRefusal [auto]
@@ -807,17 +1171,24 @@ impl core::marker::Sync for antecedent_data::MaskPolicy [auto]
 impl core::marker::Sync for antecedent_data::MissingCell [auto]
 impl core::marker::Sync for antecedent_data::MissingDeclaration [auto]
 impl core::marker::Sync for antecedent_data::MissingPolicy [auto]
+impl core::marker::Sync for antecedent_data::MissingnessAssumption [auto]
 impl core::marker::Sync for antecedent_data::MultiEnvironmentData [auto]
 impl core::marker::Sync for antecedent_data::NetworkData [auto]
 impl core::marker::Sync for antecedent_data::NetworkEdge [auto]
 impl core::marker::Sync for antecedent_data::OwnedColumn [auto]
 impl core::marker::Sync for antecedent_data::OwnedColumnarStorage [auto]
+impl core::marker::Sync for antecedent_data::PanelBalanceReport [auto]
 impl core::marker::Sync for antecedent_data::PanelData [auto]
+impl core::marker::Sync for antecedent_data::PanelLayout [auto]
+impl core::marker::Sync for antecedent_data::PanelPreparationError [auto]
 impl core::marker::Sync for antecedent_data::PanelUnit [auto]
 impl core::marker::Sync for antecedent_data::PanelWindow [auto]
+impl core::marker::Sync for antecedent_data::PeriodRun [auto]
 impl core::marker::Sync for antecedent_data::PermutationScheme [auto]
 impl core::marker::Sync for antecedent_data::PooledLaggedFrame [auto]
 impl core::marker::Sync for antecedent_data::PopulationUnit [auto]
+impl core::marker::Sync for antecedent_data::PreparationMode [auto]
+impl core::marker::Sync for antecedent_data::PreparedPanel [auto]
 impl core::marker::Sync for antecedent_data::ReferencePointPolicy [auto]
 impl core::marker::Sync for antecedent_data::ResamplingPlan [auto]
 impl core::marker::Sync for antecedent_data::RowAccounting [auto]
@@ -830,6 +1201,8 @@ impl core::marker::Sync for antecedent_data::TimeSeriesData [auto]
 impl core::marker::Sync for antecedent_data::TimestampColumn [auto]
 impl core::marker::Sync for antecedent_data::UnitAccounting [auto]
 impl core::marker::Sync for antecedent_data::UnitPartition [auto]
+impl core::marker::Sync for antecedent_data::UnitRun [auto]
+impl core::marker::Sync for antecedent_data::UnitSummary [auto]
 impl core::marker::Sync for antecedent_data::UnknownCategoryPolicy [auto]
 impl core::marker::Sync for antecedent_data::ValidityBitmap [auto]
 impl core::marker::Sync for antecedent_data::VectorVariableGroups [auto]
@@ -842,9 +1215,36 @@ impl core::marker::Sync for antecedent_data::backend_boundary::LazyBackendRefusa
 impl core::marker::Sync for antecedent_data::backend_boundary::PreparationBackend [auto]
 impl core::marker::Sync for antecedent_data::categorical::CategoryConversion [auto]
 impl core::marker::Sync for antecedent_data::categorical::ExpandedContrast [auto]
+impl core::marker::Sync for antecedent_data::column_closure::ClosureError [auto]
+impl core::marker::Sync for antecedent_data::column_closure::ClosureInputs [auto]
+impl core::marker::Sync for antecedent_data::column_closure::Cohort [auto]
+impl core::marker::Sync for antecedent_data::column_closure::ColumnClosure [auto]
+impl core::marker::Sync for antecedent_data::column_closure::ColumnDuty [auto]
+impl core::marker::Sync for antecedent_data::column_closure::ColumnFilter [auto]
+impl core::marker::Sync for antecedent_data::column_closure::ColumnRole [auto]
+impl core::marker::Sync for antecedent_data::column_closure::ObservationFrame [auto]
+impl core::marker::Sync for antecedent_data::column_closure::PushdownRefusal [auto]
+impl core::marker::Sync for antecedent_data::column_closure::RequiredColumn [auto]
 impl core::marker::Sync for antecedent_data::design_layout::LayoutError [auto]
 impl core::marker::Sync for antecedent_data::design_layout::OwnershipCopy [auto]
 impl core::marker::Sync for antecedent_data::design_layout::OwnershipReceipt [auto]
+impl core::marker::Sync for antecedent_data::file_source::ChunkQuote [auto]
+impl core::marker::Sync for antecedent_data::file_source::FileChunk [auto]
+impl core::marker::Sync for antecedent_data::file_source::FileColumn [auto]
+impl core::marker::Sync for antecedent_data::file_source::FileColumnKind [auto]
+impl core::marker::Sync for antecedent_data::file_source::FileContentIdentity [auto]
+impl core::marker::Sync for antecedent_data::file_source::FileSourceError [auto]
+impl core::marker::Sync for antecedent_data::file_source::FileSourceErrorKind [auto]
+impl core::marker::Sync for antecedent_data::file_source::MaterializationQuote [auto]
+impl core::marker::Sync for antecedent_data::file_source::MaterializedTable [auto]
+impl core::marker::Sync for antecedent_data::file_source::MemoryStage [auto]
+impl core::marker::Sync for antecedent_data::file_source::ReadOptions [auto]
+impl core::marker::Sync for antecedent_data::file_source::ReadPlan [auto]
+impl core::marker::Sync for antecedent_data::file_source::RowCursor [auto]
+impl core::marker::Sync for antecedent_data::file_source::ScanReceipt [auto]
+impl core::marker::Sync for antecedent_data::file_source::TableFile [auto]
+impl core::marker::Sync for antecedent_data::file_source::TableFileFormat [auto]
+impl core::marker::Sync for antecedent_data::file_source::WriteOptions [auto]
 impl core::marker::Sync for antecedent_data::materialize::AdmissionRecord [auto]
 impl core::marker::Sync for antecedent_data::materialize::CategoryLevels [auto]
 impl core::marker::Sync for antecedent_data::materialize::DeliveryRecord [auto]
@@ -867,6 +1267,9 @@ impl core::marker::Sync for antecedent_data::missing::MissingConversion [auto]
 impl core::marker::Unpin for antecedent_data::ArrowCColumn [auto]
 impl core::marker::Unpin for antecedent_data::ArrowFrameView [auto]
 impl core::marker::Unpin for antecedent_data::ArrowLoadResult [auto]
+impl core::marker::Unpin for antecedent_data::AttritionBaseline [auto]
+impl core::marker::Unpin for antecedent_data::AttritionRow [auto]
+impl core::marker::Unpin for antecedent_data::BalanceRequirement [auto]
 impl core::marker::Unpin for antecedent_data::BooleanColumn [auto]
 impl core::marker::Unpin for antecedent_data::BorrowError [auto]
 impl core::marker::Unpin for antecedent_data::CalendarSpan [auto]
@@ -894,6 +1297,8 @@ impl core::marker::Unpin for antecedent_data::GlobalId [auto]
 impl core::marker::Unpin for antecedent_data::GlobalIndexError [auto]
 impl core::marker::Unpin for antecedent_data::GroupAccounting [auto]
 impl core::marker::Unpin for antecedent_data::IdRemap [auto]
+impl core::marker::Unpin for antecedent_data::ImputationModel [auto]
+impl core::marker::Unpin for antecedent_data::ImputationSpec [auto]
 impl core::marker::Unpin for antecedent_data::Int64Column [auto]
 impl core::marker::Unpin for antecedent_data::LagMap [auto]
 impl core::marker::Unpin for antecedent_data::LagRefusal [auto]
@@ -906,17 +1311,24 @@ impl core::marker::Unpin for antecedent_data::MaskPolicy [auto]
 impl core::marker::Unpin for antecedent_data::MissingCell [auto]
 impl core::marker::Unpin for antecedent_data::MissingDeclaration [auto]
 impl core::marker::Unpin for antecedent_data::MissingPolicy [auto]
+impl core::marker::Unpin for antecedent_data::MissingnessAssumption [auto]
 impl core::marker::Unpin for antecedent_data::MultiEnvironmentData [auto]
 impl core::marker::Unpin for antecedent_data::NetworkData [auto]
 impl core::marker::Unpin for antecedent_data::NetworkEdge [auto]
 impl core::marker::Unpin for antecedent_data::OwnedColumn [auto]
 impl core::marker::Unpin for antecedent_data::OwnedColumnarStorage [auto]
+impl core::marker::Unpin for antecedent_data::PanelBalanceReport [auto]
 impl core::marker::Unpin for antecedent_data::PanelData [auto]
+impl core::marker::Unpin for antecedent_data::PanelLayout [auto]
+impl core::marker::Unpin for antecedent_data::PanelPreparationError [auto]
 impl core::marker::Unpin for antecedent_data::PanelUnit [auto]
 impl core::marker::Unpin for antecedent_data::PanelWindow [auto]
+impl core::marker::Unpin for antecedent_data::PeriodRun [auto]
 impl core::marker::Unpin for antecedent_data::PermutationScheme [auto]
 impl core::marker::Unpin for antecedent_data::PooledLaggedFrame [auto]
 impl core::marker::Unpin for antecedent_data::PopulationUnit [auto]
+impl core::marker::Unpin for antecedent_data::PreparationMode [auto]
+impl core::marker::Unpin for antecedent_data::PreparedPanel [auto]
 impl core::marker::Unpin for antecedent_data::ReferencePointPolicy [auto]
 impl core::marker::Unpin for antecedent_data::ResamplingPlan [auto]
 impl core::marker::Unpin for antecedent_data::RowAccounting [auto]
@@ -929,6 +1341,8 @@ impl core::marker::Unpin for antecedent_data::TimeSeriesData [auto]
 impl core::marker::Unpin for antecedent_data::TimestampColumn [auto]
 impl core::marker::Unpin for antecedent_data::UnitAccounting [auto]
 impl core::marker::Unpin for antecedent_data::UnitPartition [auto]
+impl core::marker::Unpin for antecedent_data::UnitRun [auto]
+impl core::marker::Unpin for antecedent_data::UnitSummary [auto]
 impl core::marker::Unpin for antecedent_data::UnknownCategoryPolicy [auto]
 impl core::marker::Unpin for antecedent_data::ValidityBitmap [auto]
 impl core::marker::Unpin for antecedent_data::VectorVariableGroups [auto]
@@ -942,9 +1356,38 @@ impl core::marker::Unpin for antecedent_data::backend_boundary::LazyBackendRefus
 impl core::marker::Unpin for antecedent_data::backend_boundary::PreparationBackend [auto]
 impl core::marker::Unpin for antecedent_data::categorical::CategoryConversion [auto]
 impl core::marker::Unpin for antecedent_data::categorical::ExpandedContrast [auto]
+impl core::marker::Unpin for antecedent_data::column_closure::ClosureError [auto]
+impl core::marker::Unpin for antecedent_data::column_closure::ClosureInputs [auto]
+impl core::marker::Unpin for antecedent_data::column_closure::Cohort [auto]
+impl core::marker::Unpin for antecedent_data::column_closure::ColumnClosure [auto]
+impl core::marker::Unpin for antecedent_data::column_closure::ColumnDuty [auto]
+impl core::marker::Unpin for antecedent_data::column_closure::ColumnFilter [auto]
+impl core::marker::Unpin for antecedent_data::column_closure::ColumnRole [auto]
+impl core::marker::Unpin for antecedent_data::column_closure::ObservationFrame [auto]
+impl core::marker::Unpin for antecedent_data::column_closure::PushdownRefusal [auto]
+impl core::marker::Unpin for antecedent_data::column_closure::RequiredColumn [auto]
 impl core::marker::Unpin for antecedent_data::design_layout::LayoutError [auto]
 impl core::marker::Unpin for antecedent_data::design_layout::OwnershipCopy [auto]
 impl core::marker::Unpin for antecedent_data::design_layout::OwnershipReceipt [auto]
+impl core::marker::Unpin for antecedent_data::file_source::ChunkQuote [auto]
+impl core::marker::Unpin for antecedent_data::file_source::FileChunk [auto]
+impl core::marker::Unpin for antecedent_data::file_source::FileColumn [auto]
+impl core::marker::Unpin for antecedent_data::file_source::FileColumnKind [auto]
+impl core::marker::Unpin for antecedent_data::file_source::FileContentIdentity [auto]
+impl core::marker::Unpin for antecedent_data::file_source::FileSourceError [auto]
+impl core::marker::Unpin for antecedent_data::file_source::FileSourceErrorKind [auto]
+impl core::marker::Unpin for antecedent_data::file_source::MaterializationQuote [auto]
+impl core::marker::Unpin for antecedent_data::file_source::MaterializedTable [auto]
+impl core::marker::Unpin for antecedent_data::file_source::MemoryStage [auto]
+impl core::marker::Unpin for antecedent_data::file_source::ReadOptions [auto]
+impl core::marker::Unpin for antecedent_data::file_source::ReadPlan [auto]
+impl core::marker::Unpin for antecedent_data::file_source::RowCursor [auto]
+impl core::marker::Unpin for antecedent_data::file_source::ScanReceipt [auto]
+impl core::marker::Unpin for antecedent_data::file_source::TableChunkReader [auto]
+impl core::marker::Unpin for antecedent_data::file_source::TableFile [auto]
+impl core::marker::Unpin for antecedent_data::file_source::TableFileFormat [auto]
+impl core::marker::Unpin for antecedent_data::file_source::TableStream [auto]
+impl core::marker::Unpin for antecedent_data::file_source::WriteOptions [auto]
 impl core::marker::Unpin for antecedent_data::materialize::AdmissionRecord [auto]
 impl core::marker::Unpin for antecedent_data::materialize::CategoryLevels [auto]
 impl core::marker::Unpin for antecedent_data::materialize::DeliveryRecord [auto]
@@ -966,6 +1409,9 @@ impl core::marker::Unpin for antecedent_data::missing::ChunkMissing [auto]
 impl core::marker::Unpin for antecedent_data::missing::MissingConversion [auto]
 impl core::ops::deref::Deref for antecedent_data::F64Buffer
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::ArrowCColumn [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::AttritionBaseline [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::AttritionRow [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::BalanceRequirement [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::BooleanColumn [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::BorrowError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::CalendarSpan [auto]
@@ -989,6 +1435,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::GlobalId [auto
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::GlobalIndexError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::GroupAccounting [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::IdRemap [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::ImputationModel [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::ImputationSpec [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::Int64Column [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::LagMap [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::LagRefusal [auto]
@@ -1000,10 +1448,17 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::MaskPolicy [au
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::MissingCell [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::MissingDeclaration [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::MissingPolicy [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::MissingnessAssumption [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::NetworkEdge [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::PanelBalanceReport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::PanelLayout [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::PanelPreparationError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::PanelWindow [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::PeriodRun [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::PermutationScheme [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::PopulationUnit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::PreparationMode [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::PreparedPanel [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::ReferencePointPolicy [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::ResamplingPlan [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::RowAccounting [auto]
@@ -1014,6 +1469,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::TimeRange [aut
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::TimestampColumn [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::UnitAccounting [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::UnitPartition [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::UnitRun [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::UnitSummary [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::UnknownCategoryPolicy [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::ValidityBitmap [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::VectorVariableGroups [auto]
@@ -1025,9 +1482,35 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::backend_bounda
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::backend_boundary::PreparationBackend [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::categorical::CategoryConversion [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::categorical::ExpandedContrast [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::column_closure::ClosureError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::column_closure::ClosureInputs [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::column_closure::Cohort [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::column_closure::ColumnClosure [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::column_closure::ColumnDuty [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::column_closure::ColumnFilter [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::column_closure::ColumnRole [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::column_closure::ObservationFrame [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::column_closure::PushdownRefusal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::column_closure::RequiredColumn [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::design_layout::LayoutError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::design_layout::OwnershipCopy [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::design_layout::OwnershipReceipt [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::file_source::ChunkQuote [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::file_source::FileColumn [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::file_source::FileColumnKind [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::file_source::FileContentIdentity [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::file_source::FileSourceError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::file_source::FileSourceErrorKind [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::file_source::MaterializationQuote [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::file_source::MemoryStage [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::file_source::ReadOptions [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::file_source::ReadPlan [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::file_source::RowCursor [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::file_source::ScanReceipt [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::file_source::TableFile [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::file_source::TableFileFormat [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::file_source::TableStream [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::file_source::WriteOptions [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::materialize::AdmissionRecord [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::materialize::CategoryLevels [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::materialize::DeliveryRecord [auto]
@@ -1048,6 +1531,9 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::materialize::S
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::missing::ChunkMissing [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::missing::MissingConversion [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::ArrowCColumn [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::AttritionBaseline [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::AttritionRow [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::BalanceRequirement [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::BooleanColumn [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::BorrowError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::CalendarSpan [auto]
@@ -1071,6 +1557,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_data::GlobalId [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::GlobalIndexError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::GroupAccounting [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::IdRemap [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::ImputationModel [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::ImputationSpec [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::Int64Column [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::LagMap [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::LagRefusal [auto]
@@ -1082,10 +1570,17 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_data::MaskPolicy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::MissingCell [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::MissingDeclaration [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::MissingPolicy [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::MissingnessAssumption [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::NetworkEdge [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::PanelBalanceReport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::PanelLayout [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::PanelPreparationError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::PanelWindow [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::PeriodRun [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::PermutationScheme [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::PopulationUnit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::PreparationMode [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::PreparedPanel [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::ReferencePointPolicy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::ResamplingPlan [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::RowAccounting [auto]
@@ -1096,6 +1591,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_data::TimeRange [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::TimestampColumn [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::UnitAccounting [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::UnitPartition [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::UnitRun [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::UnitSummary [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::UnknownCategoryPolicy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::ValidityBitmap [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::VectorVariableGroups [auto]
@@ -1107,9 +1604,35 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_data::backend_boundary:
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::backend_boundary::PreparationBackend [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::categorical::CategoryConversion [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::categorical::ExpandedContrast [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::column_closure::ClosureError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::column_closure::ClosureInputs [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::column_closure::Cohort [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::column_closure::ColumnClosure [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::column_closure::ColumnDuty [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::column_closure::ColumnFilter [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::column_closure::ColumnRole [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::column_closure::ObservationFrame [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::column_closure::PushdownRefusal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::column_closure::RequiredColumn [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::design_layout::LayoutError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::design_layout::OwnershipCopy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::design_layout::OwnershipReceipt [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::file_source::ChunkQuote [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::file_source::FileColumn [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::file_source::FileColumnKind [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::file_source::FileContentIdentity [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::file_source::FileSourceError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::file_source::FileSourceErrorKind [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::file_source::MaterializationQuote [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::file_source::MemoryStage [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::file_source::ReadOptions [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::file_source::ReadPlan [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::file_source::RowCursor [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::file_source::ScanReceipt [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::file_source::TableFile [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::file_source::TableFileFormat [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::file_source::TableStream [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::file_source::WriteOptions [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::materialize::AdmissionRecord [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::materialize::CategoryLevels [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::materialize::DeliveryRecord [auto]
@@ -1178,8 +1701,17 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_data::CategoricalVi
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_data::GappedSample<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_data::LaggedPreparedSample<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_data::design_layout::DesignLayout<'a> [auto]
+pub const <antecedent_data::BalanceRequirement>::ALL: [Self; 4]
 pub const <antecedent_data::DiscreteColumn>::MISSING: u32
-pub const <antecedent_data::MissingPolicy>::NAMES: [&'static str; 6]
+pub const <antecedent_data::ImputationModel>::ALL: [Self; 2]
+pub const <antecedent_data::ImputationSpec>::DEFAULT_IMPUTATIONS: u32
+pub const <antecedent_data::ImputationSpec>::DEFAULT_ITERATIONS: u32
+pub const <antecedent_data::ImputationSpec>::MAX_IMPUTATIONS: u32
+pub const <antecedent_data::ImputationSpec>::MAX_ITERATIONS: u32
+pub const <antecedent_data::ImputationSpec>::MIN_IMPUTATIONS: u32
+pub const <antecedent_data::MissingPolicy>::NAMES: [&'static str; 7]
+pub const <antecedent_data::MissingnessAssumption>::ALL: [Self; 2]
+pub const <antecedent_data::PreparationMode>::ALL: [Self; 3]
 pub const <antecedent_data::design_layout::OwnershipCopy>::CAST: &'static str
 pub const <antecedent_data::design_layout::OwnershipCopy>::GATHER: &'static str
 pub const antecedent_data::DEFAULT_MAX_TIME_ONE_HOT_LEVELS: usize
@@ -1187,13 +1719,25 @@ pub const antecedent_data::LONGER_SPAN_OF_SAME_UNIT: &str
 pub const antecedent_data::backend_boundary::ACCEPTED_PREPARATION_PATH: &str
 pub const antecedent_data::backend_boundary::LAZY_BACKEND_ADOPTED: bool
 pub const antecedent_data::backend_boundary::POLARS_IS_INTERNAL_CONTRACT_BACKEND: bool
+pub const antecedent_data::file_source::DEFAULT_CHUNK_ROWS: usize
+pub const antecedent_data::file_source::DEFAULT_TEXT_BYTES_PER_ROW: u64
+pub const antecedent_data::file_source::FILE_IDENTITY_VERSION: u16
 pub const antecedent_data::materialize::PREPARATION_ORDER: [antecedent_data::materialize::PreparationStep; 5]
+pub const antecedent_data::unbalanced_panel::BALANCE_BEFORE_NUISANCE: antecedent_core::refusal::NextAttempt
+pub const antecedent_data::unbalanced_panel::DECLARE_AVAILABLE_CASE: antecedent_core::refusal::NextAttempt
+pub const antecedent_data::unbalanced_panel::DECLARE_BALANCED_PANEL: antecedent_core::refusal::NextAttempt
+pub const antecedent_data::unbalanced_panel::LAG_INSIDE_CONTIGUOUS_RUNS: antecedent_core::refusal::NextAttempt
+pub const antecedent_data::unbalanced_panel::PANEL_PREPARATION_NEXT_ATTEMPTS: [antecedent_core::refusal::NextAttempt; 6]
+pub const antecedent_data::unbalanced_panel::RESTRICT_TO_COMMON_WINDOW: antecedent_core::refusal::NextAttempt
+pub const antecedent_data::unbalanced_panel::SUBMIT_REGULAR_GRID: antecedent_core::refusal::NextAttempt
+pub enum antecedent_data::BalanceRequirement
 pub enum antecedent_data::BorrowError
 pub enum antecedent_data::ColumnView<'a>
 pub enum antecedent_data::Contrast
 pub enum antecedent_data::DropReason
 pub enum antecedent_data::OwnedColumn
 pub enum antecedent_data::PopulationUnit
+pub enum antecedent_data::PreparationMode
 pub enum antecedent_data::ResamplingPlan
 pub enum antecedent_data::SamplingRegularity
 pub enum antecedent_data::TimeDummyEncoding
@@ -1202,6 +1746,9 @@ pub enum antecedent_data::WindowBoundary
 pub enum antecedent_data::WindowNextAttempt
 pub enum antecedent_data::arrow_adapter::EstimatorFrame
 pub enum antecedent_data::backend_boundary::PreparationBackend
+pub enum antecedent_data::column_closure::ColumnDuty
+pub enum antecedent_data::file_source::FileColumnKind
+pub enum antecedent_data::file_source::TableFileFormat
 pub enum antecedent_data::materialize::AdmissionRecord
 pub enum antecedent_data::materialize::DeliveryRecord
 pub enum antecedent_data::materialize::EstimatorStreamNeed
@@ -1215,6 +1762,17 @@ pub field antecedent_data::ArrowLoadResult::bytes_borrowed: u64
 pub field antecedent_data::ArrowLoadResult::bytes_copied: u64
 pub field antecedent_data::ArrowLoadResult::data: antecedent_data::TabularData
 pub field antecedent_data::ArrowLoadResult::diagnostics: antecedent_core::diagnostic::DiagnosticSet
+pub field antecedent_data::AttritionBaseline::attriters: usize
+pub field antecedent_data::AttritionBaseline::mean_attriters: core::option::Option<f64>
+pub field antecedent_data::AttritionBaseline::mean_stayers: core::option::Option<f64>
+pub field antecedent_data::AttritionBaseline::missing_baseline: usize
+pub field antecedent_data::AttritionBaseline::standardized_difference: core::option::Option<f64>
+pub field antecedent_data::AttritionBaseline::stayers: usize
+pub field antecedent_data::AttritionRow::at_risk: usize
+pub field antecedent_data::AttritionRow::entering: usize
+pub field antecedent_data::AttritionRow::leaving: usize
+pub field antecedent_data::AttritionRow::observed: usize
+pub field antecedent_data::AttritionRow::period: i64
 pub field antecedent_data::BooleanColumn::id: antecedent_core::ids::VariableId
 pub field antecedent_data::BooleanColumn::validity: antecedent_data::ValidityBitmap
 pub field antecedent_data::BooleanColumn::values: alloc::sync::Arc<[u8]>
@@ -1262,6 +1820,11 @@ pub field antecedent_data::GroupAccounting::kept: usize
 pub field antecedent_data::GroupAccounting::label: alloc::sync::Arc<str>
 pub field antecedent_data::GroupAccounting::observed: usize
 pub field antecedent_data::GroupAccounting::total: usize
+pub field antecedent_data::ImputationSpec::assumption: antecedent_data::MissingnessAssumption
+pub field antecedent_data::ImputationSpec::imputations: u32
+pub field antecedent_data::ImputationSpec::iterations: u32
+pub field antecedent_data::ImputationSpec::model: antecedent_data::ImputationModel
+pub field antecedent_data::ImputationSpec::seed: u64
 pub field antecedent_data::Int64Column::id: antecedent_core::ids::VariableId
 pub field antecedent_data::Int64Column::validity: antecedent_data::ValidityBitmap
 pub field antecedent_data::Int64Column::values: alloc::sync::Arc<[i64]>
@@ -1286,6 +1849,9 @@ pub field antecedent_data::NetworkEdge::to: antecedent_data::GlobalId
 pub field antecedent_data::NetworkEdge::weight: f64
 pub field antecedent_data::PanelUnit::series: antecedent_data::TimeSeriesData
 pub field antecedent_data::PanelUnit::unit_id: u32
+pub field antecedent_data::PeriodRun::first: i64
+pub field antecedent_data::PeriodRun::last: i64
+pub field antecedent_data::PeriodRun::periods: usize
 pub field antecedent_data::PooledLaggedFrame::env_effective_rows: alloc::sync::Arc<[usize]>
 pub field antecedent_data::PooledLaggedFrame::frame: antecedent_data::LaggedFrame
 pub field antecedent_data::PooledLaggedFrame::observed_variables: alloc::sync::Arc<[antecedent_core::ids::VariableId]>
@@ -1310,6 +1876,22 @@ pub field antecedent_data::TimestampColumn::validity: antecedent_data::ValidityB
 pub field antecedent_data::TimestampColumn::values_ns: alloc::sync::Arc<[i64]>
 pub field antecedent_data::UnitAccounting::dropped: usize
 pub field antecedent_data::UnitAccounting::total: usize
+pub field antecedent_data::UnitRun::end_period: i64
+pub field antecedent_data::UnitRun::label: alloc::sync::Arc<str>
+pub field antecedent_data::UnitRun::rows: alloc::sync::Arc<[usize]>
+pub field antecedent_data::UnitRun::start_period: i64
+pub field antecedent_data::UnitRun::unit: antecedent_data::PopulationUnit
+pub field antecedent_data::UnitSummary::attrited: bool
+pub field antecedent_data::UnitSummary::balanced: bool
+pub field antecedent_data::UnitSummary::first_observed: core::option::Option<i64>
+pub field antecedent_data::UnitSummary::first_observed_row: core::option::Option<usize>
+pub field antecedent_data::UnitSummary::gaps: alloc::boxed::Box<[antecedent_data::PeriodRun]>
+pub field antecedent_data::UnitSummary::label: alloc::sync::Arc<str>
+pub field antecedent_data::UnitSummary::last_observed: core::option::Option<i64>
+pub field antecedent_data::UnitSummary::late_entry: bool
+pub field antecedent_data::UnitSummary::periods_complete: usize
+pub field antecedent_data::UnitSummary::periods_present: usize
+pub field antecedent_data::UnitSummary::unit: antecedent_data::PopulationUnit
 pub field antecedent_data::categorical::CategoryConversion::coding: &'static str
 pub field antecedent_data::categorical::CategoryConversion::domain: antecedent_core::ids::CategoryDomainId
 pub field antecedent_data::categorical::CategoryConversion::n_columns: usize
@@ -1319,6 +1901,19 @@ pub field antecedent_data::categorical::CategoryConversion::variable: antecedent
 pub field antecedent_data::categorical::ExpandedContrast::columns: alloc::vec::Vec<alloc::vec::Vec<f64>>
 pub field antecedent_data::categorical::ExpandedContrast::conversion: antecedent_data::categorical::CategoryConversion
 pub field antecedent_data::categorical::ExpandedContrast::variable: antecedent_core::ids::VariableId
+pub field antecedent_data::column_closure::PushdownRefusal::retain: antecedent_data::column_closure::ColumnRole
+pub field antecedent_data::column_closure::RequiredColumn::duty: antecedent_data::column_closure::ColumnDuty
+pub field antecedent_data::column_closure::RequiredColumn::role: antecedent_data::column_closure::ColumnRole
+pub field antecedent_data::file_source::ChunkQuote::decode_bytes: u64
+pub field antecedent_data::file_source::ChunkQuote::owned_bytes: u64
+pub field antecedent_data::file_source::ChunkQuote::rows: usize
+pub field antecedent_data::file_source::FileColumn::arrow_type: alloc::sync::Arc<str>
+pub field antecedent_data::file_source::FileColumn::kind: antecedent_data::file_source::FileColumnKind
+pub field antecedent_data::file_source::FileColumn::name: alloc::sync::Arc<str>
+pub field antecedent_data::file_source::FileColumn::nullable: bool
+pub field antecedent_data::file_source::ReadOptions::chunk_rows: usize
+pub field antecedent_data::file_source::ReadOptions::text_bytes_per_row: u64
+pub field antecedent_data::file_source::WriteOptions::rows_per_group: usize
 pub field antecedent_data::materialize::CategoryLevels::labels: alloc::sync::Arc<[alloc::sync::Arc<str>]>
 pub field antecedent_data::materialize::CategoryLevels::variable: antecedent_core::ids::VariableId
 pub field antecedent_data::materialize::PreparationControls::backend: antecedent_data::backend_boundary::PreparationBackend
@@ -1357,6 +1952,10 @@ pub fn <antecedent_data::ArrowFrameView>::fn n_columns(&self) -> usize
 pub fn <antecedent_data::ArrowFrameView>::fn names(&self) -> impl core::iter::traits::iterator::Iterator<Item = &str>
 pub fn <antecedent_data::ArrowFrameView>::fn open_for_estimator(&self, order: &[usize], missing: antecedent_data::MissingPolicy, categories: &[(antecedent_core::ids::VariableId, antecedent_data::Contrast)], controls: antecedent_data::materialize::PreparationControls) -> core::result::Result<antecedent_data::arrow_adapter::EstimatorFrame, antecedent_data::DataError>
 pub fn <antecedent_data::ArrowFrameView>::fn row_count(&self) -> core::result::Result<usize, antecedent_data::DataError>
+pub fn <antecedent_data::AttritionRow>::fn hazard(&self) -> core::option::Option<f64>
+pub fn <antecedent_data::BalanceRequirement>::const fn as_str(self) -> &'static str
+pub fn <antecedent_data::BalanceRequirement>::const fn next_attempt(self) -> antecedent_core::refusal::NextAttempt
+pub fn <antecedent_data::BalanceRequirement>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_data::BooleanColumn>::fn is_empty(&self) -> bool
 pub fn <antecedent_data::BooleanColumn>::fn len(&self) -> usize
 pub fn <antecedent_data::BooleanColumn>::fn new(id: antecedent_core::ids::VariableId, values: impl core::convert::Into<alloc::sync::Arc<[u8]>>, validity: antecedent_data::ValidityBitmap) -> core::result::Result<Self, antecedent_data::DataError>
@@ -1427,6 +2026,15 @@ pub fn <antecedent_data::GlobalIndexError>::const fn next_attempt(self) -> &'sta
 pub fn <antecedent_data::IdRemap>::fn is_empty(&self) -> bool
 pub fn <antecedent_data::IdRemap>::fn len(&self) -> usize
 pub fn <antecedent_data::IdRemap>::fn map(&self, old: antecedent_core::ids::VariableId) -> core::result::Result<antecedent_core::ids::VariableId, antecedent_data::DataError>
+pub fn <antecedent_data::ImputationModel>::const fn name(self) -> &'static str
+pub fn <antecedent_data::ImputationModel>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_data::ImputationSpec>::const fn new() -> Self
+pub fn <antecedent_data::ImputationSpec>::const fn with_assumption(self, assumption: antecedent_data::MissingnessAssumption) -> Self
+pub fn <antecedent_data::ImputationSpec>::const fn with_imputations(self, imputations: u32) -> Self
+pub fn <antecedent_data::ImputationSpec>::const fn with_iterations(self, iterations: u32) -> Self
+pub fn <antecedent_data::ImputationSpec>::const fn with_model(self, model: antecedent_data::ImputationModel) -> Self
+pub fn <antecedent_data::ImputationSpec>::const fn with_seed(self, seed: u64) -> Self
+pub fn <antecedent_data::ImputationSpec>::fn range_problem(&self) -> core::option::Option<alloc::string::String>
 pub fn <antecedent_data::Int64Column>::fn is_empty(&self) -> bool
 pub fn <antecedent_data::Int64Column>::fn len(&self) -> usize
 pub fn <antecedent_data::Int64Column>::fn new(id: antecedent_core::ids::VariableId, values: impl core::convert::Into<alloc::sync::Arc<[i64]>>, validity: antecedent_data::ValidityBitmap) -> core::result::Result<Self, antecedent_data::DataError>
@@ -1476,8 +2084,11 @@ pub fn <antecedent_data::LaggedSampleWorkspace>::const fn capacity_n(&self) -> u
 pub fn <antecedent_data::LaggedSampleWorkspace>::fn prepare(&mut self, n: usize, ncols: usize)
 pub fn <antecedent_data::MissingDeclaration>::fn new(policy: antecedent_data::MissingPolicy) -> Self
 pub fn <antecedent_data::MissingDeclaration>::fn with_covariates(self, covariates: impl core::convert::Into<alloc::sync::Arc<[antecedent_core::ids::VariableId]>>) -> Self
+pub fn <antecedent_data::MissingPolicy>::const fn imputation(self) -> core::option::Option<antecedent_data::ImputationSpec>
 pub fn <antecedent_data::MissingPolicy>::const fn name(self) -> &'static str
 pub fn <antecedent_data::MissingPolicy>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_data::MissingnessAssumption>::const fn name(self) -> &'static str
+pub fn <antecedent_data::MissingnessAssumption>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_data::MultiEnvironmentData>::fn env_count(&self) -> usize
 pub fn <antecedent_data::MultiEnvironmentData>::fn environment(&self, i: usize) -> core::result::Result<&antecedent_data::TimeSeriesData, antecedent_data::DataError>
 pub fn <antecedent_data::MultiEnvironmentData>::fn environments(&self) -> &[antecedent_data::TimeSeriesData]
@@ -1499,6 +2110,26 @@ pub fn <antecedent_data::OwnedColumnarStorage>::fn columns_arc(&self) -> &alloc:
 pub fn <antecedent_data::OwnedColumnarStorage>::fn content_digest(&self) -> [u8; 32]
 pub fn <antecedent_data::OwnedColumnarStorage>::fn try_new(schema: antecedent_core::schema::CausalSchema, columns: alloc::vec::Vec<antecedent_data::OwnedColumn>, analysis_mask: core::option::Option<antecedent_data::ValidityBitmap>, weights: core::option::Option<alloc::sync::Arc<[f64]>>) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::OwnedColumnarStorage>::fn weights(&self) -> core::option::Option<&[f64]>
+pub fn <antecedent_data::PanelBalanceReport>::const fn attrited_units(&self) -> usize
+pub fn <antecedent_data::PanelBalanceReport>::const fn balanced_units(&self) -> usize
+pub fn <antecedent_data::PanelBalanceReport>::const fn cells_expected(&self) -> u64
+pub fn <antecedent_data::PanelBalanceReport>::const fn cells_present(&self) -> usize
+pub fn <antecedent_data::PanelBalanceReport>::const fn gapped_units(&self) -> usize
+pub fn <antecedent_data::PanelBalanceReport>::const fn grid_step(&self) -> core::option::Option<i64>
+pub fn <antecedent_data::PanelBalanceReport>::const fn late_entry_units(&self) -> usize
+pub fn <antecedent_data::PanelBalanceReport>::const fn never_observed_units(&self) -> usize
+pub fn <antecedent_data::PanelBalanceReport>::const fn rows_complete(&self) -> usize
+pub fn <antecedent_data::PanelBalanceReport>::const fn rows_total(&self) -> usize
+pub fn <antecedent_data::PanelBalanceReport>::fn attrition(&self) -> alloc::vec::Vec<antecedent_data::AttritionRow>
+pub fn <antecedent_data::PanelBalanceReport>::fn attrition_baseline(&self, baseline: &[f64]) -> core::result::Result<antecedent_data::AttritionBaseline, antecedent_data::PanelPreparationError>
+pub fn <antecedent_data::PanelBalanceReport>::fn digest(&self) -> &str
+pub fn <antecedent_data::PanelBalanceReport>::fn grid(&self) -> &[i64]
+pub fn <antecedent_data::PanelBalanceReport>::fn is_balanced(&self) -> bool
+pub fn <antecedent_data::PanelBalanceReport>::fn prepare(&self, mode: antecedent_data::PreparationMode) -> core::result::Result<antecedent_data::PreparedPanel, antecedent_data::PanelPreparationError>
+pub fn <antecedent_data::PanelBalanceReport>::fn require_balance(&self, design: antecedent_data::BalanceRequirement) -> core::result::Result<(), antecedent_data::PanelPreparationError>
+pub fn <antecedent_data::PanelBalanceReport>::fn require_lag(&self, lag: usize) -> core::result::Result<(), antecedent_data::PanelPreparationError>
+pub fn <antecedent_data::PanelBalanceReport>::fn unit_count(&self) -> usize
+pub fn <antecedent_data::PanelBalanceReport>::fn units(&self) -> &[antecedent_data::UnitSummary]
 pub fn <antecedent_data::PanelData>::fn as_multi_env(&self) -> core::result::Result<antecedent_data::MultiEnvironmentData, antecedent_data::DataError>
 pub fn <antecedent_data::PanelData>::fn schema(&self) -> &antecedent_core::schema::CausalSchema
 pub fn <antecedent_data::PanelData>::fn total_rows(&self) -> usize
@@ -1506,6 +2137,11 @@ pub fn <antecedent_data::PanelData>::fn try_new(units: impl core::convert::Into<
 pub fn <antecedent_data::PanelData>::fn unit(&self, i: usize) -> core::result::Result<&antecedent_data::PanelUnit, antecedent_data::DataError>
 pub fn <antecedent_data::PanelData>::fn unit_count(&self) -> usize
 pub fn <antecedent_data::PanelData>::fn units(&self) -> &[antecedent_data::PanelUnit]
+pub fn <antecedent_data::PanelLayout>::fn assess<S: core::convert::AsRef<str>>(subjects: &[S], periods: &[i64], observed: &[bool]) -> core::result::Result<antecedent_data::PanelBalanceReport, antecedent_data::PanelPreparationError>
+pub fn <antecedent_data::PanelPreparationError>::const fn code(&self) -> &'static str
+pub fn <antecedent_data::PanelPreparationError>::const fn detail(&self) -> &'static str
+pub fn <antecedent_data::PanelPreparationError>::const fn next_attempt(&self) -> core::option::Option<antecedent_core::refusal::NextAttempt>
+pub fn <antecedent_data::PanelPreparationError>::fn message(&self) -> &str
 pub fn <antecedent_data::PanelUnitView<'a>>::fn new(unit: &'a antecedent_data::PanelUnit) -> Self
 pub fn <antecedent_data::PanelWindow>::const fn local_rows(&self) -> core::ops::range::Range<usize>
 pub fn <antecedent_data::PanelWindow>::const fn span(&self) -> antecedent_data::CalendarSpan
@@ -1518,6 +2154,20 @@ pub fn <antecedent_data::PooledLaggedFrame>::fn all_variables(&self) -> alloc::v
 pub fn <antecedent_data::PooledLaggedFrame>::fn is_dummy(&self, v: antecedent_core::ids::VariableId) -> bool
 pub fn <antecedent_data::PopulationUnit>::const fn environment(env_index: u32) -> Self
 pub fn <antecedent_data::PopulationUnit>::const fn panel(unit_id: u32) -> Self
+pub fn <antecedent_data::PreparationMode>::const fn as_str(self) -> &'static str
+pub fn <antecedent_data::PreparationMode>::const fn policy(self) -> antecedent_data::MissingPolicy
+pub fn <antecedent_data::PreparationMode>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_data::PreparedPanel>::const fn mode(&self) -> antecedent_data::PreparationMode
+pub fn <antecedent_data::PreparedPanel>::const fn rows_total(&self) -> usize
+pub fn <antecedent_data::PreparedPanel>::const fn units_dropped(&self) -> usize
+pub fn <antecedent_data::PreparedPanel>::const fn units_kept(&self) -> usize
+pub fn <antecedent_data::PreparedPanel>::const fn units_total(&self) -> usize
+pub fn <antecedent_data::PreparedPanel>::fn dropped_rows(&self) -> &[u64]
+pub fn <antecedent_data::PreparedPanel>::fn keep(&self) -> &[bool]
+pub fn <antecedent_data::PreparedPanel>::fn reasons(&self) -> alloc::vec::Vec<(antecedent_data::DropReason, usize)>
+pub fn <antecedent_data::PreparedPanel>::fn row_accounting(&self, missing_by_variable: alloc::vec::Vec<(alloc::sync::Arc<str>, usize)>) -> antecedent_data::RowAccounting
+pub fn <antecedent_data::PreparedPanel>::fn rows_kept(&self) -> usize
+pub fn <antecedent_data::PreparedPanel>::fn runs(&self) -> &[antecedent_data::UnitRun]
 pub fn <antecedent_data::ReferencePointPolicy>::fn base_and_n(self, series_len: usize, max_lag: u32) -> core::result::Result<(usize, usize), antecedent_data::DataError>
 pub fn <antecedent_data::ResamplingPlan>::const fn is_weight_plan(self) -> bool
 pub fn <antecedent_data::ResamplingPlan>::const fn needs_clusters(self) -> bool
@@ -1525,6 +2175,7 @@ pub fn <antecedent_data::ResamplingPlan>::const fn resampling_rule(self) -> ante
 pub fn <antecedent_data::RowAccounting>::fn complete_case<T: antecedent_data::TableView>(table: &T, analysis_mask: core::option::Option<&antecedent_data::ValidityBitmap>, variables: &[antecedent_core::ids::VariableId]) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::RowAccounting>::fn from_dropped(policy: antecedent_data::MissingPolicy, rows_total: usize, dropped_rows: alloc::vec::Vec<u64>, missing_by_variable: alloc::vec::Vec<(alloc::sync::Arc<str>, usize)>) -> Self
 pub fn <antecedent_data::RowAccounting>::fn from_selection<T: antecedent_data::TableView>(table: &T, analysis_mask: core::option::Option<&antecedent_data::ValidityBitmap>, policy: antecedent_data::MissingPolicy, variables: &[antecedent_core::ids::VariableId], keep: &[bool]) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::RowAccounting>::fn imputed<T: antecedent_data::TableView>(table: &T, analysis_mask: core::option::Option<&antecedent_data::ValidityBitmap>, policy: antecedent_data::MissingPolicy, variables: &[antecedent_core::ids::VariableId]) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::RowAccounting>::fn rows_dropped(&self) -> usize
 pub fn <antecedent_data::RowAccounting>::fn with_denominator(self, rows: usize) -> Self
 pub fn <antecedent_data::RowAccounting>::fn with_groups(self, labels: &[alloc::sync::Arc<str>], keep: &[bool], observed: &[bool]) -> core::result::Result<Self, antecedent_data::DataError>
@@ -1591,6 +2242,28 @@ pub fn <antecedent_data::backend_boundary::PreparationBackend>::const fn accepte
 pub fn <antecedent_data::backend_boundary::PreparationBackend>::const fn admit(self) -> core::result::Result<Self, antecedent_data::backend_boundary::LazyBackendRefusal>
 pub fn <antecedent_data::backend_boundary::PreparationBackend>::const fn as_str(self) -> &'static str
 pub fn <antecedent_data::categorical::CategoryConversion>::const fn coding_name(contrast: &antecedent_data::Contrast) -> &'static str
+pub fn <antecedent_data::column_closure::ClosureInputs>::fn close(self) -> antecedent_data::column_closure::ColumnClosure
+pub fn <antecedent_data::column_closure::ClosureInputs>::fn complete_case(self, column: antecedent_data::column_closure::ColumnRole) -> Self
+pub fn <antecedent_data::column_closure::ClosureInputs>::fn new(target: impl core::iter::traits::collect::IntoIterator<Item = antecedent_data::column_closure::ColumnRole>) -> Self
+pub fn <antecedent_data::column_closure::ClosureInputs>::fn split(self, column: antecedent_data::column_closure::ColumnRole) -> Self
+pub fn <antecedent_data::column_closure::ClosureInputs>::fn support(self, column: antecedent_data::column_closure::ColumnRole) -> Self
+pub fn <antecedent_data::column_closure::ClosureInputs>::fn validator(self, column: antecedent_data::column_closure::ColumnRole) -> Self
+pub fn <antecedent_data::column_closure::ClosureInputs>::fn weight(self, column: antecedent_data::column_closure::ColumnRole) -> Self
+pub fn <antecedent_data::column_closure::Cohort>::fn rows(&self) -> &[usize]
+pub fn <antecedent_data::column_closure::ColumnClosure>::fn columns(&self) -> &[antecedent_data::column_closure::RequiredColumn]
+pub fn <antecedent_data::column_closure::ColumnClosure>::fn complete_case(&self, frame: &antecedent_data::column_closure::ObservationFrame) -> core::result::Result<antecedent_data::column_closure::Cohort, antecedent_data::column_closure::ClosureError>
+pub fn <antecedent_data::column_closure::ColumnClosure>::fn contains(&self, role: &antecedent_data::column_closure::ColumnRole) -> bool
+pub fn <antecedent_data::column_closure::ColumnClosure>::fn duty(&self, role: &antecedent_data::column_closure::ColumnRole) -> core::option::Option<antecedent_data::column_closure::ColumnDuty>
+pub fn <antecedent_data::column_closure::ColumnClosure>::fn project(&self, keep: &[antecedent_data::column_closure::ColumnRole]) -> core::result::Result<&Self, antecedent_data::column_closure::ClosureError>
+pub fn <antecedent_data::column_closure::ColumnClosure>::fn push_filter(&self, frame: &antecedent_data::column_closure::ObservationFrame, filter: &antecedent_data::column_closure::ColumnFilter) -> core::result::Result<antecedent_data::column_closure::Cohort, antecedent_data::column_closure::ClosureError>
+pub fn <antecedent_data::column_closure::ColumnDuty>::const fn name(self) -> &'static str
+pub fn <antecedent_data::column_closure::ColumnFilter>::fn column(&self) -> &antecedent_data::column_closure::ColumnRole
+pub fn <antecedent_data::column_closure::ColumnFilter>::fn new(column: antecedent_data::column_closure::ColumnRole, drop_row: alloc::vec::Vec<bool>) -> Self
+pub fn <antecedent_data::column_closure::ColumnRole>::fn as_str(&self) -> &str
+pub fn <antecedent_data::column_closure::ColumnRole>::fn new(name: impl core::convert::AsRef<str>) -> Self
+pub fn <antecedent_data::column_closure::ObservationFrame>::const fn row_count(&self) -> usize
+pub fn <antecedent_data::column_closure::ObservationFrame>::fn complete_case(&self, columns: &[antecedent_data::column_closure::ColumnRole]) -> core::result::Result<antecedent_data::column_closure::Cohort, antecedent_data::column_closure::ClosureError>
+pub fn <antecedent_data::column_closure::ObservationFrame>::fn try_new(columns: alloc::vec::Vec<(antecedent_data::column_closure::ColumnRole, alloc::vec::Vec<bool>)>) -> core::result::Result<Self, antecedent_data::column_closure::ClosureError>
 pub fn <antecedent_data::design_layout::DesignLayout<'a>>::const fn n_rows(&self) -> usize
 pub fn <antecedent_data::design_layout::DesignLayout<'a>>::const fn receipt(&self) -> &antecedent_data::design_layout::OwnershipReceipt
 pub fn <antecedent_data::design_layout::DesignLayout<'a>>::fn column(&self, index: usize) -> core::option::Option<&[f64]>
@@ -1607,6 +2280,90 @@ pub fn <antecedent_data::design_layout::OwnershipCopy>::const fn column(self) ->
 pub fn <antecedent_data::design_layout::OwnershipCopy>::const fn name(self) -> &'static str
 pub fn <antecedent_data::design_layout::OwnershipReceipt>::fn copies(&self) -> &[antecedent_data::design_layout::OwnershipCopy]
 pub fn <antecedent_data::design_layout::OwnershipReceipt>::fn is_empty(&self) -> bool
+pub fn <antecedent_data::file_source::ChunkQuote>::const fn total_bytes(self) -> u64
+pub fn <antecedent_data::file_source::FileChunk>::const fn rows(&self) -> usize
+pub fn <antecedent_data::file_source::FileChunk>::const fn start(&self) -> antecedent_data::GlobalId
+pub fn <antecedent_data::file_source::FileChunk>::fn column(&self, name: &str) -> core::option::Option<&antecedent_data::OwnedColumn>
+pub fn <antecedent_data::file_source::FileChunk>::fn columns(&self) -> &[antecedent_data::OwnedColumn]
+pub fn <antecedent_data::file_source::FileChunk>::fn held_bytes(&self) -> u64
+pub fn <antecedent_data::file_source::FileChunk>::fn local_index(&self, row: antecedent_data::GlobalId) -> core::result::Result<antecedent_data::ChunkIndex, antecedent_data::file_source::FileSourceError>
+pub fn <antecedent_data::file_source::FileChunk>::fn names(&self) -> &[alloc::sync::Arc<str>]
+pub fn <antecedent_data::file_source::FileColumnKind>::const fn as_str(&self) -> &'static str
+pub fn <antecedent_data::file_source::FileColumnKind>::const fn owned_width_bytes(&self) -> core::option::Option<u64>
+pub fn <antecedent_data::file_source::FileContentIdentity>::const fn digest(&self) -> [u8; 32]
+pub fn <antecedent_data::file_source::FileContentIdentity>::const fn rows(&self) -> antecedent_data::GlobalId
+pub fn <antecedent_data::file_source::FileContentIdentity>::const fn version(&self) -> u16
+pub fn <antecedent_data::file_source::FileContentIdentity>::fn to_hex(&self) -> alloc::string::String
+pub fn <antecedent_data::file_source::FileSourceError>::const fn kind(&self) -> antecedent_data::file_source::FileSourceErrorKind
+pub fn <antecedent_data::file_source::FileSourceError>::fn next_attempt(&self) -> core::option::Option<alloc::string::String>
+pub fn <antecedent_data::file_source::MaterializationQuote>::const fn chunk_bytes(&self) -> u64
+pub fn <antecedent_data::file_source::MaterializationQuote>::const fn mask_bytes(&self) -> u64
+pub fn <antecedent_data::file_source::MaterializationQuote>::const fn resident_bytes(&self) -> u64
+pub fn <antecedent_data::file_source::MaterializationQuote>::const fn rows(&self) -> antecedent_data::GlobalId
+pub fn <antecedent_data::file_source::MaterializationQuote>::const fn sealing_copy_bytes(&self) -> u64
+pub fn <antecedent_data::file_source::MaterializationQuote>::const fn total_bytes(&self) -> u64
+pub fn <antecedent_data::file_source::MaterializationQuote>::const fn values_bytes(&self) -> u64
+pub fn <antecedent_data::file_source::MaterializationQuote>::fn admit(&self, available: u64, chunk_rows: usize) -> core::result::Result<(), antecedent_data::file_source::FileSourceError>
+pub fn <antecedent_data::file_source::MaterializationQuote>::fn for_rows(rows: antecedent_data::GlobalId, plan: &antecedent_data::file_source::ReadPlan) -> core::result::Result<Self, antecedent_data::file_source::FileSourceError>
+pub fn <antecedent_data::file_source::MaterializedTable>::const fn contract_binding(&self) -> [u8; 32]
+pub fn <antecedent_data::file_source::MaterializedTable>::const fn quote(&self) -> core::option::Option<&antecedent_data::file_source::MaterializationQuote>
+pub fn <antecedent_data::file_source::MaterializedTable>::const fn snapshot_digest(&self) -> [u8; 32]
+pub fn <antecedent_data::file_source::MaterializedTable>::fn data(&self) -> &antecedent_data::TabularData
+pub fn <antecedent_data::file_source::MaterializedTable>::fn held_bytes(&self) -> u64
+pub fn <antecedent_data::file_source::MaterializedTable>::fn into_data(self) -> antecedent_data::TabularData
+pub fn <antecedent_data::file_source::MaterializedTable>::fn receipt(&self) -> &antecedent_data::file_source::ScanReceipt
+pub fn <antecedent_data::file_source::MaterializedTable>::fn row_range_identity(&self, rows: core::ops::range::Range<usize>) -> core::result::Result<[u8; 32], antecedent_data::file_source::FileSourceError>
+pub fn <antecedent_data::file_source::MemoryStage>::const fn as_str(self) -> &'static str
+pub fn <antecedent_data::file_source::ReadOptions>::fn with_chunk_rows(chunk_rows: usize) -> Self
+pub fn <antecedent_data::file_source::ReadPlan>::const fn chunk_rows(&self) -> usize
+pub fn <antecedent_data::file_source::ReadPlan>::const fn owned_bytes_per_row(&self) -> u64
+pub fn <antecedent_data::file_source::ReadPlan>::fn chunk_quote(&self) -> core::result::Result<antecedent_data::file_source::ChunkQuote, antecedent_data::file_source::FileSourceError>
+pub fn <antecedent_data::file_source::ReadPlan>::fn closure(&self) -> &antecedent_data::column_closure::ColumnClosure
+pub fn <antecedent_data::file_source::ReadPlan>::fn columns(&self) -> &[antecedent_data::file_source::FileColumn]
+pub fn <antecedent_data::file_source::ReadPlan>::fn names(&self) -> alloc::vec::Vec<alloc::sync::Arc<str>>
+pub fn <antecedent_data::file_source::ReadPlan>::fn position(&self, name: &str) -> core::option::Option<usize>
+pub fn <antecedent_data::file_source::ReadPlan>::fn projection(&self) -> &[usize]
+pub fn <antecedent_data::file_source::ReadPlan>::fn quote_rows(&self, rows: usize) -> core::result::Result<antecedent_data::file_source::ChunkQuote, antecedent_data::file_source::FileSourceError>
+pub fn <antecedent_data::file_source::ReadPlan>::fn with_chunk_rows(&self, chunk_rows: usize) -> core::result::Result<Self, antecedent_data::file_source::FileSourceError>
+pub fn <antecedent_data::file_source::RowCursor>::const fn new() -> Self
+pub fn <antecedent_data::file_source::RowCursor>::const fn position(self) -> antecedent_data::GlobalId
+pub fn <antecedent_data::file_source::RowCursor>::const fn starting_at(start: antecedent_data::GlobalId) -> Self
+pub fn <antecedent_data::file_source::RowCursor>::fn advance(&mut self, rows: u64) -> core::result::Result<antecedent_data::GlobalId, antecedent_data::file_source::FileSourceError>
+pub fn <antecedent_data::file_source::ScanReceipt>::const fn chunks(&self) -> u64
+pub fn <antecedent_data::file_source::ScanReceipt>::const fn identity(&self) -> antecedent_data::file_source::FileContentIdentity
+pub fn <antecedent_data::file_source::ScanReceipt>::const fn peak_chunk_bytes(&self) -> u64
+pub fn <antecedent_data::file_source::ScanReceipt>::const fn rows(&self) -> antecedent_data::GlobalId
+pub fn <antecedent_data::file_source::ScanReceipt>::fn columns(&self) -> &[antecedent_data::file_source::FileColumn]
+pub fn <antecedent_data::file_source::ScanReceipt>::fn levels(&self, position: usize) -> &[alloc::sync::Arc<str>]
+pub fn <antecedent_data::file_source::TableChunkReader>::const fn is_exhausted(&self) -> bool
+pub fn <antecedent_data::file_source::TableChunkReader>::const fn position(&self) -> antecedent_data::GlobalId
+pub fn <antecedent_data::file_source::TableChunkReader>::fn finish(&mut self) -> core::result::Result<antecedent_data::file_source::ScanReceipt, antecedent_data::file_source::FileSourceError>
+pub fn <antecedent_data::file_source::TableChunkReader>::fn next_chunk(&mut self) -> core::result::Result<core::option::Option<antecedent_data::file_source::FileChunk>, antecedent_data::file_source::FileSourceError>
+pub fn <antecedent_data::file_source::TableChunkReader>::fn plan(&self) -> &antecedent_data::file_source::ReadPlan
+pub fn <antecedent_data::file_source::TableChunkReader>::fn rewind(&mut self) -> core::result::Result<(), antecedent_data::file_source::FileSourceError>
+pub fn <antecedent_data::file_source::TableFile>::const fn declared_rows(&self) -> core::option::Option<antecedent_data::GlobalId>
+pub fn <antecedent_data::file_source::TableFile>::const fn format(&self) -> antecedent_data::file_source::TableFileFormat
+pub fn <antecedent_data::file_source::TableFile>::fn column(&self, name: &str) -> core::option::Option<&antecedent_data::file_source::FileColumn>
+pub fn <antecedent_data::file_source::TableFile>::fn columns(&self) -> &[antecedent_data::file_source::FileColumn]
+pub fn <antecedent_data::file_source::TableFile>::fn materialize(&self, plan: &antecedent_data::file_source::ReadPlan, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_data::file_source::MaterializedTable, antecedent_data::file_source::FileSourceError>
+pub fn <antecedent_data::file_source::TableFile>::fn open(path: impl core::convert::AsRef<std::path::Path>) -> core::result::Result<Self, antecedent_data::file_source::FileSourceError>
+pub fn <antecedent_data::file_source::TableFile>::fn open_as(path: impl core::convert::AsRef<std::path::Path>, format: antecedent_data::file_source::TableFileFormat) -> core::result::Result<Self, antecedent_data::file_source::FileSourceError>
+pub fn <antecedent_data::file_source::TableFile>::fn paths(&self) -> &[std::path::PathBuf]
+pub fn <antecedent_data::file_source::TableFile>::fn plan(&self, closure: &antecedent_data::column_closure::ColumnClosure, options: antecedent_data::file_source::ReadOptions) -> core::result::Result<antecedent_data::file_source::ReadPlan, antecedent_data::file_source::FileSourceError>
+pub fn <antecedent_data::file_source::TableFile>::fn plan_all(&self, options: antecedent_data::file_source::ReadOptions) -> core::result::Result<antecedent_data::file_source::ReadPlan, antecedent_data::file_source::FileSourceError>
+pub fn <antecedent_data::file_source::TableFile>::fn plan_columns<S: core::convert::AsRef<str>>(&self, names: &[S], options: antecedent_data::file_source::ReadOptions) -> core::result::Result<antecedent_data::file_source::ReadPlan, antecedent_data::file_source::FileSourceError>
+pub fn <antecedent_data::file_source::TableFile>::fn quote(&self, plan: &antecedent_data::file_source::ReadPlan) -> core::result::Result<core::option::Option<antecedent_data::file_source::MaterializationQuote>, antecedent_data::file_source::FileSourceError>
+pub fn <antecedent_data::file_source::TableFile>::fn reader(&self, plan: &antecedent_data::file_source::ReadPlan, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_data::file_source::TableChunkReader, antecedent_data::file_source::FileSourceError>
+pub fn <antecedent_data::file_source::TableFile>::fn scan_identity(&self, plan: &antecedent_data::file_source::ReadPlan, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_data::file_source::ScanReceipt, antecedent_data::file_source::FileSourceError>
+pub fn <antecedent_data::file_source::TableFileFormat>::const fn as_str(self) -> &'static str
+pub fn <antecedent_data::file_source::TableFileFormat>::const fn feature(self) -> &'static str
+pub fn <antecedent_data::file_source::TableFileFormat>::const fn is_compiled(self) -> bool
+pub fn <antecedent_data::file_source::TableFileFormat>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_data::file_source::TableFileFormat>::fn from_path(path: &std::path::Path) -> core::option::Option<Self>
+pub fn <antecedent_data::file_source::TableStream>::fn columns(&self) -> &[antecedent_data::file_source::FileColumn]
+pub fn <antecedent_data::file_source::TableStream>::fn new(stream: antecedent_data::arrow_ffi::ArrowCStream) -> core::result::Result<Self, antecedent_data::file_source::FileSourceError>
+pub fn <antecedent_data::file_source::TableStream>::fn plan(&self, closure: &antecedent_data::column_closure::ColumnClosure, options: antecedent_data::file_source::ReadOptions) -> core::result::Result<antecedent_data::file_source::ReadPlan, antecedent_data::file_source::FileSourceError>
+pub fn <antecedent_data::file_source::TableStream>::fn reader(self, plan: &antecedent_data::file_source::ReadPlan, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_data::file_source::TableChunkReader, antecedent_data::file_source::FileSourceError>
 pub fn <antecedent_data::materialize::AdmissionRecord>::const fn materialized_bytes(self) -> core::option::Option<u64>
 pub fn <antecedent_data::materialize::PreparationBudget>::const fn bytes(self) -> u64
 pub fn <antecedent_data::materialize::PreparationBudget>::const fn new(bytes: u64) -> Self
@@ -1648,9 +2405,12 @@ pub fn antecedent_data::categorical::compile_contrast_matrix(domain: &antecedent
 pub fn antecedent_data::categorical::expand_contrast(column: &antecedent_data::CategoricalColumn, contrast: &antecedent_data::Contrast) -> core::result::Result<antecedent_data::categorical::ExpandedContrast, antecedent_data::DataError>
 pub fn antecedent_data::circular_block_length(structural_span: usize, n: usize) -> usize
 pub fn antecedent_data::column_blocks_for_frame(groups: &antecedent_data::VectorVariableGroups, frame: &antecedent_data::LaggedFrame) -> core::result::Result<alloc::sync::Arc<[alloc::sync::Arc<[usize]>]>, antecedent_data::DataError>
+pub fn antecedent_data::complete_float_columns(table: &antecedent_data::TabularData, replacements: &[(antecedent_core::ids::VariableId, alloc::sync::Arc<[f64]>)]) -> core::result::Result<antecedent_data::TabularData, antecedent_data::DataError>
 pub fn antecedent_data::complete_rows<T: antecedent_data::TableView>(table: &T, analysis_mask: core::option::Option<&antecedent_data::ValidityBitmap>, variables: &[antecedent_core::ids::VariableId]) -> core::result::Result<alloc::vec::Vec<bool>, antecedent_data::DataError>
 pub fn antecedent_data::dedupe_variable_ids(ids: impl core::iter::traits::collect::IntoIterator<Item = antecedent_core::ids::VariableId>) -> alloc::vec::Vec<antecedent_core::ids::VariableId>
 pub fn antecedent_data::dropped_row_digest(rows_total: usize, dropped: &[u64]) -> alloc::string::String
+pub fn antecedent_data::file_source::chunk_local_index(chunk_start: antecedent_data::GlobalId, row: antecedent_data::GlobalId) -> core::result::Result<antecedent_data::ChunkIndex, antecedent_data::file_source::FileSourceError>
+pub fn antecedent_data::file_source::write_table_file(path: impl core::convert::AsRef<std::path::Path>, format: antecedent_data::file_source::TableFileFormat, data: &antecedent_data::TabularData, options: antecedent_data::file_source::WriteOptions) -> core::result::Result<antecedent_data::GlobalId, antecedent_data::file_source::FileSourceError>
 pub fn antecedent_data::fill_circular_block_indexes(n: usize, length: usize, rng: &mut antecedent_core::execution::CausalRng, out: &mut [usize]) -> core::result::Result<(), antecedent_data::DataError>
 pub fn antecedent_data::fill_declared_plan(declaration: antecedent_core::sampling_design::SamplingDesignDeclaration, plan: antecedent_data::ResamplingPlan, n: usize, cluster_ids: core::option::Option<&[u32]>, rng: &mut antecedent_core::execution::CausalRng, out: &mut alloc::vec::Vec<antecedent_data::GlobalId>) -> core::result::Result<(), antecedent_data::DataError>
 pub fn antecedent_data::fill_resample_index_batch(plan: antecedent_data::ResamplingPlan, n: usize, n_replicates: usize, cluster_ids: core::option::Option<&[u32]>, ctx: &antecedent_core::execution::ExecutionContext, stream_base: u64, out: &mut [antecedent_data::GlobalId]) -> core::result::Result<(), antecedent_data::DataError>
@@ -1674,11 +2434,13 @@ pub mod antecedent_data::backend_boundary
 pub mod antecedent_data::buffer
 pub mod antecedent_data::categorical
 pub mod antecedent_data::column
+pub mod antecedent_data::column_closure
 pub mod antecedent_data::dataset
 pub mod antecedent_data::design_layout
 pub mod antecedent_data::discrete
 pub mod antecedent_data::error
 pub mod antecedent_data::event
+pub mod antecedent_data::file_source
 pub mod antecedent_data::global_index
 pub mod antecedent_data::lagged_frame
 pub mod antecedent_data::materialize
@@ -1699,12 +2461,15 @@ pub mod antecedent_data::storage
 pub mod antecedent_data::surrogate
 pub mod antecedent_data::table
 pub mod antecedent_data::temporal
+pub mod antecedent_data::unbalanced_panel
 pub mod antecedent_data::vector_vars
 pub struct antecedent_data::ArrowCColumn
 pub struct antecedent_data::ArrowCColumn has private fields
 pub struct antecedent_data::ArrowFrameView
 pub struct antecedent_data::ArrowFrameView has private fields
 pub struct antecedent_data::ArrowLoadResult
+pub struct antecedent_data::AttritionBaseline
+pub struct antecedent_data::AttritionRow
 pub struct antecedent_data::BooleanColumn
 pub struct antecedent_data::CalendarSpan
 pub struct antecedent_data::CalendarSpan has private fields
@@ -1740,6 +2505,7 @@ pub struct antecedent_data::GlobalIndexError has private fields
 pub struct antecedent_data::GroupAccounting
 pub struct antecedent_data::IdRemap
 pub struct antecedent_data::IdRemap has private fields
+pub struct antecedent_data::ImputationSpec
 pub struct antecedent_data::Int64Column
 pub struct antecedent_data::LagMap
 pub struct antecedent_data::LagMap has private fields
@@ -1763,14 +2529,22 @@ pub struct antecedent_data::NetworkData has private fields
 pub struct antecedent_data::NetworkEdge
 pub struct antecedent_data::OwnedColumnarStorage
 pub struct antecedent_data::OwnedColumnarStorage has private fields
+pub struct antecedent_data::PanelBalanceReport
+pub struct antecedent_data::PanelBalanceReport has private fields
 pub struct antecedent_data::PanelData
 pub struct antecedent_data::PanelData has private fields
+pub struct antecedent_data::PanelLayout
+pub struct antecedent_data::PanelPreparationError
+pub struct antecedent_data::PanelPreparationError has private fields
 pub struct antecedent_data::PanelUnit
 pub struct antecedent_data::PanelUnitView has private fields
 pub struct antecedent_data::PanelUnitView<'a>
 pub struct antecedent_data::PanelWindow
 pub struct antecedent_data::PanelWindow has private fields
+pub struct antecedent_data::PeriodRun
 pub struct antecedent_data::PooledLaggedFrame
+pub struct antecedent_data::PreparedPanel
+pub struct antecedent_data::PreparedPanel has private fields
 pub struct antecedent_data::RowAccounting
 pub struct antecedent_data::TabularData
 pub struct antecedent_data::TabularData has private fields
@@ -1782,6 +2556,8 @@ pub struct antecedent_data::TimestampColumn
 pub struct antecedent_data::UnitAccounting
 pub struct antecedent_data::UnitPartition
 pub struct antecedent_data::UnitPartition has private fields
+pub struct antecedent_data::UnitRun
+pub struct antecedent_data::UnitSummary
 pub struct antecedent_data::ValidityBitmap
 pub struct antecedent_data::ValidityBitmap has private fields
 pub struct antecedent_data::VectorVariableGroups
@@ -1795,6 +2571,20 @@ pub struct antecedent_data::arrow_ffi::ArrowCStream has private fields
 pub struct antecedent_data::backend_boundary::LazyBackendRefusal
 pub struct antecedent_data::categorical::CategoryConversion
 pub struct antecedent_data::categorical::ExpandedContrast
+pub struct antecedent_data::column_closure::ClosureInputs
+pub struct antecedent_data::column_closure::ClosureInputs has private fields
+pub struct antecedent_data::column_closure::Cohort
+pub struct antecedent_data::column_closure::Cohort has private fields
+pub struct antecedent_data::column_closure::ColumnClosure
+pub struct antecedent_data::column_closure::ColumnClosure has private fields
+pub struct antecedent_data::column_closure::ColumnFilter
+pub struct antecedent_data::column_closure::ColumnFilter has private fields
+pub struct antecedent_data::column_closure::ColumnRole
+pub struct antecedent_data::column_closure::ColumnRole has private fields
+pub struct antecedent_data::column_closure::ObservationFrame
+pub struct antecedent_data::column_closure::ObservationFrame has private fields
+pub struct antecedent_data::column_closure::PushdownRefusal
+pub struct antecedent_data::column_closure::RequiredColumn
 pub struct antecedent_data::design_layout::DesignLayout has private fields
 pub struct antecedent_data::design_layout::DesignLayout<'a>
 pub struct antecedent_data::design_layout::LayoutError
@@ -1803,6 +2593,30 @@ pub struct antecedent_data::design_layout::OwnershipCopy
 pub struct antecedent_data::design_layout::OwnershipCopy has private fields
 pub struct antecedent_data::design_layout::OwnershipReceipt
 pub struct antecedent_data::design_layout::OwnershipReceipt has private fields
+pub struct antecedent_data::file_source::ChunkQuote
+pub struct antecedent_data::file_source::FileChunk
+pub struct antecedent_data::file_source::FileChunk has private fields
+pub struct antecedent_data::file_source::FileColumn
+pub struct antecedent_data::file_source::FileContentIdentity
+pub struct antecedent_data::file_source::FileContentIdentity has private fields
+pub struct antecedent_data::file_source::MaterializationQuote
+pub struct antecedent_data::file_source::MaterializationQuote has private fields
+pub struct antecedent_data::file_source::MaterializedTable
+pub struct antecedent_data::file_source::MaterializedTable has private fields
+pub struct antecedent_data::file_source::ReadOptions
+pub struct antecedent_data::file_source::ReadPlan
+pub struct antecedent_data::file_source::ReadPlan has private fields
+pub struct antecedent_data::file_source::RowCursor
+pub struct antecedent_data::file_source::RowCursor has private fields
+pub struct antecedent_data::file_source::ScanReceipt
+pub struct antecedent_data::file_source::ScanReceipt has private fields
+pub struct antecedent_data::file_source::TableChunkReader
+pub struct antecedent_data::file_source::TableChunkReader has private fields
+pub struct antecedent_data::file_source::TableFile
+pub struct antecedent_data::file_source::TableFile has private fields
+pub struct antecedent_data::file_source::TableStream
+pub struct antecedent_data::file_source::TableStream has private fields
+pub struct antecedent_data::file_source::WriteOptions
 pub struct antecedent_data::materialize::CategoryLevels
 pub struct antecedent_data::materialize::PreparationBudget
 pub struct antecedent_data::materialize::PreparationBudget has private fields
@@ -1870,6 +2684,7 @@ pub use antecedent_data::missing::GroupAccounting = antecedent_data::GroupAccoun
 pub use antecedent_data::missing::MissingCell = antecedent_data::MissingCell
 pub use antecedent_data::missing::RowAccounting = antecedent_data::RowAccounting
 pub use antecedent_data::missing::UnitAccounting = antecedent_data::UnitAccounting
+pub use antecedent_data::missing::complete_float_columns = antecedent_data::complete_float_columns
 pub use antecedent_data::missing::complete_rows = antecedent_data::complete_rows
 pub use antecedent_data::missing::dropped_row_digest = antecedent_data::dropped_row_digest
 pub use antecedent_data::missing::first_missing_cell = antecedent_data::first_missing_cell
@@ -1914,9 +2729,12 @@ pub use antecedent_data::sample::LaggedColumn = antecedent_data::LaggedColumn
 pub use antecedent_data::sample::LaggedPreparedSample = antecedent_data::LaggedPreparedSample
 pub use antecedent_data::sample::LaggedSamplePlan = antecedent_data::LaggedSamplePlan
 pub use antecedent_data::sample::LaggedSampleWorkspace = antecedent_data::LaggedSampleWorkspace
+pub use antecedent_data::sample_policy::ImputationModel = antecedent_data::ImputationModel
+pub use antecedent_data::sample_policy::ImputationSpec = antecedent_data::ImputationSpec
 pub use antecedent_data::sample_policy::MaskPolicy = antecedent_data::MaskPolicy
 pub use antecedent_data::sample_policy::MissingDeclaration = antecedent_data::MissingDeclaration
 pub use antecedent_data::sample_policy::MissingPolicy = antecedent_data::MissingPolicy
+pub use antecedent_data::sample_policy::MissingnessAssumption = antecedent_data::MissingnessAssumption
 pub use antecedent_data::split::DiscoveryEstimationSplit = antecedent_data::DiscoveryEstimationSplit
 pub use antecedent_data::split::EnvHoldoutSplit = antecedent_data::EnvHoldoutSplit
 pub use antecedent_data::split::TimeRange = antecedent_data::TimeRange
@@ -1931,8 +2749,23 @@ pub use antecedent_data::temporal::TemporalIndexError = antecedent_core::Tempora
 pub use antecedent_data::temporal::TemporalIndexer = antecedent_core::TemporalIndexer
 pub use antecedent_data::temporal::TemporalNodeKey = antecedent_core::TemporalNodeKey
 pub use antecedent_data::temporal::TimeIndex = antecedent_data::TimeIndex
+pub use antecedent_data::unbalanced_panel::AttritionBaseline = antecedent_data::AttritionBaseline
+pub use antecedent_data::unbalanced_panel::AttritionRow = antecedent_data::AttritionRow
+pub use antecedent_data::unbalanced_panel::BalanceRequirement = antecedent_data::BalanceRequirement
+pub use antecedent_data::unbalanced_panel::PanelBalanceReport = antecedent_data::PanelBalanceReport
+pub use antecedent_data::unbalanced_panel::PanelLayout = antecedent_data::PanelLayout
+pub use antecedent_data::unbalanced_panel::PanelPreparationError = antecedent_data::PanelPreparationError
+pub use antecedent_data::unbalanced_panel::PeriodRun = antecedent_data::PeriodRun
+pub use antecedent_data::unbalanced_panel::PreparationMode = antecedent_data::PreparationMode
+pub use antecedent_data::unbalanced_panel::PreparedPanel = antecedent_data::PreparedPanel
+pub use antecedent_data::unbalanced_panel::UnitRun = antecedent_data::UnitRun
+pub use antecedent_data::unbalanced_panel::UnitSummary = antecedent_data::UnitSummary
 pub use antecedent_data::vector_vars::VectorVariableGroups = antecedent_data::VectorVariableGroups
 pub use antecedent_data::vector_vars::column_blocks_for_frame = antecedent_data::column_blocks_for_frame
+pub variant antecedent_data::BalanceRequirement::AugmentedPanel
+pub variant antecedent_data::BalanceRequirement::BalancedEventStudy
+pub variant antecedent_data::BalanceRequirement::SyntheticControl
+pub variant antecedent_data::BalanceRequirement::TwoPeriodPanel
 pub variant antecedent_data::BorrowError::Refused(antecedent_data::LagRefusal)
 pub variant antecedent_data::BorrowError::TargetOutsideWindow { target: usize, rows: core::ops::range::Range<usize> }
 pub variant antecedent_data::ColumnView::Boolean(&'a antecedent_data::BooleanColumn)
@@ -1961,6 +2794,8 @@ pub variant antecedent_data::DataError::UnknownVariable { id: antecedent_core::i
 pub variant antecedent_data::DropReason::AnalysisMask
 pub variant antecedent_data::DropReason::MissingValue
 pub variant antecedent_data::DropReason::UnitIncomplete
+pub variant antecedent_data::ImputationModel::ChainedEquations
+pub variant antecedent_data::ImputationModel::JointNormal
 pub variant antecedent_data::MaskPolicy::Honor
 pub variant antecedent_data::MaskPolicy::Ignore
 pub variant antecedent_data::MissingPolicy::AvailableCase
@@ -1968,7 +2803,10 @@ pub variant antecedent_data::MissingPolicy::BalancedPanel
 pub variant antecedent_data::MissingPolicy::CompleteCase
 pub variant antecedent_data::MissingPolicy::ErrorOnMissing
 pub variant antecedent_data::MissingPolicy::InverseProbabilityOfObservation
+pub variant antecedent_data::MissingPolicy::MultipleImputation(antecedent_data::ImputationSpec)
 pub variant antecedent_data::MissingPolicy::PairwiseAvailable
+pub variant antecedent_data::MissingnessAssumption::MissingAtRandom
+pub variant antecedent_data::MissingnessAssumption::MissingNotAtRandom
 pub variant antecedent_data::OwnedColumn::Boolean(antecedent_data::BooleanColumn)
 pub variant antecedent_data::OwnedColumn::Categorical(antecedent_data::CategoricalColumn)
 pub variant antecedent_data::OwnedColumn::FixedVector(antecedent_data::FixedVectorColumn)
@@ -1979,6 +2817,9 @@ pub variant antecedent_data::PermutationScheme::Full
 pub variant antecedent_data::PermutationScheme::WithinCluster
 pub variant antecedent_data::PopulationUnit::Environment { env_index: u32 }
 pub variant antecedent_data::PopulationUnit::Panel { unit_id: u32 }
+pub variant antecedent_data::PreparationMode::AvailableUnitPeriods
+pub variant antecedent_data::PreparationMode::BalancedUnits
+pub variant antecedent_data::PreparationMode::ContiguousRuns
 pub variant antecedent_data::ReferencePointPolicy::AbsoluteOrigin { origin_row: usize }
 pub variant antecedent_data::ReferencePointPolicy::SeriesOrigin
 pub variant antecedent_data::ResamplingPlan::BayesianBootstrap
@@ -2004,6 +2845,53 @@ pub variant antecedent_data::arrow_adapter::EstimatorFrame::Finite { table: ante
 pub variant antecedent_data::arrow_adapter::EstimatorFrame::Scan(antecedent_data::materialize::StreamingScan)
 pub variant antecedent_data::backend_boundary::PreparationBackend::DirectArrow
 pub variant antecedent_data::backend_boundary::PreparationBackend::Lazy
+pub variant antecedent_data::column_closure::ClosureError::DuplicateColumn { column: antecedent_data::column_closure::ColumnRole }
+pub variant antecedent_data::column_closure::ClosureError::EmptyCohort
+pub variant antecedent_data::column_closure::ClosureError::LengthMismatch { column: antecedent_data::column_closure::ColumnRole, expected: usize, actual: usize }
+pub variant antecedent_data::column_closure::ClosureError::NoColumns
+pub variant antecedent_data::column_closure::ClosureError::Refused(antecedent_data::column_closure::PushdownRefusal)
+pub variant antecedent_data::column_closure::ClosureError::UnknownColumn { column: antecedent_data::column_closure::ColumnRole }
+pub variant antecedent_data::column_closure::ColumnDuty::CompleteCase
+pub variant antecedent_data::column_closure::ColumnDuty::Split
+pub variant antecedent_data::column_closure::ColumnDuty::Support
+pub variant antecedent_data::column_closure::ColumnDuty::Target
+pub variant antecedent_data::column_closure::ColumnDuty::Validator
+pub variant antecedent_data::column_closure::ColumnDuty::Weight
+pub variant antecedent_data::file_source::FileColumnKind::Boolean
+pub variant antecedent_data::file_source::FileColumnKind::Categorical { ordered: bool }
+pub variant antecedent_data::file_source::FileColumnKind::Float64
+pub variant antecedent_data::file_source::FileColumnKind::Int64
+pub variant antecedent_data::file_source::FileColumnKind::Timestamp { timezone: core::option::Option<alloc::sync::Arc<str>> }
+pub variant antecedent_data::file_source::FileColumnKind::Unsupported { arrow_type: alloc::sync::Arc<str> }
+pub variant antecedent_data::file_source::FileSourceError::Cancelled
+pub variant antecedent_data::file_source::FileSourceError::Closure(antecedent_data::column_closure::ClosureError)
+pub variant antecedent_data::file_source::FileSourceError::CountOverflow { context: &'static str }
+pub variant antecedent_data::file_source::FileSourceError::Data(antecedent_data::DataError)
+pub variant antecedent_data::file_source::FileSourceError::EmptyDataset { path: std::path::PathBuf }
+pub variant antecedent_data::file_source::FileSourceError::Format { path: std::path::PathBuf, message: alloc::string::String }
+pub variant antecedent_data::file_source::FileSourceError::FormatUnavailable { format: &'static str, feature: &'static str }
+pub variant antecedent_data::file_source::FileSourceError::InvalidOptions { detail: alloc::string::String }
+pub variant antecedent_data::file_source::FileSourceError::Io { path: std::path::PathBuf, message: alloc::string::String }
+pub variant antecedent_data::file_source::FileSourceError::MemoryRefused { stage: antecedent_data::file_source::MemoryStage, required_bytes: u64, available_bytes: u64, chunk_rows: usize, next_attempt: alloc::string::String }
+pub variant antecedent_data::file_source::FileSourceError::MissingValue { column: alloc::string::String, row: antecedent_data::GlobalId, next_attempt: &'static str }
+pub variant antecedent_data::file_source::FileSourceError::NotRewindable
+pub variant antecedent_data::file_source::FileSourceError::ScanIncomplete
+pub variant antecedent_data::file_source::FileSourceError::SchemaMismatch { path: std::path::PathBuf, detail: alloc::string::String }
+pub variant antecedent_data::file_source::FileSourceError::UnknownColumn { column: alloc::string::String, available: alloc::vec::Vec<alloc::string::String> }
+pub variant antecedent_data::file_source::FileSourceError::UnknownFormat { path: std::path::PathBuf }
+pub variant antecedent_data::file_source::FileSourceError::UnsupportedColumn { column: alloc::string::String, arrow_type: alloc::string::String, next_attempt: &'static str }
+pub variant antecedent_data::file_source::FileSourceError::UnsupportedValue { column: alloc::string::String, row: antecedent_data::GlobalId, detail: alloc::string::String, next_attempt: &'static str }
+pub variant antecedent_data::file_source::FileSourceErrorKind::Cancelled
+pub variant antecedent_data::file_source::FileSourceErrorKind::Data
+pub variant antecedent_data::file_source::FileSourceErrorKind::InvalidArgument
+pub variant antecedent_data::file_source::FileSourceErrorKind::Resource
+pub variant antecedent_data::file_source::MemoryStage::ChunkColumns
+pub variant antecedent_data::file_source::MemoryStage::ChunkDecode
+pub variant antecedent_data::file_source::MemoryStage::DecodedBatch
+pub variant antecedent_data::file_source::MemoryStage::Materialization
+pub variant antecedent_data::file_source::TableFileFormat::ArrowIpcFile
+pub variant antecedent_data::file_source::TableFileFormat::ArrowIpcStream
+pub variant antecedent_data::file_source::TableFileFormat::Parquet
 pub variant antecedent_data::materialize::AdmissionRecord::Materialized { bytes: u64, budget: u64 }
 pub variant antecedent_data::materialize::AdmissionRecord::Streaming { scratch_bytes: u64, budget: u64 }
 pub variant antecedent_data::materialize::AdmissionRecord::Unmetered { bytes: u64 }

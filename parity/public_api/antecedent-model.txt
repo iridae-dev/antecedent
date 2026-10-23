@@ -6,6 +6,13 @@
 #[non_exhaustive] pub enum antecedent_model::LinearSolutionError
 #[non_exhaustive] pub enum antecedent_model::ModelError
 #[non_exhaustive] pub enum antecedent_model::compose::CompositionError
+#[non_exhaustive] pub enum antecedent_model::cyclic_world::CertificateBasis
+#[non_exhaustive] pub enum antecedent_model::cyclic_world::CertificateGap
+#[non_exhaustive] pub enum antecedent_model::cyclic_world::CyclicAction
+#[non_exhaustive] pub enum antecedent_model::cyclic_world::CyclicRefusalKind
+#[non_exhaustive] pub enum antecedent_model::cyclic_world::CyclicWorldOutcome
+#[non_exhaustive] pub enum antecedent_model::cyclic_world::WorldFailureCause
+#[non_exhaustive] pub enum antecedent_model::cyclic_world::WorldSolvedBy
 #[non_exhaustive] pub enum antecedent_model::discretized_scm::DiscretizationMethod
 #[non_exhaustive] pub enum antecedent_model::history_operators::HistoryOperatorError
 #[non_exhaustive] pub enum antecedent_model::information_time::InformationRefusal
@@ -154,6 +161,28 @@ impl core::clone::Clone for antecedent_model::continuous_cyclic::TimedClamp
 impl core::clone::Clone for antecedent_model::cyclic_actions::EquilibriumAction
 impl core::clone::Clone for antecedent_model::cyclic_actions::EquilibriumActionPlan
 impl core::clone::Clone for antecedent_model::cyclic_actions::EquilibriumActionWorld
+impl core::clone::Clone for antecedent_model::cyclic_world::CertificateBasis
+impl core::clone::Clone for antecedent_model::cyclic_world::CertificateDemand
+impl core::clone::Clone for antecedent_model::cyclic_world::CertificateGap
+impl core::clone::Clone for antecedent_model::cyclic_world::ContinuousTimeSpecification
+impl core::clone::Clone for antecedent_model::cyclic_world::CyclicAction
+impl core::clone::Clone for antecedent_model::cyclic_world::CyclicInterventionRefusal
+impl core::clone::Clone for antecedent_model::cyclic_world::CyclicRefusalKind
+impl core::clone::Clone for antecedent_model::cyclic_world::CyclicVariables
+impl core::clone::Clone for antecedent_model::cyclic_world::CyclicWorldOutcome
+impl core::clone::Clone for antecedent_model::cyclic_world::CyclicWorldRequest
+impl core::clone::Clone for antecedent_model::cyclic_world::CyclicWorldResult
+impl core::clone::Clone for antecedent_model::cyclic_world::CyclicWorldResults
+impl core::clone::Clone for antecedent_model::cyclic_world::CyclicWorldSummary
+impl core::clone::Clone for antecedent_model::cyclic_world::LinearCyclicSpecification
+impl core::clone::Clone for antecedent_model::cyclic_world::MechanismReplacement
+impl core::clone::Clone for antecedent_model::cyclic_world::NonlinearCyclicSpecification
+impl core::clone::Clone for antecedent_model::cyclic_world::ResolvedCyclicWorld
+impl core::clone::Clone for antecedent_model::cyclic_world::WorldCertificate
+impl core::clone::Clone for antecedent_model::cyclic_world::WorldFailure
+impl core::clone::Clone for antecedent_model::cyclic_world::WorldFailureCause
+impl core::clone::Clone for antecedent_model::cyclic_world::WorldMass
+impl core::clone::Clone for antecedent_model::cyclic_world::WorldSolvedBy
 impl core::clone::Clone for antecedent_model::discretized_scm::ArmDiagnostic
 impl core::clone::Clone for antecedent_model::discretized_scm::BridgeRefusal
 impl core::clone::Clone for antecedent_model::discretized_scm::DiscreteArm
@@ -307,6 +336,9 @@ impl core::cmp::Eq for antecedent_model::compose::SelectionDiagramDeclaration
 impl core::cmp::Eq for antecedent_model::compose::SelectionNodeDeclaration
 impl core::cmp::Eq for antecedent_model::compose::UncertaintyMeaning
 impl core::cmp::Eq for antecedent_model::continuous_cyclic::OdeParameter
+impl core::cmp::Eq for antecedent_model::cyclic_world::CertificateDemand
+impl core::cmp::Eq for antecedent_model::cyclic_world::CyclicVariables
+impl core::cmp::Eq for antecedent_model::cyclic_world::CyclicWorldRequest
 impl core::cmp::Eq for antecedent_model::discretized_scm::DiscretizationMethod
 impl core::cmp::Eq for antecedent_model::discretized_scm::DiscretizationPlan
 impl core::cmp::Eq for antecedent_model::discretized_scm::InferenceParadigm
@@ -458,6 +490,28 @@ impl core::cmp::PartialEq for antecedent_model::continuous_cyclic::OuMoments
 impl core::cmp::PartialEq for antecedent_model::continuous_cyclic::TimedClamp
 impl core::cmp::PartialEq for antecedent_model::cyclic_actions::EquilibriumAction
 impl core::cmp::PartialEq for antecedent_model::cyclic_actions::EquilibriumActionWorld
+impl core::cmp::PartialEq for antecedent_model::cyclic_world::CertificateBasis
+impl core::cmp::PartialEq for antecedent_model::cyclic_world::CertificateDemand
+impl core::cmp::PartialEq for antecedent_model::cyclic_world::CertificateGap
+impl core::cmp::PartialEq for antecedent_model::cyclic_world::ContinuousTimeSpecification
+impl core::cmp::PartialEq for antecedent_model::cyclic_world::CyclicAction
+impl core::cmp::PartialEq for antecedent_model::cyclic_world::CyclicInterventionRefusal
+impl core::cmp::PartialEq for antecedent_model::cyclic_world::CyclicRefusalKind
+impl core::cmp::PartialEq for antecedent_model::cyclic_world::CyclicVariables
+impl core::cmp::PartialEq for antecedent_model::cyclic_world::CyclicWorldOutcome
+impl core::cmp::PartialEq for antecedent_model::cyclic_world::CyclicWorldRequest
+impl core::cmp::PartialEq for antecedent_model::cyclic_world::CyclicWorldResult
+impl core::cmp::PartialEq for antecedent_model::cyclic_world::CyclicWorldResults
+impl core::cmp::PartialEq for antecedent_model::cyclic_world::CyclicWorldSummary
+impl core::cmp::PartialEq for antecedent_model::cyclic_world::LinearCyclicSpecification
+impl core::cmp::PartialEq for antecedent_model::cyclic_world::MechanismReplacement
+impl core::cmp::PartialEq for antecedent_model::cyclic_world::NonlinearCyclicSpecification
+impl core::cmp::PartialEq for antecedent_model::cyclic_world::ResolvedCyclicWorld
+impl core::cmp::PartialEq for antecedent_model::cyclic_world::WorldCertificate
+impl core::cmp::PartialEq for antecedent_model::cyclic_world::WorldFailure
+impl core::cmp::PartialEq for antecedent_model::cyclic_world::WorldFailureCause
+impl core::cmp::PartialEq for antecedent_model::cyclic_world::WorldMass
+impl core::cmp::PartialEq for antecedent_model::cyclic_world::WorldSolvedBy
 impl core::cmp::PartialEq for antecedent_model::discretized_scm::ArmDiagnostic
 impl core::cmp::PartialEq for antecedent_model::discretized_scm::BridgeRefusal
 impl core::cmp::PartialEq for antecedent_model::discretized_scm::DiscreteArm
@@ -584,6 +638,7 @@ impl core::default::Default for antecedent_model::SelectionOptions
 impl core::default::Default for antecedent_model::ValidationSplits
 impl core::default::Default for antecedent_model::ValueBatch
 impl core::default::Default for antecedent_model::continuous_cyclic::OdePolicy
+impl core::default::Default for antecedent_model::cyclic_world::CyclicWorldResults
 impl core::default::Default for antecedent_model::equation_system::IsolationPolicy
 impl core::default::Default for antecedent_model::local_cyclic::LocalCyclicPolicy
 impl core::default::Default for antecedent_model::nonlinear_equilibrium::SolvePolicy
@@ -592,6 +647,7 @@ impl core::error::Error for antecedent_model::CyclicComponentError
 impl core::error::Error for antecedent_model::LinearSolutionError
 impl core::error::Error for antecedent_model::ModelError
 impl core::error::Error for antecedent_model::compose::CompositionError
+impl core::error::Error for antecedent_model::cyclic_world::CyclicInterventionRefusal
 impl core::error::Error for antecedent_model::discretized_scm_artifact::ArtifactRefusal
 impl core::error::Error for antecedent_model::history_operators::HistoryOperatorError
 impl core::error::Error for antecedent_model::information_time::InformationRefusal
@@ -723,6 +779,28 @@ impl core::fmt::Debug for antecedent_model::continuous_cyclic::TimedClamp
 impl core::fmt::Debug for antecedent_model::cyclic_actions::EquilibriumAction
 impl core::fmt::Debug for antecedent_model::cyclic_actions::EquilibriumActionPlan
 impl core::fmt::Debug for antecedent_model::cyclic_actions::EquilibriumActionWorld
+impl core::fmt::Debug for antecedent_model::cyclic_world::CertificateBasis
+impl core::fmt::Debug for antecedent_model::cyclic_world::CertificateDemand
+impl core::fmt::Debug for antecedent_model::cyclic_world::CertificateGap
+impl core::fmt::Debug for antecedent_model::cyclic_world::ContinuousTimeSpecification
+impl core::fmt::Debug for antecedent_model::cyclic_world::CyclicAction
+impl core::fmt::Debug for antecedent_model::cyclic_world::CyclicInterventionRefusal
+impl core::fmt::Debug for antecedent_model::cyclic_world::CyclicRefusalKind
+impl core::fmt::Debug for antecedent_model::cyclic_world::CyclicVariables
+impl core::fmt::Debug for antecedent_model::cyclic_world::CyclicWorldOutcome
+impl core::fmt::Debug for antecedent_model::cyclic_world::CyclicWorldRequest
+impl core::fmt::Debug for antecedent_model::cyclic_world::CyclicWorldResult
+impl core::fmt::Debug for antecedent_model::cyclic_world::CyclicWorldResults
+impl core::fmt::Debug for antecedent_model::cyclic_world::CyclicWorldSummary
+impl core::fmt::Debug for antecedent_model::cyclic_world::LinearCyclicSpecification
+impl core::fmt::Debug for antecedent_model::cyclic_world::MechanismReplacement
+impl core::fmt::Debug for antecedent_model::cyclic_world::NonlinearCyclicSpecification
+impl core::fmt::Debug for antecedent_model::cyclic_world::ResolvedCyclicWorld
+impl core::fmt::Debug for antecedent_model::cyclic_world::WorldCertificate
+impl core::fmt::Debug for antecedent_model::cyclic_world::WorldFailure
+impl core::fmt::Debug for antecedent_model::cyclic_world::WorldFailureCause
+impl core::fmt::Debug for antecedent_model::cyclic_world::WorldMass
+impl core::fmt::Debug for antecedent_model::cyclic_world::WorldSolvedBy
 impl core::fmt::Debug for antecedent_model::discretized_scm::ArmDiagnostic
 impl core::fmt::Debug for antecedent_model::discretized_scm::BridgeRefusal
 impl core::fmt::Debug for antecedent_model::discretized_scm::DiscreteArm
@@ -830,6 +908,8 @@ impl core::fmt::Display for antecedent_model::CyclicComponentError
 impl core::fmt::Display for antecedent_model::LinearSolutionError
 impl core::fmt::Display for antecedent_model::ModelError
 impl core::fmt::Display for antecedent_model::compose::CompositionError
+impl core::fmt::Display for antecedent_model::cyclic_world::CyclicInterventionRefusal
+impl core::fmt::Display for antecedent_model::cyclic_world::CyclicRefusalKind
 impl core::fmt::Display for antecedent_model::discretized_scm_artifact::ArtifactRefusal
 impl core::fmt::Display for antecedent_model::history_operators::HistoryOperatorError
 impl core::fmt::Display for antecedent_model::history_operators::ResponseTarget
@@ -853,6 +933,9 @@ impl core::hash::Hash for antecedent_model::SelectionPolicy
 impl core::hash::Hash for antecedent_model::SelectionRule
 impl core::hash::Hash for antecedent_model::ValidationSplits
 impl core::hash::Hash for antecedent_model::compose::CoherenceKind
+impl core::hash::Hash for antecedent_model::cyclic_world::CertificateDemand
+impl core::hash::Hash for antecedent_model::cyclic_world::CyclicVariables
+impl core::hash::Hash for antecedent_model::cyclic_world::CyclicWorldRequest
 impl core::hash::Hash for antecedent_model::discretized_scm::DiscretizationMethod
 impl core::hash::Hash for antecedent_model::discretized_scm::InferenceParadigm
 impl core::hash::Hash for antecedent_model::discretized_scm::ParityRoute
@@ -906,6 +989,8 @@ impl core::marker::Copy for antecedent_model::compose::MechanismOrigin
 impl core::marker::Copy for antecedent_model::compose::UncertaintyMeaning
 impl core::marker::Copy for antecedent_model::continuous_cyclic::OdeParameter
 impl core::marker::Copy for antecedent_model::continuous_cyclic::OdePolicy
+impl core::marker::Copy for antecedent_model::cyclic_world::CertificateDemand
+impl core::marker::Copy for antecedent_model::cyclic_world::WorldMass
 impl core::marker::Copy for antecedent_model::discretized_scm::DiscretizationMethod
 impl core::marker::Copy for antecedent_model::discretized_scm::InferenceParadigm
 impl core::marker::Copy for antecedent_model::discretized_scm::ParadigmCell
@@ -1066,6 +1151,28 @@ impl core::marker::Freeze for antecedent_model::continuous_cyclic::TimedClamp [a
 impl core::marker::Freeze for antecedent_model::cyclic_actions::EquilibriumAction [auto]
 impl core::marker::Freeze for antecedent_model::cyclic_actions::EquilibriumActionPlan [auto]
 impl core::marker::Freeze for antecedent_model::cyclic_actions::EquilibriumActionWorld [auto]
+impl core::marker::Freeze for antecedent_model::cyclic_world::CertificateBasis [auto]
+impl core::marker::Freeze for antecedent_model::cyclic_world::CertificateDemand [auto]
+impl core::marker::Freeze for antecedent_model::cyclic_world::CertificateGap [auto]
+impl core::marker::Freeze for antecedent_model::cyclic_world::ContinuousTimeSpecification [auto]
+impl core::marker::Freeze for antecedent_model::cyclic_world::CyclicAction [auto]
+impl core::marker::Freeze for antecedent_model::cyclic_world::CyclicInterventionRefusal [auto]
+impl core::marker::Freeze for antecedent_model::cyclic_world::CyclicRefusalKind [auto]
+impl core::marker::Freeze for antecedent_model::cyclic_world::CyclicVariables [auto]
+impl core::marker::Freeze for antecedent_model::cyclic_world::CyclicWorldOutcome [auto]
+impl core::marker::Freeze for antecedent_model::cyclic_world::CyclicWorldRequest [auto]
+impl core::marker::Freeze for antecedent_model::cyclic_world::CyclicWorldResult [auto]
+impl core::marker::Freeze for antecedent_model::cyclic_world::CyclicWorldResults [auto]
+impl core::marker::Freeze for antecedent_model::cyclic_world::CyclicWorldSummary [auto]
+impl core::marker::Freeze for antecedent_model::cyclic_world::LinearCyclicSpecification [auto]
+impl core::marker::Freeze for antecedent_model::cyclic_world::MechanismReplacement [auto]
+impl core::marker::Freeze for antecedent_model::cyclic_world::NonlinearCyclicSpecification [auto]
+impl core::marker::Freeze for antecedent_model::cyclic_world::ResolvedCyclicWorld [auto]
+impl core::marker::Freeze for antecedent_model::cyclic_world::WorldCertificate [auto]
+impl core::marker::Freeze for antecedent_model::cyclic_world::WorldFailure [auto]
+impl core::marker::Freeze for antecedent_model::cyclic_world::WorldFailureCause [auto]
+impl core::marker::Freeze for antecedent_model::cyclic_world::WorldMass [auto]
+impl core::marker::Freeze for antecedent_model::cyclic_world::WorldSolvedBy [auto]
 impl core::marker::Freeze for antecedent_model::discretized_scm::ArmDiagnostic [auto]
 impl core::marker::Freeze for antecedent_model::discretized_scm::BridgeRefusal [auto]
 impl core::marker::Freeze for antecedent_model::discretized_scm::DiscreteArm [auto]
@@ -1293,6 +1400,28 @@ impl core::marker::Send for antecedent_model::continuous_cyclic::TimedClamp [aut
 impl core::marker::Send for antecedent_model::cyclic_actions::EquilibriumAction [auto]
 impl core::marker::Send for antecedent_model::cyclic_actions::EquilibriumActionPlan [auto]
 impl core::marker::Send for antecedent_model::cyclic_actions::EquilibriumActionWorld [auto]
+impl core::marker::Send for antecedent_model::cyclic_world::CertificateBasis [auto]
+impl core::marker::Send for antecedent_model::cyclic_world::CertificateDemand [auto]
+impl core::marker::Send for antecedent_model::cyclic_world::CertificateGap [auto]
+impl core::marker::Send for antecedent_model::cyclic_world::ContinuousTimeSpecification [auto]
+impl core::marker::Send for antecedent_model::cyclic_world::CyclicAction [auto]
+impl core::marker::Send for antecedent_model::cyclic_world::CyclicInterventionRefusal [auto]
+impl core::marker::Send for antecedent_model::cyclic_world::CyclicRefusalKind [auto]
+impl core::marker::Send for antecedent_model::cyclic_world::CyclicVariables [auto]
+impl core::marker::Send for antecedent_model::cyclic_world::CyclicWorldOutcome [auto]
+impl core::marker::Send for antecedent_model::cyclic_world::CyclicWorldRequest [auto]
+impl core::marker::Send for antecedent_model::cyclic_world::CyclicWorldResult [auto]
+impl core::marker::Send for antecedent_model::cyclic_world::CyclicWorldResults [auto]
+impl core::marker::Send for antecedent_model::cyclic_world::CyclicWorldSummary [auto]
+impl core::marker::Send for antecedent_model::cyclic_world::LinearCyclicSpecification [auto]
+impl core::marker::Send for antecedent_model::cyclic_world::MechanismReplacement [auto]
+impl core::marker::Send for antecedent_model::cyclic_world::NonlinearCyclicSpecification [auto]
+impl core::marker::Send for antecedent_model::cyclic_world::ResolvedCyclicWorld [auto]
+impl core::marker::Send for antecedent_model::cyclic_world::WorldCertificate [auto]
+impl core::marker::Send for antecedent_model::cyclic_world::WorldFailure [auto]
+impl core::marker::Send for antecedent_model::cyclic_world::WorldFailureCause [auto]
+impl core::marker::Send for antecedent_model::cyclic_world::WorldMass [auto]
+impl core::marker::Send for antecedent_model::cyclic_world::WorldSolvedBy [auto]
 impl core::marker::Send for antecedent_model::discretized_scm::ArmDiagnostic [auto]
 impl core::marker::Send for antecedent_model::discretized_scm::BridgeRefusal [auto]
 impl core::marker::Send for antecedent_model::discretized_scm::DiscreteArm [auto]
@@ -1487,6 +1616,28 @@ impl core::marker::StructuralPartialEq for antecedent_model::continuous_cyclic::
 impl core::marker::StructuralPartialEq for antecedent_model::continuous_cyclic::TimedClamp
 impl core::marker::StructuralPartialEq for antecedent_model::cyclic_actions::EquilibriumAction
 impl core::marker::StructuralPartialEq for antecedent_model::cyclic_actions::EquilibriumActionWorld
+impl core::marker::StructuralPartialEq for antecedent_model::cyclic_world::CertificateBasis
+impl core::marker::StructuralPartialEq for antecedent_model::cyclic_world::CertificateDemand
+impl core::marker::StructuralPartialEq for antecedent_model::cyclic_world::CertificateGap
+impl core::marker::StructuralPartialEq for antecedent_model::cyclic_world::ContinuousTimeSpecification
+impl core::marker::StructuralPartialEq for antecedent_model::cyclic_world::CyclicAction
+impl core::marker::StructuralPartialEq for antecedent_model::cyclic_world::CyclicInterventionRefusal
+impl core::marker::StructuralPartialEq for antecedent_model::cyclic_world::CyclicRefusalKind
+impl core::marker::StructuralPartialEq for antecedent_model::cyclic_world::CyclicVariables
+impl core::marker::StructuralPartialEq for antecedent_model::cyclic_world::CyclicWorldOutcome
+impl core::marker::StructuralPartialEq for antecedent_model::cyclic_world::CyclicWorldRequest
+impl core::marker::StructuralPartialEq for antecedent_model::cyclic_world::CyclicWorldResult
+impl core::marker::StructuralPartialEq for antecedent_model::cyclic_world::CyclicWorldResults
+impl core::marker::StructuralPartialEq for antecedent_model::cyclic_world::CyclicWorldSummary
+impl core::marker::StructuralPartialEq for antecedent_model::cyclic_world::LinearCyclicSpecification
+impl core::marker::StructuralPartialEq for antecedent_model::cyclic_world::MechanismReplacement
+impl core::marker::StructuralPartialEq for antecedent_model::cyclic_world::NonlinearCyclicSpecification
+impl core::marker::StructuralPartialEq for antecedent_model::cyclic_world::ResolvedCyclicWorld
+impl core::marker::StructuralPartialEq for antecedent_model::cyclic_world::WorldCertificate
+impl core::marker::StructuralPartialEq for antecedent_model::cyclic_world::WorldFailure
+impl core::marker::StructuralPartialEq for antecedent_model::cyclic_world::WorldFailureCause
+impl core::marker::StructuralPartialEq for antecedent_model::cyclic_world::WorldMass
+impl core::marker::StructuralPartialEq for antecedent_model::cyclic_world::WorldSolvedBy
 impl core::marker::StructuralPartialEq for antecedent_model::discretized_scm::ArmDiagnostic
 impl core::marker::StructuralPartialEq for antecedent_model::discretized_scm::BridgeRefusal
 impl core::marker::StructuralPartialEq for antecedent_model::discretized_scm::DiscreteArm
@@ -1707,6 +1858,28 @@ impl core::marker::Sync for antecedent_model::continuous_cyclic::TimedClamp [aut
 impl core::marker::Sync for antecedent_model::cyclic_actions::EquilibriumAction [auto]
 impl core::marker::Sync for antecedent_model::cyclic_actions::EquilibriumActionPlan [auto]
 impl core::marker::Sync for antecedent_model::cyclic_actions::EquilibriumActionWorld [auto]
+impl core::marker::Sync for antecedent_model::cyclic_world::CertificateBasis [auto]
+impl core::marker::Sync for antecedent_model::cyclic_world::CertificateDemand [auto]
+impl core::marker::Sync for antecedent_model::cyclic_world::CertificateGap [auto]
+impl core::marker::Sync for antecedent_model::cyclic_world::ContinuousTimeSpecification [auto]
+impl core::marker::Sync for antecedent_model::cyclic_world::CyclicAction [auto]
+impl core::marker::Sync for antecedent_model::cyclic_world::CyclicInterventionRefusal [auto]
+impl core::marker::Sync for antecedent_model::cyclic_world::CyclicRefusalKind [auto]
+impl core::marker::Sync for antecedent_model::cyclic_world::CyclicVariables [auto]
+impl core::marker::Sync for antecedent_model::cyclic_world::CyclicWorldOutcome [auto]
+impl core::marker::Sync for antecedent_model::cyclic_world::CyclicWorldRequest [auto]
+impl core::marker::Sync for antecedent_model::cyclic_world::CyclicWorldResult [auto]
+impl core::marker::Sync for antecedent_model::cyclic_world::CyclicWorldResults [auto]
+impl core::marker::Sync for antecedent_model::cyclic_world::CyclicWorldSummary [auto]
+impl core::marker::Sync for antecedent_model::cyclic_world::LinearCyclicSpecification [auto]
+impl core::marker::Sync for antecedent_model::cyclic_world::MechanismReplacement [auto]
+impl core::marker::Sync for antecedent_model::cyclic_world::NonlinearCyclicSpecification [auto]
+impl core::marker::Sync for antecedent_model::cyclic_world::ResolvedCyclicWorld [auto]
+impl core::marker::Sync for antecedent_model::cyclic_world::WorldCertificate [auto]
+impl core::marker::Sync for antecedent_model::cyclic_world::WorldFailure [auto]
+impl core::marker::Sync for antecedent_model::cyclic_world::WorldFailureCause [auto]
+impl core::marker::Sync for antecedent_model::cyclic_world::WorldMass [auto]
+impl core::marker::Sync for antecedent_model::cyclic_world::WorldSolvedBy [auto]
 impl core::marker::Sync for antecedent_model::discretized_scm::ArmDiagnostic [auto]
 impl core::marker::Sync for antecedent_model::discretized_scm::BridgeRefusal [auto]
 impl core::marker::Sync for antecedent_model::discretized_scm::DiscreteArm [auto]
@@ -1934,6 +2107,28 @@ impl core::marker::Unpin for antecedent_model::continuous_cyclic::TimedClamp [au
 impl core::marker::Unpin for antecedent_model::cyclic_actions::EquilibriumAction [auto]
 impl core::marker::Unpin for antecedent_model::cyclic_actions::EquilibriumActionPlan [auto]
 impl core::marker::Unpin for antecedent_model::cyclic_actions::EquilibriumActionWorld [auto]
+impl core::marker::Unpin for antecedent_model::cyclic_world::CertificateBasis [auto]
+impl core::marker::Unpin for antecedent_model::cyclic_world::CertificateDemand [auto]
+impl core::marker::Unpin for antecedent_model::cyclic_world::CertificateGap [auto]
+impl core::marker::Unpin for antecedent_model::cyclic_world::ContinuousTimeSpecification [auto]
+impl core::marker::Unpin for antecedent_model::cyclic_world::CyclicAction [auto]
+impl core::marker::Unpin for antecedent_model::cyclic_world::CyclicInterventionRefusal [auto]
+impl core::marker::Unpin for antecedent_model::cyclic_world::CyclicRefusalKind [auto]
+impl core::marker::Unpin for antecedent_model::cyclic_world::CyclicVariables [auto]
+impl core::marker::Unpin for antecedent_model::cyclic_world::CyclicWorldOutcome [auto]
+impl core::marker::Unpin for antecedent_model::cyclic_world::CyclicWorldRequest [auto]
+impl core::marker::Unpin for antecedent_model::cyclic_world::CyclicWorldResult [auto]
+impl core::marker::Unpin for antecedent_model::cyclic_world::CyclicWorldResults [auto]
+impl core::marker::Unpin for antecedent_model::cyclic_world::CyclicWorldSummary [auto]
+impl core::marker::Unpin for antecedent_model::cyclic_world::LinearCyclicSpecification [auto]
+impl core::marker::Unpin for antecedent_model::cyclic_world::MechanismReplacement [auto]
+impl core::marker::Unpin for antecedent_model::cyclic_world::NonlinearCyclicSpecification [auto]
+impl core::marker::Unpin for antecedent_model::cyclic_world::ResolvedCyclicWorld [auto]
+impl core::marker::Unpin for antecedent_model::cyclic_world::WorldCertificate [auto]
+impl core::marker::Unpin for antecedent_model::cyclic_world::WorldFailure [auto]
+impl core::marker::Unpin for antecedent_model::cyclic_world::WorldFailureCause [auto]
+impl core::marker::Unpin for antecedent_model::cyclic_world::WorldMass [auto]
+impl core::marker::Unpin for antecedent_model::cyclic_world::WorldSolvedBy [auto]
 impl core::marker::Unpin for antecedent_model::discretized_scm::ArmDiagnostic [auto]
 impl core::marker::Unpin for antecedent_model::discretized_scm::BridgeRefusal [auto]
 impl core::marker::Unpin for antecedent_model::discretized_scm::DiscreteArm [auto]
@@ -2153,6 +2348,28 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::continuous_cy
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::cyclic_actions::EquilibriumAction [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::cyclic_actions::EquilibriumActionPlan [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::cyclic_actions::EquilibriumActionWorld [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::cyclic_world::CertificateBasis [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::cyclic_world::CertificateDemand [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::cyclic_world::CertificateGap [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::cyclic_world::ContinuousTimeSpecification [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::cyclic_world::CyclicAction [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::cyclic_world::CyclicInterventionRefusal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::cyclic_world::CyclicRefusalKind [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::cyclic_world::CyclicVariables [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::cyclic_world::CyclicWorldOutcome [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::cyclic_world::CyclicWorldRequest [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::cyclic_world::CyclicWorldResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::cyclic_world::CyclicWorldResults [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::cyclic_world::CyclicWorldSummary [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::cyclic_world::LinearCyclicSpecification [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::cyclic_world::MechanismReplacement [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::cyclic_world::NonlinearCyclicSpecification [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::cyclic_world::ResolvedCyclicWorld [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::cyclic_world::WorldCertificate [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::cyclic_world::WorldFailure [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::cyclic_world::WorldFailureCause [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::cyclic_world::WorldMass [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::cyclic_world::WorldSolvedBy [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::discretized_scm::ArmDiagnostic [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::discretized_scm::BridgeRefusal [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::discretized_scm::DiscreteArm [auto]
@@ -2371,6 +2588,28 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_model::continuous_cycli
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::cyclic_actions::EquilibriumAction [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::cyclic_actions::EquilibriumActionPlan [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::cyclic_actions::EquilibriumActionWorld [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::cyclic_world::CertificateBasis [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::cyclic_world::CertificateDemand [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::cyclic_world::CertificateGap [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::cyclic_world::ContinuousTimeSpecification [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::cyclic_world::CyclicAction [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::cyclic_world::CyclicInterventionRefusal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::cyclic_world::CyclicRefusalKind [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::cyclic_world::CyclicVariables [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::cyclic_world::CyclicWorldOutcome [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::cyclic_world::CyclicWorldRequest [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::cyclic_world::CyclicWorldResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::cyclic_world::CyclicWorldResults [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::cyclic_world::CyclicWorldSummary [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::cyclic_world::LinearCyclicSpecification [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::cyclic_world::MechanismReplacement [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::cyclic_world::NonlinearCyclicSpecification [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::cyclic_world::ResolvedCyclicWorld [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::cyclic_world::WorldCertificate [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::cyclic_world::WorldFailure [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::cyclic_world::WorldFailureCause [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::cyclic_world::WorldMass [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::cyclic_world::WorldSolvedBy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::discretized_scm::ArmDiagnostic [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::discretized_scm::BridgeRefusal [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::discretized_scm::DiscreteArm [auto]
@@ -2634,7 +2873,11 @@ impl<M, G> core::marker::Unpin for antecedent_model::local_cyclic::DynamicCyclic
 impl<M, G> core::panic::unwind_safe::RefUnwindSafe for antecedent_model::local_cyclic::DynamicCyclicAdapter<M, G> where G: core::panic::unwind_safe::RefUnwindSafe, M: core::panic::unwind_safe::RefUnwindSafe [auto]
 impl<M, G> core::panic::unwind_safe::UnwindSafe for antecedent_model::local_cyclic::DynamicCyclicAdapter<M, G> where G: core::panic::unwind_safe::UnwindSafe, M: core::panic::unwind_safe::UnwindSafe [auto]
 pub const <antecedent_model::compose::CoherenceKind>::ALL: [antecedent_model::compose::CoherenceKind; 15]
+pub const <antecedent_model::cyclic_world::WorldMass>::FAILED: Self
+pub const <antecedent_model::cyclic_world::WorldMass>::SOLVED: Self
+pub const <antecedent_model::cyclic_world::WorldMass>::WITHHELD: Self
 pub const <antecedent_model::discretized_scm::ParityRoute>::ALL: [Self; 15]
+pub const <antecedent_model::observation_query::Direction>::ALL: [Self; 2]
 pub const antecedent_model::CYCLE_GATE_NEXT_ATTEMPT: &str
 pub const antecedent_model::DEFAULT_MAX_CI_TESTS: usize
 pub const antecedent_model::FREE_BLOCK_EQUATION: &str
@@ -2656,6 +2899,29 @@ pub const antecedent_model::compose::MAX_SAMPLE_CELLS: usize
 pub const antecedent_model::compose::MECHANISM_DESCRIPTOR_VERSION: u32
 pub const antecedent_model::cyclic_component::DAG_EQUILIBRIUM_ATTEMPT: &str
 pub const antecedent_model::cyclic_component::SCC_COMPILE_ATTEMPT: &str
+pub const antecedent_model::cyclic_world::BIND_VARIABLE_ATTEMPT: antecedent_core::refusal::NextAttempt
+pub const antecedent_model::cyclic_world::BLOCK_CONTRACTION_ATTEMPT: antecedent_core::refusal::NextAttempt
+pub const antecedent_model::cyclic_world::CERTIFYING_EVIDENCE_ATTEMPT: antecedent_core::refusal::NextAttempt
+pub const antecedent_model::cyclic_world::DECLARED_INITIAL_LAW_ATTEMPT: antecedent_core::refusal::NextAttempt
+pub const antecedent_model::cyclic_world::DISTINCT_WORLD_ATTEMPT: antecedent_core::refusal::NextAttempt
+pub const antecedent_model::cyclic_world::EXECUTION_ATTEMPT: antecedent_core::refusal::NextAttempt
+pub const antecedent_model::cyclic_world::FINITE_FLOAT_LEVEL_ATTEMPT: antecedent_core::refusal::NextAttempt
+pub const antecedent_model::cyclic_world::INTEGRATION_FAILURE_ATTEMPT: antecedent_core::refusal::NextAttempt
+pub const antecedent_model::cyclic_world::NONZERO_DIAGONAL_ATTEMPT: antecedent_core::refusal::NextAttempt
+pub const antecedent_model::cyclic_world::ONE_ACTION_PER_VARIABLE_ATTEMPT: antecedent_core::refusal::NextAttempt
+pub const antecedent_model::cyclic_world::QUERY_SPECIFIC_CERTIFICATE_ATTEMPT: antecedent_core::refusal::NextAttempt
+pub const antecedent_model::cyclic_world::RANK_REVEALING_FACTOR_ATTEMPT: antecedent_core::refusal::NextAttempt
+pub const antecedent_model::cyclic_world::RESCALE_COEFFICIENTS_ATTEMPT: antecedent_core::refusal::NextAttempt
+pub const antecedent_model::cyclic_world::RETAINED_FAILED_DRAWS_ATTEMPT: antecedent_core::refusal::NextAttempt
+pub const antecedent_model::cyclic_world::SELECTION_OR_DYNAMIC_LAW_ATTEMPT: antecedent_core::refusal::NextAttempt
+pub const antecedent_model::cyclic_world::SOFT_ADDITIVE_SHIFT: &str
+pub const antecedent_model::cyclic_world::SOFT_CONSTANT: &str
+pub const antecedent_model::cyclic_world::SOFT_LINEAR_MECHANISM: &str
+pub const antecedent_model::cyclic_world::SOFT_PARAMETER_SHAPE_ATTEMPT: antecedent_core::refusal::NextAttempt
+pub const antecedent_model::cyclic_world::SUPPORTED_SOFT_FAMILY_ATTEMPT: antecedent_core::refusal::NextAttempt
+pub const antecedent_model::cyclic_world::VALIDATED_INTEGRATION_ATTEMPT: antecedent_core::refusal::NextAttempt
+pub const antecedent_model::cyclic_world::WELL_FORMED_INTERVENTION_ATTEMPT: antecedent_core::refusal::NextAttempt
+pub const antecedent_model::cyclic_world::WELL_FORMED_SPECIFICATION_ATTEMPT: antecedent_core::refusal::NextAttempt
 pub const antecedent_model::discretized_scm::BRIDGE_CALIBRATION: &str
 pub const antecedent_model::discretized_scm::BRIDGE_ERROR_SCOPE: &str
 pub const antecedent_model::discretized_scm::BRIDGE_INFERENCE: &str
@@ -2743,6 +3009,9 @@ pub enum antecedent_model::compose::PosteriorDependence
 pub enum antecedent_model::compose::UncertaintyMeaning
 pub enum antecedent_model::continuous_cyclic::OdeParameter
 pub enum antecedent_model::cyclic_actions::EquilibriumAction
+pub enum antecedent_model::cyclic_world::CertificateDemand
+pub enum antecedent_model::cyclic_world::MechanismReplacement
+pub enum antecedent_model::cyclic_world::WorldCertificate
 pub enum antecedent_model::discretized_scm::InferenceParadigm
 pub enum antecedent_model::discretized_scm::ParadigmCell
 pub enum antecedent_model::discretized_scm::ParityRoute
@@ -3046,6 +3315,23 @@ pub field antecedent_model::continuous_cyclic::TimedClamp::clamps: alloc::vec::V
 pub field antecedent_model::continuous_cyclic::TimedClamp::time: f64
 pub field antecedent_model::cyclic_actions::EquilibriumActionWorld::actions: alloc::vec::Vec<antecedent_model::cyclic_actions::EquilibriumAction>
 pub field antecedent_model::cyclic_actions::EquilibriumActionWorld::id: alloc::string::String
+pub field antecedent_model::cyclic_world::CyclicInterventionRefusal::family: core::option::Option<antecedent_core::intervention::CyclicFamily>
+pub field antecedent_model::cyclic_world::CyclicInterventionRefusal::kind: antecedent_model::cyclic_world::CyclicRefusalKind
+pub field antecedent_model::cyclic_world::CyclicInterventionRefusal::next_attempt: antecedent_core::refusal::NextAttempt
+pub field antecedent_model::cyclic_world::CyclicInterventionRefusal::operation: &'static str
+pub field antecedent_model::cyclic_world::CyclicInterventionRefusal::world: core::option::Option<antecedent_core::scientific_target::model::ScientificWorldId>
+pub field antecedent_model::cyclic_world::CyclicWorldSummary::certificate_gap: core::option::Option<&'static str>
+pub field antecedent_model::cyclic_world::CyclicWorldSummary::certified: bool
+pub field antecedent_model::cyclic_world::CyclicWorldSummary::failed_mass: f64
+pub field antecedent_model::cyclic_world::CyclicWorldSummary::family: antecedent_core::intervention::CyclicFamily
+pub field antecedent_model::cyclic_world::CyclicWorldSummary::means: core::option::Option<alloc::vec::Vec<(antecedent_core::ids::VariableId, f64)>>
+pub field antecedent_model::cyclic_world::CyclicWorldSummary::next_attempt: core::option::Option<antecedent_core::refusal::NextAttempt>
+pub field antecedent_model::cyclic_world::CyclicWorldSummary::solved_by: &'static str
+pub field antecedent_model::cyclic_world::CyclicWorldSummary::variances: core::option::Option<alloc::vec::Vec<(antecedent_core::ids::VariableId, f64)>>
+pub field antecedent_model::cyclic_world::CyclicWorldSummary::withheld_mass: f64
+pub field antecedent_model::cyclic_world::CyclicWorldSummary::world: antecedent_core::scientific_target::model::ScientificWorldId
+pub field antecedent_model::cyclic_world::WorldFailure::cause: antecedent_model::cyclic_world::WorldFailureCause
+pub field antecedent_model::cyclic_world::WorldFailure::next_attempt: antecedent_core::refusal::NextAttempt
 pub field antecedent_model::discretized_scm::ArmDiagnostic::closed_form_mean: f64
 pub field antecedent_model::discretized_scm::ArmDiagnostic::discretized_mean: f64
 pub field antecedent_model::discretized_scm::ArmDiagnostic::mean_error_bound: f64
@@ -3098,9 +3384,9 @@ pub field antecedent_model::equation_system::PolynomialSystem::variables: alloc:
 pub field antecedent_model::history_operators::DelayedFeedbackRequest::ancestry_steps: u32
 pub field antecedent_model::history_operators::DelayedFeedbackRequest::cadence: antecedent_data::temporal::TimeIndex
 pub field antecedent_model::history_operators::DelayedFeedbackRequest::delay: core::option::Option<antecedent_model::history_operators::FeedbackDelay>
-pub field antecedent_model::history_operators::DelayedFeedbackRequest::history: antecedent_core::scientific_target::HistoryWindow
+pub field antecedent_model::history_operators::DelayedFeedbackRequest::history: antecedent_core::scientific_target::model::HistoryWindow
 pub field antecedent_model::history_operators::DelayedFeedbackRequest::horizon: antecedent_model::history_operators::Horizon
-pub field antecedent_model::history_operators::DelayedFeedbackRequest::initial_law: antecedent_core::scientific_target::InitialLaw
+pub field antecedent_model::history_operators::DelayedFeedbackRequest::initial_law: antecedent_core::scientific_target::model::InitialLaw
 pub field antecedent_model::history_operators::DelayedFeedbackRequest::initial_state_change: core::option::Option<antecedent_model::history_operators::InitialStateChange>
 pub field antecedent_model::history_operators::DelayedFeedbackRequest::intervention: antecedent_core::intervention::Intervention
 pub field antecedent_model::history_operators::DelayedFeedbackRequest::search_cap: core::option::Option<antecedent_model::history_operators::FeedbackSearchCap>
@@ -3416,6 +3702,62 @@ pub fn <antecedent_model::continuous_cyclic::OrnsteinUhlenbeck>::fn stationary_i
 pub fn <antecedent_model::continuous_cyclic::OrnsteinUhlenbeck>::fn stationary_log_likelihood(&self, rows: &[antecedent_model::nonlinear_equilibrium::RegimeRow], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<f64, antecedent_model::nonlinear_equilibrium::EquilibriumError>
 pub fn <antecedent_model::cyclic_actions::EquilibriumActionPlan>::fn blocks(&self) -> core::result::Result<alloc::vec::Vec<alloc::vec::Vec<usize>>, antecedent_model::nonlinear_equilibrium::EquilibriumError>
 pub fn <antecedent_model::cyclic_actions::EquilibriumActionPlan>::fn solve(&self, noise: &[f64], initial: &[f64], policy: antecedent_model::nonlinear_equilibrium::SolvePolicy, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::nonlinear_equilibrium::EquilibriumOutcome, antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn <antecedent_model::cyclic_world::ContinuousTimeSpecification>::const fn variables(&self) -> &antecedent_model::cyclic_world::CyclicVariables
+pub fn <antecedent_model::cyclic_world::ContinuousTimeSpecification>::fn initial_laws(&self) -> &[alloc::sync::Arc<str>]
+pub fn <antecedent_model::cyclic_world::ContinuousTimeSpecification>::fn times(&self) -> &[f64]
+pub fn <antecedent_model::cyclic_world::ContinuousTimeSpecification>::fn try_new(variables: antecedent_model::cyclic_world::CyclicVariables, system: antecedent_model::continuous_cyclic::OdeSystem, initial_state: alloc::vec::Vec<f64>, initial_laws: alloc::vec::Vec<alloc::sync::Arc<str>>, times: alloc::vec::Vec<f64>) -> core::result::Result<Self, antecedent_model::cyclic_world::CyclicInterventionRefusal>
+pub fn <antecedent_model::cyclic_world::CyclicAction>::const fn kind(&self) -> &'static str
+pub fn <antecedent_model::cyclic_world::CyclicAction>::const fn node(&self) -> usize
+pub fn <antecedent_model::cyclic_world::CyclicAction>::const fn variable(&self) -> antecedent_core::ids::VariableId
+pub fn <antecedent_model::cyclic_world::CyclicVariables>::fn ids(&self) -> &[antecedent_core::ids::VariableId]
+pub fn <antecedent_model::cyclic_world::CyclicVariables>::fn is_empty(&self) -> bool
+pub fn <antecedent_model::cyclic_world::CyclicVariables>::fn len(&self) -> usize
+pub fn <antecedent_model::cyclic_world::CyclicVariables>::fn position(&self, variable: antecedent_core::ids::VariableId) -> core::option::Option<usize>
+pub fn <antecedent_model::cyclic_world::CyclicVariables>::fn try_new(ids: alloc::vec::Vec<antecedent_core::ids::VariableId>) -> core::result::Result<Self, antecedent_model::cyclic_world::CyclicInterventionRefusal>
+pub fn <antecedent_model::cyclic_world::CyclicWorldRequest>::const fn temporal(&self) -> core::option::Option<&antecedent_core::intervention::TemporalPolicy>
+pub fn <antecedent_model::cyclic_world::CyclicWorldRequest>::const fn world(&self) -> antecedent_core::scientific_target::model::ScientificWorldId
+pub fn <antecedent_model::cyclic_world::CyclicWorldRequest>::fn from_action(world: antecedent_core::scientific_target::model::ScientificWorldId, action: &antecedent_core::scientific_target::model::WorldAction) -> Self
+pub fn <antecedent_model::cyclic_world::CyclicWorldRequest>::fn initial_states(&self) -> &[antecedent_core::intervention::InterventionOperation]
+pub fn <antecedent_model::cyclic_world::CyclicWorldRequest>::fn interventions(&self) -> &[antecedent_core::intervention::Intervention]
+pub fn <antecedent_model::cyclic_world::CyclicWorldRequest>::fn new(world: antecedent_core::scientific_target::model::ScientificWorldId, interventions: impl core::iter::traits::collect::IntoIterator<Item = antecedent_core::intervention::Intervention>) -> Self
+pub fn <antecedent_model::cyclic_world::CyclicWorldRequest>::fn observational(world: antecedent_core::scientific_target::model::ScientificWorldId) -> Self
+pub fn <antecedent_model::cyclic_world::CyclicWorldRequest>::fn timed(self, policy: antecedent_core::intervention::TemporalPolicy) -> Self
+pub fn <antecedent_model::cyclic_world::CyclicWorldRequest>::fn with_initial_state(self, law_name: impl core::convert::Into<alloc::sync::Arc<str>>, level: f64) -> core::result::Result<Self, antecedent_model::cyclic_world::CyclicInterventionRefusal>
+pub fn <antecedent_model::cyclic_world::CyclicWorldResult>::const fn certificate(&self) -> &antecedent_model::cyclic_world::WorldCertificate
+pub fn <antecedent_model::cyclic_world::CyclicWorldResult>::const fn family(&self) -> antecedent_core::intervention::CyclicFamily
+pub fn <antecedent_model::cyclic_world::CyclicWorldResult>::const fn mass(&self) -> antecedent_model::cyclic_world::WorldMass
+pub fn <antecedent_model::cyclic_world::CyclicWorldResult>::const fn outcome(&self) -> &antecedent_model::cyclic_world::CyclicWorldOutcome
+pub fn <antecedent_model::cyclic_world::CyclicWorldResult>::const fn physical_stability(&self) -> antecedent_model::PhysicalStability
+pub fn <antecedent_model::cyclic_world::CyclicWorldResult>::const fn request(&self) -> &antecedent_model::cyclic_world::CyclicWorldRequest
+pub fn <antecedent_model::cyclic_world::CyclicWorldResult>::const fn solved_by(&self) -> &antecedent_model::cyclic_world::WorldSolvedBy
+pub fn <antecedent_model::cyclic_world::CyclicWorldResult>::const fn world(&self) -> antecedent_core::scientific_target::model::ScientificWorldId
+pub fn <antecedent_model::cyclic_world::CyclicWorldResult>::fn actions(&self) -> &[antecedent_model::cyclic_world::CyclicAction]
+pub fn <antecedent_model::cyclic_world::CyclicWorldResult>::fn mean_of(&self, variable: antecedent_core::ids::VariableId) -> core::option::Option<f64>
+pub fn <antecedent_model::cyclic_world::CyclicWorldResult>::fn summary(&self) -> antecedent_model::cyclic_world::CyclicWorldSummary
+pub fn <antecedent_model::cyclic_world::CyclicWorldResult>::fn variables(&self) -> &[antecedent_core::ids::VariableId]
+pub fn <antecedent_model::cyclic_world::CyclicWorldResults>::fn get(&self, world: antecedent_core::scientific_target::model::ScientificWorldId) -> core::option::Option<&antecedent_model::cyclic_world::CyclicWorldResult>
+pub fn <antecedent_model::cyclic_world::CyclicWorldResults>::fn is_empty(&self) -> bool
+pub fn <antecedent_model::cyclic_world::CyclicWorldResults>::fn iter(&self) -> alloc::collections::btree::map::Iter<'_, antecedent_core::scientific_target::model::ScientificWorldId, antecedent_model::cyclic_world::CyclicWorldResult>
+pub fn <antecedent_model::cyclic_world::CyclicWorldResults>::fn len(&self) -> usize
+pub fn <antecedent_model::cyclic_world::CyclicWorldResults>::fn summaries(&self) -> alloc::vec::Vec<antecedent_model::cyclic_world::CyclicWorldSummary>
+pub fn <antecedent_model::cyclic_world::CyclicWorldResults>::fn try_from_results(results: impl core::iter::traits::collect::IntoIterator<Item = antecedent_model::cyclic_world::CyclicWorldResult>) -> core::result::Result<Self, antecedent_model::cyclic_world::CyclicInterventionRefusal>
+pub fn <antecedent_model::cyclic_world::LinearCyclicSpecification>::const fn disturbance(&self) -> &antecedent_model::scc_compile::GaussianDisturbance
+pub fn <antecedent_model::cyclic_world::LinearCyclicSpecification>::const fn model(&self) -> &antecedent_model::LinearStructuralMap
+pub fn <antecedent_model::cyclic_world::LinearCyclicSpecification>::const fn variables(&self) -> &antecedent_model::cyclic_world::CyclicVariables
+pub fn <antecedent_model::cyclic_world::LinearCyclicSpecification>::fn try_new(variables: antecedent_model::cyclic_world::CyclicVariables, model: antecedent_model::LinearStructuralMap, disturbance: antecedent_model::scc_compile::GaussianDisturbance, component_id: &str, source_id: &str, certifying_evidence: &[&str]) -> core::result::Result<Self, antecedent_model::cyclic_world::CyclicInterventionRefusal>
+pub fn <antecedent_model::cyclic_world::NonlinearCyclicSpecification>::const fn model(&self) -> &antecedent_model::nonlinear_equilibrium::EquilibriumModel
+pub fn <antecedent_model::cyclic_world::NonlinearCyclicSpecification>::const fn variables(&self) -> &antecedent_model::cyclic_world::CyclicVariables
+pub fn <antecedent_model::cyclic_world::NonlinearCyclicSpecification>::fn try_new(variables: antecedent_model::cyclic_world::CyclicVariables, model: antecedent_model::nonlinear_equilibrium::EquilibriumModel) -> core::result::Result<Self, antecedent_model::cyclic_world::CyclicInterventionRefusal>
+pub fn <antecedent_model::cyclic_world::ResolvedCyclicWorld>::const fn family(&self) -> antecedent_core::intervention::CyclicFamily
+pub fn <antecedent_model::cyclic_world::ResolvedCyclicWorld>::const fn world(&self) -> antecedent_core::scientific_target::model::ScientificWorldId
+pub fn <antecedent_model::cyclic_world::ResolvedCyclicWorld>::fn actions(&self) -> &[antecedent_model::cyclic_world::CyclicAction]
+pub fn <antecedent_model::cyclic_world::WorldCertificate>::const fn gap(&self) -> core::option::Option<&antecedent_model::cyclic_world::CertificateGap>
+pub fn <antecedent_model::cyclic_world::WorldCertificate>::const fn is_certified(&self) -> bool
+pub fn <antecedent_model::cyclic_world::WorldCertificate>::const fn next_attempt(&self) -> core::option::Option<antecedent_core::refusal::NextAttempt>
+pub fn <antecedent_model::cyclic_world::WorldMass>::const fn failed(self) -> f64
+pub fn <antecedent_model::cyclic_world::WorldMass>::const fn withheld(self) -> f64
+pub fn <antecedent_model::cyclic_world::WorldMass>::fn solved(self) -> f64
+pub fn <antecedent_model::cyclic_world::WorldSolvedBy>::const fn as_str(&self) -> &'static str
 pub fn <antecedent_model::discretized_scm::DiscretizationMethod>::const fn as_str(self) -> &'static str
 pub fn <antecedent_model::discretized_scm::DiscretizationPlan>::fn uniform(method: antecedent_model::discretized_scm::DiscretizationMethod, variables: &[alloc::string::String], levels: usize) -> Self
 pub fn <antecedent_model::discretized_scm::DiscretizedLinearGaussian>::fn cell_edges(&self, variable: &str) -> core::option::Option<&[f64]>
@@ -3445,26 +3787,26 @@ pub fn <antecedent_model::equation_system::PolynomialSystem>::fn replace_equatio
 pub fn <antecedent_model::equation_system::PolynomialSystem>::fn validate(&self) -> core::result::Result<(), antecedent_model::nonlinear_equilibrium::EquilibriumError>
 pub fn <antecedent_model::history_operators::ActionTiming>::const fn at_ns(&self) -> u64
 pub fn <antecedent_model::history_operators::ActionTiming>::const fn frame(&self) -> &antecedent_model::history_operators::OperatorFrame
-pub fn <antecedent_model::history_operators::ActionTiming>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: antecedent_core::scientific_target::InitialLaw, at_ns: u64) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
+pub fn <antecedent_model::history_operators::ActionTiming>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: antecedent_core::scientific_target::model::InitialLaw, at_ns: u64) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
 pub fn <antecedent_model::history_operators::CensoringAssignmentWeight>::const fn assignment(&self) -> f64
 pub fn <antecedent_model::history_operators::CensoringAssignmentWeight>::const fn censoring(&self) -> f64
 pub fn <antecedent_model::history_operators::CensoringAssignmentWeight>::const fn frame(&self) -> &antecedent_model::history_operators::OperatorFrame
-pub fn <antecedent_model::history_operators::CensoringAssignmentWeight>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: antecedent_core::scientific_target::InitialLaw, censoring: f64, assignment: f64) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
+pub fn <antecedent_model::history_operators::CensoringAssignmentWeight>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: antecedent_core::scientific_target::model::InitialLaw, censoring: f64, assignment: f64) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
 pub fn <antecedent_model::history_operators::DelayedAction>::const fn level_at(self, step: i32) -> f64
 pub fn <antecedent_model::history_operators::DelayedAction>::const fn permanent_level(self) -> f64
 pub fn <antecedent_model::history_operators::DelayedAction>::fn pulse(at_step: i32, level: f64) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
 pub fn <antecedent_model::history_operators::DelayedAction>::fn sustained(from_step: i32, until_step: i32, level: f64) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
 pub fn <antecedent_model::history_operators::DelayedDynamics>::const fn autoregression(&self) -> f64
-pub fn <antecedent_model::history_operators::DelayedDynamics>::const fn initial_law(&self) -> &antecedent_core::scientific_target::InitialLaw
+pub fn <antecedent_model::history_operators::DelayedDynamics>::const fn initial_law(&self) -> &antecedent_core::scientific_target::model::InitialLaw
 pub fn <antecedent_model::history_operators::DelayedDynamics>::const fn initial_state(&self) -> f64
 pub fn <antecedent_model::history_operators::DelayedDynamics>::const fn innovation_variance(&self) -> f64
 pub fn <antecedent_model::history_operators::DelayedDynamics>::const fn input_gain(&self) -> f64
-pub fn <antecedent_model::history_operators::DelayedDynamics>::fn try_new(autoregression: f64, input_gain: f64, innovation_variance: f64, initial_law: antecedent_core::scientific_target::InitialLaw, initial_state: f64) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
+pub fn <antecedent_model::history_operators::DelayedDynamics>::fn try_new(autoregression: f64, input_gain: f64, innovation_variance: f64, initial_law: antecedent_core::scientific_target::model::InitialLaw, initial_state: f64) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
 pub fn <antecedent_model::history_operators::DelayedFeedback>::const fn action(&self) -> antecedent_model::history_operators::DelayedAction
 pub fn <antecedent_model::history_operators::DelayedFeedback>::const fn delay(&self) -> core::option::Option<antecedent_model::history_operators::FeedbackDelay>
 pub fn <antecedent_model::history_operators::DelayedFeedback>::const fn history(&self) -> &antecedent_model::history_operators::HistoryConstruction
 pub fn <antecedent_model::history_operators::DelayedFeedback>::const fn information(&self) -> core::option::Option<antecedent_model::information_time::AvailableOutcome>
-pub fn <antecedent_model::history_operators::DelayedFeedback>::const fn initial_law(&self) -> &antecedent_core::scientific_target::InitialLaw
+pub fn <antecedent_model::history_operators::DelayedFeedback>::const fn initial_law(&self) -> &antecedent_core::scientific_target::model::InitialLaw
 pub fn <antecedent_model::history_operators::DelayedFeedback>::const fn search(&self) -> antecedent_model::history_operators::FeedbackSearch
 pub fn <antecedent_model::history_operators::DelayedFeedback>::const fn steps(&self) -> u32
 pub fn <antecedent_model::history_operators::DelayedFeedback>::const fn target(&self) -> antecedent_model::history_operators::ResponseTarget
@@ -3476,22 +3818,22 @@ pub fn <antecedent_model::history_operators::FeedbackDelay>::const fn ticks(self
 pub fn <antecedent_model::history_operators::FeedbackSearchCap>::const fn declared(steps: u32) -> Self
 pub fn <antecedent_model::history_operators::FeedbackSearchCap>::const fn steps(self) -> u32
 pub fn <antecedent_model::history_operators::HistoryConstruction>::const fn frame(&self) -> &antecedent_model::history_operators::OperatorFrame
-pub fn <antecedent_model::history_operators::HistoryConstruction>::const fn history(&self) -> antecedent_core::scientific_target::HistoryWindow
-pub fn <antecedent_model::history_operators::HistoryConstruction>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: antecedent_core::scientific_target::InitialLaw, history: antecedent_core::scientific_target::HistoryWindow) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
+pub fn <antecedent_model::history_operators::HistoryConstruction>::const fn history(&self) -> antecedent_core::scientific_target::model::HistoryWindow
+pub fn <antecedent_model::history_operators::HistoryConstruction>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: antecedent_core::scientific_target::model::InitialLaw, history: antecedent_core::scientific_target::model::HistoryWindow) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
 pub fn <antecedent_model::history_operators::Horizon>::const fn end_ns(self) -> u64
 pub fn <antecedent_model::history_operators::Horizon>::const fn ending_at(end_ns: u64) -> Self
 pub fn <antecedent_model::history_operators::OperatorFrame>::const fn cadence(&self) -> &antecedent_data::temporal::TimeIndex
 pub fn <antecedent_model::history_operators::OperatorFrame>::const fn horizon(&self) -> antecedent_model::history_operators::Horizon
-pub fn <antecedent_model::history_operators::OperatorFrame>::const fn initial_law(&self) -> &antecedent_core::scientific_target::InitialLaw
+pub fn <antecedent_model::history_operators::OperatorFrame>::const fn initial_law(&self) -> &antecedent_core::scientific_target::model::InitialLaw
 pub fn <antecedent_model::history_operators::OperatorFrame>::const fn interval_ns(&self) -> u64
-pub fn <antecedent_model::history_operators::OperatorFrame>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: antecedent_core::scientific_target::InitialLaw) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
+pub fn <antecedent_model::history_operators::OperatorFrame>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: antecedent_core::scientific_target::model::InitialLaw) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
 pub fn <antecedent_model::history_operators::PolicyEvaluation>::const fn frame(&self) -> &antecedent_model::history_operators::OperatorFrame
 pub fn <antecedent_model::history_operators::PolicyEvaluation>::fn policy(&self) -> &str
-pub fn <antecedent_model::history_operators::PolicyEvaluation>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: antecedent_core::scientific_target::InitialLaw, policy: impl core::convert::Into<alloc::sync::Arc<str>>) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
+pub fn <antecedent_model::history_operators::PolicyEvaluation>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: antecedent_core::scientific_target::model::InitialLaw, policy: impl core::convert::Into<alloc::sync::Arc<str>>) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
 pub fn <antecedent_model::history_operators::ResponseTarget>::const fn as_str(self) -> &'static str
 pub fn <antecedent_model::history_operators::SequentialRegression>::const fn frame(&self) -> &antecedent_model::history_operators::OperatorFrame
 pub fn <antecedent_model::history_operators::SequentialRegression>::fn outcome(&self) -> &str
-pub fn <antecedent_model::history_operators::SequentialRegression>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: antecedent_core::scientific_target::InitialLaw, outcome: impl core::convert::Into<alloc::sync::Arc<str>>) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
+pub fn <antecedent_model::history_operators::SequentialRegression>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: antecedent_core::scientific_target::model::InitialLaw, outcome: impl core::convert::Into<alloc::sync::Arc<str>>) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
 pub fn <antecedent_model::history_operators::TargetResponse>::const fn action(self) -> antecedent_model::history_operators::DelayedAction
 pub fn <antecedent_model::history_operators::TargetResponse>::const fn level(self) -> f64
 pub fn <antecedent_model::history_operators::TargetResponse>::const fn level_bits(self) -> u64
@@ -3499,10 +3841,10 @@ pub fn <antecedent_model::history_operators::TargetResponse>::const fn spread_bi
 pub fn <antecedent_model::history_operators::TargetResponse>::const fn target(self) -> antecedent_model::history_operators::ResponseTarget
 pub fn <antecedent_model::history_operators::TrajectoryReduction>::const fn frame(&self) -> &antecedent_model::history_operators::OperatorFrame
 pub fn <antecedent_model::history_operators::TrajectoryReduction>::fn functional(&self) -> &str
-pub fn <antecedent_model::history_operators::TrajectoryReduction>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: antecedent_core::scientific_target::InitialLaw, functional: impl core::convert::Into<alloc::sync::Arc<str>>) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
+pub fn <antecedent_model::history_operators::TrajectoryReduction>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: antecedent_core::scientific_target::model::InitialLaw, functional: impl core::convert::Into<alloc::sync::Arc<str>>) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
 pub fn <antecedent_model::history_operators::Transition>::const fn frame(&self) -> &antecedent_model::history_operators::OperatorFrame
 pub fn <antecedent_model::history_operators::Transition>::const fn step_ns(&self) -> u64
-pub fn <antecedent_model::history_operators::Transition>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: antecedent_core::scientific_target::InitialLaw) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
+pub fn <antecedent_model::history_operators::Transition>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: antecedent_core::scientific_target::model::InitialLaw) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
 pub fn <antecedent_model::history_operators::TruncationCertificate>::const fn retained_ticks(self) -> u32
 pub fn <antecedent_model::history_operators::TruncationCertificate>::const fn retaining(retained_ticks: u32) -> Self
 pub fn <antecedent_model::history_operators::WeightRole>::const fn as_str(self) -> &'static str
@@ -3617,6 +3959,12 @@ pub fn antecedent_model::compose::coherence::parameter_terms(descriptor: &antece
 pub fn antecedent_model::compose::coherence::uncertainty_findings(spec: &antecedent_model::compose::ComposedModelSpec) -> alloc::vec::Vec<antecedent_model::compose::CoherenceFinding>
 pub fn antecedent_model::compose::noise_stream_index(role: u64, name: &str) -> u64
 pub fn antecedent_model::compose::uncertainty::assemble_parameter_covariance(spec: &antecedent_model::compose::ComposedModelSpec) -> core::result::Result<antecedent_model::compose::uncertainty::ParameterCovariance, alloc::vec::Vec<antecedent_model::compose::CoherenceFinding>>
+pub fn antecedent_model::cyclic_world::equilibrium_actions(model: &antecedent_model::nonlinear_equilibrium::EquilibriumModel, resolved: &antecedent_model::cyclic_world::ResolvedCyclicWorld) -> core::result::Result<alloc::vec::Vec<antecedent_model::cyclic_actions::EquilibriumAction>, antecedent_model::cyclic_world::CyclicInterventionRefusal>
+pub fn antecedent_model::cyclic_world::evaluate_continuous_time_world(spec: &antecedent_model::cyclic_world::ContinuousTimeSpecification, request: &antecedent_model::cyclic_world::CyclicWorldRequest, policy: antecedent_model::continuous_cyclic::OdePolicy, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::cyclic_world::CyclicWorldResult, antecedent_model::cyclic_world::CyclicInterventionRefusal>
+pub fn antecedent_model::cyclic_world::evaluate_linear_world(spec: &antecedent_model::cyclic_world::LinearCyclicSpecification, request: &antecedent_model::cyclic_world::CyclicWorldRequest, demand: antecedent_model::cyclic_world::CertificateDemand, budget: antecedent_model::scc_compile::CompileBudget) -> core::result::Result<antecedent_model::cyclic_world::CyclicWorldResult, antecedent_model::cyclic_world::CyclicInterventionRefusal>
+pub fn antecedent_model::cyclic_world::evaluate_linear_worlds(spec: &antecedent_model::cyclic_world::LinearCyclicSpecification, requests: &[antecedent_model::cyclic_world::CyclicWorldRequest], demand: antecedent_model::cyclic_world::CertificateDemand, budget: antecedent_model::scc_compile::CompileBudget) -> core::result::Result<antecedent_model::cyclic_world::CyclicWorldResults, antecedent_model::cyclic_world::CyclicInterventionRefusal>
+pub fn antecedent_model::cyclic_world::evaluate_nonlinear_world(spec: &antecedent_model::cyclic_world::NonlinearCyclicSpecification, request: &antecedent_model::cyclic_world::CyclicWorldRequest, noise_draws: &[f64], initial: &[f64], policy: antecedent_model::nonlinear_equilibrium::SolvePolicy, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::cyclic_world::CyclicWorldResult, antecedent_model::cyclic_world::CyclicInterventionRefusal>
+pub fn antecedent_model::cyclic_world::resolve_cyclic_world(family: antecedent_core::intervention::CyclicFamily, variables: &antecedent_model::cyclic_world::CyclicVariables, initial_laws: &[alloc::sync::Arc<str>], request: &antecedent_model::cyclic_world::CyclicWorldRequest) -> core::result::Result<antecedent_model::cyclic_world::ResolvedCyclicWorld, antecedent_model::cyclic_world::CyclicInterventionRefusal>
 pub fn antecedent_model::discretized_scm::parity_row(route: antecedent_model::discretized_scm::ParityRoute) -> &'static antecedent_model::discretized_scm::ParityRow
 pub fn antecedent_model::discretized_scm::require_paradigm(route: antecedent_model::discretized_scm::ParityRoute, paradigm: antecedent_model::discretized_scm::InferenceParadigm) -> core::result::Result<&'static str, antecedent_model::discretized_scm::BridgeRefusal>
 pub fn antecedent_model::discretized_scm_artifact::consume_discretized_scm(bytes: &[u8], expected_identity: core::option::Option<[u8; 32]>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::discretized_scm::DiscretizedLinearGaussian, antecedent_model::discretized_scm_artifact::ArtifactRefusal>
@@ -3664,7 +4012,7 @@ pub fn antecedent_model::refuse_cross_family_soft(existing: &antecedent_model::M
 pub fn antecedent_model::rollout_temporal(model: &antecedent_model::CompiledCausalModel, plan: &antecedent_model::TemporalPlan<'_>, noise: antecedent_model::TemporalNoise<'_>, ws: &mut antecedent_model::MechanismWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::TemporalPath, antecedent_model::ModelError>
 pub fn antecedent_model::sample::sample_conditional_interventional(model: &antecedent_model::CompiledCausalModel, interventions: &[antecedent_core::intervention::Intervention], evidence: &antecedent_model::ConditionEvidence<'_>, n_rows: usize, rng: &mut antecedent_core::execution::CausalRng, ws: &mut antecedent_model::MechanismWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::ValueBatch, antecedent_model::ModelError>
 pub fn antecedent_model::sample::sample_interventional(model: &antecedent_model::CompiledCausalModel, interventions: &[antecedent_core::intervention::Intervention], n_rows: usize, rng: &mut antecedent_core::execution::CausalRng, ws: &mut antecedent_model::MechanismWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::ValueBatch, antecedent_model::ModelError>
-pub fn antecedent_model::sample::sample_observational(model: &antecedent_model::CompiledCausalModel, n_rows: usize, rng: &mut antecedent_core::execution::CausalRng, ws: &mut antecedent_model::MechanismWorkspace, _ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::ValueBatch, antecedent_model::ModelError>
+pub fn antecedent_model::sample::sample_observational(model: &antecedent_model::CompiledCausalModel, n_rows: usize, rng: &mut antecedent_core::execution::CausalRng, ws: &mut antecedent_model::MechanismWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::ValueBatch, antecedent_model::ModelError>
 pub fn antecedent_model::sample::sample_observational_into(model: &antecedent_model::CompiledCausalModel, n_rows: usize, rng: &mut antecedent_core::execution::CausalRng, ws: &mut antecedent_model::MechanismWorkspace, values: &mut [f64], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(), antecedent_model::ModelError>
 pub fn antecedent_model::sample::sample_posterior_predictive<F>(model: &mut antecedent_model::CompiledCausalModel, interventions: &[antecedent_core::intervention::Intervention], draws: antecedent_model::PredictiveDraws, rng: &mut antecedent_core::execution::CausalRng, ws: &mut antecedent_model::MechanismWorkspace, draw_updater: F, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::ValueBatch, antecedent_model::ModelError> where F: core::ops::function::FnMut(usize, &mut antecedent_model::CompiledCausalModel) -> core::result::Result<(), antecedent_model::ModelError>
 pub fn antecedent_model::sample::sample_stochastic(policy: &antecedent_core::intervention::StochasticPolicy, n_rows: usize, rng: &mut antecedent_core::execution::CausalRng, out: &mut [f64]) -> core::result::Result<(), antecedent_model::ModelError>
@@ -3688,6 +4036,7 @@ pub mod antecedent_model::compose::uncertainty
 pub mod antecedent_model::continuous_cyclic
 pub mod antecedent_model::cyclic_actions
 pub mod antecedent_model::cyclic_component
+pub mod antecedent_model::cyclic_world
 pub mod antecedent_model::discretized_scm
 pub mod antecedent_model::discretized_scm_artifact
 pub mod antecedent_model::do_sampler
@@ -3825,6 +4174,27 @@ pub struct antecedent_model::continuous_cyclic::TimedClamp
 pub struct antecedent_model::cyclic_actions::EquilibriumActionPlan
 pub struct antecedent_model::cyclic_actions::EquilibriumActionPlan has private fields
 pub struct antecedent_model::cyclic_actions::EquilibriumActionWorld
+pub struct antecedent_model::cyclic_world::ContinuousTimeSpecification
+pub struct antecedent_model::cyclic_world::ContinuousTimeSpecification has private fields
+pub struct antecedent_model::cyclic_world::CyclicInterventionRefusal
+pub struct antecedent_model::cyclic_world::CyclicVariables
+pub struct antecedent_model::cyclic_world::CyclicVariables has private fields
+pub struct antecedent_model::cyclic_world::CyclicWorldRequest
+pub struct antecedent_model::cyclic_world::CyclicWorldRequest has private fields
+pub struct antecedent_model::cyclic_world::CyclicWorldResult
+pub struct antecedent_model::cyclic_world::CyclicWorldResult has private fields
+pub struct antecedent_model::cyclic_world::CyclicWorldResults
+pub struct antecedent_model::cyclic_world::CyclicWorldResults has private fields
+pub struct antecedent_model::cyclic_world::CyclicWorldSummary
+pub struct antecedent_model::cyclic_world::LinearCyclicSpecification
+pub struct antecedent_model::cyclic_world::LinearCyclicSpecification has private fields
+pub struct antecedent_model::cyclic_world::NonlinearCyclicSpecification
+pub struct antecedent_model::cyclic_world::NonlinearCyclicSpecification has private fields
+pub struct antecedent_model::cyclic_world::ResolvedCyclicWorld
+pub struct antecedent_model::cyclic_world::ResolvedCyclicWorld has private fields
+pub struct antecedent_model::cyclic_world::WorldFailure
+pub struct antecedent_model::cyclic_world::WorldMass
+pub struct antecedent_model::cyclic_world::WorldMass has private fields
 pub struct antecedent_model::discretized_scm::ArmDiagnostic
 pub struct antecedent_model::discretized_scm::BridgeRefusal
 pub struct antecedent_model::discretized_scm::DiscreteArm
@@ -4308,6 +4678,52 @@ pub variant antecedent_model::cyclic_actions::EquilibriumAction::AdditiveShock {
 pub variant antecedent_model::cyclic_actions::EquilibriumAction::ChangeMechanism { mechanism: alloc::string::String, intercept: core::option::Option<f64>, weights: core::option::Option<alloc::vec::Vec<f64>>, activation: core::option::Option<antecedent_model::nonlinear_equilibrium::Activation> }
 pub variant antecedent_model::cyclic_actions::EquilibriumAction::Clamp { mechanism: alloc::string::String, value: f64 }
 pub variant antecedent_model::cyclic_actions::EquilibriumAction::ReplaceMechanism { mechanism: alloc::string::String, replacement: antecedent_model::nonlinear_equilibrium::Equation }
+pub variant antecedent_model::cyclic_world::CertificateBasis::LinearFamilyContraction { rho_abs_upper: f64 }
+pub variant antecedent_model::cyclic_world::CertificateBasis::NonlinearBlockContraction { draws: usize }
+pub variant antecedent_model::cyclic_world::CertificateDemand::ReportUncertified
+pub variant antecedent_model::cyclic_world::CertificateDemand::Required
+pub variant antecedent_model::cyclic_world::CertificateGap::LinearFamilyBoundInsufficient { rho_abs_upper: f64 }
+pub variant antecedent_model::cyclic_world::CertificateGap::NoSolution
+pub variant antecedent_model::cyclic_world::CertificateGap::NonlinearMassLost { failed_draws: usize, withheld_draws: usize }
+pub variant antecedent_model::cyclic_world::CertificateGap::NonlinearUniquenessUnproved { uncertified_draws: usize }
+pub variant antecedent_model::cyclic_world::CertificateGap::NumericalIntegrationOnly
+pub variant antecedent_model::cyclic_world::CyclicAction::AdditiveShock { variable: antecedent_core::ids::VariableId, node: usize, delta: f64 }
+pub variant antecedent_model::cyclic_world::CyclicAction::ChangeMechanism { variable: antecedent_core::ids::VariableId, node: usize, intercept_shift: f64 }
+pub variant antecedent_model::cyclic_world::CyclicAction::HardClamp { variable: antecedent_core::ids::VariableId, node: usize, level: f64 }
+pub variant antecedent_model::cyclic_world::CyclicAction::InitialState { variable: antecedent_core::ids::VariableId, node: usize, law_name: alloc::sync::Arc<str>, level: f64 }
+pub variant antecedent_model::cyclic_world::CyclicAction::ReplaceMechanism { variable: antecedent_core::ids::VariableId, node: usize, replacement: antecedent_model::cyclic_world::MechanismReplacement }
+pub variant antecedent_model::cyclic_world::CyclicRefusalKind::Capability { reason: &'static str }
+pub variant antecedent_model::cyclic_world::CyclicRefusalKind::ConflictingActions { variable: antecedent_core::ids::VariableId }
+pub variant antecedent_model::cyclic_world::CyclicRefusalKind::DuplicateWorld
+pub variant antecedent_model::cyclic_world::CyclicRefusalKind::Evidence { message: alloc::string::String }
+pub variant antecedent_model::cyclic_world::CyclicRefusalKind::Execution { message: alloc::string::String }
+pub variant antecedent_model::cyclic_world::CyclicRefusalKind::Malformed { reason: alloc::string::String }
+pub variant antecedent_model::cyclic_world::CyclicRefusalKind::NonFiniteLevel
+pub variant antecedent_model::cyclic_world::CyclicRefusalKind::NonFloatLevel
+pub variant antecedent_model::cyclic_world::CyclicRefusalKind::NonzeroDiagonal { variable: antecedent_core::ids::VariableId }
+pub variant antecedent_model::cyclic_world::CyclicRefusalKind::SoftParameterShape { family: &'static str, expected: usize, found: usize }
+pub variant antecedent_model::cyclic_world::CyclicRefusalKind::Specification { message: alloc::string::String }
+pub variant antecedent_model::cyclic_world::CyclicRefusalKind::UnboundVariable { variable: antecedent_core::ids::VariableId }
+pub variant antecedent_model::cyclic_world::CyclicRefusalKind::UnknownInitialLaw { law_name: alloc::sync::Arc<str> }
+pub variant antecedent_model::cyclic_world::CyclicRefusalKind::UnsupportedSoftFamily { family: alloc::sync::Arc<str> }
+pub variant antecedent_model::cyclic_world::CyclicRefusalKind::VariableBinding { message: &'static str }
+pub variant antecedent_model::cyclic_world::CyclicWorldOutcome::EquilibriumDraws { outcomes: alloc::vec::Vec<antecedent_model::nonlinear_equilibrium::EquilibriumOutcome> }
+pub variant antecedent_model::cyclic_world::CyclicWorldOutcome::GaussianLaw { mean: alloc::vec::Vec<f64>, covariance: alloc::vec::Vec<f64>, residual_inf: core::option::Option<f64> }
+pub variant antecedent_model::cyclic_world::CyclicWorldOutcome::NoSolution { failure: antecedent_model::cyclic_world::WorldFailure }
+pub variant antecedent_model::cyclic_world::CyclicWorldOutcome::Trajectory { trajectory: antecedent_model::continuous_cyclic::OdeTrajectory }
+pub variant antecedent_model::cyclic_world::CyclicWorldOutcome::Withheld
+pub variant antecedent_model::cyclic_world::MechanismReplacement::Constant { value: f64 }
+pub variant antecedent_model::cyclic_world::MechanismReplacement::Linear { intercept: f64, weights: alloc::vec::Vec<f64> }
+pub variant antecedent_model::cyclic_world::WorldCertificate::Certified { basis: antecedent_model::cyclic_world::CertificateBasis }
+pub variant antecedent_model::cyclic_world::WorldCertificate::NotCertified { gap: antecedent_model::cyclic_world::CertificateGap, next_attempt: antecedent_core::refusal::NextAttempt }
+pub variant antecedent_model::cyclic_world::WorldFailureCause::Integration { detail: alloc::string::String }
+pub variant antecedent_model::cyclic_world::WorldFailureCause::Solvability(antecedent_model::linear_solution::SolvabilityRefusal)
+pub variant antecedent_model::cyclic_world::WorldSolvedBy::AcyclicOrder { order: alloc::vec::Vec<usize> }
+pub variant antecedent_model::cyclic_world::WorldSolvedBy::AdaptiveIntegration { accepted_steps: usize, rejected_steps: usize, policy: antecedent_model::continuous_cyclic::OdePolicy }
+pub variant antecedent_model::cyclic_world::WorldSolvedBy::DirectFreeBlockSolve { free: alloc::vec::Vec<usize> }
+pub variant antecedent_model::cyclic_world::WorldSolvedBy::NonlinearBlocks { blocks: alloc::vec::Vec<alloc::vec::Vec<usize>>, policy: antecedent_model::nonlinear_equilibrium::SolvePolicy }
+pub variant antecedent_model::cyclic_world::WorldSolvedBy::NotSolved
+pub variant antecedent_model::cyclic_world::WorldSolvedBy::StronglyConnectedBlocks { dag_refusal: alloc::string::String, blocks: alloc::vec::Vec<alloc::vec::Vec<usize>> }
 pub variant antecedent_model::discretized_scm::DiscretizationMethod::EqualProbabilityQuantile
 pub variant antecedent_model::discretized_scm::InferenceParadigm::Bayesian
 pub variant antecedent_model::discretized_scm::InferenceParadigm::Frequentist
@@ -4344,7 +4760,7 @@ pub variant antecedent_model::history_operators::HistoryOperatorError::HorizonCr
 pub variant antecedent_model::history_operators::HistoryOperatorError::HorizonEndOverflow { interval_ns: u64, steps: u32 }
 pub variant antecedent_model::history_operators::HistoryOperatorError::HorizonStepsUncountable
 pub variant antecedent_model::history_operators::HistoryOperatorError::InformationRefused { refusal: antecedent_model::information_time::InformationRefusal }
-pub variant antecedent_model::history_operators::HistoryOperatorError::InitialLawMismatch { frame: antecedent_core::scientific_target::InitialLaw, dynamics: antecedent_core::scientific_target::InitialLaw }
+pub variant antecedent_model::history_operators::HistoryOperatorError::InitialLawMismatch { frame: antecedent_core::scientific_target::model::InitialLaw, dynamics: antecedent_core::scientific_target::model::InitialLaw }
 pub variant antecedent_model::history_operators::HistoryOperatorError::InvertedWindow { from_step: i32, until_step: i32 }
 pub variant antecedent_model::history_operators::HistoryOperatorError::NegativeInnovationVariance { value: f64 }
 pub variant antecedent_model::history_operators::HistoryOperatorError::NoFixedPoint

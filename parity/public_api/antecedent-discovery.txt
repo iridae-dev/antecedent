@@ -1233,6 +1233,8 @@ impl<G> core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::GraphE
 impl<G> core::panic::unwind_safe::UnwindSafe for antecedent_discovery::GraphEvidence<G> where G: core::panic::unwind_safe::UnwindSafe [auto]
 pub const <antecedent_discovery::AdjacencyMask>::EMPTY: Self
 pub const <antecedent_discovery::selective::DiscoveryStage>::ALL: [Self; 4]
+pub const <antecedent_discovery::selective::Mark>::ALL: [Self; 4]
+pub const <antecedent_discovery::selective::StructureClass>::ALL: [Self; 4]
 pub const antecedent_discovery::EXACT_ENUM_MAX_NODES: usize
 pub const antecedent_discovery::EXACT_MARGINAL_MAX_NODES: usize
 pub const antecedent_discovery::MAX_POSTERIOR_NODES: usize

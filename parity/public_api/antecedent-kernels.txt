@@ -12,6 +12,7 @@ impl core::clone::Clone for antecedent_kernels::PosteriorReduceOp
 impl core::clone::Clone for antecedent_kernels::ViewError
 impl core::clone::Clone for antecedent_kernels::Welford
 impl core::clone::Clone for antecedent_kernels::cholesky::CholeskyRefusal
+impl core::clone::Clone for antecedent_kernels::numeric::CompensatedSum
 impl core::cmp::Eq for antecedent_kernels::CholeskyError
 impl core::cmp::Eq for antecedent_kernels::KernelImpl
 impl core::cmp::Eq for antecedent_kernels::LogWeightError
@@ -31,6 +32,7 @@ impl core::cmp::PartialEq for antecedent_kernels::cholesky::CholeskyRefusal
 impl core::convert::From<bool> for antecedent_kernels::ParCorrMode
 impl core::default::Default for antecedent_kernels::ParCorrWorkspace
 impl core::default::Default for antecedent_kernels::Welford
+impl core::default::Default for antecedent_kernels::numeric::CompensatedSum
 impl core::error::Error for antecedent_kernels::LogWeightError
 impl core::error::Error for antecedent_kernels::ViewError
 impl core::fmt::Debug for antecedent_kernels::CholeskyError
@@ -43,6 +45,7 @@ impl core::fmt::Debug for antecedent_kernels::PosteriorReduceOp
 impl core::fmt::Debug for antecedent_kernels::ViewError
 impl core::fmt::Debug for antecedent_kernels::Welford
 impl core::fmt::Debug for antecedent_kernels::cholesky::CholeskyRefusal
+impl core::fmt::Debug for antecedent_kernels::numeric::CompensatedSum
 impl core::fmt::Display for antecedent_kernels::LogWeightError
 impl core::fmt::Display for antecedent_kernels::ViewError
 impl core::hash::Hash for antecedent_kernels::KernelImpl
@@ -57,6 +60,7 @@ impl core::marker::Copy for antecedent_kernels::ParCorrQuery
 impl core::marker::Copy for antecedent_kernels::PosteriorReduceOp
 impl core::marker::Copy for antecedent_kernels::Welford
 impl core::marker::Copy for antecedent_kernels::cholesky::CholeskyRefusal
+impl core::marker::Copy for antecedent_kernels::numeric::CompensatedSum
 impl core::marker::Freeze for antecedent_kernels::CholeskyError [auto]
 impl core::marker::Freeze for antecedent_kernels::KernelImpl [auto]
 impl core::marker::Freeze for antecedent_kernels::LogWeightError [auto]
@@ -67,6 +71,7 @@ impl core::marker::Freeze for antecedent_kernels::PosteriorReduceOp [auto]
 impl core::marker::Freeze for antecedent_kernels::ViewError [auto]
 impl core::marker::Freeze for antecedent_kernels::Welford [auto]
 impl core::marker::Freeze for antecedent_kernels::cholesky::CholeskyRefusal [auto]
+impl core::marker::Freeze for antecedent_kernels::numeric::CompensatedSum [auto]
 impl core::marker::Send for antecedent_kernels::CholeskyError [auto]
 impl core::marker::Send for antecedent_kernels::KernelImpl [auto]
 impl core::marker::Send for antecedent_kernels::LogWeightError [auto]
@@ -77,6 +82,7 @@ impl core::marker::Send for antecedent_kernels::PosteriorReduceOp [auto]
 impl core::marker::Send for antecedent_kernels::ViewError [auto]
 impl core::marker::Send for antecedent_kernels::Welford [auto]
 impl core::marker::Send for antecedent_kernels::cholesky::CholeskyRefusal [auto]
+impl core::marker::Send for antecedent_kernels::numeric::CompensatedSum [auto]
 impl core::marker::StructuralPartialEq for antecedent_kernels::CholeskyError
 impl core::marker::StructuralPartialEq for antecedent_kernels::KernelImpl
 impl core::marker::StructuralPartialEq for antecedent_kernels::LogWeightError
@@ -96,6 +102,7 @@ impl core::marker::Sync for antecedent_kernels::PosteriorReduceOp [auto]
 impl core::marker::Sync for antecedent_kernels::ViewError [auto]
 impl core::marker::Sync for antecedent_kernels::Welford [auto]
 impl core::marker::Sync for antecedent_kernels::cholesky::CholeskyRefusal [auto]
+impl core::marker::Sync for antecedent_kernels::numeric::CompensatedSum [auto]
 impl core::marker::Unpin for antecedent_kernels::CholeskyError [auto]
 impl core::marker::Unpin for antecedent_kernels::KernelImpl [auto]
 impl core::marker::Unpin for antecedent_kernels::LogWeightError [auto]
@@ -106,6 +113,7 @@ impl core::marker::Unpin for antecedent_kernels::PosteriorReduceOp [auto]
 impl core::marker::Unpin for antecedent_kernels::ViewError [auto]
 impl core::marker::Unpin for antecedent_kernels::Welford [auto]
 impl core::marker::Unpin for antecedent_kernels::cholesky::CholeskyRefusal [auto]
+impl core::marker::Unpin for antecedent_kernels::numeric::CompensatedSum [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_kernels::CholeskyError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_kernels::KernelImpl [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_kernels::LogWeightError [auto]
@@ -116,6 +124,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_kernels::PosteriorRe
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_kernels::ViewError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_kernels::Welford [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_kernels::cholesky::CholeskyRefusal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_kernels::numeric::CompensatedSum [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_kernels::CholeskyError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_kernels::KernelImpl [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_kernels::LogWeightError [auto]
@@ -126,6 +135,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_kernels::PosteriorReduc
 impl core::panic::unwind_safe::UnwindSafe for antecedent_kernels::ViewError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_kernels::Welford [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_kernels::cholesky::CholeskyRefusal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_kernels::numeric::CompensatedSum [auto]
 impl<'a> core::clone::Clone for antecedent_kernels::BitMaskView<'a>
 impl<'a> core::clone::Clone for antecedent_kernels::F64MatrixView<'a>
 impl<'a> core::clone::Clone for antecedent_kernels::F64VectorView<'a>
@@ -199,6 +209,9 @@ pub fn <antecedent_kernels::Welford>::fn push(&mut self, x: f64)
 pub fn <antecedent_kernels::Welford>::fn push_weighted(&mut self, weight: f64, x: f64)
 pub fn <antecedent_kernels::Welford>::fn sample_variance(&self) -> core::option::Option<f64>
 pub fn <antecedent_kernels::Welford>::fn stderr_of_mean(&self) -> f64
+pub fn <antecedent_kernels::numeric::CompensatedSum>::const fn add(&mut self, value: f64)
+pub fn <antecedent_kernels::numeric::CompensatedSum>::const fn total(self) -> f64
+pub fn <antecedent_kernels::numeric::CompensatedSum>::fn of(values: impl core::iter::traits::collect::IntoIterator<Item = f64>) -> f64
 pub fn antecedent_kernels::accumulate_contingency(policy: &antecedent_core::execution::KernelPolicy, x_codes: &[u32], y_codes: &[u32], out: &mut [f64], n_y_levels: usize) -> core::result::Result<(), antecedent_kernels::ViewError>
 pub fn antecedent_kernels::back_solve_into(chol: &[f64], n: usize, y: &[f64], x: &mut [f64])
 pub fn antecedent_kernels::bayesian_bootstrap_weights(rng: &mut antecedent_core::execution::CausalRng, n: usize, normalize: bool) -> alloc::vec::Vec<f64>
@@ -296,6 +309,8 @@ pub struct antecedent_kernels::ParCorrWorkspace has private fields
 pub struct antecedent_kernels::Welford
 pub struct antecedent_kernels::Welford has private fields
 pub struct antecedent_kernels::cholesky::CholeskyRefusal
+pub struct antecedent_kernels::numeric::CompensatedSum
+pub struct antecedent_kernels::numeric::CompensatedSum has private fields
 pub use antecedent_kernels::cholesky::CholeskyError = antecedent_kernels::CholeskyError
 pub use antecedent_kernels::cholesky::back_solve_into = antecedent_kernels::back_solve_into
 pub use antecedent_kernels::cholesky::chol_inverse = antecedent_kernels::chol_inverse

@@ -1227,15 +1227,15 @@ pub fn <antecedent_learn::recipe_license::TestObligation>::fn test(&self) -> &st
 pub fn <antecedent_learn::recipes::AcceptedProvider>::const fn provider(self) -> antecedent_core::provider_capability::ProviderId
 pub fn <antecedent_learn::recipes::AcceptedProvider>::const fn recipe(self) -> antecedent_learn::recipes::Recipe
 pub fn <antecedent_learn::recipes::BoundRecipe<'a>>::const fn component(self) -> &'a str
-pub fn <antecedent_learn::recipes::BoundRecipe<'a>>::const fn inference(self) -> antecedent_core::scientific_target::InferenceSelection
+pub fn <antecedent_learn::recipes::BoundRecipe<'a>>::const fn inference(self) -> antecedent_core::scientific_target::model::InferenceSelection
 pub fn <antecedent_learn::recipes::BoundRecipe<'a>>::const fn provider(self) -> antecedent_core::provider_capability::ProviderId
 pub fn <antecedent_learn::recipes::BoundRecipe<'a>>::const fn recipe(self) -> antecedent_learn::recipes::Recipe
 pub fn <antecedent_learn::recipes::BoundRecipe<'a>>::const fn rows(self) -> &'a [u64]
-pub fn <antecedent_learn::recipes::CoherentComponent<'a>>::const fn declared(self) -> core::option::Option<antecedent_core::scientific_target::InferenceSelection>
+pub fn <antecedent_learn::recipes::CoherentComponent<'a>>::const fn declared(self) -> core::option::Option<antecedent_core::scientific_target::model::InferenceSelection>
 pub fn <antecedent_learn::recipes::CoherentComponent<'a>>::const fn name(self) -> &'a str
-pub fn <antecedent_learn::recipes::CoherentComponent<'a>>::const fn resolve(self, study: antecedent_learn::recipes::StudyDefault) -> antecedent_core::scientific_target::InferenceSelection
+pub fn <antecedent_learn::recipes::CoherentComponent<'a>>::const fn resolve(self, study: antecedent_learn::recipes::StudyDefault) -> antecedent_core::scientific_target::model::InferenceSelection
 pub fn <antecedent_learn::recipes::CoherentComponent<'a>>::const fn rows(self) -> &'a [u64]
-pub fn <antecedent_learn::recipes::CoherentComponent<'a>>::fn new(name: &'a str, inference: core::option::Option<antecedent_core::scientific_target::InferenceSelection>, rows: &'a [u64]) -> core::result::Result<Self, antecedent_learn::recipes::RecipeError>
+pub fn <antecedent_learn::recipes::CoherentComponent<'a>>::fn new(name: &'a str, inference: core::option::Option<antecedent_core::scientific_target::model::InferenceSelection>, rows: &'a [u64]) -> core::result::Result<Self, antecedent_learn::recipes::RecipeError>
 pub fn <antecedent_learn::recipes::LikelihoodRole>::const fn provider(self) -> antecedent_core::provider_capability::ProviderId
 pub fn <antecedent_learn::recipes::LikelihoodRole>::const fn recipe(self) -> antecedent_learn::recipes::Recipe
 pub fn <antecedent_learn::recipes::PredictionAttachment<'a>>::const fn as_likelihood(self) -> core::result::Result<antecedent_learn::recipes::LikelihoodRole, antecedent_learn::recipes::RecipeError>
@@ -1245,9 +1245,9 @@ pub fn <antecedent_learn::recipes::PredictionAttachment<'a>>::const fn use_as(se
 pub fn <antecedent_learn::recipes::PredictionOnlyBoundary>::const fn as_likelihood(self) -> core::result::Result<antecedent_learn::recipes::LikelihoodRole, antecedent_learn::recipes::RecipeError>
 pub fn <antecedent_learn::recipes::PredictionOnlyBoundary>::const fn capability(self) -> antecedent_core::provider_capability::ProviderCapability
 pub fn <antecedent_learn::recipes::PredictionOnlyBoundary>::const fn new() -> Self
-pub fn <antecedent_learn::recipes::Recipe>::const fn inference(self) -> antecedent_core::scientific_target::InferenceSelection
+pub fn <antecedent_learn::recipes::Recipe>::const fn inference(self) -> antecedent_core::scientific_target::model::InferenceSelection
 pub fn <antecedent_learn::recipes::Recipe>::const fn kind(self) -> antecedent_learn::recipes::RecipeKind
-pub fn <antecedent_learn::recipes::Recipe>::const fn new(kind: antecedent_learn::recipes::RecipeKind, inference: antecedent_core::scientific_target::InferenceSelection) -> core::result::Result<Self, antecedent_learn::recipes::RecipeError>
+pub fn <antecedent_learn::recipes::Recipe>::const fn new(kind: antecedent_learn::recipes::RecipeKind, inference: antecedent_core::scientific_target::model::InferenceSelection) -> core::result::Result<Self, antecedent_learn::recipes::RecipeError>
 pub fn <antecedent_learn::recipes::Recipe>::const fn required_capabilities(self) -> &'static [antecedent_core::provider_capability::ProviderCapability]
 pub fn <antecedent_learn::recipes::Recipe>::const fn uses_likelihood(self) -> bool
 pub fn <antecedent_learn::recipes::Recipe>::fn accept_as_likelihood(&self, provider: &antecedent_core::provider_capability::ProviderDeclaration) -> core::result::Result<antecedent_learn::recipes::LikelihoodRole, antecedent_learn::recipes::RecipeError>
@@ -1256,9 +1256,9 @@ pub fn <antecedent_learn::recipes::Recipe>::fn attach_prediction_boundary<'a>(&s
 pub fn <antecedent_learn::recipes::Recipe>::fn bind<'a>(&self, component: &'a antecedent_learn::recipes::CoherentComponent<'a>, study: antecedent_learn::recipes::StudyDefault, provider: &antecedent_core::provider_capability::ProviderDeclaration) -> core::result::Result<antecedent_learn::recipes::BoundRecipe<'a>, antecedent_learn::recipes::RecipeError>
 pub fn <antecedent_learn::recipes::RecipeKind>::const fn as_str(self) -> &'static str
 pub fn <antecedent_learn::recipes::RecipeKind>::const fn for_component(self, component: &antecedent_learn::recipes::CoherentComponent<'_>, study: antecedent_learn::recipes::StudyDefault) -> core::result::Result<antecedent_learn::recipes::Recipe, antecedent_learn::recipes::RecipeError>
-pub fn <antecedent_learn::recipes::RecipeKind>::const fn supports(self, inference: antecedent_core::scientific_target::InferenceSelection) -> bool
-pub fn <antecedent_learn::recipes::StudyDefault>::const fn inference(self) -> antecedent_core::scientific_target::InferenceSelection
-pub fn <antecedent_learn::recipes::StudyDefault>::const fn new(inference: antecedent_core::scientific_target::InferenceSelection) -> core::result::Result<Self, antecedent_learn::recipes::RecipeError>
+pub fn <antecedent_learn::recipes::RecipeKind>::const fn supports(self, inference: antecedent_core::scientific_target::model::InferenceSelection) -> bool
+pub fn <antecedent_learn::recipes::StudyDefault>::const fn inference(self) -> antecedent_core::scientific_target::model::InferenceSelection
+pub fn <antecedent_learn::recipes::StudyDefault>::const fn new(inference: antecedent_core::scientific_target::model::InferenceSelection) -> core::result::Result<Self, antecedent_learn::recipes::RecipeError>
 pub fn <antecedent_learn::transported_effect::OverlapAssessment>::fn any_disjoint(&self) -> bool
 pub fn <antecedent_learn::transported_effect::OverlapAssessment>::fn fully_covered(&self) -> bool
 pub fn <antecedent_learn::transported_effect::SelectionShiftDeclaration>::fn new(source_population: &str, target_population: &str, selection_node: &str, selection_children: &[&str], effect_modifiers: &[&str]) -> Self
@@ -1505,15 +1505,15 @@ pub variant antecedent_learn::recipes::InferenceSite::StudyDefault
 pub variant antecedent_learn::recipes::RecipeError::BlankComponentName
 pub variant antecedent_learn::recipes::RecipeError::DuplicateRow { label: alloc::string::String, row: u64 }
 pub variant antecedent_learn::recipes::RecipeError::EmptyRows { label: alloc::string::String }
-pub variant antecedent_learn::recipes::RecipeError::InferenceMismatch { component: alloc::string::String, declared: core::option::Option<antecedent_core::scientific_target::InferenceSelection>, study_default: antecedent_core::scientific_target::InferenceSelection, resolved: antecedent_core::scientific_target::InferenceSelection, kind: antecedent_learn::recipes::RecipeKind, recipe_inference: antecedent_core::scientific_target::InferenceSelection, next_attempt: &'static str }
+pub variant antecedent_learn::recipes::RecipeError::InferenceMismatch { component: alloc::string::String, declared: core::option::Option<antecedent_core::scientific_target::model::InferenceSelection>, study_default: antecedent_core::scientific_target::model::InferenceSelection, resolved: antecedent_core::scientific_target::model::InferenceSelection, kind: antecedent_learn::recipes::RecipeKind, recipe_inference: antecedent_core::scientific_target::model::InferenceSelection, next_attempt: &'static str }
 pub variant antecedent_learn::recipes::RecipeError::InferenceNotNamed { site: antecedent_learn::recipes::InferenceSite, next_attempt: &'static str }
 pub variant antecedent_learn::recipes::RecipeError::MissingCapability { provider: antecedent_core::provider_capability::ProviderId, provider_name: alloc::string::String, capability: antecedent_core::provider_capability::ProviderCapability, legal_next: core::option::Option<antecedent_core::provider_capability::ProviderCapability>, next_attempt: &'static str }
-pub variant antecedent_learn::recipes::RecipeError::NotALikelihood { kind: antecedent_learn::recipes::RecipeKind, inference: antecedent_core::scientific_target::InferenceSelection }
+pub variant antecedent_learn::recipes::RecipeError::NotALikelihood { kind: antecedent_learn::recipes::RecipeKind, inference: antecedent_core::scientific_target::model::InferenceSelection }
 pub variant antecedent_learn::recipes::RecipeError::PredictionBoundaryAsLikelihood { capability: antecedent_core::provider_capability::ProviderCapability, next_attempt: &'static str }
-pub variant antecedent_learn::recipes::RecipeError::PredictionBoundaryRefused { kind: antecedent_learn::recipes::RecipeKind, inference: antecedent_core::scientific_target::InferenceSelection, next_attempt: &'static str }
+pub variant antecedent_learn::recipes::RecipeError::PredictionBoundaryRefused { kind: antecedent_learn::recipes::RecipeKind, inference: antecedent_core::scientific_target::model::InferenceSelection, next_attempt: &'static str }
 pub variant antecedent_learn::recipes::RecipeError::PredictionOnlyAsLikelihood { provider: antecedent_core::provider_capability::ProviderId, provider_name: alloc::string::String, kind: antecedent_learn::recipes::RecipeKind, next_attempt: &'static str }
 pub variant antecedent_learn::recipes::RecipeError::UnansweredCall { provider: antecedent_core::provider_capability::ProviderId, provider_name: alloc::string::String, capability: antecedent_core::provider_capability::ProviderCapability, next_attempt: &'static str }
-pub variant antecedent_learn::recipes::RecipeError::UnsupportedRealization { kind: antecedent_learn::recipes::RecipeKind, inference: antecedent_core::scientific_target::InferenceSelection, supported: &'static str }
+pub variant antecedent_learn::recipes::RecipeError::UnsupportedRealization { kind: antecedent_learn::recipes::RecipeKind, inference: antecedent_core::scientific_target::model::InferenceSelection, supported: &'static str }
 pub variant antecedent_learn::recipes::RecipeKind::FiniteDiscrete
 pub variant antecedent_learn::recipes::RecipeKind::GComputation
 pub variant antecedent_learn::recipes::RecipeKind::Glm
