@@ -362,6 +362,18 @@ class _PrepareRoute:
                 reason_code="option_not_applicable",
             )
 
+    def _select_ids(self) -> None:
+        """Hand the caller's identifier and estimator to the native compiler.
+
+        The routes that call this accept a family of estimators (design-based and Bayesian
+        arm contrasts, the temporal linear, link-contrast and lagged-instrument estimators);
+        the compiler owns which combinations are valid and refuses the rest by code.
+        """
+        if self.identifier is not None:
+            self.options["identifier"] = getattr(self.identifier, "value", self.identifier)
+        if self.estimator is not None:
+            self.options["estimator"] = getattr(self.estimator, "value", self.estimator)
+
     def _explicit_refute(self) -> bool:
         return self.refute is not None and self.refute not in (False, "none")
 
@@ -673,7 +685,7 @@ class _PrepareRoute:
             query,
             (PulseEffect, SustainedEffect, TemporalConditionalPulse, TemporalConditionalSustained),
         ):
-            self._refuse_ids("PulseEffect / SustainedEffect (fixed temporal backdoor estimator)")
+            self._select_ids()
             native = _NativePreparedAnalysis.prepare_temporal_effect(
                 self.names,
                 self.columns,
@@ -1131,7 +1143,7 @@ class _PrepareRoute:
                 reason_code="option_not_applicable",
             )
         if isinstance(query.design, MultiArmExperimentDesign):
-            self._refuse_ids("RandomizedEffect")
+            self._select_ids()
             self._refuse_estimator_config("RandomizedEffect")
             if self._explicit_refute():
                 raise CausalUnsupportedError(
@@ -1173,7 +1185,7 @@ class _PrepareRoute:
             raise CausalUnsupportedError(
                 "unsupported randomized assignment design", reason_code="route_not_supported"
             )
-        self._refuse_ids("RandomizedEffect")
+        self._select_ids()
         self._refuse_estimator_config("RandomizedEffect")
         if self._explicit_refute():
             raise CausalUnsupportedError(

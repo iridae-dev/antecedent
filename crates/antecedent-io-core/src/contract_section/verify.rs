@@ -1005,6 +1005,21 @@ pub(in crate::contract_section) fn producer_encoding_unresolved(
             unresolved.retain(|key| *key != ContractReason::CheckedAipwRowBinding);
         }
     }
+    // A linear adjustment executed through ordinary dispatch (caller validators are attested
+    // evidence the checked linear route does not run) carries no lowering. Encoding preserves
+    // that artifact; an independent consumer keeps the lowering unresolved.
+    let is_linear = contract.estimator.as_deref() == Some("linear.adjustment.ate")
+        || contract.program.as_ref().is_some_and(|program| {
+            program.commitments.resolved_estimator.as_deref() == Some("linear.adjustment.ate")
+        });
+    if is_linear
+        && contract
+            .program
+            .as_ref()
+            .is_some_and(|program| program.checked_linear_adjustment_lowering.is_none())
+    {
+        unresolved.retain(|key| *key != ContractReason::ProgramCheckedLinearAdjustmentLowering);
+    }
     let is_iv = matches!(contract.estimator.as_deref(), Some("iv.wald" | "iv.2sls"))
         || contract.program.as_ref().is_some_and(|program| {
             matches!(program.commitments.resolved_estimator.as_deref(), Some("iv.wald" | "iv.2sls"))

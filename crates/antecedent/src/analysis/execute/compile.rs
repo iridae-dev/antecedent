@@ -478,7 +478,15 @@ impl super::Study {
         } else if q.is_multi_step_sustained() {
             plan.record.estimator = Some(Arc::from(EstimatorId::TemporalSequentialGcomp.as_str()));
         } else if self.inference.is_bayesian() && q.effect_modifiers.is_empty() {
-            plan.record.estimator = Some(Arc::from(EstimatorId::BayesianTemporalGcomp.as_str()));
+            // A declared white-innovation premise changes the posterior, so it changes the
+            // estimator the plan names; builder validation has already refused it elsewhere.
+            let estimator = match &self.inference {
+                InferenceMode::Bayesian(config) if config.white_innovation.is_some() => {
+                    EstimatorId::BayesianTemporalWhiteInnovation
+                }
+                _ => EstimatorId::BayesianTemporalGcomp,
+            };
+            plan.record.estimator = Some(Arc::from(estimator.as_str()));
         }
         Ok(plan)
     }

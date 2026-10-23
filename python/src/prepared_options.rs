@@ -33,6 +33,8 @@ const KEYS: &[&str] = &[
     "missing",
     "sampling_weights",
     "sampling_design",
+    "identifier",
+    "estimator",
 ];
 
 /// Declared inference: mode plus the Bayesian prior and draw budget.
@@ -151,6 +153,10 @@ pub(crate) struct PrepareOptions {
     pub sampling_weights: Option<Arc<[f64]>>,
     /// Declared sampling design of the rows, held by every estimator that bootstraps or splits.
     pub sampling_design: Option<antecedent_core::DeclaredSamplingDesign>,
+    /// Identifier a route that accepts a family of them was asked for; the compiler validates it.
+    pub identifier: Option<antecedent::IdentifierId>,
+    /// Estimator a route that accepts a family of them was asked for; the compiler validates it.
+    pub estimator: Option<antecedent::EstimatorId>,
 }
 
 impl PrepareOptions {
@@ -245,6 +251,22 @@ impl PrepareOptions {
                     })
             })
             .transpose()?;
+        let unknown = |err: antecedent::strategy_table::UnknownStrategy| {
+            crate::with_reason_code(
+                crate::value_err(err.to_string()),
+                antecedent_core::reason_code!("unknown_strategy"),
+            )
+        };
+        let identifier = item("identifier")?
+            .map(|value| -> PyResult<_> {
+                value.extract::<String>()?.parse::<antecedent::IdentifierId>().map_err(unknown)
+            })
+            .transpose()?;
+        let estimator = item("estimator")?
+            .map(|value| -> PyResult<_> {
+                value.extract::<String>()?.parse::<antecedent::EstimatorId>().map_err(unknown)
+            })
+            .transpose()?;
         Ok(Self {
             refute,
             bootstrap,
@@ -260,7 +282,21 @@ impl PrepareOptions {
             missing,
             sampling_weights,
             sampling_design,
+            identifier,
+            estimator,
         })
+    }
+
+    /// Select the identifier and estimator the caller named for a route that accepts several.
+    pub(crate) fn apply_selection(&self, builder: StudyBuilder) -> StudyBuilder {
+        let builder = match self.identifier {
+            Some(id) => builder.identifier(id),
+            None => builder,
+        };
+        match self.estimator {
+            Some(id) => builder.estimator(id),
+            None => builder,
+        }
     }
 
     /// Discovery algorithm of the accepted structure, when it came from discovery.
@@ -377,6 +413,8 @@ impl PrepareOptions {
             missing: self.missing.clone(),
             sampling_weights: self.sampling_weights.clone(),
             sampling_design: self.sampling_design,
+            identifier: self.identifier,
+            estimator: self.estimator,
         };
         without_bootstrap.apply(builder)
     }

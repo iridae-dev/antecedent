@@ -175,6 +175,7 @@ impl PrepareRequest {
         series: bool,
     ) -> PyResult<super::PyPreparedAnalysis> {
         let builder = self.opts.apply_inference(builder)?;
+        let builder = self.opts.apply_selection(builder);
         self.compile(builder, series)
     }
 

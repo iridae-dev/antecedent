@@ -367,6 +367,7 @@ impl PyPreparedAnalysis {
             };
             builder = req.opts.apply(builder.temporal_query(q));
             builder = req.opts.apply_inference(builder)?;
+            builder = req.opts.apply_selection(builder);
             builder = crate::temporal_api::apply_class_prior(
                 builder,
                 class_prior_ordered,

@@ -104,7 +104,8 @@ def prepare(
 _SEALED_OPERATION_KEY = re.compile(r"^dependencies\.checked_[a-z0-9_]+_operation$")
 # Retained data a sealed checked operation carries and the consumer cannot
 # re-derive from the exported bytes: the checked AIPW lowering and its row
-# binding, the linear-adjustment fit's sufficient statistics, fitted
+# binding, the linear-adjustment fit's sufficient statistics and the lowering a
+# linear adjustment run under caller validators does not retain, fitted
 # counterfactual mechanisms, and functional-effect replay draws and grids.
 _SEALED_REPLAY_KEYS = frozenset(
     {
@@ -114,6 +115,7 @@ _SEALED_REPLAY_KEYS = frozenset(
         "dependencies.functional_effect_response_posterior_draws",
         "dependencies.linear_fit_sufficient_statistics",
         "program.checked_aipw_lowering",
+        "program.checked_linear_adjustment_lowering",
         "program.functional_effect_response_grid",
     }
 )
