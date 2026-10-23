@@ -29,7 +29,14 @@ that the reference cannot move a measured number (an error conversion, a result
 field type, a query-keyed dispatch arm whose query a `key` line names); a new
 reference or a stale entry fails until someone reviews it. Name matching is
 deliberately over-inclusive: an item name the facet shares with other code
-counts as a reference, which can only ask for more review, never less.
+counts as a reference, which can only ask for more review, never less. It
+discards only what Rust's own rules exclude: an item the facet file's
+visibility hides from the referencing file, a field or method position, a
+`Type::` member, a name qualified by or imported from a crate or module that
+cannot be the facet file, a name the referencing module defines itself, and a
+facet file's re-export of an item another file defines. A crate in the facet
+whose list assigns some files elsewhere (a shared solver in `core`) is named
+only through the items of its facet files.
 
 A drifted record can instead be `attested_by_replay` under a replay waiver in
 `parity/calibration_waivers.toml` (outside the surface): a reviewed claim that
@@ -109,11 +116,14 @@ MAX_PATHS_SHOWN = 12
 
 _IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 _DEF = re.compile(
-    r"^[ \t]*(?:pub(?:\([^)]*\))?[ \t]+)?(?:(?:unsafe|async|const|extern|default)[ \t]+)*"
+    r"^[ \t]*(pub(?:\([^)]*\))?[ \t]+)?(?:(?:unsafe|async|const|extern|default)[ \t]+)*"
     r"(?:fn|struct|enum|trait|type|const|static|union)[ \t]+([A-Za-z_][A-Za-z0-9_]*)"
     r"|macro_rules![ \t]*([A-Za-z_][A-Za-z0-9_]*)",
     re.M,
 )
+# How far a definition can be named from: its own module and the modules below
+# it, the rest of its crate, or any crate that depends on it.
+PRIVATE, CRATE, PUBLIC = 0, 1, 2
 
 
 def rust_code(text: str) -> str:
@@ -256,16 +266,354 @@ def strip_impl_bodies(code: str) -> str:
     return "".join(out)
 
 
-def definitions(code: str) -> set[str]:
-    """Items a file defines, plus every name it re-exports with `pub use`.
+def _visibility(prefix: str) -> int:
+    """`pub` is public; any restricted `pub(...)` stays inside the crate; none is private."""
+    prefix = prefix.strip()
+    if not prefix:
+        return PRIVATE
+    return PUBLIC if prefix == "pub" else CRATE
+
+
+_USE_TOKEN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*|::|[{},*]")
+
+
+def use_leaves(tree: str, aliases: bool = True) -> set[str]:
+    """Names a `use` tree binds: each path's last segment, or its `as` alias
+    (with `aliases=False`, the item the alias renames).
+
+    The path prefix (`antecedent_stats` in `pub use antecedent_stats::{a, b}`) is
+    not a name the file binds, so it is not a definition; `self` inside braces
+    binds the module its prefix names."""
+    tokens = _USE_TOKEN.findall(tree)
+    leaves: set[str] = set()
+    pos = 0
+
+    def tree_at(parent: str | None) -> None:
+        nonlocal pos
+        last = parent
+        while pos < len(tokens):
+            tok = tokens[pos]
+            if tok == "::":
+                pos += 1
+                continue
+            if tok == "{":
+                pos += 1
+                while pos < len(tokens) and tokens[pos] != "}":
+                    if tokens[pos] == ",":
+                        pos += 1
+                        continue
+                    tree_at(last)
+                pos += 1
+                return
+            if tok == "*":
+                pos += 1
+                return
+            if tok in (",", "}"):
+                break
+            if tok == "as":
+                pos += 1
+                if pos < len(tokens):
+                    if aliases or last is None:
+                        leaves.add(tokens[pos])
+                    else:
+                        leaves.add(last)
+                    pos += 1
+                return
+            last = parent if tok == "self" else tok
+            pos += 1
+            if pos < len(tokens) and tokens[pos] == "as":
+                continue
+            if pos >= len(tokens) or tokens[pos] != "::":
+                if last is not None:
+                    leaves.add(last)
+                return
+            parent = last
+
+    while pos < len(tokens):
+        if tokens[pos] == ",":
+            pos += 1
+            continue
+        before = pos
+        tree_at(None)
+        if pos == before:
+            pos += 1
+    return leaves - {"self", "super", "crate", "_"}
+
+
+def definition_visibility(code: str, reexports: bool = True) -> dict[str, int]:
+    """Items a file defines, plus every name it re-exports with `pub use`, each with
+    the widest visibility it is defined at (`PRIVATE`, `CRATE` or `PUBLIC`).
 
     Methods and other associated items are not items (see `strip_impl_bodies`), and
     neither is the scaffolding of an inline `#[cfg(test)] mod`, which no other file
-    can name."""
-    names = {a or b for a, b in _DEF.findall(strip_impl_bodies(strip_test_modules(code)))}
-    for m in _PUB_USE.finditer(code):
-        names |= set(_IDENT.findall(m.group(1))) - {"self", "super", "crate", "as"}
+    can name. A `macro_rules!` macro counts as public: `#[macro_export]` lifts it to
+    the crate root."""
+    seen: dict[str, int] = {}
+
+    def add(name: str, level: int) -> None:
+        seen[name] = max(level, seen.get(name, PRIVATE))
+
+    for vis, item, macro in _DEF.findall(strip_impl_bodies(strip_test_modules(code))):
+        add(item or macro, PUBLIC if macro else _visibility(vis))
+    for m in _PUB_USE.finditer(code) if reexports else ():
+        head = code[m.start() : m.start(1)]
+        level = _visibility(head.strip()[: -len("use")])
+        for name in use_leaves(m.group(1)):
+            add(name, level)
+    # `const _` is an anonymous item (a compile-time assertion): no other file can name it.
+    seen.pop("_", None)
+    return seen
+
+
+def definitions(code: str) -> set[str]:
+    """Names `definition_visibility` finds, whatever their visibility."""
+    return set(definition_visibility(code))
+
+
+_DEFINING_KEYWORDS = frozenset(
+    {"fn", "struct", "enum", "trait", "type", "const", "static", "union", "mod"}
+)
+
+
+def reference_tokens(code: str, crates: frozenset[str] = frozenset()) -> set[str]:
+    """Identifiers of `code` that can name an item: every identifier except one in
+    field / method position (`x.name`, `x.name()`; a single dot, so a range end
+    `..LIMIT` still counts) and the name a definition introduces (`fn name`,
+    `struct Name`, ...). Neither position can resolve to another file's item."""
+    names: set[str] = set()
+    for m in _IDENT.finditer(code):
+        j = m.start() - 1
+        while j >= 0 and code[j] in " \t\r\n":
+            j -= 1
+        if j >= 0 and code[j] == "." and (j == 0 or code[j - 1] != "."):
+            continue
+        if j >= 1 and code[j - 1 : j + 1] == "::":
+            # `Type::Name`, `Self::Name`, `<T as Trait>::Name`: a variant or an
+            # associated item of a type, never another file's module-level item.
+            # Modules are snake_case, so a capitalised segment is a type.
+            k = j - 2
+            while k >= 0 and code[k] in " \t\r\n":
+                k -= 1
+            if k >= 0 and code[k] == ">":
+                continue
+            end = k + 1
+            while k >= 0 and (code[k].isalnum() or code[k] == "_"):
+                k -= 1
+            segment = code[k + 1 : end]
+            # `antecedent_x::name` is crate `antecedent_x`'s item; see `crate_qualified`.
+            if segment[:1].isupper() or segment in crates:
+                continue
+        if j >= 0 and (code[j].isalnum() or code[j] == "_"):
+            k = j
+            while k >= 0 and (code[k].isalnum() or code[k] == "_"):
+                k -= 1
+            keyword = code[k + 1 : j + 1]
+            before = k
+            while before >= 0 and code[before] in " \t\r\n":
+                before -= 1
+            # `&'static T` is a lifetime and `*const T` a pointer type: T is named.
+            lifetime_or_pointer = k >= 0 and (
+                (keyword == "static" and code[k] == "'")
+                or (keyword == "const" and before >= 0 and code[before] == "*")
+            )
+            if keyword in _DEFINING_KEYWORDS and not lifetime_or_pointer:
+                continue
+        names.add(m.group(0))
     return names
+
+
+def crate_qualified(code: str, crates: frozenset[str]) -> dict[str, set[str]]:
+    """For each crate of `crates`, the identifiers `code` names right after it
+    (`policy_value` in `antecedent_estimate::policy_value::Design`)."""
+    found: dict[str, set[str]] = {}
+    for m in re.finditer(r"\b([A-Za-z_][A-Za-z0-9_]*)\s*::\s*([A-Za-z_][A-Za-z0-9_]*)", code):
+        if m.group(1) in crates:
+            found.setdefault(m.group(1), set()).add(m.group(2))
+    return found
+
+
+# Path roots that are never workspace code.
+EXTERNAL_ROOTS = frozenset({"std", "core", "alloc"})
+_TOP_USE = re.compile(r"^(?:pub(?:\([^)]*\))?[ \t]+)?use\b([^;]*);", re.M)
+
+
+def top_level_imports(code: str) -> dict[str, set[str]]:
+    """Names the module-level `use` statements of `code` bind (rustfmt puts them at
+    column 0), each with the first segment of the path that binds it. Such a binding
+    is the only item of that name the module can name bare: a second import or a
+    local item of the same name is a compile error, and a glob is shadowed."""
+    roots: dict[str, set[str]] = {}
+    for m in _TOP_USE.finditer(code):
+        tree = m.group(1).strip()
+        tree = tree[2:].strip() if tree.startswith("::") else tree
+        first = _IDENT.match(tree)
+        if not first:
+            continue
+        # The bound name, and the item an `as` renames: neither is another item.
+        for name in use_leaves(tree) | use_leaves(tree, aliases=False):
+            roots.setdefault(name, set()).add(first.group(0))
+    return roots
+
+
+def use_paths(tree: str) -> list[tuple[list[str], str]]:
+    """Each item a `use` tree imports, as (module path, item name); `self` in a
+    group imports the module the group's prefix names."""
+    tokens = _USE_TOKEN.findall(tree)
+    out: list[tuple[list[str], str]] = []
+    pos = 0
+
+    def walk(prefix: list[str]) -> None:
+        nonlocal pos
+        path = list(prefix)
+        while pos < len(tokens):
+            tok = tokens[pos]
+            if tok == "::":
+                pos += 1
+                continue
+            if tok == "{":
+                pos += 1
+                while pos < len(tokens) and tokens[pos] != "}":
+                    if tokens[pos] == ",":
+                        pos += 1
+                        continue
+                    before = pos
+                    walk(path)
+                    if pos == before:
+                        pos += 1
+                pos += 1
+                return
+            if tok in ("*", ",", "}", "as"):
+                return
+            pos += 1
+            if tok == "self" and path:
+                out.append((path[:-1], path[-1]))
+                return
+            if pos < len(tokens) and tokens[pos] == "::":
+                path.append(tok)
+                continue
+            out.append((path, tok))
+            return
+
+    while pos < len(tokens):
+        before = pos
+        walk([])
+        while pos < len(tokens) and tokens[pos] not in (",",):
+            pos += 1
+        pos += 1 if pos < len(tokens) else 0
+        if pos == before:
+            pos += 1
+    return out
+
+
+def resolve_module(user: str, path: list[str]) -> str | None:
+    """The file of the module `path` names from `user` (`crate::a::b`,
+    `super::x`, `self::y`), or None when the path leaves the crate's files."""
+    crate = _crate(user)
+    if crate is None or not path or path[0] not in ("crate", "self", "super"):
+        return None
+    if path[0] == "crate":
+        scope = f"crates/{crate}/src/"
+        rest = path[1:]
+    else:
+        scope = module_scope(user)
+        rest = path[1:] if path[0] == "self" else path
+        while rest and rest[0] == "super":
+            scope = scope.rstrip("/").rsplit("/", 1)[0] + "/"
+            rest = rest[1:]
+        if not scope.startswith(f"crates/{crate}/src/"):
+            return None
+    if not rest:
+        for name in ("lib.rs", "mod.rs", "main.rs"):
+            if (ROOT / scope / name).is_file():
+                return scope + name
+        candidate = scope.rstrip("/") + ".rs"
+        return candidate if (ROOT / candidate).is_file() else None
+    for segment in rest[:-1]:
+        scope += segment + "/"
+    for candidate in (f"{scope}{rest[-1]}.rs", f"{scope}{rest[-1]}/mod.rs"):
+        if (ROOT / candidate).is_file():
+            return candidate
+    return None
+
+
+_TOP_DEF = re.compile(
+    r"^(?:pub(?:\([^)]*\))?[ \t]+)?(?:(?:unsafe|async|const|extern)[ \t]+)*"
+    r"(?:fn|struct|enum|trait|type|const|static|union|mod)[ \t]+([A-Za-z_][A-Za-z0-9_]*)",
+    re.M,
+)
+
+
+def top_level_definitions(code: str) -> set[str]:
+    """Items `code` defines at module level (rustfmt puts them at column 0). A bare
+    use of such a name in the module is that item: importing another item of the
+    same name is a compile error and a glob import is shadowed."""
+    return set(_TOP_DEF.findall(code))
+
+
+def module_scope(rel: str) -> str:
+    """Directory of the modules below `rel`'s module: a private item there is
+    nameable only from `rel` itself and from files under this directory."""
+    path = Path(rel)
+    if path.name in ("lib.rs", "main.rs", "mod.rs"):
+        return path.parent.as_posix() + "/"
+    return (path.parent / path.stem).as_posix() + "/"
+
+
+def visible_from(user: str, member: str, level: int) -> bool:
+    """Whether `user` can name an item `member` defines at `level`, as far as
+    visibility goes (`_reaches` decides whether the crates connect at all)."""
+    if level >= PUBLIC or user == member:
+        return True
+    if level == CRATE:
+        crate = _crate(member)
+        return crate is not None and user.startswith(f"crates/{crate}/src/") and (
+            member.startswith(f"crates/{crate}/src/")
+        )
+    return user.startswith(module_scope(member))
+
+
+def anchored_leaves(code: str, anchor: str) -> set[str]:
+    """The items paths starting at `anchor` name: each path's last module-level
+    segment (every leaf of a `{...}` group, `self` meaning the module before it, a
+    type rather than its associated items), `*` for a glob, and `anchor` itself for
+    a bare crate path. A module the path only passes through (`compile` in
+    `crate_x::compile::Plan`) is a namespace, not an item."""
+    leaves: set[str] = set()
+    for m in re.finditer(rf"\b{re.escape(anchor)}\b", code):
+        j, n, last = m.end(), len(code), anchor
+        while j < n:
+            while j < n and code[j] in " \t\n":
+                j += 1
+            if not code.startswith("::", j):
+                leaves.add(last)
+                break
+            j += 2
+            while j < n and code[j] in " \t\n":
+                j += 1
+            if j < n and code[j] == "{":
+                depth, k = 1, j + 1
+                while k < n and depth:
+                    depth += {"{": 1, "}": -1}.get(code[k], 0)
+                    k += 1
+                group = code[j:k]
+                leaves |= use_leaves(f"{last}::{group}", aliases=False)
+                if "*" in group:
+                    leaves.add("*")
+                break
+            if j < n and code[j] == "*":
+                leaves.add("*")
+                break
+            ident = _IDENT.match(code, j)
+            if not ident:
+                leaves.add(last)
+                break
+            last = ident.group(0)
+            j = ident.end()
+            if last[:1].isupper():
+                # `Type::method` names the type; what follows is its member.
+                leaves.add(last)
+                break
+    return leaves
 
 
 def anchored_names(code: str, anchor: str) -> tuple[set[str], bool]:
@@ -551,8 +899,38 @@ def references(surface: Surface) -> References:
     # One scan has immutable source inputs. Avoid repeating parent-module
     # filesystem reads for every file/member pair; selftests rebuild per scan.
     units = {rel: _unit(rel) for rel in files}
-    defs = {rel: definitions(_code(rel)) for rel in files}
-    tokens = {rel: set(_IDENT.findall(_code(rel))) for rel in files}
+    defs = {rel: definition_visibility(_code(rel)) for rel in files}
+    own_defs = {rel: definition_visibility(_code(rel), reexports=False) for rel in files}
+    crate_anchors = {crate.replace("-", "_") for crate in deps}
+    # An inline `#[cfg(test)]` module is compiled only into its crate's unit-test
+    # binary, so its references run no record's code, unless a record's own test or
+    # DGP lives in that file.
+    hosted = {
+        str(spec).rsplit("::", 1)[0]
+        for rec in load_records()
+        for spec in (rec.get("test", ""), rec.get("dgp", ""))
+        if spec
+    }
+    user_code = {
+        rel: _code(rel) if rel in hosted else strip_test_modules(_code(rel)) for rel in files
+    }
+    workspace = frozenset(crate.replace("-", "_") for crate in deps)
+    tokens = {rel: reference_tokens(user_code[rel], workspace) for rel in files}
+    qualified = {rel: crate_qualified(user_code[rel], workspace) for rel in files}
+    imports = {rel: top_level_imports(user_code[rel]) for rel in files}
+    local_items = {rel: top_level_definitions(user_code[rel]) for rel in files}
+    # A module-level `use crate::a::b::name` whose module file defines `name`
+    # imports that file's item: when the file is outside the facet, the bare
+    # name in `rel` is not the facet's.
+    sourced: dict[str, dict[str, str]] = {}
+    for rel in files:
+        bound: dict[str, str] = {}
+        for m in _TOP_USE.finditer(user_code[rel]):
+            for path, name in use_paths(m.group(1)):
+                source = resolve_module(rel, path)
+                if source is not None and source in local_items and name in local_items[source]:
+                    bound[name] = source
+        sourced[rel] = bound
     by_facet: dict[str, dict[str, set[str]]] = {}
     reexports: list[tuple[str, str]] = []
     for facet in sorted(surface.facets - {CORE}):
@@ -562,6 +940,32 @@ def references(surface: Surface) -> References:
             by_facet[facet] = {}
             continue
         members = [rel for rel in files if facet_of[rel] == facet]
+        # A facet file's `pub use` of another crate's item re-exports that crate's
+        # code. Only a crate holding none of the facet's files is outside it.
+        facet_crates = {c.replace("-", "_") for m in members if (c := _crate(m))}
+        outside_crates = (crate_anchors - facet_crates) | {"std", "core", "alloc"}
+        # A facet file's re-export of an item that only a non-facet file of its own
+        # crate defines is that file's item.
+        facet_own: dict[str | None, set[str]] = {}
+        sibling_own: dict[str | None, set[str]] = {}
+        for f in files:
+            bucket = facet_own if facet_of[f] == facet else sibling_own
+            bucket.setdefault(_crate(f), set()).update(own_defs[f])
+        member_defs = {
+            m: {
+                n: level
+                for n, level in defs[m].items()
+                if n in own_defs[m]
+                or (
+                    n not in external_reexports(_code(m), outside_crates)
+                    and (
+                        n in facet_own.get(_crate(m), set())
+                        or n not in sibling_own.get(_crate(m), set())
+                    )
+                )
+            }
+            for m in members
+        }
         # Whole crates in the facet: reached only through their crate path.
         whole = sorted(
             match.group(1)
@@ -569,6 +973,36 @@ def references(surface: Surface) -> References:
             if facet_ == facet and (match := re.fullmatch(r"crates/([^/]+)/src/", rel))
         )
         anchors = {crate.replace("-", "_"): crate for crate in whole}
+        # A facet crate whose list assigns some of its files elsewhere (a shared
+        # solver kept in `core`): a path through the crate names the facet only
+        # when it names an item or module a facet file of the crate exposes.
+        # Its other files are checked like any file outside the facet.
+        exposed: dict[str, set[str] | None] = {}
+        foreign: dict[str, set[str]] = {}
+        for crate in whole:
+            library = [rel for rel in files if rel.startswith(f"crates/{crate}/src/")]
+            if all(facet_of[rel] == facet for rel in library):
+                exposed[crate] = None
+                continue
+            names: set[str] = set()
+            reexported: set[str] = set()
+            elsewhere: set[str] = set()
+            for rel in library:
+                path = Path(rel)
+                module = path.parent.name if path.name == "mod.rs" else path.stem
+                if facet_of[rel] != facet:
+                    # An item a non-facet file of the crate defines, which a facet
+                    # file (the crate root) only re-exports, is that file's item.
+                    elsewhere |= set(definition_visibility(_code(rel), reexports=False))
+                    elsewhere.add(module)
+                    continue
+                own = definition_visibility(_code(rel), reexports=False)
+                names |= {n for n, level in own.items() if level == PUBLIC}
+                reexported |= {n for n, level in defs[rel].items() if level == PUBLIC} - set(own)
+                if path.name != "lib.rs":
+                    names.add(module)
+            exposed[crate] = names | (reexported - elsewhere)
+            foreign[crate] = elsewhere
         # Facet files inside a crate that is not in the facet: reached by name.
         partial = [rel for rel in members if _crate(rel) not in whole]
         hits: dict[str, set[str]] = {}
@@ -580,26 +1014,171 @@ def references(surface: Surface) -> References:
             found: set[str] = set()
             for anchor, anchor_crate in anchors.items():
                 if anchor_crate in reach and anchor in tokens[rel]:
-                    used, reexport = anchored_names(_code(rel), anchor)
+                    used, reexport = anchored_names(user_code[rel], anchor)
+                    names = exposed[anchor_crate]
+                    if names is not None:
+                        leaves = anchored_leaves(user_code[rel], anchor)
+                        used = {n for n in leaves if n in names or n == "*"}
+                        if leaves - {anchor} and not used:
+                            continue
+                        reexport = reexport and _reexports_facet(user_code[rel], anchor, names)
                     found |= used | {anchor}
                     if reexport:
                         reexports.append((facet, rel))
-            for member in partial:
+            # A non-facet file inside a facet crate reaches the crate's facet
+            # files by bare name and `crate::`/`super::` paths, never its anchor.
+            inside = (
+                [m for m in members if _crate(m) == crate]
+                if crate in exposed and exposed[crate] is not None
+                else []
+            )
+            for member in partial + inside:
                 if not _reaches(rel, member, deps, units):
                     continue
-                # Every item the file defines, matched by bare name (a shared
-                # name counts), and the module itself wherever a path or a
-                # `mod` declaration names it.
-                found |= tokens[rel] & defs[member]
+                # Every item the file defines that its visibility lets `rel` name,
+                # matched by bare name (a shared name counts), and the module
+                # itself wherever a path or a `mod` declaration names it. A
+                # private helper (`fn invalid`) is nameable only below its own
+                # module, so the same identifier elsewhere is another item.
+                # A name right after a crate path is that crate's item: it can be
+                # the member's only through its own crate or one that depends on it.
+                member_anchor = (_crate(member) or "").replace("-", "_")
+                named = set(tokens[rel])
+                for anchor_, idents in qualified[rel].items():
+                    if anchor_ == member_anchor or _crate(member) in deps.get(
+                        anchor_.replace("_", "-"), set()
+                    ):
+                        named |= idents
+                # The file's own module-level items shadow every other item of
+                # their names (a qualified path to the member is matched below).
+                candidates = (named - local_items[rel]) & member_defs[member].keys()
+                candidates = {
+                    n
+                    for n in candidates
+                    if n not in sourced[rel] or facet_of.get(sourced[rel][n]) == facet
+                }
+
+                def importable(root: str) -> bool:
+                    if root in ("crate", "self", "super"):
+                        return crate == _crate(member)
+                    if root in workspace:
+                        return root == member_anchor or _crate(member) in deps.get(
+                            root.replace("_", "-"), set()
+                        )
+                    # A local module (a 2018 relative path) may lead anywhere; any
+                    # other root is an external crate, never workspace code.
+                    return root not in EXTERNAL_ROOTS
+
+                candidates = {
+                    n
+                    for n in candidates
+                    if n not in imports[rel] or any(importable(r) for r in imports[rel][n])
+                }
+                if member in inside:
+                    # The crate root's re-export of a sibling non-facet item is
+                    # that sibling's item.
+                    own = definition_visibility(_code(member), reexports=False)
+                    candidates = {n for n in candidates if n in own or n not in foreign[crate]}
+                found |= {
+                    name
+                    for name in candidates
+                    if visible_from(rel, member, member_defs[member][name])
+                }
                 stem = Path(member).stem
-                used, _ = anchored_names(_code(rel), stem)
-                if used or re.search(rf"\bmod\s+{re.escape(stem)}\b", _code(rel)):
+                declared = re.search(rf"\bmod\s+{re.escape(stem)}\s*([;{{])", user_code[rel])
+                if declared:
+                    scope = module_scope(rel)
+                    attributes = user_code[rel][: declared.start()].rstrip()
+                    relocated = re.search(r"#\[\s*path\b[^\]]*\]\s*(?:pub(?:\([^)]*\))?\s*)?$", attributes)
+                    if declared.group(1) == ";" and (
+                        relocated or member in (f"{scope}{stem}.rs", f"{scope}{stem}/mod.rs")
+                    ):
+                        # The declaration of the facet module itself.
+                        found |= anchored_names(user_code[rel], stem)[0] | {stem}
+                    # Otherwise the file's own `mod stem` (a child file or an inline
+                    # module) is what every `stem::` path in it names.
+                    continue
+                # `antecedent_stats::adaptive_inference` is another crate's module
+                # of the same name: a crate that cannot depend on the member's
+                # crate cannot re-export its module, and a `crate::`/`super::` path
+                # never leaves the user's crate.
+                member_crate = _crate(member)
+                stem_code = re.sub(
+                    rf"\b([A-Za-z_][A-Za-z0-9_]*)(\s*::\s*){re.escape(stem)}\b",
+                    lambda m: (
+                        m.group(1) + m.group(2) + " " * len(stem)
+                        if member_crate is not None
+                        and (
+                            (
+                                m.group(1) in crate_anchors
+                                and m.group(1) != member_crate.replace("-", "_")
+                                and member_crate
+                                not in deps.get(m.group(1).replace("_", "-"), set())
+                            )
+                            # `crate::`, `self::`, `super::` stay in the user's crate.
+                            or (m.group(1) in ("crate", "self", "super") and crate != member_crate)
+                        )
+                        else m.group(0)
+                    ),
+                    user_code[rel],
+                )
+                # A `crate::`/`self::`/`super::` path to a module named `stem` that
+                # resolves to another file of the crate is that file, not the member.
+                stem_code = re.sub(
+                    rf"\b((?:crate|self|super)(?:\s*::\s*[A-Za-z_][A-Za-z0-9_]*)*?)(\s*::\s*){re.escape(stem)}\b",
+                    lambda m: (
+                        m.group(1) + m.group(2) + " " * len(stem)
+                        if (
+                            target := resolve_module(
+                                rel, [*re.split(r"\s*::\s*", m.group(1)), stem]
+                            )
+                        )
+                        is not None
+                        and target != member
+                        else m.group(0)
+                    ),
+                    stem_code,
+                )
+                used, _ = anchored_names(stem_code, stem)
+                if member in inside and used:
+                    # `crate::compile::compile_ode` names the sibling item the
+                    # facet module re-exports, not the facet module's code.
+                    own = definition_visibility(_code(member), reexports=False)
+                    leaves = anchored_leaves(stem_code, stem) - {stem}
+                    used = {
+                        n
+                        for n in leaves
+                        if n == "*" or n in own or (n in defs[member] and n not in foreign[crate])
+                    }
+                    if not used:
+                        continue
+                if used:
                     found |= used | {stem}
             if found:
                 hits[rel] = found
         by_facet[facet] = hits
     harness = [rel for rel in files if "/tests/common/" in rel]
     return References(by_facet, reexports, harness)
+
+
+def external_reexports(code: str, crates: set[str]) -> set[str]:
+    """Names `pub use` statements of `code` re-export from one of `crates`."""
+    names: set[str] = set()
+    for m in _PUB_USE.finditer(code):
+        tree = m.group(1).strip().lstrip(":").strip()
+        first = _IDENT.match(tree)
+        if first and first.group(0) in crates:
+            names |= use_leaves(tree)
+    return names
+
+
+def _reexports_facet(code: str, anchor: str, names: set[str]) -> bool:
+    """Whether a `pub use` through `anchor` re-exports one of `names` (or a glob)."""
+    for m in _PUB_USE.finditer(code):
+        used = anchored_leaves(m.group(1), anchor)
+        if "*" in used or used & names:
+            return True
+    return False
 
 
 def _keyed_impl_facet(facet: str) -> bool:
@@ -3297,7 +3876,75 @@ def self_test() -> int:
         defs == {"Op", "Tr", "compile"},
         "methods, associated items and inline test scaffolding are not bare-name definitions",
     )
+    expect(
+        definition_visibility(
+            "fn helper() {}\npub(crate) struct Inner;\npub fn api() {}\n"
+            "pub use antecedent_stats::{quantile, nested::{self, Deep as Alias}};\n"
+        )
+        == {"helper": PRIVATE, "Inner": CRATE, "api": PUBLIC, "quantile": PUBLIC, "nested": PUBLIC, "Alias": PUBLIC},
+        "visibility is recorded and a re-export binds its leaves, not its crate path",
+    )
+    member = "crates/antecedent/src/analysis/repair.rs"
+    expect(
+        visible_from(member, member, PRIVATE)
+        and visible_from("crates/antecedent/src/analysis/repair/child.rs", member, PRIVATE)
+        and not visible_from("crates/antecedent/src/analysis/other.rs", member, PRIVATE)
+        and visible_from("crates/antecedent/src/analysis/other.rs", member, CRATE)
+        and not visible_from("crates/antecedent/tests/suite.rs", member, CRATE)
+        and visible_from("crates/antecedent/tests/suite.rs", member, PUBLIC),
+        "a private item is nameable only below its module, a pub(crate) one only in its crate",
+    )
+    tokens = reference_tokens(
+        rust_code(
+            "fn evaluate(x: &'static Model, p: *const Ptr) { x.check(); 0..LIMIT; "
+            "Query::Variant; Self::Other; antecedent_stats::quantile(); }"
+        ),
+        frozenset({"antecedent_stats"}),
+    )
+    expect(
+        {"Model", "Ptr", "LIMIT", "Query"} <= tokens
+        and not {"evaluate", "check", "Variant", "Other", "quantile"} & tokens,
+        "definitions, field/method positions, Type:: members and crate-qualified names are not bare references",
+    )
+    expect(
+        anchored_leaves("use antecedent_model::compile::{Plan, x::{self, Y as Z}};", "antecedent_model")
+        == {"Plan", "x", "Y"}
+        and top_level_imports("use antecedent_validate::staleness::{Multiplicity, a as b};\n")
+        == {"Multiplicity": {"antecedent_validate"}, "a": {"antecedent_validate"}, "b": {"antecedent_validate"}}
+        and top_level_definitions("pub const CAP: u32 = 1;\nfn f() {\n    fn nested() {}\n}\n")
+        == {"CAP", "f"},
+        "path leaves, module-level import roots and module-level items are read exactly",
+    )
+    expect(
+        resolve_module("crates/antecedent/src/analysis/recalc_cell.rs", ["super", "recalc_receipt"])
+        == "crates/antecedent/src/analysis/recalc_receipt.rs"
+        and resolve_module("crates/antecedent/src/planner/lowered/decision.rs", ["super", "planning"])
+        == "crates/antecedent/src/planner/lowered/planning.rs",
+        "crate/self/super module paths resolve to the file they name",
+    )
     expect(check(base) == [], "the committed list passes")
+    design_user = "crates/antecedent/src/analysis/execute/static_path.rs"
+    problems = with_code(
+        design_user, "\nfn probe() { let _ = crate::analysis::design_ranking::evaluate; }\n", base
+    )
+    expect(
+        any(p.startswith(f"{design_user} names design items") for p in problems),
+        "a qualified path to a design facade function fails even though the bare name is common",
+    )
+    problems = with_code(
+        design_user, "\nfn probe() { let _ = antecedent_model::history_operators::Horizon::new; }\n", base
+    )
+    expect(
+        not any(p.startswith(f"{design_user} names mechanism items") for p in problems),
+        "a path into a model-crate file the list assigns to core is not a mechanism reference",
+    )
+    problems = with_code(
+        design_user, "\nfn probe() { let _ = antecedent_model::compile::CompiledCausalModel::compile; }\n", base
+    )
+    expect(
+        any(p.startswith(f"{design_user} names mechanism items") for p in problems),
+        "a path into a mechanism file of a partly reassigned crate still fails",
+    )
 
     temporal = "crates/antecedent/src/analysis/execute/temporal_path.rs"
     problems = with_code(temporal, "\nfn probe() { let _ = counterfactual_ite; }\n", base)
