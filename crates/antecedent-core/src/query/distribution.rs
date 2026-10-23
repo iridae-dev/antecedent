@@ -4,6 +4,10 @@
 
 use std::sync::Arc;
 
+use crate::canonical_encode::{
+    CanonicalEncode, count, encode_list, encode_variable_set, encode_variables,
+};
+use crate::identity::CanonicalWriter;
 use crate::ids::VariableId;
 use crate::intervention::Intervention;
 use crate::value::Value;
@@ -26,6 +30,18 @@ pub struct InterventionalDistributionQuery {
     pub conditioning: Arc<[VariableId]>,
     /// Target population.
     pub target_population: TargetPopulation,
+}
+
+/// Every field is written. `outcomes` index the result and keep their order;
+/// `interventions` keep their declared order; `conditioning` is a set and is
+/// encoded in ascending id order.
+impl CanonicalEncode for InterventionalDistributionQuery {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        encode_variables(writer, &self.outcomes);
+        encode_list(writer, &self.interventions);
+        encode_variable_set(writer, &self.conditioning);
+        self.target_population.encode(writer);
+    }
 }
 
 impl InterventionalDistributionQuery {
@@ -116,6 +132,21 @@ pub struct PathSpecificEffectQuery {
     pub max_paths: usize,
     /// Maximum path length (edges).
     pub max_len: usize,
+}
+
+/// Every field is written. `path_nodes` constrain the path set in any order and
+/// are encoded in ascending id order. The enumeration caps change which paths
+/// are summed, so they are part of the query.
+impl CanonicalEncode for PathSpecificEffectQuery {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        self.treatment.encode(writer);
+        self.outcome.encode(writer);
+        encode_variable_set(writer, &self.path_nodes);
+        self.control.encode(writer);
+        self.active.encode(writer);
+        self.target_population.encode(writer);
+        writer.word(count(self.max_paths)).word(count(self.max_len));
+    }
 }
 
 impl PathSpecificEffectQuery {

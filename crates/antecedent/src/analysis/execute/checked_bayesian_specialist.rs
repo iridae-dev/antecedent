@@ -145,8 +145,8 @@ impl CheckedBayesianSpecialistOperation {
         let cache = match family {
             BayesianSpecialistFamily::IvJointLinear
             | BayesianSpecialistFamily::RandomizedQuantile => {
-                match study.identification_cache.as_ref() {
-                    Some(cache) if cache.identification.query == target => Arc::clone(cache),
+                match study.reuse_static_identification(plan) {
+                    Some((cache, _)) if cache.identification.query == target => cache,
                     _ => {
                         let identification = identify_static_query(identifier, graph, &target)?;
                         require_identified(&identification)?;

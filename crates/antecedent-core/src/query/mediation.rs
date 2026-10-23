@@ -4,6 +4,8 @@
 
 use std::sync::Arc;
 
+use crate::canonical_encode::{CanonicalEncode, encode_u32s, encode_variable_set};
+use crate::identity::CanonicalWriter;
 use crate::ids::VariableId;
 use crate::intervention::Intervention;
 use crate::value::Value;
@@ -32,6 +34,19 @@ pub enum MediationContrast {
     NaturalIndirect,
 }
 
+impl CanonicalEncode for MediationContrast {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        let tag = match self {
+            Self::Total => 1,
+            Self::Direct => 2,
+            Self::Mediated => 3,
+            Self::NaturalDirect => 4,
+            Self::NaturalIndirect => 5,
+        };
+        writer.word(tag);
+    }
+}
+
 /// Mediation query: treatment → mediators → outcome.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct MediationQuery {
@@ -56,6 +71,21 @@ pub struct MediationQuery {
     /// identified as `I(h)` and retained on the mediation grid; a single
     /// horizon also fills the scalar compatibility fields.
     pub horizons: Arc<[u32]>,
+}
+
+/// Every field is written. `mediators` is a set and is encoded in ascending id
+/// order; `horizons` is an ordered grid the results are indexed by.
+impl CanonicalEncode for MediationQuery {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        self.treatment.encode(writer);
+        self.outcome.encode(writer);
+        encode_variable_set(writer, &self.mediators);
+        self.contrast.encode(writer);
+        self.control.encode(writer);
+        self.active.encode(writer);
+        self.target_population.encode(writer);
+        encode_u32s(writer, &self.horizons);
+    }
 }
 
 impl MediationQuery {
@@ -156,6 +186,14 @@ impl MediationQuery {
 pub struct ConditionalEffectQuery {
     /// Inner ATE-style query; `effect_modifiers` must be non-empty.
     pub inner: AverageEffectQuery,
+}
+
+/// The wrapped average-effect query; the variant tag of
+/// [`super::CausalQuery`] separates it from a plain average effect.
+impl CanonicalEncode for ConditionalEffectQuery {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        self.inner.encode(writer);
+    }
 }
 
 impl ConditionalEffectQuery {

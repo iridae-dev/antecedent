@@ -99,6 +99,11 @@ fn every_route_cell_is_registered_once_to_a_family() {
 }
 
 fn linear_study() -> Study {
+    linear_study_with([1.0, 3.1, 0.9, 2.9, 1.0, 3.0])
+}
+
+/// `linear_study` with the outcome values `outcome` on the same schema.
+fn linear_study_with(outcome: [f64; 6]) -> Study {
     let schema = CausalSchemaBuilder::new()
         .continuous("t")
         .treatment()
@@ -107,7 +112,6 @@ fn linear_study() -> Study {
         .build()
         .unwrap();
     let treatment = [0.0, 1.0, 0.0, 1.0, 0.0, 1.0];
-    let outcome = [1.0, 3.1, 0.9, 2.9, 1.0, 3.0];
     let columns: [(&str, &[f64]); 2] = [("t", &treatment), ("y", &outcome)];
     let data = TabularData::try_from_schema_f64(schema.clone(), columns).unwrap();
     let graph = Dag::from_named_edges(&schema, &[("t", "y")]).unwrap();
@@ -256,31 +260,309 @@ fn quoted_design_width_counts_contrast_columns_the_planner_sizing_misses() {
     let design = plan.lowered().unwrap().physical().design();
     let planner_sizing = plan.logical.record.query_variables.len() as u64;
     assert_eq!(planner_sizing, 2, "the planner's sizing counts the query's variables");
-    assert_eq!(design.columns(), 5, "intercept, treatment and three contrast columns");
-    assert_ne!(design.columns(), planner_sizing);
+    assert_eq!(design.columns(), Some(5), "intercept, treatment and three contrast columns");
+    assert_ne!(design.columns(), Some(planner_sizing));
     assert_eq!(design.source(), crate::planner::lowered::WidthSource::Quoted);
     assert!(!design.direct());
     assert_eq!(plan.choice.selected(), PhysicalAlternative::MaterializedDesign);
     let built = prepared.checked_linear_adjustment().unwrap().problem().design.ncols;
-    assert_eq!(design.columns(), built as u64, "the quoted width is the built width");
+    assert_eq!(design.columns(), Some(built as u64), "the quoted width is the built width");
 }
 
 #[test]
 fn requote_replans_bytes_and_materialization_under_the_memory_limit() {
-    use crate::planner::lowered::{DesignShape, WidthSource};
+    use crate::planner::lowered::DesignShape;
     use antecedent_contract::BufferMaterialization;
     let ctx = ExecutionContext::for_tests(3);
     let mut plan = linear_study().compile(&ctx).unwrap();
-    let direct = DesignShape { rows: 10, columns: 3, source: WidthSource::Quoted, direct: true };
+    let direct = DesignShape::quoted(10, 3, true);
     plan.requote(direct, &ctx).unwrap();
     assert_eq!(plan.logical.design_columns_hint, 3);
     assert_eq!(plan.record.estimated_copy_bytes, Some(10 * 3 * 8));
     assert_eq!(plan.record.materializations[0].1, BufferMaterialization::Borrowed);
-    let materialized = DesignShape { direct: false, ..direct };
+    let materialized = direct.materialized();
     plan.requote(materialized, &ctx).unwrap();
     assert_eq!(plan.record.estimated_copy_bytes, Some(2 * 10 * 3 * 8));
     assert_eq!(plan.record.materializations[0].1, BufferMaterialization::CopiedContiguous);
     let mut bounded = ctx.clone();
     bounded.set_memory_limit(Some(1));
     assert!(matches!(plan.requote(direct, &bounded), Err(crate::CausalError::Resource { .. })));
+}
+
+/// The accepted graphs of every class over the two variables of `linear_study`.
+/// Each pair of graphs differs, so each must key a different retained product.
+fn graphs_of_every_class() -> Vec<(&'static str, crate::AcceptedGraph)> {
+    use crate::{AcceptedGraph, TemporalDag};
+    use antecedent_core::{Lag, VariableId};
+    use antecedent_graph::{
+        Admg, Cpdag, DenseNodeId, Pag, TemporalAdmg, TemporalCpdag, TemporalPag, ensure_lagged,
+    };
+    let (a, b) = (DenseNodeId::from_raw(0), DenseNodeId::from_raw(1));
+    let (t, y) = (VariableId::from_raw(0), VariableId::from_raw(1));
+    let mut directed = Dag::with_variables(2);
+    directed.insert_directed(a, b).unwrap();
+    let mut reversed = Dag::with_variables(2);
+    reversed.insert_directed(b, a).unwrap();
+    let mut admg = Admg::with_variables(2);
+    admg.insert_directed(a, b).unwrap();
+    let mut confounded = admg.clone();
+    confounded.insert_bidirected(a, b).unwrap();
+    let mut circle_arrow = Pag::with_variables(2);
+    circle_arrow.insert_circle_arrow(a, b).unwrap();
+    let mut circle_circle = Pag::with_variables(2);
+    circle_circle.insert_circle_circle(a, b).unwrap();
+    let mut lagged = TemporalDag::empty();
+    let past = ensure_lagged(&mut lagged, t, Lag::from_raw(1)).unwrap();
+    let now = ensure_lagged(&mut lagged, y, Lag::CONTEMPORANEOUS).unwrap();
+    lagged.insert_directed(past, now).unwrap();
+    let mut temporal_pag = TemporalPag::empty();
+    let past = temporal_pag.add_lagged(t, Lag::from_raw(1)).unwrap();
+    let now = temporal_pag.add_lagged(y, Lag::CONTEMPORANEOUS).unwrap();
+    temporal_pag.insert_circle_arrow(past, now).unwrap();
+    vec![
+        ("reversed dag", AcceptedGraph::dag(reversed)),
+        ("empty dag", AcceptedGraph::dag(Dag::with_variables(2))),
+        ("admg", AcceptedGraph::admg(admg)),
+        ("confounded admg", AcceptedGraph::admg(confounded.clone())),
+        ("cpdag", AcceptedGraph::cpdag(Cpdag::from_dag(&directed)).unwrap()),
+        ("empty cpdag", AcceptedGraph::cpdag(Cpdag::with_variables(2)).unwrap()),
+        ("pag", AcceptedGraph::pag(circle_arrow)),
+        ("circle pag", AcceptedGraph::pag(circle_circle)),
+        ("temporal dag", AcceptedGraph::temporal_dag(lagged.clone())),
+        (
+            "temporal cpdag",
+            AcceptedGraph::temporal_cpdag(TemporalCpdag::from_temporal_dag(&lagged)).unwrap(),
+        ),
+        ("temporal pag", AcceptedGraph::temporal_pag(temporal_pag)),
+        (
+            "temporal admg",
+            AcceptedGraph::temporal_admg(
+                TemporalAdmg::from_static_contemporaneous(&confounded).unwrap(),
+            ),
+        ),
+    ]
+}
+
+#[test]
+fn a_retained_identification_is_reused_only_by_a_study_with_the_same_identification_inputs() {
+    use std::sync::Arc;
+
+    use antecedent_core::{CausalQuery, VariableId};
+    use antecedent_graph::{Admg, SelectionDiagram, TieredBackground, WithinTier};
+
+    use crate::analysis::builder::{RdConfig, TransportTrialSpec};
+    use crate::{BayesianConfig, ClassPrior, EstimatorId, IdentifierId, InferenceMode};
+
+    let ctx = ExecutionContext::for_tests(5);
+    let study = linear_study();
+    let plan = study.compile(&ctx).unwrap();
+    assert!(super::plan_retained_static(&study, &plan).is_some(), "the study reuses its own");
+    let key = super::retention_key(&study).expect("every input of the study encodes");
+
+    // New values on the same schema change no input identification reads.
+    let refreshed = linear_study_with([1.5, 2.0, 0.5, 3.5, 1.0, 2.5]);
+    assert_eq!(super::retention_key(&refreshed), Some(key));
+    assert!(super::plan_retained_static(&refreshed, &plan).is_some());
+
+    let (t, y) = (VariableId::from_raw(0), VariableId::from_raw(1));
+    let edited = |edit: &dyn Fn(&mut Study)| {
+        let mut changed = study.clone();
+        edit(&mut changed);
+        changed
+    };
+    fn config(study: &mut Study) -> &mut crate::analysis::execute::StudyConfig {
+        Arc::make_mut(&mut study.config)
+    }
+    let mut changed: Vec<(&str, Study)> = vec![
+        (
+            "effect modifiers",
+            edited(&|study| {
+                if let CausalQuery::AverageEffect(query) = &mut study.query {
+                    query.effect_modifiers = vec![y].into();
+                }
+            }),
+        ),
+        (
+            "tier background",
+            edited(&|study| {
+                study.tiered =
+                    Some(TieredBackground::new([vec![t], vec![y]], WithinTier::Unknown).unwrap());
+            }),
+        ),
+        ("completion cap", edited(&|study| study.max_completions = Some(3))),
+        (
+            "class prior",
+            edited(&|study| study.class_prior = Some(ClassPrior::from_ordered(vec![1.0]).unwrap())),
+        ),
+        (
+            "selection diagram",
+            edited(&|study| {
+                let diagram = SelectionDiagram::try_new(Admg::with_variables(2), vec![y]).unwrap();
+                config(study).selection_diagram = Some(diagram);
+            }),
+        ),
+        (
+            "transport trial",
+            edited(&|study| {
+                config(study).transport_trial = Some(TransportTrialSpec {
+                    trial: t,
+                    selection_probability: y,
+                    treatment_probability: t,
+                });
+            }),
+        ),
+        (
+            "discontinuity design",
+            edited(&|study| {
+                config(study).rd = Some(RdConfig {
+                    running_variable: t,
+                    cutoff: 0.5,
+                    bandwidth: 1.0,
+                    se_kind: antecedent_estimate::AnalyticSeKind::Hc1,
+                });
+            }),
+        ),
+        ("identifier", edited(&|study| study.identifier = Some(IdentifierId::GeneralId))),
+        ("estimator", edited(&|study| study.estimator = Some(EstimatorId::Aipw))),
+        (
+            "inference",
+            edited(&|study| {
+                study.inference = InferenceMode::Bayesian(BayesianConfig::conjugate());
+            }),
+        ),
+        (
+            "schema",
+            edited(&|study| {
+                let schema = CausalSchemaBuilder::new()
+                    .continuous("t")
+                    .treatment()
+                    .continuous("y")
+                    .outcome()
+                    .continuous("z")
+                    .context()
+                    .build()
+                    .unwrap();
+                let column = [0.0; 6];
+                let columns: [(&str, &[f64]); 3] = [("t", &column), ("y", &column), ("z", &column)];
+                let data = TabularData::try_from_schema_f64(schema, columns).unwrap();
+                study.data = crate::analysis::builder::DataInput::Tabular(data);
+            }),
+        ),
+    ];
+    for (class, graph) in graphs_of_every_class() {
+        changed.push((class, edited(&|study| study.graph = Arc::new(graph.clone()))));
+    }
+    let mut keys = BTreeSet::from([key]);
+    for (input, changed) in &changed {
+        let changed_key = super::retention_key(changed)
+            .unwrap_or_else(|| panic!("{input}: every input has a canonical encoding"));
+        assert!(keys.insert(changed_key), "{input}: changing it must change the retention key");
+        assert!(
+            super::plan_retained_static(changed, &plan).is_none(),
+            "{input}: a changed study must not reuse the retained identification"
+        );
+    }
+}
+
+#[test]
+fn the_query_digest_ignores_the_order_of_unordered_inputs_and_tracks_every_field() {
+    use std::sync::Arc;
+
+    use antecedent_core::{
+        AnomalyAttributionQuery, CausalQuery, ContinuousDomain, DerivativeWeighting, GridSpec,
+        Intervention, InterventionalDistributionQuery, ObservationAssumption, ObservationSpec,
+        RandomizedEffectQuery, ResponseFunctional, ResponseQuery, Value, VariableId,
+    };
+
+    let v = VariableId::from_raw;
+    let digest = |query: CausalQuery| super::query_digest(&query);
+    let average = |modifiers: Vec<VariableId>| {
+        let mut query = AverageEffectQuery::binary_ate(v(0), v(1));
+        query.effect_modifiers = modifiers.into();
+        CausalQuery::AverageEffect(query)
+    };
+    assert_eq!(digest(average(vec![v(2), v(3)])), digest(average(vec![v(3), v(2)])));
+    assert_ne!(digest(average(vec![v(2), v(3)])), digest(average(vec![v(2)])));
+
+    let distribution = |conditioning: Vec<VariableId>| {
+        CausalQuery::Distribution(
+            InterventionalDistributionQuery::new(
+                v(1),
+                vec![Intervention::set(v(0), Value::f64(1.0))],
+            )
+            .with_conditioning(conditioning),
+        )
+    };
+    assert_eq!(digest(distribution(vec![v(2), v(3)])), digest(distribution(vec![v(3), v(2)])));
+
+    let curve = |grid: Vec<f64>| ResponseFunctional::MeanCurve {
+        outcome: v(1),
+        treatment: ContinuousDomain::new(v(0), GridSpec::Values(grid.into())),
+    };
+    let response =
+        |functional: ResponseFunctional| CausalQuery::Response(ResponseQuery::new(functional));
+    let observed = |assumptions: Vec<ObservationAssumption>| {
+        CausalQuery::Response(ResponseQuery::new(curve(vec![0.0, 1.0])).with_observation(
+            ObservationSpec::RightCensored {
+                latent: v(1),
+                observed: v(2),
+                censoring: v(3),
+                event: v(4),
+            },
+            assumptions,
+        ))
+    };
+    let derivative = |lower: f64| {
+        response(ResponseFunctional::AverageDerivative {
+            outcome: v(1),
+            treatment: v(0),
+            weighting: DerivativeWeighting::Uniform { lower, upper: 1.0 },
+        })
+    };
+    let independent = ObservationAssumption::IndependentGiven(vec![v(5), v(6)].into());
+    let structural = ObservationAssumption::Structural("noninformative censoring".into());
+    assert_eq!(
+        digest(observed(vec![independent.clone(), structural.clone()])),
+        digest(observed(vec![structural.clone(), independent.clone()]))
+    );
+    assert_eq!(
+        digest(observed(vec![ObservationAssumption::IndependentGiven(vec![v(5), v(6)].into())])),
+        digest(observed(vec![ObservationAssumption::IndependentGiven(vec![v(6), v(5)].into())]))
+    );
+
+    let randomized = |probability: f64| {
+        let units: Vec<Arc<str>> = (0..4).map(|i| Arc::<str>::from(format!("unit-{i}"))).collect();
+        CausalQuery::RandomizedEffect(RandomizedEffectQuery::bernoulli_itt(
+            v(0),
+            vec![true, false, true, false],
+            vec![probability; 4],
+            units.clone(),
+            units,
+            ("control", "treated"),
+        ))
+    };
+    let anomaly = |max_units: usize| {
+        CausalQuery::AnomalyAttribution(AnomalyAttributionQuery::new([v(1)], max_units))
+    };
+
+    // Grids, weightings, observation declarations, design arrays and attribution
+    // queries each move the digest when one of their fields moves.
+    let distinct = [
+        digest(response(curve(vec![0.0, 1.0]))),
+        digest(response(curve(vec![0.0, 2.0]))),
+        digest(response(curve(vec![1.0, 0.0]))),
+        digest(derivative(0.0)),
+        digest(derivative(0.5)),
+        digest(observed(Vec::new())),
+        digest(observed(vec![structural])),
+        digest(observed(vec![independent])),
+        digest(randomized(0.5)),
+        digest(randomized(0.25)),
+        digest(anomaly(10)),
+        digest(anomaly(20)),
+        digest(average(Vec::new())),
+        digest(distribution(Vec::new())),
+    ];
+    let unique: BTreeSet<_> = distinct.iter().collect();
+    assert_eq!(unique.len(), distinct.len(), "every field change moves the digest");
 }

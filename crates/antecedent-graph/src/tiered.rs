@@ -8,7 +8,7 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{CausalSchema, VariableId};
+use antecedent_core::{CanonicalEncode, CanonicalWriter, CausalSchema, VariableId};
 
 use crate::admg::Admg;
 use crate::error::GraphError;
@@ -32,6 +32,26 @@ pub struct TieredBackground {
     pub tiers: Arc<[Arc<[VariableId]>]>,
     /// Within-tier interpretation.
     pub within_tier: WithinTier,
+}
+
+/// Tiers keep their causal order; the variables inside one tier are a set and
+/// are written in ascending id order.
+impl CanonicalEncode for TieredBackground {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        let within_tier = match self.within_tier {
+            WithinTier::CoDetermined => 1,
+            WithinTier::Unknown => 2,
+        };
+        writer.word(within_tier).word(self.tiers.len() as u64);
+        for tier in self.tiers.iter() {
+            let mut sorted = tier.to_vec();
+            sorted.sort_unstable();
+            writer.word(sorted.len() as u64);
+            for variable in &sorted {
+                variable.encode(writer);
+            }
+        }
+    }
 }
 
 impl TieredBackground {

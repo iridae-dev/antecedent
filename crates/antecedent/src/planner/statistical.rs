@@ -495,8 +495,8 @@ impl StatisticalProgram {
             None => writer.word(0),
         };
         writer
-            .word(self.design.columns)
-            .text(self.design.source.as_str())
+            .opt_word(self.design.columns())
+            .text(self.design.source().as_str())
             .word(self.operators.len() as u64);
         SemanticDigest::from_bytes(writer.finish())
     }

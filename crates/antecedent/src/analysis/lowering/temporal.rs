@@ -51,7 +51,7 @@ use crate::error::CausalError;
 use crate::planner::lowered::{
     ClaimDemand, DesignShape, FunctionalKind, IdentificationLayer, LoweredParts, LoweredProgram,
     LoweringDepth, PhysicalLayer, ProblemTarget, ScientificProblem, UncertaintyReading,
-    WidthSource, linear_gaussian_physical_operators, linear_gaussian_program_operators,
+    linear_gaussian_physical_operators, linear_gaussian_program_operators,
 };
 use crate::planner::statistical::{
     DeclaredProgram, FoldPlan, ModelRole, ModelSlot, Realization, ResampleUnit, ResamplingMethod,
@@ -568,12 +568,7 @@ fn assemble(
     let identifier =
         record.identifier.as_deref().and_then(|name| name.parse::<IdentifierId>().ok());
     let estimator = recorded_estimator(cx);
-    let design = DesignShape {
-        rows: plan.logical.row_count_hint,
-        columns: plan.logical.design_columns_hint,
-        source: WidthSource::NotDesignBased(parts.width),
-        direct: false,
-    };
+    let design = DesignShape::not_design_based(parts.width);
     let mut statistical = StatisticalProgram::declared(DeclaredProgram {
         identifier,
         estimator,

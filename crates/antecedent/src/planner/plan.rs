@@ -399,9 +399,14 @@ impl PhysicalExecutionPlan {
         design: super::lowered::DesignShape,
         ctx: &ExecutionContext,
     ) -> Result<(), CausalError> {
-        let rows = design.rows().max(1);
+        // Only a quoted design re-plans the record; the planner's own sizing stays
+        // for a route that is not design based.
+        let (Some(rows), Some(columns)) = (design.rows(), design.columns()) else {
+            return Ok(());
+        };
+        let rows = rows.max(1);
         let DesignEstimates { design: design_bytes, workspace, peak } =
-            design_estimates(rows, design.columns())?;
+            design_estimates(rows, columns)?;
         let (source, copies) = if design.direct() {
             (BufferMaterialization::Borrowed, 1)
         } else {
@@ -415,7 +420,7 @@ impl PhysicalExecutionPlan {
             .ok_or_else(|| CausalError::Resource { message: "peak estimate overflow".into() })?;
         check_memory_limit(peak, ctx)?;
         self.logical.row_count_hint = rows;
-        self.logical.design_columns_hint = design.columns().max(1);
+        self.logical.design_columns_hint = columns.max(1);
         self.record.batch_size = Some(usize::try_from(rows).unwrap_or(usize::MAX));
         self.record.workspace_bytes = Some(workspace);
         self.record.estimated_peak_memory_bytes = Some(peak);

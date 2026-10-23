@@ -217,7 +217,8 @@ impl CheckedPanelDidOperation {
                 message: "panel DiD design differs from its compiled plan".into(),
             });
         }
-        let (identification, estimand) = panel_did_identification(query);
+        let (identification, estimand) =
+            study.design_identification_or(physical, || panel_did_identification(query));
         if let Some(declaration) = &study.missing {
             if let Some(reason) = design_refusal(query.design, declaration.policy) {
                 return Err(panel_policy_refusal(declaration.policy, reason));

@@ -10,6 +10,7 @@ use super::{
     bayesian_draw_count, elapsed_ns, identification_from_cache_or, identify_cached_diagnostic,
     identify_static_query, project_for_ate_estimate, select_claim,
 };
+use crate::planner::RouteDefaults;
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
     ParametricAssumption, PriorAssumption, TargetPopulation,
@@ -31,8 +32,17 @@ impl Study {
         let cfg = self.ensure_bayesian_basis_admitted(query)?;
         let (control, active) = binary_levels(query)?;
         let identifier = self.identifier.unwrap_or(IdentifierId::BackdoorAdjustment);
+        let reused = self.reuse_static_identification_if(physical, |_| {
+            self.rd.is_none()
+                && matches!(self.query, CausalQuery::AverageEffect(_))
+                && physical.binding().resolves_to(
+                    RouteDefaults::STATIC_ATE,
+                    identifier,
+                    EstimatorId::BayesianBasisGcomp,
+                )
+        });
         let (identification, estimand, identify_cached) =
-            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
+            identification_from_cache_or(ctx, reused, || {
                 let identification = identify_static_query(
                     identifier,
                     graph,

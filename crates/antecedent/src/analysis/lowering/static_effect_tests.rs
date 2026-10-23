@@ -430,7 +430,7 @@ fn linear_adjustment_quotes_its_design_and_keeps_the_checked_target() {
     assert_eq!(target.identity(), checked.target().identity());
     let design = program.physical().design();
     assert_eq!(design.source(), WidthSource::Quoted);
-    assert_eq!(design.columns(), 3, "intercept, treatment and the adjustment column");
+    assert_eq!(design.columns(), Some(3), "intercept, treatment and the adjustment column");
     assert!(program.statistical().resampling().is_none(), "no replicates were requested");
     let outcome = &program.statistical().models()[0];
     assert_eq!(outcome.role(), ModelRole::Outcome);

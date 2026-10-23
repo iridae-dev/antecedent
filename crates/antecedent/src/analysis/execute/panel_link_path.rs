@@ -50,7 +50,7 @@ impl super::Study {
         }
         let started = Instant::now();
         let (identification, estimand, indexer, identify_cached) =
-            self.identify_pooled_panel(graph, query, ctx)?;
+            self.identify_pooled_panel(graph, query, Some(physical), ctx)?;
         require_identified(&identification)?;
         let unit_ids = panel_unit_ids(panel);
         let atom = PanelPulseAtom::prepare(
@@ -245,7 +245,7 @@ impl super::Study {
             });
         }
         let (identification, estimand, indexer, _) =
-            self.identify_pooled_panel(graph, query, ctx)?;
+            self.identify_pooled_panel(graph, query, None, ctx)?;
         require_identified(&identification)?;
         let unit_ids = panel_unit_ids(panel);
         let atom = PanelPulseAtom::prepare(

@@ -64,7 +64,7 @@ impl super::Study {
         self.refuse_unlicensed_panel(panel)?;
         let started = Instant::now();
         let (identification, estimand, indexer, identify_cached) =
-            self.identify_pooled_panel(graph, query, ctx)?;
+            self.identify_pooled_panel(graph, query, Some(physical), ctx)?;
         require_identified(&identification)?;
 
         let unit_ids = panel_unit_ids(panel);
@@ -238,19 +238,31 @@ impl super::Study {
         Ok(posterior)
     }
 
-    /// Identifies the panel's pooled Pulse estimand, or reads the prepared horizon entry.
+    /// Identifies the panel's pooled Pulse estimand, or reads the horizon entry the
+    /// prepared cache or, given the executing `physical` plan, its lowered program
+    /// retained.
     pub(super) fn identify_pooled_panel(
         &self,
         graph: &TemporalDag,
         query: &TemporalEffectQuery,
+        physical: Option<&PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<(IdentificationResult, IdentifiedEstimand, TemporalIndexer, bool), CausalError>
     {
-        if let Some(cache) = self.temporal_identification_cache.as_deref() {
+        let reused = match physical {
+            Some(physical) => self.reuse_temporal_identification(physical),
+            None => self.temporal_identification_cache.clone().map(|cache| (cache, true)),
+        };
+        if let Some((cache, prepared)) = reused {
             let entry = cache.get(query.horizon_steps).ok_or_else(|| CausalError::Compile {
                 message: "prepared panel identification cache missing query horizon".into(),
             })?;
-            Ok((entry.identification.clone(), entry.estimand.clone(), entry.indexer.clone(), true))
+            Ok((
+                entry.identification.clone(),
+                entry.estimand.clone(),
+                entry.indexer.clone(),
+                prepared,
+            ))
         } else {
             let id_res = TemporalBackdoorIdentifier::new()
                 .with_parent_adjustment_fallback()
@@ -322,8 +334,8 @@ impl super::Study {
     > {
         let identifier_id = physical.binding().identifier_or(RouteDefaults::PAG)?;
         let (bundle, identify_cached) =
-            if let Some(cache) = self.temporal_class_identification_cache.as_ref() {
-                (Arc::clone(cache), true)
+            if let Some(reused) = self.reuse_temporal_class_identification(physical) {
+                reused
             } else {
                 report_identify_compute(ctx);
                 (self.identify_temporal_class(identifier_id, query)?, false)
@@ -747,14 +759,14 @@ impl super::Study {
         graph: &TemporalDag,
         query: &ResponseQuery,
         temporal: &antecedent_core::TemporalResponseSpec,
-        treatment: antecedent_core::VariableId,
-        outcome: antecedent_core::VariableId,
+        (treatment, outcome): (antecedent_core::VariableId, antecedent_core::VariableId),
+        physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<(Arc<crate::analysis::prepared::CachedTemporalIdentification>, bool), CausalError>
     {
         let (cache, identify_cached) =
-            if let Some(cache) = self.temporal_identification_cache.clone() {
-                (cache, true)
+            if let Some(reused) = self.reuse_temporal_identification(physical) {
+                reused
             } else {
                 report_identify_compute(ctx);
                 (
@@ -835,8 +847,14 @@ impl super::Study {
         let started = Instant::now();
         let temporal = Self::panel_response_temporal_spec(query)?;
         let (treatment, outcome) = super::response_path::response_primary_pair(&query.functional)?;
-        let (cache, identify_cached) =
-            self.panel_response_identification(graph, query, temporal, treatment, outcome, ctx)?;
+        let (cache, identify_cached) = self.panel_response_identification(
+            graph,
+            query,
+            temporal,
+            (treatment, outcome),
+            physical,
+            ctx,
+        )?;
         let mut aligned = Vec::with_capacity(temporal.horizons.len());
         for &horizon in temporal.horizons.iter() {
             let entry = cache.get(horizon).ok_or_else(|| CausalError::Compile {
@@ -942,6 +960,7 @@ impl super::Study {
             outcome,
             identifier_id,
             identify_cached,
+            physical,
             ctx,
         };
         let mut state = PanelClassResponseState::new(
@@ -1056,10 +1075,16 @@ impl super::Study {
             horizon,
             run.query.target_population.clone(),
         );
-        if !run.identify_cached {
-            report_identify_compute(run.ctx);
-        }
-        let bundle = self.identify_temporal_class(run.identifier_id, &horizon_query)?;
+        let bundle =
+            match self.retained_temporal_class_horizon(run.physical, horizon_query.horizon_steps) {
+                Some(bundle) => bundle,
+                None => {
+                    if !run.identify_cached {
+                        report_identify_compute(run.ctx);
+                    }
+                    self.identify_temporal_class(run.identifier_id, &horizon_query)?
+                }
+            };
         let envelope = &bundle.envelope.envelope;
         state.diagnostics.push(super::temporal_path::temporal_class_envelope_diagnostic(
             envelope,
@@ -2481,6 +2506,7 @@ struct PanelClassResponseRun<'a> {
     outcome: antecedent_core::VariableId,
     identifier_id: IdentifierId,
     identify_cached: bool,
+    physical: &'a PhysicalExecutionPlan,
     ctx: &'a ExecutionContext,
 }
 

@@ -764,8 +764,8 @@ fn slot(
 
 /// Layer five's design. A retained linear operation quotes its own design; a linear
 /// adjustment on one adjustment set quotes `[1 | T | Z…]` from the data; every other
-/// route states what it fits instead of one quoted adjustment design. The row and
-/// column counts of an unquoted design are the planner's sizing of the physical record.
+/// route states what it fits instead of one quoted adjustment design and carries no
+/// rows or columns; the physical record keeps the planner's sizing.
 fn design_shape(
     cx: &LoweringContext<'_>,
     linear: Option<&CompiledLinearExecution>,
@@ -773,12 +773,6 @@ fn design_shape(
     static_cache: Option<&CachedStaticIdentification>,
     spec: Option<&EstimatorSpec>,
 ) -> Result<DesignShape, CausalError> {
-    let bound = |source: WidthSource| DesignShape {
-        rows: cx.plan.logical.row_count_hint,
-        columns: cx.plan.logical.design_columns_hint,
-        source,
-        direct: false,
-    };
     if let Some(linear) = linear {
         return quote_adjustment_width(
             cx,
@@ -797,18 +791,18 @@ fn design_shape(
             };
             // A categorical adjustment without a coding has no quotable width.
             quote_adjustment_width(cx, &cache.estimand.adjustment_set, &contrasts)
-                .unwrap_or_else(|_| bound(WidthSource::NotDesignBased(UNCODED_ADJUSTMENT)))
+                .unwrap_or_else(|_| DesignShape::not_design_based(UNCODED_ADJUSTMENT))
         }
         (Some(EstimatorId::FunctionalDistribution | EstimatorId::FunctionalEffect), _) => {
-            bound(WidthSource::NotDesignBased(PLUG_IN_FITS_NO_DESIGN))
+            DesignShape::not_design_based(PLUG_IN_FITS_NO_DESIGN)
         }
         (Some(EstimatorId::LinearAdjustmentAte), _) => {
-            bound(WidthSource::NotDesignBased(ADJUSTMENT_SET_PER_GRAPH))
+            DesignShape::not_design_based(ADJUSTMENT_SET_PER_GRAPH)
         }
         (Some(EstimatorId::RdSharp | EstimatorId::BayesianRdLocalLinear), _) => {
-            bound(WidthSource::NotDesignBased(LOCAL_FITS_AT_EXECUTION))
+            DesignShape::not_design_based(LOCAL_FITS_AT_EXECUTION)
         }
-        _ => bound(WidthSource::NotDesignBased(NUISANCE_MODELS)),
+        _ => DesignShape::not_design_based(NUISANCE_MODELS),
     })
 }
 

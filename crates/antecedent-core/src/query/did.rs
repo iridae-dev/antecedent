@@ -2,6 +2,10 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::QueryError;
+use crate::canonical_encode::{
+    CanonicalEncode, encode_flags, encode_i64s, encode_option, flag, i64_bits,
+};
+use crate::identity::CanonicalWriter;
 use crate::ids::VariableId;
 use std::sync::Arc;
 
@@ -21,6 +25,19 @@ pub enum DidSamplingDesign {
     AugmentedPanel,
 }
 
+impl CanonicalEncode for DidSamplingDesign {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        let tag = match self {
+            Self::BalancedPanel => 1,
+            Self::RepeatedCrossSection => 2,
+            Self::StaggeredGroupTime => 3,
+            Self::StaggeredEventStudy => 4,
+            Self::AugmentedPanel => 5,
+        };
+        writer.word(tag);
+    }
+}
+
 /// Nuisance columns for the augmented two-period panel ATT.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AugmentedPanelNuisance {
@@ -29,6 +46,16 @@ pub struct AugmentedPanelNuisance {
     pub untreated_change_prediction: VariableId,
     /// Caller declaration only; the engine does not certify model fitting.
     pub predictions_cross_fitted: bool,
+}
+
+/// Every field is written, the cross-fitting declaration included.
+impl CanonicalEncode for AugmentedPanelNuisance {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        self.outcome_pre.encode(writer);
+        self.propensity.encode(writer);
+        self.untreated_change_prediction.encode(writer);
+        writer.word(flag(self.predictions_cross_fitted));
+    }
 }
 
 /// Difference in outcome changes for a two-period or selected group-time design.
@@ -57,6 +84,28 @@ pub struct PanelDidQuery {
     pub target: Option<(i64, i64)>,
     /// Supplied nuisance columns for the one-row-per-subject augmented design.
     pub augmented: Option<AugmentedPanelNuisance>,
+}
+
+/// Every field is written; every array is row-aligned and keeps its order.
+impl CanonicalEncode for PanelDidQuery {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        self.design.encode(writer);
+        self.outcome.encode(writer);
+        encode_flags(writer, &self.treated);
+        encode_flags(writer, &self.post);
+        writer.texts(&self.subjects).texts(&self.clusters);
+        encode_i64s(writer, &self.periods);
+        encode_i64s(writer, &self.cohorts);
+        match self.target {
+            Some((cohort, period)) => {
+                writer.word(1).word(i64_bits(cohort)).word(i64_bits(period));
+            }
+            None => {
+                writer.word(0);
+            }
+        }
+        encode_option(writer, self.augmented.as_ref());
+    }
 }
 
 impl PanelDidQuery {

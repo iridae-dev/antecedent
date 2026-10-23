@@ -2,6 +2,8 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::QueryError;
+use crate::canonical_encode::{CanonicalEncode, flag};
+use crate::identity::CanonicalWriter;
 use crate::ids::VariableId;
 
 /// A fixed-cutoff, fixed-bandwidth local ratio with observed treatment uptake.
@@ -19,6 +21,16 @@ pub struct LocalPolynomialRatioQuery {
     pub bandwidth: f64,
     /// Estimate a slope kink instead of a level jump.
     pub kink: bool,
+}
+
+/// Every field is written; reals as their exact bits.
+impl CanonicalEncode for LocalPolynomialRatioQuery {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        self.outcome.encode(writer);
+        self.treatment.encode(writer);
+        self.running.encode(writer);
+        writer.real(self.cutoff).real(self.bandwidth).word(flag(self.kink));
+    }
 }
 
 impl LocalPolynomialRatioQuery {

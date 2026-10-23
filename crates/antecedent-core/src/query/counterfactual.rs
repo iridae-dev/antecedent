@@ -4,6 +4,8 @@
 
 use std::sync::Arc;
 
+use crate::canonical_encode::{CanonicalEncode, encode_list, encode_variables, flag};
+use crate::identity::CanonicalWriter;
 use crate::ids::VariableId;
 use crate::intervention::Intervention;
 use crate::value::Value;
@@ -21,6 +23,18 @@ pub struct CounterfactualQuery {
     pub control: Intervention,
     /// When true, allow nested counterfactual interventions under invertible SCMs.
     pub allow_nested: bool,
+}
+
+/// Every field is written, in the order given: `outcomes` index the result,
+/// and `interventions` keep their declared order (a later intervention on the
+/// same variable is not assumed to commute with an earlier one).
+impl CanonicalEncode for CounterfactualQuery {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        encode_variables(writer, &self.outcomes);
+        encode_list(writer, &self.interventions);
+        self.control.encode(writer);
+        writer.word(flag(self.allow_nested));
+    }
 }
 
 impl CounterfactualQuery {

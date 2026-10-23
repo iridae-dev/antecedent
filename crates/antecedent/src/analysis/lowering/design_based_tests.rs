@@ -142,7 +142,12 @@ fn sequential_contrast_lowers_its_regime_contrast_and_cross_fit() {
     assert_eq!(folds.unit(), ResampleUnit::Subject);
     assert!(statistical.resampling().is_none(), "the route takes no bootstrap");
     assert_eq!(statistical.models().len(), 3);
-    assert!(matches!(program.physical().design().source(), WidthSource::NotDesignBased(_)));
+    let design = program.physical().design();
+    assert!(matches!(design.source(), WidthSource::NotDesignBased(_)));
+    // A route that fits no design states no rows or columns; the statistical
+    // program carries the same absent shape.
+    assert_eq!((design.rows(), design.columns()), (None, None));
+    assert_eq!(statistical.design(), design);
 
     assert_eq!(compiled(&study).identity(), program.identity(), "the identity is stable");
     let bayesian = compiled(&sequential_study(

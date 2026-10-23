@@ -30,7 +30,10 @@ use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_data::Contrast;
-use antecedent_identify::CompiledIdentificationProduct;
+use antecedent_expr::IdentifiedEstimand;
+use antecedent_identify::{
+    CompiledIdentificationProduct, IdentificationResult, TransportIdentification,
+};
 
 pub(crate) use decision::CompileGoal;
 pub(crate) use registry::{GraphPosteriorCell, RouteCell};
@@ -38,9 +41,7 @@ pub(crate) use static_response::{response_world, response_world_binding};
 pub(crate) use structural::theorem_mediation_target;
 pub(crate) use temporal::history_window;
 #[cfg(test)]
-pub(crate) use temporal::{
-    TemporalContrast, contrast_frame, contrast_outcome, target_contrast, temporal_contrast_target,
-};
+pub(crate) use temporal::{contrast_frame, contrast_outcome, target_contrast};
 
 use query_digest::{query_digest, retention_key};
 
@@ -49,8 +50,10 @@ use crate::analysis::IdentificationCache;
 use crate::analysis::builder::DataInput;
 use crate::analysis::execute::RouteInput;
 use crate::analysis::prepared::{
-    CachedDbnPosteriorIdentification, CachedGraphPosteriorIdentification,
-    CachedStaticIdentification, CachedTemporalClassPosteriorIdentification,
+    CachedCpdagIdentification, CachedDbnPosteriorIdentification,
+    CachedGraphPosteriorIdentification, CachedPagIdentification, CachedStaticIdentification,
+    CachedTemporalClassIdentification, CachedTemporalClassPosteriorIdentification,
+    CachedTemporalIdentification,
 };
 use crate::error::CausalError;
 use crate::planner::PhysicalExecutionPlan;
@@ -217,7 +220,7 @@ fn retained_cache<T>(
     pick: impl Fn(&IdentificationCache) -> Option<&Arc<T>>,
 ) -> Option<Arc<T>> {
     let retained = plan.lowered()?.retained_identification()?;
-    if retained.key != retention_key(study) {
+    if Some(retained.key?) != retention_key(study) {
         return None;
     }
     retained.caches().iter().find_map(pick).map(Arc::clone)
@@ -232,6 +235,166 @@ pub(crate) fn plan_retained_static(
         IdentificationCache::Static(cache) => Some(cache),
         _ => None,
     })
+}
+
+/// The PAG envelope `plan` retained for `study`.
+pub(crate) fn plan_retained_pag(
+    study: &Study,
+    plan: &PhysicalExecutionPlan,
+) -> Option<Arc<CachedPagIdentification>> {
+    retained_cache(study, plan, |cache| match cache {
+        IdentificationCache::Pag(cache) => Some(cache),
+        _ => None,
+    })
+}
+
+/// The CPDAG envelope `plan` retained for `study`.
+pub(crate) fn plan_retained_cpdag(
+    study: &Study,
+    plan: &PhysicalExecutionPlan,
+) -> Option<Arc<CachedCpdagIdentification>> {
+    retained_cache(study, plan, |cache| match cache {
+        IdentificationCache::Cpdag(cache) => Some(cache),
+        _ => None,
+    })
+}
+
+/// The temporal identification by horizon `plan` retained for `study`.
+pub(crate) fn plan_retained_temporal(
+    study: &Study,
+    plan: &PhysicalExecutionPlan,
+) -> Option<Arc<CachedTemporalIdentification>> {
+    retained_cache(study, plan, |cache| match cache {
+        IdentificationCache::Temporal(cache) => Some(cache),
+        _ => None,
+    })
+}
+
+/// The temporal class envelope `plan` retained for `study`.
+pub(crate) fn plan_retained_temporal_class(
+    study: &Study,
+    plan: &PhysicalExecutionPlan,
+) -> Option<Arc<CachedTemporalClassIdentification>> {
+    retained_cache(study, plan, |cache| match cache {
+        IdentificationCache::TemporalClass(cache) => Some(cache),
+        _ => None,
+    })
+}
+
+/// The transport formula and certificate `plan` retained for `study`.
+pub(crate) fn plan_retained_transport(
+    study: &Study,
+    plan: &PhysicalExecutionPlan,
+) -> Option<Arc<TransportIdentification>> {
+    retained_cache(study, plan, |cache| match cache {
+        IdentificationCache::Transport(cache) => Some(cache),
+        _ => None,
+    })
+}
+
+/// The prepared product when there is one, else the product the plan retained.
+/// The flag is `true` only for a prepared product: a compiled plan is not a
+/// prepared handle, so it publishes the diagnostics a fresh identification does.
+fn prepared_or_retained<T>(
+    prepared: Option<&Arc<T>>,
+    retained: impl FnOnce() -> Option<Arc<T>>,
+) -> Option<(Arc<T>, bool)> {
+    match prepared {
+        Some(cache) => Some((Arc::clone(cache), true)),
+        None => retained().map(|cache| (cache, false)),
+    }
+}
+
+/// Every single-graph executor takes its identification in one order: the
+/// prepared cache, then the product `plan`'s lowered program retained for this
+/// study (guarded by the retention key), and only then a fresh identification.
+/// Each method returns the first two, with `true` for a prepared cache.
+impl Study {
+    /// Static identification to reuse.
+    pub(crate) fn reuse_static_identification(
+        &self,
+        plan: &PhysicalExecutionPlan,
+    ) -> Option<(Arc<CachedStaticIdentification>, bool)> {
+        prepared_or_retained(self.identification_cache.as_ref(), || {
+            plan_retained_static(self, plan)
+        })
+    }
+
+    /// [`Self::reuse_static_identification`] for an executor whose own identifier,
+    /// estimator or design inputs can differ from the ones preparation resolves: a
+    /// retained product is taken only when `same_inputs` confirms it is the claim
+    /// the executor would identify. A prepared cache is taken as before.
+    pub(crate) fn reuse_static_identification_if(
+        &self,
+        plan: &PhysicalExecutionPlan,
+        same_inputs: impl FnOnce(&CachedStaticIdentification) -> bool,
+    ) -> Option<(Arc<CachedStaticIdentification>, bool)> {
+        self.reuse_static_identification(plan)
+            .filter(|(cache, prepared)| *prepared || same_inputs(&**cache))
+    }
+
+    /// PAG envelope to reuse.
+    pub(crate) fn reuse_pag_identification(
+        &self,
+        plan: &PhysicalExecutionPlan,
+    ) -> Option<(Arc<CachedPagIdentification>, bool)> {
+        prepared_or_retained(self.pag_identification_cache.as_ref(), || {
+            plan_retained_pag(self, plan)
+        })
+    }
+
+    /// CPDAG envelope to reuse.
+    pub(crate) fn reuse_cpdag_identification(
+        &self,
+        plan: &PhysicalExecutionPlan,
+    ) -> Option<(Arc<CachedCpdagIdentification>, bool)> {
+        prepared_or_retained(self.cpdag_identification_cache.as_ref(), || {
+            plan_retained_cpdag(self, plan)
+        })
+    }
+
+    /// Temporal identification by horizon to reuse.
+    pub(crate) fn reuse_temporal_identification(
+        &self,
+        plan: &PhysicalExecutionPlan,
+    ) -> Option<(Arc<CachedTemporalIdentification>, bool)> {
+        prepared_or_retained(self.temporal_identification_cache.as_ref(), || {
+            plan_retained_temporal(self, plan)
+        })
+    }
+
+    /// Temporal class envelope to reuse.
+    pub(crate) fn reuse_temporal_class_identification(
+        &self,
+        plan: &PhysicalExecutionPlan,
+    ) -> Option<(Arc<CachedTemporalClassIdentification>, bool)> {
+        prepared_or_retained(self.temporal_class_identification_cache.as_ref(), || {
+            plan_retained_temporal_class(self, plan)
+        })
+    }
+
+    /// The identification a design operation freezes: the reused static product
+    /// (identified from the design query alone), else `fresh`.
+    pub(crate) fn design_identification_or(
+        &self,
+        plan: &PhysicalExecutionPlan,
+        fresh: impl FnOnce() -> (IdentificationResult, IdentifiedEstimand),
+    ) -> (IdentificationResult, IdentifiedEstimand) {
+        match self.reuse_static_identification(plan) {
+            Some((cache, _)) => (cache.identification.clone(), cache.estimand.clone()),
+            None => fresh(),
+        }
+    }
+
+    /// Transport formula and certificate to reuse.
+    pub(crate) fn reuse_transport_identification(
+        &self,
+        plan: &PhysicalExecutionPlan,
+    ) -> Option<(Arc<TransportIdentification>, bool)> {
+        prepared_or_retained(self.transport_identification_cache.as_ref(), || {
+            plan_retained_transport(self, plan)
+        })
+    }
 }
 
 /// The static graph-posterior identification `plan` retained for `study`.
@@ -298,12 +461,7 @@ pub(crate) fn quote_adjustment_width(
     let quote =
         antecedent_estimate::design_width::quote_adjustment_design(data, adjustment, contrasts)
             .map_err(|error| CausalError::Compile { message: error.to_string() })?;
-    Ok(DesignShape {
-        rows: quote.rows as u64,
-        columns: quote.columns as u64,
-        source: WidthSource::Quoted,
-        direct: quote.direct,
-    })
+    Ok(DesignShape::quoted(quote.rows as u64, quote.columns as u64, quote.direct))
 }
 
 fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalError> {

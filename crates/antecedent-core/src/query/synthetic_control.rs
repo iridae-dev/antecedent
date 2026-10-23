@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::QueryError;
+use crate::canonical_encode::{CanonicalEncode, encode_i64s, flag, i64_bits};
+use crate::identity::CanonicalWriter;
 use crate::ids::VariableId;
 use std::sync::Arc;
 
@@ -13,6 +15,16 @@ pub enum SyntheticPanelMethod {
     Control,
     /// Difference in differences with convex donor and pre-period weights.
     DifferenceInDifferences,
+}
+
+impl CanonicalEncode for SyntheticPanelMethod {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        let tag = match self {
+            Self::Control => 1,
+            Self::DifferenceInDifferences => 2,
+        };
+        writer.word(tag);
+    }
 }
 
 /// A balanced unit-by-period panel with one treated unit and donor units.
@@ -42,6 +54,22 @@ pub struct SyntheticControlQuery {
     pub sharp_null_effect: Option<f64>,
     /// Optional donor-trained ridge outcome-model correction to the simplex fit.
     pub augmentation_ridge: Option<f64>,
+}
+
+/// Every field is written; `units` and `periods` are row-aligned and keep
+/// their order.
+impl CanonicalEncode for SyntheticControlQuery {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        self.outcome.encode(writer);
+        writer.texts(&self.units);
+        encode_i64s(writer, &self.periods);
+        writer.text(&self.treated_unit).word(i64_bits(self.intervention_period));
+        self.method.encode(writer);
+        writer
+            .word(flag(self.uniform_unit_randomization))
+            .opt_real(self.sharp_null_effect)
+            .opt_real(self.augmentation_ridge);
+    }
 }
 
 impl SyntheticControlQuery {

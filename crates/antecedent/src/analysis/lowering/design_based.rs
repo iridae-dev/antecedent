@@ -181,29 +181,23 @@ pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalEr
 /// Layer five. An ANCOVA randomized effect quotes its design `[1 | assignment |
 /// covariates]` from the data; the assignment is the query's vector, not a source
 /// column, so the design is never gathered directly. Every other cell states what it
-/// fits instead, sized by the planner.
+/// fits instead and carries no rows or columns.
 fn design_shape(
     cx: &LoweringContext<'_>,
     input: RouteInput<'_>,
     width: WidthSource,
 ) -> DesignShape {
-    let planned = |source: WidthSource| DesignShape {
-        rows: cx.plan.logical.row_count_hint,
-        columns: cx.plan.logical.design_columns_hint,
-        source,
-        direct: false,
-    };
     match (input, width) {
         (RouteInput::RandomizedEffect { query, .. }, WidthSource::Quoted) => {
             super::quote_adjustment_width(cx, &query.ancova_covariates, &[]).map_or_else(
-                |_| planned(WidthSource::NotDesignBased(UNCODED_ANCOVA_COVARIATE)),
-                |quoted| DesignShape { direct: false, ..quoted },
+                |_| DesignShape::not_design_based(UNCODED_ANCOVA_COVARIATE),
+                DesignShape::materialized,
             )
         }
         // Only the ANCOVA design is quoted; a cell that names `Quoted` without one is
         // stated as unquoted rather than carrying the planner's sizing as a quote.
-        (_, WidthSource::Quoted) => planned(WidthSource::NotDesignBased(UNQUOTED_DESIGN)),
-        (_, width) => planned(width),
+        (_, WidthSource::Quoted) => DesignShape::not_design_based(UNQUOTED_DESIGN),
+        (_, WidthSource::NotDesignBased(reason)) => DesignShape::not_design_based(reason),
     }
 }
 

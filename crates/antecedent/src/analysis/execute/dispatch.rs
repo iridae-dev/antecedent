@@ -764,18 +764,16 @@ impl super::Study {
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let cache = match self.identification_cache.as_ref() {
-            Some(cache) => std::sync::Arc::clone(cache),
-            None => match crate::analysis::lowering::plan_retained_static(self, physical) {
-                Some(cache) => cache,
-                None => {
-                    std::sync::Arc::new(self.prepare_static_identification(physical)?.ok_or_else(
-                        || CausalError::Compile {
-                            message: "series attribution identified no structural product".into(),
-                        },
-                    )?)
-                }
-            },
+        let cache = match self.reuse_static_identification(physical) {
+            Some((cache, _)) => cache,
+            None => {
+                super::report_identify_compute(ctx);
+                std::sync::Arc::new(self.prepare_static_identification(physical)?.ok_or_else(
+                    || CausalError::Compile {
+                        message: "series attribution identified no structural product".into(),
+                    },
+                )?)
+            }
         };
         super::CheckedAttributionOperation::checked(self, physical, &cache)?
             .execute_series(series, ctx)

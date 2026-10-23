@@ -62,6 +62,41 @@ pub(super) struct BayesianSpecialistInputs<'a> {
 }
 
 impl Study {
+    /// A specialist's identification in the executor order: the prepared or
+    /// retained static claim, else a fresh one by `identifier`. The reused claim is
+    /// taken only when it is exactly the fresh one: the plan binds the same
+    /// identifier and estimator, no discontinuity design is declared, the claim
+    /// answers `target`, and it lists no per-estimand alternatives (so narrowing it
+    /// to the selected estimand left it unchanged). The flag is `true` only for a
+    /// prepared claim.
+    pub(super) fn specialist_identification(
+        &self,
+        graph: &Dag,
+        target: &CausalQuery,
+        (identifier, estimator): (IdentifierId, EstimatorId),
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<(IdentificationResult, IdentifiedEstimand, bool), CausalError> {
+        let binding = physical.binding();
+        let reusable = self.rd.is_none()
+            && binding.identifier.named() == Some(identifier)
+            && binding.estimator.named() == Some(estimator);
+        if let Some((cache, prepared)) =
+            self.reuse_static_identification(physical).filter(|(cache, _)| {
+                reusable
+                    && cache.identification.query == *target
+                    && cache.identification.estimand_claims.is_empty()
+            })
+        {
+            return Ok((cache.identification.clone(), cache.estimand.clone(), prepared));
+        }
+        super::report_identify_compute(ctx);
+        let identification = identify_static_query(identifier, graph, target)?;
+        require_identified(&identification)?;
+        let estimand = select_estimand(&identification, estimator)?;
+        Ok((identification, estimand, false))
+    }
+
     pub(super) fn execute_bayesian_iv(
         &self,
         data: &TabularData,
@@ -70,13 +105,14 @@ impl Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let identification = identify_static_query(
-            IdentifierId::Iv,
+        let (identification, estimand, identify_cached) = self.specialist_identification(
             graph,
             &CausalQuery::AverageEffect(query.clone()),
+            (IdentifierId::Iv, EstimatorId::BayesianIvJointLinear),
+            physical,
+            ctx,
         )?;
         require_identified(&identification)?;
-        let estimand = select_estimand(&identification, EstimatorId::BayesianIvJointLinear)?;
         let InferenceMode::Bayesian(config) = &self.inference else {
             return Err(CausalError::unsupported_inference(
                 "iv.bayesian_joint_linear requires Bayesian inference",
@@ -90,7 +126,7 @@ impl Study {
                 identification: &identification,
                 estimand: &estimand,
                 config,
-                identify_cached: false,
+                identify_cached,
             },
             ctx,
         )

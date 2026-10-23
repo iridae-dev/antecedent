@@ -4,6 +4,8 @@
 use std::sync::Arc;
 
 use super::QueryError;
+use crate::canonical_encode::{CanonicalEncode, encode_option, encode_variables};
+use crate::identity::CanonicalWriter;
 use crate::ids::VariableId;
 
 /// Nearest-neighbor contrast on the mean of each unit's history, matched inside its period.
@@ -27,6 +29,18 @@ pub struct HistoryMatchQuery {
     pub weight: Option<VariableId>,
     /// Maximum absolute score distance of a match; `None` for no caliper.
     pub caliper: Option<f64>,
+}
+
+/// Every field is written. `history` is time-ordered and keeps its order.
+impl CanonicalEncode for HistoryMatchQuery {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        self.outcome.encode(writer);
+        self.treated.encode(writer);
+        encode_variables(writer, &self.history);
+        encode_option(writer, self.period.as_ref());
+        encode_option(writer, self.weight.as_ref());
+        writer.opt_real(self.caliper);
+    }
 }
 
 impl HistoryMatchQuery {

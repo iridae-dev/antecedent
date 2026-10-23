@@ -72,13 +72,16 @@ pub(super) struct IdentifiedExecuteExtras {
     pub bootstrap_replicates_requested: Option<Option<u32>>,
 }
 
+/// The reused static identification (see `Study::reuse_static_identification`:
+/// the prepared cache, then the plan's retained product), else `live`. The flag
+/// is `true` only for a prepared cache.
 pub(super) fn identification_from_cache_or(
     ctx: &ExecutionContext,
-    cache: Option<&crate::analysis::prepared::CachedStaticIdentification>,
+    reused: Option<(Arc<crate::analysis::prepared::CachedStaticIdentification>, bool)>,
     live: impl FnOnce() -> Result<(IdentificationResult, IdentifiedEstimand), CausalError>,
 ) -> Result<(IdentificationResult, IdentifiedEstimand, bool), CausalError> {
-    if let Some(cache) = cache {
-        return Ok((cache.identification.clone(), cache.estimand.clone(), true));
+    if let Some((cache, prepared)) = reused {
+        return Ok((cache.identification.clone(), cache.estimand.clone(), prepared));
     }
     report_identify_compute(ctx);
     let (identification, estimand) = live()?;
@@ -86,14 +89,14 @@ pub(super) fn identification_from_cache_or(
 }
 
 /// [`identification_from_cache_or`] for callers that retain the product: a
-/// cache hit shares the prepared allocation instead of copying it.
+/// reused product shares its allocation instead of copying it.
 pub(super) fn shared_identification_from_cache_or(
     ctx: &ExecutionContext,
-    cache: Option<&Arc<crate::analysis::prepared::CachedStaticIdentification>>,
+    reused: Option<(Arc<crate::analysis::prepared::CachedStaticIdentification>, bool)>,
     live: impl FnOnce() -> Result<(IdentificationResult, IdentifiedEstimand), CausalError>,
 ) -> Result<(Arc<crate::analysis::prepared::CachedStaticIdentification>, bool), CausalError> {
-    if let Some(cache) = cache {
-        return Ok((Arc::clone(cache), true));
+    if let Some(reused) = reused {
+        return Ok(reused);
     }
     report_identify_compute(ctx);
     let (identification, estimand) = live()?;

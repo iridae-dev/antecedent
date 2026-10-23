@@ -3,6 +3,8 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::error::QueryError;
+use crate::canonical_encode::CanonicalEncode;
+use crate::identity::CanonicalWriter;
 use crate::ids::VariableId;
 use crate::intervention::Intervention;
 use crate::value::Value;
@@ -21,6 +23,16 @@ pub struct NestedCounterfactualQuery {
     pub outcome: VariableId,
     control_bits: u64,
     active_bits: u64,
+}
+
+/// Every field is written; the two treatment levels as their exact bits.
+impl CanonicalEncode for NestedCounterfactualQuery {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        self.treatment.encode(writer);
+        self.mediator.encode(writer);
+        self.outcome.encode(writer);
+        writer.word(self.control_bits).word(self.active_bits);
+    }
 }
 
 impl NestedCounterfactualQuery {

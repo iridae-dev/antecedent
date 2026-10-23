@@ -56,8 +56,8 @@ impl super::Study {
         // Refuse a query without a treatment/outcome pair before identifying.
         transport_primary_pair(query)?;
         let (transport_id, identify_cached) =
-            if let Some(cached) = self.transport_identification_cache.as_deref() {
-                (cached.clone(), true)
+            if let Some((cached, prepared)) = self.reuse_transport_identification(physical) {
+                ((*cached).clone(), prepared)
             } else {
                 report_identify_compute(ctx);
                 (live_transport_identification(diagram, query)?, false)

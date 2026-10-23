@@ -57,8 +57,11 @@ impl super::Study {
         for (horizon_index, &horizon) in query.horizons.iter().enumerate() {
             let mut witness = TemporalEffectQuery::pulse(query.treatment, query.outcome, 1.0);
             witness.horizon_steps = horizon;
-            let bundle =
-                self.identify_temporal_class(IdentifierId::GeneralizedAdjustment, &witness)?;
+            let bundle = self.identify_temporal_class_reusing(
+                IdentifierId::GeneralizedAdjustment,
+                &witness,
+                physical,
+            )?;
             let envelope = &bundle.envelope.envelope;
             let hit_cap = envelope.truncated_completions > 0;
             run.full_mass_scope &= !hit_cap;
@@ -625,10 +628,9 @@ impl super::Study {
         graph: &TemporalDag,
         query: &antecedent_core::MediationQuery,
         horizon: u32,
+        reused: Option<&crate::analysis::prepared::CachedTemporalIdentification>,
     ) -> Result<Arc<[antecedent_data::LaggedColumn]>, CausalError> {
-        if let Some(entry) =
-            self.temporal_identification_cache.as_deref().and_then(|cache| cache.get(horizon))
-        {
+        if let Some(entry) = reused.and_then(|cache| cache.get(horizon)) {
             return Ok(lagged_adjustment_from_entry(entry));
         }
         let ider = TemporalMediationIdentifier {
@@ -673,47 +675,49 @@ impl super::Study {
             return self.execute_temporal_iv(data, graph, query, physical, ctx);
         }
         let started = Instant::now();
-        let (identification, estimand, indexer, identify_cached) =
-            if let Some(operation) = checked_bayesian {
-                let target = operation.target();
-                if !target.matches_graph(graph)
-                    || !target.matches_query(&CausalQuery::TemporalEffect(query.clone()))
-                {
-                    return Err(CausalError::Compile {
+        let (identification, estimand, indexer, identify_cached) = if let Some(operation) =
+            checked_bayesian
+        {
+            let target = operation.target();
+            if !target.matches_graph(graph)
+                || !target.matches_query(&CausalQuery::TemporalEffect(query.clone()))
+            {
+                return Err(CausalError::Compile {
                     message:
                         "checked Bayesian temporal target differs from the prepared graph or query"
                             .into(),
                 });
-                }
-                (
-                    target.identification().clone(),
-                    target.estimand().clone(),
-                    target.indexer().clone(),
-                    true,
-                )
-            } else if let Some(cache) = self.temporal_identification_cache.as_deref() {
-                let entry = cache.get(query.horizon_steps).ok_or_else(|| CausalError::Compile {
-                    message: format!(
-                        "prepared temporal identification missing horizon {}",
-                        query.horizon_steps
-                    ),
-                })?;
-                (entry.identification.clone(), entry.estimand.clone(), entry.indexer.clone(), true)
-            } else {
-                let id_res = TemporalBackdoorIdentifier::new()
-                    .with_parent_adjustment_fallback()
-                    .identify_temporal(graph, query)
-                    .map_err(CausalError::from)?;
-                let estimand = select_estimand(
-                    &id_res.result,
-                    if query.is_multi_step_sustained() {
-                        EstimatorId::TemporalSequentialGcomp
-                    } else {
-                        EstimatorId::TemporalLinearAdjustment
-                    },
-                )?;
-                (id_res.result, estimand, id_res.indexer, false)
-            };
+            }
+            (
+                target.identification().clone(),
+                target.estimand().clone(),
+                target.indexer().clone(),
+                true,
+            )
+        } else if let Some((cache, prepared)) = self.reuse_temporal_identification(physical) {
+            let entry = cache.get(query.horizon_steps).ok_or_else(|| CausalError::Compile {
+                message: format!(
+                    "prepared temporal identification missing horizon {}",
+                    query.horizon_steps
+                ),
+            })?;
+            (entry.identification.clone(), entry.estimand.clone(), entry.indexer.clone(), prepared)
+        } else {
+            report_identify_compute(ctx);
+            let id_res = TemporalBackdoorIdentifier::new()
+                .with_parent_adjustment_fallback()
+                .identify_temporal(graph, query)
+                .map_err(CausalError::from)?;
+            let estimand = select_estimand(
+                &id_res.result,
+                if query.is_multi_step_sustained() {
+                    EstimatorId::TemporalSequentialGcomp
+                } else {
+                    EstimatorId::TemporalLinearAdjustment
+                },
+            )?;
+            (id_res.result, estimand, id_res.indexer, false)
+        };
         let fit = super::temporal_effect_core::fit_temporal_effect(
             &super::temporal_effect_core::TemporalEffectInputs {
                 data,
@@ -781,22 +785,23 @@ impl super::Study {
                 MediationInference::Bayesian(config)
             }
         };
-        let (cache, identify_cached) =
-            if let Some(cache) = self.temporal_identification_cache.clone() {
-                (cache, true)
-            } else {
-                report_identify_compute(ctx);
-                (
-                    Arc::new(crate::analysis::prepared::identify_temporal_mediation_horizons(
-                        graph,
-                        query,
-                        inference.estimator_id(),
-                    )?),
-                    false,
-                )
-            };
+        let reused = self.reuse_temporal_identification(physical);
+        let (cache, identify_cached) = if let Some((cache, prepared)) = reused.clone() {
+            (cache, prepared)
+        } else {
+            report_identify_compute(ctx);
+            (
+                Arc::new(crate::analysis::prepared::identify_temporal_mediation_horizons(
+                    graph,
+                    query,
+                    inference.estimator_id(),
+                )?),
+                false,
+            )
+        };
+        let reused = reused.as_ref().map(|(cache, _)| &**cache);
         let clicks = mediation_horizon_clicks(&cache, query, |horizon| {
-            self.mediation_adjustment(graph, query, horizon)
+            self.mediation_adjustment(graph, query, horizon, reused)
         })?;
         let fit = fit_temporal_mediation(
             &TemporalMediationInputs {
@@ -840,8 +845,14 @@ impl super::Study {
         let (treatment, outcome) = super::response_path::response_primary_pair(&query.functional)?;
         let observed_bayes =
             self.inference.is_bayesian() && query.observation != ObservationSpec::Complete;
-        let (cache, identify_cached) =
-            self.temporal_response_identification(graph, query, temporal, (treatment, outcome))?;
+        let (cache, identify_cached) = self.temporal_response_identification(
+            graph,
+            query,
+            temporal,
+            (treatment, outcome),
+            physical,
+            ctx,
+        )?;
         let aligned = identified_horizon_entries(&cache, temporal)?;
         let first = aligned[0];
         let (aggregate_status, mut aggregate_assumptions) =
@@ -954,12 +965,16 @@ impl super::Study {
         query: &ResponseQuery,
         temporal: &antecedent_core::TemporalResponseSpec,
         (treatment, outcome): (VariableId, VariableId),
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
     ) -> Result<(Arc<crate::analysis::prepared::CachedTemporalIdentification>, bool), CausalError>
     {
+        let mut stripped_levels = false;
         let schedule = match antecedent_estimate::plan_from_response_query(query) {
             Ok(Some(plan)) if plan.mechanism_overlays().is_some() => {
                 let mut nodes = plan.identification_schedule(temporal);
                 for node in &mut nodes {
+                    stripped_levels |= node.2.is_some();
                     node.2 = None;
                 }
                 Some(nodes)
@@ -967,9 +982,17 @@ impl super::Study {
             Ok(_) => None,
             Err(error) => return Err(CausalError::from(error)),
         };
-        Ok(if let Some(cache) = self.temporal_identification_cache.clone() {
-            (cache, true)
+        // Compile retains the certificate of the schedule as the query states it;
+        // this route certifies it without levels, so a retained certificate is its
+        // own exactly when there were no levels to strip. A prepared cache is taken
+        // as before.
+        let reused = self
+            .reuse_temporal_identification(physical)
+            .filter(|(_, prepared)| *prepared || !stripped_levels);
+        Ok(if let Some(reused) = reused {
+            reused
         } else {
+            report_identify_compute(ctx);
             (
                 Arc::new(crate::analysis::prepared::identify_temporal_response_horizons(
                     graph,
@@ -1564,8 +1587,11 @@ impl super::Study {
         for (horizon_index, &horizon) in temporal.horizons.iter().enumerate() {
             let effect_query =
                 class_horizon_witness(query, temporal, (treatment, outcome), horizon);
-            let bundle =
-                self.identify_temporal_class(IdentifierId::GeneralizedAdjustment, &effect_query)?;
+            let bundle = self.identify_temporal_class_reusing(
+                IdentifierId::GeneralizedAdjustment,
+                &effect_query,
+                physical,
+            )?;
             let envelope = &bundle.envelope.envelope;
             run.diagnostics.push(temporal_class_envelope_diagnostic(envelope, self.graph.class()));
             let weights = class_weights.for_envelope(&bundle.envelope)?;
@@ -1997,8 +2023,11 @@ impl super::Study {
         for (horizon_index, &horizon) in temporal.horizons.iter().enumerate() {
             let effect_query =
                 class_horizon_witness(query, temporal, (treatment, outcome), horizon);
-            let bundle =
-                self.identify_temporal_class(IdentifierId::GeneralizedAdjustment, &effect_query)?;
+            let bundle = self.identify_temporal_class_reusing(
+                IdentifierId::GeneralizedAdjustment,
+                &effect_query,
+                physical,
+            )?;
             let envelope = &bundle.envelope.envelope;
             let weights = class_weights.for_envelope(&bundle.envelope)?;
             run.horizon_fingerprints
@@ -2451,8 +2480,8 @@ impl super::Study {
         CausalError,
     > {
         let identifier_id = physical.binding().identifier_or(RouteDefaults::PAG)?;
-        if let Some(cache) = self.temporal_class_identification_cache.as_ref() {
-            Ok((identifier_id, Arc::clone(cache), true))
+        if let Some((cache, prepared)) = self.reuse_temporal_class_identification(physical) {
+            Ok((identifier_id, cache, prepared))
         } else {
             report_identify_compute(ctx);
             Ok((identifier_id, self.identify_temporal_class(identifier_id, query)?, false))
@@ -2474,8 +2503,8 @@ impl super::Study {
         };
         let identifier_id = physical.binding().identifier_or(RouteDefaults::PAG)?;
         let (bundle, identify_cached) =
-            if let Some(cache) = self.temporal_class_identification_cache.as_ref() {
-                (Arc::clone(cache), true)
+            if let Some(reused) = self.reuse_temporal_class_identification(physical) {
+                reused
             } else {
                 report_identify_compute(ctx);
                 (self.identify_temporal_class(identifier_id, query)?, false)
@@ -2816,6 +2845,40 @@ impl super::Study {
                 .iter()
                 .all(|horizon| cache.by_horizon.iter().any(|(cached, _)| cached == horizon))
         })
+    }
+
+    /// The class envelope the plan's lowered program retained for `horizon`, when
+    /// this study carries no prepared class cache.
+    pub(crate) fn retained_temporal_class_horizon(
+        &self,
+        physical: &PhysicalExecutionPlan,
+        horizon: u32,
+    ) -> Option<Arc<crate::analysis::prepared::CachedTemporalClassIdentification>> {
+        if self.temporal_class_identification_cache.is_some() {
+            return None;
+        }
+        let retained = crate::analysis::lowering::plan_retained_temporal_class(self, physical)?;
+        let (_, envelope) = retained.by_horizon.iter().find(|(cached, _)| *cached == horizon)?;
+        Some(Arc::new(crate::analysis::prepared::CachedTemporalClassIdentification {
+            envelope: Arc::clone(envelope),
+            by_horizon: Vec::new(),
+        }))
+    }
+
+    /// [`Self::identify_temporal_class`] in the executor order: the prepared
+    /// certificate for the query's horizon, then the one the plan's lowered program
+    /// retained, then a fresh identification.
+    pub(crate) fn identify_temporal_class_reusing(
+        &self,
+        identifier_id: IdentifierId,
+        query: &TemporalEffectQuery,
+        physical: &PhysicalExecutionPlan,
+    ) -> Result<Arc<crate::analysis::prepared::CachedTemporalClassIdentification>, CausalError>
+    {
+        match self.retained_temporal_class_horizon(physical, query.horizon_steps) {
+            Some(bundle) => Ok(bundle),
+            None => self.identify_temporal_class(identifier_id, query),
+        }
     }
 
     pub(crate) fn identify_temporal_class(

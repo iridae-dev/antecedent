@@ -95,7 +95,8 @@ impl CheckedLocalPolynomialRatioOperation {
                 message: "local ratio design differs from its compiled plan".into(),
             });
         }
-        let (identification, estimand) = local_polynomial_ratio_identification(query);
+        let (identification, estimand) = study
+            .design_identification_or(physical, || local_polynomial_ratio_identification(query));
         Ok(Self::freeze(study, query, data, physical, identification, estimand, bayesian))
     }
 

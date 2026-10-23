@@ -2272,7 +2272,9 @@ fn graph_identity(study: &Study) -> Result<GraphIdentityWire, CausalError> {
     accepted_graph_identity(&study.graph)
 }
 
-fn accepted_graph_identity(graph: &AcceptedGraph) -> Result<GraphIdentityWire, CausalError> {
+pub(crate) fn accepted_graph_identity(
+    graph: &AcceptedGraph,
+) -> Result<GraphIdentityWire, CausalError> {
     match graph.graph_ref() {
         GraphRef::Dag(g) => dag_identity(g).map_err(|err| io_err(&err)),
         GraphRef::Admg(g) => admg_identity(g).map_err(|err| io_err(&err)),

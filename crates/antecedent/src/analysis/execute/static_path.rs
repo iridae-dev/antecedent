@@ -96,8 +96,10 @@ impl<'a> StaticAteExecution<'a> {
         // Prepared handles identify once at prepare time; identification reads
         // only (identifier, graph, query, rd), all frozen there, so reuse is
         // exact and observable via the `exec.identify.cached` diagnostic below.
-        let (identification, estimand, identify_cached) =
-            identification_from_cache_or(ctx, study.identification_cache.as_deref(), || {
+        let (identification, estimand, identify_cached) = identification_from_cache_or(
+            ctx,
+            study.reuse_static_identification(run.physical),
+            || {
                 let rd =
                     study.rd.map(|c| SharpRdConfig::new(c.running_variable, c.cutoff, c.bandwidth));
                 let identification = identify_static_query_with_rd(
@@ -107,7 +109,8 @@ impl<'a> StaticAteExecution<'a> {
                     rd,
                 )?;
                 select_claim(identification, estimator_id)
-            })?;
+            },
+        )?;
         clock.finish(super::super::stage::STAGE_IDENTIFY);
         super::super::stage::emit_stage(
             study.stage_sink.as_ref(),
@@ -912,7 +915,7 @@ impl super::Study {
         // only (identifier, graph, query), all frozen there, so reuse is exact
         // and observable via the `exec.identify.cached` diagnostic below.
         let (identification, estimand, identify_cached) =
-            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
+            identification_from_cache_or(ctx, self.reuse_static_identification(physical), || {
                 let identification = graph.identify(identifier_id, query)?;
                 let estimand = select_estimand(&identification, estimator_id)?;
                 Ok((identification, estimand))
@@ -1104,7 +1107,7 @@ impl super::Study {
         // only (identifier, graph, query), all frozen there, so reuse is exact
         // and observable via the `exec.identify.cached` diagnostic below.
         let (identification, estimand, identify_cached) =
-            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
+            identification_from_cache_or(ctx, self.reuse_static_identification(physical), || {
                 let cq = CausalQuery::PathSpecific(query.clone());
                 let identification = identify_static_query(identifier_id, graph, &cq)?;
                 let estimand = select_estimand(&identification, estimator_id)?;
@@ -1164,8 +1167,20 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         let (identifier_id, estimator_id) = physical.binding().resolve(RouteDefaults::ADMG)?;
+        // Compile retains the static claim preparation resolves; it is this route's
+        // claim when the strategy matches, no design is declared and selecting the
+        // estimand did not narrow it.
+        let reused = self.reuse_static_identification_if(physical, |cache| {
+            self.rd.is_none()
+                && cache.identification.estimand_claims.is_empty()
+                && physical.binding().resolves_to(
+                    RouteDefaults::STATIC_ATE,
+                    identifier_id,
+                    estimator_id,
+                )
+        });
         let (identification, estimand, identify_cached) =
-            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
+            identification_from_cache_or(ctx, reused, || {
                 let identification = identify_static_query(
                     identifier_id,
                     graph,
@@ -1314,8 +1329,15 @@ impl super::Study {
         // Prepared handles identify once at prepare time; identification reads
         // only (identifier, graph, query.inner), all frozen there, so reuse is
         // exact and observable via the `exec.identify.cached` diagnostic below.
+        // A compiled plan's retained claim is reused when it names this identifier.
+        let reused = self.reuse_static_identification_if(physical, |_| {
+            physical
+                .binding()
+                .identifier_or(RouteDefaults::CONDITIONAL)
+                .is_ok_and(|identifier| identifier == identifier_id)
+        });
         let (identification, estimand, identify_cached) =
-            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
+            identification_from_cache_or(ctx, reused, || {
                 let identification = identify_static(identifier_id, graph, &query.inner)?;
                 select_claim(identification, EstimatorId::ConditionalLinearAdjustment)
             })?;
@@ -1394,8 +1416,8 @@ impl super::Study {
                     message: "PAG ConditionalEffect execute missing resolved static PAG".into(),
                 })?;
                 let (envelope, identification, identify_cached) =
-                    if let Some(cache) = self.pag_identification_cache.as_ref() {
-                        (Arc::clone(&cache.envelope), cache.identification.clone(), true)
+                    if let Some((cache, prepared)) = self.reuse_pag_identification(physical) {
+                        (Arc::clone(&cache.envelope), cache.identification.clone(), prepared)
                     } else {
                         report_identify_compute(ctx);
                         let envelope = identify_pag(identifier_id, pag, &query.inner)?;
@@ -1433,8 +1455,8 @@ impl super::Study {
                     message: "CPDAG ConditionalEffect execute missing supplied graph".into(),
                 })?;
                 let (envelope, identification, identify_cached) =
-                    if let Some(cache) = self.cpdag_identification_cache.as_ref() {
-                        (Arc::clone(&cache.envelope), cache.identification.clone(), true)
+                    if let Some((cache, prepared)) = self.reuse_cpdag_identification(physical) {
+                        (Arc::clone(&cache.envelope), cache.identification.clone(), prepared)
                     } else {
                         report_identify_compute(ctx);
                         let envelope = identify_cpdag(identifier_id, cpdag, &query.inner)?;
@@ -1626,7 +1648,7 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         let (identification, estimand, identify_cached) =
-            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
+            identification_from_cache_or(ctx, self.reuse_static_identification(physical), || {
                 let identification = identify_static_query(
                     IdentifierId::PathSpecificNatural,
                     graph,
@@ -1765,7 +1787,7 @@ impl super::Study {
         let Strategy { identifier: identifier_id, estimator: estimator_id } = strategy;
         let started = Instant::now();
         let (identification, identify_cached) =
-            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
+            identification_from_cache_or(ctx, self.reuse_static_identification(physical), || {
                 let identification = antecedent_identify::identify_tiered(background, query)?;
                 let estimand = identification.estimands.first().cloned().ok_or_else(|| {
                     CausalError::Compile {

@@ -5,6 +5,10 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::QueryError;
+use crate::canonical_encode::{
+    CanonicalEncode, count, encode_flags, encode_option, encode_usizes, flag,
+};
+use crate::identity::CanonicalWriter;
 use crate::ids::VariableId;
 use std::sync::Arc;
 
@@ -37,6 +41,23 @@ pub struct MultiActionPolicyInputs {
     pub reference_budget: Option<f64>,
     /// Frozen pre-treatment stratum for action-specific conditional effects.
     pub cate_groups: Arc<[Arc<str>]>,
+}
+
+/// Every field is written. Row-, action- and row-by-action-aligned arrays keep
+/// their order; the action labels keep their positions (actions index them).
+impl CanonicalEncode for MultiActionPolicyInputs {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        writer.texts(&self.action_labels);
+        encode_usizes(writer, &self.assignment);
+        encode_usizes(writer, &self.actions);
+        encode_usizes(writer, &self.reference);
+        writer.reals(&self.propensities);
+        encode_flags(writer, &self.available);
+        writer.reals(&self.costs).reals(&self.reference_costs);
+        encode_usizes(writer, &self.capacities);
+        encode_usizes(writer, &self.reference_capacities);
+        writer.opt_real(self.budget).opt_real(self.reference_budget).texts(&self.cate_groups);
+    }
 }
 
 impl MultiActionPolicyInputs {
@@ -259,6 +280,44 @@ pub struct FixedCandidateRegretInputs {
     pub selected_index: usize,
     /// Caller-declared candidate construction and selection subjects.
     pub training_subject_ids: Arc<[Arc<str>]>,
+}
+
+/// Every field is written, including the caller-declared ownership flags (they
+/// select the licensed estimator). Row-aligned arrays keep their order; the
+/// subject-id lists keep their declared order as well (conservatively, although
+/// they are only checked for disjointness).
+impl CanonicalEncode for PolicyValueQuery {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        self.outcome.encode(writer);
+        encode_flags(writer, &self.assignment);
+        writer.reals(&self.propensity);
+        encode_flags(writer, &self.actions);
+        encode_flags(writer, &self.reference);
+        writer
+            .reals(&self.mu0)
+            .reals(&self.mu1)
+            .reals(&self.costs)
+            .reals(&self.reference_costs)
+            .texts(&self.evaluation_subject_ids)
+            .word(flag(self.disjoint_training_subjects))
+            .word(flag(self.crossfit_fold_ownership_valid))
+            .word(flag(self.global_constraints_present));
+        encode_option(writer, self.multi_action.as_ref());
+        encode_usizes(writer, &self.uplift_bins);
+        writer.word(count(self.uplift_bin_count)).texts(&self.uplift_training_subject_ids);
+        encode_option(writer, self.regret.as_ref());
+    }
+}
+
+/// Candidates keep their prespecified order (`selected_index` points into it).
+impl CanonicalEncode for FixedCandidateRegretInputs {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        writer.word(count(self.candidates.len()));
+        for candidate in self.candidates.iter() {
+            encode_flags(writer, candidate);
+        }
+        writer.word(count(self.selected_index)).texts(&self.training_subject_ids);
+    }
 }
 
 impl PolicyValueQuery {

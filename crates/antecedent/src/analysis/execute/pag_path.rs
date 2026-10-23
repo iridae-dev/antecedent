@@ -30,6 +30,7 @@ struct AdmgLevelRun<'a> {
     estimator_id: EstimatorId,
     treatment: VariableId,
     outcome: VariableId,
+    physical: &'a PhysicalExecutionPlan,
     ctx: &'a ExecutionContext,
 }
 
@@ -274,8 +275,11 @@ impl super::Study {
             });
         }
 
+        let reused = self.reuse_static_identification_if(physical, |_| {
+            physical.binding().resolves_to(RouteDefaults::STATIC_ATE, identifier_id, estimator_id)
+        });
         let (identification, estimand, identify_cached) =
-            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
+            identification_from_cache_or(ctx, reused, || {
                 let identification = identify_admg(identifier_id, admg, query)?;
                 let estimand = select_estimand(&identification, estimator_id)?;
                 Ok((identification, estimand))
@@ -358,8 +362,13 @@ impl super::Study {
                           refuters and custom validators do not apply to an IDC contrast",
             });
         }
+        // The retained IDC claim is this route's when it carries the one estimand the
+        // executor would select.
+        let reused = self.reuse_static_identification_if(physical, |cache| {
+            cache.identification.estimands.len() == 1
+        });
         let (identification, estimand, identify_cached) =
-            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
+            identification_from_cache_or(ctx, reused, || {
                 let identification =
                     crate::analysis::conditional_admg::admg_conditional_identification(
                         admg, query,
@@ -481,6 +490,7 @@ impl super::Study {
             estimator_id,
             treatment,
             outcome,
+            physical,
             ctx,
         };
         let AdmgLevelsResponse {
@@ -563,7 +573,14 @@ impl super::Study {
         };
         for (i, level_query) in level_queries.iter().enumerate() {
             let (level_id, level_est, cached) = if i == 0 {
-                identification_from_cache_or(run.ctx, self.identification_cache.as_deref(), || {
+                let reused = self.reuse_static_identification_if(run.physical, |_| {
+                    run.physical.binding().resolves_to(
+                        RouteDefaults::STATIC_ATE,
+                        run.identifier_id,
+                        run.estimator_id,
+                    )
+                });
+                identification_from_cache_or(run.ctx, reused, || {
                     let identification = identify_admg_query(
                         run.identifier_id,
                         run.admg,
@@ -721,8 +738,8 @@ impl super::Study {
         let started = Instant::now();
         let (identifier_id, estimator_id) = physical.binding().resolve(RouteDefaults::PAG)?;
         let (envelope, identification, identify_cached) =
-            if let Some(cache) = self.pag_identification_cache.as_ref() {
-                (Arc::clone(&cache.envelope), cache.identification.clone(), true)
+            if let Some((cache, prepared)) = self.reuse_pag_identification(physical) {
+                (Arc::clone(&cache.envelope), cache.identification.clone(), prepared)
             } else {
                 report_identify_compute(ctx);
                 let envelope = identify_pag(identifier_id, pag, query)?;
@@ -761,8 +778,8 @@ impl super::Study {
         let started = Instant::now();
         let (identifier_id, estimator_id) = physical.binding().resolve(RouteDefaults::PAG)?;
         let (envelope, identification, identify_cached) =
-            if let Some(cache) = self.cpdag_identification_cache.as_ref() {
-                (Arc::clone(&cache.envelope), cache.identification.clone(), true)
+            if let Some((cache, prepared)) = self.reuse_cpdag_identification(physical) {
+                (Arc::clone(&cache.envelope), cache.identification.clone(), prepared)
             } else {
                 report_identify_compute(ctx);
                 let envelope = identify_cpdag(identifier_id, cpdag, query)?;

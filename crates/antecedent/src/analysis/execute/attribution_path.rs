@@ -492,17 +492,15 @@ impl super::Study {
         }
         let graph = operation.graph();
         let query = CausalQuery::Counterfactual(operation.query().clone());
-        let (cache, identify_cached) =
-            shared_identification_from_cache_or(ctx, self.identification_cache.as_ref(), || {
-                let identification =
-                    identify_static_query(IdentifierId::GcmParametric, graph, &query)?;
-                let estimand = identification.estimands.first().cloned().ok_or_else(|| {
-                    CausalError::Compile {
-                        message: "counterfactual identification produced no estimand".into(),
-                    }
+        let reused = self.reuse_static_identification(physical);
+        let (cache, identify_cached) = shared_identification_from_cache_or(ctx, reused, || {
+            let identification = identify_static_query(IdentifierId::GcmParametric, graph, &query)?;
+            let estimand =
+                identification.estimands.first().cloned().ok_or_else(|| CausalError::Compile {
+                    message: "counterfactual identification produced no estimand".into(),
                 })?;
-                Ok((identification, estimand))
-            })?;
+            Ok((identification, estimand))
+        })?;
         let inference = self.inference.clone();
         let procedure = CounterfactualProcedure::for_inference(&inference)?;
         let plan = CheckedCounterfactualPlan::new(
@@ -529,7 +527,7 @@ impl super::Study {
         query.validate()?;
         let outcome = *query.targets.first().unwrap_or(&VariableId::from_raw(0));
         let (_, _, identify_cached) =
-            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
+            identification_from_cache_or(ctx, self.reuse_static_identification(physical), || {
                 Ok(parametric_scm_identification(
                     CausalQuery::AnomalyAttribution(query.clone()),
                     outcome,
@@ -644,7 +642,7 @@ impl super::Study {
         let started = Instant::now();
         query.validate()?;
         let (_, _, identify_cached) =
-            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
+            identification_from_cache_or(ctx, self.reuse_static_identification(physical), || {
                 Ok(parametric_scm_identification(
                     CausalQuery::ChangeAttribution(query.clone()),
                     query.outcome,

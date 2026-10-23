@@ -4,6 +4,8 @@
 use std::sync::Arc;
 
 use super::QueryError;
+use crate::canonical_encode::{CanonicalEncode, encode_u32s, encode_variables};
+use crate::identity::CanonicalWriter;
 use crate::ids::VariableId;
 
 /// Contrast of two static two-decision regimes from one observed row per subject.
@@ -34,6 +36,23 @@ pub struct SequentialContrastQuery {
     pub fold_count: u32,
     /// Positivity floor of every regime action probability, in `(0, 0.5]`.
     pub min_probability: f64,
+}
+
+/// Every field is written. `fold_of_row` is row-aligned and keeps its order.
+/// `baseline` and `intermediate` keep their order too: they are model
+/// covariate columns, and the conservative choice is never to merge two
+/// spellings. The regimes keep their decision order.
+impl CanonicalEncode for SequentialContrastQuery {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        self.outcome.encode(writer);
+        self.first_treatment.encode(writer);
+        self.second_treatment.encode(writer);
+        encode_variables(writer, &self.baseline);
+        encode_variables(writer, &self.intermediate);
+        writer.bytes(&self.active).bytes(&self.control);
+        encode_u32s(writer, &self.fold_of_row);
+        writer.word(u64::from(self.fold_count)).real(self.min_probability);
+    }
 }
 
 impl SequentialContrastQuery {

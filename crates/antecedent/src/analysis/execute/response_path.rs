@@ -758,7 +758,10 @@ impl super::Study {
             if let Some((identification, estimand, _, _)) = checked_identity {
                 (identification, estimand, true)
             } else {
-                identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
+                let reused = self.reuse_static_identification_if(physical, |_| {
+                    binding.resolves_to(RouteDefaults::STATIC_ATE, identifier_id, estimator_id)
+                });
+                identification_from_cache_or(ctx, reused, || {
                     let identification = identify_static_query(
                         identifier_id,
                         graph,
@@ -992,7 +995,7 @@ impl super::Study {
             });
         }
         let (identification, estimand, identify_cached) =
-            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
+            identification_from_cache_or(ctx, self.reuse_static_identification(physical), || {
                 let identification = match self.graph.as_admg() {
                     Some(admg) => {
                         antecedent_identify::identify_tiered_joint_on(background, admg, query)?
@@ -1398,8 +1401,8 @@ impl super::Study {
                     message: "PAG response execute missing resolved static PAG".into(),
                 })?;
                 let (envelope, identify_cached) =
-                    if let Some(cache) = self.pag_identification_cache.as_ref() {
-                        (Arc::clone(&cache.envelope), true)
+                    if let Some((cache, prepared)) = self.reuse_pag_identification(physical) {
+                        (Arc::clone(&cache.envelope), prepared)
                     } else {
                         report_identify_compute(ctx);
                         (
@@ -1438,8 +1441,8 @@ impl super::Study {
                     message: "CPDAG response execute missing supplied graph".into(),
                 })?;
                 let (envelope, identify_cached) =
-                    if let Some(cache) = self.cpdag_identification_cache.as_ref() {
-                        (Arc::clone(&cache.envelope), true)
+                    if let Some((cache, prepared)) = self.reuse_cpdag_identification(physical) {
+                        (Arc::clone(&cache.envelope), prepared)
                     } else {
                         report_identify_compute(ctx);
                         (

@@ -88,7 +88,8 @@ impl CheckedSurvivalOperation {
                 message: "survival query differs from its compiled plan".into(),
             });
         }
-        let (identification, estimand) = survival_identification(query);
+        let (identification, estimand) =
+            study.design_identification_or(physical, || survival_identification(query));
         Ok(Self::freeze(
             study,
             query,

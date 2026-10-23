@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{ObservationAssumption, QueryError};
+use crate::canonical_encode::{CanonicalEncode, encode_option, encode_variables, i64_bits};
+use crate::identity::CanonicalWriter;
 use crate::ids::VariableId;
 use std::sync::Arc;
 
@@ -20,6 +22,15 @@ pub struct KnownCensoringSurvival {
     pub minimum_probability: f64,
 }
 
+/// `columns` are aligned with `times` and keep their order.
+impl CanonicalEncode for KnownCensoringSurvival {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        writer.reals(&self.times);
+        encode_variables(writer, &self.columns);
+        writer.real(self.minimum_probability);
+    }
+}
+
 /// Requested functional of a right-censored event-time distribution.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SurvivalFunctional {
@@ -30,6 +41,19 @@ pub enum SurvivalFunctional {
         /// Target event code; zero is reserved for censoring.
         target_cause: i64,
     },
+}
+
+impl CanonicalEncode for SurvivalFunctional {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::SurvivalAndRmst => {
+                writer.word(1);
+            }
+            Self::CumulativeIncidence { target_cause } => {
+                writer.word(2).word(i64_bits(*target_cause));
+            }
+        }
+    }
 }
 
 /// A randomized two-arm event-time query with an explicit observation claim.
@@ -58,6 +82,20 @@ pub struct SurvivalQuery {
     pub observation_assumption: ObservationAssumption,
     /// Requested curve or competing-risk functional.
     pub functional: SurvivalFunctional,
+}
+
+/// Every field is written.
+impl CanonicalEncode for SurvivalQuery {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        self.duration.encode(writer);
+        self.event.encode(writer);
+        self.treatment.encode(writer);
+        writer.real(self.tau);
+        encode_option(writer, self.delayed_entry.as_ref());
+        encode_option(writer, self.known_censoring.as_ref());
+        self.observation_assumption.encode(writer);
+        self.functional.encode(writer);
+    }
 }
 
 impl SurvivalQuery {

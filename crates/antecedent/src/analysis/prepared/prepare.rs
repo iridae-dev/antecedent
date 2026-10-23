@@ -82,19 +82,10 @@ impl Study {
         if ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_IDENTIFY });
         }
-        // The posterior builders report `identify.compute` themselves; the
-        // single-graph, PAG, and temporal caches identify above without a
-        // progress hook, so report once here when one of them was built. A
-        // sharp-RD prepare builds no cache and reports nothing: its clicks do.
-        if analysis.identification_cache.is_some()
-            || analysis.pag_identification_cache.is_some()
-            || analysis.cpdag_identification_cache.is_some()
-            || analysis.temporal_identification_cache.is_some()
-            || analysis.temporal_class_identification_cache.is_some()
-            || analysis.transport_identification_cache.is_some()
-        {
-            crate::analysis::execute::report_identify_compute(ctx);
-        }
+        // `identify_caches` reports `identify.compute` once wherever it identifies:
+        // at compile when the lowered program retains the products, or above
+        // when the plan retained none. A sharp-RD prepare builds no cache and
+        // reports nothing: its clicks do.
         let binding = plan.binding();
         let execution = seal_execution(&SealContext {
             source: self,
@@ -248,7 +239,15 @@ impl Study {
         let mut caches = Vec::new();
         match self.graph_posterior.as_ref() {
             Some(posterior) => self.identify_graph_posterior_caches(posterior, ctx, &mut caches)?,
-            None => self.identify_single_graph_caches(plan, &mut caches)?,
+            None => {
+                self.identify_single_graph_caches(plan, &mut caches)?;
+                // The posterior builders report `identify.compute` themselves; the
+                // single-graph, class, temporal and transport products identify
+                // without a progress hook, so report once when any was built.
+                if !caches.is_empty() {
+                    crate::analysis::execute::report_identify_compute(ctx);
+                }
+            }
         }
         Ok(caches)
     }

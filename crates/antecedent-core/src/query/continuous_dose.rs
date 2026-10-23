@@ -2,6 +2,8 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::QueryError;
+use crate::canonical_encode::{CanonicalEncode, count, encode_option};
+use crate::identity::CanonicalWriter;
 use crate::ids::VariableId;
 use std::sync::Arc;
 
@@ -13,6 +15,26 @@ pub struct FixedGroupDosePolicy {
     pub policy_doses: Arc<[(Arc<str>, f64)]>,
     /// Prespecified reference target dose for each baseline group.
     pub reference_doses: Arc<[(Arc<str>, f64)]>,
+}
+
+/// Each rule maps every baseline group to one dose, so its entries are encoded
+/// in ascending group order (ties by dose bits); the two rules keep their roles.
+impl CanonicalEncode for FixedGroupDosePolicy {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        encode_group_doses(writer, &self.policy_doses);
+        encode_group_doses(writer, &self.reference_doses);
+    }
+}
+
+/// A group-to-dose rule in ascending `(group, dose bits)` order.
+fn encode_group_doses(writer: &mut CanonicalWriter, rule: &[(Arc<str>, f64)]) {
+    let mut entries =
+        rule.iter().map(|(group, dose)| (&**group, dose.to_bits())).collect::<Vec<_>>();
+    entries.sort_unstable();
+    writer.word(count(entries.len()));
+    for (group, dose_bits) in entries {
+        writer.text(group).word(dose_bits);
+    }
 }
 
 impl FixedGroupDosePolicy {
@@ -69,6 +91,23 @@ pub struct ContinuousDoseResponseQuery {
     pub density_provenance: Arc<str>,
     /// Optional fixed policy and reference group-dose rules evaluated on these rows.
     pub fixed_policy: Option<FixedGroupDosePolicy>,
+}
+
+/// Every field is written. `baseline_groups` is row-aligned and `target_doses`
+/// is the result grid; both keep their order.
+impl CanonicalEncode for ContinuousDoseResponseQuery {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        self.outcome.encode(writer);
+        self.dose.encode(writer);
+        self.dose_density.encode(writer);
+        writer
+            .texts(&self.baseline_groups)
+            .reals(&self.target_doses)
+            .real(self.bandwidth)
+            .word(count(self.min_local_support))
+            .text(&self.density_provenance);
+        encode_option(writer, self.fixed_policy.as_ref());
+    }
 }
 
 impl ContinuousDoseResponseQuery {

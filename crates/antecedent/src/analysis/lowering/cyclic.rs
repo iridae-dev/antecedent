@@ -43,7 +43,7 @@ use crate::planner::lowered::{
     ClaimDemand, Composition, CyclicLoweredParts, DesignShape, EvidenceDecisionProgram,
     EvidenceRole, EvidenceSourceRef, FunctionalKind, IdentificationLayer, LoweredProgram,
     NonGraphicalIdentification, PhysicalLayer, ProblemTarget, ScientificProblem,
-    UncertaintyReading, WidthSource,
+    UncertaintyReading,
 };
 use crate::planner::statistical::{
     ModelRole, ModelSlot, Realization, ResampleUnit, ResamplingMethod, ResamplingPlan,
@@ -267,12 +267,7 @@ fn statistical_program(
         folds: None,
         resampling,
         posterior: None,
-        design: DesignShape {
-            rows: 0,
-            columns: 0,
-            source: WidthSource::NotDesignBased(CYCLIC_SOLVE_BLOCKS),
-            direct: false,
-        },
+        design: DesignShape::not_design_based(CYCLIC_SOLVE_BLOCKS),
         operators: Arc::from(Vec::new()),
     })
 }
@@ -324,10 +319,8 @@ fn physical_layer(
     {
         effects.push(PhysicalEffect::Fit);
     }
-    let mut blocks = 0_u64;
     for plan in plans {
         for block in &plan.blocks {
-            blocks += 1;
             effects.push(match block {
                 ExecutionBlock::Mechanism { .. } => PhysicalEffect::Intervene,
                 ExecutionBlock::SimultaneousEquations { .. } => PhysicalEffect::Solve,
@@ -346,12 +339,7 @@ fn physical_layer(
         .collect::<Result<Vec<_>, _>>()?;
     Ok(PhysicalLayer {
         operators: Arc::from(operators),
-        design: DesignShape {
-            rows: plans.len() as u64,
-            columns: blocks,
-            source: WidthSource::NotDesignBased(CYCLIC_SOLVE_BLOCKS),
-            direct: false,
-        },
+        design: DesignShape::not_design_based(CYCLIC_SOLVE_BLOCKS),
     })
 }
 

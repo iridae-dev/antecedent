@@ -313,21 +313,22 @@ fn class_derivative_responses(
 
 impl super::Study {
     /// The class envelope a derivative response reads: the prepared handle's
-    /// certificate for the probe's horizon (or its default), else a fresh
-    /// identification.
+    /// certificate for the probe's horizon (or its default), then the one the
+    /// plan's lowered program retained, else a fresh identification.
     fn derivative_class_envelope(
         &self,
         identifier_id: IdentifierId,
         probe: &TemporalEffectQuery,
+        physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<(Arc<antecedent_identify::TemporalClassEnvelope>, bool), CausalError> {
-        Ok(if let Some(cache) = self.temporal_class_identification_cache.as_ref() {
+        Ok(if let Some((cache, prepared)) = self.reuse_temporal_class_identification(physical) {
             if let Some((_, envelope)) =
                 cache.by_horizon.iter().find(|(horizon, _)| *horizon == probe.horizon_steps)
             {
-                (Arc::clone(envelope), true)
+                (Arc::clone(envelope), prepared)
             } else {
-                (Arc::clone(&cache.envelope), true)
+                (Arc::clone(&cache.envelope), prepared)
             }
         } else {
             report_identify_compute(ctx);
@@ -367,7 +368,7 @@ impl super::Study {
         );
         let identifier_id = physical.binding().identifier_or(RouteDefaults::PAG)?;
         let (bundle, identify_cached) =
-            self.derivative_class_envelope(identifier_id, &probe, ctx)?;
+            self.derivative_class_envelope(identifier_id, &probe, physical, ctx)?;
         let treatment_offset = probe.try_treatment_offset()?;
         let outcome_offset = probe.outcome_offset();
         let envelope = &bundle.envelope;

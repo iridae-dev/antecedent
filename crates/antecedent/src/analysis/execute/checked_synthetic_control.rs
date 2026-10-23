@@ -103,7 +103,8 @@ impl CheckedSyntheticControlOperation {
                 message: "synthetic panel design differs from its compiled plan".into(),
             });
         }
-        let (identification, estimand) = synthetic_control_identification(query);
+        let (identification, estimand) =
+            study.design_identification_or(physical, || synthetic_control_identification(query));
         Ok(Self::freeze(study, query, data, physical, identification, estimand, bayesian))
     }
 

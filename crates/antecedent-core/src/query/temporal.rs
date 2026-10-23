@@ -4,6 +4,8 @@
 
 use std::sync::Arc;
 
+use crate::canonical_encode::{CanonicalEncode, encode_variable_set};
+use crate::identity::CanonicalWriter;
 use crate::ids::VariableId;
 use crate::intervention::{Intervention, TemporalPolicy};
 use crate::value::Value;
@@ -33,6 +35,21 @@ pub struct TemporalEffectQuery {
     /// Effect modifiers. Empty for an unconditional pulse or sustained effect.
     /// A non-empty set is a temporal conditional effect on the same policy.
     pub effect_modifiers: Arc<[VariableId]>,
+}
+
+/// Every field is written. `effect_modifiers` is a conditioning set and is
+/// encoded in ascending id order.
+impl CanonicalEncode for TemporalEffectQuery {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        self.treatment.encode(writer);
+        self.outcome.encode(writer);
+        self.policy.encode(writer);
+        self.control.encode(writer);
+        self.active.encode(writer);
+        writer.word(u64::from(self.horizon_steps)).opt_word(self.max_history_lag.map(u64::from));
+        self.target_population.encode(writer);
+        encode_variable_set(writer, &self.effect_modifiers);
+    }
 }
 
 impl TemporalEffectQuery {

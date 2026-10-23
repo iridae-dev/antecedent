@@ -38,7 +38,6 @@ use crate::planner::PhysicalExecutionPlan;
 use crate::planner::lowered::{
     ClaimDemand, DesignShape, FunctionalKind, IdentificationLayer, LoweredParts, LoweredProgram,
     LoweringDepth, PhysicalLayer, ProblemTarget, ScientificProblem, UncertaintyReading,
-    WidthSource,
 };
 use crate::planner::statistical::{
     DeclaredProgram, FoldPlan, ModelRole, ModelSlot, PosteriorPlan, Realization, ResampleUnit,
@@ -364,8 +363,8 @@ pub(super) struct CellProgram {
 /// Assemble a complete lowered program for `cell`.
 ///
 /// The identifier and estimator are the ones the route record resolved. The design
-/// shape keeps the planner's sizing and marks it as not design-based, so the
-/// physical record is not re-planned.
+/// shape is not design-based and carries no rows or columns, so the physical record
+/// keeps the planner's sizing and is not re-planned.
 ///
 /// # Errors
 ///
@@ -391,12 +390,7 @@ pub(super) fn assemble(
         support_coordinate: crate::analysis::contract::matrix_coordinate(study).map(Arc::from),
         licensed: matches!(study.support_status, Some(crate::support::CellStatus::Licensed)),
     };
-    let design = DesignShape {
-        rows: plan.logical.row_count_hint,
-        columns: plan.logical.design_columns_hint,
-        source: WidthSource::NotDesignBased(cell.width),
-        direct: false,
-    };
+    let design = DesignShape::not_design_based(cell.width);
     let mut statistical = StatisticalProgram::declared(DeclaredProgram {
         identifier,
         estimator,

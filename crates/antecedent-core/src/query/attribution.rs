@@ -4,6 +4,8 @@
 
 use std::sync::Arc;
 
+use crate::canonical_encode::{CanonicalEncode, count, encode_usizes, encode_variables, flag};
+use crate::identity::CanonicalWriter;
 use crate::ids::VariableId;
 
 use super::error::QueryError;
@@ -33,6 +35,19 @@ pub enum AnomalyReference {
     },
 }
 
+impl CanonicalEncode for AnomalyReference {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::Empirical => {
+                writer.word(1);
+            }
+            Self::Fixed { center, scale } => {
+                writer.word(2).real(center.to_f64()).real(scale.to_f64());
+            }
+        }
+    }
+}
+
 impl AnomalyReference {
     /// A fixed reference at `(center, scale)`.
     #[must_use]
@@ -55,6 +70,30 @@ pub struct AnomalyAttributionQuery {
     pub max_units: usize,
     /// Reference location/scale for the IT anomaly score (default `Empirical`).
     pub reference: AnomalyReference,
+}
+
+/// Every field is written. `targets` index the per-target scores and keep their
+/// order; `unit_rows` index the scored units and keep their order.
+impl CanonicalEncode for AnomalyAttributionQuery {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        encode_variables(writer, &self.targets);
+        encode_unit_rows(writer, self.unit_rows.as_deref());
+        writer.word(count(self.max_units));
+        self.reference.encode(writer);
+    }
+}
+
+/// Optional explicit row indices: a presence word, then the rows in the order given.
+fn encode_unit_rows(writer: &mut CanonicalWriter, rows: Option<&[usize]>) {
+    match rows {
+        Some(rows) => {
+            writer.word(1);
+            encode_usizes(writer, rows);
+        }
+        None => {
+            writer.word(0);
+        }
+    }
 }
 
 impl AnomalyAttributionQuery {
@@ -127,6 +166,26 @@ pub enum PopulationSelector {
     },
 }
 
+impl CanonicalEncode for PopulationSelector {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::All => {
+                writer.word(1);
+            }
+            Self::Rows(rows) => {
+                writer.word(2);
+                encode_usizes(writer, rows);
+            }
+            Self::Environment { env_index } => {
+                writer.word(3).word(count(*env_index));
+            }
+            Self::TimeRange { start, end } => {
+                writer.word(4).word(count(*start)).word(count(*end));
+            }
+        }
+    }
+}
+
 impl PopulationSelector {
     /// Validate selector geometry.
     ///
@@ -170,6 +229,19 @@ pub enum AttributionComponents {
     All,
 }
 
+impl CanonicalEncode for AttributionComponents {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        let tag = match self {
+            Self::Inputs => 1,
+            Self::Mechanisms => 2,
+            Self::Structure => 3,
+            Self::InputsAndMechanisms => 4,
+            Self::All => 5,
+        };
+        writer.word(tag);
+    }
+}
+
 /// Shapley estimation mode.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]
@@ -188,6 +260,22 @@ pub enum ShapleyMode {
     },
 }
 
+impl CanonicalEncode for ShapleyMode {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::Exact => {
+                writer.word(1);
+            }
+            Self::MonteCarlo { n_samples } => {
+                writer.word(2).word(count(*n_samples));
+            }
+            Self::Permutation { n_permutations } => {
+                writer.word(3).word(count(*n_permutations));
+            }
+        }
+    }
+}
+
 /// Configuration for Shapley allocation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct ShapleyConfig {
@@ -199,6 +287,16 @@ pub struct ShapleyConfig {
     pub allow_exact_override: bool,
     /// RNG seed for approximate modes.
     pub seed: u64,
+}
+
+impl CanonicalEncode for ShapleyConfig {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        self.mode.encode(writer);
+        writer
+            .word(count(self.max_exact_components))
+            .word(flag(self.allow_exact_override))
+            .word(self.seed);
+    }
 }
 
 impl ShapleyConfig {
@@ -303,6 +401,27 @@ pub enum AllocationMethod {
     PathBased,
 }
 
+/// A sequential `order` is the evaluation order and is kept as given.
+impl CanonicalEncode for AllocationMethod {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::Sequential { order } => {
+                writer.word(1).word(count(order.len()));
+                for component in order.iter() {
+                    writer.word(u64::from(component.raw()));
+                }
+            }
+            Self::Shapley { approximation } => {
+                writer.word(2);
+                approximation.encode(writer);
+            }
+            Self::PathBased => {
+                writer.word(3);
+            }
+        }
+    }
+}
+
 impl AllocationMethod {
     /// Validate allocation settings.
     ///
@@ -341,6 +460,18 @@ pub struct ChangeAttributionQuery {
     pub allocation: AllocationMethod,
     /// Maximum number of attribution components (hard size guard for Exact).
     pub max_components: usize,
+}
+
+/// Every field is written; baseline and comparison keep their roles.
+impl CanonicalEncode for ChangeAttributionQuery {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        self.outcome.encode(writer);
+        self.baseline.encode(writer);
+        self.comparison.encode(writer);
+        self.components.encode(writer);
+        self.allocation.encode(writer);
+        writer.word(count(self.max_components));
+    }
 }
 
 impl ChangeAttributionQuery {
@@ -433,6 +564,17 @@ impl OrderedFloatBits {
     }
 }
 
+/// Every field is written. `targets` index the per-target tests and keep their
+/// order.
+impl CanonicalEncode for MechanismChangeQuery {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        encode_variables(writer, &self.targets);
+        self.baseline.encode(writer);
+        self.comparison.encode(writer);
+        writer.real(self.significance_level.to_f64()).word(count(self.max_targets));
+    }
+}
+
 impl MechanismChangeQuery {
     /// Test all `targets` at the given significance level.
     #[must_use]
@@ -487,6 +629,18 @@ pub struct UnitChangeQuery {
     pub allocation: AllocationMethod,
     /// Hard unit count limit.
     pub max_units: usize,
+}
+
+/// Every field is written. `unit_rows` index the attributed units and keep
+/// their order.
+impl CanonicalEncode for UnitChangeQuery {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        self.outcome.encode(writer);
+        encode_unit_rows(writer, self.unit_rows.as_deref());
+        self.components.encode(writer);
+        self.allocation.encode(writer);
+        writer.word(count(self.max_units));
+    }
 }
 
 impl UnitChangeQuery {

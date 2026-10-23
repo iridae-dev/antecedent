@@ -4,6 +4,8 @@
 
 use std::sync::Arc;
 
+use crate::canonical_encode::{CanonicalEncode, encode_variable_set};
+use crate::identity::CanonicalWriter;
 use crate::ids::VariableId;
 use crate::intervention::Intervention;
 use crate::value::Value;
@@ -30,6 +32,20 @@ pub struct AverageEffectQuery {
     pub target_population: TargetPopulation,
     /// Outcome functional (mean or exceedance). Identification is unchanged.
     pub outcome_functional: OutcomeFunctional,
+}
+
+/// Every field is written. `effect_modifiers` is a conditioning set and is
+/// encoded in ascending id order.
+impl CanonicalEncode for AverageEffectQuery {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        self.treatment.encode(writer);
+        self.outcome.encode(writer);
+        encode_variable_set(writer, &self.effect_modifiers);
+        self.control.encode(writer);
+        self.active.encode(writer);
+        self.target_population.encode(writer);
+        self.outcome_functional.encode(writer);
+    }
 }
 
 impl AverageEffectQuery {

@@ -20,8 +20,7 @@ use super::{
     Diagnostic, DiagnosticKind, DiagnosticSeverity, EffectEstimate, EstimatorId, ExecutionContext,
     IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifierId,
     InferenceDiagnostics, InferenceMode, Instant, OverlapPolicy, PhysicalExecutionPlan, Strategy,
-    Study, StudyResult, TabularData, elapsed_ns, identify_static_query, require_identified,
-    select_estimand,
+    Study, StudyResult, TabularData, elapsed_ns, require_identified,
 };
 use crate::DesignPosteriorModel;
 use antecedent_estimate::EstimationError;
@@ -146,13 +145,14 @@ impl Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let identification = identify_static_query(
-            IdentifierId::BackdoorAdjustment,
+        let (identification, estimand, identify_cached) = self.specialist_identification(
             graph,
             &CausalQuery::AverageEffect(query.clone()),
+            (IdentifierId::BackdoorAdjustment, EstimatorId::BayesianRandomizedQuantile),
+            physical,
+            ctx,
         )?;
         require_identified(&identification)?;
-        let estimand = select_estimand(&identification, EstimatorId::BayesianRandomizedQuantile)?;
         let InferenceMode::Bayesian(config) = &self.inference else {
             return Err(CausalError::unsupported_inference(
                 "bayesian.randomized_quantile requires Bayesian inference",
@@ -166,7 +166,7 @@ impl Study {
                 identification: &identification,
                 estimand: &estimand,
                 config,
-                identify_cached: false,
+                identify_cached,
             },
             ctx,
         )

@@ -5,6 +5,8 @@
 use std::sync::Arc;
 
 use crate::VariableId;
+use crate::canonical_encode::{CanonicalEncode, encode_option, encode_variable_set};
+use crate::identity::CanonicalWriter;
 
 use super::transport_catalog::{EvidenceCatalog, FactorNeed, UnmetDependency, same_variable_set};
 use super::{QueryError, ResponseQuery};
@@ -28,6 +30,17 @@ pub struct TransportQuery {
     /// Optional supplied evidence catalog. Absent means the compatibility view
     /// is the entire experimental setting.
     pub catalog: Option<EvidenceCatalog>,
+}
+
+/// Every field is written. `source_experiments` is a variable set (it is
+/// compared to the catalog as a set) and is encoded in ascending id order.
+impl CanonicalEncode for TransportQuery {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        self.response.encode(writer);
+        writer.text(&self.source_population).text(&self.target_population);
+        encode_variable_set(writer, &self.source_experiments);
+        encode_option(writer, self.catalog.as_ref());
+    }
 }
 
 impl TransportQuery {

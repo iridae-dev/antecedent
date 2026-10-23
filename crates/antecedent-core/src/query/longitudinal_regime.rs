@@ -2,6 +2,8 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::QueryError;
+use crate::canonical_encode::{CanonicalEncode, count, encode_flags, encode_u32s, flag};
+use crate::identity::CanonicalWriter;
 use crate::ids::VariableId;
 use std::sync::Arc;
 
@@ -16,6 +18,18 @@ pub enum LongitudinalRegimeMethod {
     SequentialDoublyRobust,
     /// Additive binary marginal structural mean with stabilized IPTW.
     MarginalStructuralModel,
+}
+
+impl CanonicalEncode for LongitudinalRegimeMethod {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        let tag = match self {
+            Self::Ipw => 1,
+            Self::GFormula => 2,
+            Self::SequentialDoublyRobust => 3,
+            Self::MarginalStructuralModel => 4,
+        };
+        writer.word(tag);
+    }
 }
 
 /// Prespecified binary static or history-dependent actions, resolved before
@@ -70,6 +84,64 @@ pub struct LongitudinalRegimeQuery {
     pub rule_version: Option<Arc<str>>,
     /// Caller-declared source or provenance of the rule implementation.
     pub rule_provenance: Option<Arc<str>>,
+}
+
+/// Every field is written, the caller declarations and rule provenance
+/// included. Every array is subject-, period- or subject-major-aligned and
+/// keeps its order; an absent optional array is a presence word.
+impl CanonicalEncode for LongitudinalRegimeQuery {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        self.outcome.encode(writer);
+        self.method.encode(writer);
+        opt_reals(writer, self.period_outcome_predictions.as_deref());
+        writer.word(flag(self.known_fixed_outcome_predictions));
+        opt_reals(writer, self.stabilizing_numerator_probabilities.as_deref());
+        opt_reals(writer, self.q_predictions.as_deref());
+        match self.observation_history.as_deref() {
+            Some(history) => {
+                writer.word(1);
+                encode_flags(writer, history);
+            }
+            None => {
+                writer.word(0);
+            }
+        }
+        match self.prediction_fold_ids.as_deref() {
+            Some(folds) => {
+                writer.word(1);
+                encode_u32s(writer, folds);
+            }
+            None => {
+                writer.word(0);
+            }
+        }
+        writer.word(count(self.periods));
+        encode_flags(writer, &self.treatment_history);
+        encode_flags(writer, &self.regime_actions);
+        writer.reals(&self.treatment_probabilities).reals(&self.censoring_probabilities);
+        encode_flags(writer, &self.outcome_observed);
+        writer.texts(&self.subject_ids);
+        encode_u32s(writer, &self.fold_ids);
+        writer
+            .word(flag(self.excluded_fold_predictions))
+            .word(flag(self.probabilities_known_by_design))
+            .real(self.minimum_probability)
+            .opt_text(self.rule_id.as_deref())
+            .opt_text(self.rule_version.as_deref())
+            .opt_text(self.rule_provenance.as_deref());
+    }
+}
+
+/// An optional real array: a presence word, then the reals in order.
+fn opt_reals(writer: &mut CanonicalWriter, values: Option<&[f64]>) {
+    match values {
+        Some(values) => {
+            writer.word(1).reals(values);
+        }
+        None => {
+            writer.word(0);
+        }
+    }
 }
 
 impl LongitudinalRegimeQuery {

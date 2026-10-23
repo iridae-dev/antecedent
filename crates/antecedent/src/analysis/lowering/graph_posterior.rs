@@ -46,7 +46,6 @@ use crate::error::CausalError;
 use crate::planner::lowered::{
     ClaimDemand, DesignShape, FunctionalKind, IdentificationLayer, LoweredParts, LoweredProgram,
     LoweringDepth, PhysicalLayer, ProblemTarget, ScientificProblem, UncertaintyReading,
-    WidthSource,
 };
 use crate::planner::statistical::{
     DeclaredProgram, ModelRole, ModelSlot, PosteriorAlgorithm, PosteriorPlan, Realization,
@@ -110,12 +109,7 @@ pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalEr
         super::retain_identification(cx, None)?
     };
     let envelope = unidentified_mass(&identification) > POSTERIOR_MASS_TOLERANCE;
-    let design = DesignShape {
-        rows: plan.logical.row_count_hint,
-        columns: plan.logical.design_columns_hint,
-        source: WidthSource::NotDesignBased(ATOM_DESIGNS),
-        direct: false,
-    };
+    let design = DesignShape::not_design_based(ATOM_DESIGNS);
     let statistical = statistical_program(&ProgramInputs {
         study,
         cell,

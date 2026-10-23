@@ -4,6 +4,11 @@
 
 use std::sync::Arc;
 
+use crate::canonical_encode::{
+    CanonicalEncode, count, encode_list, encode_option, encode_set, encode_u32s,
+    encode_variable_set, encode_variables,
+};
+use crate::identity::CanonicalWriter;
 use crate::intervention::TemporalPolicy;
 use crate::{InitialLaw, Intervention, TargetPopulation, Value, VariableId};
 
@@ -71,6 +76,20 @@ pub struct FeedbackDeclaration {
     pub initial_state: f64,
 }
 
+/// Every field is written; reals as their exact bits.
+impl CanonicalEncode for FeedbackDeclaration {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        writer
+            .word(u64::from(self.delay_ticks))
+            .real(self.level)
+            .real(self.autoregression)
+            .real(self.input_gain)
+            .real(self.innovation_variance);
+        self.initial_law.encode(writer);
+        writer.real(self.initial_state);
+    }
+}
+
 impl FeedbackDeclaration {
     /// Validate delay, finiteness, and variance.
     ///
@@ -133,6 +152,17 @@ pub struct TemporalResponseSpec {
     /// Declared delayed-feedback mechanism. `None` publishes the fitted
     /// dose-by-horizon surface.
     pub feedback: Option<FeedbackDeclaration>,
+}
+
+/// Every field is written. `horizons` is the ordered grid the results are
+/// indexed by.
+impl CanonicalEncode for TemporalResponseSpec {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        encode_u32s(writer, &self.horizons);
+        self.policy.encode(writer);
+        writer.opt_word(self.max_history_lag.map(u64::from));
+        encode_option(writer, self.feedback.as_ref());
+    }
 }
 
 impl TemporalResponseSpec {
@@ -304,6 +334,21 @@ pub enum GridSpec {
     },
 }
 
+/// The grid as spelled: explicit values in order, or the linspace triple. A
+/// linspace and the explicit values it would materialize encode differently.
+impl CanonicalEncode for GridSpec {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::Values(values) => {
+                writer.word(1).reals(values);
+            }
+            Self::Linspace { start, end, points } => {
+                writer.word(2).real(*start).real(*end).word(count(*points));
+            }
+        }
+    }
+}
+
 impl GridSpec {
     /// Materialize the grid after validation.
     ///
@@ -368,6 +413,13 @@ pub struct ContinuousDomain {
     pub variable: VariableId,
     /// Evaluation grid.
     pub grid: GridSpec,
+}
+
+impl CanonicalEncode for ContinuousDomain {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        self.variable.encode(writer);
+        self.grid.encode(writer);
+    }
 }
 
 impl ContinuousDomain {
@@ -539,6 +591,144 @@ pub enum ResponseFunctional {
     },
 }
 
+/// Custom weights are row- or grid-aligned and keep their order.
+impl CanonicalEncode for DerivativeWeighting {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::Observed => {
+                writer.word(1);
+            }
+            Self::Uniform { lower, upper } => {
+                writer.word(2).real(*lower).real(*upper);
+            }
+            Self::Custom(weights) => {
+                writer.word(3).reals(weights);
+            }
+        }
+    }
+}
+
+impl CanonicalEncode for DerivativeScale {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        let tag = match self {
+            Self::Identity => 1,
+            Self::LogTreatment => 2,
+            Self::LogOutcome => 3,
+            Self::LogLog => 4,
+        };
+        writer.word(tag);
+    }
+}
+
+/// Every variable keeps its role; an absent truncation bound is a presence word.
+impl CanonicalEncode for ObservationSpec {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::Complete => {
+                writer.word(1);
+            }
+            Self::RightCensored { latent, observed, censoring, event } => {
+                writer.word(2);
+                latent.encode(writer);
+                observed.encode(writer);
+                censoring.encode(writer);
+                event.encode(writer);
+            }
+            Self::LeftCensored { latent, observed, censoring, event } => {
+                writer.word(3);
+                latent.encode(writer);
+                observed.encode(writer);
+                censoring.encode(writer);
+                event.encode(writer);
+            }
+            Self::IntervalCensored { latent, lower, upper } => {
+                writer.word(4);
+                latent.encode(writer);
+                lower.encode(writer);
+                upper.encode(writer);
+            }
+            Self::Truncated { latent, observed, lower, upper } => {
+                writer.word(5);
+                latent.encode(writer);
+                observed.encode(writer);
+                encode_option(writer, lower.as_ref());
+                encode_option(writer, upper.as_ref());
+            }
+            Self::Selected { latent, observed, indicator } => {
+                writer.word(6);
+                latent.encode(writer);
+                observed.encode(writer);
+                indicator.encode(writer);
+            }
+        }
+    }
+}
+
+/// Conditioning variables are a set and are encoded in ascending id order.
+impl CanonicalEncode for ObservationAssumption {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::IndependentGiven(variables) => {
+                writer.word(1);
+                encode_variable_set(writer, variables);
+            }
+            Self::OutcomeIndependentGiven(variables) => {
+                writer.word(2);
+                encode_variable_set(writer, variables);
+            }
+            Self::Structural(claim) => {
+                writer.word(3).text(claim);
+            }
+        }
+    }
+}
+
+/// Multi-coordinate functionals keep every list in order: evaluation points
+/// and directions are aligned with `treatments`, and `outcomes` index the
+/// result. `interventions` keep their declared order.
+impl CanonicalEncode for ResponseFunctional {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::MeanCurve { outcome, treatment } => {
+                writer.word(1);
+                outcome.encode(writer);
+                treatment.encode(writer);
+            }
+            Self::AverageDerivative { outcome, treatment, weighting } => {
+                writer.word(2);
+                outcome.encode(writer);
+                treatment.encode(writer);
+                weighting.encode(writer);
+            }
+            Self::PointDerivative { outcome, treatment, at, order, scale } => {
+                writer.word(3);
+                outcome.encode(writer);
+                treatment.encode(writer);
+                writer.real(*at).word(u64::from(*order));
+                scale.encode(writer);
+            }
+            Self::DirectionalDerivative { outcomes, treatments, at, direction } => {
+                writer.word(4);
+                encode_variables(writer, outcomes);
+                encode_variables(writer, treatments);
+                writer.reals(at).reals(direction);
+            }
+            Self::Jacobian { outcomes, treatments, at, scale } => {
+                writer.word(5);
+                encode_variables(writer, outcomes);
+                encode_variables(writer, treatments);
+                writer.reals(at);
+                scale.encode(writer);
+            }
+            Self::InterventionResponse { outcome, interventions } => {
+                writer.word(6);
+                outcome.encode(writer);
+                encode_list(writer, interventions);
+            }
+        }
+    }
+}
+
 impl ResponseFunctional {
     /// Treatment variable ids in query order.
     #[must_use]
@@ -603,6 +793,20 @@ pub struct ResponseQuery {
     pub temporal: Option<TemporalResponseSpec>,
     /// Outcome functional (mean or exceedance). Identification is unchanged.
     pub outcome_functional: OutcomeFunctional,
+}
+
+/// Every field is written. `observation_assumptions` are a conjunction of
+/// claims (each one is appended to the assumption set) and are encoded as an
+/// unordered collection.
+impl CanonicalEncode for ResponseQuery {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        self.functional.encode(writer);
+        self.target_population.encode(writer);
+        self.observation.encode(writer);
+        encode_set(writer, &self.observation_assumptions);
+        encode_option(writer, self.temporal.as_ref());
+        self.outcome_functional.encode(writer);
+    }
 }
 
 impl ResponseQuery {

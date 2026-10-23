@@ -2,6 +2,10 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::QueryError;
+use crate::canonical_encode::{
+    CanonicalEncode, count, encode_flags, encode_usizes, encode_variables, flag,
+};
+use crate::identity::CanonicalWriter;
 use crate::ids::VariableId;
 use std::sync::Arc;
 
@@ -186,6 +190,97 @@ pub struct RandomizedEffectQuery {
     pub received_treatment: Option<Arc<[bool]>>,
     /// Request exhaustive two-sided Fisher sharp-null randomization inference.
     pub exact_randomization_test: bool,
+}
+
+/// Every array is row-, block- or arm-aligned and keeps its order; the arm
+/// labels keep their positions.
+impl CanonicalEncode for RandomizationDesign {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::Bernoulli => {
+                writer.word(1);
+            }
+            Self::Complete { treated_units } => {
+                writer.word(2).word(count(*treated_units));
+            }
+            Self::Cluster { treated_clusters } => {
+                writer.word(3).word(count(*treated_clusters));
+            }
+            Self::Stratified { blocks, treated_per_row } => {
+                writer.word(4).texts(blocks);
+                encode_usizes(writer, treated_per_row);
+            }
+            Self::Factorial2x2 { second_factor_assignment, cell_counts, second_factor_arms } => {
+                writer.word(5);
+                encode_flags(writer, second_factor_assignment);
+                encode_usizes(writer, cell_counts);
+                writer.text(&second_factor_arms.0).text(&second_factor_arms.1);
+            }
+            Self::MultiArm { assignment, probabilities, arms } => {
+                writer.word(6);
+                encode_usizes(writer, assignment);
+                writer.word(count(probabilities.len()));
+                for row in probabilities.iter() {
+                    writer.reals(row);
+                }
+                writer.texts(arms);
+            }
+            Self::Switchback { periods } => {
+                writer.word(7).texts(periods);
+            }
+        }
+    }
+}
+
+impl CanonicalEncode for RandomizedEstimand {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        let tag = match self {
+            Self::IntentionToTreat => 1,
+            Self::ComplierAverageCausalEffect => 2,
+            Self::TreatmentOnTreated => 3,
+        };
+        writer.word(tag);
+    }
+}
+
+/// Every field is written. Row-aligned arrays (assignment, probabilities, unit
+/// labels, receipt) keep their order, and the arm pair keeps its roles.
+/// `ancova_covariates` keep their order too: they are design-matrix columns,
+/// and the conservative choice is never to merge two spellings.
+impl CanonicalEncode for RandomizedEffectQuery {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        self.estimand.encode(writer);
+        self.design.encode(writer);
+        self.outcome.encode(writer);
+        encode_flags(writer, &self.realized_assignment);
+        writer
+            .reals(&self.assignment_probabilities)
+            .texts(&self.assignment_units)
+            .texts(&self.outcome_units)
+            .text(&self.treatment_arms.0)
+            .text(&self.treatment_arms.1);
+        match self.fixed_cuped {
+            Some((covariate, coefficient)) => {
+                writer.word(1);
+                covariate.encode(writer);
+                writer.real(coefficient);
+            }
+            None => {
+                writer.word(0);
+            }
+        }
+        encode_variables(writer, &self.ancova_covariates);
+        match &self.received_treatment {
+            Some(received) => {
+                writer.word(1);
+                encode_flags(writer, received);
+            }
+            None => {
+                writer.word(0);
+            }
+        }
+        writer.word(flag(self.exact_randomization_test));
+    }
 }
 
 impl RandomizedEffectQuery {

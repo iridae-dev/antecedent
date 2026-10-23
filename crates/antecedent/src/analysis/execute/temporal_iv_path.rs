@@ -48,7 +48,7 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         let (identification, estimand, indexer, certified_instrument, identify_cached) =
-            if let Some(cache) = self.temporal_identification_cache.as_deref() {
+            if let Some((cache, prepared)) = self.reuse_temporal_identification(physical) {
                 let entry = cache.get(query.horizon_steps).ok_or_else(|| CausalError::Compile {
                     message: "prepared temporal identification missing query horizon".into(),
                 })?;
@@ -57,9 +57,10 @@ impl super::Study {
                     entry.estimand.clone(),
                     entry.indexer.clone(),
                     None,
-                    true,
+                    prepared,
                 )
             } else {
+                super::report_identify_compute(ctx);
                 let found = identify_temporal_instrument(graph, query)?;
                 (found.identification, found.estimand, found.indexer, Some(found.instrument), false)
             };

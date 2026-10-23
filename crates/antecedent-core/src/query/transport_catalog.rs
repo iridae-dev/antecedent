@@ -5,6 +5,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
+use crate::canonical_encode::{CanonicalEncode, encode_option, encode_set, encode_variable_set};
+use crate::identity::CanonicalWriter;
 use crate::ids::{RegimeId, VariableId};
 use crate::value::Value;
 
@@ -40,6 +42,36 @@ pub enum VariableDomain {
         /// Number of levels.
         cardinality: u32,
     },
+}
+
+impl CanonicalEncode for VariableCoordinate {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        self.variable.encode(writer);
+        self.domain.encode(writer);
+        writer.opt_text(self.unit.as_deref());
+    }
+}
+
+impl CanonicalEncode for VariableDomain {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::Unspecified => {
+                writer.word(1);
+            }
+            Self::Continuous => {
+                writer.word(2);
+            }
+            Self::Binary => {
+                writer.word(3);
+            }
+            Self::Count => {
+                writer.word(4);
+            }
+            Self::Categorical { cardinality } => {
+                writer.word(5).word(u64::from(*cardinality));
+            }
+        }
+    }
 }
 
 impl VariableDomain {
@@ -81,6 +113,16 @@ pub struct Environment {
     pub variables: Arc<[VariableCoordinate]>,
     /// Source-to-target mechanism-selection targets declared on this environment.
     pub selection_targets: Arc<[VariableId]>,
+}
+
+/// As [`EvidenceCatalog::canonicalized`]: the coordinates and the selection
+/// targets are sets, encoded without regard to their listed order.
+impl CanonicalEncode for Environment {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        writer.text(&self.identity);
+        encode_set(writer, &self.variables);
+        encode_variable_set(writer, &self.selection_targets);
+    }
 }
 
 impl Environment {
@@ -131,6 +173,17 @@ pub enum EvidenceKind {
     Proposed,
 }
 
+impl CanonicalEncode for EvidenceKind {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        let tag = match self {
+            Self::Available => 1,
+            Self::Manipulable => 2,
+            Self::Proposed => 3,
+        };
+        writer.word(tag);
+    }
+}
+
 impl EvidenceKind {
     /// Stable `snake_case` name.
     #[must_use]
@@ -156,6 +209,16 @@ pub enum RegimeKind {
     Observational,
     /// Hard intervention on a declared set. `do(A)` never implies `do(A,B)`.
     Experimental,
+}
+
+impl CanonicalEncode for RegimeKind {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        let tag = match self {
+            Self::Observational => 1,
+            Self::Experimental => 2,
+        };
+        writer.word(tag);
+    }
 }
 
 impl RegimeKind {
@@ -229,6 +292,59 @@ pub struct InterventionAssignment {
     pub value: Value,
 }
 
+/// Separate marginals are a variable set.
+impl CanonicalEncode for DistributionAvailability {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::Joint => {
+                writer.word(1);
+            }
+            Self::SeparateMarginals { variables } => {
+                writer.word(2);
+                encode_variable_set(writer, variables);
+            }
+        }
+    }
+}
+
+/// Selection variables are a variable set.
+impl CanonicalEncode for SamplingSelection {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::Population => {
+                writer.word(1);
+            }
+            Self::SelectedOn { variables } => {
+                writer.word(2);
+                encode_variable_set(writer, variables);
+            }
+        }
+    }
+}
+
+impl CanonicalEncode for LawOrigin {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::Measured => {
+                writer.word(1);
+            }
+            Self::ModelArtifact { artifact } => {
+                writer.word(2).text(artifact);
+            }
+            Self::Recovered { derivation } => {
+                writer.word(3).text(derivation);
+            }
+        }
+    }
+}
+
+impl CanonicalEncode for InterventionAssignment {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        self.variable.encode(writer);
+        self.value.encode(writer);
+    }
+}
+
 /// What one executable factor needs from a supplied regime.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct FactorNeed<'a> {
@@ -280,6 +396,26 @@ pub struct EvidenceRegime {
     pub selection: SamplingSelection,
     /// Measured law versus model artifact.
     pub origin: LawOrigin,
+}
+
+/// Every field is written, the label included (it is retained in durable
+/// catalog identity). As [`EvidenceCatalog::canonicalized`], the intervention,
+/// assignment, measured and conditioning collections are sets.
+impl CanonicalEncode for EvidenceRegime {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        writer.word(u64::from(self.id.raw())).opt_text(self.label.as_deref());
+        self.kind.encode(writer);
+        self.evidence_kind.encode(writer);
+        encode_variable_set(writer, &self.interventions);
+        encode_set(writer, &self.intervention_values);
+        encode_variable_set(writer, &self.measured);
+        encode_variable_set(writer, &self.conditioned_on);
+        writer.text(&self.population);
+        self.distribution.encode(writer);
+        writer.opt_text(self.study.as_deref());
+        self.selection.encode(writer);
+        self.origin.encode(writer);
+    }
 }
 
 impl EvidenceRegime {
@@ -570,6 +706,17 @@ pub enum DependenceGroup {
     UnknownDependence,
 }
 
+impl CanonicalEncode for DependenceGroup {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        let tag = match self {
+            Self::IndependentStudies => 1,
+            Self::LinkedUnits => 2,
+            Self::UnknownDependence => 3,
+        };
+        writer.word(tag);
+    }
+}
+
 impl DependenceGroup {
     /// Stable `snake_case` name.
     #[must_use]
@@ -591,6 +738,17 @@ pub enum SamplingDesign {
     Clustered,
     /// Unknown design.
     Unknown,
+}
+
+impl CanonicalEncode for SamplingDesign {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        let tag = match self {
+            Self::Independent => 1,
+            Self::Clustered => 2,
+            Self::Unknown => 3,
+        };
+        writer.word(tag);
+    }
 }
 
 impl SamplingDesign {
@@ -632,6 +790,27 @@ pub struct RegimeBinding {
     pub dependence: DependenceGroup,
 }
 
+impl CanonicalEncode for LicensedWeights {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        writer.text(&self.snapshot_identity);
+    }
+}
+
+/// Every field is written. `schema_names` is physical column order and is kept
+/// as given.
+impl CanonicalEncode for RegimeBinding {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        writer
+            .opt_text(self.dataset_identity.as_deref())
+            .word(u64::from(self.regime.raw()))
+            .text(&self.snapshot_identity)
+            .texts(&self.schema_names);
+        self.sampling.encode(writer);
+        encode_option(writer, self.weights.as_ref());
+        self.dependence.encode(writer);
+    }
+}
+
 /// How the target population law is supplied.
 ///
 /// A convenience sample is not automatically representative.
@@ -645,6 +824,18 @@ pub enum TargetSampling {
     LicensedWeightedDesign,
     /// Convenience sample. Not automatically representative.
     ConvenienceSample,
+}
+
+impl CanonicalEncode for TargetSampling {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        let tag = match self {
+            Self::SuppliedPopulationLaw => 1,
+            Self::RepresentativeSample => 2,
+            Self::LicensedWeightedDesign => 3,
+            Self::ConvenienceSample => 4,
+        };
+        writer.word(tag);
+    }
 }
 
 impl TargetSampling {
@@ -691,6 +882,19 @@ pub struct EvidenceCatalog {
     pub bindings: Arc<[RegimeBinding]>,
     /// Target-population sampling semantics.
     pub target_sampling: Option<TargetSampling>,
+}
+
+/// The order-free form [`EvidenceCatalog::canonicalized`] fixes: environments,
+/// regimes and bindings are sets (each item digested, digests sorted), as are
+/// the collections inside them; schema column order is kept. Encoding does not
+/// validate the catalog.
+impl CanonicalEncode for EvidenceCatalog {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        encode_set(writer, &self.environments);
+        encode_set(writer, &self.regimes);
+        encode_set(writer, &self.bindings);
+        encode_option(writer, self.target_sampling.as_ref());
+    }
 }
 
 impl EvidenceCatalog {

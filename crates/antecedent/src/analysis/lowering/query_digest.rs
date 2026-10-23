@@ -2,23 +2,19 @@
 //!
 //! [`query_digest`] keys a typed functional target: two queries of one functional
 //! kind (different interventions, levels, conditioning or evaluation points) get
-//! different lowered identities. Interventions, populations, outcome functionals
-//! and temporal policies are written through their own canonical encodings. Fields
-//! with no canonical encoding of their own (grids, weightings, observation
-//! declarations, row selectors, design arrays) are written as their `Debug`
-//! rendering, which is deterministic for these plain value types.
+//! different lowered identities. Every field is written through the query's own
+//! canonical encoding, which writes set-valued inputs in a canonical order.
 //!
 //! [`retention_key`] keys the identification a lowered program retains: dispatch
 //! installs a retained product only into a study whose key matches.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::{
-    AverageEffectQuery, CanonicalEncode, CanonicalWriter, CausalQuery, Intervention,
-    ResponseFunctional, ResponseQuery, VariableId,
-};
+use antecedent_core::{CanonicalEncode, CanonicalWriter, CausalQuery, VariableId};
+use antecedent_data::TableView;
 
 use crate::Study;
+use crate::analysis::builder::DataInput;
 
 const QUERY_DIGEST_TAG: &str = "antecedent.lowered_query";
 const RETENTION_KEY_TAG: &str = "antecedent.retained_identification_key";
@@ -26,93 +22,36 @@ const RETENTION_KEY_TAG: &str = "antecedent.retained_identification_key";
 /// Canonical digest of `query`.
 pub(crate) fn query_digest(query: &CausalQuery) -> [u8; 32] {
     let mut writer = CanonicalWriter::new(QUERY_DIGEST_TAG);
-    writer.text(&format!("{:?}", query.kind()));
-    match query {
-        CausalQuery::AverageEffect(query) => average(&mut writer, query),
-        CausalQuery::ConditionalEffect(query) => average(&mut writer, &query.inner),
-        CausalQuery::TemporalEffect(query) => {
-            writer.word(u64::from(query.treatment.raw())).word(u64::from(query.outcome.raw()));
-            query.policy.encode(&mut writer);
-            query.control.encode(&mut writer);
-            query.active.encode(&mut writer);
-            writer
-                .word(u64::from(query.horizon_steps))
-                .opt_word(query.max_history_lag.map(u64::from));
-            query.target_population.encode(&mut writer);
-            variables(&mut writer, &query.effect_modifiers);
-        }
-        CausalQuery::Distribution(query) => {
-            variables(&mut writer, &query.outcomes);
-            interventions(&mut writer, &query.interventions);
-            variables(&mut writer, &query.conditioning);
-            query.target_population.encode(&mut writer);
-        }
-        CausalQuery::PathSpecific(query) => {
-            writer.word(u64::from(query.treatment.raw())).word(u64::from(query.outcome.raw()));
-            variables(&mut writer, &query.path_nodes);
-            query.control.encode(&mut writer);
-            query.active.encode(&mut writer);
-            query.target_population.encode(&mut writer);
-            writer.word(query.max_paths as u64).word(query.max_len as u64);
-        }
-        CausalQuery::Counterfactual(query) => {
-            variables(&mut writer, &query.outcomes);
-            interventions(&mut writer, &query.interventions);
-            query.control.encode(&mut writer);
-            writer.word(u64::from(query.allow_nested));
-        }
-        CausalQuery::NestedCounterfactual(query) => {
-            writer
-                .word(u64::from(query.treatment.raw()))
-                .word(u64::from(query.mediator.raw()))
-                .word(u64::from(query.outcome.raw()))
-                .real(query.control_value())
-                .real(query.active_value());
-        }
-        CausalQuery::Mediation(query) => {
-            writer.word(u64::from(query.treatment.raw())).word(u64::from(query.outcome.raw()));
-            variables(&mut writer, &query.mediators);
-            writer.text(&format!("{:?}", query.contrast));
-            query.control.encode(&mut writer);
-            query.active.encode(&mut writer);
-            query.target_population.encode(&mut writer);
-            writer.word(query.horizons.len() as u64);
-            for horizon in query.horizons.iter() {
-                writer.word(u64::from(*horizon));
-            }
-        }
-        CausalQuery::Response(query) => response(&mut writer, query),
-        // Attribution, change, matching and design queries hold plain values only.
-        other => {
-            writer.text(&format!("{other:?}"));
-        }
-    }
+    query.encode(&mut writer);
     writer.finish()
 }
 
-/// Digest of the study inputs identification reads: the query, the structure (one
-/// graph, or the atoms and weights of a graph posterior), the identifier, the
-/// completion cap and the inference mode.
-pub(crate) fn retention_key(study: &Study) -> [u8; 32] {
+/// Digest of every study input identification reads: the query (with its effect
+/// modifiers), the data modality and schema variables, the structure of any graph
+/// class or the atoms and weights of a graph posterior, the tier background, the
+/// completion cap and class prior, the selection diagram and transport trial, the
+/// identifier, estimator and regression-discontinuity design, and the inference
+/// mode.
+///
+/// `None` when an input has no canonical encoding (a graph whose identity wire
+/// cannot be built). Such a study never reuses a retained product.
+pub(crate) fn retention_key(study: &Study) -> Option<[u8; 32]> {
     let mut writer = CanonicalWriter::new(RETENTION_KEY_TAG);
-    writer.bytes(&query_digest(&study.query)).text(study.graph.class().as_str());
-    if let Some(dag) = study.graph.as_dag() {
-        writer.word(dag.nodes().len() as u64);
-        for node in dag.nodes() {
-            writer.word(u64::from(node.variable().raw()));
+    writer.bytes(&query_digest(&study.query));
+    data(&mut writer, &study.data);
+    // The supplied structure of any class. A graph-posterior study holds a
+    // placeholder here that an atom study rebinds, so it is written when it has an
+    // identity; the posterior's own atoms are written below.
+    writer.text(study.graph.class().as_str());
+    match crate::analysis::contract::accepted_graph_identity(&study.graph) {
+        Ok(graph) => {
+            writer.word(1).bytes(&antecedent_io::to_cbor(&graph).ok()?);
         }
-        edges(&mut writer, &dag.directed_edge_pairs_sorted());
-    } else if let Some(dag) = study.graph.as_temporal_dag() {
-        writer.word(dag.nodes().len() as u64);
-        for node in dag.nodes() {
-            writer.word(u64::from(node.variable().raw()));
+        Err(_) if study.graph_posterior.is_some() => {
+            writer.word(0);
         }
-        edges(&mut writer, &dag.directed_edge_pairs_sorted());
+        Err(_) => return None,
     }
-    writer
-        .opt_text(study.identifier.as_ref().map(|identifier| identifier.as_str()))
-        .opt_word(study.max_completions.map(|cap| cap as u64))
-        .word(u64::from(study.inference.is_bayesian()));
     match study.graph_posterior.as_ref() {
         Some(posterior) => {
             writer
@@ -131,54 +70,84 @@ pub(crate) fn retention_key(study: &Study) -> [u8; 32] {
             writer.word(0);
         }
     }
-    writer.finish()
-}
-
-fn average(writer: &mut CanonicalWriter, query: &AverageEffectQuery) {
-    writer.word(u64::from(query.treatment.raw())).word(u64::from(query.outcome.raw()));
-    variables(writer, &query.effect_modifiers);
-    query.control.encode(writer);
-    query.active.encode(writer);
-    query.target_population.encode(writer);
-    query.outcome_functional.encode(writer);
-}
-
-fn response(writer: &mut CanonicalWriter, query: &ResponseQuery) {
-    match &query.functional {
-        ResponseFunctional::InterventionResponse { outcome, interventions: actions } => {
-            writer.text("intervention_response").word(u64::from(outcome.raw()));
-            interventions(writer, actions);
+    match study.tiered.as_ref() {
+        Some(background) => {
+            writer.word(1);
+            background.encode(&mut writer);
         }
-        functional => {
-            // Grids, weightings, evaluation points and directions are plain values.
-            writer.text(&format!("{functional:?}"));
+        None => {
+            writer.word(0);
         }
     }
-    query.target_population.encode(writer);
-    query.outcome_functional.encode(writer);
+    writer.opt_word(study.max_completions.map(|cap| cap as u64));
+    match study.class_prior.as_ref() {
+        Some(prior) => {
+            writer.word(1).bytes(&antecedent_io::to_cbor(&prior.identity_wire()).ok()?);
+        }
+        None => {
+            writer.word(0);
+        }
+    }
+    match study.selection_diagram.as_ref() {
+        Some(diagram) => {
+            let graph = antecedent_io::admg_identity(diagram.causal_graph()).ok()?;
+            writer.word(1).bytes(&antecedent_io::to_cbor(&graph).ok()?);
+            variable_set(&mut writer, diagram.selection_targets());
+        }
+        None => {
+            writer.word(0);
+        }
+    }
+    match study.transport_trial.as_ref() {
+        Some(trial) => {
+            writer.word(1);
+            trial.trial.encode(&mut writer);
+            trial.selection_probability.encode(&mut writer);
+            trial.treatment_probability.encode(&mut writer);
+        }
+        None => {
+            writer.word(0);
+        }
+    }
+    match study.rd.as_ref() {
+        Some(rd) => {
+            writer.word(1);
+            rd.running_variable.encode(&mut writer);
+            writer.real(rd.cutoff).real(rd.bandwidth);
+        }
+        None => {
+            writer.word(0);
+        }
+    }
     writer
-        .text(&format!("{:?}", query.observation))
-        .text(&format!("{:?}", query.observation_assumptions))
-        .text(&format!("{:?}", query.temporal));
+        .opt_text(study.identifier.as_ref().map(|identifier| identifier.as_str()))
+        .opt_text(study.estimator.as_ref().map(|estimator| estimator.as_str()))
+        .opt_text(study.estimator_spec.as_deref().map(|spec| spec.id().as_str()))
+        .word(u64::from(study.inference.is_bayesian()));
+    Some(writer.finish())
 }
 
-fn variables(writer: &mut CanonicalWriter, variables: &[VariableId]) {
-    writer.word(variables.len() as u64);
-    for variable in variables {
+/// The data modality and the schema's variable ids. Identification reads the
+/// variables a schema declares, never the values.
+fn data(writer: &mut CanonicalWriter, data: &DataInput) {
+    let (modality, schema) = match data {
+        DataInput::Tabular(data) => ("tabular", data.schema()),
+        DataInput::Temporal(data) => ("temporal", data.schema()),
+        DataInput::Event(data) => ("event", data.schema()),
+        DataInput::MultiEnv(data) => ("multi_environment", data.schema()),
+        DataInput::Panel(data) => ("panel", data.schema()),
+    };
+    writer.text(modality).word(schema.variables().len() as u64);
+    for variable in schema.variables() {
+        variable.id.encode(writer);
+    }
+}
+
+fn variable_set(writer: &mut CanonicalWriter, variables: &[VariableId]) {
+    let mut sorted = variables.to_vec();
+    sorted.sort_unstable();
+    writer.word(sorted.len() as u64);
+    for variable in &sorted {
         variable.encode(writer);
-    }
-}
-
-fn interventions(writer: &mut CanonicalWriter, interventions: &[Intervention]) {
-    writer.word(interventions.len() as u64);
-    for intervention in interventions {
-        intervention.encode(writer);
-    }
-}
-
-fn edges(writer: &mut CanonicalWriter, edges: &[(u32, u32)]) {
-    writer.word(edges.len() as u64);
-    for &(from, to) in edges {
-        writer.word(u64::from(from)).word(u64::from(to));
     }
 }

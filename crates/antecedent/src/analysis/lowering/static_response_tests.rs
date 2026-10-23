@@ -102,7 +102,9 @@ fn mean_curve_lowers_one_world_per_grid_level_and_its_cross_fit() {
     let roles: Vec<_> = statistical.models().iter().map(|model| model.role()).collect();
     assert_eq!(roles, [ModelRole::Outcome, ModelRole::Propensity]);
     assert_eq!(statistical.models()[0].output(), Some(Y));
-    assert!(matches!(program.physical().design().source(), WidthSource::NotDesignBased(_)));
+    let design = program.physical().design();
+    assert!(matches!(design.source(), WidthSource::NotDesignBased(_)));
+    assert_eq!((design.rows(), design.columns()), (None, None), "no design is fabricated");
     assert_eq!(program.claim().kind(), Some(antecedent_contract::ClaimKind::Response));
     assert_eq!(program.claim().uncertainty(), UncertaintyReading::Sampling);
 

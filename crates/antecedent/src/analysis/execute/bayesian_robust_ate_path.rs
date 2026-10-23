@@ -25,8 +25,13 @@ impl super::Study {
         Self::ensure_bayesian_robust_ate_admitted(&self.inference, query)?;
         let identifier = physical.binding().identifier_or(RouteDefaults::STATIC_ATE)?;
         let estimator = EstimatorId::BayesianRobustAte;
+        let reused = self.reuse_static_identification_if(physical, |_| {
+            self.rd.is_none()
+                && matches!(self.query, CausalQuery::AverageEffect(_))
+                && physical.binding().resolves_to(RouteDefaults::STATIC_ATE, identifier, estimator)
+        });
         let (identification, estimand, identify_cached) =
-            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
+            identification_from_cache_or(ctx, reused, || {
                 let identified = identify_static_query_with_rd(
                     identifier,
                     graph,

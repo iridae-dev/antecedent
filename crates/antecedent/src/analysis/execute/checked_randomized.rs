@@ -160,7 +160,8 @@ impl CheckedRandomizedOperation {
         if let Some(declaration) = &study.missing {
             check_declaration_for_design(query, declaration)?;
         }
-        let (identification, estimand) = randomized_identification(query);
+        let (identification, estimand) =
+            study.design_identification_or(physical, || randomized_identification(query));
         Ok(Self::freeze(
             study,
             query,

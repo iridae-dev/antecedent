@@ -1138,7 +1138,7 @@ impl super::Study {
             graph,
             query,
             checked_operation,
-            identifier_id,
+            physical,
             &mut clock,
             ctx,
         )?;
@@ -1263,7 +1263,7 @@ impl super::Study {
         let identifier_id = IdentifierId::GeneralizedAdjustment;
         let estimator_id = EstimatorId::BayesianGcomp;
         let (identification, _, identify_cached) =
-            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
+            identification_from_cache_or(ctx, self.reuse_static_identification(physical), || {
                 let identification = antecedent_identify::identify_tiered(background, query)?;
                 let estimand = identification.estimands.first().cloned().ok_or_else(|| {
                     CausalError::Compile {
@@ -1458,10 +1458,11 @@ impl super::Study {
         graph: &Dag,
         query: &AverageEffectQuery,
         checked_operation: Option<&super::super::prepared::CheckedBayesianGcompOperation>,
-        identifier_id: IdentifierId,
+        physical: &PhysicalExecutionPlan,
         clock: &mut super::super::stage::StageClock,
         ctx: &ExecutionContext,
     ) -> Result<(IdentificationResult, IdentifiedEstimand, bool), CausalError> {
+        let identifier_id = physical.binding().identifier_or(RouteDefaults::STATIC_ATE)?;
         let estimator_id = if matches!(self.query, CausalQuery::ConditionalEffect(_)) {
             EstimatorId::BayesianConditional
         } else {
@@ -1483,7 +1484,18 @@ impl super::Study {
         {
             (operation.identification().clone(), operation.estimand().clone(), true)
         } else {
-            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
+            let reused = self.reuse_static_identification_if(physical, |_| match self.query {
+                CausalQuery::ConditionalEffect(_) => physical
+                    .binding()
+                    .identifier_or(RouteDefaults::CONDITIONAL)
+                    .is_ok_and(|identifier| identifier == identifier_id),
+                _ => physical.binding().resolves_to(
+                    RouteDefaults::STATIC_ATE,
+                    identifier_id,
+                    estimator_id,
+                ),
+            });
+            identification_from_cache_or(ctx, reused, || {
                 let identification = identify_static(identifier_id, graph, query)?;
                 select_claim(identification, estimator_id)
             })?

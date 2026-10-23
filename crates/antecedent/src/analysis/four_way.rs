@@ -2,18 +2,21 @@
 //! Same-target four-way slice.
 //!
 //! Static frequentist, static Bayesian, horizon-one frequentist, and horizon-one
-//! Bayesian realizations of one active-minus-control contrast. The static
-//! frequentist cell executes the retained linear/Gaussian route. The other three
-//! cells execute the existing study path on that same contrast. Frequentist
-//! coverage and posterior quality are separate records. A utility-only change
-//! on the static cell reuses the causal fit.
+//! Bayesian realizations of one active-minus-control contrast. Every cell is
+//! prepared from the program `Study::compile` lowers: the static and horizon-one
+//! targets are read from the lowered programs' scientific problems, preparation
+//! installs the identification those programs retained, and decision verdicts come
+//! from the `compile_for_decision` entry. The slice keeps no admission,
+//! identification or fit cache of its own. Frequentist coverage and posterior
+//! quality are separate records. A utility-only change on the static cell reuses
+//! the causal fit.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
     AverageEffectQuery, CausalSchemaBuilder, ContrastForm, ExecutionContext, InferenceSelection,
-    IntervalMethod, Lag, OutcomeFunctional, QuantityUnits, ScientificTarget, TemporalEffectQuery,
-    TemporalPolicy, TimeFrame,
+    IntervalMethod, Lag, OutcomeFunctional, ScientificTarget, TemporalEffectQuery, TemporalPolicy,
+    TimeFrame,
 };
 use antecedent_data::{TabularData, TimeSeriesData};
 use antecedent_graph::ensure_lagged;
@@ -23,6 +26,8 @@ use crate::analysis::execute::{
     DecisionDemand, MissingCarrier, PublishedCarriers, ScoredDecision,
     confidence_interval_as_posterior, score_decision,
 };
+use crate::planner::PhysicalExecutionPlan;
+use crate::planner::lowered::ProblemTarget;
 use crate::{
     BayesianConfig, Dag, EffectEstimate, InferenceMode, PublishedScalarUncertainty, RefuteSuite,
     Study, StudyResult, TemporalDag,
@@ -299,13 +304,8 @@ impl FourWaySlice {
 pub(crate) fn same_target_slice(
     ctx: &ExecutionContext,
 ) -> Result<FourWaySlice, crate::CausalError> {
-    let static_study = linear_study(FourWayCell::StaticFrequentist)?;
-    let prepared = static_study.prepare(ctx)?;
-    let compiled = static_study.compile(ctx)?;
-    if compiled.record != prepared.plan().record {
-        return Err(compile("compile and preparation selected different physical plans"));
-    }
-    drop(static_study);
+    let prepared = linear_study(FourWayCell::StaticFrequentist)?.prepare(ctx)?;
+    let static_target = lowered_target(prepared.plan())?;
     let analytic_truth = line_effect();
     let (executed, solves) = count_least_squares_solves(|| prepared.estimate_retained(ctx));
     let result = executed?;
@@ -318,11 +318,6 @@ pub(crate) fn same_target_slice(
     )?;
     let mut static_artifact = Vec::new();
     artifact.write_to(&mut static_artifact)?;
-    let static_target = prepared
-        .compiled_linear_program()
-        .ok_or_else(|| compile("checked Gaussian program missing"))?
-        .target()
-        .clone();
     let static_fits = u64::from(solves > 0);
     let static_cell = frequentist_cell(FourWayCell::StaticFrequentist, &estimate)?;
     let replay_ctx = ctx.clone();
@@ -342,14 +337,19 @@ pub(crate) fn same_target_slice(
         },
     });
 
-    let horizon_result =
-        linear_study(FourWayCell::HorizonOneFrequentist)?.prepare(ctx)?.estimate_retained(ctx)?;
+    let horizon_prepared = linear_study(FourWayCell::HorizonOneFrequentist)?.prepare(ctx)?;
+    let horizon_target = lowered_target(horizon_prepared.plan())?;
+    let horizon_result = horizon_prepared.estimate_retained(ctx)?;
     let horizon_estimate = effect_of(&horizon_result)?;
     let horizon_cell = frequentist_cell(FourWayCell::HorizonOneFrequentist, horizon_estimate)?;
     let static_bayes = bayesian_cell(FourWayCell::StaticBayesian, ctx, analytic_truth)?;
     let horizon_bayes = bayesian_cell(FourWayCell::HorizonOneBayesian, ctx, analytic_truth)?;
-    let functional =
-        functional_match(&static_target, horizon_cell.effect, static_cell.effect, analytic_truth)?;
+    let functional = functional_match(
+        &static_target,
+        horizon_target,
+        (static_cell.effect, horizon_cell.effect),
+        analytic_truth,
+    )?;
     let coverage = [
         coverage_of(&static_cell, &estimate, analytic_truth),
         coverage_of(&horizon_cell, horizon_estimate, analytic_truth),
@@ -486,14 +486,28 @@ fn coverage_of(cell: &FittedCell, estimate: &EffectEstimate, truth: f64) -> Freq
     }
 }
 
+/// The world-indexed target of a prepared cell's lowered program, with the check
+/// that preparation installed the identification that program retained.
+fn lowered_target(plan: &PhysicalExecutionPlan) -> Result<ScientificTarget, crate::CausalError> {
+    let program = plan.lowered().ok_or_else(|| compile("prepared plan carries no program"))?;
+    if !program.identification_retained() {
+        return Err(compile("the four-way program retained no identification"));
+    }
+    match program.scientific().target() {
+        ProblemTarget::Target(target) => Ok(target.clone()),
+        ProblemTarget::Targets(_) | ProblemTarget::QueryFunctional { .. } => {
+            Err(compile("a four-way cell lowers to one contrast target"))
+        }
+    }
+}
+
 fn functional_match(
     static_target: &ScientificTarget,
-    horizon_effect: f64,
-    static_effect: f64,
+    horizon_target: ScientificTarget,
+    (static_effect, horizon_effect): (f64, f64),
     analytic_truth: f64,
 ) -> Result<FunctionalMatch, crate::CausalError> {
     let static_contrast = contrast_of(static_target)?;
-    let horizon_target = horizon_target(outcome_variable(static_contrast)?)?;
     let horizon_contrast = contrast_of(&horizon_target)?;
     if static_contrast.form() != horizon_contrast.form() {
         return Err(compile("static and horizon-one contrast forms differ"));
@@ -543,25 +557,6 @@ fn outcome_variable(
         return Err(compile("four-way outcome functional is not a mean"));
     }
     Ok(outcome.outcome())
-}
-
-/// The horizon-one contrast of the series cells, from the production temporal
-/// target builder the temporal route lowering uses.
-fn horizon_target(
-    outcome: antecedent_core::VariableId,
-) -> Result<ScientificTarget, crate::CausalError> {
-    let query = TemporalEffectQuery::pulse(antecedent_core::VariableId::from_raw(0), outcome, 1.0)
-        .with_policy(TemporalPolicy::pulse(-1))
-        .with_horizon_steps(1);
-    // A one-step horizon with no lagged term retains zero lags.
-    let history = crate::analysis::lowering::history_window(query.max_history_lag, 0);
-    crate::analysis::lowering::temporal_contrast_target(
-        crate::analysis::lowering::TemporalContrast::of_query(
-            &query,
-            history,
-            QuantityUnits::dimensionless(),
-        ),
-    )
 }
 
 fn linear_study(cell: FourWayCell) -> Result<Study, crate::CausalError> {

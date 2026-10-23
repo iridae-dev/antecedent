@@ -3,8 +3,9 @@
 //! A physical plan compiled from the logical plan alone carries no lowered program
 //! and is refused before any route runs. A context already inside a lowered
 //! dispatch refuses to compile, prepare or run another study. A one-shot run
-//! identifies once: the execution takes the identification the lowered program
-//! retained at compile instead of identifying again.
+//! identifies once: compile reports `identify.compute` when its lowered program
+//! retains an identification, and the execution takes that retained product
+//! instead of identifying again.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -14,9 +15,12 @@ use antecedent::{
     AnomalyAttributionQuery, AverageEffectQuery, CausalQuery, Dag, DenseNodeId,
     RandomizedEffectQuery, RefuteSuite, Study, TemporalDag, TemporalEffectQuery, TemporalPolicy,
 };
-use antecedent_core::{ExecutionContext, Lag, ProgressSink, VariableId};
+use antecedent_core::{
+    ExecutionContext, Intervention, Lag, ProgressSink, ResponseFunctional, ResponseQuery, Value,
+    VariableId,
+};
 use antecedent_data::{TabularData, TimeSeriesData};
-use antecedent_graph::ensure_lagged;
+use antecedent_graph::{Cpdag, TemporalCpdag, ensure_lagged};
 
 #[path = "fixtures_common/mod.rs"]
 mod common;
@@ -88,8 +92,36 @@ fn graph_posterior_study() -> Study {
         .unwrap()
 }
 
-/// `y_t = 0.8 x_{t-1}` plus a small periodic term, under `x_{t-1} -> y_t`.
-fn temporal_effect_study() -> Study {
+/// The confounded fixture under the equivalence class of its DAG.
+fn class_effect_study() -> Study {
+    let (data, dag, query) = confounded_scm(128, 43);
+    Study::tabular(data)
+        .graph(Cpdag::from_dag(&dag))
+        .query(query)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+}
+
+/// The mean outcome of the confounded fixture under `do(t = 1)`.
+fn static_response_study() -> Study {
+    let (data, dag, query) = confounded_scm(128, 47);
+    let response = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: query.outcome,
+        interventions: [Intervention::set(query.treatment, Value::f64(1.0))].into(),
+    });
+    Study::tabular(data)
+        .graph(dag)
+        .query(CausalQuery::Response(response))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+}
+
+/// The lagged series of `temporal_effect_study` and its temporal graph.
+fn lagged_series() -> (TimeSeriesData, TemporalDag, TemporalEffectQuery) {
     let rows = 96;
     let mut x = vec![0.0; rows];
     let mut y = vec![0.0; rows];
@@ -110,8 +142,26 @@ fn temporal_effect_study() -> Study {
     let query = TemporalEffectQuery::pulse(treatment, outcome, 1.0)
         .with_policy(TemporalPolicy::pulse(-1))
         .with_horizon_steps(1);
+    (series, graph, query)
+}
+
+/// `y_t = 0.8 x_{t-1}` plus a small periodic term, under `x_{t-1} -> y_t`.
+fn temporal_effect_study() -> Study {
+    let (series, graph, query) = lagged_series();
     Study::series(series)
         .graph(graph)
+        .temporal_query(query)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+}
+
+/// The lagged series under the temporal equivalence class of its graph.
+fn temporal_class_study() -> Study {
+    let (series, graph, query) = lagged_series();
+    Study::series(series)
+        .graph(TemporalCpdag::from_temporal_dag(&graph))
         .temporal_query(query)
         .refute(RefuteSuite::None)
         .bootstrap_replicates(0)
@@ -187,22 +237,57 @@ fn lowered_dispatch_refuses_public_builder_reentry() {
 
 #[test]
 fn one_shot_run_identifies_once_per_family() {
-    // The posterior atoms are identified by builders that always report
-    // `identify.compute`: compile identifies them once and the run reuses them.
-    let (ctx, sink) = recording_ctx(7);
-    graph_posterior_study().run(&ctx).unwrap();
-    assert_eq!(identify_computations(&sink), 1, "graph posterior: one-shot run identifies once");
-    // Every other family reports a computation only where it identifies outside a
-    // retained product; a one-shot run never reports two.
+    // Compile identifies what preparation would and reports `identify.compute` once
+    // (single-graph, class, temporal, structural and design products alike; the
+    // posterior builders report their own). Every executor then takes the prepared
+    // cache, the product the plan retained, or only then a fresh identification,
+    // which reports too: a one-shot run that identified twice reports two.
     for (family, study) in [
+        ("graph posterior", graph_posterior_study()),
         ("static effect", static_effect_study()),
+        ("class effect", class_effect_study()),
+        ("static response", static_response_study()),
         ("temporal", temporal_effect_study()),
+        ("temporal class", temporal_class_study()),
         ("structural", structural_study()),
         ("design", design_study()),
     ] {
         let (ctx, sink) = recording_ctx(7);
-        study.run(&ctx).unwrap_or_else(|error| panic!("{family}: {error}"));
-        assert!(identify_computations(&sink) <= 1, "{family}: one-shot run identifies once");
+        let result = study.run(&ctx).unwrap_or_else(|error| panic!("{family}: {error}"));
+        assert_eq!(identify_computations(&sink), 1, "{family}: a one-shot run identifies once");
+        assert!(result.lowered_program_identity().is_some(), "{family}: the run is lowered");
+    }
+}
+
+#[test]
+fn a_compiled_single_graph_plan_executes_its_retained_identification() {
+    // An execution of a compiled plan takes the retained product: compile identifies
+    // once and the execution adds no identification. It is not a prepared handle, so
+    // the published result is the one a fresh identification produces.
+    for (family, study) in [
+        ("class effect", class_effect_study()),
+        ("structural", structural_study()),
+        ("temporal class", temporal_class_study()),
+    ] {
+        let (ctx, sink) = recording_ctx(13);
+        let plan = study.compile(&ctx).unwrap();
+        assert!(plan.lowered().unwrap().identification_retained(), "{family}: retained");
+        assert_eq!(identify_computations(&sink), 1, "{family}: compile identifies once");
+        let reused = study.execute(&plan, &ctx).unwrap();
+        assert_eq!(identify_computations(&sink), 1, "{family}: execution reuses the product");
+        assert!(
+            !reused
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code.as_ref() == "exec.identify.cached"),
+            "{family}: a compiled plan publishes the diagnostics of a fresh identification"
+        );
+        // A plan compiled for another study keeps nothing it could reuse here.
+        let (other_ctx, other_sink) = recording_ctx(13);
+        let foreign = static_effect_study().compile(&other_ctx).unwrap();
+        let fresh = study.execute(&foreign, &other_ctx);
+        assert!(fresh.is_err(), "{family}: a foreign plan's lowered cell does not match");
+        assert_eq!(identify_computations(&other_sink), 1, "{family}: only the foreign compile");
     }
 }
 

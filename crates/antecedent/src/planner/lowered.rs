@@ -329,8 +329,9 @@ pub(crate) struct RetainedIdentification {
     pub(crate) caches: Arc<[IdentificationCache]>,
     /// Digest of the study inputs these products were identified from (query,
     /// structure and the options identification reads). Dispatch installs a retained
-    /// product only into a study with the same key.
-    pub(crate) key: [u8; 32],
+    /// product only into a study with the same key; `None` (an input with no
+    /// canonical encoding) matches no study.
+    pub(crate) key: Option<[u8; 32]>,
 }
 
 impl RetainedIdentification {
@@ -389,39 +390,75 @@ impl WidthSource {
     }
 }
 
-/// Rows and encoded columns a design-based program fits.
+/// The design a program fits: the rows and encoded columns of a quoted design, or
+/// the reason the route fits no single design. A route that is not design based
+/// carries no rows or columns at all: the planner's sizing of the physical record
+/// stays on that record and is not restated here as a design.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub struct DesignShape {
-    pub(crate) rows: u64,
-    pub(crate) columns: u64,
-    pub(crate) source: WidthSource,
-    pub(crate) direct: bool,
+pub struct DesignShape(DesignExtent);
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+enum DesignExtent {
+    Quoted { rows: u64, columns: u64, direct: bool },
+    NotDesignBased(&'static str),
 }
 
 impl DesignShape {
-    /// Rows the plan was sized for.
-    #[must_use]
-    pub const fn rows(&self) -> u64 {
-        self.rows
+    /// A quoted design of `rows` by `columns` encoded columns, including the intercept.
+    pub(crate) const fn quoted(rows: u64, columns: u64, direct: bool) -> Self {
+        Self(DesignExtent::Quoted { rows, columns, direct })
     }
 
-    /// Encoded columns, including the intercept.
+    /// A route that fits no single quoted design; `reason` says what it fits instead.
+    pub(crate) const fn not_design_based(reason: &'static str) -> Self {
+        Self(DesignExtent::NotDesignBased(reason))
+    }
+
+    /// The same design gathered through a materialized contrast expansion.
+    pub(crate) const fn materialized(self) -> Self {
+        match self.0 {
+            DesignExtent::Quoted { rows, columns, .. } => Self::quoted(rows, columns, false),
+            DesignExtent::NotDesignBased(_) => self,
+        }
+    }
+
+    /// Rows a quoted design was sized for. `None` when the route is not design based.
     #[must_use]
-    pub const fn columns(&self) -> u64 {
-        self.columns
+    pub const fn rows(&self) -> Option<u64> {
+        match self.0 {
+            DesignExtent::Quoted { rows, .. } => Some(rows),
+            DesignExtent::NotDesignBased(_) => None,
+        }
+    }
+
+    /// Encoded columns of a quoted design, including the intercept. `None` when the
+    /// route is not design based.
+    #[must_use]
+    pub const fn columns(&self) -> Option<u64> {
+        match self.0 {
+            DesignExtent::Quoted { columns, .. } => Some(columns),
+            DesignExtent::NotDesignBased(_) => None,
+        }
     }
 
     /// Where the column count came from.
     #[must_use]
     pub const fn source(&self) -> WidthSource {
-        self.source
+        match self.0 {
+            DesignExtent::Quoted { .. } => WidthSource::Quoted,
+            DesignExtent::NotDesignBased(reason) => WidthSource::NotDesignBased(reason),
+        }
     }
 
     /// Whether every design column is numeric, so the design is gathered directly
     /// from borrowed source columns instead of a materialized contrast expansion.
+    /// A route that is not design based gathers no design.
     #[must_use]
     pub const fn direct(&self) -> bool {
-        self.direct
+        match self.0 {
+            DesignExtent::Quoted { direct, .. } => direct,
+            DesignExtent::NotDesignBased(_) => false,
+        }
     }
 }
 

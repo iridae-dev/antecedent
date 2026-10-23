@@ -36,6 +36,9 @@ mod transport_contract;
 mod transport_delta;
 mod transport_distribution;
 
+use crate::canonical_encode::CanonicalEncode;
+use crate::identity::CanonicalWriter;
+
 pub use crate::intervention::TemporalPolicy;
 
 pub use attribution::{
@@ -154,6 +157,114 @@ pub enum CausalQuery {
     SequentialContrast(SequentialContrastQuery),
     /// Nearest-neighbor contrast on histories, matched within calendar periods.
     HistoryMatch(HistoryMatchQuery),
+}
+
+/// The variant tag, then the payload's own canonical encoding.
+impl CanonicalEncode for CausalQuery {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::AverageEffect(query) => {
+                writer.word(1);
+                query.encode(writer);
+            }
+            Self::TemporalEffect(query) => {
+                writer.word(2);
+                query.encode(writer);
+            }
+            Self::Counterfactual(query) => {
+                writer.word(3);
+                query.encode(writer);
+            }
+            Self::NestedCounterfactual(query) => {
+                writer.word(4);
+                query.encode(writer);
+            }
+            Self::AnomalyAttribution(query) => {
+                writer.word(5);
+                query.encode(writer);
+            }
+            Self::ChangeAttribution(query) => {
+                writer.word(6);
+                query.encode(writer);
+            }
+            Self::MechanismChange(query) => {
+                writer.word(7);
+                query.encode(writer);
+            }
+            Self::UnitChange(query) => {
+                writer.word(8);
+                query.encode(writer);
+            }
+            Self::Mediation(query) => {
+                writer.word(9);
+                query.encode(writer);
+            }
+            Self::ConditionalEffect(query) => {
+                writer.word(10);
+                query.encode(writer);
+            }
+            Self::Distribution(query) => {
+                writer.word(11);
+                query.encode(writer);
+            }
+            Self::PathSpecific(query) => {
+                writer.word(12);
+                query.encode(writer);
+            }
+            Self::Response(query) => {
+                writer.word(13);
+                query.encode(writer);
+            }
+            Self::Transport(query) => {
+                writer.word(14);
+                query.encode(writer);
+            }
+            Self::Interference(query) => {
+                writer.word(15);
+                query.encode(writer);
+            }
+            Self::RandomizedEffect(query) => {
+                writer.word(16);
+                query.encode(writer);
+            }
+            Self::PolicyValue(query) => {
+                writer.word(17);
+                query.encode(writer);
+            }
+            Self::ContinuousDoseResponse(query) => {
+                writer.word(18);
+                query.encode(writer);
+            }
+            Self::PanelDid(query) => {
+                writer.word(19);
+                query.encode(writer);
+            }
+            Self::SyntheticControl(query) => {
+                writer.word(20);
+                query.encode(writer);
+            }
+            Self::LocalPolynomialRatio(query) => {
+                writer.word(21);
+                query.encode(writer);
+            }
+            Self::Survival(query) => {
+                writer.word(22);
+                query.encode(writer);
+            }
+            Self::LongitudinalRegime(query) => {
+                writer.word(23);
+                query.encode(writer);
+            }
+            Self::SequentialContrast(query) => {
+                writer.word(24);
+                query.encode(writer);
+            }
+            Self::HistoryMatch(query) => {
+                writer.word(25);
+                query.encode(writer);
+            }
+        }
+    }
 }
 
 /// The variant of a [`CausalQuery`] without its payload.
@@ -642,3 +753,7 @@ impl CausalQuery {
 #[cfg(test)]
 #[path = "tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "encode_tests.rs"]
+mod encode_tests;
