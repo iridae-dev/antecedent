@@ -76,6 +76,28 @@ def snapshot_entries(text: str) -> dict[str, str]:
     return entries
 
 
+def public_items(text: str, item: str) -> list[str]:
+    """Names of the top-level `pub` items matching `item` that are not `#[doc(hidden)]`.
+
+    The attribute sits on its own line above the item, like the snapshot's inline marker, and
+    a hidden item is not part of the public facade.
+    """
+    names: list[str] = []
+    lines = text.splitlines()
+    for number, line in enumerate(lines):
+        match = re.match(rf"pub {item}", line)
+        if match is None:
+            continue
+        above = number - 1
+        hidden = False
+        while above >= 0 and lines[above].lstrip().startswith(("#[", "///", "//")):
+            hidden = hidden or "doc(hidden)" in lines[above]
+            above -= 1
+        if not hidden:
+            names.append(match.group(1))
+    return names
+
+
 def source_entries(root: Path) -> dict[str, str]:
     """Public free functions and prepared / session types of the `pub mod`s of the analysis facade.
 
@@ -92,9 +114,9 @@ def source_entries(root: Path) -> dict[str, str]:
             if not file.is_file():
                 continue
             text = file.read_text(encoding="utf-8")
-            for name in re.findall(r"^pub (?:const )?fn ([a-z_0-9]+)[(<]", text, re.M):
+            for name in public_items(text, r"(?:const )?fn ([a-z_0-9]+)[(<]"):
                 entries[f"antecedent::analysis::{module}::{name}"] = "fn"
-            for name in re.findall(r"^pub struct ([A-Za-z_0-9]+)", text, re.M):
+            for name in public_items(text, r"struct ([A-Za-z_0-9]+)"):
                 if TYPE_SUFFIX.search(f"::{name}"):
                     entries[f"antecedent::analysis::{module}::{name}"] = "type"
     return entries
@@ -315,6 +337,9 @@ def self_test() -> int:
     )
     assert len(stale) == 1 and "docs/x.md:3" in stale[0], stale
     assert not stale_doc_problems(rows, [("docs/x.md", 1, "A Rust-only helper `other_helper_name`.")])
+    hidden_source = "#[doc(hidden)]\npub fn sealed_helper(x: i32) {}\n\n/// Doc.\npub fn open_helper() {}\n"
+    assert public_items(hidden_source, r"(?:const )?fn ([a-z_0-9]+)[(<]") == ["open_helper"]
+    assert snapshot_entries("#[doc(hidden)] pub fn antecedent::gcm::hidden_one(x: i32)\n") == {}
     print("check_python_surface self-test OK")
     return 0
 

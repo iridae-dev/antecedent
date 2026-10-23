@@ -353,7 +353,7 @@ status = "bound"
 python = "antecedent.composition_verification.consume_composition_verification_artifact"
 
 [[entry]]
-rust = "antecedent::analysis::interface_contract::check_interface_composition_with_cyclic"
+rust = "antecedent::analysis::check_interface_composition_with_cyclic"
 kind = "fn"
 status = "bound"
 python = "antecedent.interface_contract.check_composition_with_cyclic"
@@ -1424,13 +1424,13 @@ status = "internal"
 reason = "report rendering behind antecedent.drift.staleness and PreparedAnalysis.staleness; Python reads it as antecedent.drift.StalenessReport"
 
 [[entry]]
-rust = "antecedent::analysis::structure_route::accept_discovered"
+rust = "antecedent::accept_discovered"
 kind = "fn"
 status = "bound"
 python = "antecedent._native.CompiledRoute"
 
 [[entry]]
-rust = "antecedent::analysis::structure_route::panel_of_units"
+rust = "antecedent::analysis::api::panel_of_units"
 kind = "fn"
 status = "internal"
 reason = "panel assembly behind the discover_* bindings: Python passes a panel as row-concatenated columns with unit_lengths, and the compiled discovery route builds the panel from those units"
@@ -1730,138 +1730,6 @@ python = "antecedent._native.rank_designs"
 reason = "bound design ranking runs through the native rank_designs, whose structure-prior inputs are the declared graph weights"
 
 [[entry]]
-rust = "antecedent::discovery::discover_ci_screened_posterior"
-kind = "fn"
-status = "bound"
-python = "antecedent._native.discover_ci_screened_posterior"
-
-[[entry]]
-rust = "antecedent::discovery::discover_dbn_posterior"
-kind = "fn"
-status = "bound"
-python = "antecedent._native.discover_dbn_posterior"
-
-[[entry]]
-rust = "antecedent::discovery::discover_dbn_posterior_panel"
-kind = "fn"
-status = "bound"
-python = "native:python/src/bayesian.rs"
-
-[[entry]]
-rust = "antecedent::discovery::discover_exact_dag_marginals"
-kind = "fn"
-status = "bound"
-python = "antecedent._native.discover_exact_dag_marginals"
-
-[[entry]]
-rust = "antecedent::discovery::discover_exact_dag_posterior"
-kind = "fn"
-status = "bound"
-python = "antecedent._native.discover_exact_dag_posterior"
-
-[[entry]]
-rust = "antecedent::discovery::discover_fci"
-kind = "fn"
-status = "bound"
-python = "antecedent._native.discover_fci"
-
-[[entry]]
-rust = "antecedent::discovery::discover_ges"
-kind = "fn"
-status = "bound"
-python = "antecedent._native.discover_ges"
-
-[[entry]]
-rust = "antecedent::discovery::discover_jpcmci_plus"
-kind = "fn"
-status = "bound"
-python = "antecedent._native.discover_jpcmci_plus"
-
-[[entry]]
-rust = "antecedent::discovery::discover_lingam"
-kind = "fn"
-status = "bound"
-python = "antecedent._native.discover_lingam"
-
-[[entry]]
-rust = "antecedent::discovery::discover_lpcmci"
-kind = "fn"
-status = "bound"
-python = "antecedent._native.discover_lpcmci"
-
-[[entry]]
-rust = "antecedent::discovery::discover_lpcmci_panel"
-kind = "fn"
-status = "bound"
-python = "native:python/src/lib.rs"
-
-[[entry]]
-rust = "antecedent::discovery::discover_notears"
-kind = "fn"
-status = "bound"
-python = "antecedent._native.discover_notears"
-
-[[entry]]
-rust = "antecedent::discovery::discover_notears_with"
-kind = "fn"
-status = "bound"
-python = "antecedent._native.discover_notears"
-
-[[entry]]
-rust = "antecedent::discovery::discover_order_mcmc"
-kind = "fn"
-status = "bound"
-python = "antecedent._native.discover_order_mcmc"
-
-[[entry]]
-rust = "antecedent::discovery::discover_pc"
-kind = "fn"
-status = "bound"
-python = "antecedent._native.discover_pc"
-
-[[entry]]
-rust = "antecedent::discovery::discover_pcmci"
-kind = "fn"
-status = "bound"
-python = "antecedent._native.discover_pcmci"
-
-[[entry]]
-rust = "antecedent::discovery::discover_pcmci_panel"
-kind = "fn"
-status = "bound"
-python = "native:python/src/lib.rs"
-
-[[entry]]
-rust = "antecedent::discovery::discover_pcmci_plus"
-kind = "fn"
-status = "bound"
-python = "antecedent._native.discover_pcmci_plus"
-
-[[entry]]
-rust = "antecedent::discovery::discover_pcmci_plus_panel"
-kind = "fn"
-status = "bound"
-python = "native:python/src/lib.rs"
-
-[[entry]]
-rust = "antecedent::discovery::discover_rfci"
-kind = "fn"
-status = "bound"
-python = "antecedent._native.discover_rfci"
-
-[[entry]]
-rust = "antecedent::discovery::discover_rpcmci"
-kind = "fn"
-status = "bound"
-python = "antecedent._native.discover_rpcmci"
-
-[[entry]]
-rust = "antecedent::discovery::discover_structure_mcmc"
-kind = "fn"
-status = "bound"
-python = "antecedent._native.discover_structure_mcmc"
-
-[[entry]]
 rust = "antecedent::discovery::pag_definite_directed_edge_count"
 kind = "fn"
 status = "bound"
@@ -1964,106 +1832,10 @@ status = "internal"
 reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
 
 [[entry]]
-rust = "antecedent::gcm::anomaly_attribution"
-kind = "fn"
-status = "bound"
-python = "antecedent._native.anomaly_attribution"
-
-[[entry]]
-rust = "antecedent::gcm::anomaly_attribution_query_with"
-kind = "fn"
-status = "internal"
-reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
-
-[[entry]]
-rust = "antecedent::gcm::anomaly_attribution_with"
-kind = "fn"
-status = "internal"
-reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
-
-[[entry]]
-rust = "antecedent::gcm::attribute_distribution_change"
-kind = "fn"
-status = "bound"
-python = "antecedent._native.attribute_distribution_change"
-
-[[entry]]
-rust = "antecedent::gcm::attribute_distribution_change_robust"
-kind = "fn"
-status = "bound"
-python = "antecedent._native.attribute_distribution_change_robust"
-
-[[entry]]
-rust = "antecedent::gcm::attribute_feature_relevance"
-kind = "fn"
-status = "bound"
-python = "antecedent._native.attribute_feature_relevance"
-
-[[entry]]
-rust = "antecedent::gcm::attribute_feature_relevance_with"
-kind = "fn"
-status = "internal"
-reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
-
-[[entry]]
-rust = "antecedent::gcm::attribute_intrinsic_influence"
-kind = "fn"
-status = "bound"
-python = "antecedent.intrinsic_influence.intrinsic_influence"
-
-[[entry]]
-rust = "antecedent::gcm::attribute_path_specific"
-kind = "fn"
-status = "bound"
-python = "antecedent._native.attribute_path_specific"
-
-[[entry]]
-rust = "antecedent::gcm::attribute_paths"
-kind = "fn"
-status = "bound"
-python = "antecedent._native.attribute_paths"
-
-[[entry]]
-rust = "antecedent::gcm::attribute_structure_change"
-kind = "fn"
-status = "bound"
-python = "antecedent._native.attribute_structure_change"
-
-[[entry]]
-rust = "antecedent::gcm::attribute_unit_change"
-kind = "fn"
-status = "bound"
-python = "antecedent._native.attribute_unit_change"
-
-[[entry]]
 rust = "antecedent::gcm::candidate_families"
 kind = "fn"
 status = "bound"
 python = "antecedent._native.fit_gcm"
-
-[[entry]]
-rust = "antecedent::gcm::counterfactual_ite"
-kind = "fn"
-status = "bound"
-python = "antecedent._native.counterfactual_ite"
-
-[[entry]]
-rust = "antecedent::gcm::counterfactual_policy"
-kind = "fn"
-status = "bound"
-python = "antecedent.intervention_programs.counterfactual_policy"
-
-[[entry]]
-rust = "antecedent::gcm::policy_value"
-kind = "fn"
-status = "bound"
-python = "antecedent.intervention_programs.policy_value"
-
-[[entry]]
-rust = "antecedent::gcm::counterfactual_temporal_policy"
-kind = "fn"
-status = "bound"
-python = "antecedent.intervention_programs.counterfactual_temporal_policy"
 
 [[entry]]
 rust = "antecedent::gcm::evaluate_graph"
@@ -2090,58 +1862,10 @@ status = "bound"
 python = "antecedent._native.fit_gcm"
 
 [[entry]]
-rust = "antecedent::gcm::mechanism_change_detection"
-kind = "fn"
-status = "bound"
-python = "antecedent._native.mechanism_change_detection"
-
-[[entry]]
-rust = "antecedent::gcm::noise_table_from_columns"
-kind = "fn"
-status = "bound"
-python = "native:python/src/gcm_api.rs"
-
-[[entry]]
-rust = "antecedent::gcm::rank_root_causes"
-kind = "fn"
-status = "bound"
-python = "antecedent._native.rank_root_causes"
-
-[[entry]]
 rust = "antecedent::gcm::registry_from_candidates"
 kind = "fn"
 status = "bound"
 python = "antecedent._native.fit_gcm"
-
-[[entry]]
-rust = "antecedent::gcm::replay_noise"
-kind = "fn"
-status = "bound"
-python = "native:python/src/gcm_api.rs"
-
-[[entry]]
-rust = "antecedent::gcm::sample_do"
-kind = "fn"
-status = "bound"
-python = "antecedent._native.sample_do"
-
-[[entry]]
-rust = "antecedent::gcm::sample_temporal_policy"
-kind = "fn"
-status = "bound"
-python = "antecedent.intervention_programs.sample_temporal_policy"
-
-[[entry]]
-rust = "antecedent::gcm::sample_with_noise"
-kind = "fn"
-status = "bound"
-python = "native:python/src/gcm_api.rs"
-
-[[entry]]
-rust = "antecedent::gcm::sample_interventional_distribution"
-kind = "fn"
-status = "bound"
-python = "antecedent._native.sample_interventional_distribution"
 
 [[entry]]
 rust = "antecedent::inference::decode_prior_hydrate_source"
@@ -2721,12 +2445,6 @@ status = "bound"
 python = "antecedent.adaptive_inference.RepeatedMeasuresProcedure.load_posterior"
 
 [[entry]]
-rust = "antecedent::analysis::repeated_measures_posterior_report::seal_report_without_validation"
-kind = "fn"
-status = "internal"
-reason = "test-only seal used by the Rust forgery test; Python has no call that seals an unvalidated report"
-
-[[entry]]
 rust = "antecedent::analysis::composition_verification::load_decision"
 kind = "fn"
 status = "missing"
@@ -2739,13 +2457,97 @@ status = "missing"
 reason = "Historical numerical replay for the Rust mixed-decision workflow. The Python composition-verification consumer does not expose this typed workflow; replay grants no current decision authority."
 
 [[entry]]
-rust = "antecedent::analysis::missing_support::route_missing_support"
+rust = "antecedent::analysis::api::route_missing_support"
 kind = "fn"
 status = "internal"
 reason = "Reads parity/missing_policy_support.toml for the builder. Python reaches it through the `missing=` option of antecedent.analyze and the prepared builders, whose declarations the builder checks against the registry and refuses with missing_policy_not_applicable."
 
 [[entry]]
-rust = "antecedent::analysis::missing_support::missing_support_table"
+rust = "antecedent::analysis::api::missing_support_table"
 kind = "fn"
 status = "internal"
 reason = "The parsed missing-data support registry the builder consults; Python reaches it through the `missing=` option, and docs/guides/missing-data.md publishes the same table."
+
+[[entry]]
+rust = "antecedent::accept_discovered_posterior"
+kind = "fn"
+status = "missing"
+reason = "No Python call accepts a structure posterior as a separate step; Python reads the posterior discovery result from the analysis result. Next attempt: a wrapper over the compiled route that returns the accepted posterior with its sealed claim."
+
+[[entry]]
+rust = "antecedent::analysis::confidence_interval_as_posterior"
+kind = "fn"
+status = "internal"
+reason = "Always refuses: a confidence interval is never offered as a parameter posterior. Python surfaces the same typed refusal when a posterior demand meets an interval answer, so there is no call to bind."
+
+[[entry]]
+rust = "antecedent::analysis::consume_propagation_chain"
+kind = "fn"
+status = "bound"
+python = "antecedent.propagation_chain.consume_propagation_chain"
+
+[[entry]]
+rust = "antecedent::analysis::independent_product_table"
+kind = "fn"
+status = "bound"
+python = "antecedent.propagation_chain.independent_product_table"
+
+[[entry]]
+rust = "antecedent::analysis::propagation_chain::compile_propagation_chain"
+kind = "fn"
+status = "bound"
+python = "antecedent.propagation_chain.propagate"
+
+[[entry]]
+rust = "antecedent::analysis::score_decision"
+kind = "fn"
+status = "missing"
+reason = "Scores a decision demand against published carriers of a prepared answer; the Python decision wrapper evaluates a contract against a joint-distribution artifact (antecedent.decision.Contract.evaluate) and has no call that scores a published answer directly. Next attempt: a wrapper over the compiled demand that takes the published carriers of an analysis result."
+
+[[entry]]
+rust = "antecedent::host::claim_record"
+kind = "fn"
+status = "bound"
+python = "antecedent.host.claim_record"
+
+[[entry]]
+rust = "antecedent::host::claim_response"
+kind = "fn"
+status = "bound"
+python = "antecedent.host.claim_response"
+
+[[entry]]
+rust = "antecedent::host::error_family"
+kind = "fn"
+status = "bound"
+python = "antecedent.host.error_family"
+
+[[entry]]
+rust = "antecedent::host::error_response"
+kind = "fn"
+status = "bound"
+python = "antecedent.host.error_response"
+
+[[entry]]
+rust = "antecedent::host::host_schema"
+kind = "fn"
+status = "bound"
+python = "antecedent.host.schema"
+
+[[entry]]
+rust = "antecedent::host::operation_record"
+kind = "fn"
+status = "missing"
+reason = "Python reads an operation through inspect() and antecedent.host.operation_status and has no operation-report object to shape as the schema operation_report. Next attempt: a record builder over the inspect() capability report."
+
+[[entry]]
+rust = "antecedent::host::refusal_code"
+kind = "fn"
+status = "bound"
+python = "antecedent.host.refusal_code"
+
+[[entry]]
+rust = "antecedent::host::refusal_record"
+kind = "fn"
+status = "bound"
+python = "antecedent.host.refusal_record"

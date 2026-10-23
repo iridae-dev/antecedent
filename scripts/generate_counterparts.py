@@ -167,10 +167,28 @@ def child_rows(children: list[dict], routes: dict[str, dict], scope: dict[str, d
     return rows
 
 
-def route_design(route: dict) -> str:
+def id_design(route: dict) -> str | None:
+    """The design a route id names as a dotted segment, leading or inner, or None."""
     for design in DESIGNS:
-        if f".{design}." in route["id"]:
+        if re.search(rf"(?:^|\.){design}\.", route["id"]):
             return design
+    return None
+
+
+def route_method(route: dict) -> str:
+    """The method a route's rows belong to.
+
+    A measurement route is a quadrant of the measurement-corrected functional whichever design
+    its manifest target names, so the temporal measurement routes (whose target is the
+    sequentially randomized design they correct) join the static ones.
+    """
+    return "MeasurementCorrectedFunctional" if route["id"].startswith("measurement.") else route["target"]
+
+
+def route_design(route: dict) -> str:
+    named = id_design(route)
+    if named is not None:
+        return named
     first = route["design_time_model"].split(";")[0].strip().lower()
     if first in DESIGNS:
         return first
@@ -192,7 +210,7 @@ def route_rows(routes: list[dict], lowerings: dict[str, str]) -> list[dict]:
         design = route_design(route)
         closed = route["status"] == "closed"
         inferences = route_inferences(route)
-        if route["status"] == "execution_only" and not any(f".{d}." in route["id"] for d in DESIGNS):
+        if route["status"] == "execution_only" and id_design(route) is None:
             continue
         for inference in inferences:
             segment = uncertainty_segment(route["uncertainty"], inference)
@@ -206,7 +224,7 @@ def route_rows(routes: list[dict], lowerings: dict[str, str]) -> list[dict]:
                 {
                     "id": f"{route['id']}#{design}.{inference}",
                     "kind": "route",
-                    "method": route["target"],
+                    "method": route_method(route),
                     "design": design,
                     "inference": inference,
                     "route": route["id"],

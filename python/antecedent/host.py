@@ -11,8 +11,9 @@ prose:
   embeds as ``antecedent::host::HOST_SCHEMA_TEXT``;
 - :func:`claim_status`, :func:`operation_status` and :func:`inspection_status` -- the
   status of a claim or an operation, decided by the one Rust rule;
-- :func:`refusal_codes`, :func:`error_family` and :func:`refusal_record` -- the stable
-  registered refusal codes and exception families, shared with Rust.
+- :func:`refusal_codes`, :func:`refusal_code`, :func:`error_family`, :func:`refusal_record`,
+  :func:`error_response` and :func:`claim_response` -- the stable registered refusal codes,
+  exception families and response records, shared with Rust.
 
 A status is advice about use, never a verdict about the world: ``supported`` means the
 route is licensed, identified under the declared structure and executed, with nothing
@@ -34,12 +35,15 @@ __all__ = [
     "ErrorFamily",
     "HostStatus",
     "claim_record",
+    "claim_response",
     "claim_status",
     "error_families",
     "error_family",
+    "error_response",
     "inspection_status",
     "operation_status",
     "reason_codes",
+    "refusal_code",
     "refusal_codes",
     "refusal_record",
     "schema",
@@ -217,18 +221,46 @@ def claim_record(claim: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def claim_response(claim: Mapping[str, Any]) -> dict[str, Any]:
+    """Host record of a claim as a ``host_response``.
+
+    A refusal-kind claim is carried as the claim with status ``unsupported``; use
+    :func:`error_response` for a failed call.
+    """
+    record = claim_record(claim)
+    return {"status": record["status"], "claim": record}
+
+
+def refusal_code(error: BaseException) -> str | None:
+    """The registered refusal code ``error`` carries, or ``None``.
+
+    A code outside the registered vocabulary is never reported, so a host never sees a
+    code the schema does not list.
+    """
+    code = getattr(error, "reason_code", None)
+    return code if code in refusal_codes() else None
+
+
+def error_response(error: BaseException) -> dict[str, Any]:
+    """Host record of a failed call as a ``host_response``: always ``unsupported``.
+
+    ``refusal.family`` tells a host whether to retry (``resource``, ``cancelled``), ask for
+    a review (``review_required``) or give up (``unsupported``).
+    """
+    return {"status": "unsupported", "refusal": refusal_record(error)}
+
+
 def refusal_record(error: BaseException) -> dict[str, Any]:
     """Host record of a failed call, shaped as the schema's ``refusal``.
 
     ``reason_code`` is the registered code the error carries, or ``None``: a code that is
     not registered is never reported. ``family`` classifies every failure, coded or not.
     """
-    code = getattr(error, "reason_code", None)
     remedy = getattr(error, "remedy", None)
     return {
         "status": "unsupported",
         "family": error_family(error),
-        "reason_code": code if code in refusal_codes() else None,
+        "reason_code": refusal_code(error),
         "message": str(error),
         "remedy": remedy if isinstance(remedy, str) else None,
     }
