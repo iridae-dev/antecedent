@@ -983,8 +983,7 @@ impl super::Study {
                         std::sync::Arc::new(
                             self.prepare_static_identification(physical)?.ok_or_else(|| {
                                 CausalError::Compile {
-                                    message: "attribution identified no structural product"
-                                        .into(),
+                                    message: "attribution identified no structural product".into(),
                                 }
                             })?,
                         )

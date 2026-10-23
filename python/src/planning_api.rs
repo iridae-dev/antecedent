@@ -22,7 +22,10 @@ use crate::{PyCancellationToken, detach_catch, py_err, value_err};
 type Object = Map<String, Value>;
 
 fn invalid(message: impl AsRef<str>) -> PyErr {
-    value_err(format!("reason=invalid_argument: planning request: {}", message.as_ref()))
+    crate::with_reason_code(
+        value_err(format!("planning request: {}", message.as_ref())),
+        antecedent_core::reason_code!("invalid_argument"),
+    )
 }
 
 fn object<'a>(value: &'a Value, what: &str) -> PyResult<&'a Object> {
