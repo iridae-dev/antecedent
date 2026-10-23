@@ -21,8 +21,8 @@ pub fn assert_retained_graphless_program(
 ) {
     let operation = prepared.retained_operation();
     assert!(
-        !matches!(operation, RetainedOperation::OrdinaryDispatch),
-        "{label}: a graphless route must retain a sealed operation, not ordinary dispatch",
+        !matches!(operation, RetainedOperation::EstimatorRoute | RetainedOperation::FreshRun),
+        "{label}: a graphless route must retain its own sealed operation, not the program-only one",
     );
     let view = prepared.plan_view().unwrap_or_else(|error| panic!("{label}: {error}"));
     assert_eq!(view.stage(), PlanStage::Prepared, "{label}");

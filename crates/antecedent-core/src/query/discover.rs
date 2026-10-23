@@ -224,6 +224,9 @@ pub enum DiscoveryMethod {
     /// Exact posterior over PAG classes of the Gaussian maximal ancestral graphs of a few
     /// variables (latent confounding allowed), scored by BIC.
     ExactPagPosterior,
+    /// Metropolis posterior over PAG classes of the Gaussian maximal ancestral graphs of up to
+    /// eight variables, by single-pair link moves.
+    PagMcmc,
     /// Posterior over Markov equivalence classes: the DAG posterior of `base` with every
     /// DAG replaced by its CPDAG and the mass of DAGs that share a CPDAG summed. `base`
     /// is a DAG-posterior method that lists its graphs.
@@ -270,6 +273,7 @@ impl DiscoveryMethod {
             Self::DbnPosterior { .. } => "dbn_posterior",
             Self::ClassPosterior { .. } => "class_posterior",
             Self::ExactPagPosterior => "exact_pag_posterior",
+            Self::PagMcmc => "pag_mcmc",
             Self::BootstrapStability { .. } => "bootstrap_stability",
         }
     }
@@ -285,6 +289,7 @@ impl DiscoveryMethod {
             | Self::CiScreenedPosterior { .. }
             | Self::DbnPosterior { .. }
             | Self::ExactPagPosterior
+            | Self::PagMcmc
             | Self::ClassPosterior { .. } => DiscoveryInference::Bayesian,
             Self::Pc
             | Self::Fci
@@ -319,7 +324,7 @@ impl DiscoveryMethod {
             Self::ExactDagMarginals => DiscoveredClass::DagEdgeMarginals,
             Self::DbnPosterior { .. } => DiscoveredClass::TemporalDagPosterior,
             Self::ClassPosterior { .. } => DiscoveredClass::CpdagPosterior,
-            Self::ExactPagPosterior => DiscoveredClass::PagPosterior,
+            Self::ExactPagPosterior | Self::PagMcmc => DiscoveredClass::PagPosterior,
             Self::BootstrapStability { .. } => DiscoveredClass::StructureStability,
         }
     }
@@ -371,6 +376,7 @@ impl DiscoveryMethod {
                     | Self::StructureMcmc
                     | Self::CiScreenedPosterior { .. }
                     | Self::DbnPosterior { .. }
+                    | Self::PagMcmc
             ),
         }
     }
@@ -434,6 +440,9 @@ impl CanonicalEncode for DiscoveryMethod {
             }
             Self::ExactPagPosterior => {
                 writer.word(20);
+            }
+            Self::PagMcmc => {
+                writer.word(21);
             }
             Self::ClassPosterior { base } => {
                 writer.word(18);

@@ -20,7 +20,7 @@ use crate::analysis::lowering::{RouteCell, expected_cell};
 /// The route cell and the lowered program a prepared handle executes.
 #[derive(Clone, Debug)]
 pub(crate) struct CheckedRouteOperation {
-    cell: RouteCell,
+    cell: Option<RouteCell>,
     lowered: SemanticDigest,
 }
 
@@ -44,6 +44,25 @@ impl CheckedRouteOperation {
                 cell.as_str()
             ));
         }
+        Ok(Self { cell: Some(cell), lowered })
+    }
+
+    /// Seal `study` to whatever program `physical` carries for the route the study
+    /// executes as. This is the operation of a route no specialised sealer admits, and
+    /// of a fresh run (`Study::execute`, one-shot `run`): it runs the route's executor
+    /// from the study inside the program's dispatch scope, and a result it produces
+    /// carries no prepared-click stamp.
+    ///
+    /// # Errors
+    ///
+    /// `route_not_lowered` when the plan carries no lowered program, or one lowered for
+    /// another route than the study executes as.
+    pub(crate) fn lowered(
+        study: &Study,
+        physical: &Arc<PhysicalExecutionPlan>,
+    ) -> Result<Self, CausalError> {
+        let cell = expected_cell(study);
+        let lowered = physical.require_lowered(cell)?.identity();
         Ok(Self { cell, lowered })
     }
 
@@ -57,14 +76,14 @@ impl CheckedRouteOperation {
         &self,
         physical: &PhysicalExecutionPlan,
     ) -> Result<(), CausalError> {
-        let lowered = physical.require_lowered(Some(self.cell))?.identity();
+        let lowered = physical.require_lowered(self.cell)?.identity();
         if lowered == self.lowered {
             Ok(())
         } else {
             Err(crate::compile_reason!(
                 "route_not_lowered",
                 "the plan carries another lowered program than the one {} was sealed to",
-                self.cell.as_str()
+                self.cell.map_or("the study", RouteCell::as_str)
             ))
         }
     }

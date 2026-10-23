@@ -29,7 +29,9 @@ def _static_rows(seed: int = 4, n: int = 300) -> tuple[list[str], list[np.ndarra
     rng = np.random.default_rng(seed)
     z = rng.uniform(-1.0, 1.0, size=n)
     t = 0.8 * z + rng.uniform(-1.0, 1.0, size=n)
-    y = 1.5 * t + 0.6 * z + rng.uniform(-1.0, 1.0, size=n)
+    # No direct z -> y edge: with one, the partial correlation of z and t given y nearly
+    # cancels (about 0.06) and PC drops the z - t edge in most resamples.
+    y = 1.5 * t + rng.uniform(-1.0, 1.0, size=n)
     return ["z", "t", "y"], [z, t, y]
 
 
@@ -237,3 +239,60 @@ def test_a_pag_posterior_merges_markov_equivalent_ancestral_graphs():
     assert max(result.weights) > 0.8
     with pytest.raises(Exception):  # noqa: B017, PT011 - five variables are not enumerated
         _native.discover_exact_pag_posterior(list("abcde"), [x[:50]] * 5)
+
+
+def test_a_multi_environment_search_is_resampled_environment_by_environment():
+    from antecedent.discovery import JPCMCIPlus
+
+    names, first = _series_rows(n=150)
+    _, second = _series_rows(seed=9, n=150)
+    result = _native.discover_jpcmci_plus_stability(
+        names, [first, second], replicates=6, max_lag=1, seed=1
+    )
+    assert result.replicates_requested == 6
+    assert result.structure_class == "temporal_cpdag"
+    wrapped = BootstrapStability(JPCMCIPlus(max_lag=1), replicates=6).run(
+        (names, [first, second]), seed=1
+    )
+    assert wrapped.replicates_requested == 6
+
+
+def test_a_regime_search_is_resampled_with_its_labels_one_table_per_regime():
+    from antecedent.discovery import RPCMCI, two_regime_half_split
+
+    names, cols = _series_rows(n=240)
+    regimes = two_regime_half_split(240)
+    result = _native.discover_rpcmci_stability(
+        names, cols, regimes=regimes, replicates=6, max_lag=1, min_regime_len=40, seed=1
+    )
+    assert sorted(result.regimes) == [0, 1]
+    for table in result.tables:
+        assert table.replicates_requested == 6
+        assert table.structure_class == "temporal_cpdag"
+    assert result.table(0).replicates_requested == 6
+    data = dict(zip(names, cols, strict=True))
+    wrapped = BootstrapStability(RPCMCI(max_lag=1), replicates=6).run(data, regimes=regimes, seed=1)
+    assert len(wrapped.tables) == 2
+    with pytest.raises(CausalValueError):
+        BootstrapStability(RPCMCI(max_lag=1), replicates=6).run(data)
+
+
+def test_a_pag_sampler_runs_beyond_four_variables_and_finds_the_exact_top_class():
+    rng = np.random.default_rng(12)
+    a = rng.normal(size=800)
+    b = 0.9 * a + 0.5 * rng.normal(size=800)
+    c = 0.9 * b + 0.5 * rng.normal(size=800)
+    d = rng.normal(size=800)
+    e = rng.normal(size=800)
+    sampled = _native.discover_pag_mcmc(
+        list("abcde"), [a, b, c, d, e], n_chains=2, n_warmup=100, n_draws=400, seed=1
+    )
+    _assert_contract(sampled, "bayesian")
+    assert sampled.atom_kind == "Pag"
+    assert sum(sampled.weights) == pytest.approx(1.0)
+    small = _native.discover_pag_mcmc(
+        ["a", "b", "c"], [a, b, c], n_chains=2, n_warmup=200, n_draws=1500, seed=1
+    )
+    exact = _native.discover_exact_pag_posterior(["a", "b", "c"], [a, b, c], seed=1)
+    top = lambda post: post.adjacency[max(range(post.n_graphs), key=post.weights.__getitem__)]  # noqa: E731
+    assert top(small) == top(exact)

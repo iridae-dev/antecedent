@@ -154,7 +154,9 @@ classes of each template's one-step window. `ExactPagPosterior` is the Bayesian 
 variables: every maximal ancestral graph is fitted by residual iterative conditional fitting,
 scored by BIC, and Markov-equivalent graphs are merged into their PAG, so the result is a
 `GraphPosterior` with `atom_kind` `"Pag"` and `mark_masks` flagging the circle endpoints.
-Larger graphs refuse; a sampler over maximal ancestral graphs is the next attempt.
+`PagMcmc` is its Metropolis counterpart for two to eight variables (single-pair link moves from
+the empty graph, with ancestrality and maximality checks); `converged` records only that the
+chains' class frequencies agree. Larger graphs refuse.
 
 **Stability of the search.** `BootstrapStability(base, replicates)` (Rust:
 `DiscoverySpec::bootstrap_stability`) re-runs the search on resamples drawn under the

@@ -181,16 +181,6 @@ impl<T: SealedOperation + ?Sized> SealedOperation for Box<T> {
     }
 }
 
-/// The route no sealed operation admits: the ordinary dispatcher executes it.
-#[derive(Clone, Copy, Debug)]
-pub(super) struct OrdinaryDispatch;
-
-impl SealedOperation for OrdinaryDispatch {
-    unbound_program!();
-    study_owned_stage_sink!();
-    study_owned_validators!();
-}
-
 /// Which entry point is running a series operation. It selects the wording of
 /// each refusal; the refusal's cause is the same.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

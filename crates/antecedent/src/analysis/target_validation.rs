@@ -31,8 +31,8 @@ use std::sync::Arc;
 use antecedent_contract::DataClassification;
 use antecedent_core::{
     CausalQuery, CausalRng, ContinuousDomain, DerivativeScale, DerivativeWeighting,
-    ExecutionContext, GridSpec, Lag, ResponseFunctional, ResponseIdentification, ResponseQuery,
-    ResponseUncertainty, ResponseValue, VariableId,
+    ExecutionContext, GridSpec, Intervention, Lag, ResponseFunctional, ResponseIdentification,
+    ResponseQuery, ResponseUncertainty, ResponseValue, Value, VariableId,
 };
 use antecedent_data::{
     OwnedColumn, PanelData, PanelUnit, TableView, TabularData, TimeSeriesData, ValidityBitmap,
@@ -42,9 +42,9 @@ use antecedent_kernels::{sample_gamma, shuffle, unbiased_index};
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 use antecedent_validate::RefutationReport;
 use antecedent_validate::target_native::{
-    DerivativeCheckPoint, PosteriorPredictiveTarget, PriorSensitivityTarget,
-    certify_target_refutations, finite_difference_consistency, local_linearity,
-    posterior_predictive_target_check, prior_sensitivity_target_check,
+    DerivativeCheckPoint, DerivativeConsistency, LocalLinearity, PosteriorPredictiveTarget,
+    PriorSensitivityTarget, certify_target_refutations, finite_difference_consistency,
+    local_linearity, posterior_predictive_target_check, prior_sensitivity_target_check,
     refuse_scalar_reports_for_target, run_target_plan, target_refuter_stream,
 };
 pub use antecedent_validate::target_native::{
@@ -427,7 +427,163 @@ pub struct TargetRefitOptions {
     pub derivative_tolerance: f64,
     /// Largest acceptable relative nonlinearity over the step.
     pub linearity_tolerance: f64,
+    /// Draw the series bootstrap, pre-trend, anticipation and lagged-placebo refits as
+    /// explicit gathered circular-block series and cut windows, as a route that reads no row
+    /// weights requires, instead of as row multiplicities. A route that reads row weights
+    /// keeps the multiplicities unless this is set.
+    pub gathered_resamples: bool,
+    /// The declared division of a class's mass among its DAG members, which a common cause
+    /// declared in every atom of a class posterior needs. `None` refuses such a posterior.
+    pub within_class: Option<WithinClassDistribution>,
 }
+
+/// How the mass of a Markov equivalence class divides among its DAG members, an assumption the
+/// posterior does not state.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum WithinClassDistribution {
+    /// Every DAG member of the class has the same share.
+    UniformOverMembers,
+}
+
+/// One report on the whole target vector from the per-coordinate derivative checks: the
+/// coordinates (horizons, or the outcomes and directions of a vector derivative) are the
+/// evaluation points of a single check, in target order.
+fn merge_derivative_checks(
+    kind: TargetRefuterKind,
+    coordinates: Vec<DerivativeCoordinate>,
+    target: &RefutationTarget,
+) -> Result<TargetRefutationReport, TargetRefitError> {
+    if kind == TargetRefuterKind::FiniteDifferenceConsistency {
+        let mut merged: Option<DerivativeConsistency> = None;
+        for coordinate in coordinates {
+            let DerivativeCoordinate::FiniteDifference(check) = coordinate else { continue };
+            match &mut merged {
+                None => merged = Some(check),
+                Some(all) => {
+                    all.points.extend(check.points);
+                    all.reported.extend(check.reported);
+                    all.finite_difference.extend(check.finite_difference);
+                    all.truncation_error.extend(check.truncation_error);
+                    all.standardized.extend(check.standardized);
+                }
+            }
+        }
+        let check = merged.ok_or_else(|| unsupported("no value", "a target"))?;
+        Ok(check.to_report(target)?)
+    } else {
+        let mut merged: Option<LocalLinearity> = None;
+        for coordinate in coordinates {
+            let DerivativeCoordinate::Linearity(check) = coordinate else { continue };
+            match &mut merged {
+                None => merged = Some(check),
+                Some(all) => {
+                    all.points.extend(check.points);
+                    all.slope.extend(check.slope);
+                    all.curvature.extend(check.curvature);
+                    all.nonlinearity.extend(check.nonlinearity);
+                }
+            }
+        }
+        let check = merged.ok_or_else(|| unsupported("no value", "a target"))?;
+        Ok(check.to_report(target)?)
+    }
+}
+
+/// A lagged-template mask repacked from `n` to `m` nodes: the bit of the edge `from -> to` at
+/// lag `lag + 1` moves from `lag * n * n + from * n + to` to `lag * m * m + from * m + to`.
+fn repack_lag_mask(old: u64, n: usize, m: usize, max_lag: usize) -> u64 {
+    let mut packed = 0_u64;
+    for bit in 0..max_lag * n * n {
+        if (old >> bit) & 1 == 1 {
+            let (lag, from, to) = (bit / (n * n), (bit % (n * n)) / n, bit % n);
+            packed |= 1_u64 << (lag * m * m + from * m + to);
+        }
+    }
+    packed
+}
+
+#[cfg(test)]
+mod repack_tests {
+    use antecedent_validate::target_native::{TargetFamily, TargetQuadrant};
+
+    use super::*;
+
+    /// A target with one coordinate per horizon.
+    fn horizon_target(horizons: usize) -> RefutationTarget {
+        RefutationTarget::new(
+            TargetFamily::ResponseDerivative,
+            TargetQuadrant::TEMPORAL_FREQUENTIST,
+            (1..=horizons).map(|h| format!("horizon[{h}]")),
+            [7; 32],
+        )
+        .unwrap()
+    }
+
+    /// One coordinate per horizon: a linear response with that horizon's slope.
+    fn horizon_checks(
+        kind: TargetRefuterKind,
+        slopes: &[f64],
+        reported: &[f64],
+    ) -> Vec<DerivativeCoordinate> {
+        slopes
+            .iter()
+            .zip(reported)
+            .map(|(&slope, &value)| {
+                if kind == TargetRefuterKind::FiniteDifferenceConsistency {
+                    DerivativeCoordinate::FiniteDifference(
+                        finite_difference_consistency(
+                            |offset| Ok(1.0 + slope * offset),
+                            &[DerivativeCheckPoint { x: 0.0, reported: value }],
+                            0.5,
+                            0.05,
+                        )
+                        .unwrap(),
+                    )
+                } else {
+                    DerivativeCoordinate::Linearity(
+                        local_linearity(|offset| Ok(1.0 + slope * offset), &[0.0], 0.5, 0.25, 1e-9)
+                            .unwrap(),
+                    )
+                }
+            })
+            .collect()
+    }
+
+    #[test]
+    fn horizons_with_distinct_slopes_merge_into_one_report_on_the_horizon_target() {
+        let target = horizon_target(2);
+        let kind = TargetRefuterKind::FiniteDifferenceConsistency;
+        let checks = horizon_checks(kind, &[2.0, 3.0], &[2.0, 3.0]);
+        let sound = merge_derivative_checks(kind, checks, &target).unwrap();
+        assert!(sound.passed, "{:?}", sound.failure);
+        assert!((sound.refuted[0] - 2.0).abs() < 1e-9 && (sound.refuted[1] - 3.0).abs() < 1e-9);
+        assert_eq!(&*sound.original, &[2.0, 3.0]);
+        // One wrong horizon fails the whole vector.
+        let checks = horizon_checks(kind, &[2.0, 3.0], &[2.0, 3.6]);
+        assert!(!merge_derivative_checks(kind, checks, &target).unwrap().passed);
+        // A report with another number of coordinates than the target is refused.
+        let checks = horizon_checks(kind, &[2.0], &[2.0]);
+        assert!(merge_derivative_checks(kind, checks, &target).is_err());
+        // Local linearity merges the same way: a linear response is linear at every horizon.
+        let kind = TargetRefuterKind::LocalLinearity;
+        let checks = horizon_checks(kind, &[2.0, 3.0], &[2.0, 3.0]);
+        let linear = merge_derivative_checks(kind, checks, &target).unwrap();
+        assert!(linear.passed);
+        assert_eq!(linear.original.len(), 2);
+    }
+
+    #[test]
+    fn a_lagged_edge_keeps_its_lag_source_and_target_when_a_node_is_added() {
+        // Two nodes, two lags: bit (lag, from, to) = lag * 4 + from * 2 + to.
+        let old = (1_u64 << 1) | (1_u64 << (4 + 2)); // lag 1: 0 -> 1; lag 2: 1 -> 0
+        let packed = repack_lag_mask(old, 2, 3, 2);
+        assert_eq!(packed, (1_u64 << 1) | (1_u64 << (9 + 3)));
+        assert_eq!(repack_lag_mask(0, 2, 3, 2), 0);
+    }
+}
+
+/// Most DAG members of one class the common-cause refuter enumerates.
+const WITHIN_CLASS_MEMBER_CAP: usize = 512;
 
 impl Default for TargetRefitOptions {
     fn default() -> Self {
@@ -442,6 +598,8 @@ impl Default for TargetRefitOptions {
             derivative_step: None,
             derivative_tolerance: 0.1,
             linearity_tolerance: 0.25,
+            gathered_resamples: false,
+            within_class: None,
         }
     }
 }
@@ -538,6 +696,12 @@ enum Modal {
     Tabular(TabularData),
     Series(TimeSeriesData),
     Panel(PanelData),
+}
+
+/// One coordinate's derivative check, before the coordinates are merged into one report.
+enum DerivativeCoordinate {
+    FiniteDifference(DerivativeConsistency),
+    Linearity(LocalLinearity),
 }
 
 struct PreparedRefit<'a> {
@@ -927,32 +1091,40 @@ impl PreparedRefit<'_> {
 
     /// The graph posterior with a simulated common cause `u` declared in every atom.
     ///
-    /// Each DAG atom is repacked onto one more node, `u`, which is made a parent of the
-    /// treatment and of the outcome; the atom weights are unchanged, so the posterior is the
-    /// same mixture over structures with one root cause added to each. A class atom (CPDAG or
-    /// PAG) is refused, because a new parent can create a collider with a parent the treatment
-    /// already has and so change the class, and so is a lagged template posterior.
+    /// A DAG atom, static or a lagged template, is repacked onto one more node, `u`, which is
+    /// made a contemporaneous parent of the treatment and of the outcome; the atom weights are
+    /// unchanged, so the posterior is the same mixture over structures with one root cause
+    /// added to each.
+    ///
+    /// A CPDAG atom is a class, and the class of the DAG with `u` added depends on which member
+    /// of the class is meant: an added parent can create a collider with a parent the treatment
+    /// already has. The posterior does not say how a class's mass divides among its members, so
+    /// this needs the declared assumption `WithinClassDistribution::UniformOverMembers`: every
+    /// atom's DAG members are enumerated (at most [`WITHIN_CLASS_MEMBER_CAP`], else the class is
+    /// refused), each member gets an equal share of the atom's mass, the common cause is added to
+    /// each, and the shares are collapsed to the classes of the augmented DAGs. The assumption is
+    /// written into the posterior's diagnostics. A PAG atom or a lagged class posterior is
+    /// refused.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one repacking of the atoms in three shapes: DAG, lagged template and class"
+    )]
     fn posterior_with_common_cause(
         &self,
         posterior: &antecedent_discovery::GraphPosterior,
         u: VariableId,
     ) -> Result<antecedent_discovery::GraphPosterior, TargetRefitError> {
+        use antecedent_discovery::GraphPosteriorAtomKind as Kind;
         use antecedent_discovery::adjacency_mask::{has_edge, set_edge};
         let n = posterior.n_vars;
-        if posterior.atom_kind != antecedent_discovery::GraphPosteriorAtomKind::Dag
-            || posterior.max_lag.is_some()
-        {
-            return Err(unsupported(
-                "a class or lagged template posterior can change its classes when a parent is \
-                 declared in every atom",
-                "refute one accepted structure of the posterior",
-            ));
-        }
-        if u.as_usize() != n || n + 1 > antecedent_discovery::MAX_POSTERIOR_NODES {
-            return Err(unsupported(
-                "the posterior's nodes are not the study's columns, or the added node does not \
-                 fit the atom packing",
-                "refute one accepted structure of the posterior",
+        let m = n + 1;
+        let refuse = |reason: &'static str| {
+            unsupported(reason, "refute one accepted structure of the posterior")
+        };
+        if u.as_usize() != n || m > antecedent_discovery::MAX_POSTERIOR_NODES {
+            return Err(refuse(
+                "the posterior's nodes are not the study's columns, or the added node does not fit \
+                 the atom packing",
             ));
         }
         let (t, y) = (self.treatment.as_usize(), self.outcome.as_usize());
@@ -962,46 +1134,138 @@ impl PreparedRefit<'_> {
                 "a posterior that names both",
             ));
         }
-        let m = n + 1;
-        let atoms: Vec<antecedent_discovery::AdjacencyMask> = posterior
-            .atoms
-            .iter()
-            .map(|&atom| {
-                let mut packed = antecedent_discovery::AdjacencyMask::EMPTY;
-                for i in 0..n {
-                    for j in 0..n {
-                        if i != j && has_edge(atom, n, i, j) {
-                            packed = set_edge(packed, m, i, j, true);
-                        }
+        let lags = posterior.max_lag.map(|lag| lag as usize);
+        // Repack a contemporaneous atom onto `m` nodes and add the common cause.
+        let repack = |atom: antecedent_discovery::AdjacencyMask| {
+            let mut packed = antecedent_discovery::AdjacencyMask::EMPTY;
+            for i in 0..n {
+                for j in 0..n {
+                    if i != j && has_edge(atom, n, i, j) {
+                        packed = set_edge(packed, m, i, j, true);
                     }
                 }
-                packed = set_edge(packed, m, n, t, true);
-                set_edge(packed, m, n, y, true)
-            })
-            .collect();
+            }
+            packed = set_edge(packed, m, n, t, true);
+            set_edge(packed, m, n, y, true)
+        };
+        let mut atoms: Vec<antecedent_discovery::AdjacencyMask> = Vec::new();
+        let mut weights: Vec<f64> = Vec::new();
+        let mut note: Option<&'static str> = None;
+        match posterior.atom_kind {
+            Kind::Dag => {
+                atoms = posterior.atoms.iter().map(|&atom| repack(atom)).collect();
+                weights = posterior.weights.to_vec();
+            }
+            Kind::Cpdag if lags.is_none() => {
+                if self.options.within_class != Some(WithinClassDistribution::UniformOverMembers) {
+                    return Err(refuse(
+                        "a class atom does not say how its mass divides among its DAG members, \
+                         and the class of an added common cause depends on the member; declare \
+                         WithinClassDistribution::UniformOverMembers to assume an even division",
+                    ));
+                }
+                for (&atom, &weight) in posterior.atoms.iter().zip(posterior.weights.iter()) {
+                    let cpdag =
+                        antecedent_discovery::adjacency_mask::cpdag_from_adjacency_mask(atom, n)
+                            .map_err(|error| {
+                                TargetRefitError::Failed(ValidationError::from(error))
+                            })?;
+                    let mut members = antecedent_graph::CpdagCompletionSampler::new(
+                        cpdag,
+                        WITHIN_CLASS_MEMBER_CAP + 1,
+                    )
+                    .map_err(|error| {
+                        TargetRefitError::Failed(ValidationError::estimation_msg(error.to_string()))
+                    })?;
+                    let dags: Vec<antecedent_graph::Dag> =
+                        members.by_ref().map(|completion| completion.graph).collect();
+                    if dags.is_empty() || dags.len() > WITHIN_CLASS_MEMBER_CAP {
+                        return Err(refuse(
+                            "a class has no enumerated DAG members or more than the cap, so an \
+                             even division of its mass is not defined",
+                        ));
+                    }
+                    let share = weight / dags.len() as f64;
+                    for dag in &dags {
+                        let mut mask = antecedent_discovery::AdjacencyMask::EMPTY;
+                        for edge in dag.edges() {
+                            if let Some((from, to)) = edge.parent_child() {
+                                mask = set_edge(mask, n, from.as_usize(), to.as_usize(), true);
+                            }
+                        }
+                        atoms.push(repack(mask));
+                        weights.push(share);
+                    }
+                }
+                note = Some(
+                    "declared assumption: the mass of each class divides evenly among its DAG \
+                     members before the common cause is added",
+                );
+            }
+            _ => {
+                return Err(refuse(
+                    "a PAG posterior or a lagged class posterior has no DAG members to add the \
+                     common cause to",
+                ));
+            }
+        }
+        let total: f64 = weights.iter().sum();
         let mut edge = vec![0.0; m * m];
-        for (&atom, &weight) in atoms.iter().zip(posterior.weights.iter()) {
+        for (&atom, &weight) in atoms.iter().zip(&weights) {
             for i in 0..m {
                 for j in 0..m {
                     if i != j && has_edge(atom, m, i, j) {
-                        edge[i * m + j] += weight;
+                        edge[i * m + j] += weight / total;
                     }
                 }
             }
         }
-        let rebuilt = antecedent_discovery::GraphPosterior::from_atoms(
+        let weights: Vec<f64> = weights.iter().map(|w| w / total).collect();
+        let mut diagnostics = posterior.diagnostics.clone();
+        if let Some(note) = note {
+            diagnostics.notes.push(Arc::from(note));
+        }
+        let mut rebuilt = antecedent_discovery::GraphPosterior::from_atoms(
             m,
-            posterior.weights.to_vec(),
+            weights.clone(),
             atoms,
             edge.clone(),
             edge,
             antecedent_discovery::SamplingSummary {
                 ess: posterior.ess,
-                diagnostics: posterior.diagnostics.clone(),
+                diagnostics,
                 rejected_invalid: posterior.rejected_invalid,
             },
         )
         .map_err(|error| TargetRefitError::Failed(ValidationError::from(error)))?;
+        if let (Some(max_lag), Some(lag_masks)) = (lags, posterior.lag_masks.as_ref()) {
+            // Lagged edges keep their sources and targets; the added node has none, and the bit
+            // of an edge moves with the node count.
+            if max_lag * m * m > 64 {
+                return Err(refuse(
+                    "the lagged template does not fit its packing with one more node",
+                ));
+            }
+            let packed: Vec<u64> =
+                lag_masks.iter().map(|&old| repack_lag_mask(old, n, m, max_lag)).collect();
+            let mut lagged = vec![0.0; max_lag * m * m];
+            for (&mask, &weight) in packed.iter().zip(&weights) {
+                for (bit, cell) in lagged.iter_mut().enumerate() {
+                    if (mask >> bit) & 1 == 1 {
+                        *cell += weight;
+                    }
+                }
+            }
+            rebuilt = rebuilt
+                .with_lagged_marginals(u32::try_from(max_lag).unwrap_or(u32::MAX), lagged)
+                .and_then(|post| post.with_lag_masks(packed))
+                .map_err(|error| TargetRefitError::Failed(ValidationError::from(error)))?;
+        }
+        if posterior.atom_kind == Kind::Cpdag {
+            rebuilt = rebuilt
+                .to_equivalence_classes()
+                .map_err(|error| TargetRefitError::Failed(ValidationError::from(error)))?;
+        }
         Ok(match &posterior.algorithm {
             Some(algorithm) => rebuilt.with_algorithm(Arc::clone(algorithm)),
             None => rebuilt,
@@ -1431,6 +1695,25 @@ impl PreparedRefit<'_> {
             .map_err(data_failed)
     }
 
+    /// The bootstrap of a series drawn as a gathered circular-block series: block joins pair
+    /// values observed apart, and the block length keeps the share of windows that straddle a
+    /// join small.
+    fn gathered_bootstrap(
+        &self,
+        series: &TimeSeriesData,
+        rng: &mut CausalRng,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<f64>, TargetRefitError> {
+        let span = max_graph_lag(self.study()) + 1;
+        let plan = antecedent_data::ResamplingPlan::CircularBlock {
+            length: antecedent_data::circular_block_length(span, series.row_count()),
+        };
+        let mut scratch = Vec::new();
+        let gathered = antecedent_data::resample_timeseries(series, plan, rng, &mut scratch)
+            .map_err(data_failed)?;
+        self.reestimate(&Modal::Series(gathered), ctx)
+    }
+
     fn series_refit(
         &self,
         series: &TimeSeriesData,
@@ -1438,6 +1721,16 @@ impl PreparedRefit<'_> {
         rng: &mut CausalRng,
         ctx: &ExecutionContext,
     ) -> Result<Vec<f64>, TargetRefitError> {
+        if self.options.gathered_resamples
+            && !matches!(perturbation, TargetPerturbation::RandomCommonCause { .. })
+        {
+            if matches!(perturbation, TargetPerturbation::Bootstrap { .. }) {
+                return self.gathered_bootstrap(series, rng, ctx);
+            }
+            if let Some(window) = self.materialised_window(series, perturbation, rng)? {
+                return self.reestimate(&Modal::Series(window), ctx);
+            }
+        }
         if matches!(perturbation, TargetPerturbation::RandomCommonCause { .. }) {
             return self.random_common_cause(rng, ctx);
         }
@@ -1479,18 +1772,8 @@ impl PreparedRefit<'_> {
             }
         }
         if matches!(perturbation, TargetPerturbation::Bootstrap { .. }) && refit.is_err() {
-            let rows = series.row_count();
-            let span = max_graph_lag(self.study()) + 1;
-            let plan = antecedent_data::ResamplingPlan::CircularBlock {
-                length: antecedent_data::circular_block_length(span, rows),
-            };
-            let mut scratch = Vec::new();
-            if let Ok(gathered) =
-                antecedent_data::resample_timeseries(series, plan, rng, &mut scratch)
-            {
-                if let Ok(values) = self.reestimate(&Modal::Series(gathered), ctx) {
-                    return Ok(values);
-                }
+            if let Ok(values) = self.gathered_bootstrap(series, rng, ctx) {
+                return Ok(values);
             }
         }
         match refit {
@@ -2240,14 +2523,6 @@ impl PreparedRefit<'_> {
             }
             _ => 1,
         };
-        if horizons != 1 {
-            return Err(unsupported(
-                "a derivative report binds one coordinate to one evaluation point, so a \
-                 multi-horizon specification would need one report per horizon, which no single \
-                 target identity certifies",
-                "refute one horizon per study",
-            ));
-        }
         if self.original.len() != horizons {
             return Err(unsupported(
                 "the reported derivative does not have one value per horizon of the specification",
@@ -2268,10 +2543,14 @@ impl PreparedRefit<'_> {
         }
         if self.curve.get().is_none() {
             let half = 0.5 * step;
-            let points: Vec<f64> = nodes
+            // The grid of a mean curve is strictly increasing, and the neighbourhoods of the
+            // nodes overlap.
+            let mut points: Vec<f64> = nodes
                 .iter()
                 .flat_map(|&node| [-step, -half, 0.0, half, step].map(|offset| node + offset))
                 .collect();
+            points.sort_by(f64::total_cmp);
+            points.dedup_by(|a, b| a.to_bits() == b.to_bits());
             let mut curve_query = ResponseQuery::new(ResponseFunctional::MeanCurve {
                 outcome,
                 treatment: ContinuousDomain::new(
@@ -2359,40 +2638,222 @@ impl PreparedRefit<'_> {
         kind: TargetRefuterKind,
         ctx: &ExecutionContext,
     ) -> Result<TargetRefutationReport, TargetRefitError> {
-        let (nodes, reported, step) = self.response_curve(ctx)?;
-        let mut worst: Option<TargetRefutationReport> = None;
-        for (horizon, &value) in reported.iter().enumerate() {
-            let report = if kind == TargetRefuterKind::FiniteDifferenceConsistency {
-                finite_difference_consistency(
-                    |offset| self.node_mean(&nodes, offset, horizon),
-                    &[DerivativeCheckPoint { x: 0.0, reported: value }],
-                    step,
-                    self.options.derivative_tolerance,
-                )?
-                .to_report(&self.target)?
-            } else {
-                local_linearity(
-                    |offset| self.node_mean(&nodes, offset, horizon),
-                    &[0.0],
-                    step,
-                    self.options.linearity_tolerance,
-                    1e-9,
-                )?
-                .to_report(&self.target)?
-            };
-            // The report of the worst horizon speaks for the vector: a failing horizon, else
-            // the largest statistic.
-            worst = Some(match worst {
-                None => report,
-                Some(current) => {
-                    let replace = (current.passed && !report.passed)
-                        || (current.passed == report.passed
-                            && report.statistic.value > current.statistic.value);
-                    if replace { report } else { current }
-                }
-            });
+        if let Some(response) = self.result.response() {
+            if matches!(
+                response.estimand,
+                ResponseFunctional::DirectionalDerivative { .. }
+                    | ResponseFunctional::Jacobian { .. }
+            ) {
+                return self.vector_derivative_check(kind, ctx);
+            }
         }
-        worst.ok_or_else(|| unsupported("no value", "a target"))
+        let (nodes, reported, step) = self.response_curve(ctx)?;
+        let mut coordinates = Vec::with_capacity(reported.len());
+        for (horizon, &value) in reported.iter().enumerate() {
+            coordinates.push(self.check_coordinate(
+                kind,
+                |offset| self.node_mean(&nodes, offset, horizon),
+                value,
+                step,
+            )?);
+        }
+        self.merge_coordinates(kind, coordinates)
+    }
+
+    /// One coordinate's check along a response function of the offset from the evaluation
+    /// point.
+    fn check_coordinate(
+        &self,
+        kind: TargetRefuterKind,
+        response: impl FnMut(f64) -> Result<f64, ValidationError>,
+        reported: f64,
+        step: f64,
+    ) -> Result<DerivativeCoordinate, TargetRefitError> {
+        Ok(if kind == TargetRefuterKind::FiniteDifferenceConsistency {
+            DerivativeCoordinate::FiniteDifference(finite_difference_consistency(
+                response,
+                &[DerivativeCheckPoint { x: 0.0, reported }],
+                step,
+                self.options.derivative_tolerance,
+            )?)
+        } else {
+            DerivativeCoordinate::Linearity(local_linearity(
+                response,
+                &[0.0],
+                step,
+                self.options.linearity_tolerance,
+                1e-9,
+            )?)
+        })
+    }
+
+    /// One report on the whole target vector from the per-coordinate checks.
+    fn merge_coordinates(
+        &self,
+        kind: TargetRefuterKind,
+        coordinates: Vec<DerivativeCoordinate>,
+    ) -> Result<TargetRefutationReport, TargetRefitError> {
+        merge_derivative_checks(kind, coordinates, &self.target)
+    }
+
+    /// The first-order check of a directional derivative or a Jacobian.
+    ///
+    /// Every coordinate (an outcome, and for a Jacobian a treatment) is the derivative of the
+    /// outcome's interventional mean along a direction at the evaluation point, so its
+    /// finite difference is read off the study's own `InterventionResponse` query at the
+    /// shifted points `at + t * direction`: a Jacobian entry along the treatment's axis, a
+    /// directional derivative along the declared direction.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one check that classifies the derivative, places its points and fits each mean"
+    )]
+    fn vector_derivative_check(
+        &self,
+        kind: TargetRefuterKind,
+        ctx: &ExecutionContext,
+    ) -> Result<TargetRefutationReport, TargetRefitError> {
+        const MAX_COORDINATES: usize = 6;
+        let Some(response) = self.result.response() else {
+            return Err(unsupported(
+                "the derivative diagnostics read a response result",
+                "a derivative response query",
+            ));
+        };
+        let (outcomes, treatments, at, directions): (
+            Vec<VariableId>,
+            Vec<VariableId>,
+            Vec<f64>,
+            Vec<Vec<f64>>,
+        ) = match &response.estimand {
+            ResponseFunctional::DirectionalDerivative { outcomes, treatments, at, direction } => {
+                (outcomes.to_vec(), treatments.to_vec(), at.to_vec(), vec![direction.to_vec()])
+            }
+            ResponseFunctional::Jacobian { outcomes, treatments, at, scale } => {
+                if *scale != DerivativeScale::Identity {
+                    return Err(unsupported(
+                        "the consistency check compares derivatives on the identity scale",
+                        "query the Jacobian on the identity scale",
+                    ));
+                }
+                let axes = (0..treatments.len())
+                    .map(|k| (0..treatments.len()).map(|j| f64::from(u8::from(j == k))).collect())
+                    .collect();
+                (outcomes.to_vec(), treatments.to_vec(), at.to_vec(), axes)
+            }
+            _ => {
+                return Err(unsupported("not a vector derivative", "a derivative query"));
+            }
+        };
+        let coordinates: Vec<(usize, usize)> =
+            (0..outcomes.len()).flat_map(|o| (0..directions.len()).map(move |d| (o, d))).collect();
+        if coordinates.len() != self.original.len() || coordinates.len() > MAX_COORDINATES {
+            return Err(unsupported(
+                "the reported derivative vector does not match its outcomes and directions, or \
+                 has more coordinates than the check refits",
+                "check a smaller set of outcomes and treatments",
+            ));
+        }
+        // The step along a direction: a share of the smallest treatment spread it crosses.
+        let spread = |variable: VariableId| -> f64 {
+            let column: Vec<f64> = match self.data {
+                PreparedTargetData::Panel(panel) => panel
+                    .units()
+                    .iter()
+                    .filter_map(|unit| float_column(unit.series.storage(), variable))
+                    .flatten()
+                    .copied()
+                    .collect(),
+                _ => {
+                    float_column(self.storage(), variable).map(<[f64]>::to_vec).unwrap_or_default()
+                }
+            };
+            sample_sd(&column)
+        };
+        let step = if let Some(step) = self.options.derivative_step {
+            step
+        } else {
+            directions
+                .iter()
+                .flat_map(|direction| {
+                    treatments
+                        .iter()
+                        .zip(direction)
+                        .filter(|(_, d)| **d != 0.0)
+                        .map(|(&variable, d)| 0.25 * spread(variable) / d.abs())
+                        .collect::<Vec<_>>()
+                })
+                .fold(f64::INFINITY, f64::min)
+        };
+        if !(step.is_finite() && step > 0.0) {
+            return Err(unsupported(
+                "the treatments have no spread to take a derivative step from",
+                "declare derivative_step",
+            ));
+        }
+        let cache: std::cell::RefCell<std::collections::HashMap<(usize, Vec<u64>), f64>> =
+            std::cell::RefCell::new(std::collections::HashMap::new());
+        let mean_at = |outcome_index: usize, point: &[f64]| -> Result<f64, ValidationError> {
+            let key = (outcome_index, point.iter().map(|v| v.to_bits()).collect::<Vec<_>>());
+            if let Some(found) = cache.borrow().get(&key) {
+                return Ok(*found);
+            }
+            let interventions: Vec<Intervention> = treatments
+                .iter()
+                .zip(point)
+                .map(|(&variable, &level)| Intervention::set(variable, Value::f64(level)))
+                .collect();
+            let mut study = self.study().clone();
+            study.query = CausalQuery::Response(ResponseQuery::new(
+                ResponseFunctional::InterventionResponse {
+                    outcome: outcomes[outcome_index],
+                    interventions: Arc::from(interventions),
+                },
+            ));
+            let run = |study: crate::analysis::execute::Study| {
+                Self::compile_and_run(study, &self.modal_data(), ctx)
+            };
+            let result = match run(study.clone()) {
+                Ok(result) => result,
+                Err(_) => {
+                    study.estimator = None;
+                    study.estimator_spec = None;
+                    run(study).map_err(|error| {
+                        ValidationError::estimation_msg(format!(
+                            "the interventional mean did not run: {error}"
+                        ))
+                    })?
+                }
+            };
+            let value = result
+                .response()
+                .and_then(|r| match &r.estimate {
+                    ResponseIdentification::PointIdentified(ResponseValue::Scalar(v)) => Some(*v),
+                    _ => None,
+                })
+                .ok_or_else(|| {
+                    ValidationError::estimation_msg(
+                        "the interventional mean is not point identified at a check point",
+                    )
+                })?;
+            cache.borrow_mut().insert(key, value);
+            Ok(value)
+        };
+        let mut checks = Vec::with_capacity(coordinates.len());
+        for (index, &(outcome_index, direction_index)) in coordinates.iter().enumerate() {
+            let direction = &directions[direction_index];
+            let reported = self.original[index];
+            checks.push(self.check_coordinate(
+                kind,
+                |offset| {
+                    let point: Vec<f64> =
+                        at.iter().zip(direction).map(|(a, d)| a + offset * d).collect();
+                    mean_at(outcome_index, &point)
+                },
+                reported,
+                step,
+            )?);
+        }
+        self.merge_coordinates(kind, checks)
     }
 
     fn mediation_check(&self) -> Result<TargetRefutationReport, TargetRefitError> {

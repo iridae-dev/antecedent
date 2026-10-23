@@ -585,14 +585,14 @@ impl GraphPosterior {
 impl GraphPosterior {
     /// The posterior over temporal equivalence classes a bounded-lag template posterior induces.
     ///
-    /// Each template is unrolled to a window of the lag-0 variables and their lagged parents.
-    /// Lagged edges are oriented by time, so they start directed; the unshielded colliders of
-    /// the window and Meek's rules R1 to R4 then compel what they can of the contemporaneous
-    /// edges, and the rest stay undirected (both bits). Templates that share a lag mask and a
-    /// contemporaneous class pool their mass. Lagged parents are treated as exogenous roots of
-    /// the window, so a collider between two lagged parents that the full stationary unrolling
-    /// would shield (through the earlier lags) counts as unshielded; the pooled classes are
-    /// those of the one-step window, an approximation the diagnostics note records.
+    /// Each template is unrolled to a window of `2L + 1` time slots of the `p` variables
+    /// (`L` the maximum lag): the contemporaneous edges are repeated in slots `0..=L` and every
+    /// lagged edge from slot `t + l` to slot `t` for `t` in `0..=L`, so each node of slots
+    /// `0..=L` has its full parent set and the earliest slots are roots. Edges between slots
+    /// are oriented by time, so they start directed; the unshielded colliders of the window and
+    /// Meek's rules R1 to R4 then compel what they can, and the class is read off the
+    /// contemporaneous edges of slot 0 (undirected edges carry both bits). Templates that share a
+    /// lag mask and a contemporaneous class pool their mass.
     fn to_temporal_equivalence_classes(&self) -> Result<Self, DiscoveryError> {
         let (Some(max_lag), Some(lag_masks)) = (self.max_lag, self.lag_masks.as_ref()) else {
             return Err(DiscoveryError::unsupported(
@@ -602,7 +602,8 @@ impl GraphPosterior {
         let p = self.n_vars;
         let lags = max_lag as usize;
         let cell = lags * p * p;
-        if cell > 64 || (lags + 1) * p > 255 {
+        let slots = 2 * lags + 1;
+        if cell > 64 || slots * p > 255 {
             return Err(DiscoveryError::unsupported("the unrolled window is too wide to collapse"));
         }
         let mut slot: std::collections::HashMap<(AdjacencyMask, u64), usize> =
@@ -614,24 +615,28 @@ impl GraphPosterior {
         for ((&atom, &lag_mask), &weight) in
             self.atoms.iter().zip(lag_masks.iter()).zip(self.weights.iter())
         {
-            let mut window = Dag::with_variables(crate::indexing::dense_u32((lags + 1) * p));
-            for i in 0..p {
-                for j in 0..p {
-                    if i != j && crate::adjacency_mask::has_edge(atom, p, i, j) {
-                        window.insert_directed(node(i), node(j))?;
+            let mut window = Dag::with_variables(crate::indexing::dense_u32(slots * p));
+            for slot in 0..=lags {
+                for i in 0..p {
+                    for j in 0..p {
+                        if i != j && crate::adjacency_mask::has_edge(atom, p, i, j) {
+                            window.insert_directed(node(slot * p + i), node(slot * p + j))?;
+                        }
+                    }
+                }
+                for b in 0..cell {
+                    if (lag_mask >> b) & 1 == 1 {
+                        let lag = b / (p * p) + 1;
+                        let from = (b % (p * p)) / p;
+                        let to = b % p;
+                        window
+                            .insert_directed(node((slot + lag) * p + from), node(slot * p + to))?;
                     }
                 }
             }
-            for b in 0..cell {
-                if (lag_mask >> b) & 1 == 1 {
-                    let lag = b / (p * p) + 1;
-                    let from = (b % (p * p)) / p;
-                    let to = b % p;
-                    window.insert_directed(node(lag * p + from), node(to))?;
-                }
-            }
-            let cpdag =
-                crate::ges::dag_to_cpdag_with_known(&window, |from, _| from.as_usize() >= p)?;
+            let cpdag = crate::ges::dag_to_cpdag_with_known(&window, |from, to| {
+                from.as_usize() / p != to.as_usize() / p
+            })?;
             let mut class = AdjacencyMask::EMPTY;
             for edge in cpdag.edges() {
                 let (i, j) = (edge.a.as_usize(), edge.b.as_usize());
@@ -667,7 +672,7 @@ impl GraphPosterior {
         let mut diagnostics = self.diagnostics.clone();
         diagnostics.notes.push(Arc::from(format!(
             "temporal_equivalence_class_collapse template_atoms={} classes={} \
-             one_step_window_lagged_parents_exogenous",
+             window_slots={slots}",
             self.n_graphs,
             classes.len()
         )));

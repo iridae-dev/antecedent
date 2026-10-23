@@ -13,11 +13,12 @@ The route set is derived from three records and the sources that implement them:
 
 * a licensed, graphless or execution-only route with no lowered program entry;
 * a registered route cell no sealed operation serves, so its prepared execution is
-  `OrdinaryDispatch` (the ordinary dispatcher, not a retained operation);
+  only a program-only operation (not the route's own retained operation);
 * a manifest `retained_operation` that names no sealed operation, or one that does
   not serve the route's cell, or a graphless row without the field and its test;
 * a sealed operation without a sealer, a retained-operation variant or a name;
-* a construction of `PreparedExecution::OrdinaryDispatch` outside the sealer table;
+* an `OrdinaryDispatch` or `LoweredDispatch` identifier in library code, an `EstimatorId` the
+  estimator-family sealer's table omits, or a program-only operation built outside its owner;
 * a dispatch entry that does not require the lowered program and enter its scope;
 * a missing `public_builder_reentry` refusal at a compile or run entry, or a
   `route_not_lowered` refusal that a caller swallows.
@@ -100,16 +101,27 @@ DECLARED_SEALER_CELLS = {
     "posterior::temporal_class_response": ("TemporalResponseClass",),
     "posterior::transport_trial": ("TransportMixed",),
     "temporal::temporal_class_mediation": ("TemporalMediationPag", "TemporalMediationCpdag"),
+    "estimator::estimator_route": ("*",),
+    "estimator::fresh_run": (),
     "static_query::attribution": ("GcmDag", "GcmTemporal", "GcmAttributeDag", "GcmSimulateDag"),
     "static_query::counterfactual": ("GcmDag",),
     "static_query::nested_counterfactual": ("StaticMediationDag",),
 }
 
-# The only place a prepared execution may be constructed as `OrdinaryDispatch`.
-ORDINARY_DISPATCH_OWNER = f"{ANALYSIS}/prepared/sealers/mod.rs"
-_ORDINARY_CONSTRUCTION = re.compile(
-    r"(?:=\s*|&\s*|\bOk\(\s*|\bSome\(\s*|\breturn\s+)(?:[A-Za-z_]+::)*PreparedExecution::OrdinaryDispatch\b"
-)
+# No execution is "ordinary" or an unnamed fallback: those variants are gone. A study the
+# route-cell sealers decline is sealed by the estimator-family sealer, which lists every
+# `EstimatorId`; a fresh run (`Study::execute`, one-shot `run`) is the only other place a
+# program-only operation is built, once, where the run dispatches.
+FORBIDDEN_IDENTIFIER = re.compile(r"\b(?:OrdinaryDispatch|LoweredDispatch)\b")
+ESTIMATOR_KIND = "EstimatorRoute"
+FRESH_KIND = "FreshRun"
+PROGRAM_ONLY_KINDS = (ESTIMATOR_KIND, FRESH_KIND)
+PROGRAM_ONLY_SITES = {
+    ESTIMATOR_KIND: (f"{ANALYSIS}/prepared/sealers/estimator.rs", 1),
+    FRESH_KIND: (f"{ANALYSIS}/execute/dispatch.rs", 1),
+}
+ESTIMATOR_IDS = f"{SRC}/strategy_table/ids.rs"
+ESTIMATOR_TABLE = f"{ANALYSIS}/prepared/sealers/estimator.rs"
 _SWALLOWED = re.compile(
     r"reason_code\(\)\s*==\s*Some\(\s*\"route_not_lowered\"\s*\)|\"route_not_lowered\"\s*\)\s*=>\s*None"
 )
@@ -191,8 +203,14 @@ def sealer_table(root: Path) -> list[tuple[str, str]]:
     start = text.find("pub(super) const SEALERS")
     table = text[start:] if start >= 0 else ""
     table = table[: table.find("\n];")] if "\n];" in table else table
-    entries = re.findall(r"sealer\(\s*ExecutionKind::(\w+),\s*(\w+::\w+)\s*,?\s*\)", table)
-    entries += re.findall(r"kind:\s*ExecutionKind::(\w+),\s*seal:\s*(\w+::\w+)", table)
+    pattern = re.compile(
+        r"sealer\(\s*ExecutionKind::(\w+),\s*(\w+::\w+)\s*,?\s*\)"
+        r"|kind:\s*ExecutionKind::(\w+),\s*seal:\s*(\w+::\w+)"
+    )
+    entries = [
+        (match.group(1) or match.group(3), match.group(2) or match.group(4))
+        for match in pattern.finditer(table)
+    ]
     return entries
 
 
@@ -237,15 +255,19 @@ def sealer_cells(root: Path, table: list[tuple[str, str]], cells: set[str], post
         declared = DECLARED_SEALER_CELLS.get(path)
         if declared is not None:
             for cell in declared:
-                found |= set(posterior) if cell == GRAPH_POSTERIOR else {cell}
-        if not found:
+                if cell == "*":
+                    found |= cells | set(posterior)
+                else:
+                    found |= set(posterior) if cell == GRAPH_POSTERIOR else {cell}
+        if not found and kind != FRESH_KIND:
             problems.append(
                 f"{ANALYSIS}/prepared/sealers/{module}.rs: sealer {path} for {kind} reads no route "
                 "cell and declares none; declare the cells it serves in the retained-route gate"
             )
         for cell in found - cells - set(posterior):
             problems.append(f"sealer {path} names {cell}, which is not a registered route cell")
-        served.setdefault(kind, set()).update(found)
+        if kind not in PROGRAM_ONLY_KINDS:
+            served.setdefault(kind, set()).update(found)
     return served, problems
 
 
@@ -298,7 +320,9 @@ def manifest_problems(root: Path, cells: dict[str, str], posterior: list[str], k
     for route in routes:
         status, rid = route["status"], route["id"]
         operation = route.get("retained_operation")
-        if operation is not None and operation not in name_to_variant:
+        if operation in ("estimator_route", "fresh_run"):
+            problems.append(f"{rid}: retained_operation names a program-only operation, not a route's own")
+        elif operation is not None and operation not in name_to_variant:
             problems.append(f"{rid}: retained_operation {operation!r} names no sealed operation")
         if route.get("retained_route_test") is not None and operation is None:
             problems.append(f"{rid}: retained_route_test without a retained_operation")
@@ -323,20 +347,53 @@ def manifest_problems(root: Path, cells: dict[str, str], posterior: list[str], k
     return problems
 
 
+def estimator_table_problems(root: Path) -> list[str]:
+    """Every EstimatorId is assigned to the estimator-family sealer's table."""
+    ids_text = rust_mask(_read(root, ESTIMATOR_IDS) or "")
+    start = ids_text.find("pub enum EstimatorId")
+    block = ids_text[start : ids_text.find("\n}", start)] if start >= 0 else ""
+    ids = set(re.findall(r"^    ([A-Z][A-Za-z0-9]*)\s*[,=({]", block, re.M))
+    table_text = rust_mask(_read(root, ESTIMATOR_TABLE) or "")
+    start = table_text.find("FAMILY_ESTIMATORS: &[EstimatorId] = &[")
+    table = table_text[start : table_text.find("\n];", start)] if start >= 0 else ""
+    listed = set(re.findall(r"EstimatorId::([A-Z][A-Za-z0-9]*)", table))
+    if not ids or not listed:
+        return [f"{ESTIMATOR_TABLE}: estimator ids or the family table not found; update the gate"]
+    problems = [
+        f"estimator {name} is admitted by no sealer; add it to the estimator-family table"
+        for name in sorted(ids - listed)
+    ]
+    problems.extend(
+        f"the estimator-family table lists {name}, which is not an EstimatorId"
+        for name in sorted(listed - ids)
+    )
+    return problems
+
+
 def ordinary_dispatch_problems(root: Path) -> list[str]:
     problems: list[str] = []
     base = root / SRC
+    sites: dict[str, dict[str, int]] = {kind: {} for kind in PROGRAM_ONLY_KINDS}
     for path in sorted(base.rglob("*.rs")):
         rel = path.relative_to(root)
         if _is_test_path(rel):
             continue
         masked = _blank_test_items(rust_mask(path.read_text(encoding="utf-8")))
-        for match in _ORDINARY_CONSTRUCTION.finditer(masked):
-            if str(rel) != ORDINARY_DISPATCH_OWNER:
-                problems.append(
-                    f"{rel}:{_line(masked, match.start())}: constructs PreparedExecution::OrdinaryDispatch; "
-                    "only the sealer table falls back to it, and a route executes its retained operation"
-                )
+        for match in FORBIDDEN_IDENTIFIER.finditer(masked):
+            problems.append(
+                f"{rel}:{_line(masked, match.start())}: {match.group(0)} is reintroduced; every "
+                "prepared or fresh execution holds a named sealed operation"
+            )
+        for kind in PROGRAM_ONLY_KINDS:
+            uses = len(re.findall(rf"PreparedExecution::{kind}\s*\((?!\s*_\s*\))", masked))
+            if uses:
+                sites[kind][str(rel)] = uses
+    for kind, (owner, count) in PROGRAM_ONLY_SITES.items():
+        if sites[kind] != {owner: count}:
+            problems.append(
+                f"PreparedExecution::{kind} is built at {sites[kind]}; only {owner} "
+                f"({count} site) may build it"
+            )
     return problems
 
 
@@ -420,6 +477,10 @@ def retained_route_problems(root: Path = ROOT) -> list[str]:
         problems.append(f"sealer table names {kind}, which is not a sealed operation")
     for kind in sorted({k for k in table_kinds if table_kinds.count(k) > 1}):
         problems.append(f"sealed operation {kind} has two sealers")
+    if table_kinds[-2:] != list(PROGRAM_ONLY_KINDS):
+        problems.append(
+            f"the {ESTIMATOR_KIND} and {FRESH_KIND} sealers must be the last two in the sealer table"
+        )
     served, sealer_problems = sealer_cells(root, table, set(cells), posterior)
     problems.extend(sealer_problems)
     reached = set().union(*served.values()) if served else set()
@@ -430,6 +491,7 @@ def retained_route_problems(root: Path = ROOT) -> list[str]:
                 "OrdinaryDispatch (the ordinary dispatcher) and not a retained operation"
             )
     problems.extend(manifest_problems(root, cells, posterior, set(kinds), variants, served))
+    problems.extend(estimator_table_problems(root))
     problems.extend(ordinary_dispatch_problems(root))
     problems.extend(reentry_guard_problems(root))
     return problems

@@ -1132,8 +1132,17 @@ mod window_contrast {
             .unwrap()
     }
 
-    /// `E[y(t+1) | x(t) = 1] - E[y(t+1) | x(t) = 0]` over the window positions.
-    fn counted_contrast(x: &[f64], y: &[f64]) -> f64 {
+    /// The pulse contrast the window identifies: `w(t)` is a parent of `y(t+1)` with no parent
+    /// of its own in the window, so the identified functional is
+    /// `sum_w P(w) (E[y(t+1) | x(t)=1, w(t)=w] - E[y(t+1) | x(t)=0, w(t)=w])` with `P(w)` the
+    /// law of `w(t)` over the window positions.
+    fn counted_contrast(x: &[f64], y: &[f64], w: &[f64]) -> f64 {
+        counted_conditional(x, y, w)
+    }
+
+    /// `E[y(t+1) | x(t) = 1] - E[y(t+1) | x(t) = 0]` over the window positions, which does not
+    /// adjust for `w(t)` and so is not the identified contrast (it differs in a finite sample).
+    fn naive_contrast(x: &[f64], y: &[f64]) -> f64 {
         let mean = |level: f64| {
             let rows: Vec<f64> =
                 (1..x.len() - 1).filter(|t| x[*t] == level).map(|t| y[t + 1]).collect();
@@ -1170,8 +1179,8 @@ mod window_contrast {
 
     #[test]
     fn a_pulse_is_the_counted_contrast_and_stays_unlicensed() {
-        let (x, y, _, data) = series(300);
-        let counted = counted_contrast(&x, &y);
+        let (x, y, w, data) = series(300);
+        let counted = counted_contrast(&x, &y, &w);
         assert!(counted > 0.2 && counted < 0.8, "{counted}");
         let built = study(&data, template(false), next_period(), InferenceMode::Frequentist, 0);
         assert_eq!(built.support_status(), Some(CellStatus::Refused));
@@ -1197,8 +1206,8 @@ mod window_contrast {
 
     #[test]
     fn overlapping_windows_are_resampled_in_blocks_and_never_row_by_row() {
-        let (x, y, _, data) = series(300);
-        let counted = counted_contrast(&x, &y);
+        let (x, y, w, data) = series(300);
+        let counted = counted_contrast(&x, &y, &w);
         let ctx = ExecutionContext::for_tests(31_002);
         let result = study(&data, template(false), next_period(), InferenceMode::Frequentist, 60)
             .run(&ctx)
@@ -1246,8 +1255,8 @@ mod window_contrast {
 
     #[test]
     fn the_bayesian_form_shares_one_dirichlet_weight_per_block() {
-        let (x, y, _, data) = series(300);
-        let counted = counted_contrast(&x, &y);
+        let (x, y, w, data) = series(300);
+        let counted = counted_contrast(&x, &y, &w);
         let ctx = ExecutionContext::for_tests(31_003);
         let inference = InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(400));
         let result = study(&data, template(false), next_period(), inference, 0).run(&ctx).unwrap();
@@ -1263,7 +1272,7 @@ mod window_contrast {
     fn a_conditional_contrast_is_idc_on_the_same_window() {
         let (x, y, w, data) = series(400);
         let counted = counted_conditional(&x, &y, &w);
-        let unconditional = counted_contrast(&x, &y);
+        let unconditional = naive_contrast(&x, &y);
         assert!((counted - unconditional).abs() > 1e-3, "the modifier must matter");
         let query = next_period().with_effect_modifiers([v(2)]);
         let ctx = ExecutionContext::for_tests(31_004);
@@ -1276,7 +1285,7 @@ mod window_contrast {
 
     #[test]
     fn a_sustained_contrast_sets_every_treated_period() {
-        let (x, y, _, data) = series(300);
+        let (x, y, w, data) = series(300);
         // x(t-1) -> y(t) only: treating x at t and t+1 and reading y at t+1 equals the pulse at t,
         // and the treatment at t+1 does not reach y(t+1).
         let query = TemporalEffectQuery::pulse(v(0), v(1), 1.0)
@@ -1286,7 +1295,7 @@ mod window_contrast {
         let result =
             study(&data, template(false), query, InferenceMode::Frequentist, 0).run(&ctx).unwrap();
         assert!(result.effect().is_finite());
-        assert!((result.effect() - counted_contrast(&x, &y)).abs() < 0.5);
+        assert!((result.effect() - counted_contrast(&x, &y, &w)).abs() < 0.5);
         assert!(discloses(&result));
     }
 

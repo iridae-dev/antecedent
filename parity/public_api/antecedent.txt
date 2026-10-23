@@ -23,6 +23,7 @@
 #[doc(hidden)] pub fn antecedent::discovery::discover_notears(data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], params: &antecedent::discovery::StaticDiscoverParams, lambda: f64, threshold: f64, standardize: bool, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::notears::NotearsDiscoveryResult, antecedent::CausalError>
 #[doc(hidden)] pub fn antecedent::discovery::discover_notears_with(data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], params: &antecedent::discovery::StaticDiscoverParams, lambda: f64, threshold: f64, standardize: bool, missing: core::option::Option<antecedent_data::sample_policy::MissingPolicy>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::notears::NotearsDiscoveryResult, antecedent::CausalError>
 #[doc(hidden)] pub fn antecedent::discovery::discover_order_mcmc(data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], params: &antecedent::discovery::BayesianDiscoverParams, schedule: &antecedent::discovery::GraphMcmcSchedule, require_diagnostics_gate: bool, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::graph_posterior::GraphPosterior, antecedent::CausalError>
+#[doc(hidden)] pub fn antecedent::discovery::discover_pag_mcmc(data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], schedule: &antecedent::discovery::GraphMcmcSchedule, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::graph_posterior::GraphPosterior, antecedent::CausalError>
 #[doc(hidden)] pub fn antecedent::discovery::discover_pc(data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], params: &antecedent::discovery::StaticDiscoverParams, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::pc::StaticCpdagDiscoveryResult, antecedent::CausalError>
 #[doc(hidden)] pub fn antecedent::discovery::discover_pcmci(data: &antecedent_data::dataset::TimeSeriesData, variables: &[antecedent_core::ids::VariableId], params: &antecedent::discovery::DiscoverParams, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::result::DagDiscoveryResult, antecedent::CausalError>
 #[doc(hidden)] pub fn antecedent::discovery::discover_pcmci_panel(units: &[antecedent_data::dataset::TimeSeriesData], variables: &[antecedent_core::ids::VariableId], params: &antecedent::discovery::DiscoverParams, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::result::DagDiscoveryResult, antecedent::CausalError>
@@ -55,9 +56,6 @@
 #[doc(hidden)] pub fn antecedent::gcm::sample_interventional_distribution(model: &antecedent_model::compile::CompiledCausalModel, query: &antecedent_core::query::distribution::InterventionalDistributionQuery, n: usize, rng: &mut antecedent_core::execution::CausalRng, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::batch::ValueBatch, antecedent::CausalError>
 #[doc(hidden)] pub fn antecedent::gcm::sample_temporal_policy(model: &antecedent_model::compile::CompiledCausalModel, plan: &antecedent_model::temporal_rollout::TemporalPlan<'_>, rng: &mut antecedent_core::execution::CausalRng, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::temporal_rollout::TemporalPath, antecedent::CausalError>
 #[doc(hidden)] pub fn antecedent::gcm::sample_with_noise(model: &antecedent_model::compile::CompiledCausalModel, interventions: &[antecedent_core::intervention::Intervention], n: usize, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(antecedent_model::batch::ValueBatch, antecedent_model::noise_replay::NoiseTable), antecedent::CausalError>
-#[doc(hidden)] pub fn antecedent::identify_api::identify(structure: &antecedent::AcceptedGraph, query: &antecedent_core::query::CausalQuery) -> core::result::Result<antecedent::Identification, antecedent::CausalError>
-#[doc(hidden)] pub fn antecedent::identify_api::identify_dag(graph: &antecedent_graph::dag::Dag, query: &antecedent_core::query::CausalQuery) -> core::result::Result<antecedent::Identification, antecedent::CausalError>
-#[doc(hidden)] pub fn antecedent::identify_api::identify_with(structure: &antecedent::AcceptedGraph, query: &antecedent_core::query::CausalQuery, strategy: antecedent::IdentifierId) -> core::result::Result<antecedent::Identification, antecedent::CausalError>
 #[doc(hidden)] pub struct antecedent::analysis::evidence_ledger::PooledIntervalCandidate
 #[non_exhaustive] pub enum antecedent::AttributionOutcome
 #[non_exhaustive] pub enum antecedent::CausalError
@@ -790,6 +788,7 @@ impl core::clone::Clone for antecedent::analysis::sensitivity_source::SourceBack
 impl core::clone::Clone for antecedent::analysis::source_evidence::SourceResolution
 impl core::clone::Clone for antecedent::analysis::target_validation::TargetRefitOptions
 impl core::clone::Clone for antecedent::analysis::target_validation::TargetRefutationOutcome
+impl core::clone::Clone for antecedent::analysis::target_validation::WithinClassDistribution
 impl core::clone::Clone for antecedent::analysis::temporal_counterfactual::TemporalCounterfactual
 impl core::clone::Clone for antecedent::analysis::transport_handoff::CallbackHandoff
 impl core::clone::Clone for antecedent::analysis::transport_handoff::TransportHandoffRefusal
@@ -1022,6 +1021,7 @@ impl core::cmp::Eq for antecedent::analysis::sample_split_analysis::AnalysisBind
 impl core::cmp::Eq for antecedent::analysis::selective_discovery::DeclaredCompletion
 impl core::cmp::Eq for antecedent::analysis::selective_discovery::DiscoveryClaimKeys
 impl core::cmp::Eq for antecedent::analysis::selective_discovery::GraphAcceptance
+impl core::cmp::Eq for antecedent::analysis::target_validation::WithinClassDistribution
 impl core::cmp::Eq for antecedent::analysis::transport_handoff::TransportHandoffRefusal
 impl core::cmp::Eq for antecedent::analysis::transport_revalidation::TransportClaimInspection
 impl core::cmp::Eq for antecedent::analysis::transport_revalidation::TransportRevalidationInspection
@@ -1455,6 +1455,7 @@ impl core::cmp::PartialEq for antecedent::analysis::selective_discovery::Discove
 impl core::cmp::PartialEq for antecedent::analysis::selective_discovery::GraphAcceptance
 impl core::cmp::PartialEq for antecedent::analysis::target_validation::TargetRefitOptions
 impl core::cmp::PartialEq for antecedent::analysis::target_validation::TargetRefutationOutcome
+impl core::cmp::PartialEq for antecedent::analysis::target_validation::WithinClassDistribution
 impl core::cmp::PartialEq for antecedent::analysis::temporal_counterfactual::TemporalCounterfactual
 impl core::cmp::PartialEq for antecedent::analysis::transport_handoff::TransportHandoffRefusal
 impl core::cmp::PartialEq for antecedent::analysis::transport_revalidation::TransportClaimInspection
@@ -2335,6 +2336,7 @@ impl core::fmt::Debug for antecedent::analysis::sensitivity_source::SourceBacked
 impl core::fmt::Debug for antecedent::analysis::source_evidence::SourceResolution
 impl core::fmt::Debug for antecedent::analysis::target_validation::TargetRefitOptions
 impl core::fmt::Debug for antecedent::analysis::target_validation::TargetRefutationOutcome
+impl core::fmt::Debug for antecedent::analysis::target_validation::WithinClassDistribution
 impl core::fmt::Debug for antecedent::analysis::temporal_counterfactual::TemporalCounterfactual
 impl core::fmt::Debug for antecedent::analysis::transport_handoff::CallbackHandoff
 impl core::fmt::Debug for antecedent::analysis::transport_handoff::TransportHandoffRefusal
@@ -2644,6 +2646,7 @@ impl core::marker::Copy for antecedent::analysis::repeated_measures_posterior_re
 impl core::marker::Copy for antecedent::analysis::repeated_measures_posterior_report::PriorWire
 impl core::marker::Copy for antecedent::analysis::sample_split_analysis::SplitEffectInterval
 impl core::marker::Copy for antecedent::analysis::sample_split_parent_set_effect::ParentSetOptions
+impl core::marker::Copy for antecedent::analysis::target_validation::WithinClassDistribution
 impl core::marker::Copy for antecedent::counterfactual_id::CounterfactualIdConsumeLimits
 impl core::marker::Copy for antecedent::counterfactual_id::CounterfactualIdOptions
 impl core::marker::Copy for antecedent::cross_world::CrossWorldOptions
@@ -3302,6 +3305,7 @@ impl core::marker::Freeze for antecedent::analysis::sensitivity_source::SourceBa
 impl core::marker::Freeze for antecedent::analysis::source_evidence::SourceResolution [auto]
 impl core::marker::Freeze for antecedent::analysis::target_validation::TargetRefitOptions [auto]
 impl core::marker::Freeze for antecedent::analysis::target_validation::TargetRefutationOutcome [auto]
+impl core::marker::Freeze for antecedent::analysis::target_validation::WithinClassDistribution [auto]
 impl core::marker::Freeze for antecedent::analysis::temporal_counterfactual::TemporalCounterfactual [auto]
 impl core::marker::Freeze for antecedent::analysis::transport_handoff::CallbackHandoff [auto]
 impl core::marker::Freeze for antecedent::analysis::transport_handoff::TransportHandoffRefusal [auto]
@@ -4045,6 +4049,7 @@ impl core::marker::Send for antecedent::analysis::sensitivity_source::SourceBack
 impl core::marker::Send for antecedent::analysis::source_evidence::SourceResolution [auto]
 impl core::marker::Send for antecedent::analysis::target_validation::TargetRefitOptions [auto]
 impl core::marker::Send for antecedent::analysis::target_validation::TargetRefutationOutcome [auto]
+impl core::marker::Send for antecedent::analysis::target_validation::WithinClassDistribution [auto]
 impl core::marker::Send for antecedent::analysis::temporal_counterfactual::TemporalCounterfactual [auto]
 impl core::marker::Send for antecedent::analysis::transport_handoff::CallbackHandoff [auto]
 impl core::marker::Send for antecedent::analysis::transport_handoff::TransportHandoffRefusal [auto]
@@ -4536,6 +4541,7 @@ impl core::marker::StructuralPartialEq for antecedent::analysis::selective_disco
 impl core::marker::StructuralPartialEq for antecedent::analysis::selective_discovery::GraphAcceptance
 impl core::marker::StructuralPartialEq for antecedent::analysis::target_validation::TargetRefitOptions
 impl core::marker::StructuralPartialEq for antecedent::analysis::target_validation::TargetRefutationOutcome
+impl core::marker::StructuralPartialEq for antecedent::analysis::target_validation::WithinClassDistribution
 impl core::marker::StructuralPartialEq for antecedent::analysis::temporal_counterfactual::TemporalCounterfactual
 impl core::marker::StructuralPartialEq for antecedent::analysis::transport_handoff::TransportHandoffRefusal
 impl core::marker::StructuralPartialEq for antecedent::analysis::transport_revalidation::TransportClaimInspection
@@ -5245,6 +5251,7 @@ impl core::marker::Sync for antecedent::analysis::sensitivity_source::SourceBack
 impl core::marker::Sync for antecedent::analysis::source_evidence::SourceResolution [auto]
 impl core::marker::Sync for antecedent::analysis::target_validation::TargetRefitOptions [auto]
 impl core::marker::Sync for antecedent::analysis::target_validation::TargetRefutationOutcome [auto]
+impl core::marker::Sync for antecedent::analysis::target_validation::WithinClassDistribution [auto]
 impl core::marker::Sync for antecedent::analysis::temporal_counterfactual::TemporalCounterfactual [auto]
 impl core::marker::Sync for antecedent::analysis::transport_handoff::CallbackHandoff [auto]
 impl core::marker::Sync for antecedent::analysis::transport_handoff::TransportHandoffRefusal [auto]
@@ -5989,6 +5996,7 @@ impl core::marker::Unpin for antecedent::analysis::sensitivity_source::SourceBac
 impl core::marker::Unpin for antecedent::analysis::source_evidence::SourceResolution [auto]
 impl core::marker::Unpin for antecedent::analysis::target_validation::TargetRefitOptions [auto]
 impl core::marker::Unpin for antecedent::analysis::target_validation::TargetRefutationOutcome [auto]
+impl core::marker::Unpin for antecedent::analysis::target_validation::WithinClassDistribution [auto]
 impl core::marker::Unpin for antecedent::analysis::temporal_counterfactual::TemporalCounterfactual [auto]
 impl core::marker::Unpin for antecedent::analysis::transport_handoff::CallbackHandoff [auto]
 impl core::marker::Unpin for antecedent::analysis::transport_handoff::TransportHandoffRefusal [auto]
@@ -6710,6 +6718,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::sensitivi
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::source_evidence::SourceResolution [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::target_validation::TargetRefitOptions [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::target_validation::TargetRefutationOutcome [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::target_validation::WithinClassDistribution [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::temporal_counterfactual::TemporalCounterfactual [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::transport_handoff::CallbackHandoff [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::transport_handoff::TransportHandoffRefusal [auto]
@@ -7424,6 +7433,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::sensitivity_
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::source_evidence::SourceResolution [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::target_validation::TargetRefitOptions [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::target_validation::TargetRefutationOutcome [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::target_validation::WithinClassDistribution [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::temporal_counterfactual::TemporalCounterfactual [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::transport_handoff::CallbackHandoff [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::transport_handoff::TransportHandoffRefusal [auto]
@@ -8055,6 +8065,7 @@ pub enum antecedent::analysis::recalc_receipt::ReceiptError
 pub enum antecedent::analysis::recalc_temporal::TemporalRunError
 pub enum antecedent::analysis::repair::RepairFacadeError
 pub enum antecedent::analysis::target_validation::PreparedTargetData<'a>
+pub enum antecedent::analysis::target_validation::WithinClassDistribution
 pub enum antecedent::gcm::NestedOutcomeMechanism
 pub enum antecedent::period_refresh::PeriodRefreshOutcome
 pub enum antecedent::planner::PlanStage
@@ -10292,6 +10303,7 @@ pub field antecedent::analysis::selective_discovery::GraphAcceptance::declared_b
 pub field antecedent::analysis::target_validation::TargetRefitOptions::common_cause_strength: f64
 pub field antecedent::analysis::target_validation::TargetRefitOptions::derivative_step: core::option::Option<f64>
 pub field antecedent::analysis::target_validation::TargetRefitOptions::derivative_tolerance: f64
+pub field antecedent::analysis::target_validation::TargetRefitOptions::gathered_resamples: bool
 pub field antecedent::analysis::target_validation::TargetRefitOptions::linearity_tolerance: f64
 pub field antecedent::analysis::target_validation::TargetRefitOptions::mediation_rho_bar: f64
 pub field antecedent::analysis::target_validation::TargetRefitOptions::mediator: core::option::Option<antecedent_core::ids::VariableId>
@@ -10299,6 +10311,7 @@ pub field antecedent::analysis::target_validation::TargetRefitOptions::negative_
 pub field antecedent::analysis::target_validation::TargetRefitOptions::negative_control_outcome: core::option::Option<antecedent_core::ids::VariableId>
 pub field antecedent::analysis::target_validation::TargetRefitOptions::prior_scale_factors: alloc::vec::Vec<f64>
 pub field antecedent::analysis::target_validation::TargetRefitOptions::prior_shift_tolerance: f64
+pub field antecedent::analysis::target_validation::TargetRefitOptions::within_class: core::option::Option<antecedent::analysis::target_validation::WithinClassDistribution>
 pub field antecedent::analysis::target_validation::TargetRefutationOutcome::certificate: antecedent_validate::target_native::TargetCertificate
 pub field antecedent::analysis::target_validation::TargetRefutationOutcome::plan: antecedent_validate::target_native::TargetRefutationPlan
 pub field antecedent::analysis::target_validation::TargetRefutationOutcome::run: antecedent_validate::target_native::engine::TargetRefutationRun
@@ -10750,6 +10763,7 @@ pub fn <antecedent::DiscoverySpec>::fn lingam(params: antecedent::discovery::Sta
 pub fn <antecedent::DiscoverySpec>::fn lpcmci(params: antecedent::discovery::DiscoverParams, ci_label: impl core::convert::Into<alloc::sync::Arc<str>>) -> Self
 pub fn <antecedent::DiscoverySpec>::fn notears(params: antecedent::discovery::StaticDiscoverParams, lambda: f64, threshold: f64, standardize: bool, missing: core::option::Option<antecedent_data::sample_policy::MissingPolicy>, ci_label: impl core::convert::Into<alloc::sync::Arc<str>>) -> Self
 pub fn <antecedent::DiscoverySpec>::fn order_mcmc(params: antecedent::discovery::BayesianDiscoverParams, schedule: antecedent::discovery::GraphMcmcSchedule, diagnostics_gate: bool) -> Self
+pub fn <antecedent::DiscoverySpec>::fn pag_mcmc(params: antecedent::discovery::BayesianDiscoverParams, schedule: antecedent::discovery::GraphMcmcSchedule) -> Self
 pub fn <antecedent::DiscoverySpec>::fn pc(params: antecedent::discovery::StaticDiscoverParams, ci_label: impl core::convert::Into<alloc::sync::Arc<str>>) -> Self
 pub fn <antecedent::DiscoverySpec>::fn pcmci(params: antecedent::discovery::DiscoverParams, ci_label: impl core::convert::Into<alloc::sync::Arc<str>>) -> Self
 pub fn <antecedent::DiscoverySpec>::fn pcmci_plus(params: antecedent::discovery::DiscoverParams, ci_label: impl core::convert::Into<alloc::sync::Arc<str>>) -> Self
@@ -11326,6 +11340,7 @@ pub fn <antecedent::Study>::fn compile_logical(&self) -> core::result::Result<an
 pub fn <antecedent::Study>::fn events(data: &antecedent_data::event::EventData, align_interval_ns: u64) -> core::result::Result<antecedent::StudyBuilder, antecedent::CausalError>
 pub fn <antecedent::Study>::fn execute(&self, physical: &antecedent::planner::PhysicalExecutionPlan, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>
 pub fn <antecedent::Study>::fn identify_only(&self) -> core::result::Result<antecedent_identify::result::IdentificationResult, antecedent::CausalError>
+pub fn <antecedent::Study>::fn identify_structure(&self) -> core::result::Result<antecedent::Identification, antecedent::CausalError>
 pub fn <antecedent::Study>::fn inspect(&self) -> core::result::Result<antecedent::CausalContract, antecedent::CausalError>
 pub fn <antecedent::Study>::fn panel(data: antecedent_data::panel::PanelData) -> antecedent::StudyBuilder
 pub fn <antecedent::Study>::fn plan(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::planner::PhysicalExecutionPlan, antecedent::CausalError>
@@ -11365,6 +11380,7 @@ pub fn <antecedent::StudyBuilder>::fn graph(self, structure: impl antecedent::In
 pub fn <antecedent::StudyBuilder>::fn graph_posterior(self, posterior: antecedent_discovery::graph_posterior::GraphPosterior) -> Self
 pub fn <antecedent::StudyBuilder>::fn history_indexed_target_law(data: &antecedent_expr::exact::ExactTransportData, population: &str, coordinates: &[antecedent_core::ids::VariableId]) -> core::result::Result<antecedent_core::scientific_target::model::HistoryIndexedTargetLaw, antecedent_io_core::error::IoError>
 pub fn <antecedent::StudyBuilder>::fn identifier(self, id: antecedent::IdentifierId) -> Self
+pub fn <antecedent::StudyBuilder>::fn identify_structure(self) -> core::result::Result<antecedent::Identification, antecedent::CausalError>
 pub fn <antecedent::StudyBuilder>::fn inference(self, mode: antecedent::InferenceMode) -> Self
 pub fn <antecedent::StudyBuilder>::fn inspect(self) -> core::result::Result<antecedent::CausalContract, antecedent::CausalError>
 pub fn <antecedent::StudyBuilder>::fn interference(self, spec: antecedent::InterferenceSpec) -> Self
@@ -17408,6 +17424,8 @@ pub variant antecedent::analysis::RetainedOperation::Counterfactual(&'a antecede
 pub variant antecedent::analysis::RetainedOperation::DerivativeResponse(antecedent::analysis::CheckedDerivativeResponseInfo)
 pub variant antecedent::analysis::RetainedOperation::Discovery
 pub variant antecedent::analysis::RetainedOperation::Distribution(&'a antecedent_expr::program::FunctionalProgram)
+pub variant antecedent::analysis::RetainedOperation::EstimatorRoute
+pub variant antecedent::analysis::RetainedOperation::FreshRun
 pub variant antecedent::analysis::RetainedOperation::FrontDoorLinear(&'a antecedent_estimate::frontdoor::CheckedFrontDoorPreparation)
 pub variant antecedent::analysis::RetainedOperation::FunctionalEffect(&'a antecedent_expr::program::FunctionalProgram)
 pub variant antecedent::analysis::RetainedOperation::GraphPosteriorEffect(antecedent::analysis::CheckedGraphPosteriorEffectInfo)
@@ -17420,7 +17438,6 @@ pub variant antecedent::analysis::RetainedOperation::LocalPolynomialRatio
 pub variant antecedent::analysis::RetainedOperation::LongitudinalRegime
 pub variant antecedent::analysis::RetainedOperation::MultiEnvTemporal
 pub variant antecedent::analysis::RetainedOperation::NestedCounterfactual(&'a antecedent::gcm::NestedCounterfactualOperation)
-pub variant antecedent::analysis::RetainedOperation::OrdinaryDispatch
 pub variant antecedent::analysis::RetainedOperation::PanelDid
 pub variant antecedent::analysis::RetainedOperation::PanelTemporal
 pub variant antecedent::analysis::RetainedOperation::PathSpecificEffect(&'a antecedent_expr::program::FunctionalProgram)
@@ -17630,6 +17647,7 @@ pub variant antecedent::analysis::repair::RepairFacadeError::Repair(antecedent_d
 pub variant antecedent::analysis::target_validation::PreparedTargetData::Panel(&'a antecedent_data::panel::PanelData)
 pub variant antecedent::analysis::target_validation::PreparedTargetData::Series(&'a antecedent_data::dataset::TimeSeriesData)
 pub variant antecedent::analysis::target_validation::PreparedTargetData::Tabular(&'a antecedent_data::dataset::TabularData)
+pub variant antecedent::analysis::target_validation::WithinClassDistribution::UniformOverMembers
 pub variant antecedent::analysis::transport_sensitivity::TransportSensitivityEntryRefusal::CoordinateOutOfRange { index: usize, available: usize }
 pub variant antecedent::analysis::transport_sensitivity::TransportSensitivityEntryRefusal::LawResponse
 pub variant antecedent::analysis::transport_sensitivity::TransportSensitivityEntryRefusal::Range(antecedent_design::transport_sensitivity::TransportSensitivityRefusal)

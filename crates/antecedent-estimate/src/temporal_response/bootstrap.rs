@@ -152,6 +152,90 @@ pub(super) fn bayesian_bootstrap_surface(
     Some(SurfaceBootstrap { draws, ncols: refit.ncols, cancelled })
 }
 
+/// [`bayesian_bootstrap_surface`] for horizons fit on a series with missing time points.
+///
+/// The weights fall on blocks of the original time axis over the window every design covers: one
+/// Exp(1) weight per `block_length` consecutive series times, shared by every horizon and by
+/// every time of the block that is intact in **every** design (an observed position). A time
+/// inside a gap carries no row, so a block never joins times across a gap and a gap never
+/// receives a weight. Each horizon is refit by weighted least squares on its own intact rows at
+/// those times.
+pub(super) fn bayesian_bootstrap_surface_gapped(
+    horizons: &[FittedHorizon],
+    rows: &[GappedAlignedRows],
+    block_length: usize,
+    replicates: u32,
+    ctx: &ExecutionContext,
+) -> Option<SurfaceBootstrap> {
+    if replicates == 0 || horizons.is_empty() {
+        return None;
+    }
+    let start = rows.iter().map(|d| d.first_time).max()?;
+    let end = rows.iter().map(|d| d.first_time + d.complete.len()).min()?;
+    if end <= start {
+        return None;
+    }
+    // The observed positions: times intact in every design, and each design's row for them.
+    let mut times = Vec::new();
+    let mut row_of: Vec<Vec<usize>> = rows.iter().map(|_| Vec::new()).collect();
+    let mut seen: Vec<usize> = vec![0; rows.len()];
+    for (design, count) in rows.iter().zip(seen.iter_mut()) {
+        *count = design.complete[..start - design.first_time].iter().filter(|c| **c).count();
+    }
+    for time in start..end {
+        let mut usable = true;
+        for design in rows {
+            usable &= design.complete[time - design.first_time];
+        }
+        if usable {
+            times.push(time);
+            for ((design, count), out) in rows.iter().zip(&seen).zip(row_of.iter_mut()) {
+                let before = design.complete[start - design.first_time..time - design.first_time]
+                    .iter()
+                    .filter(|c| **c)
+                    .count();
+                out.push(count + before);
+            }
+        }
+    }
+    if times.len() < 2 {
+        return None;
+    }
+    let block = block_length.clamp(1, end - start);
+    let mut refit = SurfaceRefit::new(horizons);
+    let mut draws = Vec::with_capacity(replicates as usize);
+    let (mut attempted, mut cancelled) = (0u32, false);
+    for replicate in 0..replicates {
+        if ctx.cancellation.is_cancelled() {
+            cancelled = true;
+            break;
+        }
+        attempted += 1;
+        let mut rng = ctx.rng.stream_for(
+            antecedent_core::StreamDomain::TemporalBlock,
+            antecedent_core::derive_stream(HORIZON_BAYES_STREAM, u64::from(replicate)),
+        );
+        let n_blocks = (end - start).div_ceil(block);
+        let block_weights: Vec<f64> = (0..n_blocks)
+            .map(|_| antecedent_kernels::bayesian_bootstrap_weights(&mut rng, 1, false)[0])
+            .collect();
+        let weights: Vec<f64> = times.iter().map(|t| block_weights[(t - start) / block]).collect();
+        if let Some(flat) = refit.run_weighted_rows(horizons, &row_of, &weights) {
+            if flat.iter().all(|x| x.is_finite()) {
+                draws.push(flat);
+            }
+        }
+    }
+    if draws.len() < 2 {
+        return None;
+    }
+    let failed = f64::from(attempted) - draws.len() as f64;
+    if failed / f64::from(attempted) > BOOTSTRAP_MAX_FAILURE_FRAC {
+        return None;
+    }
+    Some(SurfaceBootstrap { draws, ncols: refit.ncols, cancelled })
+}
+
 /// [`bootstrap_surface`] for horizons fit on a series with missing time points: one block plan
 /// on the original window axis over the windows every horizon reads, keeping the times intact
 /// in every horizon, with every horizon refit on those same times
@@ -237,6 +321,25 @@ impl SurfaceRefit {
         start: usize,
         weights: &[f64],
     ) -> Option<Vec<f64>> {
+        let row_of: Vec<Vec<usize>> = horizons
+            .iter()
+            .zip(rows)
+            .map(|(_, aligned)| {
+                let offset = start.checked_sub(aligned.first_time)?;
+                Some((0..weights.len()).map(|i| offset + i).collect())
+            })
+            .collect::<Option<_>>()?;
+        self.run_weighted_rows(horizons, &row_of, weights)
+    }
+
+    /// [`Self::run_weighted`] on explicit rows: `row_of[h][i]` is the row of horizon `h`'s design
+    /// that carries weight `weights[i]`.
+    fn run_weighted_rows(
+        &mut self,
+        horizons: &[FittedHorizon],
+        row_of: &[Vec<usize>],
+        weights: &[f64],
+    ) -> Option<Vec<f64>> {
         let m = weights.len();
         let total: f64 = weights.iter().sum();
         if !(total.is_finite() && total > 0.0) {
@@ -244,27 +347,23 @@ impl SurfaceRefit {
         }
         let root: Vec<f64> = weights.iter().map(|w| w.sqrt()).collect();
         let mut flat = Vec::new();
-        for (fitted, aligned) in horizons.iter().zip(rows) {
+        for (fitted, rows) in horizons.iter().zip(row_of) {
             let design = &fitted.prepared.design;
             let (n, p) = (design.nrows, design.ncols);
-            if m <= p {
-                return None;
-            }
-            let offset = start.checked_sub(aligned.first_time)?;
-            if offset + m > n {
+            if m <= p || rows.len() != m || rows.iter().any(|&r| r >= n) {
                 return None;
             }
             self.x_boot.resize(m * p, 0.0);
             self.y_boot.resize(m, 0.0);
             for (i, &r) in root.iter().enumerate() {
-                self.y_boot[i] = design.outcome[offset + i] * r;
+                self.y_boot[i] = design.outcome[rows[i]] * r;
             }
             let mut means = Vec::with_capacity(p);
             for c in 0..p {
                 let column = &design.matrix[c * n..(c + 1) * n];
                 let mut weighted_sum = 0.0;
                 for (i, &r) in root.iter().enumerate() {
-                    let value = column[offset + i];
+                    let value = column[rows[i]];
                     self.x_boot[c * m + i] = value * r;
                     weighted_sum += weights[i] * value;
                 }

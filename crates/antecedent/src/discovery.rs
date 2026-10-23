@@ -557,6 +557,32 @@ pub fn discover_exact_pag_posterior(
     Ok(antecedent_discovery::exact_pag_posterior(data, variables, ctx)?)
 }
 
+/// Metropolis posterior over PAG classes of the Gaussian maximal ancestral graphs of two to
+/// eight variables.
+///
+/// # Errors
+///
+/// A bad schedule or variable count, missing or non-finite values, or no scorable graph.
+#[doc(hidden)]
+pub fn discover_pag_mcmc(
+    data: &TabularData,
+    variables: &[VariableId],
+    schedule: &GraphMcmcSchedule,
+    ctx: &ExecutionContext,
+) -> Result<GraphPosterior, CausalError> {
+    Ok(antecedent_discovery::pag_posterior_mcmc(
+        data,
+        variables,
+        antecedent_discovery::PagMcmcSchedule {
+            chains: schedule.n_chains as usize,
+            warmup: schedule.n_warmup as usize,
+            draws: schedule.n_draws as usize,
+            thin: schedule.thin as usize,
+        },
+        ctx,
+    )?)
+}
+
 /// Exact edge marginals of the DAG posterior for `7 ≤ n ≤ 12` variables (Gaussian BIC).
 ///
 /// Above [`EXACT_ENUM_MAX_NODES`] the enumerating engine cannot list the graphs, but the

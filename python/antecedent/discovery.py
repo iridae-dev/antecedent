@@ -24,6 +24,7 @@ from ._native import (
     GraphEdge,
     GraphPosterior,
     PcmciDiscoveryResult,
+    RegimeStabilityResult,
     RpcmciDiscoverySummary,
     StructureStabilityResult,
     two_regime_half_split,
@@ -33,6 +34,12 @@ from ._native import (
 )
 from ._native import (
     discover_ci_screened_posterior as _discover_ci_screened_posterior,
+)
+from ._native import (
+    discover_jpcmci_plus_stability as _discover_jpcmci_plus_stability,
+)
+from ._native import (
+    discover_rpcmci_stability as _discover_rpcmci_stability,
 )
 from ._native import (
     discover_dbn_posterior as _discover_dbn_posterior,
@@ -48,6 +55,9 @@ from ._native import (
 )
 from ._native import (
     discover_fci as _discover_fci,
+)
+from ._native import (
+    discover_pag_mcmc as _discover_pag_mcmc,
 )
 from ._native import (
     discover_ges as _discover_ges,
@@ -1122,6 +1132,51 @@ class ExactPagPosterior:
 
 
 @dataclass(frozen=True)
+class PagMcmc:
+    """Metropolis posterior over PAG classes of Gaussian maximal ancestral graphs (2 to 8 variables).
+
+    The sampled counterpart of :class:`ExactPagPosterior`: each chain starts at the empty graph
+    and changes the link of one pair at a time, scoring every maximal ancestral graph by BIC
+    after residual iterative conditional fitting; a proposal that is not ancestral or not
+    maximal is rejected. The pooled visit frequency of each Markov equivalence class is its
+    weight and its PAG is completed from the class's graphs reachable by single-pair moves.
+    ``result.converged`` records only that the chains' class frequencies agree to a total
+    variation of 0.15; no finer statistic is computed, and the sampler reaches only the graphs
+    connected to the empty graph by single-pair moves through maximal ancestral graphs.
+    """
+
+    n_chains: int = 4
+    n_warmup: int = 500
+    n_draws: int = 2000
+    thin: int = 1
+    kind: Literal["pag_mcmc"] = "pag_mcmc"
+
+    algorithm_id: ClassVar[str] = "pag_mcmc"
+
+    def _wire(self) -> dict[str, Any]:
+        return {
+            "algorithm": "pag_mcmc",
+            "n_chains": self.n_chains,
+            "n_warmup": self.n_warmup,
+            "mcmc_draws": self.n_draws,
+            "thin": self.thin,
+        }
+
+    def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> GraphPosterior:
+        names, cols = coerce_data(data)
+        return _discover_pag_mcmc(
+            names,
+            cols,
+            n_chains=self.n_chains,
+            n_warmup=self.n_warmup,
+            n_draws=self.n_draws,
+            thin=self.thin,
+            seed=seed,
+            threads=threads,
+        )
+
+
+@dataclass(frozen=True)
 class OrderMcmc:
     """Order-MCMC graph posterior over up to 16 variables.
 
@@ -1455,20 +1510,19 @@ class BootstrapStability:
     :class:`NOTEARS`, :class:`PCMCI` or :class:`PCMCIPlus`.
     """
 
-    base: PC | FCI | RFCI | GES | LiNGAM | NOTEARS | PCMCI | PCMCIPlus | LPCMCI
+    base: PC | FCI | RFCI | GES | LiNGAM | NOTEARS | PCMCI | PCMCIPlus | LPCMCI | JPCMCIPlus | RPCMCI
     replicates: int = 200
     kind: Literal["bootstrap_stability"] = "bootstrap_stability"
 
     algorithm_id: ClassVar[str] = "bootstrap_stability"
 
     def __post_init__(self) -> None:
-        if not isinstance(self.base, (PC, FCI, RFCI, GES, LiNGAM, NOTEARS, PCMCI, PCMCIPlus, LPCMCI)
+        if not isinstance(self.base, (PC, FCI, RFCI, GES, LiNGAM, NOTEARS, PCMCI, PCMCIPlus, LPCMCI, JPCMCIPlus, RPCMCI),
         ):
             raise CausalUnsupportedError(
                 "a stability search re-runs PC, FCI, RFCI, GES, LiNGAM, NOTEARS, PCMCI, "
-                "PCMCIPlus or LPCMCI; a posterior has its own sampling error, and the "
-                "multi-environment and regime searches take their own inputs. Next attempt: "
-                "pass one of the supported searches as base",
+                "PCMCIPlus, LPCMCI, JPCMCIPlus or RPCMCI; a posterior has its own sampling "
+                "error. Next attempt: pass one of the supported searches as base",
                 reason_code="option_not_applicable",
             )
         if isinstance(self.replicates, bool) or not (
@@ -1487,8 +1541,20 @@ class BootstrapStability:
         }
 
     def run(
-        self, data: Any, *, seed: int = 1, threads: int | None = None
-    ) -> StructureStabilityResult:
+        self,
+        data: Any,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        regimes: Sequence[int] | None = None,
+    ) -> StructureStabilityResult | RegimeStabilityResult:
+        """Re-run the search and tabulate what it returned.
+
+        ``JPCMCIPlus`` reads ``data`` as the pair ``(names, env_columns)`` of its own ``run``,
+        every environment resampled in circular blocks on its own. ``RPCMCI`` needs the
+        ``regimes`` label per row and returns a :class:`RegimeStabilityResult`, one table per
+        regime, from resamples that carry their labels.
+        """
         base = self.base
         ci = getattr(base, "ci", "parcorr")
         if not isinstance(ci, str):
@@ -1498,6 +1564,37 @@ class BootstrapStability:
                 reason_code="option_not_applicable",
             )
         common: dict[str, Any] = {"replicates": self.replicates, "seed": seed, "threads": threads}
+        if isinstance(base, JPCMCIPlus):
+            names, env_columns = data
+            return _discover_jpcmci_plus_stability(
+                list(names),
+                [list(cols) for cols in env_columns],
+                max_lag=base.max_lag,
+                alpha=base.alpha,
+                fdr=base.fdr,
+                ci=ci,
+                context_names=list(base.context_names) if base.context_names else None,
+                max_cond_size=base.max_cond_size,
+                **common,
+            )
+        if isinstance(base, RPCMCI):
+            if regimes is None:
+                raise CausalValueError(
+                    "RPCMCI stability needs the regime label of every row",
+                    reason_code="required_option_missing",
+                )
+            names, cols = coerce_data(data, temporal=True)
+            return _discover_rpcmci_stability(
+                names,
+                cols,
+                regimes=list(regimes),
+                max_lag=base.max_lag,
+                alpha=base.alpha,
+                fdr=base.fdr,
+                ci=ci,
+                max_cond_size=base.max_cond_size,
+                **common,
+            )
         if isinstance(base, (PCMCI, PCMCIPlus, LPCMCI)):
             names, cols, unit_lengths = coerce_temporal_data(data)
             with _named_positions(names):
@@ -1702,11 +1799,13 @@ __all__ = [
     "PC",
     "PCMCI",
     "PCMCIPlus",
+    "PagMcmc",
     "PcmciDiscoveryResult",
     "RFCI",
     "RPCMCI",
     "RpcmciDiscoverySummary",
     "StructureMcmc",
+    "RegimeStabilityResult",
     "StructureStabilityResult",
     "cpdag_oriented_edges",
     "discovery_algorithm",

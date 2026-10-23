@@ -33,9 +33,8 @@ any test binary starts, when:
 * the route set derived from the route manifest, the `route_lowerings!` registry and the
   licensed routes (`gate_retained_routes.retained_route_problems`) has a route with no
   lowered program entry, a registered cell no sealed operation serves (its prepared
-  execution is `OrdinaryDispatch`), a `retained_operation` that is not a sealed operation
-  serving the route's cell, a construction of `PreparedExecution::OrdinaryDispatch` outside
-  the sealer table, a dispatch entry that does not require the lowered program, a compile
+  execution is only the catch-all), a `retained_operation` that is not a sealed operation
+  serving the route's cell, a reintroduced `OrdinaryDispatch`, a dispatch entry that does not require the lowered program, a compile
   or run entry that lost the `public_builder_reentry` refusal, or a caller that swallows
   `route_not_lowered`.
 
@@ -276,11 +275,14 @@ BYPASS_CRATE_INTERNAL = {
         "estimate_static_effect", "identify_static", "identify_pag", "identify_admg",
     ),
     "crates/antecedent/src/design.rs": ("rank_designs",),
+    # Structure identification is reached through `StudyBuilder::identify_structure`, which
+    # assembles a compiled study over a table with no rows; the raw entries stay crate-internal.
+    "crates/antecedent/src/identify_api.rs": (
+        "identify_study", "identify", "identify_with", "identify_dag",
+    ),
 }
 # Public only as hidden path items: absent from the crate root, the prelude and the docs.
-BYPASS_DOC_HIDDEN = {
-    "crates/antecedent/src/identify_api.rs": ("identify", "identify_with", "identify_dag"),
-}
+BYPASS_DOC_HIDDEN: dict[str, tuple[str, ...]] = {}
 BYPASS_FACADE_SURFACES = (
     "crates/antecedent/src/lib.rs",
     "crates/antecedent/src/prelude.rs",
@@ -295,7 +297,7 @@ BYPASS_REEXPORTS = (
 )
 # Python natives with no compiled twin. Only the staged wrapper that owns each may import it.
 BYPASS_PYTHON_NATIVES = (
-    "_identify_ate_admg", "_identify_ate", "_identify_structure",
+    "_identify_ate_admg", "_identify_ate",
 )
 # Natives that had no compiled twin and were retired when the compiled study replaced them. No
 # Python module may name one again, the staged wrapper included: the wrapper goes through

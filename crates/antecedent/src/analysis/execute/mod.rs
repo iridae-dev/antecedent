@@ -249,8 +249,8 @@ mod temporal_attribution;
 pub(crate) use attribution_path::{CheckedCounterfactualPlan, CounterfactualProcedure};
 pub(crate) use checked_attribution::{
     CheckedAttributionOperation, attribute_bootstrap_supported, attribute_posterior_draws,
-    attribute_posterior_supported,
-    attribute_runs_checked,
+    attribute_posterior_supported, attribute_runs_checked, is_mechanism_change_query,
+    mechanism_change_posterior_declared,
 };
 mod bayesian_basis_path;
 mod checked_bayesian_basis_ate;

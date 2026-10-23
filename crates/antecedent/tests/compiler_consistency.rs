@@ -163,6 +163,7 @@ const REFUSED_UNDER_BAYESIAN: &[&str] = &[
     "temporal.lagged_instrument",
     "temporal_design.excursion",
     "temporal_design.regime_survival",
+    "iv_bounds.balke_pearl",
 ];
 const REFUSED_UNDER_FREQUENTIST: &[&str] = &[
     "bayesian.gcomp",
@@ -195,6 +196,7 @@ const REFUSED_UNDER_FREQUENTIST: &[&str] = &[
     "bayesian.temporal.lagged_instrument",
     "bayesian.temporal_design.excursion",
     "bayesian.temporal_design.regime_survival",
+    "bayesian.iv_bounds.endpoint_bootstrap",
 ];
 
 #[test]

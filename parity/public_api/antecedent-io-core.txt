@@ -16020,6 +16020,7 @@ pub variant antecedent_io_core::DiscoveryMethodWire::JpcmciPlus
 pub variant antecedent_io_core::DiscoveryMethodWire::Lpcmci
 pub variant antecedent_io_core::DiscoveryMethodWire::Notears { lambda: f64, threshold: f64, standardize: bool }
 pub variant antecedent_io_core::DiscoveryMethodWire::OrderMcmc { diagnostics_gate: bool }
+pub variant antecedent_io_core::DiscoveryMethodWire::PagMcmc
 pub variant antecedent_io_core::DiscoveryMethodWire::Pc
 pub variant antecedent_io_core::DiscoveryMethodWire::Pcmci
 pub variant antecedent_io_core::DiscoveryMethodWire::PcmciPlus

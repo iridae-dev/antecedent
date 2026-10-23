@@ -31,7 +31,7 @@ use super::static_response::{
 use crate::analysis::execute::{
     ANOMALY_DIRICHLET_BACKEND, ATTRIBUTE_DIRICHLET_BACKEND, CHANGE_DIRICHLET_BACKEND,
     COUNTERFACTUAL_DIRICHLET_BACKEND, RouteInput, StaticMediationSource, attribute_posterior_draws,
-    attribute_posterior_supported,
+    attribute_posterior_supported, is_mechanism_change_query,
 };
 use crate::error::CausalError;
 use crate::planner::lowered::{
@@ -203,7 +203,11 @@ fn lower_structural(
         }
         // Under Bayesian inference a detection reads as the posterior probability of a change
         // under the prior the query declares over the change indicator.
-        (FunctionalKind::MechanismChange, _, InferenceMode::Bayesian(_)) => (
+        (
+            FunctionalKind::MechanismChange | FunctionalKind::Attribution,
+            _,
+            InferenceMode::Bayesian(_),
+        ) if is_mechanism_change_query(&study.query) => (
             Realization::Bayesian(OrdinaryBayesianLikelihood::new(
                 LikelihoodModel::new(MECHANISM_CHANGE_POSTERIOR_BACKEND)
                     .map_err(declaration_error)?,

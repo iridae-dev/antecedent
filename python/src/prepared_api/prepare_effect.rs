@@ -418,7 +418,9 @@ impl PyPreparedAnalysis {
                     crate::response_api::parse_weighting(weighting)?,
                 )?))
             };
-        let id = antecedent::identify_api::identify_dag(&dag, &query).map_err(py_err)?;
+        // The compiled study over the schema-only table: a bare DAG is an explicit structure.
+        let id =
+            Study::tabular(data).graph(dag).query(query).identify_structure().map_err(py_err)?;
         let adjustment = id
             .estimands()
             .first()

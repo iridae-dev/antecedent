@@ -82,7 +82,7 @@ def test_every_other_attribution_carries_the_requested_uncertainty(draws):
             names, cols, EDGES, "y", n_samples=100, **options
         ),
         "anomaly": anomaly_attribution(names, cols, EDGES, ["y"], **options),
-        "unit": attribute_unit_change(names, cols, EDGES, "y", max_units=20, **options),
+        "unit": attribute_unit_change(names, cols, EDGES, "y", **options),
         "root": attribute_root_causes(
             names, cols, EDGES, "y", 0, 100, 100, 200, n_samples=200, **options
         ),

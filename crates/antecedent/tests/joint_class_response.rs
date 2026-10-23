@@ -11,6 +11,20 @@ use antecedent_data::TabularData;
 use antecedent_graph::{Cpdag, Dag, DenseNodeId, MarkedEdge, Pag};
 use std::sync::Arc;
 
+/// The identification the compiled study derives for `graph` and `query`, over a table that
+/// names `variables` columns and holds no rows.
+fn identify(
+    graph: &AcceptedGraph,
+    query: &CausalQuery,
+    variables: usize,
+) -> Result<antecedent::Identification, antecedent::CausalError> {
+    let names: Vec<String> = (0..variables).map(|index| format!("v{index}")).collect();
+    let empty: &[f64] = &[];
+    let data =
+        TabularData::from_f64_columns(names.iter().map(|name| (name.as_str(), empty))).unwrap();
+    Study::tabular(data).graph(graph.clone()).query(query.clone()).identify_structure()
+}
+
 fn pin() -> serde_json::Value {
     serde_json::from_str(include_str!(
         "../../../conformance/response/class_aware_envelope/joint.json"
@@ -67,8 +81,7 @@ fn data() -> TabularData {
 fn joint_certificate_and_estimate_cover_both_targets() {
     let (dag, cpdag, pag) = graphs();
     for graph in [AcceptedGraph::from(dag), AcceptedGraph::from(cpdag), AcceptedGraph::from(pag)] {
-        let identification =
-            antecedent::identify_api::identify(&graph, &CausalQuery::Response(query())).unwrap();
+        let identification = identify(&graph, &CausalQuery::Response(query()), 6).unwrap();
         assert!(identification.is_identified());
         assert_eq!(
             identification.estimands()[0].adjustment_set.as_ref(),
@@ -131,11 +144,8 @@ fn hidden_confounding_of_second_target_is_not_hidden_by_first_target() {
     ] {
         pag.insert_marked(edge).unwrap();
     }
-    let identified = antecedent::identify_api::identify(
-        &AcceptedGraph::from(pag),
-        &CausalQuery::Response(query()),
-    )
-    .unwrap();
+    let identified =
+        identify(&AcceptedGraph::from(pag), &CausalQuery::Response(query()), 4).unwrap();
     assert!(!identified.is_identified());
 }
 

@@ -10006,6 +10006,7 @@ pub variant antecedent_core::DiscoveryMethod::JpcmciPlus
 pub variant antecedent_core::DiscoveryMethod::Lpcmci
 pub variant antecedent_core::DiscoveryMethod::Notears { lambda: f64, threshold: f64, standardize: bool }
 pub variant antecedent_core::DiscoveryMethod::OrderMcmc { diagnostics_gate: bool }
+pub variant antecedent_core::DiscoveryMethod::PagMcmc
 pub variant antecedent_core::DiscoveryMethod::Pc
 pub variant antecedent_core::DiscoveryMethod::Pcmci
 pub variant antecedent_core::DiscoveryMethod::PcmciPlus

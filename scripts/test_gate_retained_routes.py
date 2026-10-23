@@ -68,6 +68,15 @@ CASES = {
     "second ordinary dispatch construction": lambda d: append(
         d, f"{ANALYSIS}/prepared/lifecycle.rs",
         "\nfn reroute(mut handle: Handle) {\n    handle.execution = PreparedExecution::OrdinaryDispatch;\n}\n"),
+    "fresh run built outside the dispatcher": lambda d: append(
+        d, f"{ANALYSIS}/prepared/lifecycle.rs",
+        "\nfn reroute(op: CheckedRouteOperation) -> PreparedExecution {\n"
+        "    PreparedExecution::FreshRun(op)\n}\n"),
+    "estimator missing from the family table": lambda d: replace(
+        d, f"{SEALERS}/estimator.rs", "    EstimatorId::Dml,\n", ""),
+    "estimator sealers not last": lambda d: replace(
+        d, f"{SEALERS}/mod.rs",
+        "    sealer(ExecutionKind::EstimatorRoute, estimator::estimator_route),\n", ""),
     "cell no sealer serves": lambda d: replace(
         d, f"{SEALERS}/design.rs", "Some(RouteInput::Survival", "Some(RouteInput::SurvivalGone"),
     "registered cell without a sealed operation": lambda d: replace(

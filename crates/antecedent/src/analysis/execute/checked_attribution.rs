@@ -32,8 +32,9 @@ fn attribute_intrinsic_target(query: &CausalQuery) -> bool {
     )
 }
 
-/// Whether `query` is an attribution of a kind the mechanism-refit resamplings cover: every
-/// target of the fitted-model attribution except mechanism-change detection. A detection is a
+/// Whether `query` is an attribution or simulation the mechanism-refit resamplings cover: every
+/// target of the fitted-model attribution and every simulation target, except mechanism-change
+/// detection. A detection is a
 /// two-sample test whose p-value is a tail probability of a null law of its statistic, not a
 /// smooth functional of the refitted mechanisms, so it has neither a posterior over the
 /// mechanisms nor a refit bootstrap; its Bayesian counterpart is the posterior probability of a
@@ -43,13 +44,36 @@ fn attribute_refit_covered(query: &CausalQuery) -> bool {
         query,
         CausalQuery::Attribute(attribute)
             if !matches!(attribute.target, antecedent_core::AttributeTarget::MechanismChange { .. })
-    ) || rollout_query(query)
+    ) || matches!(query, CausalQuery::Simulate(_))
 }
 
-/// Whether `query` is a temporal rollout of the fitted dynamics: the one simulation target whose
-/// quantities (the mean of each variable at each step) are smooth functionals of the refit
-/// mechanisms. Draws, policy values and counterfactuals of the other targets are not summarized
-/// by a refit.
+/// Whether `query` is a mechanism-change detection, standalone or as an attribution target.
+pub(crate) fn is_mechanism_change_query(query: &CausalQuery) -> bool {
+    matches!(query, CausalQuery::MechanismChange(_))
+        || matches!(
+            query,
+            CausalQuery::Attribute(attribute)
+                if matches!(attribute.target, antecedent_core::AttributeTarget::MechanismChange { .. })
+        )
+}
+
+/// Whether `query` is a mechanism-change detection of an attribution that declares the prior
+/// over the change indicator, so its Bayesian reading (the posterior probability of a change)
+/// has what it needs.
+pub(crate) fn mechanism_change_posterior_declared(query: &CausalQuery) -> bool {
+    matches!(
+        query,
+        CausalQuery::Attribute(attribute)
+            if matches!(
+                &attribute.target,
+                antecedent_core::AttributeTarget::MechanismChange { query, .. }
+                    if query.change_prior.is_some()
+            )
+    )
+}
+
+/// Whether `query` is a temporal rollout of the fitted dynamics, the one simulation target that
+/// runs on the lag-aligned unfolding of a `TemporalDag`.
 fn rollout_query(query: &CausalQuery) -> bool {
     matches!(
         query,
@@ -63,8 +87,10 @@ fn rollout_query(query: &CausalQuery) -> bool {
 /// the serial dependence of consecutive times inside each block. A simulation, a mechanism
 /// change and a unit change as queries of their own stay on a static DAG.
 fn attribute_on_unfolding(query: &CausalQuery) -> bool {
-    attribute_refit_covered(query)
-        || matches!(query, CausalQuery::UnitChange(_) | CausalQuery::MechanismChange(_))
+    (attribute_refit_covered(query) && !matches!(query, CausalQuery::Simulate(_)))
+        || rollout_query(query)
+        || matches!(query, CausalQuery::UnitChange(_))
+        || is_mechanism_change_query(query)
 }
 
 /// Whether the fitted-model target `query` has a posterior over the mechanisms: every
@@ -86,7 +112,7 @@ pub(crate) fn attribute_bootstrap_supported(query: &CausalQuery) -> bool {
 fn attribute_draw_is_dear(query: &CausalQuery) -> bool {
     use antecedent_core::{AttributeTarget, ChangeEstimator};
     let CausalQuery::Attribute(attribute) = query else {
-        return rollout_query(query);
+        return matches!(query, CausalQuery::Simulate(_));
     };
     !matches!(
         &attribute.target,
@@ -123,7 +149,9 @@ pub(crate) fn attribute_runs_checked(
     bootstrap_replicates: u32,
 ) -> bool {
     match inference {
-        InferenceMode::Bayesian(_) => attribute_posterior_supported(query),
+        InferenceMode::Bayesian(_) => {
+            attribute_posterior_supported(query) || mechanism_change_posterior_declared(query)
+        }
         InferenceMode::Frequentist => {
             bootstrap_replicates > 0 && attribute_bootstrap_supported(query)
         }
@@ -219,6 +247,18 @@ impl CheckedAttributionOperation {
             return Err(CausalError::Unsupported {
                 message: "checked attribution does not support custom validators",
             });
+        }
+        if lag_aligned.is_some()
+            && matches!(&study.query, CausalQuery::Simulate(_))
+            && !rollout_query(&study.query)
+        {
+            return Err(crate::unsupported_reason!(
+                "option_not_applicable",
+                "on a TemporalDag a simulation is a temporal rollout of the fitted dynamics: \
+                 draws, policy values and counterfactuals of the unfolded graph would sample \
+                 the lagged copies as exogenous columns. Next attempt: use a TemporalRollout \
+                 target, or fit the one-slice model on a supplied Dag"
+            ));
         }
         let (estimator, procedure) = attribution_procedure(&target, study)?;
         let structure_ok = study.structure_source == crate::support::StructureSource::Explicit
@@ -321,10 +361,9 @@ impl CheckedAttributionOperation {
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         let fit = self.model_fit(query, data.row_count());
-        let reading = super::structural_route::ChangeReading {
+        let reading = crate::analysis::structure_route::ChangeReading {
             block: self.lag_aligned.as_ref().map(|aligned| aligned.block_length(data.row_count())),
-            bayesian: self.inference.is_bayesian()
-                && matches!(query, CausalQuery::MechanismChange(_)),
+            bayesian: self.inference.is_bayesian() && is_mechanism_change_query(query),
         };
         let mut answer = super::structural_route::run_model_query_with_fit(
             &self.mechanisms,
@@ -361,7 +400,7 @@ impl CheckedAttributionOperation {
             AttributionProcedure::Point => {
                 if self.inference.is_bayesian()
                     && !attribute_posterior_supported(query)
-                    && !matches!(query, CausalQuery::MechanismChange(_))
+                    && !is_mechanism_change_query(query)
                 {
                     answer.diagnostics.push(Diagnostic::new(
                         "gcm.attribution.posterior_not_built",
@@ -838,6 +877,7 @@ impl CheckedAttributionOperation {
                     data,
                     attribute,
                     None,
+                    crate::analysis::structure_route::ChangeReading::default(),
                     ctx,
                 )?;
                 attribution_quantities_weighted(&outcome, &weights).ok_or_else(|| {

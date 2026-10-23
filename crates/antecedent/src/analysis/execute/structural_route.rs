@@ -25,9 +25,9 @@ use super::{
     identify_cached_diagnostic, nan_effect, parametric_scm_identification,
 };
 use crate::analysis::structure_route::{
-    AttributionFit, AttributionOutcome, AttributionPayload, DiscoverData, DiscoveredStructure,
-    DiscoveryPayload, MechanismProgram, SimulationOutcome, SimulationPayload, admit,
-    discovery_quote, model_quote, run_attribute_with_fit, run_discovery, run_simulate,
+    AttributionFit, AttributionOutcome, AttributionPayload, ChangeReading, DiscoverData,
+    DiscoveredStructure, DiscoveryPayload, MechanismProgram, SimulationOutcome, SimulationPayload,
+    admit, discovery_quote, model_quote, run_attribute_with_fit, run_discovery, run_simulate,
 };
 
 /// Identifier a structure search records: it identifies no causal contrast;
@@ -99,6 +99,7 @@ fn search_premises(method: &DiscoveryMethod) -> antecedent_core::AssumptionSet {
             | DiscoveryMethod::Rfci
             | DiscoveryMethod::Lpcmci
             | DiscoveryMethod::ExactPagPosterior
+            | DiscoveryMethod::PagMcmc
     );
     if !latent_tolerant {
         set.push(premise(Assumption::CausalSufficiency, id));
@@ -519,20 +520,6 @@ pub(super) fn rollout_on_unfolding(
     )?))
 }
 
-/// How a mechanism-change detection draws its null law and reads its answer.
-///
-/// `block` is the block length of a dependent series (the null law is then a block permutation
-/// of the residuals, not an independent-residual one); `bayesian` reads the answer as the
-/// posterior probability of a change under the prior the query declares.
-#[derive(Clone, Copy, Debug, Default)]
-pub(super) struct ChangeReading {
-    pub(super) block: Option<usize>,
-    pub(super) bayesian: bool,
-}
-
-/// Block permutations a dependent-series mechanism-change test runs.
-const CHANGE_BLOCK_PERMUTATIONS: usize = 499;
-
 /// [`run_model_query`] with the mechanism-fit refits of an intrinsic-influence attribution
 /// set by the study's inference mode (`fit`) instead of by the query.
 ///
@@ -564,7 +551,8 @@ pub(super) fn run_model_query_with_fit(
     match query {
         CausalQuery::Attribute(attribute) => {
             let _lease = admit(ctx, model_quote(rows, nodes, 0), "attribution")?;
-            let outcome = run_attribute_with_fit(&fitted, graph, data, attribute, fit, ctx)?;
+            let outcome =
+                run_attribute_with_fit(&fitted, graph, data, attribute, fit, reading, ctx)?;
             let value = match &outcome {
                 AttributionOutcome::RootCauses { attribution, .. } => attribution.total_change,
                 AttributionOutcome::Change(change) => change.total_change,
@@ -629,47 +617,14 @@ pub(super) fn run_model_query_with_fit(
         }
         CausalQuery::MechanismChange(detection) => {
             detection.validate()?;
-            let detections = if reading.bayesian {
-                let prior = detection.change_prior.map(|prior| prior.to_f64()).ok_or_else(|| {
-                    crate::unsupported_reason!(
-                        "option_not_applicable",
-                        "the posterior probability of a mechanism change needs a prior over the \
-                         change indicator, and none is assumed. Next attempt: declare it with \
-                         MechanismChangeQuery::with_change_prior"
-                    )
-                })?;
-                antecedent_attribution::mechanism_change_posterior(
-                    &fitted.model,
-                    data,
-                    detection,
-                    prior,
-                    reading.block.unwrap_or(1),
-                    ctx,
-                )
-                .map_err(CausalError::from)?
-                .into_iter()
-                .map(antecedent_attribution::MechanismChangePosterior::into_detection)
-                .collect()
-            } else if let Some(block) = reading.block {
-                antecedent_attribution::detect_mechanism_changes_block(
-                    &fitted.model,
-                    data,
-                    detection,
-                    antecedent_attribution::MechanismChangeMethod::LikelihoodRatio,
-                    block,
-                    CHANGE_BLOCK_PERMUTATIONS,
-                    ctx,
-                )
-                .map_err(CausalError::from)?
-            } else {
-                crate::gcm::mechanism_change_detection(
-                    &fitted.model,
-                    data,
-                    detection,
-                    antecedent_attribution::MechanismChangeMethod::LikelihoodRatio,
-                    ctx,
-                )?
-            };
+            let detections = crate::analysis::structure_route::run_mechanism_change(
+                &fitted,
+                data,
+                detection,
+                antecedent_attribution::MechanismChangeMethod::LikelihoodRatio,
+                reading,
+                ctx,
+            )?;
             Ok(ModelAnswer {
                 slot: GcmSlot::Mechanism(detections),
                 estimate: nan_effect(),

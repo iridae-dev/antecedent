@@ -10,7 +10,7 @@ use crate::compiled_route_api::{ModelSource, RouteRecord, outcome_mismatch};
 use crate::*;
 use antecedent::{AttributionOutcome, MechanismProgram, SimulationOutcome};
 use antecedent_core::{AnomalyAttributionQuery, AttributeTarget, ChangeEstimator, ChangeMeasure};
-use antecedent_core::{MechanismChangeTest, SimulationTarget};
+use antecedent_core::{CausalQuery, MechanismChangeTest, SimulationTarget};
 use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
 use pyo3::types::PyAny;
@@ -671,6 +671,266 @@ fn attribution_uncertainty(
     })
 }
 
+fn json_f64(params: &serde_json::Value, key: &str, default: f64) -> f64 {
+    params[key].as_f64().unwrap_or(default)
+}
+
+fn mechanism_test(name: &str) -> PyResult<MechanismChangeTest> {
+    Ok(match name {
+        "likelihood_ratio" => MechanismChangeTest::LikelihoodRatio,
+        "mean_difference" => MechanismChangeTest::MeanDifference,
+        "classifier_two_sample" => MechanismChangeTest::ClassifierTwoSample,
+        "kernel_two_sample" => MechanismChangeTest::KernelTwoSample,
+        "change_point" => MechanismChangeTest::ChangePoint,
+        other => {
+            return Err(crate::value_err(format!(
+                "test must be likelihood_ratio, mean_difference, classifier_two_sample, \
+                 kernel_two_sample or change_point, got {other:?}"
+            )));
+        }
+    })
+}
+
+/// Run a standalone query on a fitted `TemporalDag` through the compiled route and return its
+/// answer as JSON.
+///
+/// `kind = "mechanism_change"` tests whether the mechanism of each target changed between two
+/// row ranges of one series: the null law is a circular-block permutation of the residuals (the
+/// likelihood-ratio, mean-difference, kernel and classifier statistics), and with
+/// `posterior_draws > 0` (Bayesian inference) the answer is the posterior probability of a change
+/// under the `change_prior` the parameters declare (never assumed).
+///
+/// `kind = "rollout"` rolls the fitted dynamics forward from the last rows of the series under
+/// the scheduled `interventions`, and returns the per-step means of every variable; with
+/// `posterior_draws` or `bootstrap_replicates` also the posterior or bootstrap of those means over
+/// block refits of the dynamics.
+#[pyfunction]
+#[pyo3(signature = (names, columns, lagged_edges, kind, params_json, *, posterior_draws=0, bootstrap_replicates=0, seed=0, threads=None))]
+fn temporal_model_query(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    lagged_edges: Vec<(String, u32, String, u32)>,
+    kind: String,
+    params_json: String,
+    posterior_draws: usize,
+    bootstrap_replicates: u32,
+    seed: u64,
+    threads: Option<u32>,
+) -> PyResult<String> {
+    if posterior_draws > 0 && bootstrap_replicates > 0 {
+        return Err(crate::value_err("ask for posterior_draws or bootstrap_replicates, not both"));
+    }
+    let params: serde_json::Value = serde_json::from_str(&params_json)
+        .map_err(|error| crate::value_err(format!("query parameters: {error}")))?;
+    let batch = columns_to_batch(&names, &columns)?;
+    drop(columns);
+    detach_catch(py, move || {
+        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+        let schema = loaded.data.schema().clone();
+        let series = series_from_tabular(loaded.data)?;
+        let graph = temporal_dag_from_schema_edges(&schema, &lagged_edges)?;
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
+        let inference = if posterior_draws > 0 {
+            antecedent::InferenceMode::Bayesian(
+                antecedent::BayesianConfig::conjugate().n_draws(posterior_draws),
+            )
+        } else {
+            antecedent::InferenceMode::Frequentist
+        };
+        let variables = schema.len();
+        let query = match kind.as_str() {
+            "mechanism_change" => {
+                let targets: Vec<VariableId> = json_names(&params, "targets")
+                    .iter()
+                    .map(|name| schema.id_of(name).map_err(py_err))
+                    .collect::<PyResult<_>>()?;
+                let mut detection = MechanismChangeQuery::new(
+                    targets,
+                    PopulationSelector::TimeRange {
+                        start: json_usize(&params, "baseline_start", 0),
+                        end: json_usize(&params, "baseline_end", 0),
+                    },
+                    PopulationSelector::TimeRange {
+                        start: json_usize(&params, "comparison_start", 0),
+                        end: json_usize(&params, "comparison_end", 0),
+                    },
+                    json_f64(&params, "significance", 0.05),
+                    json_usize(&params, "max_targets", 16),
+                );
+                if let Some(prior) = params["change_prior"].as_f64() {
+                    detection = detection.with_change_prior(prior);
+                }
+                let test = mechanism_test(params["test"].as_str().unwrap_or("likelihood_ratio"))?;
+                CausalQuery::Attribute(antecedent_core::AttributeQuery::new(
+                    AttributeTarget::MechanismChange { query: detection, test },
+                ))
+            }
+            "rollout" => {
+                let steps: Vec<antecedent_core::SequencedIntervention> = params["interventions"]
+                    .as_array()
+                    .map(|items| {
+                        items
+                            .iter()
+                            .map(|item| {
+                                let variable = schema
+                                    .id_of(item["variable"].as_str().unwrap_or_default())
+                                    .map_err(py_err)?;
+                                let from = item["from"].as_i64().unwrap_or(0);
+                                let until = item["until"].as_i64().unwrap_or(from);
+                                Ok(antecedent_core::SequencedIntervention::new(
+                                    Intervention::set(
+                                        variable,
+                                        Value::f64(item["value"].as_f64().unwrap_or(0.0)),
+                                    ),
+                                    TemporalPolicy::Sustained {
+                                        from: i32::try_from(from).unwrap_or(0),
+                                        until: i32::try_from(until).unwrap_or(0),
+                                    },
+                                ))
+                            })
+                            .collect::<PyResult<Vec<_>>>()
+                    })
+                    .transpose()?
+                    .unwrap_or_default();
+                CausalQuery::Simulate(antecedent_core::SimulateQuery::new(
+                    antecedent_core::SimulationTarget::TemporalRollout {
+                        schedule: antecedent_core::InterventionSequence::new(steps),
+                        n_rows: json_usize(&params, "n_rows", 200),
+                        n_steps: json_usize(&params, "n_steps", 8),
+                        window: 0,
+                        history: Arc::from([]),
+                        seed: params["seed"].as_u64().unwrap_or(seed),
+                    },
+                ))
+            }
+            other => {
+                return Err(crate::value_err(format!(
+                    "unknown temporal query {other:?}; use mechanism_change or rollout"
+                )));
+            }
+        };
+        let study = Study::series(series.clone())
+            .graph(graph)
+            .query(query)
+            .inference(inference)
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(bootstrap_replicates)
+            .build()
+            .map_err(py_err)?;
+        let result =
+            study.prepare(&ctx).map_err(py_err)?.estimate_series(&series, &ctx).map_err(py_err)?;
+        let body = match kind.as_str() {
+            "mechanism_change" => {
+                let Some(AttributionOutcome::MechanismChange(found)) =
+                    result.attribution().map(|payload| payload.outcome.clone())
+                else {
+                    return Err(outcome_mismatch());
+                };
+                let detections: Vec<serde_json::Value> = found
+                    .iter()
+                    .map(|d| {
+                        serde_json::json!({
+                            "variable": names.get(d.variable.as_usize()).cloned()
+                                .unwrap_or_else(|| format!("V{}", d.variable.raw())),
+                            "changed": d.changed,
+                            "statistic": d.statistic,
+                            "p_value": if d.p_value.is_nan() { serde_json::Value::Null } else { d.p_value.into() },
+                            "adjusted_p_value": d.adjusted_p_value,
+                            "method": d.method.as_ref(),
+                            "n_permutations": d.n_permutations,
+                            "posterior_probability": d.posterior_probability,
+                        })
+                    })
+                    .collect();
+                serde_json::json!({ "kind": kind, "detections": detections })
+            }
+            _ => {
+                let Some(payload) = result.simulation() else {
+                    return Err(outcome_mismatch());
+                };
+                let antecedent::SimulationOutcome::Temporal(path) = &payload.outcome else {
+                    return Err(outcome_mismatch());
+                };
+                let steps: Vec<Vec<f64>> = path
+                    .steps
+                    .iter()
+                    .map(|batch| {
+                        (0..variables.min(path.n_nodes))
+                            .map(|node| {
+                                let column = batch.column(node).unwrap_or(&[]);
+                                column.iter().sum::<f64>() / column.len().max(1) as f64
+                            })
+                            .collect()
+                    })
+                    .collect();
+                let label = |step: usize, node: usize| {
+                    format!("step[{step}].{}", names.get(node).map_or("?", String::as_str))
+                };
+                let n_steps = steps.len();
+                let mut quantities: Vec<String> = (0..n_steps)
+                    .flat_map(|step| (0..variables).map(move |node| (step, node)))
+                    .map(|(step, node)| label(step, node))
+                    .collect();
+                // After the means come the simulated-path columns: draws of the predictive law.
+                let path_labels: Vec<String> = (0..n_steps)
+                    .flat_map(|step| (0..variables).map(move |node| (step, node)))
+                    .map(|(step, node)| format!("path.{}", label(step, node)))
+                    .collect();
+                quantities.extend(path_labels);
+                let posterior = result.posterior.as_ref().map(|posterior| {
+                    let summary = &posterior.summaries;
+                    serde_json::json!({
+                        "draws": summary.n_draws,
+                        "level": 0.95,
+                        "names": quantities,
+                        "mean": summary.mean.to_vec(),
+                        "sd": summary.sd.to_vec(),
+                        "ci_low": summary.q025.to_vec(),
+                        "ci_high": summary.q975.to_vec(),
+                    })
+                });
+                let bootstrap = result
+                    .diagnostics
+                    .iter()
+                    .find(|d| d.code.as_ref() == "gcm.frequentist_bootstrap")
+                    .map(|d| {
+                        let se: serde_json::Map<String, serde_json::Value> = d
+                            .fields
+                            .iter()
+                            .filter_map(|(k, v)| {
+                                let rest = k.strip_prefix("bootstrap_se.step[")?;
+                                let (step, node, is_path) = match rest.split_once("].node[") {
+                                    Some((step, node)) => (step, node, false),
+                                    None => {
+                                        let (step, node) = rest.split_once("].path[")?;
+                                        (step, node, true)
+                                    }
+                                };
+                                let node: usize = node.trim_end_matches(']').parse().ok()?;
+                                let name = label(step.parse().ok()?, node);
+                                Some((
+                                    if is_path { format!("path.{name}") } else { name },
+                                    v.parse::<f64>()
+                                        .map_or(serde_json::Value::Null, serde_json::Value::from),
+                                ))
+                            })
+                            .collect();
+                        serde_json::json!({ "se": se })
+                    });
+                serde_json::json!({
+                    "kind": kind,
+                    "variables": names,
+                    "steps": steps,
+                    "posterior": posterior,
+                    "bootstrap": bootstrap,
+                })
+            }
+        };
+        Ok(body.to_string())
+    })
+}
+
 /// Evaluate a decision problem under a Python utility callback .
 ///
 /// `utility(actions, outcomes) -> flat float64 ndarray` of length `len(actions) * len(outcomes)`.
@@ -1044,6 +1304,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(anomaly_attribution, m)?)?;
     m.add_function(wrap_pyfunction!(attribute_unit_change, m)?)?;
     m.add_function(wrap_pyfunction!(attribution_uncertainty, m)?)?;
+    m.add_function(wrap_pyfunction!(temporal_model_query, m)?)?;
     m.add_function(wrap_pyfunction!(attribute_feature_relevance, m)?)?;
     m.add_function(wrap_pyfunction!(mechanism_change_detection, m)?)?;
     m.add_function(wrap_pyfunction!(evaluate_decision_py, m)?)?;

@@ -13,7 +13,6 @@ use std::sync::Arc;
 
 use common::lagged_ols::{Eval, lagged_ols_level};
 
-use antecedent::identify_api::identify;
 use antecedent::{BayesianConfig, ClassPrior, InferenceMode, PreparedStudy, RefuteSuite, Study};
 use antecedent_core::{
     Assumption, AssumptionSet, CausalQuery, CausalSchemaBuilder, ContinuousDomain,
@@ -96,6 +95,18 @@ fn series_from_law(n: usize, two_lag: bool) -> TimeSeriesData {
         TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
     )
     .unwrap()
+}
+
+/// The identification the compiled study derives for `graph` and `query`, over a series that
+/// names the fixture's three variables and holds no rows.
+fn identify(
+    graph: &antecedent::AcceptedGraph,
+    query: &CausalQuery,
+) -> Result<antecedent::Identification, antecedent::CausalError> {
+    let empty: &[f64] = &[];
+    let data =
+        TimeSeriesData::from_f64_columns([("t", empty), ("y", empty), ("z", empty)], 1).unwrap();
+    Study::series(data).graph(graph.clone()).query(query.clone()).identify_structure()
 }
 
 fn cpdag() -> TemporalCpdag {

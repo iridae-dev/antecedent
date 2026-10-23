@@ -669,6 +669,38 @@ fn discover_exact_pag_posterior(
     })
 }
 
+/// Metropolis posterior over PAG classes of the Gaussian maximal ancestral graphs of two to
+/// eight variables (latent confounding allowed), by single-pair link moves.
+#[pyfunction]
+#[pyo3(signature = (names, columns, *, n_chains=4, n_warmup=500, n_draws=2000, thin=1, seed=1, threads=None))]
+fn discover_pag_mcmc(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    n_chains: u32,
+    n_warmup: u32,
+    n_draws: u32,
+    thin: u32,
+    seed: u64,
+    threads: Option<u32>,
+) -> PyResult<PyGraphPosterior> {
+    let batch = columns_to_batch(&names, &columns)?;
+    drop(columns);
+    detach_catch(py, move || {
+        let (data, variables) = tabular_from_batch(&batch)?;
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
+        let schedule = schedule_from_args(n_chains, n_warmup, n_draws, thin);
+        let (post, route) = compiled_search(
+            DiscoverySpec::pag_mcmc(bayesian_params(), schedule),
+            DiscoverInput::Tabular(data),
+            &variables,
+            &ctx,
+            posterior_of,
+        )?;
+        Ok(PyGraphPosterior::from_rust(names, post).with_route(route))
+    })
+}
+
 /// Exact edge marginals of the DAG posterior (Gaussian BIC) for up to 12 variables.
 ///
 /// Returns the row-major `P(i -> j)` (`from * n + to`) and the log normalizing constant. No
@@ -957,6 +989,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(discover_exact_dag_posterior, m)?)?;
     m.add_function(wrap_pyfunction!(discover_exact_dag_marginals, m)?)?;
     m.add_function(wrap_pyfunction!(discover_exact_pag_posterior, m)?)?;
+    m.add_function(wrap_pyfunction!(discover_pag_mcmc, m)?)?;
     m.add_function(wrap_pyfunction!(discover_order_mcmc, m)?)?;
     m.add_function(wrap_pyfunction!(discover_structure_mcmc, m)?)?;
     m.add_function(wrap_pyfunction!(discover_ci_screened_posterior, m)?)?;

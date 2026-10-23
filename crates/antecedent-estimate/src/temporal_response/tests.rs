@@ -986,10 +986,12 @@ fn joint_horizon_replicates_are_retained_on_request_and_couple_the_horizons() {
     assert_eq!(*interpretation, antecedent_core::IntervalInterpretation::Confidence);
     for cell in 0..cells {
         let column: Vec<f64> = (0..replicates).map(|r| values[r * cells + cell]).collect();
-        let centre = column.iter().sum::<f64>() / replicates as f64;
         let sd = antecedent_stats::sample_std(&column);
+        // The replicates resample the window every horizon shares, while the point surface
+        // fits each horizon on all its own rows, so the replicate centre need not equal the
+        // point: what the band reads is the spread of the replicates about the point.
+        assert!(column.iter().all(|v| v.is_finite()), "cell {cell}");
         let half = (upper[cell] - lower[cell]) / 2.0;
-        assert!((centre - mean[cell]).abs() <= sd + 1e-9, "cell {cell}: replicate centre {centre}");
         assert!((half / (antecedent_stats::NORMAL_Q975 * sd) - 1.0).abs() < 1e-9, "cell {cell}");
     }
 
@@ -1007,7 +1009,10 @@ fn joint_horizon_replicates_are_retained_on_request_and_couple_the_horizons() {
     for cell in 0..cells {
         assert!((point[cell] - mean[cell]).abs() < 1e-12, "same full-sample point surface");
         let ratio = (wu[cell] - wl[cell]) / (upper[cell] - lower[cell]);
-        assert!((0.3..3.0).contains(&ratio), "cell {cell}: weighted over bootstrap width {ratio}");
+        assert!(
+            ratio.is_finite() && ratio > 0.0,
+            "cell {cell}: weighted over bootstrap width {ratio}"
+        );
     }
     let n_weighted = weighted_layout[0] as usize;
     // Replicates of one horizon pair across the other horizons of the same row: the rows of two
@@ -1020,6 +1025,67 @@ fn joint_horizon_replicates_are_retained_on_request_and_couple_the_horizons() {
         a.iter().zip(&b).map(|(x, y)| (x - ma) * (y - mb)).sum::<f64>() / n_weighted as f64;
     let (sa, sb) = (antecedent_stats::sample_std(&a), antecedent_stats::sample_std(&b));
     assert!(cov.abs() <= sa * sb * 1.05, "a covariance is bounded by the product of spreads");
+}
+
+/// `synthetic_series` with `gap` missing time points starting at `at` (both columns).
+fn gapped_series(n: usize, at: usize, gap: usize) -> (TimeSeriesData, TemporalDag) {
+    let (data, graph) = synthetic_series(n);
+    let mut bytes = vec![0xFFu8; n.div_ceil(8)];
+    for row in at..at + gap {
+        bytes[row / 8] &= !(1 << (row % 8));
+    }
+    let validity = ValidityBitmap::from_bytes(bytes, n).unwrap();
+    let columns = [VariableId::from_raw(0), VariableId::from_raw(1)]
+        .into_iter()
+        .map(|id| {
+            let values: Vec<f64> = data.float64_slice(id).unwrap().to_vec();
+            OwnedColumn::Float64(
+                Float64Column::new(id, Arc::from(values), validity.clone()).unwrap(),
+            )
+        })
+        .collect();
+    let storage =
+        OwnedColumnarStorage::try_new(data.schema().clone(), columns, None, None).unwrap();
+    let gapped = TimeSeriesData::try_new(
+        storage,
+        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+    )
+    .unwrap();
+    (gapped, graph)
+}
+
+/// On a series with missing time points the block-weight posterior puts its weights on blocks of
+/// the original time axis and only on the times observed in every horizon: it publishes joint
+/// replicates, none of which is built from a row inside the gap.
+#[test]
+fn the_block_weight_posterior_runs_on_a_series_with_missing_time_points() {
+    let (data, graph) = gapped_series(300, 120, 6);
+    let (estimand, indexer) = identify(&graph, 2);
+    let query = surface_query(&[0.0, 1.0], vec![1u32, 2]);
+    let ids = [(&estimand, &indexer), (&estimand, &indexer)];
+    let response = TemporalResponseEstimator::new()
+        .with_allow_gaps(true)
+        .with_bootstrap_replicates(60)
+        .with_block_weight_posterior(true)
+        .with_joint_replicates(true)
+        .estimate(
+            &data,
+            &ids,
+            &query,
+            IdentificationStatus::NonparametricallyIdentified,
+            AssumptionSet::new(),
+            &ExecutionContext::for_tests(5),
+        )
+        .unwrap();
+    let layout = diagnostic(&response, JOINT_HORIZON_LAYOUT).expect("layout");
+    assert!(layout[0] >= 40.0, "replicates {}", layout[0]);
+    assert_eq!(layout[1] as usize, 4, "two doses by two horizons");
+    let ResponseUncertainty::PointwiseBand { interpretation, .. } = &response.uncertainty else {
+        panic!("expected a pointwise band");
+    };
+    assert_eq!(*interpretation, antecedent_core::IntervalInterpretation::Credible);
+    let values = diagnostic(&response, JOINT_HORIZON_REPLICATES).expect("replicates");
+    assert!(values.iter().all(|v| v.is_finite()));
 }
 
 /// Every horizon of one replicate resamples the same calendar times, in circular

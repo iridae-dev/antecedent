@@ -107,9 +107,6 @@ reduced claim, the failed attempt and the next attempt are recorded beside it. A
 
 | Row | Status | Next attempt |
 | --- | --- | --- |
-| `P05.static.bayesian` | executing | build the missing route through the compiler with the same uncertainty ports |
-| `P05.temporal.frequentist` | executing | build the missing route through the compiler with the same uncertainty ports |
-| `P05.temporal.bayesian` | executing | build the missing route through the compiler with the same uncertainty ports |
 | `P07.derivative.temporal.frequentist` | licensed | measure the whole-procedure coverage of this interval and record its boundary |
 | `P07.derivative.temporal.bayesian` | licensed | measure the whole-procedure coverage of this interval and record its boundary |
 | `P07.dose_grid.static.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |

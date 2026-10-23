@@ -1,12 +1,10 @@
 //! Structure-and-query identification without data, for staged tooling.
 //!
-//! [`identify`] and [`identify_with`] take an [`AcceptedGraph`] and a [`CausalQuery`],
-//! nothing else, and return the [`Identification`] a compiled study derives for the same
-//! pair. They produce no estimate, contract or claim, and they are `#[doc(hidden)]` and
-//! absent from the crate root and the prelude: an analysis goes through `Study::compile`,
-//! `Study::prepare` or `Study::run`, which retain the identification product. The staged
-//! Python `identify()` and the test oracles that compare an executed study against its
-//! identification stage reach them by path.
+//! [`Identification`] is what a compiled study derives for a structure and a query. It is
+//! reached through [`crate::StudyBuilder::identify_structure`], which builds the study over a
+//! table with no rows (identification reads structure and query, never data); an analysis goes
+//! through `Study::compile`, `Study::prepare` or `Study::run`, which retain the identification
+//! product. No raw identification entry is public.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -163,62 +161,35 @@ impl Identification {
     }
 }
 
-/// Identify `query` against `structure` using the class-appropriate default identifier.
+/// Identify `query` against `structure` for a compiled study that carries no rows.
 ///
-/// Takes no data: identification is a function of structure and query. Hidden from the
-/// documented surface: the compiled path (`Study::compile`) is the entry for an analysis.
+/// `identifier` is the caller's explicit choice; without one the class-appropriate default
+/// applies. `source` is how the study received its structure (accepted graph or explicit
+/// graph). Reached through [`crate::StudyBuilder::identify_structure`] and
+/// [`crate::Study::identify_structure`]: identification is a function of structure and query,
+/// and the compiled study is the entry, so no raw entry is public.
 ///
 /// # Errors
 ///
-/// Unsupported graph-class/query pair, or identification failure.
-#[doc(hidden)]
-pub fn identify(
+/// Unsupported graph-class/query pair, strategy incompatible with the graph class, or
+/// identification failure.
+pub(crate) fn identify_study(
     structure: &AcceptedGraph,
     query: &CausalQuery,
+    identifier: Option<IdentifierId>,
+    source: crate::support::StructureSource,
 ) -> Result<Identification, CausalError> {
-    let strategy = match structure.class() {
+    let strategy = identifier.unwrap_or_else(|| match structure.class() {
         GraphClass::Dag => dag_default_strategy(query),
         class => default_strategy(class),
-    };
-    identify_with(structure, query, strategy)
+    });
+    identify_with_source(structure, query, strategy, source)
 }
 
-/// Identify `query` against `structure` using an explicit identifier strategy.
-///
-/// # Errors
-///
-/// Strategy incompatible with the graph class, or identification failure.
-///
-/// # Panics
-///
-/// Never in practice. Each `expect` asserts an invariant that [`AcceptedGraph::class`]
-/// itself establishes — the class tag is derived from the stored graph, so the matching
-/// accessor is always `Some`. A panic here would mean `AcceptedGraph`'s internal
-/// representation had drifted from its class tag.
-#[doc(hidden)]
-pub fn identify_with(
-    structure: &AcceptedGraph,
-    query: &CausalQuery,
-    strategy: IdentifierId,
-) -> Result<Identification, CausalError> {
-    identify_with_source(structure, query, strategy, crate::support::StructureSource::Accepted)
-}
-
-/// Identify a supplied explicit DAG without relabeling it as an accepted-graph cell.
-///
-/// # Errors
-/// Unsupported query coordinate or identification failure.
-#[doc(hidden)]
-pub fn identify_dag(
-    graph: &antecedent_graph::Dag,
-    query: &CausalQuery,
-) -> Result<Identification, CausalError> {
-    identify_with_source(
-        &AcceptedGraph::from(graph.clone()),
-        query,
-        dag_default_strategy(query),
-        crate::support::StructureSource::Explicit,
-    )
+/// The default-identifier identification of an accepted graph, for the module's own tests.
+#[cfg(test)]
+fn identify(structure: &AcceptedGraph, query: &CausalQuery) -> Result<Identification, CausalError> {
+    identify_study(structure, query, None, crate::support::StructureSource::Accepted)
 }
 
 fn identify_with_source(

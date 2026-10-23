@@ -53,9 +53,11 @@ pub use crate::analysis::execute::{
 /// on the plan view; this enum is its typed detail.
 #[non_exhaustive]
 pub enum RetainedOperation<'a> {
-    /// No sealed operation admits the configuration; execution goes through the
-    /// ordinary dispatcher.
-    OrdinaryDispatch,
+    /// An estimator family sealed to the lowered program of its plan; the route runs
+    /// from the frozen study inside that program's dispatch scope.
+    EstimatorRoute,
+    /// A run with no prepared handle, sealed to the lowered program of its plan.
+    FreshRun,
     /// Checked general-ID functional program of an ADMG effect.
     FunctionalEffect(&'a antecedent_expr::FunctionalProgram),
     /// Checked functional program of a path-specific effect.
@@ -198,7 +200,8 @@ impl RetainedOperation<'_> {
     #[must_use]
     pub const fn name(&self) -> &'static str {
         match self {
-            Self::OrdinaryDispatch => "ordinary_dispatch",
+            Self::EstimatorRoute => "estimator_route",
+            Self::FreshRun => "fresh_run",
             Self::FunctionalEffect(_) => "functional_effect",
             Self::PathSpecificEffect(_) => "path_specific_effect",
             Self::AdmgResponseCurve(_) => "admg_response_curve",
@@ -289,7 +292,8 @@ impl PreparedStudy {
         use PreparedExecution as E;
         use RetainedOperation as R;
         match &self.execution {
-            E::OrdinaryDispatch => R::OrdinaryDispatch,
+            E::EstimatorRoute(_) => R::EstimatorRoute,
+            E::FreshRun(_) => R::FreshRun,
             E::FunctionalEffect(operation) => R::FunctionalEffect(operation.prepared.program()),
             E::PathSpecificEffect(operation) => R::PathSpecificEffect(operation.prepared.program()),
             E::AdmgResponseCurve(operation) => R::AdmgResponseCurve(operation.members.as_ref()),
@@ -589,7 +593,13 @@ impl PreparedStudy {
         self.program_cache = std::sync::OnceLock::new();
         self.contract_cache = std::sync::OnceLock::new();
         if self.execution.kind() == ExecutionKind::CheckedLinear {
-            self.execution = PreparedExecution::OrdinaryDispatch;
+            self.execution = PreparedExecution::EstimatorRoute(
+                crate::analysis::execute::CheckedRouteOperation::lowered(
+                    &self.analysis,
+                    &self.plan,
+                )
+                .expect("a prepared handle's plan carries its lowered program"),
+            );
         }
         &mut self.analysis
     }

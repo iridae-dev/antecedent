@@ -6,7 +6,7 @@
 
 use antecedent::analysis::target_validation::{
     PreparedTargetData, TargetRefitOptions, TargetRefutationConfig, TargetRefutationOutcome,
-    TargetRefuterKind, TargetSuite, refute_prepared_target,
+    TargetRefuterKind, TargetSuite, WithinClassDistribution, refute_prepared_target,
 };
 use antecedent::{BayesianConfig, InferenceMode, LatencyMode, PreparedStudy, RefuteSuite, Study};
 use antecedent_core::{
@@ -166,10 +166,10 @@ fn the_posterior_predictive_check_replicates_a_series_under_a_lagged_reference_m
     );
 }
 
-/// Columns `t, y, z`: `z` confounds `t` and `y`.
+/// Columns `t, y, z, x`: `z` confounds `t` and `y`; `x` is a child of `z`.
 fn confounded(n: usize, seed: u64) -> TabularData {
     let mut rng = CausalRng::from_seed(seed);
-    let (mut t, mut y, mut z) = (vec![], vec![], vec![]);
+    let (mut t, mut y, mut z, mut x) = (vec![], vec![], vec![], vec![]);
     for _ in 0..n {
         let zi = standard_normal(&mut rng);
         let ti = f64::from(u8::from(zi + standard_normal(&mut rng) > 0.0));
@@ -177,28 +177,34 @@ fn confounded(n: usize, seed: u64) -> TabularData {
         t.push(ti);
         y.push(yi);
         z.push(zi);
+        x.push(zi + standard_normal(&mut rng));
     }
-    TabularData::from_f64_columns([("t", t.as_slice()), ("y", y.as_slice()), ("z", z.as_slice())])
-        .unwrap()
+    TabularData::from_f64_columns([
+        ("t", t.as_slice()),
+        ("y", y.as_slice()),
+        ("z", z.as_slice()),
+        ("x", x.as_slice()),
+    ])
+    .unwrap()
 }
 
 #[test]
 fn a_common_cause_is_declared_in_every_atom_of_a_graph_posterior() {
     let ctx = ExecutionContext::for_tests(63);
     let data = confounded(800, 4);
-    // z -> t, z -> y, t -> y, and the same graph without the z -> t edge.
-    let full = [(2, 0), (2, 1), (0, 1)]
-        .iter()
-        .fold(AdjacencyMask::EMPTY, |mask, &(a, b)| set_edge(mask, 3, a, b, true));
-    let thin = [(2, 1), (0, 1)]
-        .iter()
-        .fold(AdjacencyMask::EMPTY, |mask, &(a, b)| set_edge(mask, 3, a, b, true));
+    // Both atoms give the treatment the parent z and the outcome the parents z and t, so they
+    // name one estimand (a graph posterior whose atoms name different estimands has no scalar
+    // mixture); they differ in how the extra node x hangs off the graph.
+    let base = [(2, 0), (2, 1), (0, 1), (2, 3)];
+    let first =
+        base.iter().fold(AdjacencyMask::EMPTY, |mask, &(a, b)| set_edge(mask, 4, a, b, true));
+    let second = set_edge(first, 4, 0, 3, true);
     let posterior = GraphPosterior::from_atoms(
-        3,
+        4,
         vec![0.7, 0.3],
-        [full, thin],
-        vec![0.0; 9],
-        vec![0.0; 9],
+        [first, second],
+        vec![0.0; 16],
+        vec![0.0; 16],
         SamplingSummary {
             ess: 2.0,
             diagnostics: InferenceDiagnostics::analytic("refuter_extensions"),
@@ -226,6 +232,200 @@ fn a_common_cause_is_declared_in_every_atom_of_a_graph_posterior() {
         TargetSuite::Full,
         &config,
         &options,
+        &ctx,
+    );
+    let cause = report(&outcome, TargetRefuterKind::RandomCommonCause);
+    assert!(cause.informative);
+}
+
+#[test]
+fn gathered_resamples_serve_a_route_that_reads_no_row_weights() {
+    let ctx = ExecutionContext::for_tests(64);
+    let data = series(600, 14);
+    let mut graph = TemporalDag::empty();
+    let x1 = ensure_lagged(&mut graph, v(0), Lag::from_raw(1)).unwrap();
+    let y0 = ensure_lagged(&mut graph, v(1), Lag::CONTEMPORANEOUS).unwrap();
+    graph.insert_directed(x1, y0).unwrap();
+    let query = TemporalEffectQuery::pulse(v(0), v(1), 1.0)
+        .with_policy(TemporalPolicy::pulse(-1))
+        .with_horizon_steps(1);
+    let prepared = Study::series(data.clone())
+        .graph(graph)
+        .temporal_query(query)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let config = TargetRefutationConfig {
+        replicates: 12,
+        pre_trend_lead: 2,
+        ..TargetRefutationConfig::default()
+    };
+    let options = TargetRefitOptions { gathered_resamples: true, ..TargetRefitOptions::default() };
+    let outcome = run(
+        &prepared,
+        PreparedTargetData::Series(&data),
+        TargetSuite::Full,
+        &config,
+        &options,
+        &ctx,
+    );
+    // The bootstrap, pre-trend, anticipation and lagged-placebo refits run as explicit gathered
+    // series and cut windows, and a sound design passes them.
+    for kind in [
+        TargetRefuterKind::BootstrapStability,
+        TargetRefuterKind::PreTrend,
+        TargetRefuterKind::Anticipation,
+        TargetRefuterKind::NegativeControlOutcome,
+    ] {
+        let r = report(&outcome, kind);
+        assert!(r.passed, "{kind:?}: {:?}", r.failure);
+    }
+}
+
+#[test]
+fn a_jacobian_is_checked_along_each_treatment_axis() {
+    let ctx = ExecutionContext::for_tests(65);
+    let mut rng = CausalRng::from_seed(21);
+    let n = 800;
+    let b: Vec<f64> = (0..n).map(|_| standard_normal(&mut rng)).collect();
+    let a: Vec<f64> = b.iter().map(|b| 2.0 + 0.3 * b + 0.5 * standard_normal(&mut rng)).collect();
+    let y: Vec<f64> = a
+        .iter()
+        .zip(&b)
+        .map(|(a, b)| 2.0 * a + 0.5 * b + 0.05 * standard_normal(&mut rng))
+        .collect();
+    let data = TabularData::from_f64_columns([
+        ("a", a.as_slice()),
+        ("b", b.as_slice()),
+        ("y", y.as_slice()),
+    ])
+    .unwrap();
+    let mut graph = Dag::with_variables(3);
+    for (from, to) in [(1, 0), (0, 2), (1, 2)] {
+        graph.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
+    }
+    let prepared = Study::tabular(data.clone())
+        .graph(graph)
+        .query(CausalQuery::Response(ResponseQuery::new(ResponseFunctional::Jacobian {
+            outcomes: std::sync::Arc::from([v(2)]),
+            treatments: std::sync::Arc::from([v(0), v(1)]),
+            at: std::sync::Arc::from([2.0, 0.0]),
+            scale: DerivativeScale::Identity,
+        })))
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let config = TargetRefutationConfig { replicates: 6, ..TargetRefutationConfig::default() };
+    let options =
+        TargetRefitOptions { derivative_step: Some(0.5), ..TargetRefitOptions::default() };
+    let outcome = run(
+        &prepared,
+        PreparedTargetData::Tabular(&data),
+        TargetSuite::Cheap,
+        &config,
+        &options,
+        &ctx,
+    );
+    let fd = report(&outcome, TargetRefuterKind::FiniteDifferenceConsistency);
+    assert_eq!(fd.refuted.len(), 2);
+    assert!((fd.refuted[0] - 2.0).abs() < 0.4, "d/da {:?}", fd.refuted);
+    assert!((fd.refuted[1] - 0.5).abs() < 0.4, "d/db {:?}", fd.refuted);
+}
+
+/// Columns `t, y, z, w, x`: `z` and `w` cause `t`, `t` causes `y`, `x` is a child of `w`.
+fn collider_data(n: usize, seed: u64) -> TabularData {
+    let mut rng = CausalRng::from_seed(seed);
+    let (mut t, mut y, mut z, mut w, mut x) = (vec![], vec![], vec![], vec![], vec![]);
+    for _ in 0..n {
+        let zi = standard_normal(&mut rng);
+        let wi = standard_normal(&mut rng);
+        let ti = f64::from(u8::from(zi + wi + 0.5 * standard_normal(&mut rng) > 0.0));
+        t.push(ti);
+        y.push(1.0 + 2.0 * ti + standard_normal(&mut rng));
+        z.push(zi);
+        w.push(wi);
+        x.push(wi + standard_normal(&mut rng));
+    }
+    TabularData::from_f64_columns([
+        ("t", t.as_slice()),
+        ("y", y.as_slice()),
+        ("z", z.as_slice()),
+        ("w", w.as_slice()),
+        ("x", x.as_slice()),
+    ])
+    .unwrap()
+}
+
+#[test]
+fn a_common_cause_on_a_class_posterior_needs_the_declared_within_class_distribution() {
+    let ctx = ExecutionContext::for_tests(66);
+    let data = collider_data(900, 6);
+    // z -> t <- w, t -> y, and w - x in either direction: one class with two DAG members.
+    let dag = |edges: &[(usize, usize)]| {
+        edges.iter().fold(AdjacencyMask::EMPTY, |mask, &(a, b)| set_edge(mask, 5, a, b, true))
+    };
+    let first = dag(&[(2, 0), (3, 0), (0, 1), (3, 4)]);
+    let second = dag(&[(2, 0), (3, 0), (0, 1), (4, 3)]);
+    let dags = GraphPosterior::from_atoms(
+        5,
+        vec![0.5, 0.5],
+        [first, second],
+        vec![0.0; 25],
+        vec![0.0; 25],
+        SamplingSummary {
+            ess: 2.0,
+            diagnostics: InferenceDiagnostics::analytic("within_class"),
+            rejected_invalid: 0,
+        },
+    )
+    .unwrap();
+    let classes = dags.to_equivalence_classes().unwrap();
+    assert_eq!(classes.atom_kind, GraphPosteriorAtomKind::Cpdag);
+    assert_eq!(classes.n_graphs, 1);
+    let prepared = Study::tabular(data.clone())
+        .graph_posterior(classes)
+        .query(AverageEffectQuery::binary_ate(v(0), v(1)))
+        .latency_mode(LatencyMode::Interactive)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let config = TargetRefutationConfig { replicates: 6, ..TargetRefutationConfig::default() };
+    let undeclared =
+        TargetRefitOptions { common_cause_strength: 0.5, ..TargetRefitOptions::default() };
+    let refused = run(
+        &prepared,
+        PreparedTargetData::Tabular(&data),
+        TargetSuite::Full,
+        &config,
+        &undeclared,
+        &ctx,
+    );
+    let refusal = refused
+        .run
+        .refused
+        .iter()
+        .find(|r| r.kind == TargetRefuterKind::RandomCommonCause)
+        .expect("a class posterior refuses the common cause until the division is declared");
+    assert!(refusal.reason.contains("WithinClassDistribution"), "{}", refusal.reason);
+    let declared = TargetRefitOptions {
+        common_cause_strength: 0.5,
+        within_class: Some(WithinClassDistribution::UniformOverMembers),
+        ..TargetRefitOptions::default()
+    };
+    let outcome = run(
+        &prepared,
+        PreparedTargetData::Tabular(&data),
+        TargetSuite::Full,
+        &config,
+        &declared,
         &ctx,
     );
     let cause = report(&outcome, TargetRefuterKind::RandomCommonCause);

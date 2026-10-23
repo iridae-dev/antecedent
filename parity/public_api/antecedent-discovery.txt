@@ -109,6 +109,7 @@ impl core::clone::Clone for antecedent_discovery::OrientCollider
 impl core::clone::Clone for antecedent_discovery::OrientationError
 impl core::clone::Clone for antecedent_discovery::OrientationQueue
 impl core::clone::Clone for antecedent_discovery::OrientationState
+impl core::clone::Clone for antecedent_discovery::PagMcmcSchedule
 impl core::clone::Clone for antecedent_discovery::Pc
 impl core::clone::Clone for antecedent_discovery::Pcmci
 impl core::clone::Clone for antecedent_discovery::PcmciEngine
@@ -399,6 +400,7 @@ impl core::fmt::Debug for antecedent_discovery::OrientCollider
 impl core::fmt::Debug for antecedent_discovery::OrientationError
 impl core::fmt::Debug for antecedent_discovery::OrientationQueue
 impl core::fmt::Debug for antecedent_discovery::OrientationState
+impl core::fmt::Debug for antecedent_discovery::PagMcmcSchedule
 impl core::fmt::Debug for antecedent_discovery::Pc
 impl core::fmt::Debug for antecedent_discovery::Pcmci
 impl core::fmt::Debug for antecedent_discovery::PcmciEngine
@@ -505,6 +507,7 @@ impl core::marker::Copy for antecedent_discovery::MeekR2
 impl core::marker::Copy for antecedent_discovery::MeekR3
 impl core::marker::Copy for antecedent_discovery::MeekR4
 impl core::marker::Copy for antecedent_discovery::OrientCollider
+impl core::marker::Copy for antecedent_discovery::PagMcmcSchedule
 impl core::marker::Copy for antecedent_discovery::PossibleDSepBudget
 impl core::marker::Copy for antecedent_discovery::ScoredLink
 impl core::marker::Copy for antecedent_discovery::SpaceDummyCiMode
@@ -574,6 +577,7 @@ impl core::marker::Freeze for antecedent_discovery::OrientCollider [auto]
 impl core::marker::Freeze for antecedent_discovery::OrientationError [auto]
 impl core::marker::Freeze for antecedent_discovery::OrientationQueue [auto]
 impl core::marker::Freeze for antecedent_discovery::OrientationState [auto]
+impl core::marker::Freeze for antecedent_discovery::PagMcmcSchedule [auto]
 impl core::marker::Freeze for antecedent_discovery::Pc [auto]
 impl core::marker::Freeze for antecedent_discovery::Pcmci [auto]
 impl core::marker::Freeze for antecedent_discovery::PcmciEngine [auto]
@@ -685,6 +689,7 @@ impl core::marker::Send for antecedent_discovery::OrientCollider [auto]
 impl core::marker::Send for antecedent_discovery::OrientationError [auto]
 impl core::marker::Send for antecedent_discovery::OrientationQueue [auto]
 impl core::marker::Send for antecedent_discovery::OrientationState [auto]
+impl core::marker::Send for antecedent_discovery::PagMcmcSchedule [auto]
 impl core::marker::Send for antecedent_discovery::Pc [auto]
 impl core::marker::Send for antecedent_discovery::Pcmci [auto]
 impl core::marker::Send for antecedent_discovery::PcmciEngine [auto]
@@ -857,6 +862,7 @@ impl core::marker::Sync for antecedent_discovery::OrientCollider [auto]
 impl core::marker::Sync for antecedent_discovery::OrientationError [auto]
 impl core::marker::Sync for antecedent_discovery::OrientationQueue [auto]
 impl core::marker::Sync for antecedent_discovery::OrientationState [auto]
+impl core::marker::Sync for antecedent_discovery::PagMcmcSchedule [auto]
 impl core::marker::Sync for antecedent_discovery::Pc [auto]
 impl core::marker::Sync for antecedent_discovery::Pcmci [auto]
 impl core::marker::Sync for antecedent_discovery::PcmciEngine [auto]
@@ -974,6 +980,7 @@ impl core::marker::Unpin for antecedent_discovery::OrientCollider [auto]
 impl core::marker::Unpin for antecedent_discovery::OrientationError [auto]
 impl core::marker::Unpin for antecedent_discovery::OrientationQueue [auto]
 impl core::marker::Unpin for antecedent_discovery::OrientationState [auto]
+impl core::marker::Unpin for antecedent_discovery::PagMcmcSchedule [auto]
 impl core::marker::Unpin for antecedent_discovery::Pc [auto]
 impl core::marker::Unpin for antecedent_discovery::Pcmci [auto]
 impl core::marker::Unpin for antecedent_discovery::PcmciEngine [auto]
@@ -1086,6 +1093,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::OrientCol
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::OrientationError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::OrientationQueue [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::OrientationState [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::PagMcmcSchedule [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::PossibleDSepBudget [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::RegimeAssignment [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::RegimeGraphCollection [auto]
@@ -1187,6 +1195,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::OrientCollid
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::OrientationError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::OrientationQueue [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::OrientationState [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::PagMcmcSchedule [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::PossibleDSepBudget [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::RegimeAssignment [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::RegimeGraphCollection [auto]
@@ -1280,6 +1289,7 @@ pub const antecedent_discovery::EXACT_ENUM_MAX_NODES: usize
 pub const antecedent_discovery::EXACT_MARGINAL_MAX_NODES: usize
 pub const antecedent_discovery::MAX_POSTERIOR_NODES: usize
 pub const antecedent_discovery::PAG_ENUM_MAX_NODES: usize
+pub const antecedent_discovery::PAG_MCMC_MAX_NODES: usize
 pub const antecedent_discovery::conflict_resolution::MAX_IMPLICATED_COLLIDERS: usize
 pub const antecedent_discovery::graph_mcmc::DEFAULT_TEMPERATURES: [f64; 4]
 pub const antecedent_discovery::selective::DEFAULT_STORE_CAPACITY: usize
@@ -1475,6 +1485,10 @@ pub field antecedent_discovery::OrientationState::discriminating_skipped: std::c
 pub field antecedent_discovery::OrientationState::pd_path_skipped: std::collections::hash::set::HashSet<(u32, u32)>
 pub field antecedent_discovery::OrientationState::sepsets: std::collections::hash::map::HashMap<(u32, u32), alloc::sync::Arc<[antecedent_graph::types::DenseNodeId]>>
 pub field antecedent_discovery::OrientationState::weakly_minimal: std::collections::hash::set::HashSet<(u32, u32)>
+pub field antecedent_discovery::PagMcmcSchedule::chains: usize
+pub field antecedent_discovery::PagMcmcSchedule::draws: usize
+pub field antecedent_discovery::PagMcmcSchedule::thin: usize
+pub field antecedent_discovery::PagMcmcSchedule::warmup: usize
 pub field antecedent_discovery::Pc::ci: alloc::sync::Arc<dyn antecedent_stats::ci::types::ConditionalIndependenceTest + core::marker::Send + core::marker::Sync>
 pub field antecedent_discovery::Pc::constraints: antecedent_discovery::DiscoveryConstraints
 pub field antecedent_discovery::Pc::fdr: core::option::Option<antecedent_stats::fdr::FdrAdjustment>
@@ -2030,6 +2044,7 @@ pub fn antecedent_discovery::edge_bit(n: usize, from: usize, to: usize) -> u32
 pub fn antecedent_discovery::evidence::threshold_scored_links(scored: alloc::vec::Vec<antecedent_discovery::ScoredLink>, fdr: core::option::Option<antecedent_stats::fdr::FdrAdjustment>, alpha: f64) -> alloc::vec::Vec<antecedent_discovery::ScoredLink>
 pub fn antecedent_discovery::exact_dag_marginals(data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], prior: &antecedent_discovery::GraphPrior, score_family: antecedent_state::graph_score::GraphScoreFamily, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::ExactDagMarginals, antecedent_discovery::DiscoveryError>
 pub fn antecedent_discovery::exact_pag_posterior(data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::GraphPosterior, antecedent_discovery::DiscoveryError>
+pub fn antecedent_discovery::exact_pag_posterior::pag_posterior_mcmc(data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], schedule: antecedent_discovery::PagMcmcSchedule, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::GraphPosterior, antecedent_discovery::DiscoveryError>
 pub fn antecedent_discovery::graph_posterior::has_edge(mask: u64, n: usize, from: usize, to: usize) -> bool
 pub fn antecedent_discovery::graph_posterior::lagged_link(variables: &[antecedent_core::ids::VariableId], from: usize, lag: u32, to: usize) -> antecedent_discovery::LaggedLink
 pub fn antecedent_discovery::graph_posterior::mask_is_dag(mask: u64, n: usize) -> bool
@@ -2161,6 +2176,7 @@ pub struct antecedent_discovery::OrientCollider
 pub struct antecedent_discovery::OrientationQueue
 pub struct antecedent_discovery::OrientationQueue has private fields
 pub struct antecedent_discovery::OrientationState
+pub struct antecedent_discovery::PagMcmcSchedule
 pub struct antecedent_discovery::Pc
 pub struct antecedent_discovery::Pcmci
 pub struct antecedent_discovery::Pcmci has private fields
@@ -2317,6 +2333,8 @@ pub use antecedent_discovery::exact_marginals::EXACT_MARGINAL_MAX_NODES = antece
 pub use antecedent_discovery::exact_marginals::ExactDagMarginals = antecedent_discovery::ExactDagMarginals
 pub use antecedent_discovery::exact_marginals::exact_dag_marginals = antecedent_discovery::exact_dag_marginals
 pub use antecedent_discovery::exact_pag_posterior::PAG_ENUM_MAX_NODES = antecedent_discovery::PAG_ENUM_MAX_NODES
+pub use antecedent_discovery::exact_pag_posterior::PAG_MCMC_MAX_NODES = antecedent_discovery::PAG_MCMC_MAX_NODES
+pub use antecedent_discovery::exact_pag_posterior::PagMcmcSchedule = antecedent_discovery::PagMcmcSchedule
 pub use antecedent_discovery::exact_pag_posterior::exact_pag_posterior = antecedent_discovery::exact_pag_posterior
 pub use antecedent_discovery::fci::Fci = antecedent_discovery::Fci
 pub use antecedent_discovery::fci::StaticPagDiscoveryResult = antecedent_discovery::StaticPagDiscoveryResult
@@ -2357,6 +2375,7 @@ pub use antecedent_discovery::orientation::OrientationState = antecedent_discove
 pub use antecedent_discovery::orientation::PagOps = antecedent_discovery::PagOps
 pub use antecedent_discovery::orientation::RuleDelta = antecedent_discovery::RuleDelta
 pub use antecedent_discovery::pag_from_adjacency_mask = antecedent_discovery::graph_posterior::pag_from_adjacency_mask
+pub use antecedent_discovery::pag_posterior_mcmc = antecedent_discovery::exact_pag_posterior::pag_posterior_mcmc
 pub use antecedent_discovery::parents_of = antecedent_discovery::graph_posterior::parents_of
 pub use antecedent_discovery::pc::Pc = antecedent_discovery::Pc
 pub use antecedent_discovery::pc::StaticCpdagDiscoveryResult = antecedent_discovery::StaticCpdagDiscoveryResult

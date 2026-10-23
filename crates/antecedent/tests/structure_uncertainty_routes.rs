@@ -66,6 +66,25 @@ fn chain_table(n: usize, seed: u64) -> TabularData {
         .unwrap()
 }
 
+/// `z -> t -> y` with uniform noise and no direct `z -> y` edge, so `z` and `t` stay dependent
+/// given `y`. In `chain_table` the direct edge nearly cancels the partial correlation of `z`
+/// and `t` given `y` (about 0.06), so PC drops that edge in most resamples.
+fn pure_chain_table(n: usize, seed: u64) -> TabularData {
+    let mut rng = CausalRng::from_seed(seed);
+    let mut uniform = || 2.0 * rng.next_f64() - 1.0;
+    let (mut z, mut t, mut y) = (Vec::new(), Vec::new(), Vec::new());
+    for _ in 0..n {
+        let zi = uniform();
+        let ti = 0.8 * zi + uniform();
+        let yi = 1.5 * ti + uniform();
+        z.push(zi);
+        t.push(ti);
+        y.push(yi);
+    }
+    TabularData::from_f64_columns([("z", z.as_slice()), ("t", t.as_slice()), ("y", y.as_slice())])
+        .unwrap()
+}
+
 /// `y[t]` is driven by `x[t-1]`.
 fn lag1_series(n: usize, seed: u64) -> TimeSeriesData {
     let mut rng = CausalRng::from_seed(seed);
@@ -204,7 +223,7 @@ fn a_class_posterior_collapses_the_dag_posterior_it_wraps() {
 #[test]
 fn a_stability_search_tabulates_the_resamples_of_its_engine() {
     on_large_stack("stability-discovery", || {
-        let data = chain_table(300, 3);
+        let data = pure_chain_table(300, 3);
         let spec = DiscoverySpec::pc(static_params(), "parcorr").bootstrap_stability(20);
         let study = Study::tabular(data.clone()).discovery(spec.clone(), three()).build().unwrap();
         assert_eq!(&*study.inspect().unwrap().inference, "frequentist");
@@ -541,4 +560,72 @@ fn a_regime_search_is_resampled_with_its_labels_one_table_per_regime() {
             assert_eq!(table.class, StructureClass::TemporalCpdag);
         }
     });
+}
+
+#[test]
+fn a_pag_sampler_is_a_compiled_bayesian_route_beyond_four_variables() {
+    on_large_stack("pag-mcmc", || {
+        let n = 600;
+        let mut rng = CausalRng::from_seed(51);
+        let mut column = |scale: f64, base: Option<&Vec<f64>>| -> Vec<f64> {
+            (0..n)
+                .map(|i| {
+                    let noise = 2.0 * rng.next_f64() - 1.0;
+                    base.map_or(noise, |b| scale * b[i] + noise)
+                })
+                .collect()
+        };
+        let a = column(0.0, None);
+        let b = column(0.9, Some(&a));
+        let c = column(0.9, Some(&b));
+        let d = column(0.0, None);
+        let e = column(0.0, None);
+        let data = TabularData::from_f64_columns([
+            ("a", a.as_slice()),
+            ("b", b.as_slice()),
+            ("c", c.as_slice()),
+            ("d", d.as_slice()),
+            ("e", e.as_slice()),
+        ])
+        .unwrap();
+        let schedule = GraphMcmcSchedule { n_chains: 2, n_warmup: 100, n_draws: 300, thin: 1 };
+        let study = Study::tabular(data)
+            .discovery(
+                DiscoverySpec::pag_mcmc(BayesianDiscoverParams::default(), schedule),
+                (0..5).map(v).collect::<Vec<_>>(),
+            )
+            .build()
+            .unwrap();
+        assert_eq!(&*study.inspect().unwrap().inference, "bayesian");
+        let execution = compiled(&study, "DiscoverStatic");
+        let Some(DiscoveredStructure::Posterior(pag)) =
+            execution.result().discovery().map(|payload| payload.structure.clone())
+        else {
+            panic!("a PAG sampler returns a posterior");
+        };
+        assert_eq!(pag.atom_kind, GraphPosteriorAtomKind::Pag);
+        let mass: f64 = pag.weights.iter().sum();
+        assert!((mass - 1.0).abs() < 1e-9);
+        // Nine variables are beyond the sampler.
+        let wide = TabularData::from_f64_columns(
+            ["a", "b", "c", "d", "e", "f", "g", "h", "i"]
+                .map(|name| (name, a_column(n)))
+                .iter()
+                .map(|(name, values)| (*name, values.as_slice())),
+        )
+        .unwrap();
+        let refused = Study::tabular(wide)
+            .discovery(
+                DiscoverySpec::pag_mcmc(BayesianDiscoverParams::default(), schedule),
+                (0..9).map(v).collect::<Vec<_>>(),
+            )
+            .build()
+            .and_then(|study| CompiledExecution::run(&study, &ctx()).map(|_| ()));
+        assert!(refused.is_err());
+    });
+}
+
+fn a_column(n: usize) -> Vec<f64> {
+    let mut rng = CausalRng::from_seed(n as u64);
+    (0..n).map(|_| rng.next_f64()).collect()
 }

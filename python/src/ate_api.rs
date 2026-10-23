@@ -1381,14 +1381,32 @@ fn identify_structure(
             }
             _ => {}
         }
-        let identification = if let Some(id) = identifier {
+        // The compiled study over a table with the graph's variables and no rows: identification
+        // reads structure and query only, so the answer is the one a study over the data derives.
+        let empty: &[f64] = &[];
+        let columns = names.iter().map(|name| (name.as_str(), empty));
+        let temporal = matches!(
+            structure.class(),
+            antecedent::GraphClass::TemporalDag
+                | antecedent::GraphClass::TemporalCpdag
+                | antecedent::GraphClass::TemporalPag
+                | antecedent::GraphClass::TemporalAdmg
+        );
+        let builder = if temporal {
+            Study::series(
+                antecedent_data::TimeSeriesData::from_f64_columns(columns, 1).map_err(py_err)?,
+            )
+        } else {
+            Study::tabular(antecedent_data::TabularData::from_f64_columns(columns).map_err(py_err)?)
+        };
+        let mut builder = builder.graph(structure.clone()).query(query.clone());
+        if let Some(id) = identifier {
             let strategy = id
                 .parse::<antecedent::IdentifierId>()
                 .map_err(|e| crate::value_err(e.to_string()))?;
-            antecedent::identify_api::identify_with(&structure, &query, strategy).map_err(py_err)?
-        } else {
-            antecedent::identify_api::identify(&structure, &query).map_err(py_err)?
-        };
+            builder = builder.identifier(strategy);
+        }
+        let identification = builder.identify_structure().map_err(py_err)?;
         let details = if include_details {
             Some(crate::identification_details::to_json(
                 &identification,

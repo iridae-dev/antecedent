@@ -48,7 +48,7 @@ impl PreparedStudy {
             || self.analysis.identification_cache.is_none()
             || !matches!(
                 self.execution,
-                PreparedExecution::OrdinaryDispatch | PreparedExecution::CheckedAipw(_)
+                PreparedExecution::EstimatorRoute(_) | PreparedExecution::CheckedAipw(_)
             )
         {
             return Err(CausalError::Unsupported {
@@ -143,7 +143,7 @@ impl PreparedStudy {
         // through it before replacing the retained data snapshot; otherwise the
         // generic Study refresh route would rederive an unchecked preparation.
         let mut notes = ClickNotes::deferred();
-        let click = if matches!(self.execution, PreparedExecution::OrdinaryDispatch) {
+        let click = if self.execution.runs_shared_dispatch() {
             None
         } else {
             Some(
@@ -256,7 +256,7 @@ impl PreparedStudy {
         use crate::strategy_table::EstimatorId;
         if !matches!(spec.id(), EstimatorId::Dml | EstimatorId::DrLearner)
             || self.analysis.estimator != Some(spec.id())
-            || !matches!(self.execution, PreparedExecution::OrdinaryDispatch)
+            || !self.execution.runs_shared_dispatch()
             || self.analysis.identification_cache.is_none()
         {
             return Err(CausalError::Unsupported {

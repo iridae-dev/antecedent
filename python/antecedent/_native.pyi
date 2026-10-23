@@ -3300,6 +3300,17 @@ def discover_exact_dag_posterior(
     threads: int | None = None,
     equivalence_classes: bool = False,
 ) -> GraphPosterior: ...
+def discover_pag_mcmc(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    *,
+    n_chains: int = 4,
+    n_warmup: int = 500,
+    n_draws: int = 2000,
+    thin: int = 1,
+    seed: int = 1,
+    threads: int | None = None,
+) -> GraphPosterior: ...
 def discover_exact_pag_posterior(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -3339,6 +3350,42 @@ def discover_bootstrap_stability(
     unit_lengths: list[int] | None = None,
     background_knowledge: str | None = None,
 ) -> StructureStabilityResult: ...
+class RegimeStabilityResult:
+    regimes: list[int]
+    tables: list[StructureStabilityResult]
+    def table(self, regime: int) -> StructureStabilityResult: ...
+
+def discover_jpcmci_plus_stability(
+    names: list[str],
+    env_columns: Sequence[Sequence[NDArray[np.float64]]],
+    *,
+    replicates: int = 200,
+    max_lag: int = 1,
+    alpha: float = 0.05,
+    fdr: bool = True,
+    seed: int = 1,
+    ci: str | None = None,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+    context_names: list[str] | None = None,
+    max_cond_size: int = 2,
+) -> StructureStabilityResult: ...
+def discover_rpcmci_stability(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    *,
+    regimes: list[int],
+    replicates: int = 200,
+    max_lag: int = 1,
+    alpha: float = 0.05,
+    fdr: bool = True,
+    seed: int = 1,
+    ci: str | None = None,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+    max_cond_size: int = 2,
+    min_regime_len: int | None = None,
+) -> RegimeStabilityResult: ...
 def discover_order_mcmc(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -3481,6 +3528,18 @@ def attribute_paths(
     seed: int = 0,
     threads: int | None = None,
 ) -> ChangeAttributionResult: ...
+def temporal_model_query(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    lagged_edges: list[tuple[str, int, str, int]],
+    kind: str,
+    params_json: str,
+    *,
+    posterior_draws: int = 0,
+    bootstrap_replicates: int = 0,
+    seed: int = 0,
+    threads: int | None = None,
+) -> str: ...
 def compose_horizon_draws(
     horizons: list[int],
     columns: Sequence[NDArray[np.float64]],

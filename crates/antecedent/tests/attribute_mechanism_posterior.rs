@@ -292,7 +292,10 @@ fn refit_targets() -> Vec<(&'static str, AttributeTarget)> {
         ),
         (
             "unit_change",
-            AttributeTarget::UnitChange(UnitChangeQuery::new(VariableId::from_raw(1), 20)),
+            AttributeTarget::UnitChange(
+                UnitChangeQuery::new(VariableId::from_raw(1), 20)
+                    .with_unit_rows((0..20).collect::<Vec<usize>>()),
+            ),
         ),
         (
             "structure_change",
@@ -508,7 +511,10 @@ fn standalone_temporal_queries_say_what_runs_and_what_does_not() {
         // A unit change runs on the lag-aligned unfolding as the fitted model's point answer.
         let study = Study::series(shifted_series())
             .graph(temporal_chain())
-            .query(CausalQuery::UnitChange(UnitChangeQuery::new(VariableId::from_raw(1), 20)))
+            .query(CausalQuery::UnitChange(
+                UnitChangeQuery::new(VariableId::from_raw(1), 20)
+                    .with_unit_rows((0..20).collect::<Vec<usize>>()),
+            ))
             .refute(RefuteSuite::None)
             .bootstrap_replicates(0)
             .build()
@@ -620,11 +626,178 @@ fn a_temporal_rollout_steps_the_fitted_dynamics_and_carries_block_refit_uncertai
         let result = bayes.prepare(&ctx).unwrap().estimate_series(&series, &ctx).unwrap();
         let posterior = result.posterior.as_ref().expect("a posterior over the dynamics");
         assert_eq!(posterior.draws.n_draws, 12);
-        assert_eq!(posterior.draws.schema.n_quantities(), 8, "four steps by two variables");
+        assert_eq!(
+            posterior.draws.schema.n_quantities(),
+            16,
+            "four steps by two variables, as means and as simulated-path draws"
+        );
         assert!(posterior.summaries.sd.iter().any(|sd| *sd > 0.0));
+        // The simulated-path columns are draws of the predictive law: refit uncertainty plus the
+        // innovation noise (sd 1), so they spread far wider than the mean of the same step.
+        let (mean_at, path_at) = (2 * 2 + 1, 8 + 2 * 2 + 1);
+        assert!((posterior.summaries.mean[path_at] - 3.0).abs() < 1.0);
+        assert!(
+            posterior.summaries.sd[path_at] > 0.5
+                && posterior.summaries.sd[path_at] > 3.0 * posterior.summaries.sd[mean_at],
+            "{} vs {}",
+            posterior.summaries.sd[path_at],
+            posterior.summaries.sd[mean_at]
+        );
         let boot = rollout_study(InferenceMode::Frequentist, 12, do_x(1.0));
         let result = boot.prepare(&ctx).unwrap().estimate_series(&series, &ctx).unwrap();
         assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "gcm.frequentist_bootstrap"
             && d.message.contains("circular-block")));
+    });
+}
+
+#[test]
+fn every_simulation_target_carries_refit_uncertainty_in_both_modes() {
+    on_large_stack("simulation-refits", || {
+        let ctx = ctx();
+        let do_t = || -> std::sync::Arc<[Intervention]> {
+            std::sync::Arc::from([Intervention::set(VariableId::from_raw(1), Value::f64(1.0))])
+        };
+        let (z, t, y) = (VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2));
+        let _ = z;
+        let targets = vec![
+            (
+                "draws",
+                SimulationTarget::InterventionalSample {
+                    interventions: do_t(),
+                    draws: 200,
+                    seed: 3,
+                },
+                3,
+            ),
+            (
+                "policy_value",
+                SimulationTarget::PolicyValue { interventions: do_t(), outcome: y, draws: 200 },
+                3,
+            ),
+            (
+                "unit_effects",
+                SimulationTarget::UnitEffects {
+                    treatment: t,
+                    outcome: y,
+                    active: 1.0,
+                    control: 0.0,
+                },
+                1,
+            ),
+            (
+                "counterfactual",
+                SimulationTarget::Counterfactual {
+                    interventions: do_t(),
+                    outcomes: std::sync::Arc::from([y]),
+                },
+                1,
+            ),
+        ];
+        for (name, target, quantities) in targets {
+            let study = |inference: InferenceMode, replicates: u32| {
+                Study::tabular(chain_table())
+                    .graph(chain_dag())
+                    .query(CausalQuery::Simulate(SimulateQuery::new(target.clone())))
+                    .inference(inference)
+                    .refute(RefuteSuite::None)
+                    .bootstrap_replicates(replicates)
+                    .build()
+                    .unwrap_or_else(|error| panic!("{name}: {error}"))
+            };
+            let bayes = CompiledExecution::run(&study(bayesian(10), 0), &ctx)
+                .unwrap_or_else(|error| panic!("{name}: {error}"));
+            let posterior = bayes.result().posterior.as_ref().unwrap_or_else(|| panic!("{name}"));
+            assert_eq!(posterior.draws.n_draws, 10, "{name}");
+            assert!(posterior.draws.schema.n_quantities() >= quantities, "{name}");
+            assert!(posterior.summaries.mean.iter().all(|m| m.is_finite()), "{name}");
+            let boot = CompiledExecution::run(&study(InferenceMode::Frequentist, 10), &ctx)
+                .unwrap_or_else(|error| panic!("{name}: {error}"));
+            assert!(
+                boot.result()
+                    .diagnostics
+                    .iter()
+                    .any(|d| d.code.as_ref() == "gcm.frequentist_bootstrap"),
+                "{name}"
+            );
+        }
+    });
+}
+
+#[test]
+fn an_attribute_mechanism_change_has_a_block_null_for_every_statistic_and_a_declared_posterior() {
+    on_large_stack("attribute-mechanism-change-temporal", || {
+        let ctx = ctx();
+        let detection = || {
+            MechanismChangeQuery::new(
+                [VariableId::from_raw(1)],
+                PopulationSelector::TimeRange { start: 0, end: 150 },
+                PopulationSelector::TimeRange { start: 150, end: 300 },
+                0.05,
+                4,
+            )
+        };
+        let run = |series: TimeSeriesData,
+                   inference: InferenceMode,
+                   query: MechanismChangeQuery,
+                   test: MechanismChangeTest|
+         -> Result<antecedent::StudyResult, String> {
+            Study::series(series.clone())
+                .graph(temporal_chain())
+                .query(CausalQuery::Attribute(AttributeQuery::new(
+                    AttributeTarget::MechanismChange { query, test },
+                )))
+                .inference(inference)
+                .refute(RefuteSuite::None)
+                .bootstrap_replicates(0)
+                .build()
+                .map_err(|error| error.to_string())?
+                .prepare(&ctx)
+                .map_err(|error| error.to_string())?
+                .estimate_series(&series, &ctx)
+                .map_err(|error| error.to_string())
+        };
+        let detections = |result: &antecedent::StudyResult| match result
+            .attribution()
+            .map(|payload| payload.outcome.clone())
+        {
+            Some(antecedent::AttributionOutcome::MechanismChange(found)) => found,
+            other => panic!("a mechanism-change attribution returns detections: {other:?}"),
+        };
+        for test in [
+            MechanismChangeTest::LikelihoodRatio,
+            MechanismChangeTest::MeanDifference,
+            MechanismChangeTest::KernelTwoSample,
+            MechanismChangeTest::ClassifierTwoSample,
+            MechanismChangeTest::ChangePoint,
+        ] {
+            let shifted =
+                run(shifted_series(), InferenceMode::Frequentist, detection(), test).unwrap();
+            let found = &detections(&shifted)[0];
+            assert!(found.method.contains("block_permutation"), "{test:?}: {}", found.method);
+            assert!(found.p_value < 0.05, "{test:?}: shift not detected, p = {}", found.p_value);
+        }
+        // The Bayesian reading is the posterior probability of a change under the declared prior.
+        let bayes = InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(8));
+        let posterior = run(
+            shifted_series(),
+            bayes.clone(),
+            detection().with_change_prior(0.5),
+            MechanismChangeTest::LikelihoodRatio,
+        )
+        .unwrap();
+        assert!(detections(&posterior)[0].posterior_probability.is_some_and(|p| p > 0.95));
+        let calm = run(
+            series_with_shift(0.0),
+            bayes.clone(),
+            detection().with_change_prior(0.5),
+            MechanismChangeTest::LikelihoodRatio,
+        )
+        .unwrap();
+        assert!(detections(&calm)[0].posterior_probability.is_some_and(|p| p < 0.5));
+        // No prior is assumed.
+        assert!(
+            run(shifted_series(), bayes, detection(), MechanismChangeTest::LikelihoodRatio)
+                .is_err()
+        );
     });
 }

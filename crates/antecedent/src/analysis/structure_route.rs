@@ -241,6 +241,15 @@ impl DiscoverySpec {
         Self::new(DiscoveryMethod::ExactPagPosterior, SearchParams::Bayesian(params), "none")
     }
 
+    /// Metropolis posterior over PAG classes of the Gaussian maximal ancestral graphs of two to
+    /// eight variables, by single-pair link moves.
+    #[must_use]
+    pub fn pag_mcmc(params: BayesianDiscoverParams, schedule: GraphMcmcSchedule) -> Self {
+        let mut spec = Self::new(DiscoveryMethod::PagMcmc, SearchParams::Bayesian(params), "none");
+        spec.schedule = Some(schedule);
+        spec
+    }
+
     /// Exact DAG posterior edge marginals.
     #[must_use]
     pub fn exact_dag_marginals(params: BayesianDiscoverParams) -> Self {
@@ -385,7 +394,7 @@ impl DiscoverySpec {
             }
             _ => None,
         };
-        if matches!(self.method, DiscoveryMethod::ExactPagPosterior) {
+        if matches!(self.method, DiscoveryMethod::ExactPagPosterior | DiscoveryMethod::PagMcmc) {
             return "discovery.gaussian_mag_bic_marginal";
         }
         match family {
@@ -1154,6 +1163,14 @@ pub(crate) fn run_discovery(
             SearchParams::Bayesian(_),
             DiscoverData::Tabular(d),
         ) => DiscoveredStructure::Posterior(engine::discover_exact_pag_posterior(d, vars, ctx)?),
+        (DiscoveryMethod::PagMcmc, SearchParams::Bayesian(_), DiscoverData::Tabular(d)) => {
+            DiscoveredStructure::Posterior(engine::discover_pag_mcmc(
+                d,
+                vars,
+                &schedule_of(spec)?,
+                ctx,
+            )?)
+        }
         (
             DiscoveryMethod::ExactDagMarginals,
             SearchParams::Bayesian(b),
@@ -1299,6 +1316,68 @@ fn noise_structure(
     Ok(admg)
 }
 
+/// How a mechanism-change detection draws its null law and reads its answer.
+///
+/// `block` is the block length of a dependent series (the null law is then a block permutation
+/// of the residuals, not an independent-residual one); `bayesian` reads the answer as the
+/// posterior probability of a change under the prior the query declares.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct ChangeReading {
+    /// Block length of a dependent series, when the populations are segments of one.
+    pub(crate) block: Option<usize>,
+    /// Read the answer as a posterior probability of a change.
+    pub(crate) bayesian: bool,
+}
+
+/// Block permutations a dependent-series mechanism-change test runs.
+pub(crate) const CHANGE_BLOCK_PERMUTATIONS: usize = 499;
+
+/// The detections of a mechanism-change query under `reading`: the posterior probability of a
+/// change under the declared prior, the block-permutation test of a dependent series, or the
+/// independent-residual test.
+pub(crate) fn run_mechanism_change(
+    fitted: &FittedGcm,
+    data: &TabularData,
+    detection: &antecedent_core::MechanismChangeQuery,
+    method: MechanismChangeMethod,
+    reading: ChangeReading,
+    ctx: &ExecutionContext,
+) -> Result<Vec<antecedent_attribution::MechanismChangeDetection>, CausalError> {
+    if reading.bayesian {
+        let prior = detection.change_prior.map(|prior| prior.to_f64()).ok_or_else(|| {
+            crate::unsupported_reason!(
+                "option_not_applicable",
+                "the posterior probability of a mechanism change needs a prior over the change \
+                 indicator, and none is assumed. Next attempt: declare it with \
+                 MechanismChangeQuery::with_change_prior"
+            )
+        })?;
+        return Ok(antecedent_attribution::mechanism_change_posterior(
+            &fitted.model,
+            data,
+            detection,
+            prior,
+            reading.block.unwrap_or(1),
+            ctx,
+        )?
+        .into_iter()
+        .map(antecedent_attribution::MechanismChangePosterior::into_detection)
+        .collect());
+    }
+    if let Some(block) = reading.block {
+        return Ok(antecedent_attribution::detect_mechanism_changes_block(
+            &fitted.model,
+            data,
+            detection,
+            method,
+            block,
+            CHANGE_BLOCK_PERMUTATIONS,
+            ctx,
+        )?);
+    }
+    crate::gcm::mechanism_change_detection(&fitted.model, data, detection, method, ctx)
+}
+
 /// The mechanism-fit refits an attribution carries: how many and how they weight the rows.
 ///
 /// The study's inference mode sets it (a posterior over the mechanisms under Bayesian
@@ -1328,25 +1407,71 @@ pub(crate) fn change_quantities(result: &ChangeAttributionResult) -> Vec<(String
     values
 }
 
-/// The named scalar quantities of a temporal rollout: the mean over its paths of each of the first
-/// `nodes` variables at each step, in step-major order. `None` for the other simulation outcomes.
+/// The named scalar quantities of a simulation, all smooth functionals of the fitted mechanisms:
+/// the mean of each variable of a draw batch (interventional draws, noise samples), the policy
+/// and baseline means and their paired difference, the mean unit effect, the mean of each
+/// outcome in each world of a counterfactual, and, for a rollout, the mean of each of the first
+/// `nodes` variables at each step (step-major), followed by one simulated path per refit (the
+/// draws of the predictive law).
 pub(crate) fn simulation_quantities(
     outcome: &SimulationOutcome,
     nodes: usize,
 ) -> Option<Vec<(String, f64)>> {
-    let SimulationOutcome::Temporal(path) = outcome else {
-        return None;
+    let mean = |column: &[f64]| column.iter().sum::<f64>() / column.len().max(1) as f64;
+    let batch_means = |batch: &ValueBatch| -> Option<Vec<(String, f64)>> {
+        (0..batch.n_nodes)
+            .map(|node| Some((format!("draw_mean[{node}]"), mean(batch.column(node).ok()?))))
+            .collect()
     };
-    let limit = nodes.min(path.n_nodes);
-    let mut out = Vec::with_capacity(path.steps.len() * limit);
-    for (step, batch) in path.steps.iter().enumerate() {
-        for node in 0..limit {
-            let column = batch.column(node).ok()?;
-            let mean = column.iter().sum::<f64>() / column.len().max(1) as f64;
-            out.push((format!("step[{step}].node[{node}]"), mean));
+    match outcome {
+        SimulationOutcome::Sample(batch) => batch_means(batch),
+        SimulationOutcome::NoiseSample { draws, .. } => batch_means(draws),
+        SimulationOutcome::PolicyValue(value) => Some(vec![
+            ("policy_mean".to_owned(), value.policy_mean),
+            ("baseline_mean".to_owned(), value.baseline_mean),
+            ("mean_difference".to_owned(), value.mean_difference),
+        ]),
+        SimulationOutcome::UnitEffects(ite) => Some(vec![("mean_ite".to_owned(), ite.mean_ite)]),
+        SimulationOutcome::Counterfactual(result) => {
+            let mut out = Vec::new();
+            for world in 0..result.n_worlds {
+                for &outcome in result.outcomes.iter() {
+                    let column = result.outcome_column(world, outcome).ok()?;
+                    out.push((
+                        format!("world[{world}].outcome[{}]", outcome.as_usize()),
+                        mean(column),
+                    ));
+                }
+            }
+            Some(out)
+        }
+        SimulationOutcome::Temporal(path) => {
+            let limit = nodes.min(path.n_nodes);
+            let mut out = Vec::with_capacity(path.steps.len() * limit);
+            for (step, batch) in path.steps.iter().enumerate() {
+                for node in 0..limit {
+                    out.push((
+                        format!("step[{step}].node[{node}]"),
+                        mean(batch.column(node).ok()?),
+                    ));
+                }
+            }
+            // One simulated path of this refit (the first of its independent rows): the value of
+            // each variable at each step, innovations included. Across refits these columns are
+            // draws from the predictive law of a path, the mixture of the refit uncertainty and
+            // the innovation noise, so their summaries are predictive intervals, not intervals
+            // for the mean.
+            for (step, batch) in path.steps.iter().enumerate() {
+                for node in 0..limit {
+                    out.push((
+                        format!("step[{step}].path[{node}]"),
+                        *batch.column(node).ok()?.first()?,
+                    ));
+                }
+            }
+            Some(out)
         }
     }
-    Some(out)
 }
 
 /// The named scalar quantities of an attribution under the row `weights` of a replicate (the
@@ -1437,6 +1562,7 @@ pub(crate) fn run_attribute_with_fit(
     data: &TabularData,
     query: &AttributeQuery,
     fit: Option<AttributionFit>,
+    reading: ChangeReading,
     ctx: &ExecutionContext,
 ) -> Result<AttributionOutcome, CausalError> {
     Ok(match &query.target {
@@ -1550,12 +1676,8 @@ pub(crate) fn run_attribute_with_fit(
                 MechanismChangeTest::KernelTwoSample => MechanismChangeMethod::KernelTwoSample,
                 MechanismChangeTest::ChangePoint => MechanismChangeMethod::ChangePoint,
             };
-            AttributionOutcome::MechanismChange(crate::gcm::mechanism_change_detection(
-                &fitted.model,
-                data,
-                detection,
-                method,
-                ctx,
+            AttributionOutcome::MechanismChange(run_mechanism_change(
+                fitted, data, detection, method, reading, ctx,
             )?)
         }
     })

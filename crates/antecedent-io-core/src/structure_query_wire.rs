@@ -93,6 +93,8 @@ pub enum DiscoveryMethodWire {
     },
     /// Exact posterior over PAG classes of Gaussian maximal ancestral graphs.
     ExactPagPosterior,
+    /// Metropolis posterior over PAG classes of maximal ancestral graphs.
+    PagMcmc,
     /// Posterior over Markov equivalence classes of a DAG posterior.
     ClassPosterior {
         /// The DAG-posterior method whose graphs are collapsed.
@@ -142,6 +144,7 @@ impl DiscoveryMethodWire {
                 Self::DbnPosterior { force_mcmc: *force_mcmc }
             }
             DiscoveryMethod::ExactPagPosterior => Self::ExactPagPosterior,
+            DiscoveryMethod::PagMcmc => Self::PagMcmc,
             DiscoveryMethod::ClassPosterior { base } => {
                 Self::ClassPosterior { base: Box::new(Self::from_domain(base)) }
             }
@@ -197,6 +200,7 @@ impl DiscoveryMethodWire {
                 DiscoveryMethod::DbnPosterior { force_mcmc: *force_mcmc }
             }
             Self::ExactPagPosterior => DiscoveryMethod::ExactPagPosterior,
+            Self::PagMcmc => DiscoveryMethod::PagMcmc,
             Self::ClassPosterior { base } => {
                 DiscoveryMethod::ClassPosterior { base: Box::new(base.to_domain()?) }
             }

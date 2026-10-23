@@ -71,10 +71,10 @@ def main() -> None:
             "pub(crate) fn identify_pag(",
             "pub fn identify_pag(",
         ),
-        "visible identify": (
+        "public structure identification": (
             "crates/antecedent/src/identify_api.rs",
-            "#[doc(hidden)]\npub fn identify(",
-            "pub fn identify(",
+            "pub(crate) fn identify_study(",
+            "pub fn identify_study(",
         ),
         "registry row for a raw entry": (
             "parity/python_facade_surface.toml",
@@ -96,7 +96,7 @@ def main() -> None:
         destination = Path(scratch)
         overlay(destination)
         other = destination / "python/antecedent/elsewhere.py"
-        other.write_text("from ._native import _identify_structure\n", encoding="utf-8")
+        other.write_text("from ._native import _identify_ate\n", encoding="utf-8")
         if not compiler_bypass_problems(destination):
             failures.append("python native imported outside its wrapper")
     with tempfile.TemporaryDirectory() as scratch:

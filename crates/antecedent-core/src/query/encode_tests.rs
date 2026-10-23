@@ -1502,6 +1502,7 @@ fn every_discover_field_reaches_the_bytes() {
                 };
             },
             &|q| q.method = DiscoveryMethod::ExactPagPosterior,
+            &|q| q.method = DiscoveryMethod::PagMcmc,
             &|q| {
                 q.method = DiscoveryMethod::ClassPosterior {
                     base: Box::new(DiscoveryMethod::StructureMcmc),

@@ -28,6 +28,7 @@
 mod adjustment;
 mod bayesian;
 mod design;
+mod estimator;
 mod posterior;
 mod program;
 mod response;
@@ -271,10 +272,13 @@ pub(super) const SEALERS: [Sealer; ExecutionKind::SEALED_COUNT] = [
     sealer(ExecutionKind::MultiEnvTemporal, route::multi_env_temporal),
     sealer(ExecutionKind::TemporalCrossWorld, route::temporal_cross_world),
     sealer(ExecutionKind::TemporalAdmgEffect, route::temporal_admg_effect),
+    // Last: the estimator families the route-cell sealers above decline.
+    sealer(ExecutionKind::EstimatorRoute, estimator::estimator_route),
+    sealer(ExecutionKind::FreshRun, estimator::fresh_run),
 ];
 
-/// Select the sealed operation for `cx`, or `OrdinaryDispatch` when no sealer
-/// admits it.
+/// Select the sealed operation for `cx`. The estimator-family sealer admits what the
+/// route-cell sealers decline; a study none admits is refused, not dispatched.
 pub(super) fn seal_execution(cx: &SealContext<'_>) -> Result<PreparedExecution, CausalError> {
     for entry in SEALERS.iter().enumerate() {
         let sealer = entry.1;
@@ -293,7 +297,11 @@ pub(super) fn seal_execution(cx: &SealContext<'_>) -> Result<PreparedExecution, 
         }
         return Ok(execution);
     }
-    Ok(PreparedExecution::OrdinaryDispatch)
+    Err(CausalError::Compile {
+        message: "no sealer admits this study; it names an estimator or route outside the \
+                  sealer table"
+            .into(),
+    })
 }
 
 /// Offer the study to every sealer after `winner` and refuse an admission its
@@ -301,6 +309,10 @@ pub(super) fn seal_execution(cx: &SealContext<'_>) -> Result<PreparedExecution, 
 #[cfg(debug_assertions)]
 fn assert_no_undeclared_overlap(cx: &SealContext<'_>, winner: &Sealer, rest: &[Sealer]) {
     for later in rest {
+        // The lowered-dispatch sealer admits every study by design.
+        if later.kind == ExecutionKind::EstimatorRoute {
+            continue;
+        }
         match (later.seal)(cx) {
             Ok(None) => {}
             Ok(Some(_)) => assert!(
@@ -395,6 +407,8 @@ mod tests {
         ExecutionKind::MultiEnvTemporal,
         ExecutionKind::TemporalCrossWorld,
         ExecutionKind::TemporalAdmgEffect,
+        ExecutionKind::EstimatorRoute,
+        ExecutionKind::FreshRun,
     ];
 
     #[test]
@@ -407,11 +421,7 @@ mod tests {
     fn every_sealed_kind_has_exactly_one_sealer() {
         let sealed: HashSet<_> = SEALERS.iter().map(|sealer| sealer.kind).collect();
         assert_eq!(sealed.len(), SEALERS.len(), "a kind has two sealers");
-        let expected: HashSet<_> = ExecutionKind::ALL
-            .iter()
-            .copied()
-            .filter(|kind| *kind != ExecutionKind::OrdinaryDispatch)
-            .collect();
+        let expected: HashSet<_> = ExecutionKind::ALL.iter().copied().collect();
         assert_eq!(sealed, expected);
     }
 

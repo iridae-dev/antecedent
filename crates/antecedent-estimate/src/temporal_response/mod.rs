@@ -34,7 +34,10 @@ use crate::temporal_block::common_time_window;
 use crate::util::range;
 
 use self::assumptions::with_pointwise_homoskedastic_ols_assumption;
-use self::bootstrap::{bayesian_bootstrap_surface, bootstrap_surface, bootstrap_surface_gapped};
+use self::bootstrap::{
+    bayesian_bootstrap_surface, bayesian_bootstrap_surface_gapped, bootstrap_surface,
+    bootstrap_surface_gapped,
+};
 use self::support::{intervention_support, mean_curve_support};
 use self::surface::{
     CellEval, FittedHorizon, FittedSurface, SeProvenance, checked_surface_cells,
@@ -88,7 +91,8 @@ pub struct TemporalResponseEstimator {
     pub white_innovation: Option<crate::white_innovation_posterior::InnovationWhitenessGate>,
     /// Draw the surface replicates as Dirichlet block-weight draws (the posterior over the
     /// surface) instead of circular-block bootstrap counts; the band then reads as credible.
-    /// Needs bootstrap replicates and a series without gaps.
+    /// Needs bootstrap replicates; on a series with missing time points the weights fall on blocks
+    /// of the original time axis and only on the times observed in every horizon.
     pub block_weight_posterior: bool,
     /// Publish the joint replicates behind the band as the [`JOINT_HORIZON_REPLICATES`] and
     /// [`JOINT_HORIZON_LAYOUT`] support diagnostics, so a consumer can compose horizons from
@@ -427,8 +431,16 @@ impl TemporalResponseEstimator {
         let scores = if replicates > 0 && !gapped { horizon_scores(&horizons) } else { Vec::new() };
         let score_refs: Vec<&[f64]> = scores.iter().map(Vec::as_slice).collect();
         let block = ResponseBlockLength::new(span, window, &score_refs);
-        let weighted = self.block_weight_posterior && !gapped;
-        let bootstrap = if weighted {
+        let weighted = self.block_weight_posterior;
+        let bootstrap = if weighted && gapped {
+            bayesian_bootstrap_surface_gapped(
+                &horizons,
+                &gapped_horizon_rows(&horizons, &rows),
+                block.length,
+                replicates,
+                ctx,
+            )
+        } else if weighted {
             bayesian_bootstrap_surface(&horizons, &rows, block.length, replicates, ctx)
         } else if gapped {
             bootstrap_surface_gapped(

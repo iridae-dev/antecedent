@@ -365,23 +365,31 @@ fn gaussian_lr_statistic(a: &[f64], b: &[f64]) -> f64 {
         - (b.len() as f64) * var_b.max(floor).ln()
 }
 
-/// The statistic a dependent-series test permutes, by method.
-fn block_statistic(method: MechanismChangeMethod, a: &[f64], b: &[f64]) -> Option<f64> {
+/// Seed of the kernel statistic's bandwidth stream in a dependent-series test: fixed, so the
+/// observed and permuted statistics use the same bandwidth rule.
+const BLOCK_KERNEL_SEED: u64 = 0xB10C_4E57;
+
+/// The statistic a dependent-series test permutes, by method: the Gaussian likelihood ratio, the
+/// absolute mean difference, the kernel MMD² (RBF, median-heuristic bandwidth) or the
+/// classifier two-sample statistic, or the known-split change-point likelihood ratio (the
+/// statistic only; its chi-square p-value is replaced by the block null).
+fn block_statistic(
+    method: MechanismChangeMethod,
+    a: &[f64],
+    b: &[f64],
+) -> Result<f64, AttributionError> {
     match method {
-        MechanismChangeMethod::LikelihoodRatio => Some(gaussian_lr_statistic(a, b)),
+        MechanismChangeMethod::LikelihoodRatio => Ok(gaussian_lr_statistic(a, b)),
         MechanismChangeMethod::MeanDiff => {
             let mean = |xs: &[f64]| xs.iter().sum::<f64>() / xs.len().max(1) as f64;
-            Some((mean(a) - mean(b)).abs())
+            Ok((mean(a) - mean(b)).abs())
         }
-        _ => None,
+        MechanismChangeMethod::KernelTwoSample => {
+            Ok(kernel_two_sample_with_permutations(a, b, BLOCK_KERNEL_SEED, 1)?.statistic)
+        }
+        MechanismChangeMethod::ClassifierTwoSample => Ok(classifier_two_sample(a, b)?.0),
+        MechanismChangeMethod::ChangePoint => Ok(change_point_two_sample(a, b)?.0),
     }
-}
-
-fn unsupported_block_method() -> AttributionError {
-    AttributionError::unsupported(
-        "a dependent-series mechanism-change test permutes blocks of the residual likelihood \
-         ratio or mean difference; use one of those methods",
-    )
 }
 
 /// Detect mechanism changes between two populations that are segments of one dependent series.
@@ -394,7 +402,9 @@ fn unsupported_block_method() -> AttributionError {
 /// is kept under the null. The p-value is `(1 + #{statistic* ≥ statistic}) / (B + 1)`; the
 /// Benjamini–Hochberg correction across targets is applied as in the independent case.
 ///
-/// Only the likelihood-ratio and mean-difference methods have a block null here.
+/// Every statistic has a block null, the known-split change-point statistic included: the
+/// null law of its mean-and-variance likelihood ratio is that of the same statistic computed at
+/// the same split of block-permuted residuals.
 ///
 /// # Errors
 ///
@@ -414,14 +424,11 @@ pub fn detect_mechanism_changes_block(
             "a block permutation test needs at least 99 permutations",
         ));
     }
-    if block_statistic(method, &[0.0], &[0.0]).is_none() {
-        return Err(unsupported_block_method());
-    }
     let alpha = query.significance_level.to_f64();
     let pairs = residual_pairs(graph_model, data, query, ctx)?;
     let raw = ctx.map_indexed(pairs.len(), |i, worker| {
         let (target, rb, rc) = &pairs[i];
-        let observed = block_statistic(method, rb, rc).ok_or_else(unsupported_block_method)?;
+        let observed = block_statistic(method, rb, rc)?;
         let mut rng = CausalRng::from_seed(
             attribution_stream(worker, KERNEL_STREAM, target.as_usize() as u64).next_u64(),
         );
@@ -448,7 +455,7 @@ pub fn detect_mechanism_changes_block(
                 shuffled.extend_from_slice(&pooled[start..(start + block).min(n)]);
             }
             let (a, b) = shuffled.split_at(rb.len());
-            let statistic = block_statistic(method, a, b).ok_or_else(unsupported_block_method)?;
+            let statistic = block_statistic(method, a, b)?;
             if statistic >= observed - 1e-12 {
                 exceed += 1;
             }
@@ -460,7 +467,10 @@ pub fn detect_mechanism_changes_block(
     let adjusted = adjust_pvalues(&p_values, FdrAdjustment::bh().method);
     let name = match method {
         MechanismChangeMethod::LikelihoodRatio => "likelihood_ratio.block_permutation",
-        _ => "mean_diff.block_permutation",
+        MechanismChangeMethod::KernelTwoSample => "kernel_two_sample.block_permutation",
+        MechanismChangeMethod::ClassifierTwoSample => "classifier_two_sample.block_permutation",
+        MechanismChangeMethod::ChangePoint => "change_point.block_permutation",
+        MechanismChangeMethod::MeanDiff => "mean_diff.block_permutation",
     };
     Ok(raw
         .into_iter()
@@ -487,16 +497,35 @@ pub struct MechanismChangePosterior {
     /// Gaussian likelihood-ratio statistic `2 log LR` of separate against common residual mean
     /// and variance.
     pub statistic: f64,
-    /// Variance inflation of the statistic's null from the serial dependence of the residuals
-    /// (at least 1), which divides the statistic.
+    /// Variance inflation of the residuals' serial dependence (at least 1): the likelihood is
+    /// tempered by its reciprocal, the effective-sample deflation.
     pub inflation: f64,
-    /// `log` Bayes factor of a change against no change under the unit-information (BIC)
-    /// approximation: `(statistic / inflation − 2 ln n) / 2`.
+    /// `log` Bayes factor of a change against no change from the conjugate
+    /// normal-inverse-gamma marginal likelihoods (see [`mechanism_change_posterior`]).
     pub log_bayes_factor: f64,
     /// The declared prior probability of a change.
     pub prior: f64,
     /// The posterior probability of a change given the residuals.
     pub probability: f64,
+}
+
+/// Prior pseudo-count of the residual mean (its prior sd is `sigma / sqrt(KAPPA0)`).
+const NIG_KAPPA0: f64 = 1.0;
+/// Shape of the inverse-gamma prior of the residual variance (prior mean `beta0`).
+const NIG_ALPHA0: f64 = 2.0;
+
+/// `log` marginal likelihood of `n` (effective) Gaussian observations with mean `mean` and
+/// centred sum of squares `ss` under the conjugate prior `mu | s2 ~ N(0, s2 / kappa0)`,
+/// `s2 ~ InvGamma(alpha0, beta0)`.
+fn nig_log_marginal(n: f64, mean: f64, ss: f64, beta0: f64) -> f64 {
+    let kappa_n = NIG_KAPPA0 + n;
+    let alpha_n = NIG_ALPHA0 + 0.5 * n;
+    let beta_n = beta0 + 0.5 * ss + 0.5 * NIG_KAPPA0 * n * mean * mean / kappa_n;
+    antecedent_stats::ln_gamma(alpha_n) - antecedent_stats::ln_gamma(NIG_ALPHA0)
+        + NIG_ALPHA0 * beta0.ln()
+        - alpha_n * beta_n.ln()
+        + 0.5 * (NIG_KAPPA0 / kappa_n).ln()
+        - 0.5 * n * (2.0 * std::f64::consts::PI).ln()
 }
 
 impl MechanismChangePosterior {
@@ -544,12 +573,15 @@ fn serial_inflation(rb: &[f64], rc: &[f64], block: usize) -> f64 {
 /// the change indicator.
 ///
 /// Per target, the residuals of the two populations (as in [`detect_mechanism_changes_block`])
-/// give the Gaussian likelihood-ratio statistic of a change in the residual mean or variance;
-/// the statistic is divided by the Bartlett variance inflation of the residuals' serial
-/// dependence at `block` lags, the log Bayes factor of a change is the unit-information (BIC)
-/// approximation `(statistic / inflation − 2 ln n) / 2`, and
-/// `P(change | data) = π BF / (π BF + 1 − π)` for the declared prior `π`. The prior is the
-/// caller's declaration and is never assumed; the approximation is not a calibrated posterior.
+/// are modelled as Gaussian. With no change both populations share one mean and variance; with a
+/// change each has its own. Each (mean, variance) carries the conjugate
+/// normal-inverse-gamma prior `mu | s2 ~ N(0, s2)`, `s2 ~ InvGamma(2, v)` with `v` the pooled
+/// residual variance (an empirical-Bayes scale, the same under both models), so the marginal
+/// likelihoods are closed form and the Bayes factor is exact for that model. The likelihood is
+/// tempered by the reciprocal of the Bartlett variance inflation of the residuals' serial
+/// dependence at `block` lags (effective-sample deflation). With the declared prior `π` of a
+/// change, `P(change | data) = π BF / (π BF + 1 − π)`. The prior is the caller's declaration and
+/// is never assumed; the posterior is for the Gaussian model, not model-free.
 ///
 /// # Errors
 ///
@@ -573,8 +605,25 @@ pub fn mechanism_change_posterior(
         .map(|(variable, rb, rc)| {
             let statistic = gaussian_lr_statistic(&rb, &rc);
             let inflation = serial_inflation(&rb, &rc, block);
-            let n = (rb.len() + rc.len()) as f64;
-            let log_bayes_factor = 0.5 * (statistic / inflation - 2.0 * n.ln());
+            // Tempering by the reciprocal inflation: the sufficient statistics count as
+            // n / inflation effective observations.
+            let weight = 1.0 / inflation;
+            let part = |xs: &[f64]| {
+                let n = xs.len() as f64;
+                let mean = xs.iter().sum::<f64>() / n.max(1.0);
+                let ss = xs.iter().map(|x| (x - mean).powi(2)).sum::<f64>();
+                (weight * n, mean, weight * ss)
+            };
+            let pooled: Vec<f64> = rb.iter().chain(rc.iter()).copied().collect();
+            let (n_all, mean_all, ss_all) = part(&pooled);
+            let (n_a, mean_a, ss_a) = part(&rb);
+            let (n_b, mean_b, ss_b) = part(&rc);
+            // The variance prior is centred on the pooled residual variance (an
+            // empirical-Bayes scale, the same under both models).
+            let beta0 = (ss_all / n_all.max(1.0)).max(f64::MIN_POSITIVE) * (NIG_ALPHA0 - 1.0);
+            let log_bayes_factor = nig_log_marginal(n_a, mean_a, ss_a, beta0)
+                + nig_log_marginal(n_b, mean_b, ss_b, beta0)
+                - nig_log_marginal(n_all, mean_all, ss_all, beta0);
             let log_odds = (prior / (1.0 - prior)).ln() + log_bayes_factor;
             let probability = 1.0 / (1.0 + (-log_odds).exp());
             MechanismChangePosterior {
@@ -1644,7 +1693,10 @@ mod tests {
 
 #[cfg(test)]
 mod block_null_tests {
-    use super::{gaussian_lr_statistic, serial_inflation};
+    use super::{
+        MechanismChangeMethod, block_statistic, gaussian_lr_statistic, nig_log_marginal,
+        serial_inflation,
+    };
 
     fn ar1(n: usize, rho: f64, level: f64, state: &mut u64) -> Vec<f64> {
         let mut next = || {
@@ -1674,6 +1726,30 @@ mod block_null_tests {
     }
 
     #[test]
+    fn the_change_point_statistic_has_a_block_null_that_a_shift_exceeds() {
+        let mut state = 0x0BAD_CAFE_1234_5678_u64;
+        let a = ar1(200, 0.5, 0.0, &mut state);
+        let shifted = ar1(200, 0.5, 1.5, &mut state);
+        let observed = block_statistic(MechanismChangeMethod::ChangePoint, &a, &shifted).unwrap();
+        let pooled: Vec<f64> = a.iter().chain(shifted.iter()).copied().collect();
+        // Permute whole blocks of 20 consecutive times: the split no longer separates the
+        // regimes, so the statistic falls below the observed one in most permutations.
+        let blocks: Vec<&[f64]> = pooled.chunks(20).collect();
+        let mut below = 0;
+        for shift in 1..blocks.len() {
+            let mut rotated = Vec::with_capacity(pooled.len());
+            for k in 0..blocks.len() {
+                rotated.extend_from_slice(blocks[(k * 7 + shift) % blocks.len()]);
+            }
+            let (x, y) = rotated.split_at(200);
+            if block_statistic(MechanismChangeMethod::ChangePoint, x, y).unwrap() < observed {
+                below += 1;
+            }
+        }
+        assert!(below >= blocks.len() - 2, "{below} of {}", blocks.len() - 1);
+    }
+
+    #[test]
     fn serial_dependence_inflates_the_statistic_null_and_white_noise_does_not() {
         let mut state = 0x0FED_CBA9_8765_4321_u64;
         let white_a = ar1(400, 0.0, 0.0, &mut state);
@@ -1684,5 +1760,31 @@ mod block_null_tests {
         let slow = serial_inflation(&slow_a, &slow_b, 12);
         assert!((1.0..1.6).contains(&white), "white noise inflation {white}");
         assert!(slow > 2.0 * white, "persistent residuals inflate more: {slow} against {white}");
+    }
+
+    fn log_bayes_factor(a: &[f64], b: &[f64]) -> f64 {
+        let part = |xs: &[f64]| {
+            let n = xs.len() as f64;
+            let mean = xs.iter().sum::<f64>() / n;
+            let ss = xs.iter().map(|x| (x - mean).powi(2)).sum::<f64>();
+            (n, mean, ss)
+        };
+        let pooled: Vec<f64> = a.iter().chain(b).copied().collect();
+        let (n, mean, ss) = part(&pooled);
+        let beta0 = ss / n;
+        let (na, ma, sa) = part(a);
+        let (nb, mb, sb) = part(b);
+        nig_log_marginal(na, ma, sa, beta0) + nig_log_marginal(nb, mb, sb, beta0)
+            - nig_log_marginal(n, mean, ss, beta0)
+    }
+
+    #[test]
+    fn the_conjugate_bayes_factor_favours_a_shift_and_penalises_a_needless_split() {
+        let mut state = 0xABCD_EF01_2345_6789_u64;
+        let a = ar1(200, 0.0, 0.0, &mut state);
+        let same = ar1(200, 0.0, 0.0, &mut state);
+        let shifted = ar1(200, 0.0, 1.0, &mut state);
+        assert!(log_bayes_factor(&a, &shifted) > 10.0, "{}", log_bayes_factor(&a, &shifted));
+        assert!(log_bayes_factor(&a, &same) < 0.0, "{}", log_bayes_factor(&a, &same));
     }
 }

@@ -102,12 +102,14 @@ pub fn horizon_draws(
              weight posterior over the whole surface)",
         ));
     };
-    let ResponseFunctional::MeanCurve { .. } = &response.estimand else {
+    let (ResponseFunctional::MeanCurve { .. } | ResponseFunctional::InterventionResponse { .. }) =
+        &response.estimand
+    else {
         return Err(refuse(
             antecedent_core::reason_code!("option_not_applicable"),
             "joint_law_propagation.horizon_draws_mean_curve",
             "estimand",
-            "compose the horizons of a temporal mean curve",
+            "compose the horizons of a temporal mean curve or intervention response",
         ));
     };
     let Some(horizons) = response.horizon_identification.as_ref() else {

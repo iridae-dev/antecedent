@@ -273,3 +273,20 @@ fn the_compiled_temporal_response_retains_joint_horizons_in_both_modes() {
         .join()
         .unwrap();
 }
+
+#[test]
+fn the_horizons_of_an_intervention_level_response_compose_too() {
+    let rows = coupled_rows();
+    let mut response = response(Some(&rows));
+    response.estimand = ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(1),
+        interventions: Arc::from([antecedent_core::Intervention::set(
+            VariableId::from_raw(0),
+            antecedent_core::Value::f64(1.0),
+        )]),
+    };
+    let draws = horizon_draws(&response, 0).unwrap();
+    let cumulative = compose_horizons(&draws, &[1.0, 1.0], PropagationOperation::Sum).unwrap();
+    assert_eq!(cumulative.coordinate.horizons, vec![1, 2]);
+    assert!(cumulative.spread.standard_deviation > 0.0);
+}

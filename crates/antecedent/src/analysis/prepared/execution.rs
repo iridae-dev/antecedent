@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::sealed::{OrdinaryDispatch, SealedOperation};
+use super::sealed::SealedOperation;
 use super::{
     CheckedAdmgResponseCurveOperation, CheckedAipwOperation, CheckedDistributionOperation,
     CheckedFrontDoorOperation, CheckedFunctionalEffectOperation,
@@ -26,31 +26,25 @@ use crate::analysis::{
 /// not override is stated by its implementation rather than by a wildcard arm.
 macro_rules! sealed_executions {
     ($($variant:ident($payload:ty)),+ $(,)?) => {
-        /// One sealed execution choice for a prepared click. The checked variants
-        /// carry the complete operation retained by preparation;
-        /// `OrdinaryDispatch` names a configuration no sealed operation admits,
-        /// which executes through the ordinary dispatcher.
+        /// One sealed execution choice for a prepared click. Every variant carries
+        /// the complete operation retained by preparation; `FreshRun` is the operation
+        /// of a run that holds no prepared handle.
         #[derive(Clone, Debug)]
         pub(crate) enum PreparedExecution {
-            /// No sealed operation admits this configuration; execute through the
-            /// ordinary dispatcher.
-            OrdinaryDispatch,
             $($variant($payload),)+
         }
 
         /// The variant of a [`PreparedExecution`] without its payload.
         #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
         pub(crate) enum ExecutionKind {
-            OrdinaryDispatch,
             $($variant,)+
         }
 
         impl ExecutionKind {
             /// Every kind, in declaration order.
             #[cfg(test)]
-            pub(crate) const ALL: &'static [Self] = &[Self::OrdinaryDispatch, $(Self::$variant,)+];
-            /// Number of kinds a preparation can seal (every kind but
-            /// `OrdinaryDispatch`).
+            pub(crate) const ALL: &'static [Self] = &[$(Self::$variant,)+];
+            /// Number of kinds a preparation can seal.
             pub(super) const SEALED_COUNT: usize = [$(Self::$variant,)+].len();
         }
 
@@ -58,7 +52,6 @@ macro_rules! sealed_executions {
             /// The payload-free variant of this route.
             pub(crate) fn kind(&self) -> ExecutionKind {
                 match self {
-                    Self::OrdinaryDispatch => ExecutionKind::OrdinaryDispatch,
                     $(Self::$variant(_) => ExecutionKind::$variant,)+
                 }
             }
@@ -66,16 +59,13 @@ macro_rules! sealed_executions {
             /// The retained operation behind this route.
             pub(super) fn operation(&self) -> &dyn SealedOperation {
                 match self {
-                    Self::OrdinaryDispatch => &OrdinaryDispatch,
                     $(Self::$variant(operation) => operation,)+
                 }
             }
 
-            /// Mutable access to the retained operation; `None` for
-            /// `OrdinaryDispatch`, which retains none.
+            /// Mutable access to the retained operation.
             pub(super) fn operation_mut(&mut self) -> Option<&mut dyn SealedOperation> {
                 match self {
-                    Self::OrdinaryDispatch => None,
                     $(Self::$variant(operation) => Some(operation),)+
                 }
             }
@@ -143,6 +133,8 @@ sealed_executions! {
     StaticClassResponse(Box<crate::analysis::execute::CheckedStaticClassResponse>),
     GraphPosteriorResponse(Box<crate::analysis::execute::CheckedGraphPosteriorResponse>),
     BayesianSpecialist(Box<crate::analysis::execute::CheckedBayesianSpecialistOperation>),
+    EstimatorRoute(crate::analysis::execute::CheckedRouteOperation),
+    FreshRun(crate::analysis::execute::CheckedRouteOperation),
     Discovery(crate::analysis::execute::CheckedRouteOperation),
     PanelTemporal(crate::analysis::execute::CheckedRouteOperation),
     MultiEnvTemporal(crate::analysis::execute::CheckedRouteOperation),
@@ -165,4 +157,22 @@ pub(crate) enum CheckedProgramBinding<'a> {
     FunctionalResponse(&'a [CheckedFunctionalEffectResponseMember]),
     Distribution(&'a antecedent_expr::FunctionalProgram),
     NestedCounterfactual(&'a crate::gcm::NestedCounterfactualOperation),
+}
+
+impl PreparedExecution {
+    /// Whether the shared route executors run this execution from the frozen study,
+    /// inside the dispatch scope of the plan's lowered program: the estimator-family
+    /// and route-cell operations that retain only that program, and a fresh run.
+    pub(super) const fn runs_shared_dispatch(&self) -> bool {
+        matches!(
+            self,
+            Self::EstimatorRoute(_)
+                | Self::FreshRun(_)
+                | Self::Discovery(_)
+                | Self::PanelTemporal(_)
+                | Self::MultiEnvTemporal(_)
+                | Self::TemporalCrossWorld(_)
+                | Self::TemporalAdmgEffect(_)
+        )
+    }
 }

@@ -192,10 +192,13 @@ impl Mixed {
         true
     }
 
-    /// The set of m-separation statements, as a bitset over (pair, conditioning set).
+    /// The set of m-separation statements, as a 128-bit commutative hash of the statements.
+    ///
+    /// Two graphs have the same signature exactly when they have the same statements, up to a
+    /// hash collision of probability about 2^-128 per pair of graphs.
     fn signature(&self, reach: &[bool]) -> u128 {
         let p = self.p;
-        let mut signature = 0u128;
+        let (mut high, mut low) = (0u64, 0u64);
         for a in 0..p {
             for b in a + 1..p {
                 for z in 0..1u32 << p {
@@ -203,13 +206,28 @@ impl Mixed {
                         continue;
                     }
                     if self.m_separated(reach, a, b, z) {
-                        signature |= 1u128 << (pair_index(p, a, b) * 16 + z as usize);
+                        let id = ((pair_index(p, a, b) as u64) << 32) | u64::from(z);
+                        high ^= mix(id);
+                        low ^= mix(id ^ 0xA076_1D64_78BD_642F);
                     }
                 }
             }
         }
-        signature
+        (u128::from(high) << 64) | u128::from(low)
     }
+
+    /// The links as one code per pair, a key for caches.
+    fn code(&self) -> Vec<u8> {
+        self.links.iter().map(|&link| link as u8).collect()
+    }
+}
+
+/// The `SplitMix64` finalizer, a bijective avalanche of one word.
+const fn mix(mut z: u64) -> u64 {
+    z = z.wrapping_add(0x9E37_79B9_7F4A_7C15);
+    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    z ^ (z >> 31)
 }
 
 /// Enumerate the maximal ancestral graphs on `p` nodes.
@@ -484,27 +502,10 @@ pub fn exact_pag_posterior(
     if p > PAG_ENUM_MAX_NODES {
         return Err(DiscoveryError::unsupported(
             "the exact PAG posterior enumerates the maximal ancestral graphs of at most four \
-             variables; a sampler over MAGs is the next attempt",
+             variables; use the PAG sampler for up to eight",
         ));
     }
-    let columns = collect_float_columns(data, variables)?;
-    let n = columns[0].len();
-    if n < 2 || columns.iter().any(|c| c.len() != n) {
-        return Err(DiscoveryError::stats_msg("insufficient rows for a MAG fit"));
-    }
-    if columns.iter().any(|c| c.iter().any(|v| !v.is_finite())) {
-        return Err(DiscoveryError::data_msg("the MAG fit needs complete finite columns"));
-    }
-    let means: Vec<f64> = columns.iter().map(|c| c.iter().sum::<f64>() / n as f64).collect();
-    let mut s = vec![0.0; p * p];
-    for i in 0..p {
-        for j in 0..p {
-            s[i * p + j] = (0..n)
-                .map(|row| (columns[i][row] - means[i]) * (columns[j][row] - means[j]))
-                .sum::<f64>()
-                / n as f64;
-        }
-    }
+    let (s, n) = covariance_of(data, variables)?;
     let mags = enumerate_mags(p);
     let mut kept: Vec<(Mixed, u128, f64)> = Vec::new();
     let mut rejected = 0u64;
@@ -541,70 +542,96 @@ pub fn exact_pag_posterior(
     let mut atoms = Vec::with_capacity(members.len());
     let mut circles = Vec::with_capacity(members.len());
     for class in &members {
-        let first = &kept[class[0]].0;
-        let mut adjacency = AdjacencyMask::EMPTY;
-        let mut marks = AdjacencyMask::EMPTY;
-        for i in 0..p {
-            for j in i + 1..p {
-                if !first.adjacent(i, j) {
-                    continue;
-                }
-                let endpoint = |at: usize, from: usize| {
-                    let arrows: Vec<bool> =
-                        class.iter().map(|&m| kept[m].0.arrow_at(from, at)).collect();
-                    if arrows.iter().all(|&a| a) {
-                        Mark::Arrow
-                    } else if arrows.iter().all(|&a| !a) {
-                        Mark::Tail
-                    } else {
-                        Mark::Circle
-                    }
-                };
-                let (at_i, at_j) = (endpoint(i, j), endpoint(j, i));
-                match (at_i, at_j) {
-                    (Mark::Tail, Mark::Arrow) => adjacency = set_edge(adjacency, p, i, j, true),
-                    (Mark::Arrow, Mark::Tail) => adjacency = set_edge(adjacency, p, j, i, true),
-                    (Mark::Arrow, Mark::Arrow) => {
-                        adjacency = set_edge(adjacency, p, i, j, true);
-                        adjacency = set_edge(adjacency, p, j, i, true);
-                    }
-                    (Mark::Circle, Mark::Arrow) => {
-                        adjacency = set_edge(adjacency, p, i, j, true);
-                        marks = set_edge(marks, p, i, j, true);
-                    }
-                    (Mark::Arrow, Mark::Circle) => {
-                        adjacency = set_edge(adjacency, p, j, i, true);
-                        marks = set_edge(marks, p, j, i, true);
-                    }
-                    (Mark::Circle, Mark::Circle) => {
-                        adjacency = set_edge(adjacency, p, i, j, true);
-                        adjacency = set_edge(adjacency, p, j, i, true);
-                        marks = set_edge(marks, p, i, j, true);
-                        marks = set_edge(marks, p, j, i, true);
-                    }
-                    _ => {
-                        return Err(DiscoveryError::unsupported(
-                            "a class of maximal ancestral graphs produced a tail-circle edge, \
-                             which the PAG packing cannot represent",
-                        ));
-                    }
-                }
-            }
-        }
+        let graphs: Vec<&Mixed> = class.iter().map(|&m| &kept[m].0).collect();
+        let (adjacency, marks) = class_pag(p, &graphs)?;
         atoms.push(adjacency);
         circles.push(marks);
     }
-    let total: f64 = mass.iter().sum();
-    let weights: Vec<f64> = mass.iter().map(|m| m / total).collect();
-    let ess = kish_ess(&weights);
-    let (edge, orientation) = accumulate_marginals(p, &weights, &atoms);
-    let mut diagnostics = analytic_graph_diagnostics(atoms.len(), ess);
-    diagnostics.notes.push(std::sync::Arc::from(format!(
+    let note = format!(
         "exact_pag_posterior mags={} classes={} unscored={rejected} weights=exp(gaussian_mag_bic) \
          uniform_prior_over_mags",
         kept.len(),
         atoms.len()
-    )));
+    );
+    let total: f64 = mass.iter().sum();
+    let weights: Vec<f64> = mass.iter().map(|m| m / total).collect();
+    let diagnostics = analytic_graph_diagnostics(atoms.len(), kish_ess(&weights));
+    finish_posterior(p, weights, atoms, circles, diagnostics, note, rejected, "exact_pag_posterior")
+}
+
+/// The PAG of a Markov equivalence class: adjacency and circle-endpoint masks.
+///
+/// An endpoint keeps an arrowhead or a tail only where every graph of the class agrees and is
+/// a circle otherwise.
+fn class_pag(p: usize, class: &[&Mixed]) -> Result<(AdjacencyMask, AdjacencyMask), DiscoveryError> {
+    let first = class[0];
+    let mut adjacency = AdjacencyMask::EMPTY;
+    let mut marks = AdjacencyMask::EMPTY;
+    for i in 0..p {
+        for j in i + 1..p {
+            if !first.adjacent(i, j) {
+                continue;
+            }
+            let endpoint = |at: usize, from: usize| {
+                if class.iter().all(|m| m.arrow_at(from, at)) {
+                    Mark::Arrow
+                } else if class.iter().all(|m| !m.arrow_at(from, at)) {
+                    Mark::Tail
+                } else {
+                    Mark::Circle
+                }
+            };
+            let (at_i, at_j) = (endpoint(i, j), endpoint(j, i));
+            match (at_i, at_j) {
+                (Mark::Tail, Mark::Arrow) => adjacency = set_edge(adjacency, p, i, j, true),
+                (Mark::Arrow, Mark::Tail) => adjacency = set_edge(adjacency, p, j, i, true),
+                (Mark::Arrow, Mark::Arrow) => {
+                    adjacency = set_edge(adjacency, p, i, j, true);
+                    adjacency = set_edge(adjacency, p, j, i, true);
+                }
+                (Mark::Circle, Mark::Arrow) => {
+                    adjacency = set_edge(adjacency, p, i, j, true);
+                    marks = set_edge(marks, p, i, j, true);
+                }
+                (Mark::Arrow, Mark::Circle) => {
+                    adjacency = set_edge(adjacency, p, j, i, true);
+                    marks = set_edge(marks, p, j, i, true);
+                }
+                (Mark::Circle, Mark::Circle) => {
+                    adjacency = set_edge(adjacency, p, i, j, true);
+                    adjacency = set_edge(adjacency, p, j, i, true);
+                    marks = set_edge(marks, p, i, j, true);
+                    marks = set_edge(marks, p, j, i, true);
+                }
+                _ => {
+                    return Err(DiscoveryError::unsupported(
+                        "a class of maximal ancestral graphs produced a tail-circle edge, which \
+                         the PAG packing cannot represent",
+                    ));
+                }
+            }
+        }
+    }
+    Ok((adjacency, marks))
+}
+
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the packed classes, their weights and the provenance of the run"
+)]
+fn finish_posterior(
+    p: usize,
+    weights: Vec<f64>,
+    atoms: Vec<AdjacencyMask>,
+    circles: Vec<AdjacencyMask>,
+    mut diagnostics: antecedent_prob::InferenceDiagnostics,
+    note: String,
+    rejected: u64,
+    algorithm: &str,
+) -> Result<GraphPosterior, DiscoveryError> {
+    let ess = kish_ess(&weights);
+    let (edge, orientation) = accumulate_marginals(p, &weights, &atoms);
+    diagnostics.notes.push(std::sync::Arc::from(note));
     Ok(GraphPosterior::from_atoms(
         p,
         weights,
@@ -615,7 +642,249 @@ pub fn exact_pag_posterior(
     )?
     .with_atom_kind(GraphPosteriorAtomKind::Pag)
     .with_mark_atoms(circles)?
-    .with_algorithm("exact_pag_posterior"))
+    .with_algorithm(algorithm))
+}
+
+/// Most variables the MAG sampler searches.
+pub const PAG_MCMC_MAX_NODES: usize = 8;
+/// Largest equivalence class completed by exploration before its marks are flagged as possibly
+/// over-claimed.
+const CLASS_COMPLETION_CAP: usize = 4000;
+
+/// Every maximal ancestral graph reachable from `seed` by single-pair moves through graphs of
+/// signature `signature`; `complete` is false when the exploration hit the cap.
+fn complete_class(seed: &Mixed, signature: u128) -> (Vec<Mixed>, bool) {
+    let mut seen: std::collections::HashSet<Vec<u8>> = std::collections::HashSet::new();
+    seen.insert(seed.code());
+    let mut members = vec![seed.clone()];
+    let mut frontier = 0;
+    let pairs = seed.links.len();
+    while frontier < members.len() {
+        if members.len() >= CLASS_COMPLETION_CAP {
+            return (members, false);
+        }
+        let current = members[frontier].clone();
+        frontier += 1;
+        for pair in 0..pairs {
+            for &link in &LINKS {
+                if link == current.links[pair] {
+                    continue;
+                }
+                let mut candidate = current.clone();
+                candidate.links[pair] = link;
+                if seen.contains(&candidate.code()) || !candidate.ancestral() {
+                    continue;
+                }
+                let reach = candidate.reach();
+                if !candidate.maximal(&reach) || candidate.signature(&reach) != signature {
+                    continue;
+                }
+                seen.insert(candidate.code());
+                members.push(candidate);
+            }
+        }
+    }
+    (members, true)
+}
+
+/// Sampling schedule of [`pag_posterior_mcmc`].
+#[derive(Clone, Copy, Debug)]
+pub struct PagMcmcSchedule {
+    /// Independent chains (at least two, for the agreement diagnostic).
+    pub chains: usize,
+    /// Warmup moves discarded per chain.
+    pub warmup: usize,
+    /// Post-warmup moves per chain, before thinning.
+    pub draws: usize,
+    /// Keep every `thin`-th post-warmup move.
+    pub thin: usize,
+}
+
+/// Posterior over PAG classes of the Gaussian maximal ancestral graphs, by Metropolis sampling.
+///
+/// A chain starts at the empty graph and moves by changing the link of one pair, chosen
+/// uniformly, to one of the three other link types, chosen uniformly: the proposal is
+/// symmetric, so a move is accepted with probability `min(1, exp(BIC' - BIC))` under the
+/// uniform prior over graphs, and a proposal that is not ancestral, not maximal or not
+/// scorable is rejected (the chain stays). Scores and m-separation signatures are cached per
+/// graph. The pooled visit frequency of each Markov equivalence class is its posterior
+/// weight; each visited class is completed to all its graphs reachable through single-pair
+/// moves within the class, and its PAG is read from them.
+///
+/// The chains agree when the total-variation distance between each chain's class frequencies
+/// and the pooled ones is at most 0.15; the result's `converged` flag records that, and no
+/// finer convergence statistic is computed. The sampler only reaches the graphs connected to
+/// the empty graph by single-pair moves through maximal ancestral graphs.
+///
+/// # Errors
+///
+/// Fewer than two or more than [`PAG_MCMC_MAX_NODES`] variables, fewer than two chains, an
+/// empty schedule, missing or non-finite values, or no scorable graph.
+#[allow(
+    clippy::too_many_lines,
+    clippy::cast_precision_loss,
+    reason = "one pipeline: moments, chains, class merge and completion, packing"
+)]
+pub fn pag_posterior_mcmc(
+    data: &TabularData,
+    variables: &[VariableId],
+    schedule: PagMcmcSchedule,
+    ctx: &ExecutionContext,
+) -> Result<GraphPosterior, DiscoveryError> {
+    let p = variables.len();
+    if p < 2 || p > PAG_MCMC_MAX_NODES {
+        return Err(DiscoveryError::unsupported(
+            "the PAG sampler searches between two and eight variables",
+        ));
+    }
+    if schedule.chains < 2 || schedule.draws == 0 || schedule.thin == 0 {
+        return Err(DiscoveryError::unsupported(
+            "the PAG sampler needs at least two chains, one draw and a positive thinning",
+        ));
+    }
+    let (s, n) = covariance_of(data, variables)?;
+    let pairs = p * (p - 1) / 2;
+    let empty = Mixed { p, links: vec![Link::None; pairs] };
+    let mut cache: HashMap<Vec<u8>, Option<(f64, u128)>> = HashMap::new();
+    let evaluate = |graph: &Mixed, cache: &mut HashMap<Vec<u8>, Option<(f64, u128)>>| {
+        let key = graph.code();
+        if let Some(found) = cache.get(&key) {
+            return *found;
+        }
+        let value = if graph.ancestral() {
+            let reach = graph.reach();
+            if graph.maximal(&reach) {
+                mag_bic(graph, &s, n).map(|score| (score, graph.signature(&reach)))
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        cache.insert(key, value);
+        value
+    };
+    let (start_score, _) = evaluate(&empty, &mut cache)
+        .ok_or_else(|| DiscoveryError::unsupported("the empty graph has no finite BIC"))?;
+    let mut representative: HashMap<u128, Mixed> = HashMap::new();
+    let mut counts: Vec<HashMap<u128, u64>> = Vec::with_capacity(schedule.chains);
+    let mut rejected = 0u64;
+    for chain in 0..schedule.chains {
+        let mut rng =
+            ctx.rng.stream_for(antecedent_core::StreamDomain::McmcStructure, chain as u64);
+        let mut state = empty.clone();
+        let mut score = start_score;
+        let mut visits: HashMap<u128, u64> = HashMap::new();
+        for step in 0..schedule.warmup + schedule.draws {
+            if ctx.cancellation.is_cancelled() {
+                return Err(DiscoveryError::Cancelled);
+            }
+            let pair = (rng.next_f64() * pairs as f64) as usize % pairs;
+            let offset = 1 + (rng.next_f64() * 3.0) as usize % 3;
+            let current = LINKS.iter().position(|&l| l == state.links[pair]).unwrap_or(0);
+            let mut proposal = state.clone();
+            proposal.links[pair] = LINKS[(current + offset) % 4];
+            match evaluate(&proposal, &mut cache) {
+                Some((candidate, _)) => {
+                    if rng.next_f64().ln() < candidate - score {
+                        state = proposal;
+                        score = candidate;
+                    }
+                }
+                None => rejected += 1,
+            }
+            if step >= schedule.warmup && (step - schedule.warmup) % schedule.thin == 0 {
+                if let Some((_, signature)) = evaluate(&state, &mut cache) {
+                    *visits.entry(signature).or_insert(0) += 1;
+                    representative.entry(signature).or_insert_with(|| state.clone());
+                }
+            }
+        }
+        counts.push(visits);
+    }
+    // Pooled class frequencies, in a stable order.
+    let mut signatures: Vec<u128> = representative.keys().copied().collect();
+    signatures.sort_unstable();
+    let totals: Vec<f64> = counts.iter().map(|c| c.values().sum::<u64>() as f64).collect();
+    let pooled_total: f64 = totals.iter().sum();
+    if pooled_total == 0.0 {
+        return Err(DiscoveryError::unsupported("the PAG sampler recorded no draw"));
+    }
+    let pooled: Vec<f64> = signatures
+        .iter()
+        .map(|sig| {
+            counts.iter().map(|c| c.get(sig).copied().unwrap_or(0) as f64).sum::<f64>()
+                / pooled_total
+        })
+        .collect();
+    let agreement = counts
+        .iter()
+        .zip(&totals)
+        .map(|(chain, &total)| {
+            0.5 * signatures
+                .iter()
+                .zip(&pooled)
+                .map(|(sig, pooled)| {
+                    (chain.get(sig).copied().unwrap_or(0) as f64 / total.max(1.0) - pooled).abs()
+                })
+                .sum::<f64>()
+        })
+        .fold(0.0, f64::max);
+    let mut atoms = Vec::with_capacity(signatures.len());
+    let mut circles = Vec::with_capacity(signatures.len());
+    let mut incomplete = 0usize;
+    for signature in &signatures {
+        let (members, complete) = complete_class(&representative[signature], *signature);
+        if !complete {
+            incomplete += 1;
+        }
+        let graphs: Vec<&Mixed> = members.iter().collect();
+        let (adjacency, marks) = class_pag(p, &graphs)?;
+        atoms.push(adjacency);
+        circles.push(marks);
+    }
+    let mut diagnostics = analytic_graph_diagnostics(atoms.len(), kish_ess(&pooled));
+    diagnostics.converged = agreement <= 0.15;
+    diagnostics.n_chains = u32::try_from(schedule.chains).ok();
+    diagnostics.n_warmup = u32::try_from(schedule.warmup).ok();
+    diagnostics.backend_id = std::sync::Arc::from("pag_mcmc");
+    let note = format!(
+        "pag_mcmc classes={} graphs_scored={} chains={} draws_per_chain={} \
+         max_chain_total_variation={agreement:.4} incomplete_classes={incomplete} \
+         weights=visit_frequency_of_exp(gaussian_mag_bic) uniform_prior_over_mags",
+        atoms.len(),
+        cache.len(),
+        schedule.chains,
+        schedule.draws / schedule.thin
+    );
+    finish_posterior(p, pooled, atoms, circles, diagnostics, note, rejected, "pag_mcmc")
+}
+
+/// Centered covariance of the columns and the row count.
+fn covariance_of(
+    data: &TabularData,
+    variables: &[VariableId],
+) -> Result<(Vec<f64>, usize), DiscoveryError> {
+    let p = variables.len();
+    let columns = collect_float_columns(data, variables)?;
+    let n = columns[0].len();
+    if n < 2 || columns.iter().any(|c| c.len() != n) {
+        return Err(DiscoveryError::stats_msg("insufficient rows for a MAG fit"));
+    }
+    if columns.iter().any(|c| c.iter().any(|v| !v.is_finite())) {
+        return Err(DiscoveryError::data_msg("the MAG fit needs complete finite columns"));
+    }
+    let means: Vec<f64> = columns.iter().map(|c| c.iter().sum::<f64>() / n as f64).collect();
+    let mut s = vec![0.0; p * p];
+    for i in 0..p {
+        for j in 0..p {
+            s[i * p + j] = (0..n)
+                .map(|row| (columns[i][row] - means[i]) * (columns[j][row] - means[j]))
+                .sum::<f64>()
+                / n as f64;
+        }
+    }
+    Ok((s, n))
 }
 
 #[cfg(test)]
@@ -729,6 +998,39 @@ mod tests {
         let circles = collider.mark_atoms.as_ref().unwrap()[top];
         assert!(has_edge(circles, 3, 0, 1) && has_edge(circles, 3, 2, 1));
         assert!(!has_edge(circles, 3, 1, 0) && !has_edge(circles, 3, 1, 2));
+    }
+
+    #[test]
+    fn the_sampler_finds_the_exact_posterior_of_a_small_graph_and_scales_past_four_variables() {
+        let mut rng = CausalRng::from_seed(5);
+        let n = 1500;
+        let a: Vec<f64> = (0..n).map(|_| normal(&mut rng)).collect();
+        let b: Vec<f64> = a.iter().map(|a| 0.9 * a + 0.5 * normal(&mut rng)).collect();
+        let c: Vec<f64> = b.iter().map(|b| 0.9 * b + 0.5 * normal(&mut rng)).collect();
+        let (data, ids) = table(&[("a", a.clone()), ("b", b.clone()), ("c", c.clone())]);
+        let ctx = ExecutionContext::for_tests(2);
+        let schedule = PagMcmcSchedule { chains: 2, warmup: 300, draws: 2000, thin: 1 };
+        let sampled = pag_posterior_mcmc(&data, &ids, schedule, &ctx).unwrap();
+        let exact = exact_pag_posterior(&data, &ids, &ctx).unwrap();
+        let top = |g: &GraphPosterior| {
+            let at =
+                (0..g.n_graphs).max_by(|&i, &j| g.weights[i].total_cmp(&g.weights[j])).unwrap();
+            (g.atoms[at], g.mark_atoms.as_ref().unwrap()[at])
+        };
+        assert_eq!(top(&sampled), top(&exact));
+        assert!(sampled.weights.iter().cloned().fold(0.0, f64::max) > 0.8);
+        // Five variables: a chain with an independent fifth and fourth variable.
+        let d: Vec<f64> = (0..n).map(|_| normal(&mut rng)).collect();
+        let e: Vec<f64> = (0..n).map(|_| normal(&mut rng)).collect();
+        let (wide, ids) = table(&[("a", a), ("b", b), ("c", c), ("d", d), ("e", e)]);
+        let small = PagMcmcSchedule { chains: 2, warmup: 200, draws: 800, thin: 1 };
+        let posterior = pag_posterior_mcmc(&wide, &ids, small, &ctx).unwrap();
+        assert_eq!(posterior.atom_kind, GraphPosteriorAtomKind::Pag);
+        let mass: f64 = posterior.weights.iter().sum();
+        assert!((mass - 1.0).abs() < 1e-9);
+        assert!(
+            pag_posterior_mcmc(&wide, &ids, PagMcmcSchedule { chains: 1, ..small }, &ctx).is_err()
+        );
     }
 
     #[test]

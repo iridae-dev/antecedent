@@ -581,6 +581,24 @@ fn refuse_joint_horizons(
     carry: &Carry,
     graph: &AcceptedGraph,
 ) -> Result<(), CausalError> {
+    use antecedent_core::ResponseFunctional as F;
+    if matches!(
+        query,
+        CausalQuery::Response(q)
+            if matches!(
+                q.functional,
+                F::AverageDerivative { .. }
+                    | F::PointDerivative { .. }
+                    | F::DirectionalDerivative { .. }
+                    | F::Jacobian { .. }
+            )
+    ) {
+        return Err(crate::unsupported_reason!(
+            "option_not_applicable",
+            "a derivative response is the local slope at one horizon, so it has no horizons to \
+             compose; omit retain_joint_horizons"
+        ));
+    }
     let temporal = matches!(query, CausalQuery::Response(q) if q.is_temporal());
     if !temporal || graph.as_temporal_dag().is_none() {
         return Err(crate::unsupported_reason!(
@@ -658,6 +676,7 @@ fn refuse_structure_route_options(query: &CausalQuery, carry: &Carry) -> Result<
     }
     if matches!(carry.inference, InferenceMode::Bayesian(_))
         && !crate::analysis::execute::attribute_posterior_supported(query)
+        && !crate::analysis::execute::mechanism_change_posterior_declared(query)
     {
         return Err(if let CausalQuery::Discover(_) = query {
             crate::unsupported_reason!(
@@ -669,13 +688,11 @@ fn refuse_structure_route_options(query: &CausalQuery, carry: &Carry) -> Result<
         } else {
             crate::unsupported_reason!(
                 "option_not_applicable",
-                "a simulation other than a temporal rollout reports the fitted model's answer \
-                 (its draws are the process's own variation, not a functional of the refit), and \
-                 an Attribute mechanism-change detection is a two-sample test whose p-value is a \
+                "an Attribute mechanism-change detection is a two-sample test whose p-value is a \
                  tail probability of a null law of its statistic, not a smooth functional of the \
-                 refitted mechanisms, so neither has a posterior over the mechanisms. Next \
-                 attempt: roll the dynamics out (a temporal rollout has one), or run the \
-                 mechanism-change query itself with a declared prior over the change indicator"
+                 refitted mechanisms; under Bayesian inference it reads as the posterior \
+                 probability of a change, which needs a prior over the change indicator. Next \
+                 attempt: declare it with MechanismChangeQuery::with_change_prior"
             )
         });
     }

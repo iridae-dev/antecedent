@@ -599,32 +599,15 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let physical = std::sync::Arc::new(physical.clone());
-        if let Some(data) = self.prepared_tabular_data() {
-            return self.prepare_on(physical, ctx)?.estimate(data, ctx);
-        }
-        self.execute_shared(&physical, None, ctx)
-    }
-
-    /// The rows of a tabular study that executes through its prepared handle: the
-    /// retained operation `Study::prepare` seals runs them, so a compiled plan or a
-    /// one-shot run never dispatches a tabular route without one.
-    fn prepared_tabular_data(&self) -> Option<&TabularData> {
-        match &self.data {
-            DataInput::Tabular(data)
-                if self.graph_posterior.is_none()
-                    && !matches!(self.query, CausalQuery::Discover(_)) =>
-            {
-                Some(data)
-            }
-            _ => None,
-        }
+        self.execute_shared(&std::sync::Arc::new(physical.clone()), None, ctx)
     }
 
     /// [`Self::execute`] for a plan the caller already holds behind an `Arc`.
     ///
-    /// `execution` is the sealed operation of the prepared handle that runs the plan,
-    /// or `None` outside one; a tabular route needs it.
+    /// `execution` is the sealed operation of the prepared handle that runs the plan.
+    /// `None` is a fresh run: no handle exists, so the route executes without a
+    /// retained operation, inside the dispatch scope of the plan's lowered program, and
+    /// its result carries no prepared-contract stamp or cached-identification claim.
     pub(crate) fn execute_shared(
         &self,
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
@@ -751,13 +734,16 @@ impl super::Study {
         match classify_analysis_route(data, &self.query) {
             Some(route) if matches!(data_modality(data), DataModality::Tabular) => {
                 let DataInput::Tabular(data) = data else { return Err(route_mismatch()) };
-                let Some(execution) = execution else {
-                    return Err(CausalError::Compile {
-                        message: "a tabular route executes through the operation its prepared \
-                                  handle retained; call Study::prepare and then \
-                                  PreparedStudy::estimate"
-                            .into(),
-                    });
+                // A fresh run holds no prepared handle: its operation is sealed to the
+                // plan's lowered program here, and stamps nothing as a prepared click.
+                let fresh;
+                let execution = if let Some(execution) = execution {
+                    execution
+                } else {
+                    fresh = super::super::prepared::PreparedExecution::FreshRun(
+                        super::CheckedRouteOperation::lowered(self, physical)?,
+                    );
+                    &fresh
                 };
                 self.execute_tabular_route(route, data, physical, execution, ctx)
             }
@@ -1669,9 +1655,6 @@ impl super::Study {
         }
         if let Some(result) = self.run_sealed_specialist_transport_and_linear(route, ctx)? {
             return Ok(*result);
-        }
-        if let Some(data) = self.prepared_tabular_data() {
-            return self.prepare(ctx)?.estimate(data, ctx);
         }
         let compiled = std::sync::Arc::new(self.compile(ctx)?);
         self.execute_shared(&compiled, None, ctx)
@@ -2645,6 +2628,36 @@ impl super::Study {
             message: "identify_only supports static DAG and ADMG graphs only.",
         })?;
         identify_static_query(id, graph, &self.query)
+    }
+
+    /// The identification of this study's query against its structure, for every graph
+    /// class: the static and temporal DAG, the ADMG, and the CPDAG and PAG classes (whose
+    /// answer is an envelope over completions).
+    ///
+    /// Identification is a function of structure and query, so the study's rows are never
+    /// read: a study over a table with no observations (see
+    /// [`StudyBuilder::identify_structure`](crate::StudyBuilder::identify_structure)) answers
+    /// exactly as one over a full table. The caller's identifier is honoured; without one the
+    /// class default applies.
+    ///
+    /// # Errors
+    ///
+    /// A graph-posterior study (identification runs per graph inside `execute`), an
+    /// unsupported graph-class/query pair, or identification failure.
+    pub fn identify_structure(&self) -> Result<crate::Identification, CausalError> {
+        if self.graph_posterior.is_some() {
+            return Err(CausalError::Support {
+                id: crate::support::SupportRefusal::Refused,
+                message: "identify_structure is not a graph-posterior cell; identification \
+                          runs per-graph inside execute.",
+            });
+        }
+        crate::identify_api::identify_study(
+            &self.graph,
+            &self.query,
+            self.identifier,
+            self.structure_source,
+        )
     }
 
     /// Inspectable compile result (logical + physical).

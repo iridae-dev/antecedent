@@ -19,6 +19,7 @@ use antecedent::discovery::{
 };
 use antecedent::discovery_defaults::resolve_ci;
 use antecedent::{DiscoveredStructure, DiscoverySpec};
+use antecedent_core::VariableId;
 use antecedent_discovery::selective::{Mark, StructureEdge, StructureNode};
 use antecedent_stats::{ConditionalIndependence, FdrAdjustment, PartialCorrelation};
 use numpy::PyReadonlyArray1;
@@ -83,7 +84,8 @@ pub(crate) struct StabilityStructure {
 }
 
 /// The tabulated sampling distribution of one structure search.
-#[pyclass]
+#[pyclass(skip_from_py_object)]
+#[derive(Clone)]
 pub(crate) struct StructureStabilityResult {
     /// `bootstrap_stability`.
     #[pyo3(get)]
@@ -446,12 +448,214 @@ fn discover_bootstrap_stability(
     })
 }
 
+/// One table per labelled regime of a regime-PCMCI stability search.
+#[pyclass]
+pub(crate) struct RegimeStabilityResult {
+    /// Regime ids of the full-sample run, in table order.
+    #[pyo3(get)]
+    regimes: Vec<u32>,
+    /// The stability table of each regime.
+    #[pyo3(get)]
+    tables: Vec<StructureStabilityResult>,
+}
+
+#[pymethods]
+impl RegimeStabilityResult {
+    /// The table of `regime`.
+    fn table(&self, regime: u32) -> PyResult<StructureStabilityResult> {
+        self.regimes
+            .iter()
+            .position(|&r| r == regime)
+            .map(|at| self.tables[at].clone())
+            .ok_or_else(|| crate::value_err(format!("no table for regime {regime}")))
+    }
+
+    fn __repr__(&self) -> String {
+        format!("RegimeStabilityResult(regimes={:?})", self.regimes)
+    }
+}
+
+/// Sampling distribution of J-PCMCI+ over circular-block resamples of every environment.
+///
+/// `env_columns[e]` holds the columns of environment `e` in the order of `names`;
+/// `context_names` lists the context variables, excluded from the searched system.
+#[pyfunction]
+#[pyo3(signature = (
+    names,
+    env_columns,
+    *,
+    replicates=200,
+    max_lag=1,
+    alpha=0.05,
+    fdr=true,
+    seed=1,
+    ci=None,
+    threads=None,
+    cancel=None,
+    context_names=None,
+    max_cond_size=2
+))]
+fn discover_jpcmci_plus_stability(
+    py: Python<'_>,
+    names: Vec<String>,
+    env_columns: Vec<Vec<PyReadonlyArray1<'_, f64>>>,
+    replicates: u32,
+    max_lag: u32,
+    alpha: f64,
+    fdr: bool,
+    seed: u64,
+    ci: Option<String>,
+    threads: Option<u32>,
+    cancel: Option<crate::PyCancellationToken>,
+    context_names: Option<Vec<String>>,
+    max_cond_size: usize,
+) -> PyResult<StructureStabilityResult> {
+    if env_columns.is_empty() {
+        return Err(crate::value_err("J-PCMCI+ stability needs at least one environment"));
+    }
+    let mut batches = Vec::with_capacity(env_columns.len());
+    for cols in &env_columns {
+        batches.push(columns_to_batch(&names, cols)?);
+    }
+    let (ci_impl, ci_label) = named_ci(ci.as_deref())?;
+    let context_names = context_names.unwrap_or_default();
+    drop(env_columns);
+    detach_catch(py, move || {
+        let mut series_list = Vec::with_capacity(batches.len());
+        let mut all_variables = Vec::new();
+        for (index, batch) in batches.iter().enumerate() {
+            let (series, variables) = crate::series_from_batch(batch)?;
+            if index == 0 {
+                all_variables = variables;
+            }
+            series_list.push(series);
+        }
+        let multi = antecedent_data::MultiEnvironmentData::try_new(Arc::from(series_list))
+            .map_err(py_err)?;
+        let mut context_ids = Vec::new();
+        for name in &context_names {
+            let Some(at) = names.iter().position(|n| n == name) else {
+                return Err(crate::value_err(format!("context_names entry '{name}' not found")));
+            };
+            context_ids.push(all_variables[at]);
+        }
+        let system: Vec<VariableId> =
+            all_variables.iter().copied().filter(|v| !context_ids.contains(v)).collect();
+        if system.is_empty() {
+            return Err(crate::value_err("J-PCMCI+ stability needs a system variable"));
+        }
+        let params = DiscoverParams {
+            max_lag,
+            alpha,
+            fdr: fdr.then(FdrAdjustment::bh),
+            ci: ci_impl,
+            multi_dataset: MultiDatasetConstraints {
+                context_variables: Arc::from(context_ids),
+                ..MultiDatasetConstraints::default()
+            },
+            max_cond_size,
+            knowledge: BackgroundKnowledge::default(),
+        };
+        let ctx =
+            crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
+        let (table, route) = compiled_search(
+            DiscoverySpec::jpcmci_plus(params, ci_label).bootstrap_stability(replicates),
+            DiscoverInput::MultiEnv(multi),
+            &system,
+            &ctx,
+            |structure| match structure {
+                DiscoveredStructure::Stability(table) => Some(table),
+                _ => None,
+            },
+        )?;
+        Ok(result_of(names, "jpcmci_plus", &table, route))
+    })
+}
+
+/// Sampling distribution of regime PCMCI over circular-block resamples that carry their
+/// regime labels, one table per regime.
+#[pyfunction]
+#[pyo3(signature = (
+    names,
+    columns,
+    *,
+    regimes,
+    replicates=200,
+    max_lag=1,
+    alpha=0.05,
+    fdr=true,
+    seed=1,
+    ci=None,
+    threads=None,
+    cancel=None,
+    max_cond_size=2,
+    min_regime_len=None
+))]
+fn discover_rpcmci_stability(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    regimes: Vec<u32>,
+    replicates: u32,
+    max_lag: u32,
+    alpha: f64,
+    fdr: bool,
+    seed: u64,
+    ci: Option<String>,
+    threads: Option<u32>,
+    cancel: Option<crate::PyCancellationToken>,
+    max_cond_size: usize,
+    min_regime_len: Option<usize>,
+) -> PyResult<RegimeStabilityResult> {
+    let (ci_impl, ci_label) = named_ci(ci.as_deref())?;
+    let batch = columns_to_batch(&names, &columns)?;
+    drop(columns);
+    detach_catch(py, move || {
+        let (series, variables) = crate::series_from_batch(&batch)?;
+        let labels: Vec<antecedent_core::RegimeId> =
+            regimes.iter().map(|&r| antecedent_core::RegimeId::from_raw(r)).collect();
+        let assignment = antecedent::discovery::RegimeAssignment::try_new(labels)
+            .map_err(|error| py_err(antecedent::CausalError::from(error)))?;
+        let params = DiscoverParams {
+            max_lag,
+            alpha,
+            fdr: fdr.then(FdrAdjustment::bh),
+            ci: ci_impl,
+            multi_dataset: MultiDatasetConstraints::default(),
+            max_cond_size,
+            knowledge: BackgroundKnowledge::default(),
+        };
+        let ctx =
+            crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
+        let (tables, route) = compiled_search(
+            DiscoverySpec::rpcmci(params, assignment, min_regime_len, ci_label)
+                .bootstrap_stability(replicates),
+            DiscoverInput::Series(series),
+            &variables,
+            &ctx,
+            |structure| match structure {
+                DiscoveredStructure::RegimeStability(tables) => Some(tables),
+                _ => None,
+            },
+        )?;
+        let regime_ids = tables.iter().map(|(regime, _)| regime.raw()).collect();
+        let tables = tables
+            .iter()
+            .map(|(_, table)| result_of(names.clone(), "rpcmci", table, route.clone()))
+            .collect();
+        Ok(RegimeStabilityResult { regimes: regime_ids, tables })
+    })
+}
+
 /// Register the stability search and its result types on the extension module.
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<StructureStabilityResult>()?;
     m.add_class::<StabilityEdge>()?;
     m.add_class::<StabilityMark>()?;
     m.add_class::<StabilityStructure>()?;
+    m.add_class::<RegimeStabilityResult>()?;
     m.add_function(wrap_pyfunction!(discover_bootstrap_stability, m)?)?;
+    m.add_function(wrap_pyfunction!(discover_jpcmci_plus_stability, m)?)?;
+    m.add_function(wrap_pyfunction!(discover_rpcmci_stability, m)?)?;
     Ok(())
 }

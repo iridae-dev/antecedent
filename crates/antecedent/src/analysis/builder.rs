@@ -466,6 +466,10 @@ pub(super) fn discovery_stub_class(
 ) -> antecedent_core::DiscoveredClass {
     match method {
         antecedent_core::DiscoveryMethod::BootstrapStability { base, .. } => base.output(),
+        // A class posterior over lagged templates is answered on the temporal side.
+        antecedent_core::DiscoveryMethod::ClassPosterior { base } if base.is_temporal() => {
+            base.output()
+        }
         other => other.output(),
     }
 }
@@ -1361,6 +1365,24 @@ impl StudyBuilder {
     /// Missing graph / query, schema mismatch, or canonical-encoding failures.
     pub fn inspect(self) -> Result<super::CausalContract, CausalError> {
         self.finish(true)?.inspect()
+    }
+
+    /// Identify the query against the structure, reading no rows.
+    ///
+    /// Build the study over a table with a schema and no observations to identify before
+    /// any data exist (the staged identify-then-estimate workflow): identification is a
+    /// function of structure and query, so the answer is the one a study over the full table
+    /// derives. The study is assembled as [`Self::inspect`] assembles it, so a coordinate the
+    /// support matrix closes still identifies (its estimation stays refused at
+    /// [`Self::build`]). Returns the point result of a DAG or ADMG, or the envelope over the
+    /// completions of a CPDAG, PAG or temporal class.
+    ///
+    /// # Errors
+    ///
+    /// Missing graph or query, a schema mismatch, a graph-posterior study, an unsupported
+    /// graph-class/query pair, or identification failure.
+    pub fn identify_structure(self) -> Result<crate::Identification, CausalError> {
+        self.finish(true)?.identify_structure()
     }
 
     /// Supply the causal structure.

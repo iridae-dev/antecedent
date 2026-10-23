@@ -1491,7 +1491,7 @@ impl PlanView {
     }
 
     /// Stable name of the sealed operation a prepared handle retained
-    /// (`ordinary_dispatch` when it retained none); `None` for a compiled view.
+    /// (`lowered_dispatch` when no specialised operation admitted it); `None` for a compiled view.
     #[must_use]
     pub const fn operation(&self) -> Option<&'static str> {
         self.operation
