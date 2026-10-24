@@ -26,12 +26,16 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent_contract::rewrite_legality::{
+    FrameFingerprint, FrameLedger, Rewrite, RewriteRefusal, check_executed, value_row_id,
+};
 use antecedent_core::ExecutionContext;
 use antecedent_data::OwnedColumn;
 use antecedent_io_core::capacity_account::{DesignShape, WeightedRowSource, run_weighted_capacity};
 
 pub use antecedent_data::column_closure::{
-    ClosureInputs, ColumnClosure, ColumnDuty, ColumnRole, RequiredColumn,
+    ClosureError, ClosureInputs, Cohort, ColumnClosure, ColumnDuty, ColumnFilter, ColumnRole,
+    ObservationFrame, RequiredColumn,
 };
 pub use antecedent_data::file_source::{
     ChunkQuote, DEFAULT_CHUNK_ROWS, FileChunk, FileColumn, FileColumnKind, FileContentIdentity,
@@ -149,6 +153,85 @@ pub enum FileTableError {
     /// The capacity route refused the summary.
     #[error("weighted capacity route: {0}")]
     Capacity(#[from] WeightedCapacityError),
+    /// The summary did not carry the rows, weights and independence of the
+    /// complete-case cohort the file declared.
+    #[error("sufficient-statistics rewrite: {0}")]
+    Rewrite(#[from] RewriteRefusal),
+}
+
+/// A column projection or filter pushdown was refused, or it ran and did not keep the cohort.
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum PushdownCheckError {
+    /// The closure refused the pushdown, or the frame was malformed.
+    #[error(transparent)]
+    Closure(#[from] ClosureError),
+    /// The pushdown ran, and the rows it delivers are not the declared cohort.
+    #[error("pushdown rewrite: {0}")]
+    Rewrite(#[from] RewriteRefusal),
+}
+
+fn cohort_fingerprint(rows: impl IntoIterator<Item = usize>) -> FrameFingerprint {
+    let mut ledger =
+        FrameLedger::try_new("complete_case_cohort", "static_cross_section", "unweighted")
+            .unwrap_or_else(|_| unreachable!("fixed non-blank frame ids"));
+    for row in rows {
+        let row = row as u64;
+        ledger.record_numeric(row, 0, row, 0);
+    }
+    ledger.fingerprint()
+}
+
+/// Push `filter` through `closure`, then check the rows it delivers against the cohort.
+///
+/// The cohort is the complete-case rows on every closure column. The pushdown is admitted
+/// only when the cohort it returns, and the rows a scan with the filter applied would
+/// deliver, are that cohort.
+///
+/// # Errors
+///
+/// [`PushdownCheckError::Closure`] when the closure refuses the filter;
+/// [`PushdownCheckError::Rewrite`] when the delivered rows differ from the cohort.
+pub fn checked_push_filter(
+    closure: &antecedent_data::column_closure::ColumnClosure,
+    frame: &ObservationFrame,
+    filter: &ColumnFilter,
+) -> Result<Cohort, PushdownCheckError> {
+    let declared = closure.complete_case(frame)?;
+    let pushed = closure.push_filter(frame, filter)?;
+    let delivered = declared.rows().iter().copied().filter(|row| !filter.drops(*row));
+    check_executed(
+        Rewrite::COLUMN_FILTER_PUSHDOWN,
+        &cohort_fingerprint(declared.rows().iter().copied()),
+        &[cohort_fingerprint(pushed.rows().iter().copied()), cohort_fingerprint(delivered)],
+    )?;
+    Ok(pushed)
+}
+
+/// Project to `keep`, then check that completing cases on the kept columns is the cohort.
+///
+/// [`antecedent_data::column_closure::ColumnClosure::project`] refuses a projection that
+/// drops a required column. A projection that keeps extra columns is not refused there, but
+/// complete-case over the projected frame then also drops rows missing an extra column.
+///
+/// # Errors
+///
+/// [`PushdownCheckError::Closure`] when the projection drops a required column;
+/// [`PushdownCheckError::Rewrite`] when the projected complete-case rows are not the cohort.
+pub fn checked_projection(
+    closure: &antecedent_data::column_closure::ColumnClosure,
+    frame: &ObservationFrame,
+    keep: &[antecedent_data::column_closure::ColumnRole],
+) -> Result<Cohort, PushdownCheckError> {
+    closure.project(keep)?;
+    let declared = closure.complete_case(frame)?;
+    let projected = frame.complete_case(keep)?;
+    check_executed(
+        Rewrite::COLUMN_FILTER_PUSHDOWN,
+        &cohort_fingerprint(declared.rows().iter().copied()),
+        &[cohort_fingerprint(projected.rows().iter().copied())],
+    )?;
+    Ok(projected)
 }
 
 /// Stream `file` through the weighted Gaussian / OLS capacity route.
@@ -173,12 +256,46 @@ pub fn summarize_weighted_gaussian(
     options: &CapacityOptions,
     ctx: &ExecutionContext,
 ) -> Result<FileGaussianSummary, FileTableError> {
-    let mut source = FileWeightedRows::new(file, spec, options.batch_rows.max(1), ctx)?;
+    summarize_with_fault(file, spec, control, options, ctx, None)
+}
+
+/// [`summarize_weighted_gaussian`] with a defect injected into the lowering stage.
+///
+/// A test seam: it must return [`FileTableError::Rewrite`] for any fault that changes the
+/// rows, weights, or values the summary received.
+///
+/// # Errors
+///
+/// As [`summarize_weighted_gaussian`].
+#[doc(hidden)]
+pub fn summarize_weighted_gaussian_faulted(
+    file: &TableFile,
+    spec: &GaussianSummarySpec,
+    control: CapacityControl,
+    options: &CapacityOptions,
+    ctx: &ExecutionContext,
+    fault: RowFault,
+) -> Result<FileGaussianSummary, FileTableError> {
+    summarize_with_fault(file, spec, control, options, ctx, Some(fault))
+}
+
+fn summarize_with_fault(
+    file: &TableFile,
+    spec: &GaussianSummarySpec,
+    control: CapacityControl,
+    options: &CapacityOptions,
+    ctx: &ExecutionContext,
+    fault: Option<RowFault>,
+) -> Result<FileGaussianSummary, FileTableError> {
+    let mut source = FileWeightedRows::new(file, spec, options.batch_rows.max(1), ctx, fault)?;
     let outcome = run_weighted_capacity(control, &mut source, options);
     if let Some(error) = source.error.take() {
         return Err(FileTableError::Source(error));
     }
     let output = outcome?;
+    if let Some(refusal) = source.refusal.take() {
+        return Err(FileTableError::Rewrite(refusal));
+    }
     let receipt = source.receipt.take().ok_or(FileSourceError::ScanIncomplete)?;
     Ok(FileGaussianSummary {
         output,
@@ -188,6 +305,37 @@ pub fn summarize_weighted_gaussian(
         rows_dropped: source.rows_dropped,
         file_identity: receipt.identity(),
     })
+}
+
+/// One executed row with the values it carried, for the cohort and summary ledgers.
+fn record_row(
+    ledger: &mut FrameLedger,
+    global: u64,
+    values: impl IntoIterator<Item = f64>,
+    weight: f64,
+) {
+    ledger.record(
+        &value_row_id(global, values),
+        "0",
+        &global.to_string(),
+        &format!("{:016x}", weight.to_bits()),
+    );
+}
+
+/// A defect injected into the lowering stage of a file summary.
+///
+/// This is a test seam: it changes what the summary receives for one row, so a test can
+/// show that [`summarize_weighted_gaussian_faulted`] refuses a lowering that is not the
+/// declared cohort. The row is the global row id.
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RowFault {
+    /// The row never reaches the summary.
+    DropRow(u64),
+    /// The row reaches the summary twice.
+    DuplicateRow(u64),
+    /// The row reaches the summary with its response shifted by one.
+    AlterResponse(u64),
 }
 
 /// A planned file read presented as weighted design rows.
@@ -209,6 +357,17 @@ struct FileWeightedRows<'a> {
     rows_dropped: u64,
     error: Option<FileSourceError>,
     receipt: Option<ScanReceipt>,
+    /// Empty ledger for this read; each pass starts from a copy.
+    fresh: FrameLedger,
+    /// Rows the projected read delivered, before any missing-value rule.
+    projected: FrameLedger,
+    fault: Option<RowFault>,
+    /// Rows observed on every closure column, with the weight each carries.
+    cohort: FrameLedger,
+    /// Rows that entered the summary, with the weight written for each.
+    lowered: FrameLedger,
+    /// First pass whose summary did not carry the cohort.
+    refusal: Option<RewriteRefusal>,
 }
 
 impl<'a> FileWeightedRows<'a> {
@@ -217,6 +376,7 @@ impl<'a> FileWeightedRows<'a> {
         spec: &GaussianSummarySpec,
         chunk_rows: usize,
         ctx: &ExecutionContext,
+        fault: Option<RowFault>,
     ) -> Result<Self, FileSourceError> {
         let mut target: Vec<ColumnRole> = spec.covariates.iter().map(ColumnRole::new).collect();
         target.push(ColumnRole::new(&spec.response));
@@ -248,6 +408,13 @@ impl<'a> FileWeightedRows<'a> {
             spec.covariates.iter().map(|name| position(name)).collect::<Result<Vec<_>, _>>()?;
         let response = position(&spec.response)?;
         let weight = spec.weight.as_deref().map(position).transpose()?;
+        let population = format!("complete_case:{}", plan.names().join(","));
+        let law = spec
+            .weight
+            .as_ref()
+            .map_or_else(|| "unit_weights".to_owned(), |column| format!("weights:{column}"));
+        let fresh = FrameLedger::try_new(&population, "static_cross_section", &law)
+            .map_err(|refusal| FileSourceError::InvalidOptions { detail: refusal.to_string() })?;
         Ok(Self {
             file,
             plan,
@@ -266,6 +433,12 @@ impl<'a> FileWeightedRows<'a> {
             rows_dropped: 0,
             error: None,
             receipt: None,
+            cohort: fresh.clone(),
+            lowered: fresh.clone(),
+            projected: fresh.clone(),
+            fault,
+            fresh,
+            refusal: None,
         })
     }
 
@@ -277,6 +450,31 @@ impl<'a> FileWeightedRows<'a> {
         let message = error.to_string();
         self.error = Some(error);
         WeightedCapacityError::RowSource { message }
+    }
+
+    /// Compare the summary's rows and weights with the cohort this pass saw.
+    ///
+    /// Also compares the rows the projected read delivered with the rows the file holds, so
+    /// a projection that skipped or repeated a chunk is a refusal too.
+    fn check_lowering(&mut self, file_rows: u64) {
+        if self.refusal.is_some() {
+            return;
+        }
+        let mut file = self.fresh.clone();
+        for row in 0..file_rows {
+            file.record_numeric(row, 0, row, 0);
+        }
+        let pushed = check_executed(
+            Rewrite::COLUMN_FILTER_PUSHDOWN,
+            &file.fingerprint(),
+            &[self.projected.fingerprint()],
+        );
+        let lowered = check_executed(
+            Rewrite::SUFFICIENT_STATISTICS,
+            &self.cohort.fingerprint(),
+            &[self.lowered.fingerprint()],
+        );
+        self.refusal = pushed.and(lowered).err();
     }
 
     /// The next non-empty chunk, or `None` after the last one (when the receipt is taken).
@@ -293,7 +491,9 @@ impl<'a> FileWeightedRows<'a> {
             }
             Ok(None) => match reader.finish() {
                 Ok(receipt) => {
+                    let read_rows = receipt.rows().get();
                     self.receipt = Some(receipt);
+                    self.check_lowering(read_rows);
                     Ok(false)
                 }
                 Err(error) => Err(self.fail(error)),
@@ -381,6 +581,9 @@ impl WeightedRowSource for FileWeightedRows<'_> {
         self.rows_read = 0;
         self.rows_used = 0;
         self.rows_dropped = 0;
+        self.cohort = self.fresh.clone();
+        self.lowered = self.fresh.clone();
+        self.projected = self.fresh.clone();
         let rewound = if let Some(reader) = self.reader.as_mut() {
             reader.rewind()
         } else {
@@ -423,6 +626,7 @@ impl WeightedRowSource for FileWeightedRows<'_> {
             let row = self.offset;
             self.offset += 1;
             self.rows_read += 1;
+            let global = chunk.start().get() + row as u64;
             let mut values = Vec::with_capacity(self.covariates.len() + 2);
             let mut missing = None;
             let order = self
@@ -442,6 +646,12 @@ impl WeightedRowSource for FileWeightedRows<'_> {
                     Err(error) => return Err(self.fail(error)),
                 }
             }
+            self.projected.record_numeric(global, 0, global, 0);
+            if missing.is_none() {
+                let weight = if self.weight.is_some() { values[values.len() - 1] } else { 1.0 };
+                let observed = values[..self.covariates.len() + 1].iter().copied();
+                record_row(&mut self.cohort, global, observed, weight);
+            }
             if let Some((column, global)) = missing {
                 match self.missing {
                     SummaryMissing::CompleteCase => {
@@ -458,18 +668,35 @@ impl WeightedRowSource for FileWeightedRows<'_> {
                     }
                 }
             }
-            let start = written * ncols;
-            let mut slot = start;
-            if self.intercept {
-                x_rowmajor[slot] = 1.0;
-                slot += 1;
-            }
             let covariates = self.covariates.len();
-            x_rowmajor[slot..slot + covariates].copy_from_slice(&values[..covariates]);
-            y[written] = values[covariates];
-            weights[written] = if self.weight.is_some() { values[covariates + 1] } else { 1.0 };
-            self.rows_used += 1;
-            written += 1;
+            let (copies, shift) = match self.fault {
+                Some(RowFault::DropRow(row)) if row == global => (0, 0.0),
+                Some(RowFault::DuplicateRow(row)) if row == global && written + 1 < max_rows => {
+                    (2, 0.0)
+                }
+                Some(RowFault::AlterResponse(row)) if row == global => (1, 1.0),
+                _ => (1, 0.0),
+            };
+            for _ in 0..copies {
+                let start = written * ncols;
+                let mut slot = start;
+                if self.intercept {
+                    x_rowmajor[slot] = 1.0;
+                    slot += 1;
+                }
+                x_rowmajor[slot..slot + covariates].copy_from_slice(&values[..covariates]);
+                y[written] = values[covariates] + shift;
+                weights[written] = if self.weight.is_some() { values[covariates + 1] } else { 1.0 };
+                // What the summary received, read back from the buffers it was given.
+                record_row(
+                    &mut self.lowered,
+                    global,
+                    x_rowmajor[slot..slot + covariates].iter().copied().chain([y[written]]),
+                    weights[written],
+                );
+                self.rows_used += 1;
+                written += 1;
+            }
         }
         Ok(written)
     }

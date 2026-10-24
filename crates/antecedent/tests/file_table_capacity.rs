@@ -14,10 +14,13 @@
 use std::path::PathBuf;
 
 use antecedent::analysis::file_table::{
-    CapacityControl, CapacityOptions, FileSourceError, FileTableError, GaussianSummarySpec,
-    MemoryStage, ReadOptions, SummaryMissing, TableFile, TableFileFormat, WriteOptions,
-    summarize_weighted_gaussian, write_table_file,
+    CapacityControl, CapacityOptions, ClosureError, ClosureInputs, ColumnFilter, ColumnRole,
+    FileSourceError, FileTableError, GaussianSummarySpec, MemoryStage, ObservationFrame,
+    PushdownCheckError, ReadOptions, RowFault, SummaryMissing, TableFile, TableFileFormat,
+    WriteOptions, checked_projection, checked_push_filter, summarize_weighted_gaussian,
+    summarize_weighted_gaussian_faulted, write_table_file,
 };
+use antecedent_contract::rewrite_legality::PreservationAxis;
 use antecedent_core::ExecutionContext;
 use antecedent_core::execution::AdmissionPool;
 use antecedent_core::execution_facts::OutputRetention;
@@ -181,4 +184,76 @@ fn missing_values_are_refused_or_left_out_as_declared() {
         summarize_weighted_gaussian(&table, &absent, CapacityControl::Glm, &options, &study)
             .unwrap_err();
     assert!(matches!(refused, FileTableError::Source(FileSourceError::UnknownColumn { .. })));
+}
+
+#[test]
+fn a_lowering_that_drops_repeats_or_alters_a_row_is_refused_at_the_file_summary() {
+    let scratch = Scratch::new("faulted");
+    let path = scratch.0.join("rows.parquet");
+    write(&path, None);
+    let table = TableFile::open(&path).unwrap();
+    let options = CapacityOptions::new(256, 1 << 20, OutputRetention::SummaryOnly);
+    let study = ExecutionContext::for_tests(1);
+
+    let honest =
+        summarize_weighted_gaussian(&table, &spec(), CapacityControl::Glm, &options, &study)
+            .unwrap();
+    assert_eq!(honest.rows_used, ROWS as u64);
+
+    for fault in [RowFault::DropRow(10), RowFault::DuplicateRow(10), RowFault::AlterResponse(10)] {
+        let refused = summarize_weighted_gaussian_faulted(
+            &table,
+            &spec(),
+            CapacityControl::Glm,
+            &options,
+            &study,
+            fault,
+        )
+        .unwrap_err();
+        let FileTableError::Rewrite(refusal) = &refused else {
+            panic!("{fault:?} must be refused as a rewrite: {refused}")
+        };
+        assert_eq!(refusal.axis(), PreservationAxis::SampleSelection, "{fault:?}");
+        assert_eq!(refusal.kind(), Some("sufficient_statistics"), "{fault:?}");
+    }
+}
+
+fn observation_frame() -> ObservationFrame {
+    ObservationFrame::try_new(vec![
+        (ColumnRole::new("a"), vec![true, true, true, true]),
+        (ColumnRole::new("b"), vec![true, false, true, true]),
+        (ColumnRole::new("w"), vec![true, true, false, true]),
+    ])
+    .unwrap()
+}
+
+#[test]
+fn pushdowns_are_checked_against_the_rows_they_deliver() {
+    let closure = ClosureInputs::new([ColumnRole::new("a")]).weight(ColumnRole::new("w")).close();
+    let frame = observation_frame();
+
+    let harmless = ColumnFilter::new(ColumnRole::new("b"), vec![false, false, true, false]);
+    let cohort = checked_push_filter(&closure, &frame, &harmless).unwrap();
+    assert_eq!(cohort.rows(), &[0, 1, 3]);
+
+    let cuts_a_kept_row = ColumnFilter::new(ColumnRole::new("b"), vec![false, true, false, false]);
+    let refused = checked_push_filter(&closure, &frame, &cuts_a_kept_row).unwrap_err();
+    assert!(matches!(refused, PushdownCheckError::Closure(ClosureError::Refused(_))));
+
+    let keep = [ColumnRole::new("a"), ColumnRole::new("w")];
+    assert_eq!(checked_projection(&closure, &frame, &keep).unwrap().rows(), &[0, 1, 3]);
+
+    let drops_required = [ColumnRole::new("a")];
+    let refused = checked_projection(&closure, &frame, &drops_required).unwrap_err();
+    assert!(matches!(refused, PushdownCheckError::Closure(ClosureError::Refused(_))));
+
+    // Keeping the extra column is not refused by the closure, but completing cases on the
+    // projected frame then loses row 1, which the declared cohort keeps.
+    let wider = [ColumnRole::new("a"), ColumnRole::new("w"), ColumnRole::new("b")];
+    let refused = checked_projection(&closure, &frame, &wider).unwrap_err();
+    let PushdownCheckError::Rewrite(refusal) = &refused else {
+        panic!("a wider projection changes the cohort: {refused}")
+    };
+    assert_eq!(refusal.axis(), PreservationAxis::SampleSelection);
+    assert_eq!(refusal.kind(), Some("column_filter_pushdown"));
 }

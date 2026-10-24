@@ -416,6 +416,12 @@ impl ColumnFilter {
     pub fn column(&self) -> &ColumnRole {
         &self.column
     }
+
+    /// Whether the filter drops storage row `row`. A row past the mask is not dropped.
+    #[must_use]
+    pub fn drops(&self, row: usize) -> bool {
+        self.drop_row.get(row).copied().unwrap_or(false)
+    }
 }
 
 /// A projection or filter pushdown that would change the cohort.

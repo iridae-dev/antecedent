@@ -6,12 +6,14 @@
 //! nuisance reuse, a sufficient-statistics lowering, and a tiled evaluation
 //! are one [`Rewrite`]. The effect enums name what the caller attributes to
 //! that rewrite. [`Rewrite::check`] admits it only when the effect alters no
-//! axis and an executed fingerprint of the frame matches: selected rows,
-//! folds, population, and history. Dependence and uncertainty stay
-//! declarations. Those declarations do not admit a rewrite without that
-//! fingerprint. An identity string the caller copies onto both sides is not
-//! that fingerprint. The check does not execute the rewrite, scan rows, or
-//! number them.
+//! axis and an executed fingerprint of every frame matches: selected rows,
+//! folds, population, history, dependence, and uncertainty. A fingerprint is
+//! built from the rows an executor actually carried ([`FrameContents`], or
+//! [`FrameLedger`] while rows stream past), never from an identity string.
+//! Production rewrites call [`check_executed`], which takes only the original
+//! and rewritten fingerprints and has no description to forge. The check does
+//! not execute the rewrite or number rows; the executor supplies the ids it
+//! used.
 //!
 //! An altered axis is a counterexample. The [`RewriteRefusal`] names that axis
 //! and the next attempt that keeps it. Copying the same identity text onto an
@@ -34,8 +36,16 @@ const TAG_SELECTED_ROWS: &str = "rewrite_legality.selected_rows";
 const TAG_FOLDS: &str = "rewrite_legality.fold_assignment";
 const TAG_POPULATION: &str = "rewrite_legality.population_id";
 const TAG_HISTORY: &str = "rewrite_legality.history";
-const NO_FINGERPRINT: &str =
-    "it carries no fingerprint of the selected rows, folds, population, and history";
+const TAG_DEPENDENCE: &str = "rewrite_legality.dependence_factors";
+const TAG_UNCERTAINTY: &str = "rewrite_legality.uncertainty";
+const NO_FINGERPRINT: &str = "it carries no fingerprint of the selected rows, folds, population, \
+     history, dependence, and uncertainty";
+/// Dependence recorded for a frame that declared none.
+pub const UNDECLARED_DEPENDENCE: &str = "dependence.undeclared";
+/// Uncertainty recorded for a frame that declared none.
+pub const UNDECLARED_UNCERTAINTY: &str = "uncertainty.undeclared";
+/// Sampling law recorded for a frame that declared none.
+pub const UNDECLARED_SAMPLING_LAW: &str = "sampling_law.undeclared";
 const FRAME_BINDING: &str = "rewrite_legality.frame_binding";
 
 /// An axis a legal rewrite leaves unchanged.
@@ -229,49 +239,114 @@ impl PreservedIdentities {
     }
 }
 
+/// One executed row of a frame, with what the executor attached to it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct FrameRow<'a> {
+    /// Id of the selected row.
+    pub row: &'a str,
+    /// Fold the row was assigned to.
+    pub fold: &'a str,
+    /// Shared factor or cluster the row belongs to.
+    pub dependence: &'a str,
+    /// Weight or failed-draw state the row carries into the uncertainty.
+    pub uncertainty: &'a str,
+}
+
 /// Contents of one scientific frame.
 ///
 /// [`Self::fingerprint`] hashes these contents. It is not an identity string
 /// copied from [`PreservedIdentities`]. Row ids are stored in order, each with
-/// the fold id that assigns that row. Whitespace around a non-blank id is part
-/// of the content.
+/// the fold id, dependence factor, and uncertainty state that row carried.
+/// Whitespace around a non-blank id is part of the content.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FrameContents {
     row_ids: Vec<Arc<str>>,
     fold_ids: Vec<Arc<str>>,
+    dependence_ids: Vec<Arc<str>>,
+    uncertainty_ids: Vec<Arc<str>>,
     population_id: Arc<str>,
     history: Arc<str>,
+    sampling_law: Arc<str>,
 }
 
 impl FrameContents {
     /// Frame whose selected rows are `row_ids`, each assigned `fold_ids` in
     /// the same order, in `population_id`, with `history`.
     ///
+    /// Dependence and uncertainty are recorded as undeclared. A frame that
+    /// carries either differs from this one on that axis. Use
+    /// [`Self::try_new_executed`] to record them.
+    ///
     /// # Errors
     ///
     /// A blank id, an id longer than [`MAX_TEXT_BYTES`] bytes, a repeated row
-    /// id, or a fold list whose length is not the number of selected rows. The axis is the earliest one in
-    /// [`PreservationAxis`] order.
+    /// id, or a fold list whose length is not the number of selected rows. The
+    /// axis is the earliest one in [`PreservationAxis`] order.
     pub fn try_new(
         row_ids: &[&str],
         fold_ids: &[&str],
         population_id: &str,
         history: &str,
     ) -> Result<Self, RewriteRefusal> {
+        Self::validate(row_ids, fold_ids, population_id, history)?;
+        let undeclared_dependence = vec![UNDECLARED_DEPENDENCE; row_ids.len()];
+        let undeclared_uncertainty = vec![UNDECLARED_UNCERTAINTY; row_ids.len()];
+        Ok(Self::store(
+            row_ids,
+            fold_ids,
+            &undeclared_dependence,
+            &undeclared_uncertainty,
+            population_id,
+            history,
+            UNDECLARED_SAMPLING_LAW,
+        ))
+    }
+
+    /// Frame whose rows each carry their fold, dependence factor, and
+    /// uncertainty state, with the frame's `sampling_law`.
+    ///
+    /// # Errors
+    ///
+    /// The refusals of [`Self::try_new`], and a blank or over-long dependence
+    /// id, uncertainty state, or sampling law.
+    pub fn try_new_executed(
+        rows: &[FrameRow<'_>],
+        population_id: &str,
+        history: &str,
+        sampling_law: &str,
+    ) -> Result<Self, RewriteRefusal> {
+        let row_ids: Vec<&str> = rows.iter().map(|row| row.row).collect();
+        let fold_ids: Vec<&str> = rows.iter().map(|row| row.fold).collect();
+        let dependence: Vec<&str> = rows.iter().map(|row| row.dependence).collect();
+        let uncertainty: Vec<&str> = rows.iter().map(|row| row.uncertainty).collect();
+        Self::validate(&row_ids, &fold_ids, population_id, history)?;
+        for id in &dependence {
+            check_text(PreservationAxis::Dependence, "a dependence id", id)?;
+        }
+        for id in &uncertainty {
+            check_text(PreservationAxis::Uncertainty, "an uncertainty state", id)?;
+        }
+        check_text(PreservationAxis::Uncertainty, "the sampling law", sampling_law)?;
+        Ok(Self::store(
+            &row_ids,
+            &fold_ids,
+            &dependence,
+            &uncertainty,
+            population_id,
+            history,
+            sampling_law,
+        ))
+    }
+
+    fn validate(
+        row_ids: &[&str],
+        fold_ids: &[&str],
+        population_id: &str,
+        history: &str,
+    ) -> Result<(), RewriteRefusal> {
         let mut seen = BTreeSet::new();
         for row in row_ids {
-            if is_blank(row) {
-                return Err(content_refusal(
-                    PreservationAxis::SampleSelection,
-                    "a selected row id is blank",
-                ));
-            }
-            if row.len() > MAX_TEXT_BYTES {
-                return Err(content_refusal(
-                    PreservationAxis::SampleSelection,
-                    &format!("a selected row id is longer than {MAX_TEXT_BYTES} bytes"),
-                ));
-            }
+            check_text(PreservationAxis::SampleSelection, "a selected row id", row)?;
             if !seen.insert(*row) {
                 return Err(content_refusal(
                     PreservationAxis::SampleSelection,
@@ -280,15 +355,7 @@ impl FrameContents {
             }
         }
         for fold in fold_ids {
-            if is_blank(fold) {
-                return Err(content_refusal(PreservationAxis::Folds, "a fold id is blank"));
-            }
-            if fold.len() > MAX_TEXT_BYTES {
-                return Err(content_refusal(
-                    PreservationAxis::Folds,
-                    &format!("a fold id is longer than {MAX_TEXT_BYTES} bytes"),
-                ));
-            }
+            check_text(PreservationAxis::Folds, "a fold id", fold)?;
         }
         if row_ids.len() != fold_ids.len() {
             return Err(content_refusal(
@@ -296,41 +363,33 @@ impl FrameContents {
                 "the fold assignment does not cover the selected rows",
             ));
         }
-        if is_blank(population_id) {
-            return Err(content_refusal(
-                PreservationAxis::Population,
-                "the population id is blank",
-            ));
-        }
-        if population_id.len() > MAX_TEXT_BYTES {
-            return Err(content_refusal(
-                PreservationAxis::Population,
-                &format!("the population id is longer than {MAX_TEXT_BYTES} bytes"),
-            ));
-        }
-        if is_blank(history) {
-            return Err(content_refusal(PreservationAxis::History, "the history is blank"));
-        }
-        if history.len() > MAX_TEXT_BYTES {
-            return Err(content_refusal(
-                PreservationAxis::History,
-                &format!("the history is longer than {MAX_TEXT_BYTES} bytes"),
-            ));
-        }
+        check_text(PreservationAxis::Population, "the population id", population_id)?;
+        check_text(PreservationAxis::History, "the history", history)
+    }
+
+    fn store(
+        row_ids: &[&str],
+        fold_ids: &[&str],
+        dependence: &[&str],
+        uncertainty: &[&str],
+        population_id: &str,
+        history: &str,
+        sampling_law: &str,
+    ) -> Self {
         let mut order: Vec<usize> = (0..row_ids.len()).collect();
         order.sort_by_key(|&index| row_ids[index]);
-        let mut stored_rows = Vec::with_capacity(order.len());
-        let mut stored_folds = Vec::with_capacity(order.len());
-        for index in order {
-            stored_rows.push(Arc::from(row_ids[index]));
-            stored_folds.push(Arc::from(fold_ids[index]));
-        }
-        Ok(Self {
-            row_ids: stored_rows,
-            fold_ids: stored_folds,
+        let pick = |texts: &[&str]| -> Vec<Arc<str>> {
+            order.iter().map(|&index| Arc::from(texts[index])).collect()
+        };
+        Self {
+            row_ids: pick(row_ids),
+            fold_ids: pick(fold_ids),
+            dependence_ids: pick(dependence),
+            uncertainty_ids: pick(uncertainty),
             population_id: Arc::from(population_id),
             history: Arc::from(history),
-        })
+            sampling_law: Arc::from(sampling_law),
+        }
     }
 
     /// Selected row ids, in canonical order.
@@ -345,6 +404,18 @@ impl FrameContents {
         self.fold_ids.iter().map(AsRef::as_ref)
     }
 
+    /// Dependence factor of each [`Self::row_ids`] entry, in the same order.
+    #[must_use = "the dependence ids are the fingerprint input"]
+    pub fn dependence_ids(&self) -> impl Iterator<Item = &str> {
+        self.dependence_ids.iter().map(AsRef::as_ref)
+    }
+
+    /// Uncertainty state of each [`Self::row_ids`] entry, in the same order.
+    #[must_use = "the uncertainty states are the fingerprint input"]
+    pub fn uncertainty_ids(&self) -> impl Iterator<Item = &str> {
+        self.uncertainty_ids.iter().map(AsRef::as_ref)
+    }
+
     /// Population id.
     #[must_use]
     pub fn population_id(&self) -> &str {
@@ -357,19 +428,219 @@ impl FrameContents {
         &self.history
     }
 
+    /// Sampling law of the frame.
+    #[must_use]
+    pub fn sampling_law(&self) -> &str {
+        &self.sampling_law
+    }
+
     /// Fingerprint of these contents.
     #[must_use]
     pub fn fingerprint(&self) -> FrameFingerprint {
+        let mut ledger = FrameLedger::seeded(
+            Arc::clone(&self.population_id),
+            Arc::clone(&self.history),
+            Arc::clone(&self.sampling_law),
+        );
+        for index in 0..self.row_ids.len() {
+            ledger.record(
+                &self.row_ids[index],
+                &self.fold_ids[index],
+                &self.dependence_ids[index],
+                &self.uncertainty_ids[index],
+            );
+        }
+        ledger.fingerprint()
+    }
+}
+
+/// Four 64-bit lanes that add one 256-bit row digest at a time.
+///
+/// The sum does not depend on the order rows arrive in, so an executor that
+/// streams rows in file order and a frame listed in id order agree. A repeated
+/// row is added twice and changes the sum.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+struct Lanes([u64; 4]);
+
+impl Lanes {
+    fn add(&mut self, digest: [u8; 32]) {
+        for (lane, chunk) in self.0.iter_mut().zip(digest.chunks_exact(8)) {
+            let mut word = [0_u8; 8];
+            word.copy_from_slice(chunk);
+            *lane = lane.wrapping_add(u64::from_le_bytes(word));
+        }
+    }
+
+    /// Add a row from its numeric ids with a fast, non-cryptographic mixer.
+    fn add_mixed(&mut self, tag: u64, first: u64, second: u64) {
+        const SALT: [u64; 4] = [
+            0x243F_6A88_85A3_08D3,
+            0x1319_8A2E_0370_7344,
+            0xA409_3822_299F_31D0,
+            0x082E_FA98_EC4E_6C89,
+        ];
+        let mut hash = mix64(tag);
+        hash = mix64(hash ^ first);
+        hash = mix64(hash ^ second.rotate_left(29) ^ 0xC2B2_AE3D_27D4_EB4F);
+        for (lane, salt) in self.0.iter_mut().zip(SALT) {
+            *lane = lane.wrapping_add(mix64(hash ^ salt));
+        }
+    }
+
+    fn digest(&self, tag: &str, rows: u64, tail: Option<&str>) -> SemanticDigest {
+        let mut writer = CanonicalWriter::new(tag);
+        writer.word(rows);
+        for lane in self.0 {
+            writer.word(lane);
+        }
+        if let Some(tail) = tail {
+            writer.text(tail);
+        }
+        SemanticDigest::from_bytes(writer.finish())
+    }
+}
+
+const fn mix64(value: u64) -> u64 {
+    let mut x = value.wrapping_add(0x9E37_79B9_7F4A_7C15);
+    x = (x ^ (x >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    x = (x ^ (x >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    x ^ (x >> 31)
+}
+
+/// One id for a tuple of numeric ids, for [`FrameLedger::record_numeric`].
+///
+/// Order matters and a different tuple gives a different id.
+#[must_use]
+pub fn combine_ids(parts: &[u64]) -> u64 {
+    let mut hash = mix64(parts.len() as u64);
+    for part in parts {
+        hash = mix64(hash ^ part);
+    }
+    hash
+}
+
+/// Row id that includes the row's values, for [`FrameLedger::record`].
+///
+/// A row whose values changed is a different selected row, so a rewrite that
+/// keeps every row id but alters a value does not share a fingerprint.
+#[must_use]
+pub fn value_row_id(row: u64, values: impl IntoIterator<Item = f64>) -> String {
+    let mut writer = CanonicalWriter::new("rewrite_legality.row_values");
+    for value in values {
+        writer.word(value.to_bits());
+    }
+    let digest = writer.finish();
+    let mut head = [0_u8; 8];
+    head.copy_from_slice(&digest[..8]);
+    format!("{row}:{:016x}", u64::from_le_bytes(head))
+}
+
+fn row_digest(tag: &str, parts: &[&str]) -> [u8; 32] {
+    let mut writer = CanonicalWriter::new(tag);
+    for part in parts {
+        writer.text(part);
+    }
+    writer.finish()
+}
+
+/// Streaming account of the rows a rewrite carried.
+///
+/// An executor records each row it selects, assigns, links, and weights while
+/// it runs, then reads [`Self::fingerprint`]. Rows recorded with [`Self::record`]
+/// give the value [`FrameContents::fingerprint`] gives for the same rows, so a streaming
+/// pass over a file can be compared with a frame listed in memory. Nothing in
+/// the ledger is an identity string supplied to describe a match.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FrameLedger {
+    population: Arc<str>,
+    history: Arc<str>,
+    sampling_law: Arc<str>,
+    rows: u64,
+    selected: Lanes,
+    folds: Lanes,
+    dependence: Lanes,
+    uncertainty: Lanes,
+}
+
+impl FrameLedger {
+    /// Empty ledger for `population_id`, `history`, and `sampling_law`.
+    ///
+    /// # Errors
+    ///
+    /// A blank or over-long id. The axis is the earliest in
+    /// [`PreservationAxis`] order.
+    pub fn try_new(
+        population_id: &str,
+        history: &str,
+        sampling_law: &str,
+    ) -> Result<Self, RewriteRefusal> {
+        check_text(PreservationAxis::Population, "the population id", population_id)?;
+        check_text(PreservationAxis::History, "the history", history)?;
+        check_text(PreservationAxis::Uncertainty, "the sampling law", sampling_law)?;
+        Ok(Self::seeded(Arc::from(population_id), Arc::from(history), Arc::from(sampling_law)))
+    }
+
+    fn seeded(population: Arc<str>, history: Arc<str>, sampling_law: Arc<str>) -> Self {
+        Self {
+            population,
+            history,
+            sampling_law,
+            rows: 0,
+            selected: Lanes::default(),
+            folds: Lanes::default(),
+            dependence: Lanes::default(),
+            uncertainty: Lanes::default(),
+        }
+    }
+
+    /// Record one executed row.
+    pub fn record(&mut self, row: &str, fold: &str, dependence: &str, uncertainty: &str) {
+        self.rows += 1;
+        self.selected.add(row_digest(TAG_SELECTED_ROWS, &[row]));
+        self.folds.add(row_digest(TAG_FOLDS, &[row, fold]));
+        self.dependence.add(row_digest(TAG_DEPENDENCE, &[row, dependence]));
+        self.uncertainty.add(row_digest(TAG_UNCERTAINTY, &[row, uncertainty]));
+    }
+
+    /// Record one executed row whose ids are numbers.
+    ///
+    /// This is the fast path for streaming hot loops. Its fingerprints are
+    /// comparable with other [`Self::record_numeric`] ledgers, not with
+    /// [`Self::record`] ledgers or [`FrameContents::fingerprint`].
+    pub fn record_numeric(&mut self, row: u64, fold: u64, dependence: u64, uncertainty: u64) {
+        self.rows += 1;
+        self.selected.add_mixed(1, row, 0);
+        self.folds.add_mixed(2, row, fold);
+        self.dependence.add_mixed(3, row, dependence);
+        self.uncertainty.add_mixed(4, row, uncertainty);
+    }
+
+    /// Rows recorded so far.
+    #[must_use]
+    pub const fn rows(&self) -> u64 {
+        self.rows
+    }
+
+    /// Fingerprint of the rows recorded so far.
+    #[must_use]
+    pub fn fingerprint(&self) -> FrameFingerprint {
         FrameFingerprint {
-            selected_rows: digest_texts(TAG_SELECTED_ROWS, &self.row_ids),
-            folds: digest_assignment(&self.row_ids, &self.fold_ids),
-            population: digest_text(TAG_POPULATION, &self.population_id),
+            selected_rows: self.selected.digest(TAG_SELECTED_ROWS, self.rows, None),
+            folds: self.folds.digest(TAG_FOLDS, self.rows, None),
+            population: digest_text(TAG_POPULATION, &self.population),
             history: digest_text(TAG_HISTORY, &self.history),
+            dependence: self.dependence.digest(TAG_DEPENDENCE, self.rows, None),
+            uncertainty: self.uncertainty.digest(
+                TAG_UNCERTAINTY,
+                self.rows,
+                Some(&self.sampling_law),
+            ),
         }
     }
 }
 
-/// Fingerprint of one frame's selected rows, fold assignment, population, and history.
+/// Fingerprint of one frame's selected rows, folds, population, history,
+/// dependence, and uncertainty.
 ///
 /// Each part is a digest of the contents. Two frames with the same identity
 /// strings and different contents do not share a fingerprint.
@@ -379,6 +650,8 @@ pub struct FrameFingerprint {
     folds: SemanticDigest,
     population: SemanticDigest,
     history: SemanticDigest,
+    dependence: SemanticDigest,
+    uncertainty: SemanticDigest,
 }
 
 impl FrameFingerprint {
@@ -406,15 +679,54 @@ impl FrameFingerprint {
         self.history
     }
 
-    const fn on_axis(self, axis: PreservationAxis) -> Option<SemanticDigest> {
+    /// Digest of each selected row id paired with its dependence factor.
+    #[must_use]
+    pub const fn dependence(&self) -> SemanticDigest {
+        self.dependence
+    }
+
+    /// Digest of each selected row id paired with its uncertainty state, and
+    /// of the sampling law.
+    #[must_use]
+    pub const fn uncertainty(&self) -> SemanticDigest {
+        self.uncertainty
+    }
+
+    const fn on_axis(self, axis: PreservationAxis) -> SemanticDigest {
         match axis {
-            PreservationAxis::SampleSelection => Some(self.selected_rows),
-            PreservationAxis::Folds => Some(self.folds),
-            PreservationAxis::Population => Some(self.population),
-            PreservationAxis::History => Some(self.history),
-            PreservationAxis::Dependence | PreservationAxis::Uncertainty => None,
+            PreservationAxis::SampleSelection => self.selected_rows,
+            PreservationAxis::Folds => self.folds,
+            PreservationAxis::Population => self.population,
+            PreservationAxis::History => self.history,
+            PreservationAxis::Dependence => self.dependence,
+            PreservationAxis::Uncertainty => self.uncertainty,
         }
     }
+}
+
+/// Admit a rewrite from the fingerprints of the frames it actually ran on.
+///
+/// `original` is the frame before the rewrite. `rewritten` is each frame after
+/// it: one for a pushdown, a summary, a tile, or a nuisance consumer, and the
+/// left and right consumers of a shared preparation. There is no description
+/// or effect to supply, so nothing can claim a match the rows do not show.
+/// The earliest altered axis in [`PreservationAxis`] order is the refusal.
+///
+/// # Errors
+///
+/// No rewritten frame, or the first axis whose digest differs.
+#[must_use = "a refusal is the counterexample"]
+pub fn check_executed(
+    kind: &'static str,
+    original: &FrameFingerprint,
+    rewritten: &[FrameFingerprint],
+) -> Result<(), RewriteRefusal> {
+    if rewritten.is_empty() {
+        return Err(frame_binding(kind));
+    }
+    let frames: Vec<(&FrameFingerprint, &FrameFingerprint)> =
+        rewritten.iter().map(|frame| (original, frame)).collect();
+    admit(kind, &[], None, &frames)
 }
 
 /// Shared defect table.
@@ -422,8 +734,8 @@ impl FrameFingerprint {
 /// Index 0 is the preserving declaration and admits no axis by itself. Each
 /// later index is one [`PreservationAxis`], in refusal order, and the reason
 /// the effect gives for altering it. Dependence and uncertainty are rows of
-/// this table. They stay declarations: a row here does not supply the executed
-/// fingerprint of selected rows, folds, population, and history.
+/// this table. A row here does not supply the executed fingerprint; the
+/// frames' own dependence and uncertainty digests do.
 const fn defect_at<const N: usize>(
     index: usize,
     reasons: &[&'static str; N],
@@ -515,11 +827,10 @@ effect_enum! {
     ///
     /// [`Self::Declared`] names a pushdown that alters no axis. Naming it does not
     /// admit the rewrite. [`Rewrite::check`] admits it only with an executed
-    /// fingerprint of the rewritten frame: selected rows, folds, population, and
-    /// history. Equal identity strings are not that fingerprint. Dependence and
-    /// uncertainty stay caller-supplied identity declarations; the fingerprint does
-    /// not cover them, and those declarations do not admit the rewrite alone. Each
-    /// other effect alters one axis even when the identity strings match.
+    /// fingerprint of the rewritten frame: selected rows, folds, population,
+    /// history, dependence, and uncertainty. Equal identity strings are not that
+    /// fingerprint. Each other effect alters one axis even when the identity
+    /// strings match.
     PushdownEffect {
         /// Required columns stay, and the filter is the query's declared predicate.
         Declared => "declared",
@@ -550,10 +861,9 @@ effect_enum! {
     /// [`Self::Shared`] names a preparation that alters no axis. Naming it does not
     /// admit the share. [`Rewrite::check`] admits it only with an executed
     /// fingerprint of the preparation and of each consumer: selected rows, folds,
-    /// population, and history. Equal identity strings are not that fingerprint.
-    /// Dependence and uncertainty stay caller-supplied identity declarations; the
-    /// fingerprint does not cover them, and those declarations do not admit the
-    /// share alone. Each other effect mixes one axis even when the strings match.
+    /// population, history, dependence, and uncertainty. Equal identity strings
+    /// are not that fingerprint. Each other effect mixes one axis even when the
+    /// strings match.
     PreparationEffect {
         /// Both consumers use the preparation's sample, folds, population, history,
         /// dependence, and uncertainty.
@@ -585,10 +895,9 @@ effect_enum! {
     /// [`Self::Certified`] names reuse that alters no axis, with the evaluation fold
     /// held out of training. Naming it does not admit the reuse. [`Rewrite::check`]
     /// admits it only with an executed fingerprint of the fit and of the consumer:
-    /// selected rows, folds, population, and history. Equal identity strings are not
-    /// that fingerprint. Dependence and uncertainty stay caller-supplied identity
-    /// declarations; the fingerprint does not cover them, and those declarations do
-    /// not admit the reuse alone. Each other effect is a counterexample.
+    /// selected rows, folds, population, history, dependence, and uncertainty.
+    /// Equal identity strings are not that fingerprint. Each other effect is a
+    /// counterexample.
     NuisanceEffect {
         /// The fit and the consumer name one frame, and training excludes the
         /// evaluation fold.
@@ -620,10 +929,8 @@ effect_enum! {
     /// [`Self::Sufficient`] names a summary that alters no axis. Naming it does not
     /// admit the lowering. [`Rewrite::check`] admits it only with an executed
     /// fingerprint of the rows and of the summary: selected rows, folds, population,
-    /// and history. Equal identity strings are not that fingerprint. Dependence and
-    /// uncertainty stay caller-supplied identity declarations; the fingerprint does
-    /// not cover them, and those declarations do not admit the lowering alone. A
-    /// summary that evicts a row, pools folds, or drops the sampling law is a
+    /// history, dependence, and uncertainty. Equal identity strings are not that
+    /// fingerprint. A summary that evicts a row, pools folds, or drops the sampling law is a
     /// counterexample, including when the summary still carries the original text.
     SummaryEffect {
         /// The summary is sufficient for the declared likelihood and names every axis.
@@ -658,10 +965,8 @@ effect_enum! {
     /// [`Self::Faithful`] names a tile that alters no axis and keeps failed draws.
     /// Naming it does not admit the tile. [`Rewrite::check`] admits it only with
     /// an executed fingerprint of the full frame and of the tile: selected rows,
-    /// folds, population, and history. Equal identity strings are not that
-    /// fingerprint. Dependence and uncertainty stay caller-supplied identity
-    /// declarations; the fingerprint does not cover them, and those declarations do
-    /// not admit the tile alone. A tile that drops rows, splits a fold, or drops
+    /// folds, population, history, dependence, and uncertainty. Equal identity
+    /// strings are not that fingerprint. A tile that drops rows, splits a fold, or drops
     /// failed draws is a counterexample.
     TileEffect {
         /// The tile covers the full frame and keeps joint alignment and failed draws.
@@ -742,9 +1047,9 @@ enum ExecutedFrames {
 /// Column or filter pushdown, shared row and design preparation, nuisance
 /// reuse, sufficient statistics, and tiled evaluation share this shape. The
 /// effect is one of the effect enums. [`Self::check`] reads that effect from
-/// the shared defect table. Dependence and uncertainty stay declarations in
-/// that table. They do not admit the rewrite without an executed fingerprint
-/// of selected rows, folds, population, and history.
+/// the shared defect table. The rewrite is not admitted without an executed
+/// fingerprint of selected rows, folds, population, history, dependence, and
+/// uncertainty.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Rewrite {
     name: &'static str,
@@ -954,10 +1259,8 @@ impl Rewrite {
     /// the axis is a refusal even when every identity string matches. A
     /// fingerprint of the frame contents that differs is a refusal even when
     /// the identity strings match. Equal identity strings without a
-    /// fingerprint are a refusal. Dependence and uncertainty have no content
-    /// digest. They stay declarations, and those declarations do not admit the
-    /// rewrite without the executed fingerprint of selected rows, folds,
-    /// population, and history.
+    /// fingerprint are a refusal. Dependence and uncertainty are compared as
+    /// executed digests like the other four axes.
     ///
     /// # Errors
     ///
@@ -1125,12 +1428,8 @@ fn admit(
             }
         }
         for (original, rewritten) in frames {
-            let Some(original_digest) = original.on_axis(axis) else {
-                continue;
-            };
-            let Some(rewritten_digest) = rewritten.on_axis(axis) else {
-                continue;
-            };
+            let original_digest = original.on_axis(axis);
+            let rewritten_digest = rewritten.on_axis(axis);
             if original_digest != rewritten_digest {
                 return Err(altered(
                     kind,
@@ -1142,8 +1441,6 @@ fn admit(
     }
     // The preserving effect is the caller's declaration. Equal identity strings
     // do not supply the executed fingerprint, so they do not admit the rewrite.
-    // Dependence and uncertainty have no content digest; they stay declarations
-    // and still require this fingerprint before the declaration can pass.
     if frames.is_empty() {
         return Err(altered(kind, PreservationAxis::SampleSelection, NO_FINGERPRINT));
     }
@@ -1161,24 +1458,22 @@ fn content_refusal(axis: PreservationAxis, message: &str) -> RewriteRefusal {
     }
 }
 
+fn check_text(axis: PreservationAxis, what: &str, text: &str) -> Result<(), RewriteRefusal> {
+    if is_blank(text) {
+        return Err(content_refusal(axis, &format!("{what} is blank")));
+    }
+    if text.len() > MAX_TEXT_BYTES {
+        return Err(content_refusal(
+            axis,
+            &format!("{what} is longer than {MAX_TEXT_BYTES} bytes"),
+        ));
+    }
+    Ok(())
+}
+
 fn digest_text(tag: &str, text: &str) -> SemanticDigest {
     let mut writer = CanonicalWriter::new(tag);
     writer.text(text);
-    SemanticDigest::from_bytes(writer.finish())
-}
-
-fn digest_texts(tag: &str, texts: &[Arc<str>]) -> SemanticDigest {
-    let mut writer = CanonicalWriter::new(tag);
-    writer.texts(texts);
-    SemanticDigest::from_bytes(writer.finish())
-}
-
-fn digest_assignment(rows: &[Arc<str>], folds: &[Arc<str>]) -> SemanticDigest {
-    let mut writer = CanonicalWriter::new(TAG_FOLDS);
-    writer.word(rows.len() as u64);
-    for (row, fold) in rows.iter().zip(folds) {
-        writer.text(row).text(fold);
-    }
     SemanticDigest::from_bytes(writer.finish())
 }
 
@@ -1188,9 +1483,10 @@ mod tests {
     use std::error::Error;
 
     use super::{
-        FrameContents, NAME_PRESERVED_IDENTITY, NEXT_ATTEMPTS, NuisanceEffect, PreparationEffect,
-        PreservationAxis, PreservedIdentities, PushdownEffect, RETAIN_DEPENDENCE,
-        RETAIN_SAMPLE_SELECTION, Rewrite, SummaryEffect, TileEffect,
+        FrameContents, FrameLedger, FrameRow, NAME_PRESERVED_IDENTITY, NEXT_ATTEMPTS,
+        NuisanceEffect, PreparationEffect, PreservationAxis, PreservedIdentities, PushdownEffect,
+        RETAIN_DEPENDENCE, RETAIN_SAMPLE_SELECTION, RETAIN_UNCERTAINTY, Rewrite, SummaryEffect,
+        TileEffect, check_executed, combine_ids, value_row_id,
     };
     use antecedent_core::NextAttempt;
 
@@ -1608,8 +1904,8 @@ mod tests {
         for (rows, folds, population, history, axis) in cases {
             let rewritten = FrameContents::try_new(rows, folds, population, history)
                 .expect("rewritten contents");
-            let digest = rewritten.fingerprint().on_axis(axis).expect("content axis");
-            assert_ne!(original.fingerprint().on_axis(axis), Some(digest));
+            let digest = rewritten.fingerprint().on_axis(axis);
+            assert_ne!(original.fingerprint().on_axis(axis), digest);
             let declared = Rewrite::column_filter_pushdown(
                 frame.clone(),
                 frame.clone(),
@@ -1632,8 +1928,10 @@ mod tests {
             FrameContents::try_new(&["row-a", "row-b"], &["fold-2", "fold-1"], "pop-1", "hist-1")
                 .expect("listed assignment");
         assert_eq!(original.fingerprint(), same.fingerprint());
-        assert!(original.fingerprint().on_axis(PreservationAxis::Dependence).is_none());
-        assert!(original.fingerprint().on_axis(PreservationAxis::Uncertainty).is_none());
+        assert_eq!(
+            original.fingerprint().dependence(),
+            original.fingerprint().on_axis(PreservationAxis::Dependence),
+        );
         assert_eq!(original.row_ids().collect::<Vec<&str>>(), ["row-a", "row-b"]);
         assert_eq!(original.fold_ids().collect::<Vec<&str>>(), ["fold-2", "fold-1"]);
         let pushdown =
@@ -1736,7 +2034,6 @@ mod tests {
                     rewrite.source().identity(PreservationAxis::SampleSelection),
                     rewrite.primary_claim().identity(PreservationAxis::SampleSelection),
                 );
-                assert!(rows.fingerprint().on_axis(axis).is_none());
                 expect_refusal(rewrite, axis, "other-declaration");
             }
         }
@@ -1785,5 +2082,206 @@ mod tests {
         assert_eq!(err.axis(), PreservationAxis::Population);
         let at_cap = "x".repeat(MAX_TEXT_BYTES);
         assert!(FrameContents::try_new(&[at_cap.as_str()], &["f"], "p", "h").is_ok());
+    }
+
+    fn executed(dependence: [&str; 3], uncertainty: [&str; 3], law: &str) -> FrameContents {
+        let rows = ["r1", "r2", "r3"];
+        let frame_rows: Vec<FrameRow<'_>> = (0..3)
+            .map(|i| FrameRow {
+                row: rows[i],
+                fold: if i == 2 { "f2" } else { "f1" },
+                dependence: dependence[i],
+                uncertainty: uncertainty[i],
+            })
+            .collect();
+        FrameContents::try_new_executed(&frame_rows, "pop", "hist", law).expect("executed frame")
+    }
+
+    #[test]
+    fn ledger_streaming_agrees_with_listed_contents_in_any_order() {
+        let listed = executed(["c1", "c1", "c2"], ["w1", "w2", "w3"], "law");
+        let mut ledger = FrameLedger::try_new("pop", "hist", "law").expect("ledger");
+        ledger.record("r3", "f2", "c2", "w3");
+        ledger.record("r1", "f1", "c1", "w1");
+        ledger.record("r2", "f1", "c1", "w2");
+        assert_eq!(ledger.rows(), 3);
+        assert_eq!(ledger.fingerprint(), listed.fingerprint());
+
+        let mut forward = FrameLedger::try_new("pop", "hist", "law").expect("ledger");
+        let mut reverse = FrameLedger::try_new("pop", "hist", "law").expect("ledger");
+        for row in 0..50 {
+            forward.record_numeric(row, row % 3, row / 5, 1);
+            reverse.record_numeric(49 - row, (49 - row) % 3, (49 - row) / 5, 1);
+        }
+        assert_eq!(forward.fingerprint(), reverse.fingerprint());
+        let mut moved = forward.clone();
+        moved.record_numeric(50, 0, 0, 1);
+        assert_ne!(moved.fingerprint(), forward.fingerprint());
+        let mut reweighted = FrameLedger::try_new("pop", "hist", "law").expect("ledger");
+        for row in 0..50 {
+            reweighted.record_numeric(row, row % 3, row / 5, u64::from(row == 7) + 1);
+        }
+        let err =
+            check_executed("tiled_evaluation", &forward.fingerprint(), &[reweighted.fingerprint()])
+                .expect_err("one state changed");
+        assert_eq!(err.axis(), PreservationAxis::Uncertainty);
+        assert_ne!(value_row_id(1, [1.0, 2.0]), value_row_id(1, [1.0, 2.5]));
+        assert_ne!(combine_ids(&[1, 2]), combine_ids(&[2, 1]));
+    }
+
+    #[test]
+    fn a_repeated_executed_row_changes_the_fingerprint() {
+        let mut once = FrameLedger::try_new("pop", "hist", "law").expect("ledger");
+        let mut twice = FrameLedger::try_new("pop", "hist", "law").expect("ledger");
+        once.record("r1", "f", "c", "w");
+        twice.record("r1", "f", "c", "w");
+        twice.record("r1", "f", "c", "w");
+        assert_ne!(once.fingerprint(), twice.fingerprint());
+        let err = check_executed("tiled_evaluation", &once.fingerprint(), &[twice.fingerprint()])
+            .expect_err("duplicated row");
+        assert_eq!(err.axis(), PreservationAxis::SampleSelection);
+    }
+
+    #[test]
+    fn a_rewrite_that_drops_dependence_is_refused_whatever_it_is_called() {
+        let original = executed(["c1", "c1", "c2"], ["w1", "w2", "w3"], "law");
+        let collapsed = executed(["c1", "c1", "c1"], ["w1", "w2", "w3"], "law");
+        let undeclared =
+            FrameContents::try_new(&["r1", "r2", "r3"], &["f1", "f1", "f2"], "pop", "hist")
+                .expect("undeclared dependence");
+        let frame = identities();
+        for rewritten in [&collapsed, &undeclared] {
+            let err = check_executed(
+                Rewrite::SUFFICIENT_STATISTICS,
+                &original.fingerprint(),
+                &[rewritten.fingerprint()],
+            )
+            .expect_err("dependence dropped");
+            assert_eq!(err.axis(), PreservationAxis::Dependence);
+            assert_eq!(err.next_attempt(), RETAIN_DEPENDENCE);
+
+            let described = Rewrite::sufficient_statistics(
+                frame.clone(),
+                frame.clone(),
+                SummaryEffect::Sufficient,
+            )
+            .with_frames(&original, &[rewritten])
+            .expect("executed frames");
+            assert_eq!(
+                described.source().identity(PreservationAxis::Dependence),
+                described.primary_claim().identity(PreservationAxis::Dependence),
+            );
+            expect_refusal(&described, PreservationAxis::Dependence, "is not");
+        }
+    }
+
+    #[test]
+    fn a_rewrite_that_drops_uncertainty_is_refused_whatever_it_is_called() {
+        let original = executed(["c1", "c1", "c2"], ["w1", "w2", "w3"], "law");
+        let reweighted = executed(["c1", "c1", "c2"], ["w1", "w2", "w9"], "law");
+        let other_law = executed(["c1", "c1", "c2"], ["w1", "w2", "w3"], "point_only");
+        let frame = identities();
+        for rewritten in [&reweighted, &other_law] {
+            let err = check_executed(
+                Rewrite::TILED_EVALUATION,
+                &original.fingerprint(),
+                &[rewritten.fingerprint()],
+            )
+            .expect_err("uncertainty dropped");
+            assert_eq!(err.axis(), PreservationAxis::Uncertainty);
+            assert_eq!(err.next_attempt(), RETAIN_UNCERTAINTY);
+
+            let described =
+                Rewrite::tiled_evaluation(frame.clone(), frame.clone(), TileEffect::Faithful)
+                    .with_frames(&original, &[rewritten])
+                    .expect("executed frames");
+            expect_refusal(&described, PreservationAxis::Uncertainty, "is not");
+        }
+        assert!(
+            check_executed(
+                Rewrite::TILED_EVALUATION,
+                &original.fingerprint(),
+                &[executed(["c1", "c1", "c2"], ["w1", "w2", "w3"], "law").fingerprint()],
+            )
+            .is_ok()
+        );
+    }
+
+    #[test]
+    fn a_forged_matching_description_cannot_admit_changed_rows() {
+        let original = executed(["c1", "c1", "c2"], ["w1", "w2", "w3"], "law");
+        let narrowed = FrameContents::try_new_executed(
+            &[
+                FrameRow { row: "r1", fold: "f1", dependence: "c1", uncertainty: "w1" },
+                FrameRow { row: "r2", fold: "f1", dependence: "c1", uncertainty: "w2" },
+            ],
+            "pop",
+            "hist",
+            "law",
+        )
+        .expect("narrowed frame");
+        let frame = identities();
+        let forged =
+            Rewrite::column_filter_pushdown(frame.clone(), frame, PushdownEffect::Declared)
+                .with_frames(&original, &[&narrowed])
+                .expect("executed frames");
+        expect_refusal(&forged, PreservationAxis::SampleSelection, "is not");
+        let err = check_executed(
+            Rewrite::COLUMN_FILTER_PUSHDOWN,
+            &original.fingerprint(),
+            &[narrowed.fingerprint()],
+        )
+        .expect_err("rows dropped");
+        assert_eq!(err.axis(), PreservationAxis::SampleSelection);
+    }
+
+    #[test]
+    fn a_shared_preparation_is_refused_when_either_consumer_differs() {
+        let original = executed(["c1", "c1", "c2"], ["w1", "w2", "w3"], "law");
+        let same = executed(["c1", "c1", "c2"], ["w1", "w2", "w3"], "law");
+        let mixed = executed(["c1", "c2", "c2"], ["w1", "w2", "w3"], "law");
+        assert!(
+            check_executed(
+                Rewrite::SHARED_ROW_DESIGN_PREPARATION,
+                &original.fingerprint(),
+                &[same.fingerprint(), same.fingerprint()],
+            )
+            .is_ok()
+        );
+        let err = check_executed(
+            Rewrite::SHARED_ROW_DESIGN_PREPARATION,
+            &original.fingerprint(),
+            &[same.fingerprint(), mixed.fingerprint()],
+        )
+        .expect_err("right consumer mixes dependence");
+        assert_eq!(err.axis(), PreservationAxis::Dependence);
+        assert_eq!(err.kind(), Some(Rewrite::SHARED_ROW_DESIGN_PREPARATION));
+    }
+
+    #[test]
+    fn an_executed_check_needs_a_rewritten_frame_and_valid_ids() {
+        let original = executed(["c1", "c1", "c2"], ["w1", "w2", "w3"], "law");
+        let err = check_executed(Rewrite::NUISANCE_REUSE, &original.fingerprint(), &[])
+            .expect_err("no rewritten frame");
+        assert_eq!(err.detail(), "rewrite_legality.frame_binding");
+
+        let blank = FrameContents::try_new_executed(
+            &[FrameRow { row: "r1", fold: "f", dependence: " ", uncertainty: "w" }],
+            "pop",
+            "hist",
+            "law",
+        )
+        .expect_err("blank dependence");
+        assert_eq!(blank.axis(), PreservationAxis::Dependence);
+        let blank = FrameContents::try_new_executed(
+            &[FrameRow { row: "r1", fold: "f", dependence: "c", uncertainty: "w" }],
+            "pop",
+            "hist",
+            " ",
+        )
+        .expect_err("blank sampling law");
+        assert_eq!(blank.axis(), PreservationAxis::Uncertainty);
+        let err = FrameLedger::try_new("pop", "", "law").expect_err("blank history");
+        assert_eq!(err.axis(), PreservationAxis::History);
     }
 }

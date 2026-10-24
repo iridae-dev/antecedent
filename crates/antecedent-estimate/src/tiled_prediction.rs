@@ -11,6 +11,9 @@
 
 use std::fmt;
 
+use antecedent_contract::rewrite_legality::{
+    FrameLedger, PreservationAxis, Rewrite, check_executed, combine_ids,
+};
 use thiserror::Error;
 
 /// Largest draw count whose integer value is exact as `f64` (`2^53`).
@@ -452,6 +455,18 @@ pub enum TileError {
         /// Draw count that would have rounded.
         count: u64,
     },
+    /// The values the tile streamed are not the cells the request declared.
+    ///
+    /// A cell was dropped, repeated, or emitted for another row, draw, grid
+    /// point or outcome, or a failed draw was not kept as a failed draw.
+    #[error(
+        "tiled prediction streamed cells that alter the {axis}; next attempt: retain the \
+         declared tile"
+    )]
+    Altered {
+        /// Earliest axis the streamed cells alter.
+        axis: PreservationAxis,
+    },
 }
 
 /// Stream [`TileRequest::reduction`] in declared order.
@@ -469,16 +484,167 @@ pub fn stream_tile(
 ) -> Result<StreamSummary, TileError> {
     let frame = Frame::prepare(request)?;
     let hoisted = hoist(&frame)?;
-    let emitted = match frame.reduction {
-        Reduction::Full => stream_full(&frame, &hoisted, &mut emit)?,
-        Reduction::DrawMean => stream_mean(&frame, &hoisted, &mut emit)?,
-        Reduction::DrawCovariance => stream_covariance(&frame, &hoisted, &mut emit)?,
+    let mut audit = TileAudit::new(&frame)?;
+    let mut audited = |value: StreamedValue| {
+        audit.see(value);
+        emit(value);
     };
+    let emitted = match frame.reduction {
+        Reduction::Full => stream_full(&frame, &hoisted, &mut audited)?,
+        Reduction::DrawMean => stream_mean(&frame, &hoisted, &mut audited)?,
+        Reduction::DrawCovariance => stream_covariance(&frame, &hoisted, &mut audited)?,
+    };
+    audit.admit(&frame)?;
     Ok(StreamSummary {
         reduction: frame.reduction,
         emitted,
         invariant_evaluations: hoisted.evaluations,
     })
+}
+
+/// Cells the tile actually emitted, checked against the cells its request declares.
+///
+/// The declared side is enumerated by plain nested loops over the request, not by the
+/// streaming walk, so a walk that skips, repeats or mislabels a cell does not agree with it.
+struct TileAudit<'a> {
+    failed: &'a [bool],
+    /// Whether any draw in the tile's window is failed.
+    any_failed: bool,
+    executed: FrameLedger,
+}
+
+/// State of a streamed cell: kept as declared, or a failed draw that was not kept failed.
+const STATE_KEPT: u64 = 0;
+const STATE_FAILED_KEPT: u64 = 2;
+const STATE_FAILED_LOST: u64 = 3;
+
+impl<'a> TileAudit<'a> {
+    fn new(frame: &Frame<'a>) -> Result<Self, TileError> {
+        let window = as_usize(frame.draw_start)?
+            ..as_usize(checked_add(frame.draw_start, frame.draw_count)?)?;
+        let any_failed = frame.failed.get(window).is_some_and(|draws| draws.contains(&true));
+        Ok(Self { failed: frame.failed, any_failed, executed: tile_ledger()? })
+    }
+
+    fn see(&mut self, value: StreamedValue) {
+        match value {
+            StreamedValue::Full { row, draw, grid_id, outcome, value } => {
+                let failed = usize::try_from(draw)
+                    .ok()
+                    .and_then(|index| self.failed.get(index))
+                    .copied()
+                    .unwrap_or(false);
+                let state = match (failed, value.is_nan()) {
+                    (false, _) => STATE_KEPT,
+                    (true, true) => STATE_FAILED_KEPT,
+                    (true, false) => STATE_FAILED_LOST,
+                };
+                self.executed.record_numeric(
+                    combine_ids(&[row, grid_id, outcome]),
+                    draw,
+                    draw,
+                    state,
+                );
+            }
+            StreamedValue::DrawMean { row, grid_id, outcome, value } => {
+                let state = match (self.any_failed, value.is_nan()) {
+                    (false, _) => STATE_KEPT,
+                    (true, true) => STATE_FAILED_KEPT,
+                    (true, false) => STATE_FAILED_LOST,
+                };
+                self.executed.record_numeric(combine_ids(&[row, grid_id, outcome]), 0, 0, state);
+            }
+            StreamedValue::DrawCovariance {
+                row,
+                left_grid_id,
+                left_outcome,
+                right_grid_id,
+                right_outcome,
+                ..
+            } => {
+                self.executed.record_numeric(
+                    combine_ids(&[row, left_grid_id, left_outcome, right_grid_id, right_outcome]),
+                    0,
+                    0,
+                    STATE_KEPT,
+                );
+            }
+        }
+    }
+
+    fn admit(&self, frame: &Frame<'_>) -> Result<(), TileError> {
+        let mut declared = tile_ledger()?;
+        let grid_ids: Vec<u64> =
+            (0..frame.grid_count).map(|local| grid_id(frame, local)).collect::<Result<_, _>>()?;
+        let outcome_ids: Vec<u64> = frame.outcomes.iter().map(|outcome| outcome.id).collect();
+        let draws = frame.draw_start..frame.draw_start + frame.draw_count;
+        for row in frame.row_start..frame.row_start + frame.row_count {
+            match frame.reduction {
+                Reduction::Full => {
+                    for draw in draws.clone() {
+                        let failed = frame.failed[as_usize(draw)?];
+                        let state = if failed { STATE_FAILED_KEPT } else { STATE_KEPT };
+                        for &grid in &grid_ids {
+                            for &outcome in &outcome_ids {
+                                declared.record_numeric(
+                                    combine_ids(&[row, grid, outcome]),
+                                    draw,
+                                    draw,
+                                    state,
+                                );
+                            }
+                        }
+                    }
+                }
+                Reduction::DrawMean => {
+                    let state = if self.any_failed { STATE_FAILED_KEPT } else { STATE_KEPT };
+                    for &outcome in &outcome_ids {
+                        for &grid in &grid_ids {
+                            declared.record_numeric(
+                                combine_ids(&[row, grid, outcome]),
+                                0,
+                                0,
+                                state,
+                            );
+                        }
+                    }
+                }
+                Reduction::DrawCovariance => {
+                    for &left_grid in &grid_ids {
+                        for &left_outcome in &outcome_ids {
+                            for &right_grid in &grid_ids {
+                                for &right_outcome in &outcome_ids {
+                                    declared.record_numeric(
+                                        combine_ids(&[
+                                            row,
+                                            left_grid,
+                                            left_outcome,
+                                            right_grid,
+                                            right_outcome,
+                                        ]),
+                                        0,
+                                        0,
+                                        STATE_KEPT,
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        check_executed(
+            Rewrite::TILED_EVALUATION,
+            &declared.fingerprint(),
+            &[self.executed.fingerprint()],
+        )
+        .map_err(|refusal| TileError::Altered { axis: refusal.axis() })
+    }
+}
+
+fn tile_ledger() -> Result<FrameLedger, TileError> {
+    FrameLedger::try_new("declared_tile", "static_cross_section", "joint_draws_failures_kept")
+        .map_err(|refusal| TileError::Altered { axis: refusal.axis() })
 }
 
 struct Frame<'a> {
@@ -1639,5 +1805,78 @@ mod tests {
         assert!(
             matches!(error, TileError::CovarianceBudget { limit, .. } if limit == MAX_COVARIANCE_BYTES)
         );
+    }
+
+    #[test]
+    fn a_walk_that_drops_repeats_or_unfails_a_cell_is_refused() {
+        let outcomes = [
+            OutcomeDraws { id: 1, coefficients: &[1.0, 2.0, 3.0] },
+            OutcomeDraws { id: 2, coefficients: &[4.0, 5.0, 6.0] },
+        ];
+        let failed = [false, true, false];
+        let grid = [point(0, 0.0, 1.0), point(1, 1.0, 1.0)];
+        let mut full = request(
+            &[],
+            &outcomes,
+            &failed,
+            &grid,
+            Encoding::Polynomial { degree: 0 },
+            AxisOrder::row_major(),
+            Reduction::Full,
+        );
+        full.row_count = 2;
+        let (values, _) = collect(&full).unwrap();
+        let frame = Frame::prepare(&full).unwrap();
+        let audit_of = |cells: &[StreamedValue]| {
+            let mut audit = TileAudit::new(&frame).unwrap();
+            for cell in cells {
+                audit.see(*cell);
+            }
+            audit.admit(&frame)
+        };
+        assert_eq!(audit_of(&values), Ok(()));
+
+        let mut dropped = values.clone();
+        dropped.remove(5);
+        assert_eq!(
+            audit_of(&dropped),
+            Err(TileError::Altered { axis: PreservationAxis::SampleSelection })
+        );
+
+        let mut repeated = values.clone();
+        repeated.push(values[3]);
+        assert_eq!(
+            audit_of(&repeated),
+            Err(TileError::Altered { axis: PreservationAxis::SampleSelection })
+        );
+
+        let mut relabeled = values.clone();
+        if let StreamedValue::Full { row, .. } = &mut relabeled[0] {
+            *row = 7;
+        }
+        assert!(audit_of(&relabeled).is_err());
+
+        let mut unfailed = values.clone();
+        let target = unfailed
+            .iter()
+            .position(|cell| matches!(cell, StreamedValue::Full { draw: 1, .. }))
+            .unwrap();
+        if let StreamedValue::Full { value, .. } = &mut unfailed[target] {
+            *value = 0.0;
+        }
+        assert_eq!(
+            audit_of(&unfailed),
+            Err(TileError::Altered { axis: PreservationAxis::Uncertainty })
+        );
+
+        let mut mean = full;
+        mean.reduction = Reduction::DrawMean;
+        let (means, _) = collect(&mean).unwrap();
+        let mean_frame = Frame::prepare(&mean).unwrap();
+        let mut audit = TileAudit::new(&mean_frame).unwrap();
+        for cell in &means[1..] {
+            audit.see(*cell);
+        }
+        assert!(audit.admit(&mean_frame).is_err());
     }
 }
