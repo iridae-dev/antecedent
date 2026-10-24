@@ -393,11 +393,17 @@ pub(super) fn response(
     season: usize,
     class: usize,
 ) -> f64 {
-    mechanism(data, p, exposures, class) + additive_terms(p, z, season)
+    combine(p, mechanism(data, p, exposures, class), z, season)
 }
-/// The terms that do not depend on exposure: intercept, confounder and season.
-pub(super) fn additive_terms(p: &PanelParameters, z: f64, season: usize) -> f64 {
-    p.intercept + p.confounder * z + p.season_effects[season]
+/// Adds the exposure-independent terms in the order the response is defined by: intercept,
+/// saturated main effects, interaction products, confounder, season.
+pub(super) fn combine(
+    p: &PanelParameters,
+    (main, products): (f64, f64),
+    z: f64,
+    season: usize,
+) -> f64 {
+    p.intercept + main + products + p.confounder * z + p.season_effects[season]
 }
 /// The saturated main effects and interaction products of one exposure vector.
 pub(super) fn mechanism(
@@ -405,7 +411,7 @@ pub(super) fn mechanism(
     p: &PanelParameters,
     exposures: &[f64],
     class: usize,
-) -> f64 {
+) -> (f64, f64) {
     let k = p.half_saturation_of(class);
     let saturated: Vec<_> = exposures
         .iter()
@@ -427,7 +433,7 @@ pub(super) fn mechanism(
                     .unwrap_or(f64::NAN)
         })
         .sum::<f64>();
-    main + products
+    (main, products)
 }
 pub(super) fn observed_response(
     data: &CompiledPanel<'_>,
@@ -459,8 +465,9 @@ pub(super) fn observed_response(
 #[derive(Default)]
 pub(super) struct MechanismMemo {
     exposures: Vec<f64>,
+    candidate: Vec<f64>,
     class: usize,
-    value: Option<f64>,
+    value: Option<(f64, f64)>,
 }
 pub(super) fn program_response(
     data: &CompiledPanel<'_>,
@@ -479,25 +486,23 @@ pub(super) fn program_response_memo(
     time: usize,
     memo: &mut MechanismMemo,
 ) -> f64 {
-    let exposures: Vec<_> = p
-        .channels
-        .iter()
-        .map(|channel| {
-            let values = &program
-                .channels
-                .iter()
-                .find(|c| c.id == channel.id)
-                .expect("validated program channel")
-                .values;
-            let history = scenario
-                .history
-                .iter()
-                .find(|c| c.id == channel.id)
-                .expect("validated scenario history")
-                .values;
-            exposure(values, history, channel.lag, time)
-        })
-        .collect();
+    let mut exposures = std::mem::take(&mut memo.candidate);
+    exposures.clear();
+    exposures.extend(p.channels.iter().map(|channel| {
+        let values = &program
+            .channels
+            .iter()
+            .find(|c| c.id == channel.id)
+            .expect("validated program channel")
+            .values;
+        let history = scenario
+            .history
+            .iter()
+            .find(|c| c.id == channel.id)
+            .expect("validated scenario history")
+            .values;
+        exposure(values, history, channel.lag, time)
+    }));
     let class = match data.family.classes() {
         1 => 0,
         _ => data
@@ -511,15 +516,16 @@ pub(super) fn program_response_memo(
         && memo.exposures.len() == exposures.len()
         && memo.exposures.iter().zip(&exposures).all(|(a, b)| a.to_bits() == b.to_bits());
     let mechanism_value = if same {
-        memo.value.unwrap_or(f64::NAN)
+        memo.value.unwrap_or((f64::NAN, f64::NAN))
     } else {
         let value = mechanism(data, p, &exposures, class);
-        memo.exposures = exposures;
+        std::mem::swap(&mut memo.exposures, &mut exposures);
         memo.class = class;
         memo.value = Some(value);
         value
     };
-    mechanism_value + additive_terms(p, scenario.confounder[time], scenario.season[time])
+    memo.candidate = exposures;
+    combine(p, mechanism_value, scenario.confounder[time], scenario.season[time])
 }
 /// Conservatively retained heap and inline bytes for one complete global parameter value.
 pub(super) fn parameter_bytes(data: &PanelData) -> Result<usize, PanelError> {

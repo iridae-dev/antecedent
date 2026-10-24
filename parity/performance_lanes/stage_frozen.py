@@ -161,7 +161,12 @@ def apply_action(layout: Layout, action: dict) -> None:
 
 def run(argv: list[str], *, cwd: Path | None = None, env: dict | None = None) -> None:
     print("+ " + " ".join(argv), flush=True)
-    subprocess.run(argv, cwd=cwd, env=env, check=True)
+    # A venv and a conda prefix together make maturin refuse to pick an interpreter; the
+    # environments these builds target are the venvs staged here, so the conda one is dropped.
+    base = dict(os.environ if env is None else env)
+    if "VIRTUAL_ENV" in base or any("venv" in part for part in argv):
+        base.pop("CONDA_PREFIX", None)
+    subprocess.run(argv, cwd=cwd, env=base, check=True)
 
 
 def ensure_worktree(layout: Layout, dry_run: bool) -> list[str]:
@@ -188,10 +193,14 @@ def ensure_worktree(layout: Layout, dry_run: bool) -> list[str]:
 
 def ensure_venv(python: Path, base: str, dry_run: bool) -> bool:
     if python.is_file():
+        if not dry_run:
+            # maturin installs dependency groups, which needs a recent pip.
+            run([str(python), "-m", "pip", "install", "--quiet", "--upgrade", "pip"])
         return False
     if not dry_run:
         python.parent.parent.parent.mkdir(parents=True, exist_ok=True)
         run([base, "-m", "venv", str(python.parent.parent)])
+        run([str(python), "-m", "pip", "install", "--quiet", "--upgrade", "pip"])
         run(
             [
                 str(python),

@@ -156,6 +156,23 @@ opt-level = 2
 [profile.dev.package.antecedent-estimate]
 opt-level = 2
 
+# The artifact replay hashes, compresses and serializes tens of thousands of draws; at opt-level 0
+# those dependencies dominate the end-to-end acceptance tests.
+[profile.dev.package.blake3]
+opt-level = 2
+
+[profile.dev.package.zstd-sys]
+opt-level = 2
+
+[profile.dev.package.serde_json]
+opt-level = 2
+
+[profile.dev.package.antecedent-io]
+opt-level = 2
+
+[profile.dev.package.antecedent-io-core]
+opt-level = 2
+
 [profile.release]
 lto = "thin"
 codegen-units = 1

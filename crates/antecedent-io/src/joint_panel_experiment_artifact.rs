@@ -54,6 +54,24 @@ pub struct PanelExperimentExecutionProgram {
     mapping_dependency: [u8; 32],
     policy: String,
 }
+/// Every field of the program that its identity covers: all but the ledger history, with the
+/// frozen panel program stood for by its own identity.
+#[derive(Serialize)]
+struct PanelExperimentIdentityView<'a> {
+    version: u16,
+    panel: [u8; 32],
+    bridge: &'a FullBridgeContractWire,
+    origins: &'a PanelExperimentOrigins,
+    projection: &'a [Vec<u64>],
+    prior_metadata: &'a DistributionMetadata,
+    observed: u64,
+    variance: u64,
+    sample_size: u64,
+    intercepts: &'a [u64],
+    slopes: &'a [u64],
+    mapping_dependency: [u8; 32],
+    policy: &'a str,
+}
 /// Exact native inputs, borrowed from an already checked original and experimental result.
 pub struct PanelExperimentExecutionSource<'a> {
     /// Actual full compiled/frozen original panel.
@@ -112,10 +130,28 @@ impl PanelExperimentExecutionProgram {
     /// # Errors
     /// Serialization errors.
     pub fn identity(&self) -> Result<[u8; 32], PanelArtifactError> {
-        let mut value = serde_json::to_value(self).map_err(invalid)?;
-        value.as_object_mut().ok_or_else(|| invalid("experiment request shape"))?.remove("ledger");
+        // The frozen panel program (dominated by its retained draws) is represented by its own
+        // complete identity, which it digests once; serializing it again here would repeat
+        // that work for every export and consumption of the same immutable program.
+        let mut value = serde_json::to_value(PanelExperimentIdentityView {
+            version: self.version,
+            panel: self.panel.identity()?,
+            bridge: &self.bridge,
+            origins: &self.origins,
+            projection: &self.projection,
+            prior_metadata: &self.prior_metadata,
+            observed: self.observed,
+            variance: self.variance,
+            sample_size: self.sample_size,
+            intercepts: &self.intercepts,
+            slopes: &self.slopes,
+            mapping_dependency: self.mapping_dependency,
+            policy: &self.policy,
+        })
+        .map_err(invalid)?;
+        value.as_object_mut().ok_or_else(|| invalid("experiment request shape"))?;
         Ok(CanonicalWriter::digest_bytes(
-            "antecedent.joint_panel.experimental_program.v1",
+            "antecedent.joint_panel.experimental_program.v2",
             &serde_json::to_vec(&value).map_err(invalid)?,
         ))
     }
