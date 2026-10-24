@@ -270,6 +270,9 @@ pub(crate) fn detect_mechanism_changes_with_correction(
     Ok(out)
 }
 
+/// A target with its baseline and comparison residuals.
+type TargetResiduals = (VariableId, Vec<f64>, Vec<f64>);
+
 /// The baseline (cross-fitted, out of sample) and comparison residuals of every target of
 /// `query`, with the guards of [`detect_mechanism_changes_with_correction`]: populations of at
 /// least ten rows and a refusal under a parent-covariate shift.
@@ -278,7 +281,7 @@ fn residual_pairs(
     data: &TabularData,
     query: &MechanismChangeQuery,
     ctx: &ExecutionContext,
-) -> Result<Vec<(VariableId, Vec<f64>, Vec<f64>)>, AttributionError> {
+) -> Result<Vec<TargetResiduals>, AttributionError> {
     query.validate()?;
     if query.targets.len() > query.max_targets {
         return Err(AttributionError::SizeLimit {

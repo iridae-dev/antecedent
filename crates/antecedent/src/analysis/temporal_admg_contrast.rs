@@ -52,8 +52,22 @@ pub(crate) struct WindowContrast {
     /// The functional estimand the plug-in evaluates.
     pub(crate) estimand: IdentifiedEstimand,
     /// Where the policy, the outcome and the history sit in the window.
+    #[cfg_attr(
+        not(test),
+        allow(
+            dead_code,
+            reason = "the tests read the plan; the run recomputes it from the template"
+        )
+    )]
     pub(crate) plan: TemporalAdmgWindowPlan,
     /// The unrolled window the functional is stated on.
+    #[cfg_attr(
+        not(test),
+        allow(
+            dead_code,
+            reason = "the tests read the window; the run recomputes it from the template"
+        )
+    )]
     pub(crate) window: UnrolledTemporalAdmg,
     /// The window's variable namespace as the unfolding indexer of the schema it is numbered
     /// over: coordinate `period * variables + variable` is the node at offset `period - origin`.
@@ -178,6 +192,10 @@ pub(crate) fn window_coordinates(
 ///
 /// A missing value or a masked row in a used variable (a window cannot straddle one), or a
 /// series shorter than [`MIN_WINDOWS`] windows.
+#[allow(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "the policy is passed by reference as every kernel-policy consumer takes it"
+)]
 pub(crate) fn window_table(
     series: &TimeSeriesData,
     window: &UnrolledTemporalAdmg,
@@ -310,8 +328,8 @@ mod tests {
         };
         for row in 0..table.row_count() {
             for period in 0..periods {
-                assert_eq!(cell(&format!("x@{period}"), row), x[row + period]);
-                assert_eq!(cell(&format!("y@{period}"), row), y[row + period]);
+                assert!((cell(&format!("x@{period}"), row) - x[row + period]).abs() < 1e-12);
+                assert!((cell(&format!("y@{period}"), row) - y[row + period]).abs() < 1e-12);
             }
         }
         // The treated and outcome coordinates are the table's own column ids.
@@ -369,8 +387,10 @@ mod tests {
         // Windows are series times (i, i + 1, i + 2); the treatment sits at i + 1 and the outcome
         // at i + 2, so count y(t + 1) given x(t) over t in 1 ..= len - 2.
         let mean_given = |level: f64| {
-            let rows: Vec<f64> =
-                (1..x.len() - 1).filter(|t| x[*t] == level).map(|t| y[t + 1]).collect();
+            let rows: Vec<f64> = (1..x.len() - 1)
+                .filter(|t| (x[*t] - level).abs() < 1e-12)
+                .map(|t| y[t + 1])
+                .collect();
             rows.iter().sum::<f64>() / rows.len() as f64
         };
         let expected = mean_given(1.0) - mean_given(0.0);
@@ -378,8 +398,10 @@ mod tests {
         assert!((estimate.ate - expected).abs() < 1e-12, "{} vs {expected}", estimate.ate);
         // The reversed lag direction would answer a different number.
         let reversed = |level: f64| {
-            let rows: Vec<f64> =
-                (1..x.len() - 1).filter(|t| x[*t + 1] == level).map(|t| y[t]).collect();
+            let rows: Vec<f64> = (1..x.len() - 1)
+                .filter(|t| (x[*t + 1] - level).abs() < 1e-12)
+                .map(|t| y[t])
+                .collect();
             rows.iter().sum::<f64>() / rows.len() as f64
         };
         assert!((reversed(1.0) - reversed(0.0) - expected).abs() > 1e-3);

@@ -61,6 +61,8 @@ from .query import (
     ResponseJacobian,
     SemiElasticity,
     SustainedEffect,
+    TemporalConditionalPulse,
+    TemporalConditionalSustained,
     TemporalMediationEffect,
 )
 from .regimes import LongitudinalRegime, SequentialContrast
@@ -107,6 +109,8 @@ def analyze(
         | CompetingRisksOutcome
         | PulseEffect
         | SustainedEffect
+        | TemporalConditionalPulse
+        | TemporalConditionalSustained
         | InterventionalDistribution
         | PathSpecificEffect
         | ConditionalEffect

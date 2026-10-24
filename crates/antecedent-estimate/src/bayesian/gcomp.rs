@@ -1335,6 +1335,9 @@ enum ReferenceArm {
     Control,
 }
 
+/// A design with its coefficient names.
+type CenteredDesign = (CompiledDesign, Arc<[Arc<str>]>);
+
 /// Append one treatment-by-covariate interaction per covariate column, each covariate
 /// centred at its mean over the rows observed at `level`.
 ///
@@ -1346,7 +1349,7 @@ fn center_interactions_on_arm(
     design: &CompiledDesign,
     names: &Arc<[Arc<str>]>,
     level: f64,
-) -> Result<(CompiledDesign, Arc<[Arc<str>]>), EstimationError> {
+) -> Result<CenteredDesign, EstimationError> {
     let n = design.nrows;
     let treatment = &design.matrix[n..2 * n];
     let in_arm: Vec<bool> = treatment.iter().map(|&t| (t - level).abs() <= 1e-12).collect();

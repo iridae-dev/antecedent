@@ -49,6 +49,35 @@ pub struct HistoryOutcomeProblem {
     pub unused_treated: Vec<usize>,
 }
 
+/// The design matrix (column-major: intercept, treatment, history mean, period indicators, the
+/// treatment by centred history mean interaction) and the outcome of the kept rows.
+fn period_design_matrix(
+    units: &[HistoryUnit],
+    rows: &[usize],
+    period_index: &BTreeMap<i64, usize>,
+    ncols: usize,
+    treated_mean_score: f64,
+) -> (Vec<f64>, Vec<f64>) {
+    let n = rows.len();
+    let mut matrix = vec![0.0_f64; n * ncols];
+    matrix[..n].fill(1.0);
+    let mut outcome = Vec::with_capacity(n);
+    for (slot, &row) in rows.iter().enumerate() {
+        let unit = &units[row];
+        let score = unit.score();
+        let treated = if unit.is_treated() { 1.0 } else { 0.0 };
+        matrix[n + slot] = treated;
+        matrix[2 * n + slot] = score;
+        let index = period_index[&unit.period()];
+        if index > 0 {
+            matrix[(2 + index) * n + slot] = 1.0;
+        }
+        matrix[(ncols - 1) * n + slot] = treated * (score - treated_mean_score);
+        outcome.push(unit.outcome());
+    }
+    (matrix, outcome)
+}
+
 /// Build the outcome-model design for the effect on the treated.
 ///
 /// # Errors
@@ -121,22 +150,8 @@ pub fn prepare_history_outcome_model(
         .sum::<f64>()
         / treated_rows as f64;
 
-    let mut matrix = vec![0.0_f64; n * ncols];
-    matrix[..n].fill(1.0);
-    let mut outcome = Vec::with_capacity(n);
-    for (slot, &row) in rows.iter().enumerate() {
-        let unit = &units[row];
-        let score = unit.score();
-        let treated = if unit.is_treated() { 1.0 } else { 0.0 };
-        matrix[n + slot] = treated;
-        matrix[2 * n + slot] = score;
-        let index = period_index[&unit.period()];
-        if index > 0 {
-            matrix[(2 + index) * n + slot] = 1.0;
-        }
-        matrix[(ncols - 1) * n + slot] = treated * (score - treated_mean_score);
-        outcome.push(unit.outcome());
-    }
+    let (matrix, outcome) =
+        period_design_matrix(units, &rows, &period_index, ncols, treated_mean_score);
 
     let mut roles = vec![
         DesignColumnRole::Intercept,
@@ -146,7 +161,9 @@ pub fn prepare_history_outcome_model(
     let mut names: Vec<Arc<str>> =
         vec![Arc::from("intercept"), Arc::from("coef_treatment"), Arc::from("coef_history_mean")];
     for (index, period) in kept.iter().enumerate().skip(1) {
-        roles.push(DesignColumnRole::Covariate(VariableId::from_raw(index as u32)));
+        roles.push(DesignColumnRole::Covariate(VariableId::from_raw(
+            u32::try_from(index).unwrap_or(u32::MAX),
+        )));
         names.push(Arc::from(format!("coef_period_{period}")));
     }
     roles.push(DesignColumnRole::Covariate(VariableId::from_raw(0)));

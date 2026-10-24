@@ -75,13 +75,17 @@ fn accept(bytes: &[u8]) -> Result<Value, CausalError> {
     if consumed.acceptance.accepts_as_claim() {
         Ok(serde_json::json!({
             "status": "supported",
-            "artifact_digest": consumed.artifact_digest.iter().map(|b| format!("{b:02x}")).collect::<String>(),
+            "artifact_digest": consumed.artifact_digest.iter().fold(String::new(), |mut hex, b| {
+                use std::fmt::Write as _;
+                let _ = write!(hex, "{b:02x}");
+                hex
+            }),
             "estimate": consumed.body.estimate,
         }))
     } else {
         Ok(serde_json::json!({
             "status": "partial",
-            "unresolved": consumed.acceptance.unresolved.iter().map(|u| u.as_ref()).collect::<Vec<_>>(),
+            "unresolved": consumed.acceptance.unresolved.iter().map(std::convert::AsRef::as_ref).collect::<Vec<_>>(),
             "restriction": consumed.acceptance.restriction.as_deref(),
         }))
     }

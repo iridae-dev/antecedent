@@ -718,6 +718,31 @@ impl super::Study {
         }
     }
 
+    /// A tabular route on a prepared handle, or on a fresh run whose operation is sealed to the
+    /// plan's lowered program here.
+    fn execute_tabular_prepared_or_fresh(
+        &self,
+        route: AnalysisRoute,
+        data: &DataInput,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
+        execution: Option<&super::super::prepared::PreparedExecution>,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let DataInput::Tabular(data) = data else { return Err(route_mismatch()) };
+        // A fresh run holds no prepared handle: its operation is sealed to the
+        // plan's lowered program here, and stamps nothing as a prepared click.
+        let fresh;
+        let execution = if let Some(execution) = execution {
+            execution
+        } else {
+            fresh = super::super::prepared::PreparedExecution::FreshRun(
+                super::CheckedRouteOperation::lowered(self, physical)?,
+            );
+            &fresh
+        };
+        self.execute_tabular_route(route, data, physical, execution, ctx)
+    }
+
     fn execute_on_inner(
         &self,
         data: &DataInput,
@@ -733,19 +758,7 @@ impl super::Study {
         }
         match classify_analysis_route(data, &self.query) {
             Some(route) if matches!(data_modality(data), DataModality::Tabular) => {
-                let DataInput::Tabular(data) = data else { return Err(route_mismatch()) };
-                // A fresh run holds no prepared handle: its operation is sealed to the
-                // plan's lowered program here, and stamps nothing as a prepared click.
-                let fresh;
-                let execution = if let Some(execution) = execution {
-                    execution
-                } else {
-                    fresh = super::super::prepared::PreparedExecution::FreshRun(
-                        super::CheckedRouteOperation::lowered(self, physical)?,
-                    );
-                    &fresh
-                };
-                self.execute_tabular_route(route, data, physical, execution, ctx)
+                self.execute_tabular_prepared_or_fresh(route, data, physical, execution, ctx)
             }
             Some(AnalysisRoute::TemporalCrossWorld) => {
                 let (DataInput::Temporal(data) | DataInput::Event(data)) = data else {
@@ -1090,6 +1103,44 @@ impl super::Study {
         }
     }
 
+    /// An attribution or simulation on tabular data: the sealed attribution operation when the
+    /// query carries uncertainty over the mechanisms, else the fitted-model route.
+    fn execute_tabular_attribute_or_simulate(
+        &self,
+        route: AnalysisRoute,
+        data: &TabularData,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let graph = self.require_execute_dag(
+            "Attribute and Simulate execute on a supplied or accepted static DAG",
+        )?;
+        // The posterior over the mechanisms, and the mechanism-refit row bootstrap of a
+        // change target, live on the sealed attribution operation; running it here
+        // keeps the uncertainty independent of the entry.
+        if matches!(route, AnalysisRoute::Attribute | AnalysisRoute::Simulate)
+            && super::attribute_runs_checked(
+                &self.query,
+                &self.inference,
+                self.bootstrap_replicates,
+            )
+        {
+            let cache = if let Some((cache, _)) = self.reuse_static_identification(physical) {
+                cache
+            } else {
+                super::report_identify_compute(ctx);
+                std::sync::Arc::new(self.prepare_static_identification(physical)?.ok_or_else(
+                    || CausalError::Compile {
+                        message: "attribution identified no structural product".into(),
+                    },
+                )?)
+            };
+            return super::CheckedAttributionOperation::checked(self, physical, &cache)?
+                .execute(data, ctx);
+        }
+        self.execute_model_route(data, graph, physical, ctx)
+    }
+
     fn execute_tabular_route_rows(
         &self,
         route: AnalysisRoute,
@@ -1168,36 +1219,7 @@ impl super::Study {
             }
             AnalysisRoute::Discover => self.execute_discover_tabular(data, physical, ctx),
             AnalysisRoute::Attribute | AnalysisRoute::Simulate => {
-                let graph = self.require_execute_dag(
-                    "Attribute and Simulate execute on a supplied or accepted static DAG",
-                )?;
-                // The posterior over the mechanisms, and the mechanism-refit row bootstrap of a
-                // change target, live on the sealed attribution operation; running it here
-                // keeps the uncertainty independent of the entry.
-                if matches!(route, AnalysisRoute::Attribute | AnalysisRoute::Simulate)
-                    && super::attribute_runs_checked(
-                        &self.query,
-                        &self.inference,
-                        self.bootstrap_replicates,
-                    )
-                {
-                    let cache = if let Some((cache, _)) = self.reuse_static_identification(physical)
-                    {
-                        cache
-                    } else {
-                        super::report_identify_compute(ctx);
-                        std::sync::Arc::new(
-                            self.prepare_static_identification(physical)?.ok_or_else(|| {
-                                CausalError::Compile {
-                                    message: "attribution identified no structural product".into(),
-                                }
-                            })?,
-                        )
-                    };
-                    return super::CheckedAttributionOperation::checked(self, physical, &cache)?
-                        .execute(data, ctx);
-                }
-                self.execute_model_route(data, graph, physical, ctx)
+                self.execute_tabular_attribute_or_simulate(route, data, physical, ctx)
             }
             AnalysisRoute::TemporalMediation
             | AnalysisRoute::TemporalEffect

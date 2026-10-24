@@ -164,6 +164,12 @@ _EXPECTED_STAGE_ALL = {
         "encode_posterior_artifact",
     },
     "attribution": {
+        "AttributionWithUncertainty",
+        "AttributionUncertainty",
+        "attribute_root_causes",
+        "PosteriorOverMechanisms",
+        "attribution_uncertainty",
+        "RefitBootstrap",
         "AnomalyScores",
         "ChangeAttributionResult",
         "Contribution",
@@ -447,6 +453,8 @@ _EXPECTED_STAGE_ALL = {
         "providers",
     },
     "gcm": {
+        "SourcePosterior",
+        "MechanismPosterior",
         "anomaly_attribution_discovered",
         "attribute_distribution_change_discovered",
         "attribute_paths_discovered",

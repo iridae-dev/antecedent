@@ -633,11 +633,13 @@ fn a_temporal_rollout_steps_the_fitted_dynamics_and_carries_block_refit_uncertai
         );
         assert!(posterior.summaries.sd.iter().any(|sd| *sd > 0.0));
         // The simulated-path columns are draws of the predictive law: refit uncertainty plus the
-        // innovation noise (sd 1), so they spread far wider than the mean of the same step.
+        // innovation noise (sd 1, rolled out under a fresh seed in every refit), so they spread
+        // over about the innovation sd while the mean of the same step spreads over the refit
+        // error only (about 0.1 on 300 rows).
         let (mean_at, path_at) = (2 * 2 + 1, 8 + 2 * 2 + 1);
         assert!((posterior.summaries.mean[path_at] - 3.0).abs() < 1.0);
         assert!(
-            posterior.summaries.sd[path_at] > 0.5
+            (0.6..1.6).contains(&posterior.summaries.sd[path_at])
                 && posterior.summaries.sd[path_at] > 3.0 * posterior.summaries.sd[mean_at],
             "{} vs {}",
             posterior.summaries.sd[path_at],

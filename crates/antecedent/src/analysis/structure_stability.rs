@@ -69,17 +69,11 @@ fn check_design(
 ) -> Result<(), CausalError> {
     use antecedent_core::ResamplingRule;
     let (default, rule) = match data {
-        DiscoverData::Tabular(_) => {
-            (DeclaredSamplingDesign::IndependentSubjectTrajectories, ResamplingRule::RowSubjectIid)
-        }
-        DiscoverData::Series(_) => {
-            (DeclaredSamplingDesign::DependentTimeSeries, ResamplingRule::ContiguousBlock)
-        }
-        DiscoverData::Panel(_) => {
+        DiscoverData::Tabular(_) | DiscoverData::Panel(_) => {
             (DeclaredSamplingDesign::IndependentSubjectTrajectories, ResamplingRule::RowSubjectIid)
         }
         // Each environment is its own dependent series, resampled in blocks on its own.
-        DiscoverData::MultiEnv(_) => {
+        DiscoverData::Series(_) | DiscoverData::MultiEnv(_) => {
             (DeclaredSamplingDesign::DependentTimeSeries, ResamplingRule::ContiguousBlock)
         }
     };

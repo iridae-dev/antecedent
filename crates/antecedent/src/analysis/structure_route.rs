@@ -1344,14 +1344,17 @@ pub(crate) fn run_mechanism_change(
     ctx: &ExecutionContext,
 ) -> Result<Vec<antecedent_attribution::MechanismChangeDetection>, CausalError> {
     if reading.bayesian {
-        let prior = detection.change_prior.map(|prior| prior.to_f64()).ok_or_else(|| {
-            crate::unsupported_reason!(
-                "option_not_applicable",
-                "the posterior probability of a mechanism change needs a prior over the change \
+        let prior = detection
+            .change_prior
+            .map(antecedent_core::OrderedFloatBits::to_f64)
+            .ok_or_else(|| {
+                crate::unsupported_reason!(
+                    "option_not_applicable",
+                    "the posterior probability of a mechanism change needs a prior over the change \
                  indicator, and none is assumed. Next attempt: declare it with \
                  MechanismChangeQuery::with_change_prior"
-            )
-        })?;
+                )
+            })?;
         return Ok(antecedent_attribution::mechanism_change_posterior(
             &fitted.model,
             data,
@@ -1411,8 +1414,7 @@ pub(crate) fn change_quantities(result: &ChangeAttributionResult) -> Vec<(String
 /// the mean of each variable of a draw batch (interventional draws, noise samples), the policy
 /// and baseline means and their paired difference, the mean unit effect, the mean of each
 /// outcome in each world of a counterfactual, and, for a rollout, the mean of each of the first
-/// `nodes` variables at each step (step-major), followed by one simulated path per refit (the
-/// draws of the predictive law).
+/// `nodes` variables at each step (step-major).
 pub(crate) fn simulation_quantities(
     outcome: &SimulationOutcome,
     nodes: usize,
@@ -1456,22 +1458,30 @@ pub(crate) fn simulation_quantities(
                     ));
                 }
             }
-            // One simulated path of this refit (the first of its independent rows): the value of
-            // each variable at each step, innovations included. Across refits these columns are
-            // draws from the predictive law of a path, the mixture of the refit uncertainty and
-            // the innovation noise, so their summaries are predictive intervals, not intervals
-            // for the mean.
-            for (step, batch) in path.steps.iter().enumerate() {
-                for node in 0..limit {
-                    out.push((
-                        format!("step[{step}].path[{node}]"),
-                        *batch.column(node).ok()?.first()?,
-                    ));
-                }
-            }
             Some(out)
         }
     }
+}
+
+/// One simulated path of a rollout: the value of each of the first `nodes` variables at each step
+/// (step-major, first row), innovations included. Rolled out under a fresh seed in every refit,
+/// these are draws from the predictive law of a path: the refit uncertainty mixed with the
+/// innovation noise.
+pub(crate) fn simulated_path_quantities(
+    outcome: &SimulationOutcome,
+    nodes: usize,
+) -> Option<Vec<(String, f64)>> {
+    let SimulationOutcome::Temporal(path) = outcome else {
+        return None;
+    };
+    let limit = nodes.min(path.n_nodes);
+    let mut out = Vec::with_capacity(path.steps.len() * limit);
+    for (step, batch) in path.steps.iter().enumerate() {
+        for node in 0..limit {
+            out.push((format!("step[{step}].path[{node}]"), *batch.column(node).ok()?.first()?));
+        }
+    }
+    Some(out)
 }
 
 /// The named scalar quantities of an attribution under the row `weights` of a replicate (the

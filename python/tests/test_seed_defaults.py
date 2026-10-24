@@ -25,6 +25,9 @@ from pathlib import Path
 _SRC = Path(__file__).resolve().parents[1] / "src"
 
 SEED_ZERO = (
+    "attribution_api.rs::attribution_uncertainty",
+    "attribution_api.rs::temporal_model_query",
+    "horizon_composition_api.rs::compose_horizon_draws",
     "decision_reliability_api.rs::decision_reliability_assess_producer",
     "decision_reliability_api.rs::decision_reliability_consume_derived",
     "decision_reliability_api.rs::decision_reliability_derive",

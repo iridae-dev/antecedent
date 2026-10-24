@@ -648,7 +648,7 @@ impl JointPanelResult {
             .iter()
             .map(|slot| {
                 slot.as_deref()
-                    .map(&assemble)
+                    .map(assemble)
                     .transpose()
                     .map(|value| value.filter(|value| value.is_finite()))
             })

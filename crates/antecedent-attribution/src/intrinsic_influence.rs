@@ -1159,6 +1159,40 @@ enum FitComponent {
     Unquantified(&'static str),
 }
 
+/// The per-player spread of the refit contributions: the bootstrap deviation with the
+/// permutation noise added back (`whole`) and with the noise variance of one estimate removed
+/// (`stderr`).
+fn bootstrap_spread(
+    draws: &[&Vec<f64>],
+    pooled: &ShapleyEstimate,
+    sources_sim: &[f64],
+    players: usize,
+) -> (Vec<f64>, Vec<f64>) {
+    let whole = (0..players)
+        .map(|i| {
+            let mut w = Welford::new();
+            draws.iter().for_each(|d| w.push(d[i]));
+            let boot_var = w.sample_variance().unwrap_or(f64::NAN);
+            let permutation_var =
+                pooled.component_mc_stderr.as_ref().map_or(0.0, |se| se[i] * se[i]);
+            (boot_var + permutation_var).sqrt()
+        })
+        .collect();
+    let stderr = (0..players)
+        .map(|i| {
+            let mut w = Welford::new();
+            draws.iter().for_each(|d| w.push(d[i]));
+            let boot_var = w.sample_variance().unwrap_or(f64::NAN);
+            let noise_var =
+                pooled.component_mc_stderr.as_ref().map_or(sources_sim[i] * sources_sim[i], |se| {
+                    (se[i] * se[i]).max(sources_sim[i] * sources_sim[i])
+                });
+            (boot_var - noise_var).max(0.0).sqrt()
+        })
+        .collect();
+    (whole, stderr)
+}
+
 /// Mechanism-fitting uncertainty: refit the mechanisms on row-bootstrap resamples of `data`
 /// (or under Dirichlet row weights, for the posterior over the mechanisms) and repeat the
 /// attribution on each refit.
@@ -1268,28 +1302,7 @@ fn fit_component(
         return Ok(FitComponent::Unquantified(REASON_REFIT_FAILED));
     }
     let draws: Vec<&Vec<f64>> = outcomes.iter().flatten().collect();
-    let whole = (0..spec.players.len())
-        .map(|i| {
-            let mut w = Welford::new();
-            draws.iter().for_each(|d| w.push(d[i]));
-            let boot_var = w.sample_variance().unwrap_or(f64::NAN);
-            let permutation_var =
-                pooled.component_mc_stderr.as_ref().map_or(0.0, |se| se[i] * se[i]);
-            (boot_var + permutation_var).sqrt()
-        })
-        .collect();
-    let stderr = (0..spec.players.len())
-        .map(|i| {
-            let mut w = Welford::new();
-            draws.iter().for_each(|d| w.push(d[i]));
-            let boot_var = w.sample_variance().unwrap_or(f64::NAN);
-            let noise_var =
-                pooled.component_mc_stderr.as_ref().map_or(sources_sim[i] * sources_sim[i], |se| {
-                    (se[i] * se[i]).max(sources_sim[i] * sources_sim[i])
-                });
-            (boot_var - noise_var).max(0.0).sqrt()
-        })
-        .collect();
+    let (whole, stderr) = bootstrap_spread(&draws, pooled, sources_sim, spec.players.len());
     let df = f64::from(replicates) - 1.0;
     let draws: Vec<Vec<f64>> = draws.into_iter().cloned().collect();
     Ok(FitComponent::Quantified {

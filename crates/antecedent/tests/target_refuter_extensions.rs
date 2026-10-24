@@ -82,9 +82,10 @@ fn an_average_derivative_is_checked_at_the_nodes_of_its_weighting_law() {
     let config = TargetRefutationConfig { replicates: 4, ..TargetRefutationConfig::default() };
     let options =
         TargetRefitOptions { derivative_step: Some(0.5), ..TargetRefitOptions::default() };
-    for weighting in
-        [DerivativeWeighting::Observed, DerivativeWeighting::Uniform { lower: 1.5, upper: 2.5 }]
+    // The Gaussian-score Riesz estimator admits the observed-law weighting only, so that is the
+    // law whose nodes are checked.
     {
+        let weighting = DerivativeWeighting::Observed;
         let prepared = Study::tabular(data.clone())
             .graph(graph.clone())
             .query(CausalQuery::Response(ResponseQuery::new(
@@ -288,33 +289,34 @@ fn gathered_resamples_serve_a_route_that_reads_no_row_weights() {
 #[test]
 fn a_jacobian_is_checked_along_each_treatment_axis() {
     let ctx = ExecutionContext::for_tests(65);
-    let mut rng = CausalRng::from_seed(21);
-    let n = 800;
-    let b: Vec<f64> = (0..n).map(|_| standard_normal(&mut rng)).collect();
-    let a: Vec<f64> = b.iter().map(|b| 2.0 + 0.3 * b + 0.5 * standard_normal(&mut rng)).collect();
-    let y: Vec<f64> = a
-        .iter()
-        .zip(&b)
-        .map(|(a, b)| 2.0 * a + 0.5 * b + 0.05 * standard_normal(&mut rng))
+    // Two roots and two outcomes that are linear in them: the shape of the checked static
+    // derivative route (the Jacobian of `(y, v)` in `(a, b)` is `[[2, -0.5], [0.25, 1.5]]`).
+    let a: Vec<f64> = (0..800)
+        .map(|i| 2.0 + (f64::from(i) * 0.71).sin() + 0.2 * (f64::from(i) * 0.13).cos())
         .collect();
+    let b: Vec<f64> = (0..800).map(|i| (f64::from(i) * 1.13).cos()).collect();
+    let y: Vec<f64> = a.iter().zip(&b).map(|(a, b)| 5.0 + 2.0 * a - 0.5 * b).collect();
+    let w: Vec<f64> = a.iter().zip(&b).map(|(a, b)| 1.0 + 0.25 * a + 1.5 * b).collect();
     let data = TabularData::from_f64_columns([
         ("a", a.as_slice()),
         ("b", b.as_slice()),
         ("y", y.as_slice()),
+        ("v", w.as_slice()),
     ])
     .unwrap();
-    let mut graph = Dag::with_variables(3);
-    for (from, to) in [(1, 0), (0, 2), (1, 2)] {
+    let mut graph = Dag::with_variables(4);
+    for (from, to) in [(0, 2), (0, 3), (1, 2), (1, 3)] {
         graph.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
     }
     let prepared = Study::tabular(data.clone())
         .graph(graph)
         .query(CausalQuery::Response(ResponseQuery::new(ResponseFunctional::Jacobian {
-            outcomes: std::sync::Arc::from([v(2)]),
+            outcomes: std::sync::Arc::from([v(2), v(3)]),
             treatments: std::sync::Arc::from([v(0), v(1)]),
             at: std::sync::Arc::from([2.0, 0.0]),
             scale: DerivativeScale::Identity,
         })))
+        .response_options(ContinuousResponseOptions { bandwidth: Some(0.35), ..Default::default() })
         .refute(RefuteSuite::None)
         .build()
         .unwrap()
@@ -332,9 +334,10 @@ fn a_jacobian_is_checked_along_each_treatment_axis() {
         &ctx,
     );
     let fd = report(&outcome, TargetRefuterKind::FiniteDifferenceConsistency);
-    assert_eq!(fd.refuted.len(), 2);
-    assert!((fd.refuted[0] - 2.0).abs() < 0.4, "d/da {:?}", fd.refuted);
-    assert!((fd.refuted[1] - 0.5).abs() < 0.4, "d/db {:?}", fd.refuted);
+    assert_eq!(fd.refuted.len(), 4);
+    for (got, want) in fd.refuted.iter().zip([2.0, -0.5, 0.25, 1.5]) {
+        assert!((got - want).abs() < 0.3, "finite differences {:?}", fd.refuted);
+    }
 }
 
 /// Columns `t, y, z, w, x`: `z` and `w` cause `t`, `t` causes `y`, `x` is a child of `w`.

@@ -820,8 +820,8 @@ fn temporal_model_query(
             .map_err(py_err)?;
         let result =
             study.prepare(&ctx).map_err(py_err)?.estimate_series(&series, &ctx).map_err(py_err)?;
-        let body = match kind.as_str() {
-            "mechanism_change" => {
+        let body = if kind == "mechanism_change" {
+            {
                 let Some(AttributionOutcome::MechanismChange(found)) =
                     result.attribution().map(|payload| payload.outcome.clone())
                 else {
@@ -845,7 +845,8 @@ fn temporal_model_query(
                     .collect();
                 serde_json::json!({ "kind": kind, "detections": detections })
             }
-            _ => {
+        } else {
+            {
                 let Some(payload) = result.simulation() else {
                     return Err(outcome_mismatch());
                 };
@@ -900,13 +901,13 @@ fn temporal_model_query(
                             .iter()
                             .filter_map(|(k, v)| {
                                 let rest = k.strip_prefix("bootstrap_se.step[")?;
-                                let (step, node, is_path) = match rest.split_once("].node[") {
-                                    Some((step, node)) => (step, node, false),
-                                    None => {
+                                let (step, node, is_path) =
+                                    if let Some((step, node)) = rest.split_once("].node[") {
+                                        (step, node, false)
+                                    } else {
                                         let (step, node) = rest.split_once("].path[")?;
                                         (step, node, true)
-                                    }
-                                };
+                                    };
                                 let node: usize = node.trim_end_matches(']').parse().ok()?;
                                 let name = label(step.parse().ok()?, node);
                                 Some((

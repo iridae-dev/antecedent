@@ -1098,7 +1098,7 @@ mod window_contrast {
         let w = bits(len, 0x85EB_CA6B);
         let y: Vec<f64> = (0..len)
             .map(|t| {
-                let drive = if t > 0 && w[t - 1] == 1.0 { x[t - 1] } else { 0.0 };
+                let drive = if t > 0 && (w[t - 1] - 1.0).abs() < 1e-12 { x[t - 1] } else { 0.0 };
                 if [9, 33, 71, 120].contains(&t) { 1.0 - drive } else { drive }
             })
             .collect();
@@ -1144,8 +1144,10 @@ mod window_contrast {
     /// adjust for `w(t)` and so is not the identified contrast (it differs in a finite sample).
     fn naive_contrast(x: &[f64], y: &[f64]) -> f64 {
         let mean = |level: f64| {
-            let rows: Vec<f64> =
-                (1..x.len() - 1).filter(|t| x[*t] == level).map(|t| y[t + 1]).collect();
+            let rows: Vec<f64> = (1..x.len() - 1)
+                .filter(|t| (x[*t] - level).abs() < 1e-12)
+                .map(|t| y[t + 1])
+                .collect();
             rows.iter().sum::<f64>() / rows.len() as f64
         };
         mean(1.0) - mean(0.0)
@@ -1158,7 +1160,7 @@ mod window_contrast {
         let mean = |level: f64, stratum: f64| {
             let rows: Vec<f64> = positions
                 .iter()
-                .filter(|t| x[**t] == level && w[**t] == stratum)
+                .filter(|t| (x[**t] - level).abs() < 1e-12 && (w[**t] - stratum).abs() < 1e-12)
                 .map(|t| y[*t + 1])
                 .collect();
             rows.iter().sum::<f64>() / rows.len() as f64
@@ -1166,7 +1168,8 @@ mod window_contrast {
         [0.0, 1.0]
             .into_iter()
             .map(|stratum| {
-                let weight = positions.iter().filter(|t| w[**t] == stratum).count() as f64
+                let weight = positions.iter().filter(|t| (w[**t] - stratum).abs() < 1e-12).count()
+                    as f64
                     / positions.len() as f64;
                 weight * (mean(1.0, stratum) - mean(0.0, stratum))
             })

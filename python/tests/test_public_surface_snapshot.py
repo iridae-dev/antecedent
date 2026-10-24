@@ -269,6 +269,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "weight",
     },
     "antecedent": {
+        "propagation_chain",
         # Verbs
         "analyze",
         "estimate",
@@ -448,6 +449,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "intrinsic_influence",
     },
     "AnalysisResult": {
+        "iv_bounds",
         "artifact",
         "history_match",
         "posterior_row",
@@ -533,6 +535,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "missing_data",
     },
     "PreparedAnalysis": {
+        "report",
         "participants",
         "temporal_treatment_score",
         "treatment_score_posterior",

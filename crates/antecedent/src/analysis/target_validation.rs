@@ -1695,22 +1695,46 @@ impl PreparedRefit<'_> {
             .map_err(data_failed)
     }
 
-    /// The bootstrap of a series drawn as a gathered circular-block series: block joins pair
-    /// values observed apart, and the block length keeps the share of windows that straddle a
-    /// join small.
+    /// The bootstrap of a series drawn as a gathered circular-block series, with a zero row
+    /// weight on every design row whose lag window crosses a block join (such a row pairs values
+    /// observed apart and would attenuate a lagged effect). A route that reads row weights
+    /// recovers the replicate the multiplicities define; a route that reads none keeps the
+    /// attenuation, of order `(span - 1) / block length`.
     fn gathered_bootstrap(
         &self,
         series: &TimeSeriesData,
         rng: &mut CausalRng,
         ctx: &ExecutionContext,
     ) -> Result<Vec<f64>, TargetRefitError> {
+        let n = series.row_count();
         let span = max_graph_lag(self.study()) + 1;
-        let plan = antecedent_data::ResamplingPlan::CircularBlock {
-            length: antecedent_data::circular_block_length(span, series.row_count()),
-        };
-        let mut scratch = Vec::new();
-        let gathered = antecedent_data::resample_timeseries(series, plan, rng, &mut scratch)
+        let length = antecedent_data::circular_block_length(span, n);
+        let mut map = vec![0_usize; n];
+        antecedent_data::fill_circular_block_indexes(n, length, rng, &mut map)
             .map_err(data_failed)?;
+        let storage = series.storage();
+        let mut replacements = Vec::with_capacity(storage.columns().len());
+        for column in storage.columns() {
+            let OwnedColumn::Float64(column) = column else {
+                return Err(unsupported(
+                    "the gathered bootstrap gathers float64 columns only",
+                    "encode every column as float64",
+                ));
+            };
+            let gathered: Arc<[f64]> = map.iter().map(|&row| column.values[row]).collect();
+            replacements.push((column.id, gathered));
+        }
+        // A design row whose lag window crosses a block join pairs values observed apart, which
+        // attenuates a lagged effect by about the share of such rows. Their weight is zero, so
+        // a route that reads row weights recovers the replicate the multiplicities define; a
+        // route that reads none keeps the attenuation, of order `(span - 1) / length`.
+        let seam_free: Arc<[f64]> = (0..n)
+            .map(|row| {
+                let aligned = row + 1 >= span && (1..span).all(|k| map[row - k] + k == map[row]);
+                f64::from(u8::from(aligned))
+            })
+            .collect();
+        let gathered = series_with(series, &replacements, None, Some(seam_free))?;
         self.reestimate(&Modal::Series(gathered), ctx)
     }
 
@@ -2812,17 +2836,16 @@ impl PreparedRefit<'_> {
             let run = |study: crate::analysis::execute::Study| {
                 Self::compile_and_run(study, &self.modal_data(), ctx)
             };
-            let result = match run(study.clone()) {
-                Ok(result) => result,
-                Err(_) => {
-                    study.estimator = None;
-                    study.estimator_spec = None;
-                    run(study).map_err(|error| {
-                        ValidationError::estimation_msg(format!(
-                            "the interventional mean did not run: {error}"
-                        ))
-                    })?
-                }
+            let result = if let Ok(result) = run(study.clone()) {
+                result
+            } else {
+                study.estimator = None;
+                study.estimator_spec = None;
+                run(study).map_err(|error| {
+                    ValidationError::estimation_msg(format!(
+                        "the interventional mean did not run: {error}"
+                    ))
+                })?
             };
             let value = result
                 .response()

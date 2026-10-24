@@ -473,8 +473,10 @@ fn an_order_posterior_under_laplace_noise_orients_what_the_gaussian_posterior_ca
         let data =
             TabularData::from_f64_columns([("x", x.as_slice()), ("y", y.as_slice())]).unwrap();
         let schedule = GraphMcmcSchedule { n_chains: 4, n_warmup: 200, n_draws: 400, thin: 1 };
-        let mut params = BayesianDiscoverParams::default();
-        params.score_family = antecedent_state::GraphScoreFamily::LaplaceBic;
+        let params = BayesianDiscoverParams {
+            score_family: antecedent_state::GraphScoreFamily::LaplaceBic,
+            ..BayesianDiscoverParams::default()
+        };
         let study = Study::tabular(data)
             .discovery(DiscoverySpec::order_mcmc(params, schedule, false), vec![v(0), v(1)])
             .build()

@@ -207,6 +207,48 @@ fn modality_refusal(method: &DiscoveryMethod) -> CausalError {
     )
 }
 
+/// The note on how a discovered structure is to be read.
+fn discovery_note(structure: &DiscoveredStructure, query: &DiscoverQuery) -> Diagnostic {
+    match structure {
+        DiscoveredStructure::Stability(table) => Diagnostic::new(
+            "discovery.stability_table",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            format!(
+                "the stability search tabulated {} of {} resamples ({} failed and are kept \
+                 as failed mass); the frequencies are a bootstrap distribution of the \
+                 search under the declared sampling design, not a posterior, and carry no \
+                 review gate. Their coverage is not measured.",
+                table.succeeded, table.requested, table.failed
+            ),
+        ),
+        DiscoveredStructure::RegimeStability(tables) => Diagnostic::new(
+            "discovery.stability_table",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            format!(
+                "the stability search tabulated one table for each of {} labelled regime(s), \
+                 re-running regime PCMCI on circular-block resamples that carry their regime \
+                 labels; the frequencies are a bootstrap distribution of the search, not a \
+                 posterior, and carry no review gate. Their coverage is not measured.",
+                tables.len()
+            ),
+        ),
+        _ => Diagnostic::new(
+            "discovery.review_gate",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            format!(
+                "the {} search returned a {}; a downstream study reads it only after its \
+                 review gate (accept_discovered), which records this search's provenance on \
+                 the accepted graph. CPDAG and PAG marks stay class information.",
+                query.method.id(),
+                query.output().as_str()
+            ),
+        ),
+    }
+}
+
 impl super::Study {
     /// Admission of a structure search: the query is valid and the method runs
     /// on the study's data modality.
@@ -306,44 +348,7 @@ impl super::Study {
             identification_from_cache_or(ctx, self.reuse_static_identification(physical), || {
                 Ok(structure_search_identification(self.query.clone(), query))
             })?;
-        let mut diagnostics = vec![match &structure {
-            DiscoveredStructure::Stability(table) => Diagnostic::new(
-                "discovery.stability_table",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                format!(
-                    "the stability search tabulated {} of {} resamples ({} failed and are kept \
-                     as failed mass); the frequencies are a bootstrap distribution of the \
-                     search under the declared sampling design, not a posterior, and carry no \
-                     review gate. Their coverage is not measured.",
-                    table.succeeded, table.requested, table.failed
-                ),
-            ),
-            DiscoveredStructure::RegimeStability(tables) => Diagnostic::new(
-                "discovery.stability_table",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                format!(
-                    "the stability search tabulated one table for each of {} labelled regime(s), \
-                     re-running regime PCMCI on circular-block resamples that carry their regime \
-                     labels; the frequencies are a bootstrap distribution of the search, not a \
-                     posterior, and carry no review gate. Their coverage is not measured.",
-                    tables.len()
-                ),
-            ),
-            _ => Diagnostic::new(
-                "discovery.review_gate",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                format!(
-                    "the {} search returned a {}; a downstream study reads it only after its \
-                     review gate (accept_discovered), which records this search's provenance on \
-                     the accepted graph. CPDAG and PAG marks stay class information.",
-                    query.method.id(),
-                    query.output().as_str()
-                ),
-            ),
-        }];
+        let mut diagnostics = vec![discovery_note(&structure, query)];
         if identify_cached {
             diagnostics.push(identify_cached_diagnostic());
         }
@@ -441,6 +446,33 @@ fn point(value: f64) -> EffectEstimate {
 
 fn model_diagnostic(code: &'static str, message: &str) -> Diagnostic {
     Diagnostic::new(code, DiagnosticKind::Scientific, DiagnosticSeverity::Info, message.to_owned())
+}
+
+/// The point value and the note a simulation outcome is reported with.
+fn simulation_reading(outcome: &SimulationOutcome) -> (f64, &'static str) {
+    match outcome {
+        SimulationOutcome::PolicyValue(value) => (
+            value.mean_difference,
+            "the policy value is the fitted model's; only the Monte Carlo error of the \
+             draws is quantified",
+        ),
+        SimulationOutcome::UnitEffects(ite) => (
+            ite.mean_ite,
+            "unit effects are computed under the fitted mechanisms after abduction; they \
+             are not identified from data",
+        ),
+        SimulationOutcome::Counterfactual(_) => (
+            f64::NAN,
+            "counterfactual values are computed under the fitted mechanisms after \
+             abduction; they are not identified from data",
+        ),
+        SimulationOutcome::Temporal(_) => (
+            f64::NAN,
+            "a rollout of the fitted model under the declared schedule; only the draws' \
+             own variation is reported",
+        ),
+        _ => (f64::NAN, "draws of the fitted model under the declared interventions"),
+    }
 }
 
 /// Fit the program's mechanisms and run `query` on them: an attribution, a
@@ -586,29 +618,7 @@ pub(super) fn run_model_query_with_fit(
                 });
             }
             let outcome = run_simulate(&fitted, data, simulate, ctx)?;
-            let (value, note) = match &outcome {
-                SimulationOutcome::PolicyValue(value) => (
-                    value.mean_difference,
-                    "the policy value is the fitted model's; only the Monte Carlo error of the \
-                     draws is quantified",
-                ),
-                SimulationOutcome::UnitEffects(ite) => (
-                    ite.mean_ite,
-                    "unit effects are computed under the fitted mechanisms after abduction; they \
-                     are not identified from data",
-                ),
-                SimulationOutcome::Counterfactual(_) => (
-                    f64::NAN,
-                    "counterfactual values are computed under the fitted mechanisms after \
-                     abduction; they are not identified from data",
-                ),
-                SimulationOutcome::Temporal(_) => (
-                    f64::NAN,
-                    "a rollout of the fitted model under the declared schedule; only the draws' \
-                     own variation is reported",
-                ),
-                _ => (f64::NAN, "draws of the fitted model under the declared interventions"),
-            };
+            let (value, note) = simulation_reading(&outcome);
             Ok(ModelAnswer {
                 slot: GcmSlot::Simulation(Box::new(SimulationPayload { outcome, mechanisms })),
                 estimate: point(value),

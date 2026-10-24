@@ -1244,7 +1244,7 @@ impl PropagationChainRecordWire {
             if status != STATUS_INVALIDATED {
                 let sources = plan.stage(&stage.id).map(|p| p.sources.clone()).unwrap_or_default();
                 let weights = stage_weights(&state, &sources)?;
-                self.summarize_stage(
+                Self::summarize_stage(
                     position,
                     stage,
                     &specs[position],
@@ -1269,7 +1269,6 @@ impl PropagationChainRecordWire {
         reason = "the stage, its spec, the evaluated table, its weights and the output slot are separate facts"
     )]
     fn summarize_stage(
-        &self,
         position: usize,
         stage: &ChainStageWire,
         spec: &StageSpec,
@@ -1343,7 +1342,7 @@ impl PropagationChainRecordWire {
         draft.version = PROPAGATION_CHAIN_VERSION;
         draft.required_features = vec![PROPAGATION_CHAIN_FEATURE.to_owned()];
         let executed = draft.execute(ctx)?;
-        draft.label = executed.plan.label.to_owned();
+        executed.plan.label.clone_into(&mut draft.label);
         draft.results = executed.results;
         draft.identity = propagation_chain_identity(&draft)?;
         check_bounds(&draft)?;

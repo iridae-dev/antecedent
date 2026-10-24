@@ -45,6 +45,16 @@ def _series_rows(seed: int = 7, n: int = 240) -> tuple[list[str], list[np.ndarra
     return ["x", "y"], [x, y]
 
 
+def _edges(mask: int, n: int) -> set[tuple[int, int]]:
+    """Directed edges of a packed atom: bit ``i * (n - 1) + (j if j < i else j - 1)`` is ``i -> j``."""
+    return {
+        (i, j)
+        for i in range(n)
+        for j in range(n)
+        if i != j and (mask >> (i * (n - 1) + (j if j < i else j - 1))) & 1
+    }
+
+
 def _assert_contract(result, inference: str) -> None:
     contract = result.contract
     assert contract["query_kind"] == "Discover"
@@ -79,10 +89,17 @@ def test_a_class_posterior_pools_the_mass_of_markov_equivalent_dags():
     names, cols = ["a", "b", "c"], [a, b, c]
     dags = _native.discover_exact_dag_posterior(names, cols, seed=1)
     classes = _native.discover_exact_dag_posterior(names, cols, seed=1, equivalence_classes=True)
-    top_class = max(classes.weights)
-    top_dag = max(dags.weights)
-    assert top_class >= top_dag
-    assert top_class > 0.9
+    # The DAGs of the chain class: skeleton a - b - c and no collider at b.
+    chain_mass = 0.0
+    for mask, weight in zip(dags.adjacency, dags.weights, strict=True):
+        edges = _edges(mask, 3)
+        skeleton = {frozenset(edge) for edge in edges}
+        collider = (0, 1) in edges and (2, 1) in edges
+        if skeleton == {frozenset((0, 1)), frozenset((1, 2))} and not collider:
+            chain_mass += weight
+    assert chain_mass > max(dags.weights)
+    # Pooling is exact: the best class carries precisely the mass of its DAGs.
+    assert max(classes.weights) == pytest.approx(chain_mass, abs=1e-9)
 
 
 def test_the_python_wrapper_runs_the_class_posterior_over_each_base():
@@ -180,7 +197,7 @@ def test_the_python_wrapper_validates_and_runs_the_stability_search():
 def test_unsupported_bases_are_refused_with_a_next_attempt():
     names, cols = _static_rows()
     with pytest.raises(ValueError, match="unknown base"):
-        _native.discover_bootstrap_stability(names, cols, base="lpcmci")
+        _native.discover_bootstrap_stability(names, cols, base="rpcmci")
     with pytest.raises(ValueError, match="unit_lengths"):
         _native.discover_bootstrap_stability(names, cols, base="pc", unit_lengths=[300])
     with_missing = [c.copy() for c in cols]
@@ -206,7 +223,7 @@ def test_a_latent_variable_search_is_resampled():
 
     names, cols = _series_rows(n=200)
     result = _native.discover_bootstrap_stability(
-        names, cols, base="lpcmci", replicates=8, max_lag=1, seed=1
+        names, cols, base="lpcmci", replicates=8, max_lag=1, seed=1, fdr=False
     )
     assert result.structure_class == "temporal_pag"
     data = dict(zip(names, cols, strict=True))
@@ -236,7 +253,13 @@ def test_a_pag_posterior_merges_markov_equivalent_ancestral_graphs():
     _assert_contract(result, "bayesian")
     assert result.atom_kind == "Pag"
     assert sum(result.weights) == pytest.approx(1.0)
-    assert max(result.weights) > 0.8
+    # The uniform prior over graphs gives a class the mass of every graph it contains, and the
+    # saturated classes hold many graphs, so the collider class is the mode without being
+    # near-certain: it is x o-> y <-o z (bit i * 2 + (j if j < i else j - 1) is i -> j).
+    top = max(range(result.n_graphs), key=result.weights.__getitem__)
+    assert _edges(result.adjacency[top], 3) == {(0, 1), (2, 1)}
+    assert _edges(result.mark_masks[top], 3) == {(0, 1), (2, 1)}
+    assert result.weights[top] > 0.5
     with pytest.raises(Exception):  # noqa: B017, PT011 - five variables are not enumerated
         _native.discover_exact_pag_posterior(list("abcde"), [x[:50]] * 5)
 

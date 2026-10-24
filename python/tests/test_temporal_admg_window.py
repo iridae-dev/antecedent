@@ -37,7 +37,7 @@ def _graph(confounded: bool = False) -> antecedent.graph.TemporalAdmg:
     )
 
 
-def _counted(series: dict[str, np.ndarray]) -> float:
+def _counted_unadjusted(series: dict[str, np.ndarray]) -> float:
     x, y = series["x"], series["y"]
     positions = np.arange(1, len(x) - 1)
     treated = positions[x[positions] == 1.0]
@@ -46,6 +46,12 @@ def _counted(series: dict[str, np.ndarray]) -> float:
 
 
 def _counted_conditional(series: dict[str, np.ndarray]) -> float:
+    """The contrast within each level of ``w`` averaged over the law of ``w`` on the window.
+
+    ``w`` at the treated time is a parent of the outcome with no parent in the window, so
+    this is also the identified unconditional pulse (the standardized contrast); the
+    unadjusted difference of means is a different finite-sample quantity.
+    """
     x, y, w = series["x"], series["y"], series["w"]
     positions = np.arange(1, len(x) - 1)
     total = 0.0
@@ -77,7 +83,8 @@ def _discloses(result) -> bool:
 def test_a_pulse_is_the_counted_contrast_and_stays_unlicensed() -> None:
     series = _series()
     result = _run(antecedent.PulseEffect("x", "y", treatment_lag=1, horizon_steps=1))
-    assert abs(result.ate - _counted(series)) < 1e-12
+    assert abs(result.ate - _counted_conditional(series)) < 1e-12
+    assert abs(result.ate - _counted_unadjusted(series)) > 1e-3
     support = result.reasoning.support.payload
     assert support["matrix_status"] == "refused"
     assert str(support["matrix_coordinate"]).startswith("PulseEffect:TemporalAdmg")
@@ -86,10 +93,9 @@ def test_a_pulse_is_the_counted_contrast_and_stays_unlicensed() -> None:
 
 
 def test_overlapping_windows_are_resampled_in_blocks() -> None:
-    result = _run(
-        antecedent.PulseEffect("x", "y", treatment_lag=1, horizon_steps=1), bootstrap=40
-    )
-    assert result.se_bootstrap is not None and result.se_bootstrap > 0.0
+    result = _run(antecedent.PulseEffect("x", "y", treatment_lag=1, horizon_steps=1), bootstrap=40)
+    se = result.estimate.se_bootstrap
+    assert se is not None and se > 0.0
 
 
 def test_a_conditional_pulse_is_idc_on_the_same_window() -> None:
@@ -99,7 +105,7 @@ def test_a_conditional_pulse_is_idc_on_the_same_window() -> None:
     )
     result = _run(conditional)
     assert abs(result.ate - _counted_conditional(series)) < 1e-12
-    assert abs(result.ate - _counted(series)) > 1e-3
+    assert abs(result.ate - _counted_unadjusted(series)) > 1e-3
     assert _discloses(result)
 
 
@@ -109,7 +115,7 @@ def test_the_bayesian_form_shares_one_weight_per_block() -> None:
         antecedent.PulseEffect("x", "y", treatment_lag=1, horizon_steps=1),
         inference=antecedent.Bayesian(n_draws=300, backend="conjugate"),
     )
-    assert abs(result.ate - _counted(series)) < 0.1
+    assert abs(result.ate - _counted_conditional(series)) < 0.1
     assert result.posterior is not None
     assert _discloses(result)
 
@@ -124,8 +130,6 @@ def test_a_window_that_holds_a_hedge_is_refused_with_the_next_attempts() -> None
 
 
 def test_a_graph_in_another_variable_order_is_refused() -> None:
-    reordered = antecedent.graph.TemporalAdmg.from_lagged_edges(
-        ["y", "x", "w"], [("x", 1, "y", 0)]
-    )
+    reordered = antecedent.graph.TemporalAdmg.from_lagged_edges(["y", "x", "w"], [("x", 1, "y", 0)])
     with pytest.raises(ValueError, match="variable names must match"):
         _run(antecedent.PulseEffect("x", "y", treatment_lag=1, horizon_steps=1), graph=reordered)

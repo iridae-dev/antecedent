@@ -386,15 +386,12 @@ fn discover_bootstrap_stability(
             knowledge: knowledge.clone(),
         };
         let (spec, input, variables) = if temporal {
-            let (input, variables) = match unit_lengths {
-                Some(lengths) => {
-                    let (units, variables) = panel_units_from_batch(&batch, &lengths)?;
-                    (DiscoverInput::Panel(units), variables)
-                }
-                None => {
-                    let (series, variables) = crate::series_from_batch(&batch)?;
-                    (DiscoverInput::Series(series), variables)
-                }
+            let (input, variables) = if let Some(lengths) = unit_lengths {
+                let (units, variables) = panel_units_from_batch(&batch, &lengths)?;
+                (DiscoverInput::Panel(units), variables)
+            } else {
+                let (series, variables) = crate::series_from_batch(&batch)?;
+                (DiscoverInput::Series(series), variables)
             };
             let params = DiscoverParams {
                 max_lag,

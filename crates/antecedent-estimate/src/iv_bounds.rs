@@ -542,10 +542,10 @@ mod tests {
     /// One row per `(z, d, y)` cell, repeated `counts[z][d][y]` times, as a float table.
     fn table(counts: [[[usize; 2]; 2]; 2]) -> TabularData {
         let (mut z, mut d, mut y) = (Vec::new(), Vec::new(), Vec::new());
-        for zi in 0..2 {
-            for di in 0..2 {
-                for yi in 0..2 {
-                    for _ in 0..counts[zi][di][yi] {
+        for (zi, by_d) in counts.iter().enumerate() {
+            for (di, by_y) in by_d.iter().enumerate() {
+                for (yi, &cell) in by_y.iter().enumerate() {
+                    for _ in 0..cell {
                         z.push(zi as f64);
                         d.push(di as f64);
                         y.push(yi as f64);
@@ -576,7 +576,7 @@ mod tests {
         assert!((estimate.upper - 0.3).abs() < 1e-9, "{}", estimate.upper);
         assert_eq!(estimate.rows, 200);
         assert_eq!(estimate.rows_dropped, 0);
-        assert_eq!(estimate.arm_weights, [100.0, 100.0]);
+        assert!(estimate.arm_weights.iter().all(|w| (w - 100.0).abs() < 1e-9));
         assert!(estimate.interval.is_none() && estimate.posterior.is_none());
     }
 
@@ -596,7 +596,7 @@ mod tests {
         let prepared = estimator.prepare(&compact, &weighted).unwrap();
         let estimate = estimator.estimate(&prepared, &ctx).unwrap();
         assert!((estimate.lower - 0.3).abs() < 1e-9 && (estimate.upper - 0.3).abs() < 1e-9);
-        assert_eq!(estimate.arm_weights, [100.0, 100.0]);
+        assert!(estimate.arm_weights.iter().all(|w| (w - 100.0).abs() < 1e-9));
         assert_eq!(estimate.rows, 4);
         let bad = TabularData::from_f64_columns([
             ("z", &[0.0, 1.0, 2.0, 1.0][..]),

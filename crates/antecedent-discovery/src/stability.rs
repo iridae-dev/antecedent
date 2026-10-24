@@ -253,7 +253,7 @@ mod tests {
         assert!(
             (stability.adjacency_frequency(static_node(2), static_node(1)) - 0.8).abs() < 1e-12
         );
-        assert_eq!(stability.adjacency_frequency(static_node(0), static_node(2)), 0.0);
+        assert!(stability.adjacency_frequency(static_node(0), static_node(2)).abs() < 1e-12);
         // The 1 - 2 pair is undirected in three resamples and directed in one.
         let pair = stability
             .edges
@@ -277,14 +277,14 @@ mod tests {
         let chain = cpdag(&[(0, 1, false), (1, 2, false)]);
         let sparse = cpdag(&[(0, 1, false)]);
         let stability = StructureStability::tabulate(chain, &[sparse.clone(), sparse], 2).unwrap();
-        assert_eq!(stability.reference_frequency, 0.0);
+        assert!(stability.reference_frequency.abs() < 1e-12);
         let missing = stability
             .edges
             .iter()
             .find(|e| (e.a, e.b) == (static_node(1), static_node(2)))
             .unwrap();
         assert!(missing.in_reference);
-        assert_eq!(missing.frequency, 0.0);
+        assert!(missing.frequency.abs() < 1e-12);
         assert!(missing.marks.is_empty());
     }
 

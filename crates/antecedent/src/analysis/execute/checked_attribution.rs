@@ -23,6 +23,33 @@ use crate::gcm::FitResampling;
 /// the study does not set the draw count: each refit is a full nested attribution.
 const INTRINSIC_POSTERIOR_DRAWS: usize = 100;
 
+/// The row counts of the baseline and comparison populations of a change query.
+fn population_sizes(
+    data: &TabularData,
+    change: &antecedent_core::ChangeAttributionQuery,
+) -> Result<(usize, usize), CausalError> {
+    let baseline = antecedent_attribution::resolve_rows(data, &change.baseline)
+        .map_err(CausalError::rejected)?
+        .len();
+    let comparison = antecedent_attribution::resolve_rows(data, &change.comparison)
+        .map_err(CausalError::rejected)?
+        .len();
+    Ok((baseline, comparison))
+}
+
+/// The refit populations of one replicate: row weights when Bayesian, else counts.
+fn population_refit<'a>(
+    bayesian: bool,
+    baseline: &'a [f64],
+    comparison: &'a [f64],
+) -> antecedent_attribution::PopulationRefit<'a> {
+    if bayesian {
+        antecedent_attribution::PopulationRefit::RowWeights { baseline, comparison }
+    } else {
+        antecedent_attribution::PopulationRefit::Counts { baseline, comparison }
+    }
+}
+
 /// Whether `query` is an intrinsic-influence attribution.
 fn attribute_intrinsic_target(query: &CausalQuery) -> bool {
     matches!(
@@ -703,15 +730,53 @@ impl CheckedAttributionOperation {
             }
             None => crate::analysis::structure_route::run_simulate(&refit, data, simulate, ctx)?,
         };
-        let nodes = self
-            .lag_aligned
-            .as_ref()
-            .map_or(refit.model.n_nodes(), |aligned| aligned.contemporaneous_count());
-        crate::analysis::structure_route::simulation_quantities(&outcome, nodes).ok_or_else(|| {
-            CausalError::Compile {
-                message: "this simulation has no mechanism-refit replicate".into(),
-            }
-        })
+        let nodes = self.lag_aligned.as_ref().map_or(
+            refit.model.n_nodes(),
+            super::temporal_attribution::LagAlignedScm::contemporaneous_count,
+        );
+        let mut quantities = crate::analysis::structure_route::simulation_quantities(
+            &outcome, nodes,
+        )
+        .ok_or_else(|| CausalError::Compile {
+            message: "this simulation has no mechanism-refit replicate".into(),
+        })?;
+        // The means above reuse the query's seed in every refit (common random numbers keep the
+        // refit spread free of Monte Carlo noise). The predictive law of a path needs fresh
+        // innovations in every refit, so one path is rolled out under a seed drawn per replicate.
+        if let antecedent_core::SimulationTarget::TemporalRollout {
+            schedule,
+            n_rows,
+            n_steps,
+            window,
+            history,
+            ..
+        } = &simulate.target
+        {
+            let single = antecedent_core::SimulateQuery::new(
+                antecedent_core::SimulationTarget::TemporalRollout {
+                    schedule: schedule.clone(),
+                    // A supplied history has one value per row, so it keeps its row count.
+                    n_rows: if history.is_empty() { 1 } else { *n_rows },
+                    n_steps: *n_steps,
+                    window: *window,
+                    history: history.clone(),
+                    seed: rng.next_u64(),
+                },
+            );
+            let path_outcome = match &self.lag_aligned {
+                Some(aligned) => super::structural_route::rollout_on_unfolding(
+                    &refit, data, aligned, &single, ctx,
+                )?,
+                None => crate::analysis::structure_route::run_simulate(&refit, data, &single, ctx)?,
+            };
+            quantities.extend(
+                crate::analysis::structure_route::simulated_path_quantities(&path_outcome, nodes)
+                    .ok_or_else(|| CausalError::Compile {
+                    message: "a rollout replicate has no simulated path".into(),
+                })?,
+            );
+        }
+        Ok(quantities)
     }
 
     /// One replicate of a fitted-model attribution on mechanisms refit under fresh weights.
@@ -728,32 +793,12 @@ impl CheckedAttributionOperation {
         let draw = |op: &Self, n: usize, rng: &mut antecedent_core::CausalRng| {
             if bayesian { op.draw_row_weights(n, rng) } else { op.draw_row_counts(n, rng) }
         };
-        let populations =
-            |change: &antecedent_core::ChangeAttributionQuery| -> Result<_, CausalError> {
-                let baseline = antecedent_attribution::resolve_rows(data, &change.baseline)
-                    .map_err(CausalError::rejected)?
-                    .len();
-                let comparison = antecedent_attribution::resolve_rows(data, &change.comparison)
-                    .map_err(CausalError::rejected)?
-                    .len();
-                Ok((baseline, comparison))
-            };
         match &attribute.target {
             AttributeTarget::DistributionChange { change, estimator }
             | AttributeTarget::RootCauses { change, estimator } => {
-                let (nb, nc) = populations(change)?;
+                let (nb, nc) = population_sizes(data, change)?;
                 let (baseline, comparison) = (draw(self, nb, rng), draw(self, nc, rng));
-                let refit = if bayesian {
-                    antecedent_attribution::PopulationRefit::RowWeights {
-                        baseline: &baseline,
-                        comparison: &comparison,
-                    }
-                } else {
-                    antecedent_attribution::PopulationRefit::Counts {
-                        baseline: &baseline,
-                        comparison: &comparison,
-                    }
-                };
+                let refit = population_refit(bayesian, &baseline, &comparison);
                 let result = match estimator {
                     ChangeEstimator::Sampled { measure, n_samples, seed } => {
                         let options = antecedent_attribution::DistributionChangeOptions {
@@ -802,19 +847,9 @@ impl CheckedAttributionOperation {
                 Ok(change_quantities(&result))
             }
             AttributeTarget::StructureChange { change, comparison, measure, n_samples, seed } => {
-                let (nb, nc) = populations(change)?;
+                let (nb, nc) = population_sizes(data, change)?;
                 let (baseline, comparison_weights) = (draw(self, nb, rng), draw(self, nc, rng));
-                let refit = if bayesian {
-                    antecedent_attribution::PopulationRefit::RowWeights {
-                        baseline: &baseline,
-                        comparison: &comparison_weights,
-                    }
-                } else {
-                    antecedent_attribution::PopulationRefit::Counts {
-                        baseline: &baseline,
-                        comparison: &comparison_weights,
-                    }
-                };
+                let refit = population_refit(bayesian, &baseline, &comparison_weights);
                 let comparison_model =
                     crate::analysis::structure_route::structure_comparison_model(
                         &self.graph,
@@ -848,45 +883,57 @@ impl CheckedAttributionOperation {
                 // mechanisms (and, for the last three, the rows): refit them on the whole
                 // table under one weight vector and recompute.
                 let weights = draw(self, data.row_count(), rng);
-                let registry = crate::gcm::MechanismRegistry::standard();
-                let store = if bayesian {
-                    registry.refit_weighted_polled(
-                        &fitted.model,
-                        data,
-                        &fitted.assignments,
-                        &weights,
-                        &|| ctx.cancellation.is_cancelled(),
-                    )
-                } else {
-                    registry.refit_frequency_weighted_polled(
-                        &fitted.model,
-                        data,
-                        &fitted.assignments,
-                        &weights,
-                        &|| ctx.cancellation.is_cancelled(),
-                    )
-                }
-                .map_err(CausalError::rejected)?;
-                let refit = crate::gcm::FittedGcm {
-                    model: fitted.model.clone().with_mechanisms(store),
-                    assignments: fitted.assignments.clone(),
-                };
-                let outcome = crate::analysis::structure_route::run_attribute_with_fit(
-                    &refit,
-                    &self.graph,
-                    data,
-                    attribute,
-                    None,
-                    crate::analysis::structure_route::ChangeReading::default(),
-                    ctx,
-                )?;
-                attribution_quantities_weighted(&outcome, &weights).ok_or_else(|| {
-                    CausalError::Compile {
-                        message: "this attribution has no mechanism-refit replicate".into(),
-                    }
-                })
+                self.whole_table_replicate(attribute, fitted, data, bayesian, &weights, ctx)
             }
         }
+    }
+
+    /// The quantities of an attribution recomputed on mechanisms refit on the whole table under
+    /// one weight vector.
+    fn whole_table_replicate(
+        &self,
+        attribute: &antecedent_core::AttributeQuery,
+        fitted: &crate::gcm::FittedGcm,
+        data: &TabularData,
+        bayesian: bool,
+        weights: &[f64],
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<(String, f64)>, CausalError> {
+        let registry = crate::gcm::MechanismRegistry::standard();
+        let store = if bayesian {
+            registry.refit_weighted_polled(
+                &fitted.model,
+                data,
+                &fitted.assignments,
+                weights,
+                &|| ctx.cancellation.is_cancelled(),
+            )
+        } else {
+            registry.refit_frequency_weighted_polled(
+                &fitted.model,
+                data,
+                &fitted.assignments,
+                weights,
+                &|| ctx.cancellation.is_cancelled(),
+            )
+        }
+        .map_err(CausalError::rejected)?;
+        let refit = crate::gcm::FittedGcm {
+            model: fitted.model.clone().with_mechanisms(store),
+            assignments: fitted.assignments.clone(),
+        };
+        let outcome = crate::analysis::structure_route::run_attribute_with_fit(
+            &refit,
+            &self.graph,
+            data,
+            attribute,
+            None,
+            crate::analysis::structure_route::ChangeReading::default(),
+            ctx,
+        )?;
+        attribution_quantities_weighted(&outcome, weights).ok_or_else(|| CausalError::Compile {
+            message: "this attribution has no mechanism-refit replicate".into(),
+        })
     }
 
     /// Draw count published on the result: absent for point procedures.

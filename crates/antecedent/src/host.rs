@@ -248,7 +248,7 @@ pub fn claim_record(claim: &ClaimEnvelope) -> Value {
             "evaluated": claim.domains.evaluated.as_str(),
         },
         "execution": claim.execution.map(|digest| digest.to_hex()),
-        "evidence": claim.evidence.iter().map(|item| item.as_ref()).collect::<Vec<_>>(),
+        "evidence": claim.evidence.iter().map(std::convert::AsRef::as_ref).collect::<Vec<_>>(),
         "status": HostStatus::of_claim(claim).as_str(),
     })
 }

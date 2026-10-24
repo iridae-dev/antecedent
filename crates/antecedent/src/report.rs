@@ -42,7 +42,7 @@ use crate::support::CellStatus;
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]
 pub enum ReportFormat {
-    /// CommonMark with pipe tables.
+    /// `CommonMark` with pipe tables.
     Markdown,
     /// One self-contained HTML document with inline style and no script.
     Html,
@@ -193,7 +193,7 @@ struct Names<'a>(&'a [Arc<str>]);
 
 impl Names<'_> {
     fn of(self, id: VariableId) -> String {
-        self.0.get(id.as_usize()).map_or_else(|| format!("v{}", id.raw()), |name| name.to_string())
+        self.0.get(id.as_usize()).map_or_else(|| format!("v{}", id.raw()), ToString::to_string)
     }
 
     fn list(self, ids: &[VariableId]) -> String {
@@ -1001,11 +1001,7 @@ fn support_section(input: &ReportInput<'_>) -> Section {
             let mut facts = Vec::new();
             fact(&mut facts, "Matrix status", slot.matrix_status.to_string());
             fact(&mut facts, "Matrix coordinate", opt_str(slot.matrix_coordinate.as_deref()));
-            fact(
-                &mut facts,
-                "Empirical support",
-                slot.empirical.label(|status| status.to_string()),
-            );
+            fact(&mut facts, "Empirical support", slot.empirical.label(ToString::to_string));
             blocks.push(Block::Subheading("Support slot".to_owned()));
             blocks.push(Block::Facts(facts));
         }
@@ -1026,15 +1022,92 @@ fn support_section(input: &ReportInput<'_>) -> Section {
     Section { title: "Support and licence", blocks }
 }
 
-fn limits_section(input: &ReportInput<'_>) -> Section {
-    let capability = input.contract.capability();
-    let mut head = Vec::new();
-    fact(&mut head, "Operation", capability.operation.as_str());
-    fact(&mut head, "Applicability", capability.applicability.as_str());
-    fact(&mut head, "Readiness", opt_str(capability.readiness.map(|readiness| readiness.as_str())));
-    fact(&mut head, "Coordinate", opt_str(capability.coordinate.as_deref()));
-    let mut blocks = vec![Block::Facts(head)];
+/// The mixture over structures a plan carries, when it carries one.
+fn mixture_blocks(plan: &PlanView, blocks: &mut Vec<Block>) {
+    if let Some(mixture) = plan.mixture() {
+        blocks.push(Block::Subheading("Mixture over structures".to_owned()));
+        let mut facts = Vec::new();
+        fact(&mut facts, "Atom kind", opt_str(mixture.atom_kind()));
+        fact(&mut facts, "Total weight", num(mixture.total_weight()));
+        fact(&mut facts, "Identified mass", opt_num(mixture.identified_mass()));
+        fact(&mut facts, "Unidentified mass", opt_num(mixture.unidentified_mass()));
+        fact(&mut facts, "Identification retained", yes_no(mixture.identification_retained()));
+        blocks.push(Block::Facts(facts));
+        if !mixture.atoms().is_empty() {
+            blocks.push(Block::Table {
+                head: &["Atom", "Weight", "Samples", "Identified", "Status", "Completions"],
+                rows: mixture
+                    .atoms()
+                    .iter()
+                    .map(|atom| {
+                        vec![
+                            atom.key().to_string(),
+                            num(atom.weight()),
+                            atom.samples().to_string(),
+                            atom.identified()
+                                .map_or_else(|| "none".to_owned(), |flag| yes_no(flag).to_owned()),
+                            opt_str(
+                                atom.status().map(antecedent_core::IdentificationStatus::as_str),
+                            ),
+                            atom.completions().to_string(),
+                        ]
+                    })
+                    .collect(),
+            });
+        }
+    }
+}
 
+/// The table of the identification products a plan retains.
+fn retained_blocks(plan: &PlanView, names: Names<'_>, blocks: &mut Vec<Block>) {
+    let identification = plan.identification();
+    if !identification.retained().is_empty() {
+        blocks.push(Block::Table {
+            head: &[
+                "Retained product",
+                "Status",
+                "Estimands",
+                "Completions",
+                "Truncated",
+                "Atoms",
+                "Identified mass",
+                "Unidentified mass",
+            ],
+            rows: identification
+                .retained()
+                .iter()
+                .map(|retained| {
+                    vec![
+                        retained.kind().to_owned(),
+                        opt_str(
+                            retained.status().map(antecedent_core::IdentificationStatus::as_str),
+                        ),
+                        retained
+                            .estimands()
+                            .iter()
+                            .map(|estimand| {
+                                format!(
+                                    "{} [{}]",
+                                    estimand.method(),
+                                    names.list(estimand.adjustment_set())
+                                )
+                            })
+                            .collect::<Vec<_>>()
+                            .join("; "),
+                        retained.completions().to_string(),
+                        retained.truncated_completions().to_string(),
+                        retained.atoms().to_string(),
+                        opt_num(retained.identified_mass()),
+                        opt_num(retained.unidentified_mass()),
+                    ]
+                })
+                .collect(),
+        });
+    }
+}
+
+/// The limits the claim, the identification and the plan record.
+fn recorded_limits(input: &ReportInput<'_>) -> Vec<String> {
     let mut limits: Vec<String> = Vec::new();
     if let Some(claim) = input.claim {
         match claim.kind {
@@ -1123,6 +1196,23 @@ fn limits_section(input: &ReportInput<'_>) -> Section {
             }
         }
     }
+    limits
+}
+
+fn limits_section(input: &ReportInput<'_>) -> Section {
+    let capability = input.contract.capability();
+    let mut head = Vec::new();
+    fact(&mut head, "Operation", capability.operation.as_str());
+    fact(&mut head, "Applicability", capability.applicability.as_str());
+    fact(
+        &mut head,
+        "Readiness",
+        opt_str(capability.readiness.map(antecedent_contract::OperationReadiness::as_str)),
+    );
+    fact(&mut head, "Coordinate", opt_str(capability.coordinate.as_deref()));
+    let mut blocks = vec![Block::Facts(head)];
+
+    let limits = recorded_limits(input);
     if limits.is_empty() {
         blocks.push(Block::Text("No limit is recorded beyond the blockers below.".to_owned()));
     } else {
@@ -1240,7 +1330,11 @@ fn plan_section(plan: &PlanView, names: Names<'_>) -> Section {
     blocks.push(Block::Subheading("Identification product".to_owned()));
     let mut product = Vec::new();
     fact(&mut product, "Carried", identification.kind().as_str());
-    fact(&mut product, "Status", opt_str(identification.status().map(|status| status.as_str())));
+    fact(
+        &mut product,
+        "Status",
+        opt_str(identification.status().map(antecedent_core::IdentificationStatus::as_str)),
+    );
     fact(&mut product, "Installed at prepare", yes_no(identification.installed_at_prepare()));
     if let Some(view) = identification.product() {
         fact(&mut product, "Product identity", view.identity().to_hex());
@@ -1285,47 +1379,7 @@ fn plan_section(plan: &PlanView, names: Names<'_>) -> Section {
             });
         }
     }
-    if !identification.retained().is_empty() {
-        blocks.push(Block::Table {
-            head: &[
-                "Retained product",
-                "Status",
-                "Estimands",
-                "Completions",
-                "Truncated",
-                "Atoms",
-                "Identified mass",
-                "Unidentified mass",
-            ],
-            rows: identification
-                .retained()
-                .iter()
-                .map(|retained| {
-                    vec![
-                        retained.kind().to_owned(),
-                        opt_str(retained.status().map(|status| status.as_str())),
-                        retained
-                            .estimands()
-                            .iter()
-                            .map(|estimand| {
-                                format!(
-                                    "{} [{}]",
-                                    estimand.method(),
-                                    names.list(estimand.adjustment_set())
-                                )
-                            })
-                            .collect::<Vec<_>>()
-                            .join("; "),
-                        retained.completions().to_string(),
-                        retained.truncated_completions().to_string(),
-                        retained.atoms().to_string(),
-                        opt_num(retained.identified_mass()),
-                        opt_num(retained.unidentified_mass()),
-                    ]
-                })
-                .collect(),
-        });
-    }
+    retained_blocks(plan, names, &mut blocks);
 
     blocks.push(Block::Subheading("Statistical program".to_owned()));
     blocks.push(facts_of("", &json["statistical"], names));
@@ -1341,36 +1395,7 @@ fn plan_section(plan: &PlanView, names: Names<'_>) -> Section {
     }
     blocks.push(facts_of("", &physical, names));
 
-    if let Some(mixture) = plan.mixture() {
-        blocks.push(Block::Subheading("Mixture over structures".to_owned()));
-        let mut facts = Vec::new();
-        fact(&mut facts, "Atom kind", opt_str(mixture.atom_kind()));
-        fact(&mut facts, "Total weight", num(mixture.total_weight()));
-        fact(&mut facts, "Identified mass", opt_num(mixture.identified_mass()));
-        fact(&mut facts, "Unidentified mass", opt_num(mixture.unidentified_mass()));
-        fact(&mut facts, "Identification retained", yes_no(mixture.identification_retained()));
-        blocks.push(Block::Facts(facts));
-        if !mixture.atoms().is_empty() {
-            blocks.push(Block::Table {
-                head: &["Atom", "Weight", "Samples", "Identified", "Status", "Completions"],
-                rows: mixture
-                    .atoms()
-                    .iter()
-                    .map(|atom| {
-                        vec![
-                            atom.key().to_string(),
-                            num(atom.weight()),
-                            atom.samples().to_string(),
-                            atom.identified()
-                                .map_or_else(|| "none".to_owned(), |flag| yes_no(flag).to_owned()),
-                            opt_str(atom.status().map(|status| status.as_str())),
-                            atom.completions().to_string(),
-                        ]
-                    })
-                    .collect(),
-            });
-        }
-    }
+    mixture_blocks(plan, &mut blocks);
     Section { title: "Program plan", blocks }
 }
 
@@ -1422,7 +1447,7 @@ mod tests {
         assert_eq!(num(0.5), "0.5");
         assert_eq!(num(-0.0), "0");
         assert_eq!(num(0.1 + 0.2), "0.3");
-        assert_eq!(num(1234.567_890_123_456), "1234.56789012");
+        assert_eq!(num(1_234.567_890_123_456), "1234.56789012");
         assert_eq!(num(f64::NAN), "NaN");
         assert_eq!(num(f64::INFINITY), "inf");
         assert_eq!(num(f64::NEG_INFINITY), "-inf");

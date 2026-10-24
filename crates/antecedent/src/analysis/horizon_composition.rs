@@ -73,6 +73,16 @@ fn diagnostic<'a>(response: &'a CausalResponse, id: &str) -> Option<&'a [f64]> {
     response.support.diagnostics.iter().find(|d| d.id.as_ref() == id).map(|d| d.values.as_ref())
 }
 
+/// A count stored as a diagnostic value.
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the layout diagnostic stores non-negative whole counts as floats"
+)]
+fn recorded_count(value: f64) -> usize {
+    value as usize
+}
+
 /// The joint draws of the cells of dose number `dose_index` across the horizons of `response`.
 ///
 /// # Errors
@@ -120,7 +130,7 @@ pub fn horizon_draws(
             "compose the horizons of a temporal response",
         ));
     };
-    let (replicates, cells) = (layout[0] as usize, layout[1] as usize);
+    let (replicates, cells) = (recorded_count(layout[0]), recorded_count(layout[1]));
     let n_horizons = horizons.len();
     if n_horizons == 0 || cells % n_horizons != 0 || values.len() != replicates * cells {
         return Err(refuse(
@@ -278,6 +288,10 @@ pub fn compose_horizons_with(
 }
 
 /// The point surface of a response.
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
 fn center_of(response: &CausalResponse) -> Result<Vec<f64>, ExternalRefusal> {
     use antecedent_core::{ResponseIdentification, ResponseValue};
     match &response.estimate {

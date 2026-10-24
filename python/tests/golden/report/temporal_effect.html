@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+<title>Causal analysis report</title>
+<style>
+:root { color-scheme: light dark; --fg: #1b1f24; --bg: #ffffff; --rule: #c9d1d9; --muted: #57606a; }
+@media (prefers-color-scheme: dark) { :root { --fg: #e6edf3; --bg: #0d1117; --rule: #30363d; --muted: #8b949e; } }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, sans-serif; }
+main { max-width: 64rem; margin: 0 auto; padding: 1rem; }
+h1, h2, h3 { line-height: 1.25; }
+h2 { border-bottom: 1px solid var(--rule); padding-bottom: 0.25rem; margin-top: 2rem; }
+dl.facts { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 1rem; }
+dl.facts dt { font-weight: 600; color: var(--muted); }
+dl.facts dd { margin: 0; overflow-wrap: anywhere; }
+table { border-collapse: collapse; display: block; overflow-x: auto; }
+th, td { border: 1px solid var(--rule); padding: 0.25rem 0.5rem; text-align: left; vertical-align: top; }
+</style>
+</head>
+<body>
+<main>
+<h1>Causal analysis report</h1>
+<section id="summary">
+<h2>Summary</h2>
+<dl class="facts">
+<dt>Reading</dt><dd>an executed claim</dd>
+<dt>Query</dt><dd>PulseEffect</dd>
+<dt>Inference</dt><dd>frequentist</dd>
+<dt>Identifier</dt><dd>none</dd>
+<dt>Estimator</dt><dd>temporal.linear.adjustment</dd>
+<dt>Route</dt><dd>TemporalEffectDag</dd>
+<dt>Claim kind</dt><dd>point</dd>
+<dt>Value</dt><dd>0.8976448135</dd>
+<dt>Support status</dt><dd>licensed</dd>
+</dl>
+<ul>
+<li>The claim publishes a value of kind point; the sections below state what it rests on and where it stops.</li>
+<li>The route is a licensed support-matrix cell.</li>
+<li>Calibration status is scope_not_assessed: the reported uncertainty carries no measured-coverage record.</li>
+<li>Identification status is nonparametrically_identified.</li>
+</ul>
+</section>
+<section id="claim">
+<h2>Claim</h2>
+<dl class="facts">
+<dt>Claim id</dt><dd>81537b4bbc2e6baac55e52292a0081f7fcf8239605604374a09ea44f126eadba</dd>
+<dt>Kind</dt><dd>point</dd>
+<dt>Value</dt><dd>0.8976448135</dd>
+<dt>Outcome units</dt><dd>none</dd>
+<dt>Identification domain</dt><dd>identified</dd>
+<dt>Support domain</dt><dd>unknown</dd>
+<dt>Evaluated domain</dt><dd>evaluated</dd>
+<dt>Execution</dt><dd>2d1dc74d9ee93138dc130eb6aa8f4182205eb7b729c50b3cad98e184408d76a0</dd>
+</dl>
+</section>
+<section id="identification">
+<h2>Identification</h2>
+<dl class="facts">
+<dt>Graph class</dt><dd>TemporalDag</dd>
+<dt>Structure source</dt><dd>explicit</dd>
+<dt>Identifier</dt><dd>none</dd>
+<dt>Estimator</dt><dd>none</dd>
+<dt>Resolved estimator</dt><dd>temporal.linear.adjustment</dd>
+<dt>Discovery algorithm</dt><dd>none</dd>
+</dl>
+<dl class="facts">
+<dt>Status</dt><dd>nonparametrically_identified</dd>
+<dt>Identified mass</dt><dd>1</dd>
+<dt>Unidentified mass</dt><dd>0</dd>
+<dt>Unevaluable mass</dt><dd>0</dd>
+<dt>Incomplete-search mass</dt><dd>0</dd>
+<dt>Mass covers the full class</dt><dd>yes</dd>
+<dt>Weight basis</dt><dd>none</dd>
+<dt>Search capped</dt><dd>no</dd>
+</dl>
+</section>
+<section id="assumptions">
+<h2>Assumptions</h2>
+<p>2 obligations are recorded; 2 remain unresolved.</p>
+<table>
+<thead><tr><th>Id</th><th>Scope</th><th>Kind</th><th>Status</th><th>Source</th><th>Required check</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td>assumption.0</td><td>program</td><td>graphical_implication</td><td>declared</td><td>algorithm_default:backdoor</td><td>none</td><td>causal_markov</td></tr>
+<tr><td>assumption.1</td><td>program</td><td>graphical_implication</td><td>declared</td><td>algorithm_default:temporal.backdoor.unfolded</td><td>none</td><td>stationarity</td></tr>
+</tbody>
+</table>
+<h3>Assumptions the identification relies on</h3>
+<table>
+<thead><tr><th>Assumption</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td>causal_markov</td><td>declared</td></tr>
+<tr><td>stationarity</td><td>declared</td></tr>
+</tbody>
+</table>
+</section>
+<section id="diagnostics-and-evidence">
+<h2>Diagnostics and evidence</h2>
+<h3>Evidence the claim references</h3>
+<ul>
+<li>snapshot:d9896080f5dcee6c44004e70185b5034c2836f6aadb73bc6f0fae14fd1debd58</li>
+<li>identification:32ee7fe95e290cfb06cc6e453763e356a1509c373d4adaf58ff734c18524b1b1</li>
+<li>program:903d5c382ecf74a8b732fc58ff38a4f8861d0dc061f0f72c5d47d3283774ff97</li>
+</ul>
+</section>
+<section id="uncertainty">
+<h2>Uncertainty</h2>
+<table>
+<thead><tr><th>Source</th><th>Reported target</th><th>Omitted</th></tr></thead>
+<tbody>
+<tr><td>sampling</td><td>bootstrap_se</td><td>no</td></tr>
+</tbody>
+</table>
+<h3>Uncertainty the program must publish</h3>
+<dl class="facts">
+<dt>claim_kind</dt><dd>point</dd>
+<dt>reading</dt><dd>sampling</dd>
+<dt>realization</dt><dd>frequentist</dd>
+<dt>resampling.method</dt><dd>block_bootstrap</dd>
+<dt>resampling.replicates</dt><dd>199</dd>
+<dt>resampling.unit</dt><dd>calendar_block</dd>
+</dl>
+<h3>Calibration</h3>
+<dl class="facts">
+<dt>Calibration status</dt><dd>scope_not_assessed</dd>
+<dt>Governing record</dt><dd>cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l95.practitioner_temporal_pulse_h1_interval</dd>
+<dt>Reason</dt><dd>coverage_record_not_attesting</dd>
+<dt>Measured rows (smallest)</dt><dd>319</dd>
+<dt>Measured rows (largest)</dt><dd>4159</dd>
+<dt>Record dependence</dt><dd>circular_block:single_window</dd>
+<dt>Measured at</dt><dd>70a71dd33bc55cbc2398b0f91c4a2c797afad618</dd>
+<dt>Nominal level</dt><dd>0.95</dd>
+<dt>Observed coverage</dt><dd>0.938</dd>
+<dt>Basis query</dt><dd>PulseEffect</dd>
+<dt>Basis graph class</dt><dd>TemporalDag</dd>
+<dt>Basis structure</dt><dd>fixed</dd>
+<dt>Basis modality</dt><dd>series</dd>
+<dt>Basis inference</dt><dd>Frequentist</dd>
+<dt>Basis estimator</dt><dd>temporal.linear.adjustment</dd>
+<dt>Basis interval method</dt><dd>circular_block_se</dd>
+<dt>Basis standard error</dt><dd></dd>
+<dt>Basis dependence</dt><dd>circular_block:single_window</dd>
+<dt>Basis posterior</dt><dd></dd>
+<dt>Basis functional</dt><dd>pulse.h1.all_observed</dd>
+<dt>Basis level</dt><dd>0.95</dd>
+<dt>Basis identification</dt><dd>point</dd>
+<dt>Basis rows</dt><dd>399</dd>
+<dt>Basis successful replicates</dt><dd>199</dd>
+</dl>
+</section>
+<section id="support-and-licence">
+<h2>Support and licence</h2>
+<dl class="facts">
+<dt>Support status</dt><dd>licensed</dd>
+<dt>Modality</dt><dd>series</dd>
+<dt>Inference</dt><dd>frequentist</dd>
+<dt>Query kind</dt><dd>PulseEffect</dd>
+<dt>Rows</dt><dd>400</dd>
+<dt>Functional</dt><dd>pulse.h1.all_observed</dd>
+</dl>
+<h3>Support slot</h3>
+<dl class="facts">
+<dt>Matrix status</dt><dd>licensed</dd>
+<dt>Matrix coordinate</dt><dd>PulseEffect:TemporalDag:explicit:Frequentist:none</dd>
+<dt>Empirical support</dt><dd>unavailable:not_evaluated</dd>
+</dl>
+<h3>Support cell of the program</h3>
+<dl class="facts">
+<dt>Coordinate</dt><dd>PulseEffect:TemporalDag:explicit:Frequentist:none</dd>
+<dt>Licensed</dt><dd>yes</dd>
+<dt>Status</dt><dd>licensed</dd>
+</dl>
+</section>
+<section id="refusals-and-limits">
+<h2>Refusals and limits</h2>
+<dl class="facts">
+<dt>Operation</dt><dd>execute</dd>
+<dt>Applicability</dt><dd>licensed</dd>
+<dt>Readiness</dt><dd>executable</dd>
+<dt>Coordinate</dt><dd>PulseEffect:TemporalDag:explicit:Frequentist:none</dd>
+</dl>
+<h3>Limits</h3>
+<ul>
+<li>Calibration is scope_not_assessed (coverage_record_not_attesting).</li>
+</ul>
+<h3>Blockers and refusals</h3>
+<p>The operation report records no blocker.</p>
+<h3>Unmet obligations</h3>
+<table>
+<thead><tr><th>Id</th><th>Scope</th><th>Kind</th><th>Status</th><th>Source</th><th>Required check</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td>assumption.0</td><td>program</td><td>graphical_implication</td><td>declared</td><td>algorithm_default:backdoor</td><td>none</td><td>causal_markov</td></tr>
+<tr><td>assumption.1</td><td>program</td><td>graphical_implication</td><td>declared</td><td>algorithm_default:temporal.backdoor.unfolded</td><td>none</td><td>stationarity</td></tr>
+</tbody>
+</table>
+<dl class="facts">
+<dt>Layers the premises preserve</dt><dd>target, identification, program, support</dd>
+<dt>Layers the premises invalidate</dt><dd>none</dd>
+</dl>
+<p>This report restates the contract. It computes no estimate, grants no licence, and a status recorded here is the status the records carry.</p>
+</section>
+<section id="program-plan">
+<h2>Program plan</h2>
+<dl class="facts">
+<dt>Route</dt><dd>TemporalEffectDag</dd>
+<dt>Family</dt><dd>temporal</dd>
+<dt>Stage</dt><dd>prepared</dd>
+<dt>Depth</dt><dd>complete</dd>
+<dt>Program identity</dt><dd>c42e35d2045525d672f976cb5daf8ec1bf553aa28cd4853d30e42c0a96a2c0b2</dd>
+<dt>Sealed operation</dt><dd>temporal_dag_effect</dd>
+</dl>
+<h3>Scientific problem</h3>
+<dl class="facts">
+<dt>data</dt><dd>temporal</dd>
+<dt>graph_class</dt><dd>TemporalDag</dd>
+<dt>plan_id</dt><dd>temporal_effect</dd>
+<dt>query_variables</dt><dd>pressure, defect</dd>
+<dt>target.form</dt><dd>target</dd>
+<dt>target.identity</dt><dd>202838a6681237bf6a9adebb778f4bdaf8ddbcc1479710c764b707c3872f2ba6</dd>
+</dl>
+<h3>Identification product</h3>
+<dl class="facts">
+<dt>Carried</dt><dd>retained</dd>
+<dt>Status</dt><dd>nonparametrically_identified</dd>
+<dt>Installed at prepare</dt><dd>yes</dd>
+</dl>
+<table>
+<thead><tr><th>Retained product</th><th>Status</th><th>Estimands</th><th>Completions</th><th>Truncated</th><th>Atoms</th><th>Identified mass</th><th>Unidentified mass</th></tr></thead>
+<tbody>
+<tr><td>temporal</td><td>nonparametrically_identified</td><td>temporal.backdoor.unfolded [none]</td><td>0</td><td>0</td><td>0</td><td>none</td><td>none</td></tr>
+</tbody>
+</table>
+<h3>Statistical program</h3>
+<dl class="facts">
+<dt>design.reason</dt><dd>the lagged adjustment design is assembled from the unfolded sample at execution</dd>
+<dt>design.source</dt><dd>not_design_based</dd>
+<dt>estimator</dt><dd>temporal.linear.adjustment</dd>
+<dt>identifier</dt><dd>temporal.backdoor.unfolded</dd>
+<dt>identity</dt><dd>917f121005605eb5bc0a3cd809facef2cf9ef80e8998cf01e09f991cdaf5fb59</dd>
+<dt>models[0].family</dt><dd>temporal.linear.adjustment</dd>
+<dt>models[0].inputs</dt><dd>pressure</dd>
+<dt>models[0].output</dt><dd>defect</dd>
+<dt>models[0].role</dt><dd>outcome</dd>
+<dt>operators</dt><dd>3</dd>
+<dt>realization</dt><dd>frequentist</dd>
+<dt>resampling.method</dt><dd>block_bootstrap</dd>
+<dt>resampling.replicates</dt><dd>199</dd>
+<dt>resampling.unit</dt><dd>calendar_block</dd>
+</dl>
+<h3>Evidence and decision program</h3>
+<dl class="facts">
+<dt>composition.kind</dt><dd>single</dd>
+<dt>identity</dt><dd>99dec0d4a3c47302aa2f4f28dc40b3ccfcab003e3737b2601341a639ef0ef027</dd>
+<dt>sources[0].role</dt><dd>observations</dd>
+</dl>
+<h3>Physical plan</h3>
+<dl class="facts">
+<dt>design.reason</dt><dd>the lagged adjustment design is assembled from the unfolded sample at execution</dd>
+<dt>design.source</dt><dd>not_design_based</dd>
+<dt>operators[0].capability</dt><dd>cpu</dd>
+<dt>operators[0].designs</dt><dd>1</dd>
+<dt>operators[0].device_work</dt><dd>no</dd>
+<dt>operators[0].effect</dt><dd>read</dd>
+<dt>operators[0].output_bytes</dt><dd>6400</dd>
+<dt>operators[0].retained_bytes</dt><dd>0</dd>
+<dt>operators[0].scratch_bytes</dt><dd>0</dd>
+<dt>operators[0].sources</dt><dd>1</dd>
+<dt>operators[1].capability</dt><dd>cpu</dd>
+<dt>operators[1].designs</dt><dd>1</dd>
+<dt>operators[1].device_work</dt><dd>no</dd>
+<dt>operators[1].effect</dt><dd>fit</dd>
+<dt>operators[1].output_bytes</dt><dd>8</dd>
+<dt>operators[1].retained_bytes</dt><dd>6400</dd>
+<dt>operators[1].scratch_bytes</dt><dd>12800</dd>
+<dt>operators[1].sources</dt><dd>1</dd>
+<dt>operators[2].capability</dt><dd>cpu</dd>
+<dt>operators[2].designs</dt><dd>1</dd>
+<dt>operators[2].device_work</dt><dd>no</dd>
+<dt>operators[2].effect</dt><dd>intervene</dd>
+<dt>operators[2].output_bytes</dt><dd>0</dd>
+<dt>operators[2].retained_bytes</dt><dd>0</dd>
+<dt>operators[2].scratch_bytes</dt><dd>0</dd>
+<dt>operators[2].sources</dt><dd>1</dd>
+<dt>output_bytes</dt><dd>6408</dd>
+<dt>retained_bytes</dt><dd>6400</dd>
+<dt>scratch_bytes</dt><dd>12800</dd>
+</dl>
+</section>
+<section id="identities">
+<h2>Identities</h2>
+<dl class="facts">
+<dt>Target</dt><dd>2d59f60479809144a79d268cc4f9badb5db40c24552686d65dbbf9edb3640b96</dd>
+<dt>Identification</dt><dd>32ee7fe95e290cfb06cc6e453763e356a1509c373d4adaf58ff734c18524b1b1</dd>
+<dt>Identification product</dt><dd>0b50b6a391a63ad2c167b75e36ecf0f1203cdc61c8a3d822d510a3d6a64faccf</dd>
+<dt>Program</dt><dd>903d5c382ecf74a8b732fc58ff38a4f8861d0dc061f0f72c5d47d3283774ff97</dd>
+<dt>Inference binding</dt><dd>c0b56df81bae1a8835154001766ba818ecda7b1aa1c180ef71640e6b9db4d029</dd>
+<dt>Observation</dt><dd>f27aa98772837e28c8c83c5a99a36ed0443730553037d310c7d2d063f044050f</dd>
+<dt>Data snapshot</dt><dd>d9896080f5dcee6c44004e70185b5034c2836f6aadb73bc6f0fae14fd1debd58</dd>
+<dt>Score reuse</dt><dd>none</dd>
+<dt>Target weights</dt><dd>none</dd>
+</dl>
+</section>
+</main>
+</body>
+</html>

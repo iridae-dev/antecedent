@@ -194,6 +194,8 @@ def coerce_query(value: Any) -> Any:
         ResponseJacobian,
         SemiElasticity,
         SustainedEffect,
+        TemporalConditionalPulse,
+        TemporalConditionalSustained,
         TemporalMediationEffect,
     )
     from .regimes import LongitudinalRegime, SequentialContrast
@@ -213,6 +215,8 @@ def coerce_query(value: Any) -> Any:
         PathSpecificEffect,
         PulseEffect,
         SustainedEffect,
+        TemporalConditionalPulse,
+        TemporalConditionalSustained,
         TemporalMediationEffect,
         ResponseCurve,
         AverageDerivative,

@@ -74,7 +74,7 @@ pub(crate) fn declaration_identity(
     plan: &ChainPlan,
 ) -> Result<String, ChainRefusal> {
     let mut declared = draft.clone();
-    declared.label = plan.label.to_owned();
+    plan.label.clone_into(&mut declared.label);
     propagation_chain_identity(&declared).map_err(|error| error.to_refusal())
 }
 
@@ -82,7 +82,6 @@ fn uncertainty(plan: &ChainPlan) -> UncertaintyReading {
     match plan.stage(&plan.output) {
         Some(output) => match (output.representation, output.meaning) {
             (NodeRepresentation::Enclosure, _) => UncertaintyReading::Envelope,
-            (NodeRepresentation::Point, _) => UncertaintyReading::None,
             (NodeRepresentation::Draws, Some(LawMeaning::Posterior)) => {
                 UncertaintyReading::Posterior
             }

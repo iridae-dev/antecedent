@@ -596,6 +596,10 @@ pub(super) fn validate_schema_binding(
 
 /// Builder for static or temporal analysis.
 #[derive(Clone, Debug)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "the explicit-versus-defaulted markers and the joint-horizon retention flag are independent facts the builder records one for one"
+)]
 pub struct StudyBuilder {
     data: DataInput,
     graph: Option<AcceptedGraph>,

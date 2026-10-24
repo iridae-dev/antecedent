@@ -109,10 +109,18 @@ const FAMILY_ESTIMATORS: &[EstimatorId] = &[
     EstimatorId::BayesianIvBounds,
 ];
 
-/// Seal a study by the estimator it resolves to; a study naming none runs its route's
+/// Seal a study no route-cell sealer admits, by the estimator it resolves to; a study naming none runs its route's
 /// default estimator, which a compiled cell always has.
 pub(super) fn estimator_route(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { source, analysis, plan, binding, .. } = *cx;
+    // Only a study no route-cell sealer admits: the table's last two entries are the
+    // program-only sealers, this one and the fresh run.
+    let specialised = &super::SEALERS[..super::SEALERS.len() - 2];
+    for sealer in specialised {
+        if (sealer.seal)(cx)?.is_some() {
+            return Ok(None);
+        }
+    }
     let estimator = source
         .estimator
         .or_else(|| source.estimator_spec.as_deref().map(crate::EstimatorSpec::id))

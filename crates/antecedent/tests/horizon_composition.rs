@@ -149,7 +149,7 @@ fn a_nonlinear_functional_of_the_horizons_composes_the_same_joint_draws() {
     )
     .unwrap();
     for (row, composed) in rows.iter().zip(&peak.draws) {
-        assert_eq!(*composed, row[0].max(row[1]));
+        assert!((composed - row[0].max(row[1])).abs() < 1e-12);
     }
     assert_eq!(peak.coordinate.horizons, vec![1, 2]);
     assert!(peak.coordinate.id().starts_with("nonlinear_functional|aligned_joint_law|"));

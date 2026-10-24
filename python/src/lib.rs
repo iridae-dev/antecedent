@@ -234,6 +234,8 @@ pub(crate) fn parse_within_tier(
     }
 }
 
+/// Posterior mean, standard deviation, interval and draws of a family contrast.
+type FamilyContrastPosterior = (f64, f64, (f64, f64), Vec<f64>);
 type MechanismWireEntry = (String, Option<f64>, Option<Vec<f64>>, Option<f64>);
 type ModelBundleSummary = (Vec<String>, Vec<(u32, u32)>, usize);
 type PriorSensitivityFields = (
@@ -1611,7 +1613,7 @@ pub(crate) struct EstimateSection {
     /// `(posterior mean, standard deviation, (lower, upper), draws)` of the family contrast;
     /// draw `d` of every family member shares one row-weight vector.
     #[pyo3(get)]
-    family_contrast_posterior: Option<(f64, f64, (f64, f64), Vec<f64>)>,
+    family_contrast_posterior: Option<FamilyContrastPosterior>,
     #[pyo3(get)]
     candidate_selection: Option<CandidateSelectionSection>,
     #[pyo3(get)]

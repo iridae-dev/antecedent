@@ -87,13 +87,12 @@ impl super::Study {
                 .get(query.horizon_steps)
                 .map(|entry| (entry.identification.clone(), entry.estimand.clone(), prepared))
         });
-        let (identification, estimand, identify_cached) = match reused {
-            Some(found) => found,
-            None => {
-                report_identify_compute(ctx);
-                let contrast = identify_window_contrast(template, query, variable_count)?;
-                (contrast.identification, contrast.estimand, false)
-            }
+        let (identification, estimand, identify_cached) = if let Some(found) = reused {
+            found
+        } else {
+            report_identify_compute(ctx);
+            let contrast = identify_window_contrast(template, query, variable_count)?;
+            (contrast.identification, contrast.estimand, false)
         };
         let plan = plan_temporal_admg_window(template, query)?;
         let window = template.unroll_window_over(plan.periods, variable_count)?;

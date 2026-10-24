@@ -373,8 +373,8 @@ impl TemporalAdmg {
             });
         }
         let template = |id: DenseNodeId| -> Result<(usize, i64), GraphError> {
-            match self.nodes[id.as_usize()] {
-                NodeRef::Lagged { variable, lag } => {
+            match self.nodes.get(id.as_usize()) {
+                Some(&NodeRef::Lagged { variable, lag }) => {
                     Ok((variable.as_usize(), i64::from(lag.raw())))
                 }
                 _ => Err(GraphError::InvalidEndpoints {
