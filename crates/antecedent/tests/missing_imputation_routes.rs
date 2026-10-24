@@ -245,6 +245,16 @@ impl Columns {
     /// The completed tables the route's imputation draws: every column is in the imputation
     /// model, in table order, and rows are the resampling unit.
     fn completed(&self, spec: ImputationSpec, extra: Vec<ImputationColumn>) -> Vec<TabularData> {
+        self.completed_with(spec, extra, &[])
+    }
+
+    /// [`Self::completed`] with the product of each named pair in every other conditional model.
+    fn completed_with(
+        &self,
+        spec: ImputationSpec,
+        extra: Vec<ImputationColumn>,
+        interactions: &[(&str, &str)],
+    ) -> Vec<TabularData> {
         let mut columns: Vec<ImputationColumn> = self
             .names
             .iter()
@@ -252,7 +262,12 @@ impl Columns {
             .map(|(name, values)| ImputationColumn::new(*name, values.clone()))
             .collect();
         columns.extend(extra);
-        let imputer = Imputer::new(columns, spec, ImputationUnits::Rows).unwrap();
+        let pairs: Vec<(Arc<str>, Arc<str>)> =
+            interactions.iter().map(|(a, b)| (Arc::from(*a), Arc::from(*b))).collect();
+        let imputer = Imputer::new(columns, spec, ImputationUnits::Rows)
+            .unwrap()
+            .with_interactions(&pairs)
+            .unwrap();
         let ctx = ctx();
         (0..spec.imputations)
             .map(|j| {
@@ -285,11 +300,8 @@ fn refusal(error: &CausalError) -> String {
 
 const MODIFIER_EFFECT: f64 = 0.5;
 
-/// `y = 1 + 2 t + 0.5 t w + 0.8 w + e`; `y` goes missing with probability rising in the arm `t`
-/// (at random given the imputation model's variables), and `w` is missing completely at random
-/// for one row in ten. The missingness is kept off `w`: an additive imputation model cannot carry
-/// the `t w` interaction into the rows it fills, so missingness that selects on `w` would bias
-/// the effect at any modifier value by the model's misspecification, not by the route.
+/// `y = 1 + 2 t + 0.5 t w + 0.8 w + e`; `y` goes missing with probability rising in `w`, and
+/// `w` is missing completely at random for one row in ten.
 fn conditional_columns(n: usize, seed: u64) -> Columns {
     let mut rng = Stream(seed);
     let (mut t, mut y, mut w) = (vec![], vec![], vec![]);
@@ -297,7 +309,7 @@ fn conditional_columns(n: usize, seed: u64) -> Columns {
         let wi = rng.normal();
         let ti = f64::from(u8::from(rng.bernoulli(0.5)));
         let yi = 1.0 + 2.0 * ti + MODIFIER_EFFECT * ti * wi + 0.8 * wi + rng.normal();
-        y.push(if rng.bernoulli(logistic(0.8 * ti - 0.4)) { f64::NAN } else { yi });
+        y.push(if rng.bernoulli(logistic(1.2 * wi - 0.4)) { f64::NAN } else { yi });
         w.push(if i % 10 == 3 { f64::NAN } else { wi });
         t.push(ti);
     }
@@ -355,7 +367,7 @@ fn a_conditional_effect_pools_to_the_hand_pooled_reference() {
         let report = report_of(&result);
         let mut points = Vec::new();
         let mut covs = Vec::new();
-        for completed in columns.completed(spec(), Vec::new()) {
+        for completed in columns.completed_with(spec(), Vec::new(), &[("t", "w")]) {
             let reference = run_conditional(
                 &completed,
                 OutcomeFunctional::Mean,
@@ -376,7 +388,7 @@ fn a_conditional_effect_pools_to_the_hand_pooled_reference() {
         assert!(close(effect.uncertainty.analytic.se, vector.total[0].sqrt(), 1e-12));
         assert!(result.interval.is_none(), "the pooled interval stays closed");
         // The marginal effect is 2 + 0.5 E[w] = 2; imputation recovers it where the missing
-        // outcomes depend on the arm.
+        // outcomes depend on the modifier.
         assert!((effect.ate - 2.0).abs() < 0.3, "pooled conditional effect {}", effect.ate);
         assert!(vector.between[0] > 0.0 && vector.within[0] > 0.0);
         assert!(report.imputed_cells.iter().find(|(n, _)| n.as_ref() == "y").unwrap().1 > 100);
@@ -418,7 +430,7 @@ fn a_conditional_grid_pools_its_cells_with_the_joint_influence_covariance() {
         let report = report_of(&result);
         let mut points = Vec::new();
         let mut covs = Vec::new();
-        for completed in columns.completed(spec(), Vec::new()) {
+        for completed in columns.completed_with(spec(), Vec::new(), &[("t", "w")]) {
             let reference =
                 run_conditional(&completed, functional.clone(), InferenceMode::Frequentist, None)
                     .unwrap();
@@ -469,7 +481,7 @@ fn a_bayesian_conditional_effect_stacks_the_tables_joint_draws() {
         assert!(vector.wald.is_none() && vector.coordinate_df.iter().all(Option::is_none));
         // The stacked mean is the mean of the completed tables' posterior means.
         let mut means = Vec::new();
-        for completed in columns.completed(spec(), Vec::new()) {
+        for completed in columns.completed_with(spec(), Vec::new(), &[("t", "w")]) {
             let reference =
                 run_conditional(&completed, OutcomeFunctional::Mean, bayes(), None).unwrap();
             let posterior = reference.posterior.as_ref().unwrap();

@@ -134,6 +134,8 @@ pub struct Imputer {
     lags: usize,
     /// Observed rows with a full neighbourhood, per variable; read only when `lags > 0`.
     fit_rows: Vec<Vec<usize>>,
+    /// Pairs of variables whose product enters the conditional model of every other variable.
+    interactions: Vec<(usize, usize)>,
 }
 
 impl Imputer {
@@ -275,7 +277,82 @@ impl Imputer {
             visit,
             lags: 0,
             fit_rows: Vec::new(),
+            interactions: Vec::new(),
         })
+    }
+
+    /// Add the product of each pair of variables (by column name) to the conditional model of
+    /// every variable outside the pair, together with the main effects the model already holds.
+    ///
+    /// An additive conditional model imputes a cell as if the effect of one variable did not
+    /// depend on another; an analysis that estimates a treatment-by-modifier contrast then reads
+    /// a dependence the imputed rows cannot carry. Declaring the pair makes the imputation model
+    /// congenial with that analysis. The product is formed from the current completed columns
+    /// (passive imputation). The pairs are part of the claim identity.
+    ///
+    /// # Errors
+    ///
+    /// A name that is not a column of the model, a pair of one variable with itself, or the
+    /// joint normal model (it has no interaction form).
+    pub fn with_interactions(
+        mut self,
+        pairs: &[(Arc<str>, Arc<str>)],
+    ) -> Result<Self, MultipleImputationError> {
+        if pairs.is_empty() {
+            return Ok(self);
+        }
+        if self.spec.model == ImputationModel::JointNormal {
+            return Err(MultipleImputationError::not_applicable(
+                "multiple_imputation.interactions_joint_normal",
+                "the joint normal model draws each row from one mean and covariance and has no \
+                 interaction form",
+                USE_CHAINED_EQUATIONS,
+            ));
+        }
+        let index = |name: &Arc<str>| {
+            self.names.iter().position(|n| n == name).ok_or_else(|| {
+                MultipleImputationError::invalid(
+                    "multiple_imputation.interaction_variable",
+                    format!("interaction variable `{name}` is not in the imputation model"),
+                )
+            })
+        };
+        let mut resolved = Vec::new();
+        for (a, b) in pairs {
+            let (a, b) = (index(a)?, index(b)?);
+            if a == b {
+                return Err(MultipleImputationError::invalid(
+                    "multiple_imputation.interaction_variable",
+                    "an interaction pairs two different variables",
+                ));
+            }
+            let pair = (a.min(b), a.max(b));
+            if !resolved.contains(&pair) {
+                resolved.push(pair);
+            }
+        }
+        resolved.sort_unstable();
+        self.interactions = resolved;
+        Ok(self)
+    }
+
+    /// The declared interaction pairs, by name.
+    #[must_use]
+    pub fn interaction_names(&self) -> Vec<(Arc<str>, Arc<str>)> {
+        self.interactions
+            .iter()
+            .map(|&(a, b)| (Arc::clone(&self.names[a]), Arc::clone(&self.names[b])))
+            .collect()
+    }
+
+    /// Interaction terms in variable `j`'s conditional model: pairs that do not contain `j`.
+    fn active_interactions(&self, j: usize) -> usize {
+        self.interactions.iter().filter(|&&(a, b)| a != j && b != j).count()
+    }
+
+    /// Coefficients of variable `j`'s conditional model.
+    fn width_for(&self, j: usize) -> usize {
+        self.width() + self.active_interactions(j)
     }
 
     /// Condition every variable's imputation model on the values `lags` time steps before and
@@ -378,6 +455,12 @@ impl Imputer {
                     out[c] = column[before];
                     out[c + 1] = column[after];
                     c += 2;
+                }
+            }
+            for &(a, b) in &self.interactions {
+                if a != j && b != j {
+                    out[c] = current[a][i] * current[b][i];
+                    c += 1;
                 }
             }
         }
@@ -523,7 +606,7 @@ impl Imputer {
         current: &mut [Vec<f64>],
         rng: &mut CausalRng,
     ) -> Result<(), MultipleImputationError> {
-        let k = self.width(); // intercept, the p - 1 other variables, then every neighbour
+        let k = self.width_for(j); // intercept, other variables, neighbours, interactions
         let weights = self.row_weights(rng);
         let design = self.design_row(j);
         let observed = self.fit_rows_of(j);
@@ -583,7 +666,7 @@ impl Imputer {
         current: &[Vec<f64>],
         design: &DesignRow<'_>,
     ) -> Result<Vec<f64>, MultipleImputationError> {
-        let k = self.width();
+        let k = self.width_for(j);
         let observed = self.fit_rows_of(j);
         let mut beta = vec![0.0; k];
         let mut x = vec![0.0; k];

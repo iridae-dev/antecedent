@@ -18,7 +18,7 @@ use std::sync::Arc;
 use antecedent_core::{CausalQuery, ExecutionContext, VariableId};
 use antecedent_data::column::OwnedColumn;
 use antecedent_data::{
-    ImputationSpec, MissingDeclaration, RowAccounting, TableView, TabularData,
+    ImputationModel, ImputationSpec, MissingDeclaration, RowAccounting, TableView, TabularData,
     complete_float_columns,
 };
 use antecedent_estimate::EstimationError;
@@ -131,7 +131,39 @@ pub(super) fn build_imputer_with(
         .map_err(|error| CausalError::Estimate(error.into()))?;
     let imputer =
         Imputer::new(columns, spec, units).map_err(|error| CausalError::Estimate(error.into()))?;
+    // A treatment-by-modifier target reads a dependence an additive conditional model cannot
+    // put into the cells it fills: the products enter every other variable's model.
+    let pairs = treatment_modifier_pairs(&study.query, data, &ids);
+    let imputer = if spec.model == ImputationModel::ChainedEquations {
+        imputer.with_interactions(&pairs).map_err(|error| CausalError::Estimate(error.into()))?
+    } else {
+        imputer
+    };
     Ok((imputer, ids))
+}
+
+/// The (treatment, modifier) column-name pairs of a query whose target is a treatment-by-modifier
+/// contrast; empty for every other query.
+fn treatment_modifier_pairs(
+    query: &CausalQuery,
+    data: &TabularData,
+    model: &[VariableId],
+) -> Vec<(Arc<str>, Arc<str>)> {
+    let average = match query {
+        CausalQuery::ConditionalEffect(q) => &q.inner,
+        CausalQuery::AverageEffect(q) => q,
+        _ => return Vec::new(),
+    };
+    let name = |id: VariableId| {
+        model.contains(&id).then(|| data.schema().get(id).ok().map(|v| Arc::clone(&v.name))).flatten()
+    };
+    let Some(treatment) = name(average.treatment) else { return Vec::new() };
+    average
+        .effect_modifiers
+        .iter()
+        .filter_map(|&id| name(id))
+        .map(|modifier| (Arc::clone(&treatment), modifier))
+        .collect()
 }
 
 /// One completed table's fit, read from the route's result.

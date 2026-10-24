@@ -454,6 +454,9 @@ pub struct ImputationAssumptions {
     /// Neighbouring time steps on each side the conditional models read (a series); zero for
     /// exchangeable rows.
     pub lags: usize,
+    /// Pairs of variables whose product the conditional models read (empty for an additive
+    /// model).
+    pub interactions: Vec<(Arc<str>, Arc<str>)>,
 }
 
 impl ImputationAssumptions {
@@ -468,6 +471,7 @@ impl ImputationAssumptions {
             variables: imputer.variables(),
             design,
             lags: imputer.lags(),
+            interactions: imputer.interaction_names(),
         }
     }
 
@@ -498,6 +502,13 @@ impl ImputationAssumptions {
         // Rows keep the digest they have always had; a lagged model is another analysis.
         if self.lags > 0 {
             writer.text("dynamics").word(self.lags as u64);
+        }
+        // An additive model keeps the digest it has always had; a product term is another analysis.
+        if !self.interactions.is_empty() {
+            writer.text("interactions").word(self.interactions.len() as u64);
+            for (a, b) in &self.interactions {
+                writer.text(a).text(b);
+            }
         }
         writer.finish_hex()
     }
