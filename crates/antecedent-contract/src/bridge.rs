@@ -38,7 +38,10 @@
 //! posterior or joint law and a request for any of them refuses; the interval
 //! of the bridged value, from the source claim's declared standard error and the
 //! mapping's own estimation uncertainty, is built where the coverage records
-//! are held (`antecedent_io::bridge_interval`).
+//! are held (`antecedent_io::bridge_interval`). A point source with a declared standard
+//! error, through a mapping that declares its uncertainty and its dependence on the
+//! source, also carries the first-order propagated variance of the bridged value
+//! ([`PointPropagation`]) beside the plug-in value, read as an uncalibrated spread.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -55,7 +58,7 @@ mod refusal;
 
 pub use claim::{
     BRIDGE_CLAIM_IDENTITY_VERSION, BridgeSource, BridgedClaim, bridged_claim_id,
-    derive_bridged_claim,
+    bridged_claim_id_with_propagation, derive_bridged_claim, derive_bridged_claim_propagating,
 };
 pub use contract::{
     AffineDrawLaw, AffineInnovation, AnalyticLaw, BRIDGE_IDENTITY_VERSION, BRIDGE_SOURCE_PORT,
@@ -63,9 +66,11 @@ pub use contract::{
     BridgeInterfaceBasis, BridgeScope, BridgedDistributionClaim, CorrectionDrawLaw, DrawMapping,
     DrawsPlan, EstimandBridge, ExperimentalPrior, ExposureSetting, ImportedExperimentalPrior,
     Licensing, MAX_BRIDGE_ASSUMPTIONS, MAX_BRIDGE_TEXT_BYTES, MappedDrawsSummary,
-    MappingUncertainty, NonlinearMap, NonlinearMoment, PreservedSupport, PropagatedUncertainty,
-    SourceMappingDependence, SupportMap, TransportabilityPremise, ValueInterval,
-    bridged_distribution_claim_id, nonlinear_expectation, preserved_support, support_image,
+    MappingUncertainty, NonlinearMap, NonlinearMoment, NonlinearPropagation,
+    POINT_PROPAGATION_CALIBRATION, POINT_PROPAGATION_LABEL, PointPropagation, PreservedSupport,
+    PropagatedUncertainty, SourceMappingDependence, SupportMap, TransportabilityPremise,
+    ValueInterval, bridged_distribution_claim_id, nonlinear_expectation,
+    point_propagation_unavailable, preserved_support, support_image,
 };
 pub use kind::{AssumptionKind, BridgeKind, QuantityClass, ValueKind};
 pub use mapping::{

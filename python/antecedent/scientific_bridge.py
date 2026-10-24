@@ -47,6 +47,15 @@ is published only inside a measured design; with no ``level``, a posterior, a pr
 identified set or a joint law the request is refused
 (:meth:`BridgedClaim.interval`, :meth:`BridgedClaim.require_value_kind`).
 
+A point source whose ``standard_error`` is declared, through a mapping that declares its
+:class:`MappingUncertainty` and :class:`SourceDependence`, also carries the first-order propagated
+variance of the bridged value (:attr:`BridgedClaim.propagated_variance`,
+:meth:`BridgedClaim.propagated_uncertainty`), read as an ``uncalibrated_spread`` whose calibration
+is unmeasured and never as an interval. The claim ``value`` stays the plug-in value; the propagated
+mean (bias-corrected when ``SourceClaim.nonlinear`` asks for the expectation of a ``square``) is
+reported beside it. The dependence is never assumed: a declared uncertainty with no declared
+dependence is refused ``scientific_bridge.source_dependence_missing``.
+
 A bridge whose source is the aligned draws of a posterior or a predictive law
 (:func:`prepare_distribution_bridge`) derives the same draw table with the bridged column in
 place of the source column, row for row and with the table's alignment identity unchanged, so the
@@ -71,8 +80,10 @@ An affine map with uncertain coefficients draws them jointly from its declared
 :class:`MappingUncertainty` and :class:`SourceDependence`; a trial-level line draws them from the
 Student-t law of its least-squares fit; a measurement correction draws its rates. The source's
 spread comes only from its draws and the mapping's only from the mapping, so neither is counted
-twice. :meth:`BridgedDistribution.chain_stage` expresses the bridge as a measurement-mapping stage
-of a propagation chain whose slope and intercept are inputs.
+twice. :meth:`BridgedDistribution.chain_stage` expresses every bridge as a measurement-mapping stage
+of a propagation chain: an affine map or trial-level line reads its slope and intercept as inputs, a
+predictive law adds the new trial's residual as an input of its own, and a measurement correction is
+the guarded ratio of the source and the drawn sensitivity and specificity.
 
 Every licensing check, mapping, identity and refusal is computed in Rust; this module builds the
 declaration and presents the result. Refusals are :class:`ScientificBridgeRefusal` (a
@@ -123,6 +134,7 @@ __all__ = [
     "MeasurementCorrection",
     "PreparedBridge",
     "PreparedDistributionBridge",
+    "PropagatedUncertainty",
     "Scope",
     "ScientificBridgeRefusal",
     "SourceClaim",
@@ -195,6 +207,7 @@ _CLAIM_KINDS = (
     "incomplete",
     "associational",
 )
+_NONLINEAR_MAPS = ("square", "exponential")
 _DOMAIN_STATUSES = (
     "identified",
     "supported",
@@ -849,6 +862,7 @@ class SourceClaim:
     evidence: Sequence[str] = ()
     execution: str | None = None
     standard_error: float | None = None
+    nonlinear: str | None = None
 
     def __post_init__(self) -> None:
         _name(self.claim_id, "claim_id")
@@ -856,6 +870,8 @@ class SourceClaim:
             _number(self.standard_error, "standard_error")
             if self.standard_error < 0:
                 raise CausalValueError("standard_error must be non-negative")
+        if self.nonlinear is not None:
+            _choice(self.nonlinear, "nonlinear", _NONLINEAR_MAPS)
         _choice(self.kind, "kind", _CLAIM_KINDS)
         _choice(self.evaluated, "evaluated", _DOMAIN_STATUSES)
         if self.value is not None:
@@ -883,13 +899,17 @@ class SourceClaim:
         evaluated: str = "evaluated",
         evidence: Iterable[str] = (),
         standard_error: float | None = None,
+        nonlinear: str | None = None,
     ) -> SourceClaim:
         """A claim the caller declares, with deterministic content-digest identities.
 
         ``data_snapshot`` names the data the value came from (a label): two claims with the same
         snapshot share evidence, and a bridge of either shares it too. ``standard_error`` is the
-        claim's own sampling standard error, declared with it: it is not part of any identity and
-        is what :meth:`BridgedClaim.interval` carries through the bridge.
+        claim's own sampling standard error, declared with it: it is what
+        :meth:`BridgedClaim.interval` carries through the bridge and, where the mapping declares
+        its uncertainty and dependence, what the propagated variance is built from (then it binds
+        the derived claim's identity). ``nonlinear`` (``"square"``) asks for the second-moment
+        expectation of a nonlinear map of the bridged quantity under the propagated law.
         """
         _name(label, "label")
         wire = _quantity_wire(quantity, "quantity")
@@ -912,12 +932,14 @@ class SourceClaim:
             evaluated=evaluated,
             evidence=tuple(evidence),
             standard_error=standard_error,
+            nonlinear=nonlinear,
         )
 
     def to_wire(self) -> dict[str, Any]:
         """The declaration the native layer reads."""
         return {
             "standard_error": None if self.standard_error is None else float(self.standard_error),
+            "nonlinear": self.nonlinear,
             "claim": {
                 "claim_id": self.claim_id,
                 "kind": self.kind,
@@ -985,6 +1007,56 @@ class BridgedClaimInterval(ScientificResult):
     assumptions: str
 
 
+@dataclass(repr=False, frozen=True, slots=True)
+class PropagatedUncertainty(ScientificResult):
+    """The first-order propagated uncertainty of a bridged value.
+
+    ``plug_in_value`` is the claim value; ``mean`` is the propagated mean (the plug-in value plus
+    the declared slope-source covariance) and ``propagated_mean`` is the bias-corrected expectation
+    when a ``nonlinear`` map was asked for. ``variance`` is read as ``reading``
+    (``uncalibrated_spread``) with ``calibration`` ``unmeasured``: it is not an interval, which
+    stays the separate, scoped :meth:`BridgedClaim.interval`. ``dependence`` is the declared
+    dependence the variance was built from.
+    """
+
+    construction: str
+    source_value: float
+    source_standard_error: float
+    plug_in_value: float
+    mean: float
+    variance: float
+    propagated_mean: float
+    reading: str
+    calibration: str
+    mapping_uncertainty: str | None
+    dependence: Mapping[str, Any]
+    nonlinear: Mapping[str, Any] | None
+
+    @property
+    def standard_deviation(self) -> float:
+        """The square root of the propagated variance."""
+        return math.sqrt(self.variance)
+
+
+def _propagation(wire: Mapping[str, Any] | None) -> PropagatedUncertainty | None:
+    if wire is None:
+        return None
+    return PropagatedUncertainty(
+        construction=str(wire["construction"]),
+        source_value=float(wire["source_value"]),
+        source_standard_error=float(wire["source_standard_error"]),
+        plug_in_value=float(wire["plug_in_value"]),
+        mean=float(wire["mean"]),
+        variance=float(wire["variance"]),
+        propagated_mean=float(wire["propagated_mean"]),
+        reading=str(wire["reading"]),
+        calibration=str(wire["calibration"]),
+        mapping_uncertainty=wire["mapping_uncertainty"],
+        dependence=dict(wire["dependence"]),
+        nonlinear=None if wire["nonlinear"] is None else dict(wire["nonlinear"]),
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class BridgeExport:
     """An exported bridge: the bytes and the artifact identity a consumer retains."""
@@ -1000,8 +1072,11 @@ class BridgedClaim(ScientificResult):
     ``claim_id`` is not ``source_claim_id``: the derived claim is a different claim whose identity
     binds the contract (``contract_identity``), every declared assumption and the source claim.
     ``unresolved`` lists the declared assumptions the bridge did not check; ``unavailable``
-    lists what the claim cannot offer. Identification, support and uncertainty are never
-    established for the target quantity by the bridge itself.
+    lists what the claim cannot offer. Identification, support and calibrated uncertainty are
+    never established for the target quantity by the bridge itself. ``propagation`` (and
+    ``propagated_variance`` / ``propagated_mean``) is the first-order propagated uncertainty of the
+    bridged value when the source declared a ``standard_error`` and the mapping declared its
+    uncertainty and dependence; ``components`` lists the recorded uncertainty components.
     """
 
     _mean_binding: Any = field(default=None, init=False, repr=False, compare=False)
@@ -1032,6 +1107,36 @@ class BridgedClaim(ScientificResult):
     mapping_uncertainty: MappingUncertainty | None = None
     source_dependence: SourceDependence | None = None
     estimand_bridge: EstimandBridge | None = None
+    propagation: PropagatedUncertainty | None = None
+    components: tuple[Mapping[str, Any], ...] = ()
+
+    @property
+    def propagated_variance(self) -> float | None:
+        """The propagated variance of the bridged value, or ``None`` when none was carried."""
+        return None if self.propagation is None else self.propagation.variance
+
+    @property
+    def propagated_mean(self) -> float | None:
+        """The propagated mean (bias-corrected for a nonlinear map), or ``None``."""
+        return None if self.propagation is None else self.propagation.propagated_mean
+
+    def propagated_uncertainty(self) -> PropagatedUncertainty:
+        """The propagated variance and mean of the bridged value.
+
+        Raises:
+            ScientificBridgeRefusal: ``scientific_bridge.source_variance_invalid`` when the source
+                claim declared no ``standard_error``;
+                ``scientific_bridge.mapping_uncertainty_missing`` when an affine map declared no
+                uncertainty; ``scientific_bridge.source_dependence_missing`` when the dependence
+                the propagation needs is undeclared (it is never assumed independent).
+        """
+        if self.propagation is not None:
+            return self.propagation
+        payload = _unwrap(self._handle.propagated_uncertainty())
+        found = _propagation(json.loads(payload))
+        if found is None:  # pragma: no cover - the native layer refuses instead
+            raise CausalValueError("the bridge carries no propagated uncertainty")
+        return found
 
     def artifact(self, artifact_id: str = "scientific_bridge") -> ExportedArtifact[ConsumedBridge]:
         """Bytes and producer metadata; load returns the typed consumed result."""
@@ -1149,6 +1254,8 @@ def _claim(summary: Mapping[str, Any], handle: Any) -> BridgedClaim:
         provenance=tuple(summary["provenance"]),
         _handle=handle,
         quantity=ScientificQuantity.from_wire(contract["target"]["quantity"]),
+        propagation=_propagation(summary.get("propagation")),
+        components=tuple(summary.get("uncertainty_components", ())),
         **_extension(contract),
     )
 
@@ -1317,10 +1424,12 @@ def _seed(value: object) -> int:
 class ChainStageParts:
     """A bridge as a stage of a propagation chain, with the sources it reads.
 
-    ``sources`` are the source draws, the drawn slope and the drawn intercept, columns of one
-    aligned draw table; ``stage`` is the measurement-mapping stage that reads them with the slope
-    and the intercept as inputs. Pass both to :func:`antecedent.propagation_chain.propagate`
-    together with the stages that read ``stage.id``.
+    ``sources`` are the source draws and the draws of the mapping (the drawn slope and intercept,
+    plus the new trial's residual for a predictive law; or the drawn sensitivity and specificity
+    of a measurement correction), columns of one aligned draw table; ``stage`` is the
+    measurement-mapping stage that reads them. Pass both to
+    :func:`antecedent.propagation_chain.propagate` together with the stages that read
+    ``stage.id``.
     """
 
     sources: tuple[Any, ...]
@@ -1416,14 +1525,21 @@ class BridgedDistribution(ScientificResult):
     def chain_stage(self, stage_id: str = "bridge") -> ChainStageParts:
         """The bridge as a measurement-mapping stage of a propagation chain.
 
-        The stage reads the source draws, the drawn slope and the drawn intercept (columns of one
-        aligned draw table) and applies ``source * slope + intercept`` with the slope and the
-        intercept as the stage's inputs, so a chain of bridge, transport and utility propagates
-        the source, the mapping's coefficients and every later stage jointly.
+        The stage reads the source draws and the draws of the mapping (columns of one aligned draw
+        table) and reproduces the bridged column row by row, so a chain of bridge, transport and
+        utility propagates the source, the mapping and every later stage jointly:
+
+        * an affine map or trial-level line applies ``source * slope + intercept`` with the slope
+          and the intercept as the stage's inputs;
+        * a predictive law through a trial-level line adds the new trial's residual, an input of
+          its own that declares its own disturbance, so the residual variance is added once;
+        * a measurement correction applies ``(q + specificity - 1) / (sensitivity + specificity - 1)``
+          over the source and the two drawn rates. The division refuses a Youden index that reaches
+          zero (or falls below the model's smallest licensed value) on any row, and a corrected rate
+          outside ``[0, 1]`` is refused, never clipped.
 
         Raises:
-            ScientificBridgeRefusal: the bridge is not an affine map of its inputs (a measurement
-                correction, or a predictive law through a trial-level line).
+            ScientificBridgeRefusal: the mapping has no draws propagation to express.
         """
         from . import propagation_chain as chain
 

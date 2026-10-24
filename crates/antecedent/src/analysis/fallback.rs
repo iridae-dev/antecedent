@@ -551,12 +551,21 @@ impl Study {
             .filter_map(|raw| u32::try_from(raw).ok().map(VariableId::from_raw))
             .filter(|variable| graph.dense_of_static(*variable).is_some())
             .collect();
-        let failed = IdentificationResult::not_identified(
-            CausalQuery::average_effect(AverageEffectQuery::binary_ate(treatment, outcome)),
-            DerivationTrace::default(),
-            AssumptionSet::new(),
-            IdentificationPerformanceRecord::default(),
-        );
+        // The product the study's own compiled program retained when its identification
+        // refused; the structure-level product only when the route retained none.
+        let retained = self
+            .compile(ctx)
+            .ok()
+            .and_then(|plan| plan.lowered().and_then(|l| l.refused_identification()).cloned())
+            .filter(|result| result.status == antecedent_core::IdentificationStatus::NotIdentified);
+        let failed = retained.unwrap_or_else(|| {
+            IdentificationResult::not_identified(
+                CausalQuery::average_effect(AverageEffectQuery::binary_ate(treatment, outcome)),
+                DerivationTrace::default(),
+                AssumptionSet::new(),
+                IdentificationPerformanceRecord::default(),
+            )
+        });
         let routes = match failure_routes(&failed, &graph, &observed, STUDY_POPULATION, None) {
             Ok(routes) => routes,
             Err(error) => {

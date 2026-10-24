@@ -23,7 +23,7 @@ use antecedent_contract::{ClaimKind, DataClassification};
 use antecedent_core::{
     CanonicalWriter, PhysicalOperator, ScientificTarget, SemanticDigest, VariableId,
 };
-use antecedent_identify::CompiledIdentificationProduct;
+use antecedent_identify::{CompiledIdentificationProduct, IdentificationResult};
 
 use crate::analysis::IdentificationCache;
 use crate::analysis::lowering::RouteCell;
@@ -272,6 +272,11 @@ pub(crate) enum IdentificationLayer {
     Deferred {
         /// Why compile retained no identification.
         reason: &'static str,
+        /// The not-identified product the refusal came from, when the route reads one: its
+        /// status, derivation and query. It is the record the evidence needs derive from;
+        /// it is not an identification claim and preparation still raises the refusal.
+        /// Not part of the program's identity: the declared graph and query already are.
+        failure: Option<Arc<IdentificationResult>>,
     },
     /// Identified at compile and retained with the program; preparation installs
     /// these products and does not identify again.
@@ -387,7 +392,7 @@ impl RetainedIdentification {
 impl IdentificationLayer {
     fn write(&self, writer: &mut CanonicalWriter) {
         match self {
-            Self::Deferred { reason } => {
+            Self::Deferred { reason, .. } => {
                 writer.text("deferred").text(reason);
             }
             Self::Retained(retained) => {
@@ -860,6 +865,18 @@ impl LoweredProgram {
         match &self.identification {
             IdentificationLayer::Retained(retained) => Some(retained),
             IdentificationLayer::Deferred { .. }
+            | IdentificationLayer::PerExecution { .. }
+            | IdentificationLayer::NotClaimed { .. }
+            | IdentificationLayer::NonGraphical(_) => None,
+        }
+    }
+
+    /// The not-identified product a deferred layer two retained, when the refusal came from
+    /// a route that reads one.
+    pub(crate) fn refused_identification(&self) -> Option<&IdentificationResult> {
+        match &self.identification {
+            IdentificationLayer::Deferred { failure, .. } => failure.as_deref(),
+            IdentificationLayer::Retained(_)
             | IdentificationLayer::PerExecution { .. }
             | IdentificationLayer::NotClaimed { .. }
             | IdentificationLayer::NonGraphical(_) => None,

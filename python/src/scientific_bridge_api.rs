@@ -23,8 +23,8 @@ use antecedent::{
 use antecedent_contract::bridge::{
     AssumptionKind, BridgeAssumption, BridgeContract, BridgeEndpoint, BridgeKind, BridgeMapping,
     BridgeScope, BridgeSource, BridgedClaim, EstimandBridge, ExposureSetting, MappingUncertainty,
-    QuantityClass, SourceMappingDependence, TransportabilityPremise, TrialEffectPair,
-    TrialLevelValidation, ValueKind,
+    NonlinearMap, PointPropagation, QuantityClass, SourceMappingDependence, TransportabilityPremise, TrialEffectPair,
+    TrialLevelValidation, ValueKind, point_propagation_unavailable,
 };
 use antecedent_contract::evidence_ledger::parse_digest_hex;
 use antecedent_contract::{
@@ -443,9 +443,69 @@ pub(crate) fn parse_claim(value: &Json) -> PyResult<ClaimEnvelope> {
 // Results as JSON.
 // ---------------------------------------------------------------------------
 
+fn propagation_json(propagation: &PointPropagation) -> Json {
+    json!({
+        "construction": propagation.construction,
+        "source_value": propagation.source_value,
+        "source_standard_error": propagation.source_standard_error,
+        "plug_in_value": propagation.plug_in_value,
+        "mean": propagation.mean,
+        "variance": propagation.variance,
+        "propagated_mean": propagation.propagated_mean(),
+        "reading": propagation.reading(),
+        "calibration": propagation.calibration(),
+        "mapping_uncertainty": propagation.mapping_uncertainty.as_ref().map(|u| u.id.as_str()),
+        "dependence": match &propagation.dependence {
+            SourceMappingDependence::Independent { evidence } => json!({
+                "kind": "independent", "evidence": evidence, "covariance": 0.0
+            }),
+            SourceMappingDependence::SlopeCovariance { covariance, evidence } => json!({
+                "kind": "slope_covariance", "evidence": evidence, "covariance": covariance
+            }),
+            _ => Json::Null,
+        },
+        "nonlinear": propagation.nonlinear.map(|n| json!({
+            "map": n.map.as_str(),
+            "map_of_mean": n.map_of_mean,
+            "expectation": n.expectation,
+        })),
+    })
+}
+
+fn components_json(claim: &ClaimEnvelope) -> Json {
+    match &claim.reasoning.uncertainty {
+        SlotAvailability::Available(slot) => Json::Array(
+            slot.components
+                .iter()
+                .map(|c| {
+                    json!({
+                        "source": c.source.as_str(),
+                        "target": c.target.to_string(),
+                        "omitted": c.omitted,
+                    })
+                })
+                .collect(),
+        ),
+        _ => Json::Array(Vec::new()),
+    }
+}
+
+fn parse_nonlinear(map: &Map<String, Json>) -> PyResult<Option<NonlinearMap>> {
+    match present(map, "nonlinear") {
+        None => Ok(None),
+        Some(value) => match value.as_str() {
+            Some("square") => Ok(Some(NonlinearMap::Square)),
+            Some("exponential") => Ok(Some(NonlinearMap::Exponential)),
+            _ => Err(crate::value_err("source `nonlinear` must be `square` or `exponential`")),
+        },
+    }
+}
+
 fn bridged_json(bridged: &BridgedClaim) -> Json {
     let claim = &bridged.claim;
     json!({
+        "propagation": bridged.propagation.as_ref().map(propagation_json),
+        "uncertainty_components": components_json(claim),
         "kind": bridged.kind().as_str(),
         "source_value": bridged.source_value,
         "value": bridged.value,
@@ -563,7 +623,8 @@ impl PreparedBridgeHandle {
                     .ok_or_else(|| crate::value_err("source `standard_error` must be a number"))?,
             ),
         };
-        Ok(match self.inner.derive_with_standard_error(&source, standard_error) {
+        let nonlinear = parse_nonlinear(map)?;
+        Ok(match self.inner.derive_propagating(&source, standard_error, nonlinear) {
             Ok(inner) => (Some(BridgedClaimHandle { inner }), None),
             Err(refusal) => (None, Some(refusal_json(&refusal))),
         })
@@ -596,6 +657,15 @@ impl BridgedClaimHandle {
         let kind = ValueKind::from_name(kind)
             .ok_or_else(|| crate::value_err(format!("unknown value kind `{kind}`")))?;
         Ok(self.inner.require_value_kind(kind).err().map(|r| refusal_json(&r)))
+    }
+
+    /// The propagated variance and mean of the bridged value as JSON, or the typed
+    /// refusal naming the declaration that is missing.
+    fn propagated_uncertainty(&self) -> (Option<String>, Option<String>) {
+        match self.inner.propagated_uncertainty() {
+            Ok(propagation) => (Some(propagation_json(propagation).to_string()), None),
+            Err(refusal) => (None, Some(refusal_json(&refusal))),
+        }
     }
 
     /// The typed refusal of an unscoped request: no level named, or a posterior or
@@ -681,6 +751,21 @@ impl ConsumedBridgeHandle {
             .require_value_kind(kind)
             .err()
             .map(|refusal| external_refusal_json(&refusal)))
+    }
+
+    /// The propagated variance and mean the replayed derivation carried as JSON, or the
+    /// typed refusal naming what the stored bridge lacks.
+    fn propagated_uncertainty(&self) -> (Option<String>, Option<String>) {
+        match &self.inner.bridged.propagation {
+            Some(propagation) => (Some(propagation_json(propagation).to_string()), None),
+            None => (
+                None,
+                Some(external_refusal_json(&point_propagation_unavailable(
+                    &self.inner.bridged.contract,
+                    false,
+                ))),
+            ),
+        }
     }
 
     /// Always the typed refusal: no interval, posterior or joint law.

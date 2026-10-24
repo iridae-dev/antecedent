@@ -302,6 +302,90 @@ def test_declarations_are_validated_before_the_native_layer() -> None:
         pc.binary("s", "derived_quantity", ["a", "b"], "power")
 
 
+def _correction_stage(min_magnitude: float) -> pc.ChainStage:
+    """``(q + sp - 1) / (se + sp - 1)`` over ``[q, se, sp]``, guarded and range-checked."""
+    return pc.expression(
+        "corrected",
+        "measurement_mapping",
+        ["q", "se", "sp"],
+        [
+            pc.term_input(0),
+            pc.term_input(2),
+            pc.term_add(),
+            pc.term_constant(-1.0),
+            pc.term_add(),
+            pc.term_input(1),
+            pc.term_input(2),
+            pc.term_add(),
+            pc.term_constant(-1.0),
+            pc.term_add(),
+            pc.term_divide(min_magnitude),
+            pc.term_require_range(0.0, 1.0),
+        ],
+    )
+
+
+def test_a_ratio_expression_is_the_formula_row_by_row_and_replays() -> None:
+    q = _grid(0.31, 0.01)
+    se = _partner(0.9, 0.01)
+    sp = _partner(0.8, 0.01)[(np.arange(ROWS) * 3) % ROWS]
+    sources = [
+        pc.draws(name, values, meaning="posterior", alignment=TABLE)
+        for name, values in (("q", q), ("se", se), ("sp", sp))
+    ]
+    chain = pc.propagate(sources, [_correction_stage(0.5)], output="corrected")
+    corrected = (q + sp - 1.0) / (se + sp - 1.0)
+    assert chain.stage("corrected").value("mean") == pytest.approx(corrected.mean(), rel=1e-12)
+    assert chain.stage("corrected").value("variance") == pytest.approx(
+        corrected.var(ddof=1), rel=1e-12
+    )
+    replayed = pc.consume_propagation_chain(chain.export(), expected_identity=chain.identity)
+    assert dict(replayed.answer.values) == dict(chain.answer.values)
+    # A denominator that crosses zero, and a value outside the range, are refused.
+    crossing = pc.draws(
+        "se", np.where(np.arange(ROWS) % 5 == 0, 0.1, se), meaning="posterior", alignment=TABLE
+    )
+    with pytest.raises(R) as refused:
+        pc.propagate(
+            [sources[0], crossing, sources[2]], [_correction_stage(0.0)], output="corrected"
+        )
+    assert refused.value.detail == "propagation_chain.denominator_not_bounded"
+    high = pc.draws("q", np.full(ROWS, 0.99), meaning="posterior", alignment=TABLE)
+    with pytest.raises(R) as refused:
+        pc.propagate(
+            [high, sources[1], sources[2]], [_correction_stage(0.0)], output="corrected"
+        )
+    assert refused.value.detail == "propagation_chain.stage_left_domain"
+
+
+def test_an_expression_over_intervals_is_an_enclosure_bounded_away_from_zero() -> None:
+    sources = [
+        pc.interval("q", 0.30, 0.32),
+        pc.interval("se", 0.88, 0.92),
+        pc.interval("sp", 0.78, 0.82),
+    ]
+    chain = pc.propagate(sources, [_correction_stage(0.0)], output="corrected", reading="enclosure")
+    assert chain.answer.value("lower") == pytest.approx(0.08 / 0.74)
+    assert chain.answer.value("upper") == pytest.approx(0.14 / 0.66)
+    reaching = [sources[0], pc.interval("se", 0.1, 0.9), pc.interval("sp", 0.1, 0.2)]
+    with pytest.raises(R) as refused:
+        pc.propagate(reaching, [_correction_stage(0.0)], output="corrected", reading="enclosure")
+    assert refused.value.code == "route_not_supported"
+
+
+def test_expression_declarations_are_validated_before_the_native_layer() -> None:
+    with pytest.raises(CausalValueError):
+        pc.expression("e", "derived_quantity", ["a"], [])
+    with pytest.raises(CausalValueError):
+        pc.term_divide(-1.0)
+    with pytest.raises(CausalValueError):
+        pc.term_require_range(1.0, 0.0)
+    with pytest.raises(CausalValueError):
+        pc.term_input(-1)
+    with pytest.raises(CausalValueError):
+        pc.divide("d", "derived_quantity", ["a"])
+
+
 def test_a_chain_compiles_before_it_runs_and_the_result_carries_its_program() -> None:
     effect = pc.draws("effect", _grid(0.5, 0.6), meaning="posterior", alignment=TABLE)
     stages = [

@@ -6,7 +6,9 @@
 //! (a measurement mapping or a transport shift, whose slope and intercept may
 //! themselves be uncertain columns), a fixed-weight combination (a transport
 //! reweighting over strata), a pool, a binary or unary transformation (a
-//! derived quantity, a nonlinear decision utility), or a preposterior update.
+//! derived quantity, a nonlinear decision utility), an expression over several
+//! aligned inputs (a measurement correction, a predictive line), or a
+//! preposterior update.
 //!
 //! Nothing here decides whether a combination is licensed. That is the
 //! contract's rule (`antecedent_contract::check_propagation_chain`). This module
@@ -61,6 +63,9 @@ pub const MIN_UPDATE_EFFECTIVE_SIZE: f64 = 10.0;
 /// Level of the normal band a decision verdict is read against.
 pub const DECISION_BAND_LEVEL: f64 = 0.95;
 
+/// Most terms one expression stage may hold.
+pub const MAX_EXPRESSION_TERMS: usize = 64;
+
 const CANCEL_STRIDE: usize = 64;
 const VARIANCE_FLOOR: f64 = 1e-300;
 
@@ -82,6 +87,11 @@ pub enum ChainError {
     /// non-positive draw, a reciprocal of zero, an overflow).
     #[error("propagation chain stage left its domain: {0}")]
     Domain(&'static str),
+    /// A denominator of an expression stage reaches zero, or comes closer to it
+    /// than the stage declares it may. A ratio of such a column is not a
+    /// number the draws determine, so it is never evaluated.
+    #[error("propagation chain denominator is not bounded away from zero: {0}")]
+    Denominator(&'static str),
     /// The pooled inputs are perfectly correlated, so no weights exist.
     #[error("the pooled inputs carry the same evidence: their joint covariance is singular")]
     SingularPool,
@@ -339,6 +349,75 @@ impl CanonicalEncode for Combine {
     }
 }
 
+/// One term of an expression stage, in postfix order.
+///
+/// An expression stage evaluates a formula over the stage's inputs row by row on
+/// the aligned draw table: a measurement correction `(q + sp - 1) / (se + sp - 1)`
+/// of the observed rate and the draws of sensitivity and specificity, or a
+/// predictive line `x * slope + intercept + residual`. Each term pops its
+/// operands from a stack and pushes one column, and the formula leaves exactly
+/// one column. A ratio is never silent: [`Self::Divide`] refuses a denominator
+/// that reaches zero on any row.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ExprTerm {
+    /// Push the stage's input at this position.
+    Input(usize),
+    /// Push a constant.
+    Constant(f64),
+    /// Pop `b`, `a`; push `a + b`.
+    Add,
+    /// Pop `b`, `a`; push `a - b`.
+    Subtract,
+    /// Pop `b`, `a`; push `a * b`.
+    Multiply,
+    /// Pop `b`, `a`; push `a / b`. Refused when the draws of `b` reach zero (a
+    /// denominator that crosses or touches zero) or when some draw of `b` has
+    /// magnitude below `min_magnitude`.
+    Divide {
+        /// Smallest magnitude a denominator draw may have; zero asks only that
+        /// the denominator never reach zero.
+        min_magnitude: f64,
+    },
+    /// Check the top column lies in `[low, high]` on every row and leave it. A
+    /// value outside the range is refused, never clipped.
+    RequireRange {
+        /// Smallest admissible value.
+        low: f64,
+        /// Largest admissible value.
+        high: f64,
+    },
+}
+
+impl CanonicalEncode for ExprTerm {
+    /// Tags are append-only: `1` input, `2` constant, `3` add, `4` subtract, `5`
+    /// multiply, `6` divide, `7` required range.
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::Input(position) => {
+                writer.word(1).word(index_word(*position));
+            }
+            Self::Constant(value) => {
+                writer.word(2).real(*value);
+            }
+            Self::Add => {
+                writer.word(3);
+            }
+            Self::Subtract => {
+                writer.word(4);
+            }
+            Self::Multiply => {
+                writer.word(5);
+            }
+            Self::Divide { min_magnitude } => {
+                writer.word(6).real(*min_magnitude);
+            }
+            Self::RequireRange { low, high } => {
+                writer.word(7).real(*low).real(*high);
+            }
+        }
+    }
+}
+
 /// A future study of the parameter column, updating it before a decision is
 /// re-evaluated.
 ///
@@ -399,11 +478,14 @@ pub enum StageOp {
     /// A preposterior update. Inputs: the parameter column, then the utility
     /// column the decision reads. Terminal: no stage may read it.
     Preposterior(Preposterior),
+    /// A formula over the inputs in postfix order: the multi-stage ratio of a
+    /// measurement correction, a predictive line with an independent residual.
+    Expression(Vec<ExprTerm>),
 }
 
 impl CanonicalEncode for StageOp {
     /// Tags are append-only: `1` affine, `2` reweight, `3` pool, `4` binary,
-    /// `5` unary, `6` preposterior.
+    /// `5` unary, `6` preposterior, `7` expression.
     fn encode(&self, writer: &mut CanonicalWriter) {
         match self {
             Self::Affine { scale, shift } => {
@@ -428,6 +510,12 @@ impl CanonicalEncode for StageOp {
             Self::Preposterior(study) => {
                 writer.word(6);
                 study.encode(writer);
+            }
+            Self::Expression(terms) => {
+                writer.word(7).word(index_word(terms.len()));
+                for term in terms {
+                    term.encode(writer);
+                }
             }
         }
     }
@@ -544,9 +632,67 @@ pub fn validate_spec(n_sources: usize, stages: &[StageSpec]) -> Result<(), Chain
                 }
                 terminal[position] = true;
             }
+            StageOp::Expression(terms) => check_expression(terms, arity)?,
         }
     }
     Ok(())
+}
+
+/// Check an expression's stack discipline before any number is formed.
+fn check_expression(terms: &[ExprTerm], arity: usize) -> Result<(), ChainError> {
+    if terms.is_empty() || terms.len() > MAX_EXPRESSION_TERMS {
+        return Err(ChainError::Shape("an expression holds between one and 64 terms"));
+    }
+    let mut depth = 0_usize;
+    for term in terms {
+        match term {
+            ExprTerm::Input(slot) => {
+                if *slot >= arity {
+                    return Err(ChainError::Shape("an expression reads an input the stage has"));
+                }
+                depth += 1;
+            }
+            ExprTerm::Constant(value) => {
+                if !value.is_finite() {
+                    return Err(ChainError::NonFinite("expression constant"));
+                }
+                depth += 1;
+            }
+            ExprTerm::Add | ExprTerm::Subtract | ExprTerm::Multiply => {
+                if depth < 2 {
+                    return Err(ChainError::Shape("an expression operation reads two columns"));
+                }
+                depth -= 1;
+            }
+            ExprTerm::Divide { min_magnitude } => {
+                if !(min_magnitude.is_finite() && *min_magnitude >= 0.0) {
+                    return Err(ChainError::Operator(
+                        "a denominator bound is a finite non-negative magnitude",
+                    ));
+                }
+                if depth < 2 {
+                    return Err(ChainError::Shape("an expression operation reads two columns"));
+                }
+                depth -= 1;
+            }
+            ExprTerm::RequireRange { low, high } => {
+                if !(low.is_finite() && high.is_finite()) {
+                    return Err(ChainError::NonFinite("expression range"));
+                }
+                if low > high {
+                    return Err(ChainError::Operator("a range's low end exceeds its high end"));
+                }
+                if depth < 1 {
+                    return Err(ChainError::Shape("a range check reads a column"));
+                }
+            }
+        }
+    }
+    if depth == 1 {
+        Ok(())
+    } else {
+        Err(ChainError::Shape("an expression leaves exactly one column"))
+    }
 }
 
 // ----------------------------------------------------------------- evaluation
@@ -727,6 +873,7 @@ pub fn evaluate_columns(
             StageOp::Unary(function) => {
                 Some(inputs[0].iter().map(|x| function.apply(*x)).collect())
             }
+            StageOp::Expression(terms) => Some(evaluate_expression(terms, &inputs, rows)?),
             StageOp::Preposterior(_) => None,
         };
         if let Some(column) = &column {
@@ -736,6 +883,77 @@ pub fn evaluate_columns(
         pools.push(pool);
     }
     Ok(Evaluated { columns, pools })
+}
+
+/// The guard of a ratio: the denominator column must stay away from zero.
+fn check_denominator(denominator: &[f64], min_magnitude: f64) -> Result<(), ChainError> {
+    let low = denominator.iter().copied().fold(f64::INFINITY, f64::min);
+    let high = denominator.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    if low <= 0.0 && 0.0 <= high {
+        return Err(ChainError::Denominator(
+            "a denominator draw reaches zero or the draws cross it, so the ratio is not determined",
+        ));
+    }
+    let nearest = if low > 0.0 { low } else { -high };
+    if nearest < min_magnitude {
+        return Err(ChainError::Denominator(
+            "a denominator draw is closer to zero than the stage declares it may be",
+        ));
+    }
+    Ok(())
+}
+
+/// Evaluate an expression row by row on the aligned columns.
+fn evaluate_expression(
+    terms: &[ExprTerm],
+    inputs: &[&[f64]],
+    rows: usize,
+) -> Result<Vec<f64>, ChainError> {
+    let mut stack: Vec<Vec<f64>> = Vec::with_capacity(terms.len());
+    let underflow = ChainError::Shape("an expression operation reads two columns");
+    for term in terms {
+        match term {
+            ExprTerm::Input(slot) => stack.push(inputs[*slot].to_vec()),
+            ExprTerm::Constant(value) => stack.push(vec![*value; rows]),
+            ExprTerm::Add | ExprTerm::Subtract | ExprTerm::Multiply => {
+                let (Some(right), Some(mut left)) = (stack.pop(), stack.pop()) else {
+                    return Err(underflow);
+                };
+                for (a, b) in left.iter_mut().zip(&right) {
+                    *a = match term {
+                        ExprTerm::Add => *a + b,
+                        ExprTerm::Subtract => *a - b,
+                        _ => *a * b,
+                    };
+                }
+                stack.push(left);
+            }
+            ExprTerm::Divide { min_magnitude } => {
+                let (Some(right), Some(mut left)) = (stack.pop(), stack.pop()) else {
+                    return Err(underflow);
+                };
+                check_denominator(&right, *min_magnitude)?;
+                for (a, b) in left.iter_mut().zip(&right) {
+                    *a /= b;
+                }
+                stack.push(left);
+            }
+            ExprTerm::RequireRange { low, high } => {
+                let Some(top) = stack.last() else {
+                    return Err(underflow);
+                };
+                if top.iter().any(|v| !(*low..=*high).contains(v)) {
+                    return Err(ChainError::Domain(
+                        "an expression value left its required range; it is refused, not clipped",
+                    ));
+                }
+            }
+        }
+    }
+    match (stack.pop(), stack.is_empty()) {
+        (Some(column), true) => Ok(column),
+        _ => Err(ChainError::Shape("an expression leaves exactly one column")),
+    }
 }
 
 /// The independent product of separately drawn columns, as one aligned table.
@@ -1106,6 +1324,56 @@ fn check_enclosure(enclosure: Enclosure) -> Result<Enclosure, ChainError> {
     }
 }
 
+/// Interval arithmetic of an expression. An input that appears twice is two
+/// independent boxes, so the result holds under every coupling and may be wider
+/// than the image of the box.
+fn enclose_expression(terms: &[ExprTerm], inputs: &[Enclosure]) -> Result<Enclosure, ChainError> {
+    let mut stack: Vec<Enclosure> = Vec::with_capacity(terms.len());
+    let underflow = ChainError::Shape("an expression operation reads two columns");
+    for term in terms {
+        match term {
+            ExprTerm::Input(slot) => stack.push(inputs[*slot]),
+            ExprTerm::Constant(value) => stack.push(Enclosure::point(*value)),
+            ExprTerm::Add | ExprTerm::Subtract | ExprTerm::Multiply => {
+                let (Some(right), Some(left)) = (stack.pop(), stack.pop()) else {
+                    return Err(underflow);
+                };
+                stack.push(match term {
+                    ExprTerm::Add => left.add(right),
+                    ExprTerm::Subtract => left.add(right.negate()),
+                    _ => left.mul(right),
+                });
+            }
+            ExprTerm::Divide { min_magnitude } => {
+                let (Some(right), Some(left)) = (stack.pop(), stack.pop()) else {
+                    return Err(underflow);
+                };
+                let nearest = if right.lower > 0.0 { right.lower } else { -right.upper };
+                if right.contains_zero() || nearest < *min_magnitude {
+                    return Err(ChainError::EnclosureUnbounded(
+                        "a divisor interval reaches zero or the declared bound",
+                    ));
+                }
+                stack.push(left.mul(right.reciprocal()?));
+            }
+            ExprTerm::RequireRange { low, high } => {
+                let Some(top) = stack.last() else {
+                    return Err(underflow);
+                };
+                if top.lower < *low || top.upper > *high {
+                    return Err(ChainError::Domain(
+                        "an expression enclosure leaves its required range",
+                    ));
+                }
+            }
+        }
+    }
+    match (stack.pop(), stack.is_empty()) {
+        (Some(result), true) => Ok(result),
+        _ => Err(ChainError::Shape("an expression leaves exactly one column")),
+    }
+}
+
 /// Carry source intervals through a chain by interval arithmetic.
 ///
 /// A point is an interval with equal ends. The result holds under every
@@ -1148,6 +1416,7 @@ pub fn evaluate_enclosures(
                 Combine::Ratio => inputs[0].mul(inputs[1].reciprocal()?),
             },
             StageOp::Unary(function) => inputs[0].map(*function)?,
+            StageOp::Expression(terms) => enclose_expression(terms, &inputs)?,
             StageOp::Pool { .. } => {
                 return Err(ChainError::Operator(
                     "an interval is not a law: pooling needs aligned draws",

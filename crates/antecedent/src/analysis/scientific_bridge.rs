@@ -19,7 +19,11 @@
 //!    and returns a [`ScientificBridgeResult`]: a derived claim with its own
 //!    identity (binding the contract, its assumptions and the source claim),
 //!    its own provenance chain and receipt. The source claim is not modified.
-//!    The derived claim is a point mean. Its interval
+//!    The derived claim is a point mean. Where the source claim declared a standard
+//!    error and the contract declares the mapping's uncertainty and its dependence on
+//!    the source, the result also carries the first-order propagated variance and mean
+//!    ([`ScientificBridgeResult::propagated_uncertainty`]), read as an uncalibrated
+//!    spread beside the plug-in value; the dependence is never assumed. Its interval
 //!    ([`ScientificBridgeResult::bridged_interval`]) needs the source claim's declared
 //!    standard error and is published only inside a measured design; an unscoped
 //!    request, a posterior or a joint law refuses with `cell_not_licensed`, and a
@@ -83,9 +87,9 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::bridge::{
-    BridgeContract, BridgeKind, BridgeRefusal, BridgeSource, BridgedClaim,
-    BridgedDistributionClaim, Licensing, MappingKind, TrialLevelFit, ValueKind,
-    derive_bridged_claim,
+    BridgeContract, BridgeKind, BridgeMapping, BridgeRefusal, BridgeSource, BridgedClaim,
+    BridgedDistributionClaim, Licensing, MappingKind, NonlinearMap, PointPropagation,
+    TrialLevelFit, ValueKind, derive_bridged_claim_propagating, point_propagation_unavailable,
 };
 use antecedent_contract::{ClaimEnvelope, ClaimFreshness, ClaimKind};
 use antecedent_core::identity::SemanticDigest;
@@ -256,18 +260,48 @@ impl PreparedScientificBridge {
     /// Derive the claim for `source` whose estimate carries `standard_error`.
     ///
     /// The standard error is the source claim's own sampling uncertainty, declared with
-    /// the claim: it is held beside the result (it is not part of any identity or of the
-    /// artifact) and is what [`ScientificBridgeResult::bridged_interval`] propagates.
+    /// the claim. It is what [`ScientificBridgeResult::bridged_interval`] propagates and,
+    /// when the contract declares the mapping's uncertainty and its dependence on the
+    /// source, what the propagated variance is built from; then it is part of the derived
+    /// claim's identity and of the artifact. A bridge that declares no mapping
+    /// uncertainty and no dependence holds it beside the result only.
     ///
     /// # Errors
-    /// As [`Self::derive`].
+    /// As [`Self::derive`]; a standard error that is not finite and non-negative; a
+    /// declared mapping uncertainty with no declared dependence on the source (or the
+    /// reverse), which is never assumed independent.
     pub fn derive_with_standard_error(
         &self,
         source: &BridgeSource<'_>,
         standard_error: Option<f64>,
     ) -> Result<ScientificBridgeResult, ScientificBridgeRefusal> {
-        let bridged = derive_bridged_claim(&self.contract, source)
-            .map_err(|refusal| ScientificBridgeRefusal::from_contract(&refusal))?;
+        self.derive_propagating(source, standard_error, None)
+    }
+
+    /// Derive the claim for `source` with its propagated uncertainty, and the
+    /// second-moment expectation of a nonlinear map of the bridged quantity.
+    ///
+    /// The claim value is the plug-in value of the mapping. `nonlinear` asks for
+    /// `E[g(X)]` under the propagated mean and variance (the bias `E[g(X)] - g(E[X])` is
+    /// reported, not dropped); a nonlinear map with no declared standard error is the map
+    /// of a mean and refuses, and so does a map whose law the propagated moments do not
+    /// determine.
+    ///
+    /// # Errors
+    /// As [`Self::derive_with_standard_error`].
+    pub fn derive_propagating(
+        &self,
+        source: &BridgeSource<'_>,
+        standard_error: Option<f64>,
+        nonlinear: Option<NonlinearMap>,
+    ) -> Result<ScientificBridgeResult, ScientificBridgeRefusal> {
+        let bridged = derive_bridged_claim_propagating(
+            &self.contract,
+            source,
+            standard_error,
+            nonlinear,
+        )
+        .map_err(|refusal| ScientificBridgeRefusal::from_contract(&refusal))?;
         Ok(ScientificBridgeResult {
             bridged,
             source: source.claim.clone(),
@@ -439,6 +473,59 @@ impl ScientificBridgeResult {
         self.source_standard_error
     }
 
+    /// The propagated uncertainty of the bridged value, when there is one: the first-order
+    /// variance and mean of the mapping applied to the source value and its declared
+    /// standard error, with the mapping uncertainty and dependence it was built from.
+    #[must_use]
+    pub const fn propagation(&self) -> Option<&PointPropagation> {
+        self.bridged.propagation.as_ref()
+    }
+
+    /// The propagated uncertainty of the bridged value. The claim value is the plug-in
+    /// value; the variance is an uncalibrated spread (calibration unmeasured), never an
+    /// interval, and the propagated mean is reported beside the value.
+    ///
+    /// # Errors
+    /// `source_variance_invalid` when the source claim declared no standard error;
+    /// `mapping_uncertainty_missing` when an affine map declared neither uncertainty nor
+    /// dependence; `source_dependence_missing` when the dependence the propagation needs
+    /// is undeclared: the bridge never assumes the source and the mapping independent.
+    pub fn propagated_uncertainty(&self) -> Result<&PointPropagation, ScientificBridgeRefusal> {
+        self.bridged.propagation.as_ref().ok_or_else(|| {
+            ScientificBridgeRefusal::from_contract(&point_propagation_unavailable(
+                &self.bridged.contract,
+                self.source_standard_error.is_some(),
+            ))
+        })
+    }
+
+    /// The propagated variance of the bridged value, when there is one.
+    #[must_use]
+    pub fn propagated_variance(&self) -> Option<f64> {
+        self.bridged.propagation.as_ref().map(|propagation| propagation.variance)
+    }
+
+    /// The propagated mean of the bridged value, when there is one: bias-corrected when a
+    /// nonlinear map was requested.
+    #[must_use]
+    pub fn propagated_mean(&self) -> Option<f64> {
+        self.bridged.propagation.as_ref().map(PointPropagation::propagated_mean)
+    }
+
+    /// The recorded uncertainty components of the derived claim, as `(source, target,
+    /// omitted)`; a propagated variance is the component labelled `uncalibrated_spread`.
+    #[must_use]
+    pub fn components(&self) -> Vec<(&'static str, String, bool)> {
+        match &self.bridged.claim.reasoning.uncertainty {
+            antecedent_contract::SlotAvailability::Available(slot) => slot
+                .components
+                .iter()
+                .map(|c| (c.source.as_str(), c.target.to_string(), c.omitted))
+                .collect(),
+            _ => Vec::new(),
+        }
+    }
+
     /// The interval of the bridged value at `level`: the source claim's declared
     /// standard error carried through the mapping together with the mapping's own
     /// estimation uncertainty.
@@ -455,6 +542,27 @@ impl ScientificBridgeResult {
         &self,
         level: f64,
     ) -> Result<BridgedClaimInterval, ScientificBridgeRefusal> {
+        if let (BridgeMapping::Identity | BridgeMapping::Affine { .. }, Some(uncertainty)) =
+            (&self.bridged.contract.mapping, &self.bridged.contract.mapping_uncertainty)
+        {
+            if uncertainty.intercept_variance > 0.0 || uncertainty.slope_variance > 0.0 {
+                return Err(ScientificBridgeRefusal {
+                    code: antecedent_core::reason_code!("cell_not_licensed"),
+                    detail: "scientific_bridge.interval_scope_outside_measured".to_owned(),
+                    message: format!(
+                        "the affine map declares uncertainty `{}`: it is no exact transform of the \
+                         source interval, and its propagated variance is an uncalibrated spread \
+                         that no coverage record measured",
+                        uncertainty.id
+                    ),
+                    remedy: Some(
+                        "read the propagated variance as an uncalibrated spread, or ask for the \
+                         interval of a bridge inside a measured design"
+                            .to_owned(),
+                    ),
+                });
+            }
+        }
         antecedent_io::bridge_interval::bridged_claim_interval(
             &self.bridged,
             self.source_standard_error,
@@ -879,3 +987,7 @@ pub fn scientific_bridge_artifact_shape(
 #[cfg(test)]
 #[path = "scientific_bridge_distribution_tests.rs"]
 mod distribution_tests;
+
+#[cfg(test)]
+#[path = "scientific_bridge_propagation_tests.rs"]
+mod propagation_tests;

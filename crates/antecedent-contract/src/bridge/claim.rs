@@ -8,7 +8,7 @@ use std::sync::Arc;
 use antecedent_core::assumption::{AssumptionSet, AssumptionSource, AssumptionStatus};
 use antecedent_core::identity::{CanonicalWriter, ContractIdentities, SemanticDigest};
 
-use super::contract::{BridgeAssumption, BridgeContract};
+use super::contract::{BridgeAssumption, BridgeContract, NonlinearMap, PointPropagation};
 use super::kind::{BridgeKind, ValueKind};
 use super::mapping::{MappingKind, TrialLevelFit};
 use super::refusal::{
@@ -31,6 +31,10 @@ pub const BRIDGE_CLAIM_IDENTITY_VERSION: u64 = 1;
 
 const TAG_CLAIM: &str = "antecedent.scientific_bridge.claim";
 const TAG_TARGET: &str = "antecedent.scientific_bridge.target";
+
+/// Section word that opens the identity suffix of a claim that carries a propagated
+/// variance. Written only then, so every other bridged claim keeps its identity.
+const PROPAGATION_SECTION: u64 = 0x9A07;
 
 /// The claim being bridged and the quantity it is about.
 ///
@@ -76,6 +80,11 @@ pub struct BridgedClaim {
     /// Whether the bridge carries evidence established elsewhere than the
     /// claim's population or regime, under a declared premise.
     pub transported: bool,
+    /// The propagated uncertainty of the bridged value, when the source carried a
+    /// standard error and the contract declares the mapping uncertainty and the
+    /// dependence the propagation needs. The claim value stays the plug-in value; this
+    /// is read as an uncalibrated spread.
+    pub propagation: Option<PointPropagation>,
     /// Ancestry: the source claim and this derivation.
     pub provenance: ProvenanceGraph,
     /// Derivation receipt: what was retained, omitted and left unresolved.
@@ -92,6 +101,24 @@ pub fn bridged_claim_id(contract: SemanticDigest, source_claim: SemanticDigest) 
     out.word(BRIDGE_CLAIM_IDENTITY_VERSION)
         .bytes(contract.as_bytes())
         .bytes(source_claim.as_bytes());
+    SemanticDigest::from_bytes(out.finish())
+}
+
+/// The identity of the claim a contract derives from a source claim whose bridged value
+/// carries a propagated variance: [`bridged_claim_id`] extended by the propagation, so a
+/// claim propagated from another standard error is another claim.
+#[must_use]
+pub fn bridged_claim_id_with_propagation(
+    contract: SemanticDigest,
+    source_claim: SemanticDigest,
+    propagation: &PointPropagation,
+) -> SemanticDigest {
+    let mut out = CanonicalWriter::new(TAG_CLAIM);
+    out.word(BRIDGE_CLAIM_IDENTITY_VERSION)
+        .bytes(contract.as_bytes())
+        .bytes(source_claim.as_bytes())
+        .word(PROPAGATION_SECTION);
+    propagation.write(&mut out);
     SemanticDigest::from_bytes(out.finish())
 }
 
@@ -155,6 +182,29 @@ pub fn derive_bridged_claim(
     contract: &BridgeContract,
     source: &BridgeSource<'_>,
 ) -> Result<BridgedClaim, BridgeRefusal> {
+    derive_bridged_claim_propagating(contract, source, None, None)
+}
+
+/// Derive the claim a contract licenses from a source claim whose estimate carries
+/// `standard_error`, with the propagated uncertainty of the bridged value.
+///
+/// The claim value is the plug-in value of the mapping. When `standard_error` is given and
+/// the contract declares mapping uncertainty or source dependence, the claim also carries
+/// the first-order propagated variance and mean ([`PointPropagation`]), recorded as an
+/// uncertainty component read as an uncalibrated spread; `nonlinear` additionally reports
+/// the second-moment expectation of a nonlinear map of the propagated law. A claim with no
+/// propagation is [`derive_bridged_claim`]'s, with its identity unchanged.
+///
+/// # Errors
+/// Those of [`derive_bridged_claim`]; a standard error that is not finite and
+/// non-negative; a declared uncertainty with no declared dependence (or the reverse); a
+/// covariance no joint law has; a nonlinear map of a mean alone.
+pub fn derive_bridged_claim_propagating(
+    contract: &BridgeContract,
+    source: &BridgeSource<'_>,
+    standard_error: Option<f64>,
+    nonlinear: Option<NonlinearMap>,
+) -> Result<BridgedClaim, BridgeRefusal> {
     let licensing = contract.check_licensing()?;
     if let Err(mismatch) = source.quantity.require_same_coordinate(&contract.source.quantity) {
         return Err(quantity_mismatch(
@@ -175,12 +225,26 @@ pub fn derive_bridged_claim(
         return Err(source_not_point("no_finite_value"));
     };
     let applied = contract.mapping.apply(source_value, licensing.direction)?;
+    let propagation = super::contract::propagate_point(
+        contract,
+        &contract.mapping,
+        licensing.direction,
+        source_value,
+        applied.value,
+        standard_error,
+        nonlinear,
+    )?;
 
     let contract_identity = contract.identity();
     let source_claim_id = source.claim.claim_id;
-    let claim_id = bridged_claim_id(contract_identity, source_claim_id);
+    let claim_id = match &propagation {
+        None => bridged_claim_id(contract_identity, source_claim_id),
+        Some(propagation) => {
+            bridged_claim_id_with_propagation(contract_identity, source_claim_id, propagation)
+        }
+    };
     let identities = bridged_identities(contract, contract_identity, &source.claim.identities);
-    let reasoning = bridged_reasoning(contract);
+    let reasoning = bridged_reasoning(contract, propagation.as_ref());
     let domains = ClaimDomains::new(
         DomainStatus::Unknown,
         DomainStatus::Unknown,
@@ -210,6 +274,12 @@ pub fn derive_bridged_claim(
     if let Some(bridge) = &contract.estimand_bridge {
         evidence.push(Arc::from(format!("estimand_bridge:{}", bridge.id)));
     }
+    if propagation.is_some() {
+        evidence.push(Arc::from(format!(
+            "bridge_reading:{}",
+            super::contract::POINT_PROPAGATION_LABEL
+        )));
+    }
     let envelope = ClaimEnvelope::new(
         claim_id,
         identities,
@@ -231,7 +301,8 @@ pub fn derive_bridged_claim(
         .try_push(node(claim_id, &operation, std::slice::from_ref(&source_hex)))
         .map_err(record_failed)?;
 
-    let receipt = bridge_receipt(contract, source_claim_id, claim_id, operation);
+    let receipt =
+        bridge_receipt(contract, source_claim_id, claim_id, operation, propagation.is_some());
     Ok(BridgedClaim {
         claim: envelope,
         contract: contract.clone(),
@@ -243,6 +314,7 @@ pub fn derive_bridged_claim(
         mapping: contract.mapping.kind(),
         fit: applied.fit,
         transported: licensing.transported,
+        propagation,
         provenance,
         receipt,
     })
@@ -256,6 +328,7 @@ fn bridge_receipt(
     source_claim_id: SemanticDigest,
     claim_id: SemanticDigest,
     operation: String,
+    propagated: bool,
 ) -> HandoffReceipt {
     let mut unresolved: Vec<Arc<str>> = contract
         .assumptions
@@ -276,13 +349,22 @@ fn bridge_receipt(
     if contract.estimand_bridge.is_some() {
         retained.push(Arc::from("estimand_bridge"));
     }
+    // A propagated variance is retained as an uncalibrated spread; what is not established
+    // is then a calibrated uncertainty, not the propagation itself.
+    let mut omitted = vec![Arc::from("identification"), Arc::from("support")];
+    if propagated {
+        retained.push(Arc::from("propagated_variance"));
+        omitted.push(Arc::from("calibrated_uncertainty"));
+    } else {
+        omitted.push(Arc::from("uncertainty"));
+    }
     HandoffReceipt::new(
         source_claim_id,
         Some(claim_id),
         "scientific_bridge",
         operation,
         retained,
-        [Arc::from("identification"), Arc::from("support"), Arc::from("uncertainty")],
+        omitted,
         unresolved,
         [
             Arc::from("interval"),
@@ -322,7 +404,10 @@ pub(super) fn bridged_identities(
 
 /// Reasoning slots of a bridged claim: nothing is established for the target
 /// quantity beyond the declared assumptions, which are listed as unresolved.
-fn bridged_reasoning(contract: &BridgeContract) -> ReasoningView {
+fn bridged_reasoning(
+    contract: &BridgeContract,
+    propagation: Option<&PointPropagation>,
+) -> ReasoningView {
     let mut obligations: Vec<ObligationRecord> =
         contract.assumptions.iter().map(obligation).collect();
     if let Some(premise) = &contract.transport {
@@ -340,7 +425,7 @@ fn bridged_reasoning(contract: &BridgeContract) -> ReasoningView {
     ReasoningView::new(
         SlotAvailability::unavailable("bridge_assumptions_declared"),
         SlotAvailability::unavailable("bridge_support_not_established"),
-        bridged_uncertainty(contract),
+        bridged_uncertainty(contract, propagation),
         SlotAvailability::Available(AssumptionSlot::new(obligations)),
     )
 }
@@ -349,7 +434,13 @@ fn bridged_reasoning(contract: &BridgeContract) -> ReasoningView {
 /// contract declares them. The mapping variance is the sampling variance of the
 /// estimated intercept and slope, so it is labelled sampling, not parameter. Neither declaration is invented when it is absent,
 /// and an absent dependence is recorded as omitted rather than as independence.
-fn bridged_uncertainty(contract: &BridgeContract) -> SlotAvailability<UncertaintySlot> {
+///
+/// A propagated variance is a further recorded component, labelled as an uncalibrated
+/// spread whose calibration is unmeasured; it is never an interval.
+fn bridged_uncertainty(
+    contract: &BridgeContract,
+    propagation: Option<&PointPropagation>,
+) -> SlotAvailability<UncertaintySlot> {
     if contract.mapping_uncertainty.is_none() && contract.source_dependence.is_none() {
         return SlotAvailability::unavailable("bridge_uncertainty_not_propagated");
     }
@@ -361,14 +452,31 @@ fn bridged_uncertainty(contract: &BridgeContract) -> SlotAvailability<Uncertaint
         ),
         None => UncertaintyComponent::new(UncertaintySource::Sampling, "mapping_variance", true),
     };
-    SlotAvailability::Available(UncertaintySlot::new([
+    let mut components = vec![
         mapping,
         UncertaintyComponent::new(
             UncertaintySource::Sampling,
             "source_dependence",
             contract.source_dependence.is_none(),
         ),
-    ]))
+    ];
+    if propagation.is_some() {
+        components.push(UncertaintyComponent::new(
+            UncertaintySource::Sampling,
+            "source_standard_error",
+            false,
+        ));
+        components.push(UncertaintyComponent::new(
+            UncertaintySource::Sampling,
+            format!(
+                "propagated_variance:{}:calibration_{}",
+                super::contract::POINT_PROPAGATION_LABEL,
+                super::contract::POINT_PROPAGATION_CALIBRATION
+            ),
+            false,
+        ));
+    }
+    SlotAvailability::Available(UncertaintySlot::new(components))
 }
 
 impl BridgedClaim {

@@ -349,3 +349,243 @@ fn a_product_table_feeds_a_nonlinear_stage_the_joint_law_of_independent_draws() 
     let product = summarize(evaluated.columns[0].as_ref().expect("column"), None).expect("summary");
     near(product.mean, 1.0, 1e-12);
 }
+
+/// `(q + sp - 1) / (se + sp - 1)` over the inputs `[q, se, sp]`.
+fn correction_terms(min_magnitude: f64) -> Vec<ExprTerm> {
+    vec![
+        ExprTerm::Input(0),
+        ExprTerm::Input(2),
+        ExprTerm::Add,
+        ExprTerm::Constant(-1.0),
+        ExprTerm::Add,
+        ExprTerm::Input(1),
+        ExprTerm::Input(2),
+        ExprTerm::Add,
+        ExprTerm::Constant(-1.0),
+        ExprTerm::Add,
+        ExprTerm::Divide { min_magnitude },
+        ExprTerm::RequireRange { low: 0.0, high: 1.0 },
+    ]
+}
+
+fn correction_stage(min_magnitude: f64) -> Vec<StageSpec> {
+    vec![StageSpec {
+        inputs: vec![0, 1, 2],
+        op: StageOp::Expression(correction_terms(min_magnitude)),
+    }]
+}
+
+#[test]
+fn an_expression_ratio_is_the_formula_row_by_row_on_the_joint_draws() {
+    let rows = 1_000;
+    let observed = normal_grid(rows, 0.31, 0.01);
+    let sensitivity = scrambled(&normal_grid(rows, 0.9, 0.01), 7);
+    let specificity = scrambled(&normal_grid(rows, 0.8, 0.01), 11);
+    let sources = [observed.clone(), sensitivity.clone(), specificity.clone()];
+    let evaluated =
+        evaluate_columns(&sources, &correction_stage(0.5), &token()).expect("evaluates");
+    let column = evaluated.columns[0].as_ref().expect("column");
+    for row in 0..rows {
+        let want =
+            (observed[row] + specificity[row] - 1.0) / (sensitivity[row] + specificity[row] - 1.0);
+        assert_eq!(column[row].to_bits(), want.to_bits(), "row {row}");
+    }
+    // 0.31 recorded at sensitivity 0.9 and specificity 0.8 is 11/70 latent.
+    let summary = summarize(column, None).expect("summary");
+    near(summary.mean, 11.0 / 70.0, 4e-3);
+}
+
+#[test]
+fn a_denominator_that_can_be_zero_is_refused_never_a_silent_ratio() {
+    let observed = vec![0.3, 0.31, 0.32, 0.3];
+    let specificity = vec![0.8, 0.8, 0.8, 0.8];
+    // The Youden index crosses zero on some rows.
+    let crossing = vec![0.9, 0.1, 0.9, 0.1];
+    let refusal = evaluate_columns(
+        &[observed.clone(), crossing, specificity.clone()],
+        &correction_stage(0.0),
+        &token(),
+    )
+    .expect_err("a denominator that crosses zero");
+    assert!(matches!(refusal, ChainError::Denominator(_)));
+    // A denominator draw that is exactly zero is refused too.
+    let touching = vec![0.9, 0.2, 0.9, 0.9];
+    let refusal = evaluate_columns(
+        &[observed.clone(), touching, specificity.clone()],
+        &correction_stage(0.0),
+        &token(),
+    )
+    .expect_err("a zero denominator draw");
+    assert!(matches!(refusal, ChainError::Denominator(_)));
+    // A denominator bounded only by a declared magnitude: 0.1 is below the declared 0.2.
+    let thin = vec![0.9, 0.3, 0.9, 0.9];
+    let refusal = evaluate_columns(
+        &[observed.clone(), thin, specificity.clone()],
+        &correction_stage(0.2),
+        &token(),
+    )
+    .expect_err("a denominator closer to zero than declared");
+    assert!(matches!(refusal, ChainError::Denominator(_)));
+    // A negative denominator that stays negative is determined.
+    let negative = vec![0.1, 0.1, 0.1, 0.1];
+    let stages = vec![StageSpec {
+        inputs: vec![0, 1, 2],
+        op: StageOp::Expression(vec![
+            ExprTerm::Input(0),
+            ExprTerm::Input(1),
+            ExprTerm::Input(2),
+            ExprTerm::Add,
+            ExprTerm::Constant(-1.0),
+            ExprTerm::Add,
+            ExprTerm::Divide { min_magnitude: 0.0 },
+        ]),
+    }];
+    assert!(evaluate_columns(&[observed, negative, specificity], &stages, &token()).is_ok());
+}
+
+#[test]
+fn a_value_outside_the_required_range_is_refused_not_clipped() {
+    // A recorded prevalence above the sensitivity corrects to more than one.
+    let sources = [vec![0.95, 0.31], vec![0.9, 0.9], vec![0.8, 0.8]];
+    let refusal = evaluate_columns(&sources, &correction_stage(0.0), &token())
+        .expect_err("a corrected rate above one");
+    assert!(matches!(refusal, ChainError::Domain(_)));
+}
+
+#[test]
+fn an_expression_adds_an_independent_residual_to_a_line() {
+    // The full product of independent draws: the residual is uncorrelated with the
+    // line by construction, so its variance adds exactly.
+    let table = independent_product_table(
+        &[
+            normal_grid(20, 1.0, 0.3),
+            normal_grid(20, 2.0, 0.1),
+            vec![0.5],
+            normal_grid(20, 0.0, 0.4),
+        ],
+        100_000,
+    )
+    .expect("table");
+    // x * slope + intercept + residual.
+    let line = vec![StageSpec {
+        inputs: vec![0, 1, 2, 3],
+        op: StageOp::Expression(vec![
+            ExprTerm::Input(0),
+            ExprTerm::Input(1),
+            ExprTerm::Multiply,
+            ExprTerm::Input(2),
+            ExprTerm::Add,
+            ExprTerm::Input(3),
+            ExprTerm::Add,
+        ]),
+    }];
+    let mean_line = vec![StageSpec {
+        inputs: vec![0, 1, 2],
+        op: StageOp::Affine { scale: Coefficient::Input(1), shift: Coefficient::Input(2) },
+    }];
+    let predictive = evaluate_columns(&table, &line, &token()).expect("evaluates");
+    let mean = evaluate_columns(&table[..3], &mean_line, &token()).expect("evaluates");
+    let predictive =
+        summarize(predictive.columns[0].as_ref().expect("column"), None).expect("summary");
+    let mean = summarize(mean.columns[0].as_ref().expect("column"), None).expect("summary");
+    let residual = summarize(&table[3], None).expect("summary");
+    near(predictive.variance - mean.variance, residual.variance, 1e-9);
+    near(residual.variance, 0.16, 0.02);
+    near(predictive.mean, mean.mean, 1e-9);
+}
+
+#[test]
+fn an_expression_with_a_broken_stack_or_input_is_refused_before_any_number() {
+    let stage = |terms: Vec<ExprTerm>| {
+        vec![StageSpec { inputs: vec![0, 1], op: StageOp::Expression(terms) }]
+    };
+    // No terms, two columns left, an operation without operands, an unread input slot.
+    assert!(validate_spec(2, &stage(vec![])).is_err());
+    assert!(validate_spec(2, &stage(vec![ExprTerm::Input(0), ExprTerm::Input(1)])).is_err());
+    assert!(validate_spec(2, &stage(vec![ExprTerm::Input(0), ExprTerm::Add])).is_err());
+    assert!(validate_spec(2, &stage(vec![ExprTerm::Input(2)])).is_err());
+    // A bound that is not a finite magnitude, a range that is out of order.
+    let divide = |bound| {
+        stage(vec![
+            ExprTerm::Input(0),
+            ExprTerm::Input(1),
+            ExprTerm::Divide { min_magnitude: bound },
+        ])
+    };
+    assert!(validate_spec(2, &divide(-1.0)).is_err());
+    assert!(validate_spec(2, &divide(f64::NAN)).is_err());
+    assert!(validate_spec(2, &divide(0.0)).is_ok());
+    let range = stage(vec![ExprTerm::Input(0), ExprTerm::RequireRange { low: 1.0, high: 0.0 }]);
+    assert!(validate_spec(2, &range).is_err());
+    // The size limit.
+    assert!(validate_spec(2, &stage(vec![ExprTerm::Input(0); MAX_EXPRESSION_TERMS + 1])).is_err());
+}
+
+#[test]
+fn an_expression_encloses_under_every_coupling_and_refuses_a_divisor_reaching_zero() {
+    let sources = [
+        Enclosure::new(0.30, 0.32).expect("enclosure"),
+        Enclosure::new(0.88, 0.92).expect("enclosure"),
+        Enclosure::new(0.78, 0.82).expect("enclosure"),
+    ];
+    let out = evaluate_enclosures(&sources, &correction_stage(0.0)).expect("encloses");
+    // Every pointwise value of the corrected rate lies in the enclosure.
+    let low = (0.30 + 0.78 - 1.0) / (0.92 + 0.78 - 1.0);
+    let high = (0.32 + 0.82 - 1.0) / (0.88 + 0.82 - 1.0);
+    assert!(out[0].lower <= low + 1e-12 && out[0].upper >= high - 1e-12);
+    let reaching = [
+        sources[0],
+        Enclosure::new(0.1, 0.9).expect("enclosure"),
+        Enclosure::new(0.1, 0.2).expect("enclosure"),
+    ];
+    assert!(matches!(
+        evaluate_enclosures(&reaching, &correction_stage(0.0)),
+        Err(ChainError::EnclosureUnbounded(_))
+    ));
+}
+
+#[test]
+fn expression_canonical_tags_are_appended_and_pinned() {
+    let digest = |encode: &dyn Fn(&mut CanonicalWriter)| {
+        let mut writer = CanonicalWriter::new("test");
+        encode(&mut writer);
+        writer.finish()
+    };
+    let expression = StageOp::Expression(vec![
+        ExprTerm::Input(1),
+        ExprTerm::Constant(2.0),
+        ExprTerm::Add,
+        ExprTerm::Subtract,
+        ExprTerm::Multiply,
+        ExprTerm::Divide { min_magnitude: 0.5 },
+        ExprTerm::RequireRange { low: 0.0, high: 1.0 },
+    ]);
+    let pinned = digest(&|writer: &mut CanonicalWriter| {
+        writer.word(7).word(7);
+        writer.word(1).word(1);
+        writer.word(2).real(2.0);
+        writer.word(3);
+        writer.word(4);
+        writer.word(5);
+        writer.word(6).real(0.5);
+        writer.word(7).real(0.0).real(1.0);
+    });
+    assert_eq!(digest(&|writer: &mut CanonicalWriter| expression.encode(writer)), pinned);
+    // The tags of the operators that existed before are unchanged.
+    assert_eq!(
+        digest(&|writer: &mut CanonicalWriter| StageOp::Binary(Combine::Ratio).encode(writer)),
+        digest(&|writer: &mut CanonicalWriter| {
+            writer.word(4).word(4);
+        })
+    );
+    assert_eq!(
+        digest(&|writer: &mut CanonicalWriter| StageOp::Pool { dependent: true }.encode(writer)),
+        digest(&|writer: &mut CanonicalWriter| {
+            writer.word(3).word(1);
+        })
+    );
+    assert_ne!(
+        digest(&|writer: &mut CanonicalWriter| expression.encode(writer)),
+        digest(&|writer: &mut CanonicalWriter| StageOp::Binary(Combine::Ratio).encode(writer))
+    );
+}

@@ -204,7 +204,18 @@ pub(crate) fn retain_identification(
 
 /// The deferred layer of a program whose identification refused at compile.
 pub(crate) const fn identification_refused_at_compile() -> IdentificationLayer {
-    IdentificationLayer::Deferred { reason: IDENTIFICATION_REFUSED_AT_COMPILE }
+    IdentificationLayer::Deferred { reason: IDENTIFICATION_REFUSED_AT_COMPILE, failure: None }
+}
+
+/// The deferred layer of a program whose identification refused at compile because the
+/// effect is not identified, retaining the not-identified product so the evidence needs
+/// derive from it. The refusal itself is still raised by the stage that consumes the
+/// identification.
+pub(crate) fn identification_refused_with(failure: IdentificationResult) -> IdentificationLayer {
+    IdentificationLayer::Deferred {
+        reason: IDENTIFICATION_REFUSED_AT_COMPILE,
+        failure: Some(Arc::new(failure)),
+    }
 }
 
 /// The typed functional `kind` of the study's query on `outcome`, keyed by the

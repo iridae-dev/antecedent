@@ -276,11 +276,11 @@ pub use prior_bank::{
     posterior_has_named_effect,
 };
 pub use propagation_chain_record::{
-    ChainChangeWire, ChainCoefficientWire, ChainFactorWire, ChainOpWire, ChainSourceWire,
-    ChainStageResultWire, ChainStageWire, ChainUnaryWire, ConsumedPropagationChain,
-    PROPAGATION_CHAIN_FEATURE, PROPAGATION_CHAIN_SECTION, PROPAGATION_CHAIN_VERSION,
-    PropagationChainError, PropagationChainRecordWire, chain_float_bits,
-    propagation_chain_identity,
+    ChainChangeWire, ChainCoefficientWire, ChainExprTermWire, ChainFactorWire, ChainOpWire,
+    ChainSourceWire, ChainStageResultWire, ChainStageWire, ChainUnaryWire,
+    ConsumedPropagationChain, PROPAGATION_CHAIN_FEATURE, PROPAGATION_CHAIN_SECTION,
+    PROPAGATION_CHAIN_VERSION, PropagationChainError, PropagationChainRecordWire,
+    chain_float_bits, propagation_chain_identity,
 };
 pub use provenance_wire::{
     ProvenanceGraphWire, ProvenanceNodeWire, provenance_from_wire, provenance_to_wire,

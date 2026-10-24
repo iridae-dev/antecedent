@@ -506,7 +506,10 @@ fn identification_layer(
         Ok(layer) => Ok(layer),
         Err(error @ (CausalError::Cancelled { .. } | CausalError::Resource { .. })) => Err(error),
         Err(error) if linear.is_some() => Err(error),
-        Err(_) => Ok(super::identification_refused_at_compile()),
+        Err(error) => Ok(match cx.study.not_identified_product(&error) {
+            Some(failure) => super::identification_refused_with(failure),
+            None => super::identification_refused_at_compile(),
+        }),
     }
 }
 

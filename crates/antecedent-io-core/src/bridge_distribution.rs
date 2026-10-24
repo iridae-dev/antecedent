@@ -35,6 +35,15 @@
 //!   conditioned on the recorded value being attainable. A row no admissible
 //!   rates produce is refused, not clipped.
 //!
+//! Every bridge is also a stage of a propagation chain ([`BridgedDistribution::chain_stage`]):
+//! the affine map reads the source, slope and intercept columns, a predictive
+//! line adds the new trial's residual as a column of its own, and a measurement
+//! correction is the ratio `(q + specificity - 1) / (sensitivity + specificity - 1)`
+//! over the source and the two rate columns. The columns are the draws this
+//! module made, so the stage reproduces the bridged draws bit for bit and a
+//! chain that reads it propagates the source, the mapping and every later stage
+//! jointly.
+//!
 //! The coefficients are drawn from a deterministic stream of `seed`, so the
 //! mapped draws are a function of the contract, the source table and the seed
 //! and a consumer replays them bit for bit.
@@ -72,7 +81,7 @@ use crate::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionTrust, DrawAlignment,
 };
 use crate::propagation_chain_record::{
-    ChainCoefficientWire, ChainOpWire, ChainSourceWire, ChainStageWire,
+    ChainCoefficientWire, ChainExprTermWire, ChainOpWire, ChainSourceWire, ChainStageWire,
 };
 use crate::quantity_wire::{DistributionMeaningWire, ScientificQuantityWire};
 
@@ -90,6 +99,23 @@ pub struct AffineColumns {
     pub slopes: Vec<f64>,
     /// The drawn intercept of each row.
     pub intercepts: Vec<f64>,
+    /// The residual a new trial adds to the line on each row, for a predictive
+    /// law through a trial-level line; `None` for a mean line or a declared map.
+    pub residuals: Option<Vec<f64>>,
+}
+
+/// The rate draws of a measurement correction, one pair per row: the rates
+/// each row's mapped value was computed with.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CorrectionColumns {
+    /// The drawn sensitivity of each row.
+    pub sensitivities: Vec<f64>,
+    /// The drawn specificity of each row.
+    pub specificities: Vec<f64>,
+    /// Smallest Youden index the correction licenses.
+    pub min_youden: f64,
+    /// Which way the correction runs.
+    pub direction: MeasurementDirection,
 }
 
 /// A distribution carried across a bridge.
@@ -103,7 +129,7 @@ pub struct BridgedDistribution {
     source_mean: f64,
     source_variance: f64,
     affine: Option<AffineColumns>,
-    residual: bool,
+    correction: Option<CorrectionColumns>,
     alignment: String,
 }
 
@@ -190,6 +216,12 @@ impl BridgedDistribution {
         self.affine.as_ref()
     }
 
+    /// The drawn rates of a measurement correction.
+    #[must_use]
+    pub const fn correction_columns(&self) -> Option<&CorrectionColumns> {
+        self.correction.as_ref()
+    }
+
     /// The bridged column, one value per row.
     #[must_use]
     pub fn mapped_column(&self) -> Vec<f64> {
@@ -204,32 +236,49 @@ impl BridgedDistribution {
 
     /// The bridge as a propagation-chain measurement-mapping stage.
     ///
-    /// The stage reads three columns of one aligned draw table, the source
-    /// draws, the drawn slope and the drawn intercept, and applies
-    /// `source * slope + intercept` with the slope and the intercept as the
-    /// stage's own inputs (coefficients that are inputs, not constants). A chain
-    /// that reads the stage's output in a transport or a utility therefore
-    /// propagates the source, the mapping's coefficients and every later stage
-    /// jointly, row by row. The declared dependence of the source and the
-    /// mapping enters the chain as a shared factor, and the stage brings the
-    /// contract as its own.
+    /// The stage reads columns of one aligned draw table, the source draws and
+    /// the draws of the mapping the bridge made, and reproduces the bridged
+    /// column row by row. A chain that reads the stage's output in a transport
+    /// or a utility therefore propagates the source, the mapping and every later
+    /// stage jointly. The declared dependence of the source and the mapping
+    /// enters the chain as a shared factor, and the stage brings the contract as
+    /// its own.
+    ///
+    /// * An identity, declared or trial-fitted line applies
+    ///   `source * slope + intercept` with the slope and the intercept as the
+    ///   stage's own inputs.
+    /// * A predictive law through a trial-level line adds the new trial's
+    ///   residual as a fourth input: `source * slope + intercept + residual`.
+    ///   The residual is a disturbance of its own, independent of the source and
+    ///   of the coefficients except through the Student-t scale the coefficients
+    ///   share with it, so the stage adds the residual variance to the mean
+    ///   line's spread and double counts neither.
+    /// * A measurement correction applies
+    ///   `(q + specificity - 1) / (sensitivity + specificity - 1)` over the
+    ///   source and the two rate columns (or the forward map when the
+    ///   correction runs latent to measured). The division is guarded: the
+    ///   Youden index must stay above the contract's smallest licensed value on
+    ///   every row, and a corrected rate outside `[0, 1]` is refused, not
+    ///   clipped.
     ///
     /// # Errors
-    /// A bridge that is not an affine map of its inputs: a measurement
-    /// correction, or a predictive law carried through a trial-level line, whose
-    /// per-row residual is not a coefficient. Deriving the bridged draws and
-    /// supplying them to the chain as a source carries those.
+    /// A mapping that has no draws propagation to express.
     pub fn chain_stage(&self, stage_id: &str) -> Result<BridgeChainStage, BridgeRefusal> {
-        let Some(affine) = &self.affine else {
-            return Err(chain_stage_not_affine(self.claim.mapping.as_str()));
-        };
-        if self.residual {
-            return Err(chain_stage_not_affine("predictive law through a trial-level line"));
+        if let Some(affine) = &self.affine {
+            return Ok(self.affine_stage(stage_id, affine));
         }
+        if let Some(correction) = &self.correction {
+            return Ok(self.correction_stage(stage_id, correction));
+        }
+        Err(chain_stage_not_affine(self.claim.mapping.as_str()))
+    }
+
+    fn affine_stage(&self, stage_id: &str, affine: &AffineColumns) -> BridgeChainStage {
         let contract = self.claim.contract_identity.to_hex();
         let source_id = format!("{stage_id}.source");
         let slope_id = format!("{stage_id}.slope");
         let intercept_id = format!("{stage_id}.intercept");
+        let residual_id = format!("{stage_id}.residual");
         let meaning = LawMeaning::Posterior;
         let mapping_factor = format!("bridge_mapping:{contract}");
         let mut source =
@@ -247,14 +296,104 @@ impl BridgedDistribution {
             source = source.with_factor(SharedFactorKind::Model, &shared);
             slope = slope.with_factor(SharedFactorKind::Model, &shared);
         }
-        let stage = ChainStageWire::new(
-            stage_id,
-            StageKind::MeasurementMapping,
-            &[source_id.as_str(), slope_id.as_str(), intercept_id.as_str()],
-            ChainOpWire::affine(ChainCoefficientWire::input(1), ChainCoefficientWire::input(2)),
-        )
-        .with_own_factor(SharedFactorKind::Model, &format!("bridge_contract:{contract}"));
-        Ok(BridgeChainStage { sources: vec![source, slope, intercept], stage })
+        let mut sources = vec![source, slope, intercept];
+        let mut inputs = vec![source_id.as_str(), slope_id.as_str(), intercept_id.as_str()];
+        let op = if let Some(residuals) = &affine.residuals {
+            // The new trial's residual is a disturbance of its own. It shares only the
+            // Student-t scale with the coefficients, a parameter of the mapping.
+            sources.push(
+                ChainSourceWire::draws(&residual_id, meaning, &self.alignment, residuals)
+                    .with_factor(
+                        SharedFactorKind::Disturbance,
+                        &format!("bridge_residual:{contract}"),
+                    )
+                    .with_factor(SharedFactorKind::Parameter, &mapping_factor),
+            );
+            inputs.push(residual_id.as_str());
+            ChainOpWire::expression(vec![
+                ChainExprTermWire::input(0),
+                ChainExprTermWire::input(1),
+                ChainExprTermWire::Multiply,
+                ChainExprTermWire::input(2),
+                ChainExprTermWire::Add,
+                ChainExprTermWire::input(3),
+                ChainExprTermWire::Add,
+            ])
+        } else {
+            ChainOpWire::affine(ChainCoefficientWire::input(1), ChainCoefficientWire::input(2))
+        };
+        let stage = ChainStageWire::new(stage_id, StageKind::MeasurementMapping, &inputs, op)
+            .with_own_factor(SharedFactorKind::Model, &format!("bridge_contract:{contract}"));
+        BridgeChainStage { sources, stage }
+    }
+
+    fn correction_stage(&self, stage_id: &str, correction: &CorrectionColumns) -> BridgeChainStage {
+        let contract = self.claim.contract_identity.to_hex();
+        let source_id = format!("{stage_id}.source");
+        let sensitivity_id = format!("{stage_id}.sensitivity");
+        let specificity_id = format!("{stage_id}.specificity");
+        let meaning = LawMeaning::Posterior;
+        let mapping_factor = format!("bridge_mapping:{contract}");
+        // Each row's rates were drawn conditionally on that row's source draw (the recorded
+        // value must be attainable), so the source and the rates share this factor.
+        let attainable = format!("bridge_attainability:{contract}");
+        let source =
+            ChainSourceWire::draws(&source_id, meaning, &self.alignment, &self.source_column())
+                .with_factor(SharedFactorKind::Model, &attainable);
+        let rate = |id: &str, values: &[f64]| {
+            ChainSourceWire::draws(id, meaning, &self.alignment, values)
+                .with_factor(SharedFactorKind::Parameter, &mapping_factor)
+                .with_factor(SharedFactorKind::Model, &attainable)
+        };
+        let sources = vec![
+            source,
+            rate(&sensitivity_id, &correction.sensitivities),
+            rate(&specificity_id, &correction.specificities),
+        ];
+        let inputs = [source_id.as_str(), sensitivity_id.as_str(), specificity_id.as_str()];
+        let op = ChainOpWire::expression(correction_terms(correction));
+        let stage = ChainStageWire::new(stage_id, StageKind::MeasurementMapping, &inputs, op)
+            .with_own_factor(SharedFactorKind::Model, &format!("bridge_contract:{contract}"));
+        BridgeChainStage { sources, stage }
+    }
+}
+
+/// The correction as a postfix expression over `[source, sensitivity,
+/// specificity]`, the operations in the order [`map_correction`] applies them so
+/// the stage reproduces its values bit for bit.
+fn correction_terms(correction: &CorrectionColumns) -> Vec<ChainExprTermWire> {
+    use ChainExprTermWire as Term;
+    match correction.direction {
+        // (q + specificity - 1) / (sensitivity + specificity - 1)
+        MeasurementDirection::MeasuredToLatent => vec![
+            Term::input(0),
+            Term::input(2),
+            Term::Add,
+            Term::constant(-1.0),
+            Term::Add,
+            Term::input(1),
+            Term::input(2),
+            Term::Add,
+            Term::constant(-1.0),
+            Term::Add,
+            Term::divide(correction.min_youden),
+            Term::require_range(0.0, 1.0),
+        ],
+        // sensitivity * p + (1 - specificity) * (1 - p)
+        MeasurementDirection::LatentToMeasured => vec![
+            Term::input(1),
+            Term::input(0),
+            Term::Multiply,
+            Term::constant(1.0),
+            Term::input(2),
+            Term::Subtract,
+            Term::constant(1.0),
+            Term::input(0),
+            Term::Subtract,
+            Term::Multiply,
+            Term::Add,
+            Term::require_range(0.0, 1.0),
+        ],
     }
 }
 
@@ -262,10 +401,12 @@ impl BridgedDistribution {
 /// reads.
 #[derive(Clone, Debug)]
 pub struct BridgeChainStage {
-    /// The source draws, the slope draws and the intercept draws, columns of one
-    /// aligned draw table.
+    /// The source draws and the draws of the mapping (slope and intercept, plus
+    /// the residual of a predictive law; or the two rates of a measurement
+    /// correction), columns of one aligned draw table.
     pub sources: Vec<ChainSourceWire>,
-    /// The measurement-mapping stage, whose coefficients are inputs.
+    /// The measurement-mapping stage: its coefficients, rates and residual are
+    /// inputs.
     pub stage: ChainStageWire,
 }
 
@@ -375,6 +516,7 @@ fn beta_draw(mean: f64, variance: f64, rng: &mut CausalRng) -> f64 {
 struct Mapped {
     values: Vec<f64>,
     affine: Option<AffineColumns>,
+    correction: Option<CorrectionColumns>,
 }
 
 fn map_affine(
@@ -397,6 +539,7 @@ fn map_affine(
     let mut values = Vec::with_capacity(source.len());
     let mut slopes = Vec::with_capacity(source.len());
     let mut intercepts = Vec::with_capacity(source.len());
+    let mut residuals = Vec::with_capacity(if residual { source.len() } else { 0 });
     for &draw in source {
         let scale = match law.degrees_of_freedom {
             Some(df) => (df / sample_gamma(df / 2.0, 0.5, rng)).sqrt(),
@@ -412,13 +555,23 @@ fn map_affine(
                 * (innovation.intercept_on_slope * z_slope + innovation.intercept_sd * z_intercept);
         let mut mapped = intercept + slope * draw;
         if residual {
-            mapped += scale * residual_sd * standard_normal(rng);
+            let new_trial = scale * residual_sd * standard_normal(rng);
+            residuals.push(new_trial);
+            mapped += new_trial;
         }
         values.push(mapped);
         slopes.push(slope);
         intercepts.push(intercept);
     }
-    Ok(Mapped { values, affine: Some(AffineColumns { slopes, intercepts }) })
+    Ok(Mapped {
+        values,
+        affine: Some(AffineColumns {
+            slopes,
+            intercepts,
+            residuals: residual.then_some(residuals),
+        }),
+        correction: None,
+    })
 }
 
 /// Most times a row redraws its rates looking for a pair the recorded value is
@@ -432,14 +585,18 @@ fn map_correction(
 ) -> Result<Mapped, BridgeRefusal> {
     let exact = law.sensitivity_variance == 0.0 && law.specificity_variance == 0.0;
     let mut values = Vec::with_capacity(source.len());
+    let mut sensitivities = Vec::with_capacity(source.len());
+    let mut specificities = Vec::with_capacity(source.len());
     let mut outside = 0_usize;
     let mut first = None;
     for &draw in source {
         let mut mapped = None;
+        let mut rates = (law.sensitivity, law.specificity);
         for _ in 0..MAX_RATE_ATTEMPTS {
             let sensitivity = beta_draw(law.sensitivity, law.sensitivity_variance, rng);
             let specificity = beta_draw(law.specificity, law.specificity_variance, rng);
             let youden = sensitivity + specificity - 1.0;
+            rates = (sensitivity, specificity);
             match law.direction {
                 MeasurementDirection::MeasuredToLatent => {
                     if youden > law.min_youden && draw >= 1.0 - specificity && draw <= sensitivity {
@@ -462,6 +619,8 @@ fn map_correction(
         }
         if let Some(value) = mapped {
             values.push(value);
+            sensitivities.push(rates.0);
+            specificities.push(rates.1);
         } else {
             outside += 1;
             first.get_or_insert(draw);
@@ -471,7 +630,16 @@ fn map_correction(
     if let Some(first) = first {
         return Err(draws_outside_domain(outside, source.len(), first));
     }
-    Ok(Mapped { values, affine: None })
+    Ok(Mapped {
+        values,
+        affine: None,
+        correction: Some(CorrectionColumns {
+            sensitivities,
+            specificities,
+            min_youden: law.min_youden,
+            direction: law.direction,
+        }),
+    })
 }
 
 /// Bridge the draws of `source` across `contract`.
@@ -614,7 +782,7 @@ pub fn bridge_draws(
         source_mean: mean,
         source_variance: variance,
         affine: mapped.affine,
-        residual,
+        correction: mapped.correction,
         alignment,
     })
 }

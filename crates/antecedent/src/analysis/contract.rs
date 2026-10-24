@@ -67,7 +67,17 @@ mod program_wire;
 mod result_wire;
 
 pub(crate) use evidence_needs::evidence_next_actions;
-pub(crate) use failure_inputs::{FailureInputs, failure_inputs};
+pub(crate) use failure_inputs::{FailureInputs, failure_inputs, failure_inputs_of};
+
+/// The verified obligations and evidence-gathering next actions of the not-identified
+/// product `result` that `study` retained at compile: the same derivation a prepared
+/// contract performs, for a study whose preparation refuses.
+pub(crate) fn failure_evidence_needs(
+    study: &Study,
+    result: &IdentificationResult,
+) -> (Arc<[antecedent_contract::EvidenceObligation]>, Arc<[antecedent_contract::NextAction]>) {
+    evidence_needs::derive(study, Some(result))
+}
 use result_wire::{LicensedWire, distribution_wire};
 
 /// Bind an executed graphless license onto the contract's support reasoning.

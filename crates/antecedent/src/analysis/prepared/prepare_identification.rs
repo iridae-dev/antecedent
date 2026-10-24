@@ -162,6 +162,35 @@ pub(crate) fn identify_temporal_mediation_horizons(
 }
 
 impl Study {
+    /// The not-identified product behind `error`, for a latent-confounded ADMG average-effect
+    /// query the complete algorithm does not identify.
+    ///
+    /// `error` is the refusal static preparation raised; this reads the product the identifier
+    /// computed before that refusal was raised (its status, derivation and query) so compile
+    /// can retain it. `None` for any other refusal, graph class or query, and for a search a
+    /// budget stopped: such a refusal is not a proof of non-identification.
+    pub(crate) fn not_identified_product(
+        &self,
+        error: &CausalError,
+    ) -> Option<antecedent_identify::IdentificationResult> {
+        if !error.is_identification_refusal() {
+            return None;
+        }
+        let CausalQuery::AverageEffect(_) = &self.query else {
+            return None;
+        };
+        if self.tiered.is_some()
+            || !matches!(self.graph.class(), GraphClass::Admg | GraphClass::TemporalAdmg)
+        {
+            return None;
+        }
+        let admg = self.graph.graph_ref().projected_admg().ok().flatten()?;
+        if !crate::analysis::execute::admg_has_bidirected(&admg) {
+            return None;
+        }
+        crate::strategy_table::not_identified_admg(&admg, &self.query)
+    }
+
     /// Compute the static-path identification once at prepare time.
     ///
     /// Mirrors `execute_static`'s (and, for `bayesian.gcomp`, `execute_bayesian`'s)

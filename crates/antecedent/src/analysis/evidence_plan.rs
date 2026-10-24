@@ -35,13 +35,15 @@ use antecedent_design::{
 use antecedent_graph::Admg;
 use serde::Deserialize;
 
-use super::contract::{FailureInputs, failure_inputs};
+use super::contract::{FailureInputs, failure_evidence_needs, failure_inputs, failure_inputs_of};
 use super::design_ranking::{
     CandidateDeclWire, CostDeclWire, CostMapDeclWire, DecisionDeclWire, DesignRankingError,
     DesignRankingEvaluation, DesignRankingRequestWire, MonteCarloDeclWire, ProviderDeclWire,
     SignalDeclWire, evaluate,
 };
+use super::execute::Study;
 use super::prepared::PreparedStudy;
+use crate::error::CausalError;
 
 pub use antecedent_design::{
     EvidencePlan, EvidencePlanArtifact, EvidencePlanArtifactError, PlanOption, PlanOutcome,
@@ -126,6 +128,8 @@ pub enum EvidencePlanFacadeError {
     NoRoute,
     /// A repair search or route refused.
     Repair(RepairError),
+    /// The study did not compile, so no retained failure could be read.
+    Compile(CausalError),
     /// The plan refused (unequal cost units, no studies, ...).
     Plan(EvidencePlanError),
     /// The value evaluation refused.
@@ -139,7 +143,7 @@ impl EvidencePlanFacadeError {
     #[must_use]
     pub fn code(&self) -> &'static str {
         match self {
-            Self::NoFailure | Self::NoRoute | Self::UnknownValueStudy(_) => {
+            Self::NoFailure | Self::NoRoute | Self::UnknownValueStudy(_) | Self::Compile(_) => {
                 antecedent_core::reason_code!("invalid_argument")
             }
             Self::Repair(error) => error.code,
@@ -157,6 +161,7 @@ impl EvidencePlanFacadeError {
             Self::NoFailure => "evidence_plan.no_failure_to_plan".to_owned(),
             Self::NoRoute => "evidence_plan.no_route".to_owned(),
             Self::UnknownValueStudy(_) => "evidence_plan.invalid_request".to_owned(),
+            Self::Compile(_) => "evidence_plan.compile_refused".to_owned(),
             Self::Repair(error) => error.detail.to_owned(),
             Self::Plan(error) => error.detail.to_owned(),
             Self::Value(error) => error
@@ -182,6 +187,11 @@ impl std::fmt::Display for EvidencePlanFacadeError {
                 f,
                 "evidence_plan.invalid_request: the value request names study `{label}` that is \
                  not declared exactly once"
+            ),
+            Self::Compile(error) => write!(
+                f,
+                "evidence_plan.compile_refused: the study did not compile, so its retained \
+                 failure cannot be read: {error}"
             ),
             Self::Repair(error) => write!(f, "{error}"),
             Self::Plan(error) => write!(f, "{error}"),
@@ -421,6 +431,93 @@ impl PreparedStudy {
         ctx: &ExecutionContext,
     ) -> Result<EvidencePlanResult, EvidencePlanFacadeError> {
         let (inputs, routes) = self.failure(request.sensitivity.as_ref())?;
+        let names = variable_names(&inputs.names, &routes, &inputs.graph);
+        plan_over_routes(&routes, names, request, ctx)
+    }
+}
+
+impl Study {
+    /// The failure this study's compiled program retained: the not-identified product the
+    /// identifier computed, the structure it ran on and the variables measured today.
+    ///
+    /// A study whose effect is not identified cannot be prepared: preparation raises the
+    /// refusal. Compile does not raise it; the lowered program defers and keeps the product,
+    /// so the evidence that would resolve the refusal is read from the same study.
+    fn retained_failure(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<FailureInputs, EvidencePlanFacadeError> {
+        let plan = self.compile(ctx).map_err(EvidencePlanFacadeError::Compile)?;
+        let result = plan
+            .lowered()
+            .and_then(|lowered| lowered.refused_identification())
+            .cloned()
+            .ok_or(EvidencePlanFacadeError::NoFailure)?;
+        failure_inputs_of(self, result).ok_or(EvidencePlanFacadeError::NoFailure)
+    }
+
+    /// The verified evidence obligations and evidence-gathering next actions of a study
+    /// whose effect is not identified, read from the not-identified product its compiled
+    /// program retained (`measure_variable:<name>`, `run_experiment:<name>`,
+    /// `find_instrument`, `collect_panel`).
+    ///
+    /// The refusal itself is unchanged: [`Study::prepare`] and [`Study::run`] still raise it.
+    ///
+    /// # Errors
+    /// [`EvidencePlanFacadeError::NoFailure`] when the study retains no not-identified
+    /// product (it identifies, or its structure is not a directed or bidirected graph), and
+    /// [`EvidencePlanFacadeError::Compile`] when it does not compile.
+    pub fn evidence_obligations(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<
+        (Vec<antecedent_contract::EvidenceObligation>, Vec<antecedent_contract::NextAction>),
+        EvidencePlanFacadeError,
+    > {
+        let inputs = self.retained_failure(ctx)?;
+        let (obligations, actions) = failure_evidence_needs(self, &inputs.result);
+        Ok((obligations.to_vec(), actions.to_vec()))
+    }
+
+    /// The unfinished studies the retained not-identified product determines, as
+    /// [`PreparedStudy::candidate_templates`] but for a study that cannot be prepared.
+    ///
+    /// # Errors
+    /// As [`Study::evidence_obligations`], and a route the identifiers cannot read.
+    pub fn candidate_templates(
+        &self,
+        sensitivity: Option<&SensitivityFinding>,
+        ctx: &ExecutionContext,
+    ) -> Result<CandidateGeneration, EvidencePlanFacadeError> {
+        let inputs = self.retained_failure(ctx)?;
+        let routes = failure_routes(
+            &inputs.result,
+            &inputs.graph,
+            &inputs.observed,
+            STUDY_POPULATION,
+            sensitivity,
+        )?;
+        Ok(generate_candidates(&routes.obligations()))
+    }
+
+    /// The ranked evidence plan over the declared studies for a study that cannot be
+    /// prepared, as [`PreparedStudy::evidence_plan`].
+    ///
+    /// # Errors
+    /// As [`Study::evidence_obligations`] and [`plan_over_routes`].
+    pub fn evidence_plan(
+        &self,
+        request: &EvidencePlanRequest,
+        ctx: &ExecutionContext,
+    ) -> Result<EvidencePlanResult, EvidencePlanFacadeError> {
+        let inputs = self.retained_failure(ctx)?;
+        let routes = failure_routes(
+            &inputs.result,
+            &inputs.graph,
+            &inputs.observed,
+            STUDY_POPULATION,
+            request.sensitivity.as_ref(),
+        )?;
         let names = variable_names(&inputs.names, &routes, &inputs.graph);
         plan_over_routes(&routes, names, request, ctx)
     }

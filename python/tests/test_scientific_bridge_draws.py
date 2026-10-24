@@ -22,6 +22,7 @@ from statistics import NormalDist
 
 import numpy as np
 import pytest
+from antecedent import measurement_models as mm
 from antecedent import propagation_chain as pc
 from antecedent import scientific_bridge as sb
 from antecedent.errors import CausalTypeError
@@ -34,6 +35,7 @@ from antecedent.scientific_bridge import ScientificBridgeRefusal
 
 from _refusal import assert_registered_refusal
 
+R = pc.PropagationChainRefusal
 ROWS = 20_000
 _NORMAL = NormalDist()
 
@@ -334,3 +336,189 @@ def test_the_extended_declarations_ride_the_point_artifact_and_a_plain_one_is_un
     assert plain.estimand_bridge is None
     again = sb.consume_scientific_bridge_artifact(plain.export())
     assert isinstance(again, sb.ConsumedBridge)
+
+
+TRIALS = [(0.0, 0.1), (1.0, 1.1), (2.0, 1.9), (3.0, 3.2), (4.0, 3.9)]
+
+
+def test_a_predictive_line_is_a_stage_whose_residual_variance_is_added_once():
+    bridge = contract(
+        uncertain=False,
+        value_kind="predictive_law",
+        mapping=sb.TrialLevelMapping(TRIALS, min_trials=5, min_r_squared=0.9),
+        source_dependence=sb.SourceDependence.independent("disjoint-samples"),
+    )
+    draws = table(4_001, semantic="posterior_predictive")
+    bridged = sb.prepare_distribution_bridge(bridge).derive(draws, seed=5)
+    parts = bridged.chain_stage("line")
+    assert [source.id for source in parts.sources] == [
+        "line.source",
+        "line.slope",
+        "line.intercept",
+        "line.residual",
+    ]
+    assert parts.stage.op["op"] == "expression"
+    # The residual declares a disturbance of its own and no other input does.
+    assert any(kind == "disturbance" for kind, _ in parts.sources[3].factors)
+    assert all(kind != "disturbance" for source in parts.sources[:3] for kind, _ in source.factors)
+    chain = pc.propagate(list(parts.sources), [parts.stage], output="line")
+    mapped = np.asarray(bridged.distribution())[:, 0]
+    assert chain.stage("line").value("mean") == pytest.approx(mapped.mean(), abs=1e-12)
+    assert chain.stage("line").value("variance") == pytest.approx(mapped.var(ddof=1), rel=1e-12)
+    # The mean line of the same coefficients, without the residual column.
+    mean_line = pc.propagate(
+        list(parts.sources[:3]),
+        [
+            pc.affine(
+                "mean_line",
+                "measurement_mapping",
+                ["line.source", "line.slope", "line.intercept"],
+                scale=pc.input_coefficient(1),
+                shift=pc.input_coefficient(2),
+            )
+        ],
+        output="mean_line",
+    )
+    residual = np.asarray(parts.sources[3].values)
+    line = np.asarray(parts.sources[0].values) * np.asarray(parts.sources[1].values) + np.asarray(
+        parts.sources[2].values
+    )
+    covariance = np.cov(line, residual, ddof=1)[0, 1]
+    expected = (
+        mean_line.stage("mean_line").value("variance") + residual.var(ddof=1) + 2 * covariance
+    )
+    assert chain.stage("line").value("variance") == pytest.approx(expected, rel=1e-9)
+    assert residual.var(ddof=1) > 0.0
+    # The consumer replays the stage to the stored bits.
+    consumed = pc.consume_propagation_chain(chain.export(), expected_identity=chain.identity)
+    assert dict(consumed.stage("line").values) == dict(chain.stage("line").values)
+
+
+def _clinic_correction():
+    model = mm.MeasurementModel(
+        indicator=mm.MeasurementVariable("schema:flag", "noisy_misclassified", "binary"),
+        construct=mm.MeasurementVariable("construct:disease", "latent_scientific", "binary"),
+        parameters=mm.BinaryParameters((mm.BinaryRates(0.9, 0.8, 0.0004, 0.0009),), min_youden=0.1),
+        population_id="clinic-a",
+        regime_id="observational",
+        evidence=mm.ParameterEvidence.declared("lab"),
+    )
+
+    def prevalence(variable):
+        return ScientificQuantity.outcome(
+            variable,
+            units="probability",
+            population="clinic-a",
+            regime="observational",
+            functional="prevalence",
+        )
+
+    flag = prevalence("schema:flag")
+    bridge = sb.BridgeContract(
+        kind="latent_measured_outcome",
+        source=flag,
+        source_class="measured_outcome",
+        target=prevalence("construct:disease"),
+        target_class="latent_construct",
+        evidence_scope=sb.Scope("clinic-a", "observational"),
+        mapping=sb.MeasurementCorrection(model),
+        assumptions=(
+            sb.Assumption(
+                "flag-model",
+                "measurement_model",
+                "the flag relates to the disease by the declared misclassification model",
+                evidence=mm.model_identities(model).model,
+            ),
+        ),
+        source_value="posterior",
+        target_value="posterior",
+        source_dependence=sb.SourceDependence.independent("validation-sample-disjoint"),
+    )
+    rows = 4_000
+    partner = grid(0.2, 0.3, rows)[(np.arange(rows) * 1_247) % rows]
+    identity = DistributionIdentity(
+        semantic="causal_functional_posterior",
+        quantities=(flag, COST),
+        alignment="joint",
+        source_id="study-1",
+        provider_id="posterior.provider",
+        rng_id="seed:11",
+        snapshot_id="snapshot-1",
+        causal_contract_id="contract-1",
+    )
+    draws = JointDistributionArtifact(identity, np.column_stack([grid(0.31, 0.01, rows), partner]))
+    return bridge, draws
+
+
+def test_a_measurement_correction_is_a_ratio_stage_and_a_zero_denominator_is_refused():
+    bridge, draws = _clinic_correction()
+    bridged = sb.prepare_distribution_bridge(bridge).derive(draws, seed=13)
+    parts = bridged.chain_stage("correction")
+    assert [source.id for source in parts.sources] == [
+        "correction.source",
+        "correction.sensitivity",
+        "correction.specificity",
+    ]
+    assert parts.stage.op["op"] == "expression"
+    chain = pc.propagate(list(parts.sources), [parts.stage], output="correction")
+    corrected = np.asarray(bridged.distribution())[:, 0]
+    # The same inputs give the same rows: the stage is the bridged draws, to the last bit.
+    assert chain.stage("correction").value("mean") == pytest.approx(corrected.mean(), rel=1e-12)
+    assert chain.stage("correction").value("variance") == pytest.approx(
+        corrected.var(ddof=1), rel=1e-12
+    )
+    observed, sensitivity, specificity = (np.asarray(source.values) for source in parts.sources)
+    np.testing.assert_array_equal(
+        corrected, (observed + specificity - 1.0) / (sensitivity + specificity - 1.0)
+    )
+    # 0.31 recorded at sensitivity 0.9 and specificity 0.8 is 11/70 latent.
+    assert chain.stage("correction").value("mean") == pytest.approx(11 / 70, abs=4e-3)
+
+    # A sensitivity that leaves the Youden index at or below zero on some rows is not a ratio.
+    crossing = np.where(np.arange(len(sensitivity)) % 7 == 0, 0.1, sensitivity)
+    sources = [
+        parts.sources[0],
+        pc.draws(
+            "correction.sensitivity",
+            crossing,
+            meaning="posterior",
+            alignment=parts.sources[1].alignment,
+        ),
+        parts.sources[2],
+    ]
+    with pytest.raises(R) as caught:
+        pc.propagate(sources, [parts.stage], output="correction")
+    assert caught.value.detail == "propagation_chain.denominator_not_bounded"
+    assert caught.value.reason_code == "invalid_argument"
+
+
+def test_a_guarded_division_refuses_a_denominator_that_reaches_zero_and_replays():
+    alignment = "ratio-table"
+    numerator = pc.draws("a", grid(2.0, 0.1), meaning="posterior", alignment=alignment)
+    positive = pc.draws("b", grid(4.0, 0.1), meaning="posterior", alignment=alignment)
+    chain = pc.propagate(
+        [numerator, positive],
+        [pc.divide("ratio", "derived_quantity", ["a", "b"])],
+        output="ratio",
+    )
+    expected = grid(2.0, 0.1) / grid(4.0, 0.1)
+    assert chain.stage("ratio").value("mean") == pytest.approx(expected.mean(), rel=1e-12)
+    replayed = pc.consume_propagation_chain(chain.export(), expected_identity=chain.identity)
+    assert dict(replayed.answer.values) == dict(chain.answer.values)
+    # A denominator whose draws cross zero is refused, never a silent ratio.
+    crossing = pc.draws("b", grid(0.0, 1.0), meaning="posterior", alignment=alignment)
+    with pytest.raises(R) as caught:
+        pc.propagate(
+            [numerator, crossing],
+            [pc.divide("ratio", "derived_quantity", ["a", "b"])],
+            output="ratio",
+        )
+    assert caught.value.detail == "propagation_chain.denominator_not_bounded"
+    # A declared bound refuses a denominator that comes closer to zero than the model licenses.
+    near_zero = pc.draws("b", grid(0.5, 0.05), meaning="posterior", alignment=alignment)
+    with pytest.raises(R):
+        pc.propagate(
+            [numerator, near_zero],
+            [pc.divide("ratio", "derived_quantity", ["a", "b"], min_magnitude=0.6)],
+            output="ratio",
+        )

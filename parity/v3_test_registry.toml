@@ -1324,3 +1324,38 @@ crate = "antecedent"
 cargo_target = "lib"
 path = "crates/antecedent/src/analysis/joint_panel/selection/instrumented.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "evidence-plan-study"
+crate = "antecedent"
+cargo_target = "evidence_plan_study"
+path = "crates/antecedent/tests/evidence_plan_study.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "evidence-plan-study-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_evidence_plan_study.py"
+gates = ["inventory"]
+
+[[test]]
+id = "bridge-point-propagation-contract"
+crate = "antecedent-contract"
+cargo_target = "lib"
+path = "crates/antecedent-contract/src/bridge/point_propagation.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "bridge-point-propagation-facade"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/scientific_bridge_propagation_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "bridge-point-propagation-compiled-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_scientific_bridge_propagation.py"
+gates = ["inventory"]

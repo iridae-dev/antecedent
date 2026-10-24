@@ -315,6 +315,35 @@ pub(crate) fn identify_admg(
     identify_admg_query(identifier, admg, &CausalQuery::AverageEffect(query.clone()))
 }
 
+/// The general-ID product over an ADMG, whatever its status: the refusal is raised by the
+/// caller that needs an identified product, never by the algorithm that produced it.
+fn general_id_result(
+    admg: &antecedent_graph::Admg,
+    query: &CausalQuery,
+) -> Result<IdentificationResult, CausalError> {
+    let id = IdIdentifier::new();
+    let prepared = id.prepare(admg).map_err(identify_err)?;
+    let mut id_ws = IdentificationWorkspace::default();
+    if matches!(query, CausalQuery::Distribution(q) if !q.conditioning.is_empty()) {
+        let idc = antecedent_identify::IdcIdentifier::new();
+        idc.identify(&prepared, query, &mut id_ws).map_err(identify_err)
+    } else {
+        id.identify(&prepared, query, &mut id_ws).map_err(identify_err)
+    }
+}
+
+/// The not-identified general-ID product of `query` over `admg`, with its status, its
+/// derivation and the query it answers; `None` when the algorithm identifies the query or
+/// cannot read it. This is the product [`identify_admg_query`] refuses to return.
+pub(crate) fn not_identified_admg(
+    admg: &antecedent_graph::Admg,
+    query: &CausalQuery,
+) -> Option<IdentificationResult> {
+    general_id_result(admg, query)
+        .ok()
+        .filter(|result| result.status == antecedent_core::IdentificationStatus::NotIdentified)
+}
+
 /// General ID over an ADMG for a static query (ATE or interventional distribution).
 ///
 /// # Errors
@@ -327,16 +356,7 @@ pub fn identify_admg_query(
 ) -> Result<IdentificationResult, CausalError> {
     match identifier {
         IdentifierId::GeneralId => {
-            let id = IdIdentifier::new();
-            let prepared = id.prepare(admg).map_err(identify_err)?;
-            let mut id_ws = IdentificationWorkspace::default();
-            let result = if matches!(query, CausalQuery::Distribution(q) if !q.conditioning.is_empty())
-            {
-                let idc = antecedent_identify::IdcIdentifier::new();
-                idc.identify(&prepared, query, &mut id_ws).map_err(identify_err)?
-            } else {
-                id.identify(&prepared, query, &mut id_ws).map_err(identify_err)?
-            };
+            let result = general_id_result(admg, query)?;
             require_identified(&result)?;
             Ok(result)
         }

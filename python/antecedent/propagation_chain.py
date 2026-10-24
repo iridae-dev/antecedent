@@ -61,7 +61,9 @@ __all__ = [
     "affine",
     "binary",
     "consume_propagation_chain",
+    "divide",
     "draws",
+    "expression",
     "fixed",
     "independent_product_table",
     "input_coefficient",
@@ -72,6 +74,13 @@ __all__ = [
     "preposterior",
     "propagate",
     "reweight_stage",
+    "term_add",
+    "term_constant",
+    "term_divide",
+    "term_input",
+    "term_multiply",
+    "term_require_range",
+    "term_subtract",
     "unary",
 ]
 
@@ -356,6 +365,110 @@ def binary(
     if combine not in ("sum", "difference", "product", "ratio"):
         raise CausalValueError("combine must be sum, difference, product or ratio")
     return _stage(id, kind, inputs, {"op": "binary", "combine": combine}, own_factors, None)
+
+
+def term_input(position: int) -> dict[str, Any]:
+    """An :func:`expression` term that pushes the stage's input at ``position`` (from zero)."""
+    if isinstance(position, bool) or not isinstance(position, int) or position < 0:
+        raise CausalValueError("position must be a non-negative integer")
+    return {"term": "input", "position": position}
+
+
+def term_constant(value: float) -> dict[str, Any]:
+    """An :func:`expression` term that pushes a constant."""
+    return {"term": "constant", "value": _bits(_real(value, "value"))}
+
+
+def term_add() -> dict[str, Any]:
+    """An :func:`expression` term: pop ``b``, ``a`` and push ``a + b``."""
+    return {"term": "add"}
+
+
+def term_subtract() -> dict[str, Any]:
+    """An :func:`expression` term: pop ``b``, ``a`` and push ``a - b``."""
+    return {"term": "subtract"}
+
+
+def term_multiply() -> dict[str, Any]:
+    """An :func:`expression` term: pop ``b``, ``a`` and push ``a * b``."""
+    return {"term": "multiply"}
+
+
+def term_divide(min_magnitude: float = 0.0) -> dict[str, Any]:
+    """An :func:`expression` term: pop ``b``, ``a`` and push ``a / b``.
+
+    The division is guarded and never silent: it is refused when the draws of ``b`` reach zero (a
+    denominator that crosses or touches zero), or when some draw of ``b`` has a magnitude below
+    ``min_magnitude``.
+    """
+    bound = _real(min_magnitude, "min_magnitude")
+    if bound < 0:
+        raise CausalValueError("min_magnitude must be non-negative")
+    return {"term": "divide", "min_magnitude": _bits(bound)}
+
+
+def term_require_range(low: float, high: float) -> dict[str, Any]:
+    """An :func:`expression` term that checks the top column lies in ``[low, high]`` on every row.
+
+    A value outside the range is refused, never clipped.
+    """
+    lower, upper = _real(low, "low"), _real(high, "high")
+    if lower > upper:
+        raise CausalValueError("low must not exceed high")
+    return {"term": "require_range", "low": _bits(lower), "high": _bits(upper)}
+
+
+def expression(
+    id: str,  # noqa: A002
+    kind: str,
+    inputs: Sequence[str],
+    terms: Sequence[Mapping[str, Any]],
+    *,
+    own_factors: Sequence[tuple[str, str]] = (),
+    decision_reference: float | None = None,
+) -> ChainStage:
+    """A formula over the stage's inputs, evaluated row by row on the aligned draws.
+
+    ``terms`` are in postfix order (:func:`term_input`, :func:`term_constant`, :func:`term_add`,
+    :func:`term_subtract`, :func:`term_multiply`, :func:`term_divide`,
+    :func:`term_require_range`) and leave exactly one column. A measurement correction, for the
+    inputs ``[observed, sensitivity, specificity]``::
+
+        expression("corrected", "measurement_mapping", ["q", "se", "sp"], [
+            term_input(0), term_input(2), term_add(), term_constant(-1), term_add(),
+            term_input(1), term_input(2), term_add(), term_constant(-1), term_add(),
+            term_divide(0.1), term_require_range(0, 1),
+        ])
+
+    reads the three columns of one aligned draw table; the ratio is refused when the Youden index
+    reaches zero or falls below 0.1 on any row. A predictive line with an independent residual is
+    ``[x, slope, intercept, residual]`` with ``x * slope + intercept + residual``.
+    """
+    wire = [dict(term) for term in terms]
+    if not wire:
+        raise CausalValueError("an expression holds at least one term")
+    op = {"op": "expression", "terms": wire}
+    return _stage(id, kind, inputs, op, own_factors, decision_reference)
+
+
+def divide(
+    id: str,  # noqa: A002
+    kind: str,
+    inputs: Sequence[str],
+    *,
+    min_magnitude: float = 0.0,
+    own_factors: Sequence[tuple[str, str]] = (),
+) -> ChainStage:
+    """``input_0 / input_1`` with a guarded denominator.
+
+    Unlike :func:`binary` with ``"ratio"``, which refuses only a denominator draw that is exactly
+    zero, this refuses a denominator whose draws reach zero or come within ``min_magnitude`` of it.
+    """
+    names = tuple(inputs)
+    if len(names) != 2:
+        raise CausalValueError("a division reads two inputs")
+    terms = [term_input(0), term_input(1), term_divide(min_magnitude)]
+    return expression(id, kind, names, terms, own_factors=own_factors)
 
 
 def unary(

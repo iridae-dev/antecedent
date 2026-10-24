@@ -32,7 +32,17 @@ pub(crate) struct FailureInputs {
 /// product on a directed or bidirected graph.
 pub(crate) fn failure_inputs(study: &Study) -> Option<FailureInputs> {
     let cached = contract_identification(study)?;
-    if cached.status != IdentificationStatus::NotIdentified {
+    failure_inputs_of(study, cached.into_owned())
+}
+
+/// The failure of `study` read from `result`: the not-identified product retained by a
+/// prepared handle's caches or by a compiled program that deferred its refusal. `None` when
+/// `result` is not a not-identified product or the graph is not a directed or bidirected one.
+pub(crate) fn failure_inputs_of(
+    study: &Study,
+    result: IdentificationResult,
+) -> Option<FailureInputs> {
+    if result.status != IdentificationStatus::NotIdentified {
         return None;
     }
     let graph = study
@@ -51,5 +61,5 @@ pub(crate) fn failure_inputs(study: &Study) -> Option<FailureInputs> {
         })
         .filter(|variable| variable.as_usize() < names.len())
         .collect();
-    Some(FailureInputs { result: cached.into_owned(), graph, names, observed })
+    Some(FailureInputs { result, graph, names, observed })
 }

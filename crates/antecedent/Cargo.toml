@@ -794,6 +794,10 @@ path = "tests/association_route.rs"
 name = "descriptive_fallback"
 path = "tests/descriptive_fallback.rs"
 
+[[test]]
+name = "evidence_plan_study"
+path = "tests/evidence_plan_study.rs"
+
 [[example]]
 name = "joint_panel_workflow"
 path = "../../examples/rust/joint_panel_workflow.rs"

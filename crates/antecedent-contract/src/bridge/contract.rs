@@ -52,6 +52,8 @@ use crate::ScientificQuantity;
 mod draws;
 #[path = "propagation.rs"]
 mod propagation;
+#[path = "point_propagation.rs"]
+mod point_propagation;
 
 use crate::interface_contract::{
     CalibrationStatus, ContractOperation, DependenceRequirement, EvidenceBasis, InterfaceContract,
@@ -61,6 +63,11 @@ pub use draws::{
     AffineDrawLaw, AffineInnovation, BridgeDrawsSource, BridgedDistributionClaim,
     CorrectionDrawLaw, DrawMapping, DrawsPlan, MappedDrawsSummary, bridged_distribution_claim_id,
 };
+pub use point_propagation::{
+    NonlinearPropagation, POINT_PROPAGATION_CALIBRATION, POINT_PROPAGATION_LABEL, PointPropagation,
+    point_propagation_unavailable,
+};
+pub(super) use point_propagation::propagate_point;
 pub use propagation::{
     AnalyticLaw, EstimandBridge, ExperimentalPrior, ExposureSetting, ImportedExperimentalPrior,
     MappingUncertainty, NonlinearMap, NonlinearMoment, PreservedSupport, PropagatedUncertainty,

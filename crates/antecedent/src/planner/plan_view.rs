@@ -620,7 +620,7 @@ impl IdentificationView {
                     retained.caches().iter().map(RetainedProductView::of_cache).collect();
                 view.retention_key = retained.key;
             }
-            IdentificationLayer::Deferred { reason } => {
+            IdentificationLayer::Deferred { reason, .. } => {
                 view.kind = IdentificationKind::Deferred;
                 view.reason = Some(*reason);
             }

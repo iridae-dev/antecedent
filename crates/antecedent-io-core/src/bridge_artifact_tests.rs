@@ -6,7 +6,8 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::bridge::{
-    BridgeSource, MappingUncertainty, SourceMappingDependence, ValueKind, derive_bridged_claim,
+    BridgeSource, MappingUncertainty, NonlinearMap, SourceMappingDependence, ValueKind,
+    derive_bridged_claim, derive_bridged_claim_propagating,
 };
 use antecedent_contract::{
     ClaimDomains, ClaimEnvelope, ClaimKind, DomainStatus, QuantityRole, ReasoningView,
@@ -240,6 +241,110 @@ fn a_version_one_artifact_declares_nothing_extended_and_keeps_its_bytes() {
     let bytes = to_cbor(&full).unwrap();
     assert!(!bytes.windows(19).any(|window| window == b"mapping_uncertainty"));
     assert_eq!(full.to_domain().unwrap(), contract(ValueKind::Mean, true));
+}
+
+// -- a point source with a propagated variance --------------------------------------------------
+
+fn sealed_propagated(
+    contract: &BridgeContract,
+    standard_error: f64,
+    nonlinear: Option<NonlinearMap>,
+) -> (ScientificBridgeArtifact, ScientificBridgeMeta, BridgedClaim, Vec<u8>) {
+    let claim = source_claim();
+    let quantity = contract.source.quantity.clone();
+    let source = BridgeSource { claim: &claim, quantity: &quantity };
+    let bridged =
+        derive_bridged_claim_propagating(contract, &source, Some(standard_error), nonlinear)
+            .expect("propagated bridge");
+    let (artifact, meta) = ScientificBridgeArtifact::seal(&bridged, &source).expect("seal");
+    let bytes = ScientificBridgeArtifact::to_bytes(&bridged, &source, "propagated").unwrap();
+    (artifact, meta, bridged, bytes)
+}
+
+#[test]
+fn a_propagated_variance_is_stored_and_replayed_bit_for_bit_by_a_fresh_consumer() {
+    let declared = contract(ValueKind::Mean, true);
+    let (artifact, meta, bridged, bytes) =
+        sealed_propagated(&declared, 0.1, Some(NonlinearMap::Square));
+    assert_eq!(meta.version, SCIENTIFIC_BRIDGE_EXTENDED_ARTIFACT_VERSION);
+    let wire = meta.propagation.as_ref().expect("the propagation is stored");
+    assert_eq!(wire.source_standard_error_bits, 0.1_f64.to_bits());
+    assert_eq!(wire.nonlinear.as_deref(), Some("square"));
+
+    // The delta method by hand: a = 0.06, b = 0.92, x = 0.8, se = 0.1, c = 0.001.
+    let (x, b, v, c) = (0.8_f64, 0.92_f64, 0.01_f64, 0.001_f64);
+    let by_hand = 0.0004
+        + x * x * 0.0025
+        + b * b * v
+        + 2.0 * x * b * c
+        + 2.0 * x * -0.0002
+        + 0.0025 * v
+        + c * c;
+    let propagation = bridged.propagation.as_ref().unwrap();
+    assert!((propagation.variance - by_hand).abs() <= 1e-12 * by_hand, "{}", propagation.variance);
+    assert!((propagation.mean - (0.06 + b * x + c)).abs() < 1e-12);
+
+    // A fresh consumer derives the claim again from the stored inputs and gets the same bits.
+    let consumed = ScientificBridgeArtifact::from_bytes(&bytes, Some(artifact.identity())).unwrap();
+    let replayed = consumed.bridged().propagation.as_ref().expect("replayed");
+    assert_eq!(replayed.variance.to_bits(), propagation.variance.to_bits());
+    assert_eq!(replayed.mean.to_bits(), propagation.mean.to_bits());
+    assert_eq!(replayed.nonlinear, propagation.nonlinear);
+    assert_eq!(consumed.bridged().claim.claim_id, bridged.claim.claim_id);
+    assert_eq!(consumed.bridged().value.to_bits(), bridged.value.to_bits());
+    let square = replayed.nonlinear.expect("square");
+    let closed_form = replayed.mean * replayed.mean + replayed.variance;
+    assert_eq!(square.expectation.to_bits(), closed_form.to_bits());
+}
+
+#[test]
+fn a_resealed_edit_of_the_propagation_does_not_replay() {
+    let declared = contract(ValueKind::Mean, true);
+    let (_, meta, bridged, _) = sealed_propagated(&declared, 0.1, None);
+
+    // The variance bits are an output: a resealed edit is a stored value that does not replay.
+    let mut variance = meta.clone();
+    variance.propagation.as_mut().unwrap().variance_bits ^= 1;
+    assert!(matches!(
+        ScientificBridgeArtifact::from_meta(&reseal(variance), None),
+        Err(ScientificBridgeArtifactError::ReplayMismatch("propagated uncertainty"))
+    ));
+    // The standard error is an input and binds the claim identity.
+    let mut input = meta.clone();
+    input.propagation.as_mut().unwrap().source_standard_error_bits = 0.2_f64.to_bits();
+    assert!(matches!(
+        ScientificBridgeArtifact::from_meta(&reseal(input), None),
+        Err(ScientificBridgeArtifactError::ReplayMismatch("claim identity"))
+    ));
+    // Dropping the propagation is another claim, not a plain bridge.
+    let mut dropped = meta.clone();
+    dropped.propagation = None;
+    assert!(matches!(
+        ScientificBridgeArtifact::from_meta(&reseal(dropped), None),
+        Err(ScientificBridgeArtifactError::ReplayMismatch("claim identity"))
+    ));
+    // A nonlinear map no consumer propagates is malformed, not a silent plug-in.
+    let mut unknown = meta.clone();
+    unknown.propagation.as_mut().unwrap().nonlinear = Some("cube".into());
+    assert!(ScientificBridgeArtifact::from_meta(&reseal(unknown), None).is_err());
+    // A propagation under the version-1 marker is another version.
+    let mut downgraded = meta.clone();
+    downgraded.version = SCIENTIFIC_BRIDGE_ARTIFACT_VERSION;
+    downgraded.feature = SCIENTIFIC_BRIDGE_ARTIFACT_FEATURE.to_owned();
+    assert!(ScientificBridgeArtifact::from_meta(&reseal(downgraded), None).is_err());
+    // The plug-in derivation of the same source carries no propagation and another identity.
+    let (_, plain, _) = sealed(&declared);
+    assert!(plain.propagation.is_none());
+    assert_ne!(plain.claim_id, meta.claim_id);
+    assert_eq!(plain.value_bits, bridged.value.to_bits());
+}
+
+#[test]
+fn a_bridge_without_a_propagation_keeps_its_bytes() {
+    let (_, meta, _) = sealed(&contract(ValueKind::Mean, false));
+    assert!(meta.propagation.is_none());
+    let bytes = to_cbor(&meta).unwrap();
+    assert!(!bytes.windows(11).any(|window| window == b"propagation"));
 }
 
 // -- bridges of draws ------------------------------------------------------------------------------

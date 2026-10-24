@@ -378,7 +378,7 @@ ok
 | `scientific_bridge.assumption_evidence_missing` | `bridge_assumption_missing` | Name the identity of the evidence the assumption rests on. |
 | `scientific_bridge.assumption_missing` | `bridge_assumption_missing` | Declare the assumption with an identity and name the evidence it rests on. |
 | `scientific_bridge.blank_field` | `scientific_bridge_invalid` | Name every identity and statement in at most the declared number of bytes. |
-| `scientific_bridge.chain_stage_not_affine` | `route_not_supported` | Derive the bridged draws and supply them to the chain as a source; only an affine bridge is a measurement-mapping stage. |
+| `scientific_bridge.chain_stage_not_affine` | `route_not_supported` | Derive the bridged draws and supply them to the chain as a source; a mapping with no chain expression is not a stage. |
 | `scientific_bridge.conditioning_mismatch` | `bridge_binding_mismatch` | Bridge quantities with the same conditioning. |
 | `scientific_bridge.degenerate_validation` | `bridge_mapping_not_licensed` | Validate in trials that differ in their effects. |
 | `scientific_bridge.dependence_not_a_covariance` | `bridge_mapping_not_licensed` | State a covariance whose square is at most the product of the slope variance and the source variance. |

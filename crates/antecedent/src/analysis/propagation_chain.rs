@@ -68,10 +68,10 @@ pub use antecedent_contract::propagation_chain::{
 };
 use antecedent_core::{ExecutionContext, SemanticDigest};
 pub use antecedent_io::propagation_chain_record::{
-    ChainChangeWire, ChainCoefficientWire, ChainFactorWire, ChainOpWire, ChainSourceWire,
-    ChainStageResultWire, ChainStageWire, ChainUnaryWire, ConsumedPropagationChain,
-    PROPAGATION_CHAIN_SECTION, PropagationChainError, PropagationChainRecordWire, STATUS_CURRENT,
-    STATUS_INVALIDATED, STATUS_REWEIGHTED,
+    ChainChangeWire, ChainCoefficientWire, ChainExprTermWire, ChainFactorWire, ChainOpWire,
+    ChainSourceWire, ChainStageResultWire, ChainStageWire, ChainUnaryWire,
+    ConsumedPropagationChain, PROPAGATION_CHAIN_SECTION, PropagationChainError,
+    PropagationChainRecordWire, STATUS_CURRENT, STATUS_INVALIDATED, STATUS_REWEIGHTED,
 };
 use std::sync::Arc;
 

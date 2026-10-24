@@ -52,9 +52,9 @@ use antecedent_contract::propagation_chain::{
 };
 use antecedent_core::{CanonicalEncode, CanonicalWriter, ExecutionContext};
 use antecedent_stats::propagation_chain::{
-    ChainError, Coefficient, Combine, Enclosure, Evaluated, MAX_CHAIN_NODES, MAX_CHAIN_ROWS,
-    Preposterior, StageOp, StageSpec, UnaryFn, decide, evaluate_columns, evaluate_enclosures,
-    preposterior, summarize, weights_from_log,
+    ChainError, Coefficient, Combine, Enclosure, Evaluated, ExprTerm, MAX_CHAIN_NODES,
+    MAX_CHAIN_ROWS, MAX_EXPRESSION_TERMS, Preposterior, StageOp, StageSpec, UnaryFn, decide,
+    evaluate_columns, evaluate_enclosures, preposterior, summarize, weights_from_log,
 };
 use serde::{Deserialize, Serialize};
 
@@ -217,6 +217,13 @@ fn map_chain_error(error: ChainError) -> Error {
             None,
             RAISE_BUDGET_OR_THIN_DRAWS,
         ),
+        ChainError::Denominator(what) => refused(
+            invalid,
+            "propagation_chain.denominator_not_bounded",
+            what,
+            None,
+            FIX_CHAIN_DECLARATION,
+        ),
         ChainError::EnclosureUnbounded(what) => refused(
             antecedent_core::reason_code!("route_not_supported"),
             "propagation_chain.enclosure_unbounded",
@@ -330,6 +337,41 @@ pub enum ChainUnaryWire {
     },
 }
 
+/// One term of an expression stage, in postfix order.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "term", rename_all = "snake_case", deny_unknown_fields)]
+pub enum ChainExprTermWire {
+    /// Push the stage's input at this position.
+    Input {
+        /// Position among the stage's inputs.
+        position: u64,
+    },
+    /// Push a constant, as bits.
+    Constant {
+        /// Value bits.
+        value: u64,
+    },
+    /// Pop `b`, `a`; push `a + b`.
+    Add,
+    /// Pop `b`, `a`; push `a - b`.
+    Subtract,
+    /// Pop `b`, `a`; push `a * b`.
+    Multiply,
+    /// Pop `b`, `a`; push `a / b`, refused when the draws of `b` reach zero or
+    /// some draw has magnitude below the bound.
+    Divide {
+        /// Smallest magnitude a denominator draw may have, bits.
+        min_magnitude: u64,
+    },
+    /// Check the top column lies in the range; refused outside it, never clipped.
+    RequireRange {
+        /// Smallest admissible value, bits.
+        low: u64,
+        /// Largest admissible value, bits.
+        high: u64,
+    },
+}
+
 /// The operator of one stage.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
@@ -371,6 +413,12 @@ pub enum ChainOpWire {
         reference_utility: u64,
         /// Standard-normal draws of the simulated studies, one per row, bits.
         noise: Vec<u64>,
+    },
+    /// A formula over the inputs in postfix order: a measurement correction as a
+    /// ratio of aligned draws, a predictive line with an independent residual.
+    Expression {
+        /// The terms, in postfix order.
+        terms: Vec<ChainExprTermWire>,
     },
 }
 
@@ -616,7 +664,40 @@ impl ChainUnaryWire {
     }
 }
 
+impl ChainExprTermWire {
+    /// Push the stage's input at `position`.
+    #[must_use]
+    pub fn input(position: usize) -> Self {
+        Self::Input { position: word_of(position) }
+    }
+
+    /// Push a constant.
+    #[must_use]
+    pub fn constant(value: f64) -> Self {
+        Self::Constant { value: value.to_bits() }
+    }
+
+    /// A division whose denominator draws must stay at least `min_magnitude`
+    /// away from zero (and never reach it).
+    #[must_use]
+    pub fn divide(min_magnitude: f64) -> Self {
+        Self::Divide { min_magnitude: min_magnitude.to_bits() }
+    }
+
+    /// A check that the top column lies in `[low, high]`.
+    #[must_use]
+    pub fn require_range(low: f64, high: f64) -> Self {
+        Self::RequireRange { low: low.to_bits(), high: high.to_bits() }
+    }
+}
+
 impl ChainOpWire {
+    /// A formula over the inputs in postfix order.
+    #[must_use]
+    pub fn expression(terms: Vec<ChainExprTermWire>) -> Self {
+        Self::Expression { terms }
+    }
+
     /// `input_0 * scale + shift`.
     #[must_use]
     pub fn affine(scale: ChainCoefficientWire, shift: ChainCoefficientWire) -> Self {
@@ -775,6 +856,26 @@ fn unary(wire: &ChainUnaryWire) -> UnaryFn {
     }
 }
 
+fn expr_term(wire: &ChainExprTermWire) -> Result<ExprTerm, Error> {
+    let f = f64::from_bits;
+    Ok(match wire {
+        ChainExprTermWire::Input { position } => ExprTerm::Input(
+            usize::try_from(*position)
+                .map_err(|_| malformed("an expression input position is too large"))?,
+        ),
+        ChainExprTermWire::Constant { value } => ExprTerm::Constant(f(*value)),
+        ChainExprTermWire::Add => ExprTerm::Add,
+        ChainExprTermWire::Subtract => ExprTerm::Subtract,
+        ChainExprTermWire::Multiply => ExprTerm::Multiply,
+        ChainExprTermWire::Divide { min_magnitude } => {
+            ExprTerm::Divide { min_magnitude: f(*min_magnitude) }
+        }
+        ChainExprTermWire::RequireRange { low, high } => {
+            ExprTerm::RequireRange { low: f(*low), high: f(*high) }
+        }
+    })
+}
+
 fn stage_op(wire: &ChainOpWire) -> Result<StageOp, Error> {
     Ok(match wire {
         ChainOpWire::Affine { scale, shift } => {
@@ -786,6 +887,9 @@ fn stage_op(wire: &ChainOpWire) -> Result<StageOp, Error> {
             StageOp::Binary(parse(Combine::from_name(combine), "combination", combine)?)
         }
         ChainOpWire::Unary { function } => StageOp::Unary(unary(function)),
+        ChainOpWire::Expression { terms } => {
+            StageOp::Expression(terms.iter().map(expr_term).collect::<Result<Vec<_>, _>>()?)
+        }
         ChainOpWire::Preposterior { noise_sd, sample_size, reference_utility, noise } => {
             StageOp::Preposterior(Preposterior {
                 noise_sd: f64::from_bits(*noise_sd),
@@ -803,7 +907,9 @@ fn operator_class(wire: &ChainOpWire) -> OperatorClass {
         ChainOpWire::Reweight { .. } => OperatorClass::Reweight,
         ChainOpWire::Pool { dependent: true } => OperatorClass::DependentPool,
         ChainOpWire::Pool { dependent: false } => OperatorClass::IndependentPool,
-        ChainOpWire::Binary { .. } | ChainOpWire::Unary { .. } => OperatorClass::Nonlinear,
+        ChainOpWire::Binary { .. } | ChainOpWire::Unary { .. } | ChainOpWire::Expression { .. } => {
+            OperatorClass::Nonlinear
+        }
         ChainOpWire::Preposterior { .. } => OperatorClass::Update,
     }
 }
@@ -851,6 +957,11 @@ fn check_bounds(record: &PropagationChainRecordWire) -> Result<(), Error> {
         if let ChainOpWire::Reweight { weights } = &stage.op {
             if weights.len() > MAX_CHAIN_NODES {
                 return Err(Error::LimitsExceeded("weights"));
+            }
+        }
+        if let ChainOpWire::Expression { terms } = &stage.op {
+            if terms.len() > MAX_EXPRESSION_TERMS {
+                return Err(Error::LimitsExceeded("expression terms"));
             }
         }
     }

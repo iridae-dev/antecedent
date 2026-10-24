@@ -46,6 +46,13 @@
 //! A version-1 artifact keeps its bytes and its identity, and a version-1 reader
 //! refuses a version-2 artifact before interpreting its payload.
 //!
+//! A bridge of a point source whose standard error was declared, through a mapping that
+//! declares its uncertainty and dependence, also stores the propagation inputs (the
+//! source standard error as its bit pattern and the nonlinear map, when one was asked
+//! for) and the propagated mean and variance. The consumer derives the claim again with
+//! those inputs and requires the propagated mean, variance, nonlinear expectation and
+//! the claim identity (which binds them) to equal the stored bits.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
@@ -53,9 +60,10 @@ use std::sync::Arc;
 use antecedent_contract::bridge::{
     AssumptionKind, BridgeAssumption, BridgeContract, BridgeEndpoint, BridgeKind, BridgeMapping,
     BridgeScope, BridgeSource, BridgedClaim, EstimandBridge, ExposureSetting,
-    MAX_BRIDGE_ASSUMPTIONS, MAX_VALIDATION_TRIALS, MappingUncertainty, QuantityClass,
-    SourceMappingDependence, TransportabilityPremise, TrialEffectPair, TrialLevelFit,
-    TrialLevelValidation, ValueKind, derive_bridged_claim,
+    MAX_BRIDGE_ASSUMPTIONS, MAX_VALIDATION_TRIALS, MappingUncertainty, NonlinearMap,
+    PointPropagation, QuantityClass, SourceMappingDependence, TransportabilityPremise,
+    TrialEffectPair, TrialLevelFit, TrialLevelValidation, ValueKind,
+    derive_bridged_claim_propagating,
 };
 use antecedent_contract::evidence_ledger::parse_digest_hex;
 use antecedent_contract::{
@@ -374,8 +382,31 @@ pub struct ScientificBridgeMeta {
     /// distribution; carried in the extended format only.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub draws: Option<DrawsWire>,
+    /// The propagation inputs and the propagated variance of a point source; carried
+    /// in the extended format only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub propagation: Option<PropagationWire>,
     /// BLAKE3 identity (hex) of everything above.
     pub identity: String,
+}
+
+/// The propagated uncertainty of a point source: the inputs the variance is built from
+/// and the numbers it gave, as bit patterns.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PropagationWire {
+    /// Source standard error bits.
+    pub source_standard_error_bits: u64,
+    /// The nonlinear map of the propagated law, by name, when one was requested.
+    pub nonlinear: Option<String>,
+    /// Propagated mean bits.
+    pub mean_bits: u64,
+    /// Propagated variance bits.
+    pub variance_bits: u64,
+    /// Bits of the nonlinear map of the propagated mean, when a map was requested.
+    pub nonlinear_map_of_mean_bits: Option<u64>,
+    /// Bits of the nonlinear expectation, when a map was requested.
+    pub nonlinear_expectation_bits: Option<u64>,
 }
 
 /// What a bridge of draws stores beside the contract: the source table's
@@ -403,6 +434,25 @@ pub struct DrawsWire {
 }
 
 // -- hex and conversion helpers ---------------------------------------------------------------
+
+fn propagation_to_wire(propagation: &PointPropagation) -> PropagationWire {
+    PropagationWire {
+        source_standard_error_bits: propagation.source_standard_error.to_bits(),
+        nonlinear: propagation.nonlinear.map(|n| n.map.as_str().to_owned()),
+        mean_bits: propagation.mean.to_bits(),
+        variance_bits: propagation.variance.to_bits(),
+        nonlinear_map_of_mean_bits: propagation.nonlinear.map(|n| n.map_of_mean.to_bits()),
+        nonlinear_expectation_bits: propagation.nonlinear.map(|n| n.expectation.to_bits()),
+    }
+}
+
+fn nonlinear_from_name(name: &str) -> Result<NonlinearMap, ScientificBridgeArtifactError> {
+    match name {
+        "square" => Ok(NonlinearMap::Square),
+        "exponential" => Ok(NonlinearMap::Exponential),
+        _ => Err(malformed("nonlinear map is not one the bridge propagates")),
+    }
+}
 
 fn digest_of(
     text: &str,
@@ -760,6 +810,10 @@ fn estimand_from_wire(value: &EstimandWire) -> EstimandBridge {
 /// when the artifact stores draws, so a point bridge keeps its version-1 stream.
 const DRAWS_IDENTITY_SECTION: u64 = 0xD2A5;
 
+/// Section word that opens the identity suffix of a point bridge that stores a
+/// propagation. Written only then, so every other point bridge keeps its stream.
+const PROPAGATION_IDENTITY_SECTION: u64 = 0x9A07;
+
 fn compute_identity(meta: &ScientificBridgeMeta) -> Result<String, ScientificBridgeArtifactError> {
     let encode = |error: crate::IoError| ScientificBridgeArtifactError::Encode(error.to_string());
     let contract_digest =
@@ -795,6 +849,11 @@ fn compute_identity(meta: &ScientificBridgeMeta) -> Result<String, ScientificBri
         let digest = CanonicalWriter::digest_bytes_hex(TAG_BODY, &to_cbor(draws).map_err(encode)?);
         writer.word(DRAWS_IDENTITY_SECTION).text(&digest);
     }
+    if let Some(propagation) = &meta.propagation {
+        let digest =
+            CanonicalWriter::digest_bytes_hex(TAG_BODY, &to_cbor(propagation).map_err(encode)?);
+        writer.word(PROPAGATION_IDENTITY_SECTION).text(&digest);
+    }
     Ok(writer.finish_hex())
 }
 
@@ -807,7 +866,8 @@ fn compute_identity(meta: &ScientificBridgeMeta) -> Result<String, ScientificBri
 /// version-2 payload under the version-1 marker is another version, refused
 /// before it is interpreted.
 fn check_format(meta: &ScientificBridgeMeta) -> Result<(), ScientificBridgeArtifactError> {
-    let extended = meta.contract.is_extended() || meta.draws.is_some();
+    let extended =
+        meta.contract.is_extended() || meta.draws.is_some() || meta.propagation.is_some();
     match meta.version {
         SCIENTIFIC_BRIDGE_ARTIFACT_VERSION => {
             if meta.feature != SCIENTIFIC_BRIDGE_ARTIFACT_FEATURE {
@@ -841,8 +901,9 @@ fn check_format(meta: &ScientificBridgeMeta) -> Result<(), ScientificBridgeArtif
 }
 
 /// The version and feature marker a point bridge is written under.
-fn point_format(contract: &BridgeContract) -> (u16, &'static str) {
-    if contract.mapping_uncertainty.is_some()
+fn point_format(contract: &BridgeContract, propagated: bool) -> (u16, &'static str) {
+    if propagated
+        || contract.mapping_uncertainty.is_some()
         || contract.source_dependence.is_some()
         || contract.estimand_bridge.is_some()
     {
@@ -864,9 +925,18 @@ fn check(
     }
     let contract = contract_from_wire(&meta.contract)?;
     let source = source_from_wire(&meta.source)?;
-    let bridged = derive_bridged_claim(
+    let (standard_error, nonlinear) = match &meta.propagation {
+        None => (None, None),
+        Some(wire) => (
+            Some(f64::from_bits(wire.source_standard_error_bits)),
+            wire.nonlinear.as_deref().map(nonlinear_from_name).transpose()?,
+        ),
+    };
+    let bridged = derive_bridged_claim_propagating(
         &contract,
         &BridgeSource { claim: &source, quantity: &contract.source.quantity },
+        standard_error,
+        nonlinear,
     )
     .map_err(refused)?;
     let mismatch = ScientificBridgeArtifactError::ReplayMismatch;
@@ -884,6 +954,9 @@ fn check(
     }
     if bridged.fit.as_ref().map(fit_to_wire) != meta.fit {
         return Err(mismatch("trial-level fit"));
+    }
+    if bridged.propagation.as_ref().map(propagation_to_wire) != meta.propagation {
+        return Err(mismatch("propagated uncertainty"));
     }
     let identity = compute_identity(meta)?;
     if meta.identity != identity {
@@ -1008,7 +1081,7 @@ impl ScientificBridgeArtifact {
         bridged: &BridgedClaim,
         source: &BridgeSource<'_>,
     ) -> Result<(Self, ScientificBridgeMeta), ScientificBridgeArtifactError> {
-        let (version, feature) = point_format(&bridged.contract);
+        let (version, feature) = point_format(&bridged.contract, bridged.propagation.is_some());
         let mut meta = ScientificBridgeMeta {
             version,
             feature: feature.to_owned(),
@@ -1020,6 +1093,7 @@ impl ScientificBridgeArtifact {
             transported: bridged.transported,
             fit: bridged.fit.as_ref().map(fit_to_wire),
             draws: None,
+            propagation: bridged.propagation.as_ref().map(propagation_to_wire),
             identity: String::new(),
         };
         meta.identity = compute_identity(&meta)?;
@@ -1128,6 +1202,9 @@ fn check_draws(
     if meta.fit.is_some() {
         return Err(mismatch("trial-level fit"));
     }
+    if meta.propagation.is_some() {
+        return Err(mismatch("propagated uncertainty"));
+    }
     if source_draws.len() > crate::distribution_artifact::MAX_DISTRIBUTION_ARTIFACT_BYTES {
         return Err(ScientificBridgeArtifactError::LimitsExceeded("source draws"));
     }
@@ -1201,6 +1278,7 @@ impl ScientificBridgeDrawsArtifact {
             value_bits: claim.mean.to_bits(),
             transported: claim.transported,
             fit: None,
+            propagation: None,
             draws: Some(DrawsWire {
                 seed: claim.stream,
                 source_identity: bridged.source().metadata().identity.clone(),

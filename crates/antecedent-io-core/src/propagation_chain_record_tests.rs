@@ -614,3 +614,183 @@ fn a_point_only_chain_has_a_value_and_no_spread() {
         PropagationChainRecordWire::seal(spread, &ctx()).expect_err("refused").to_refusal();
     assert_eq!(refusal.code(), "uncertainty_representation_insufficient");
 }
+
+/// `(q + sp - 1) / (se + sp - 1)` over `[q, se, sp]`, guarded and range-checked.
+fn correction_op(min_magnitude: f64) -> ChainOpWire {
+    use ChainExprTermWire as Term;
+    ChainOpWire::expression(vec![
+        Term::input(0),
+        Term::input(2),
+        Term::Add,
+        Term::constant(-1.0),
+        Term::Add,
+        Term::input(1),
+        Term::input(2),
+        Term::Add,
+        Term::constant(-1.0),
+        Term::Add,
+        Term::divide(min_magnitude),
+        Term::require_range(0.0, 1.0),
+    ])
+}
+
+fn rate_columns() -> (Vec<f64>, Vec<f64>, Vec<f64>) {
+    (normal_grid(0.31, 0.01), independent_grid(0.9, 0.01), independent_grid(0.8, 0.01))
+}
+
+fn correction_draft(min_magnitude: f64) -> PropagationChainRecordWire {
+    let (q, se, sp) = rate_columns();
+    PropagationChainRecordWire::draft(
+        TableConstruction::JointDraws,
+        ChainReading::Spread,
+        "corrected",
+        vec![
+            ChainSourceWire::draws("q", LawMeaning::Posterior, TABLE, &q)
+                .with_factor(SharedFactorKind::Row, "clinic-rows"),
+            ChainSourceWire::draws("se", LawMeaning::Posterior, TABLE, &se)
+                .with_factor(SharedFactorKind::Parameter, "validation-sample"),
+            ChainSourceWire::draws("sp", LawMeaning::Posterior, TABLE, &sp)
+                .with_factor(SharedFactorKind::Parameter, "validation-sample"),
+        ],
+        vec![ChainStageWire::new(
+            "corrected",
+            StageKind::MeasurementMapping,
+            &["q", "se", "sp"],
+            correction_op(min_magnitude),
+        )],
+    )
+}
+
+#[test]
+fn a_ratio_expression_record_matches_the_formula_and_the_consumer_replays_it() {
+    let record = PropagationChainRecordWire::seal(correction_draft(0.5), &ctx()).expect("seals");
+    assert_eq!(record.label, "uncalibrated_spread");
+    let (q, se, sp) = rate_columns();
+    let corrected: Vec<f64> =
+        (0..ROWS).map(|i| (q[i] + sp[i] - 1.0) / (se[i] + sp[i] - 1.0)).collect();
+    let mean = corrected.iter().sum::<f64>() / ROWS as f64;
+    near(value(stage(&record, "corrected"), "mean"), mean, 1e-12);
+    let variance =
+        corrected.iter().map(|v| (v - mean) * (v - mean)).sum::<f64>() / (ROWS as f64 - 1.0);
+    near(value(stage(&record, "corrected"), "variance"), variance, 1e-12);
+    // The ratio of the aligned draws is not the ratio of the means.
+    near(mean, 11.0 / 70.0, 4e-3);
+    // A stage that is an expression is a nonlinear operator in the plan.
+    let plan = record.plan().expect("plan");
+    assert_eq!(plan.stage("corrected").expect("stage").class, OperatorClass::Nonlinear);
+    // The record encodes, decodes and replays to the stored bits.
+    let bytes = record.export().expect("exports");
+    let decoded = PropagationChainRecordWire::decode(&bytes).expect("decodes");
+    assert_eq!(decoded, record);
+    let consumed = decoded.consume(Some(&record.identity), &ctx()).expect("consumes");
+    assert_eq!(consumed.results, record.results);
+}
+
+#[test]
+fn an_expression_edit_is_refused_resealed_or_not_and_its_terms_are_part_of_the_identity() {
+    let record = PropagationChainRecordWire::seal(correction_draft(0.5), &ctx()).expect("seals");
+    // A changed bound is part of the identity even though it changes no number here.
+    let looser = PropagationChainRecordWire::seal(correction_draft(0.25), &ctx()).expect("seals");
+    assert_ne!(record.identity, looser.identity);
+    assert_eq!(record.results, looser.results);
+    // An unsealed edit of a constant no longer matches the identity.
+    let mut edited = record.clone();
+    edited.stages[0].op = ChainOpWire::expression(vec![ChainExprTermWire::input(0)]);
+    assert_eq!(edited.consume(None, &ctx()), Err(PropagationChainError::IdentityMismatch));
+    // A resealed edit leaves results that no longer replay.
+    edited.identity = propagation_chain_identity(&edited).expect("identity");
+    assert_eq!(edited.consume(None, &ctx()), Err(PropagationChainError::ResultMismatch));
+    // More terms than the format admits are refused before anything is read.
+    let mut long = record.clone();
+    long.stages[0].op = ChainOpWire::expression(vec![ChainExprTermWire::input(0); 65]);
+    assert_eq!(long.plan(), Err(PropagationChainError::LimitsExceeded("expression terms")));
+}
+
+#[test]
+fn a_denominator_that_reaches_zero_seals_nothing() {
+    let mut draft = correction_draft(0.0);
+    // The Youden index is negative on some rows.
+    for (row, bits) in draft.sources[1].values.iter_mut().enumerate() {
+        if row % 5 == 0 {
+            *bits = 0.1_f64.to_bits();
+        }
+    }
+    let refusal =
+        PropagationChainRecordWire::seal(draft, &ctx()).expect_err("refused").to_refusal();
+    assert_eq!(refusal.detail(), "propagation_chain.denominator_not_bounded");
+    assert_eq!(refusal.code(), "invalid_argument");
+    // A bound above the smallest Youden index refuses the same chain.
+    let bounded = correction_draft(0.9);
+    let refusal =
+        PropagationChainRecordWire::seal(bounded, &ctx()).expect_err("refused").to_refusal();
+    assert_eq!(refusal.detail(), "propagation_chain.denominator_not_bounded");
+    // A corrected rate above one is refused, never clipped.
+    let mut high = correction_draft(0.0);
+    high.sources[0].values[10] = 0.99_f64.to_bits();
+    let refusal = PropagationChainRecordWire::seal(high, &ctx()).expect_err("refused").to_refusal();
+    assert_eq!(refusal.detail(), "propagation_chain.stage_left_domain");
+}
+
+#[test]
+fn a_changed_assumption_about_a_rate_reweights_exactly_the_expression_that_reads_it() {
+    let mut draft = correction_draft(0.0);
+    draft.stages.push(ChainStageWire::new(
+        "doubled_q",
+        StageKind::DerivedQuantity,
+        &["q"],
+        ChainOpWire::affine(ChainCoefficientWire::fixed(2.0), ChainCoefficientWire::fixed(0.0)),
+    ));
+    let record = PropagationChainRecordWire::seal(draft, &ctx()).expect("seals");
+    let log_weights: Vec<f64> = (0..ROWS).map(|i| 0.5 * (i as f64 / ROWS as f64)).collect();
+    let changed = record
+        .with_change(ChainChangeWire::reweight("se", &log_weights), &ctx())
+        .expect("reweights");
+    assert_eq!(stage(&changed, "corrected").status, STATUS_REWEIGHTED);
+    assert_eq!(stage(&changed, "doubled_q").status, STATUS_CURRENT);
+    assert_eq!(bit_values(stage(&changed, "doubled_q")), bit_values(stage(&record, "doubled_q")));
+    assert_ne!(bit_values(stage(&changed, "corrected")), bit_values(stage(&record, "corrected")));
+    let withdrawn = record.with_change(ChainChangeWire::withdraw("sp"), &ctx()).expect("withdraws");
+    assert_eq!(stage(&withdrawn, "corrected").status, STATUS_INVALIDATED);
+    assert_eq!(stage(&withdrawn, "doubled_q").status, STATUS_CURRENT);
+}
+
+/// The identity of a record built only from operators that existed before the
+/// expression form is the stream the format documents, word for word.
+#[test]
+fn a_record_without_expressions_keeps_its_identity_encoding() {
+    let values = [1.0, 2.0, 3.0, 4.0];
+    let draft = PropagationChainRecordWire::draft(
+        TableConstruction::JointDraws,
+        ChainReading::Spread,
+        "scaled",
+        vec![ChainSourceWire::draws("x", LawMeaning::Posterior, TABLE, &values)],
+        vec![ChainStageWire::new(
+            "scaled",
+            StageKind::Transport,
+            &["x"],
+            ChainOpWire::affine(ChainCoefficientWire::fixed(2.0), ChainCoefficientWire::fixed(1.0)),
+        )],
+    );
+    let record = PropagationChainRecordWire::seal(draft, &ctx()).expect("seals");
+    let mut writer = CanonicalWriter::new(PROPAGATION_CHAIN_TAG);
+    writer.word(1); // format version
+    writer.word(1).word(2).text("scaled"); // joint draws, spread, output
+    writer.word(1); // one source
+    writer.text("x").word(3).opt_word(Some(2)).opt_text(Some(TABLE)).word(1);
+    writer.word(0); // no declared factors
+    writer.word(4);
+    for value in values {
+        writer.word(value.to_bits());
+    }
+    writer.word(1); // one stage
+    writer.text("scaled").word(2).word(1).texts(&["x"]); // transport, affine
+    writer.word(0); // no own factors
+    writer.word(1).word(1).real(2.0).word(1).real(1.0); // affine: fixed scale, fixed shift
+    writer.opt_word(None);
+    writer.word(0); // no changes
+    writer.text("uncalibrated_spread");
+    assert_eq!(record.identity, writer.finish_hex());
+    // The new operator takes the next numbers: tag 7 for the operator, 5 for its class (nonlinear).
+    assert_eq!(StageKind::MeasurementMapping.tag(), 1);
+    assert_eq!(OperatorClass::Nonlinear.tag(), 5);
+}

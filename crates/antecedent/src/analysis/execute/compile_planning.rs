@@ -328,7 +328,10 @@ fn lower_planning(program: PlanningProgram) -> Result<LoweredProgram, CausalErro
     Ok(PlanningLoweredParts {
         design,
         scientific,
-        identification: IdentificationLayer::Deferred { reason: PLANNING_IDENTIFIES_BY_DESIGN },
+        identification: IdentificationLayer::Deferred {
+            reason: PLANNING_IDENTIFIES_BY_DESIGN,
+            failure: None,
+        },
         statistical,
         evidence,
         physical: PhysicalLayer {
