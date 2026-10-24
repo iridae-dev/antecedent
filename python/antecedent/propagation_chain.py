@@ -33,7 +33,7 @@ computed in Rust; this module declares chains and decodes results.
 
 A value under a licensed chain is labelled ``point_only``, its spread ``uncalibrated_spread``,
 posterior draws ``posterior_propagation`` and an enclosure ``propagation_enclosure``. No label is
-a coverage statement: :meth:`PropagationChain.interval` raises ``interval_level_not_measured``.
+a coverage statement: :meth:`PropagationChain.interval` raises ``uncertainty_representation_insufficient``.
 """
 
 from __future__ import annotations
@@ -84,8 +84,8 @@ class PropagationChainRefusal(StructuredRefusal):
 
     A :class:`~antecedent.errors.CausalUnsupportedError` with a registered ``reason_code``
     (``evidence_double_counted``, ``evidence_overlap_unknown``, ``joint_law_required``,
-    ``representation_mapping_required``, ``distribution_meaning_mismatch``,
-    ``interval_level_not_measured``, ``posterior_draws_below_supported``, ``invalid_argument``) and
+    ``uncertainty_representation_insufficient``, ``distribution_meaning_mismatch``,
+    ``uncertainty_representation_insufficient``, ``posterior_draws_below_supported``, ``invalid_argument``) and
     a ``propagation_chain.*`` ``detail``. :attr:`next_attempt` is the stable name of the attempt
     that would carry the uncertainty and ``remedy`` is its sentence.
     """
@@ -554,12 +554,12 @@ class PropagationChain:
         return _chain(_native.propagation_chain_change(self._record, change, cancel))
 
     def interval(self) -> None:
-        """Always raises ``interval_level_not_measured``: a component interval does not cover the
+        """Always raises ``uncertainty_representation_insufficient``: a component interval does not cover the
         composition, and no composed coordinate has a measured coverage record."""
         _refuse(
             json.dumps(
                 {
-                    "code": "interval_level_not_measured",
+                    "code": "uncertainty_representation_insufficient",
                     "stage": "propagate_chain",
                     "detail": "propagation_chain.interval_not_measured",
                     "message": "an interval of a composed quantity needs a measured coverage "

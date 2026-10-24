@@ -150,3 +150,58 @@ reason = "the Bayesian g-computation sealer admits a Bayesian DAG ATE with an id
 id = "ResponseKennedyDr"
 served_by_specialised_sealer_for_other_shapes = true
 reason = "the static DAG response sealer admits this estimator only for a Frequentist mean curve with no refuter suite, no custom validators, a complete observation, an all-observed Mean query and a DAG; an intervention response, a refuter suite, custom validators, tiers and a CPDAG or PAG response cell fall here"
+
+[[estimator]]
+id = "BayesianBasisGcomp"
+served_by_specialised_sealer_for_other_shapes = true
+reason = "the Bayesian basis sealer admits a Bayesian explicit-DAG ATE with no refuter suite, no custom validators, no tiers and no graph posterior; an accepted structure, a refuter suite, custom validators and any Frequentist study fall here"
+
+[[estimator]]
+id = "BayesianRobustAte"
+served_by_specialised_sealer_for_other_shapes = true
+reason = "the Bayesian robust-ATE sealer admits a Bayesian explicit-DAG ATE with no refuter suite, no custom validators, no tiers and no graph posterior; an accepted structure, a refuter suite and custom validators fall here"
+
+[[estimator]]
+id = "FrontDoorTwoStage"
+served_by_specialised_sealer_for_other_shapes = true
+reason = "the front-door sealer admits a Frequentist DAG ATE with a Mean functional over all observed units; another target population or functional, a Bayesian study and a non-DAG cell fall here"
+
+[[estimator]]
+id = "FunctionalEffect"
+served_by_specialised_sealer_for_other_shapes = true
+reason = "the functional-effect sealer admits a Mean ATE or conditional effect over all observed units on a mixed ADMG whose estimand is general-ID with no graph posterior and no tiers; another functional or population, a DAG cell and a study whose estimand is not general-ID fall here"
+
+[[estimator]]
+id = "GlmAdjustment"
+served_by_specialised_sealer_for_other_shapes = true
+reason = "the GLM sealer admits a Frequentist DAG ATE with a Mean functional, a treatment-only intervention, no custom validators, no tiers and explicit or accepted structure; another functional, a non-treatment intervention, custom validators and a Bayesian study fall here"
+
+[[estimator]]
+id = "Iv2Sls"
+served_by_specialised_sealer_for_other_shapes = true
+reason = "the IV sealer admits two-stage least squares only for a Frequentist DAG ATE whose instrument is a binary 0/1 column matching the checked Wald functional; a continuous or multi-valued instrument (the preparation refuses it as unsupported) and a Bayesian study fall here"
+
+[[estimator]]
+id = "IvWald"
+served_by_specialised_sealer_for_other_shapes = true
+reason = "the IV sealer admits Wald only for a Frequentist DAG ATE; a Bayesian study and a non-DAG cell fall here"
+
+[[estimator]]
+id = "PropensityMatching"
+served_by_specialised_sealer_for_other_shapes = true
+reason = "the propensity sealer admits a Frequentist DAG ATE with a Mean functional, no custom validators, no tiers, explicit or accepted structure, a None, Cheap, PlaceboAndRcc or Full suite and no spec excluding undeclared levels; the others fall here"
+
+[[estimator]]
+id = "PropensityWeighting"
+served_by_specialised_sealer_for_other_shapes = true
+reason = "the propensity sealer admits a Frequentist DAG ATE with a Mean functional, no custom validators, no tiers, explicit or accepted structure, a None, Cheap, PlaceboAndRcc or Full suite and no spec excluding undeclared levels; a declared level exclusion, another refuter suite, custom validators, a tiered study, another functional and a Bayesian study fall here"
+
+[[estimator]]
+id = "ResponseBayesian"
+served_by_specialised_sealer_for_other_shapes = true
+reason = "the static DAG response sealer admits this estimator for a Bayesian complete-observation all-observed Mean query with no custom validators and, for a mean curve, no refuter suite; an intervention response under another suite, tiers, a temporal query and a CPDAG or PAG response cell fall here"
+
+[[estimator]]
+id = "ResponseInterventionGcomp"
+served_by_specialised_sealer_for_other_shapes = true
+reason = "the static DAG response sealer admits this estimator only for a Frequentist intervention response with a complete observation, an all-observed Mean query and no custom validators; a mean curve, tiers and a CPDAG or PAG response cell fall here"

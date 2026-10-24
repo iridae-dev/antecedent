@@ -360,10 +360,10 @@ impl PropagationChain {
     ///
     /// # Errors
     ///
-    /// Always `interval_level_not_measured`.
+    /// Always `uncertainty_representation_insufficient`.
     pub fn interval(&self) -> Result<(), ChainRefusal> {
         Err(ChainRefusal::new(
-            antecedent_core::reason_code!("interval_level_not_measured"),
+            antecedent_core::reason_code!("uncertainty_representation_insufficient"),
             "propagation_chain.interval_not_measured",
             "an interval of a composed quantity needs a measured coverage record at its composed coordinate",
             Some(&self.record.output),
@@ -382,7 +382,7 @@ impl PropagationChain {
             Ok(())
         } else {
             Err(ChainRefusal::new(
-                antecedent_core::reason_code!("representation_mapping_required"),
+                antecedent_core::reason_code!("uncertainty_representation_insufficient"),
                 "propagation_chain.not_read_as_posterior",
                 "the chain was not sealed with a posterior reading",
                 Some(&self.record.output),

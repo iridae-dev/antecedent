@@ -69,9 +69,11 @@ const NOT_SUPPORTED_CODE: &str = antecedent_core::reason_code!("route_not_suppor
 const JOINT_LAW_CODE: &str = antecedent_core::reason_code!("joint_law_required");
 const DOUBLE_COUNTED_CODE: &str = antecedent_core::reason_code!("evidence_double_counted");
 const OVERLAP_UNKNOWN_CODE: &str = antecedent_core::reason_code!("evidence_overlap_unknown");
-const REPRESENTATION_CODE: &str = antecedent_core::reason_code!("representation_mapping_required");
+const REPRESENTATION_CODE: &str =
+    antecedent_core::reason_code!("uncertainty_representation_insufficient");
 const MEANING_CODE: &str = antecedent_core::reason_code!("distribution_meaning_mismatch");
-const NOT_MEASURED_CODE: &str = antecedent_core::reason_code!("interval_level_not_measured");
+const NOT_MEASURED_CODE: &str =
+    antecedent_core::reason_code!("uncertainty_representation_insufficient");
 
 /// The attempt a refused chain names when the sources are not columns of one
 /// aligned joint draw table.

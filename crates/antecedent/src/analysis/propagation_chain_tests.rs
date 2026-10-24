@@ -121,7 +121,7 @@ fn the_interval_reading_is_closed_and_names_the_measured_coverage_attempt() {
     let chain = PropagationChain::seal(draft(ChainReading::Spread, LawMeaning::Posterior), &ctx())
         .expect("seals");
     let refusal = chain.interval().expect_err("closed");
-    assert_eq!(refusal.code(), "interval_level_not_measured");
+    assert_eq!(refusal.code(), "uncertainty_representation_insufficient");
     assert_eq!(refusal.next_attempt().name(), "measure_composed_coverage");
     assert!(chain.posterior().is_err());
 }
@@ -130,7 +130,7 @@ fn the_interval_reading_is_closed_and_names_the_measured_coverage_attempt() {
 fn a_sampling_law_cannot_be_updated_or_read_as_a_posterior() {
     let refusal = PropagationChain::seal(draft(ChainReading::Spread, LawMeaning::Sampling), &ctx())
         .expect_err("refused");
-    assert_eq!(refusal.code(), "representation_mapping_required");
+    assert_eq!(refusal.code(), "uncertainty_representation_insufficient");
     assert_eq!(refusal.next_attempt().name(), "supply_posterior_draws");
 }
 

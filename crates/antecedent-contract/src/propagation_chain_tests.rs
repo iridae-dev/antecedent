@@ -265,7 +265,7 @@ fn a_point_carries_no_spread_and_an_interval_no_posterior() {
     };
     check_propagation_chain(&point_chain(ChainReading::Point)).expect("a value");
     let refusal = check_propagation_chain(&point_chain(ChainReading::Spread)).expect_err("refused");
-    assert_eq!(refusal.code(), "representation_mapping_required");
+    assert_eq!(refusal.code(), "uncertainty_representation_insufficient");
     assert_eq!(refusal.next_attempt(), SUPPLY_DRAWS_FOR_FIXED_INPUT);
 
     let interval_chain = |reading| {
@@ -303,7 +303,7 @@ fn a_sampling_law_is_not_a_posterior() {
         ChainReading::Posterior,
     );
     let refusal = check_propagation_chain(&decl).expect_err("refused");
-    assert_eq!(refusal.code(), "representation_mapping_required");
+    assert_eq!(refusal.code(), "uncertainty_representation_insufficient");
     assert_eq!(refusal.detail(), "propagation_chain.sampling_law_is_not_a_posterior");
     // Mixing a sampling law with a posterior is a meaning mismatch.
     let mixed = chain(
@@ -386,7 +386,7 @@ fn a_preposterior_update_needs_posterior_draws_and_is_terminal() {
 fn an_interval_reading_of_a_composed_quantity_needs_a_measured_record() {
     let refusal =
         check_propagation_chain(&release_chain(ChainReading::Interval)).expect_err("refused");
-    assert_eq!(refusal.code(), "interval_level_not_measured");
+    assert_eq!(refusal.code(), "uncertainty_representation_insufficient");
     assert_eq!(refusal.next_attempt(), MEASURE_COMPOSED_COVERAGE);
 }
 

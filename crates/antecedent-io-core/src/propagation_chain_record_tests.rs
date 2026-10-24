@@ -501,7 +501,7 @@ fn a_sampling_law_is_not_updated_by_a_future_study() {
     let refusal = PropagationChainRecordWire::seal(update_draft(LawMeaning::Sampling), &ctx())
         .expect_err("refused")
         .to_refusal();
-    assert_eq!(refusal.code(), "representation_mapping_required");
+    assert_eq!(refusal.code(), "uncertainty_representation_insufficient");
     assert_eq!(refusal.next_attempt(), SUPPLY_POSTERIOR_DRAWS);
 }
 
@@ -572,12 +572,12 @@ fn an_interval_is_not_a_spread_a_posterior_or_a_reweightable_source() {
         let refusal = PropagationChainRecordWire::seal(interval_draft(reading), &ctx())
             .expect_err("refused")
             .to_refusal();
-        assert_eq!(refusal.code(), "representation_mapping_required", "{reading:?}");
+        assert_eq!(refusal.code(), "uncertainty_representation_insufficient", "{reading:?}");
     }
     let refusal = PropagationChainRecordWire::seal(interval_draft(ChainReading::Interval), &ctx())
         .expect_err("refused")
         .to_refusal();
-    assert_eq!(refusal.code(), "interval_level_not_measured");
+    assert_eq!(refusal.code(), "uncertainty_representation_insufficient");
     let record = PropagationChainRecordWire::seal(interval_draft(ChainReading::Enclosure), &ctx())
         .expect("seals");
     let refusal = record
@@ -612,5 +612,5 @@ fn a_point_only_chain_has_a_value_and_no_spread() {
     spread.reading = ChainReading::Spread.as_str().to_owned();
     let refusal =
         PropagationChainRecordWire::seal(spread, &ctx()).expect_err("refused").to_refusal();
-    assert_eq!(refusal.code(), "representation_mapping_required");
+    assert_eq!(refusal.code(), "uncertainty_representation_insufficient");
 }

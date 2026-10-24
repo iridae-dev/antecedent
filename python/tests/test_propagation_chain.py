@@ -245,7 +245,7 @@ def test_the_representation_must_carry_the_uncertainty() -> None:
     sampling = pc.draws("a", [0.0, 1.0, 2.0], meaning="sampling", alignment=TABLE)
     with pytest.raises(R) as refused:
         pc.propagate([sampling], [stage], output="u", reading="posterior")
-    assert refused.value.code == "representation_mapping_required"
+    assert refused.value.code == "uncertainty_representation_insufficient"
     assert refused.value.next_attempt == "supply_posterior_draws"
     # A sampling law is not updated by a future study.
     update = pc.preposterior(
@@ -266,7 +266,7 @@ def test_the_representation_must_carry_the_uncertainty() -> None:
     # An interval composed with anything has no interval reading without a coverage record.
     with pytest.raises(R) as refused:
         _release().interval()
-    assert refused.value.code == "interval_level_not_measured"
+    assert refused.value.code == "uncertainty_representation_insufficient"
     assert refused.value.next_attempt == "measure_composed_coverage"
 
 
@@ -286,7 +286,7 @@ def test_intervals_run_into_an_enclosure_under_every_coupling() -> None:
     for reading in ("spread", "posterior"):
         with pytest.raises(R) as refused:
             pc.propagate(sources, stages, output="utility", reading=reading)
-        assert refused.value.code == "representation_mapping_required"
+        assert refused.value.code == "uncertainty_representation_insufficient"
     with pytest.raises(R):
         chain.reweight("effect", [0.0, 0.0])
 

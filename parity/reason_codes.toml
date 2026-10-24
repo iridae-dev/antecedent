@@ -496,6 +496,11 @@ applies_to = ["runtime_refusal"]
 meaning = "A representation changed coordinate system or version without an explicit mapping, a mapping does not run between the two versions, or causal or intervention meaning was requested through a mapping that carries values only (or for the coordinates of a learned vector representation). The refusal names the mapping or intervention-preservation evidence that would license it."
 
 [[code]]
+id = "uncertainty_representation_insufficient"
+applies_to = ["runtime_refusal"]
+meaning = "A quantity was asked for a reading its uncertainty representation cannot carry: a fixed value asked for a spread, an interval or enclosure asked for a posterior, a spread or a pool, a sampling law asked for a posterior or a future-study update, or an interval of a composed quantity with no measured coverage record at its composed coordinate. The refusal names the representation (draws, posterior draws, an enclosure reading, a measured record) that would carry it."
+
+[[code]]
 id = "differential_error_not_pooled"
 applies_to = ["runtime_refusal"]
 meaning = "Measurement error declared to differ by arm, population or time was sent through the non-differential route, a non-differential model was analysed as differential, a declared structure disagrees with its parameter layout, or the declared axis has no bounded route. The two cases are never pooled; the refusal states the structure declaration and per-arm parameters that would license the request."

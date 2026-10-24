@@ -1090,7 +1090,9 @@ impl PropagationChainRecordWire {
                     let declared = self.known_source(source)?;
                     if declared.representation != Representation::Draws.as_str() {
                         return Err(refused(
-                            antecedent_core::reason_code!("representation_mapping_required"),
+                            antecedent_core::reason_code!(
+                                "uncertainty_representation_insufficient"
+                            ),
                             "propagation_chain.reweight_needs_draws",
                             format!(
                                 "source `{source}` is not draws, so its rows cannot be re-weighted"
