@@ -131,6 +131,12 @@ status = "bound"
 python = "antecedent.scientific_bridge.consume_scientific_bridge_artifact"
 
 [[entry]]
+rust = "antecedent::analysis::api::consume_scientific_bridge_distribution_artifact"
+kind = "fn"
+status = "bound"
+python = "antecedent.scientific_bridge.consume_scientific_bridge_artifact"
+
+[[entry]]
 rust = "antecedent::analysis::api::consume_smoothed_dose_artifact"
 kind = "fn"
 status = "bound"
@@ -245,6 +251,12 @@ rust = "antecedent::analysis::api::prepare_counterfactual_transport"
 kind = "fn"
 status = "bound"
 python = "native:python/src/transport_counterfactual_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::api::scientific_bridge_artifact_shape"
+kind = "fn"
+status = "bound"
+python = "native:python/src/scientific_bridge_api.rs"
 
 [[entry]]
 rust = "antecedent::analysis::api::temporal_dependent_interval"
@@ -667,6 +679,36 @@ status = "bound"
 python = "antecedent.discretized_composition.consume_discretized_composition"
 
 [[entry]]
+rust = "antecedent::analysis::evidence_plan::plan_for_failure"
+kind = "fn"
+status = "internal"
+reason = "composes failure_routes and plan_over_routes, the two steps FailureContract and design.evidence_plan take in Python; tested in python/tests/test_evidence_plan.py"
+
+[[entry]]
+rust = "antecedent::analysis::evidence_plan::plan_over_routes"
+kind = "fn"
+status = "bound"
+python = "native:python/src/evidence_plan_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::evidence_plan::variable_names"
+kind = "fn"
+status = "bound"
+python = "native:python/src/evidence_plan_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::fallback::failure_next_actions"
+kind = "fn"
+status = "bound"
+python = "antecedent.repair.FailureContract.next_actions"
+
+[[entry]]
+rust = "antecedent::analysis::fallback::fallback_roles"
+kind = "fn"
+status = "bound"
+python = "antecedent.fallback.fallback_roles"
+
+[[entry]]
 rust = "antecedent::analysis::export_callback_result"
 kind = "fn"
 status = "bound"
@@ -1015,6 +1057,18 @@ rust = "antecedent::analysis::observation_query::consume_observation_query_artif
 kind = "fn"
 status = "bound"
 python = "antecedent.observation_query.consume_observation_query_artifact"
+
+[[entry]]
+rust = "antecedent::analysis::observation_query::retain_counts"
+kind = "fn"
+status = "bound"
+python = "antecedent.observation_query.CountData"
+
+[[entry]]
+rust = "antecedent::analysis::observation_query::retain_regression"
+kind = "fn"
+status = "bound"
+python = "antecedent.observation_query.RegressionData"
 
 [[entry]]
 rust = "antecedent::analysis::per_population_discovery::add_per_population_claims"
@@ -1730,6 +1784,13 @@ python = "antecedent._native.rank_designs"
 reason = "bound design ranking runs through the native rank_designs, whose structure-prior inputs are the declared graph weights"
 
 [[entry]]
+rust = "antecedent::design::rank_studies_bound"
+kind = "fn"
+status = "bound"
+python = "antecedent.design.evidence.EvidencePlan.variable_unlocks"
+reason = "Python derives the unlock list from the verified studies of an evidence plan (EvidencePlan.variable_unlocks) and ranks through the native rank_designs, whose structure-prior inputs are the declared or derived graph weights (StructurePrior.from_graphs)"
+
+[[entry]]
 rust = "antecedent::discovery::pag_definite_directed_edge_count"
 kind = "fn"
 status = "bound"
@@ -1945,6 +2006,12 @@ rust = "antecedent::refused_message"
 kind = "fn"
 status = "internal"
 reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::report::render_fallback_report"
+kind = "fn"
+status = "bound"
+python = "antecedent.fallback.AnalysisWithFallback.report"
 
 [[entry]]
 rust = "antecedent::report::render_report"
@@ -2223,6 +2290,12 @@ status = "bound"
 python = "antecedent.scientific_bridge.PreparedBridge"
 
 [[entry]]
+rust = "antecedent::PreparedScientificBridgeDistribution"
+kind = "type"
+status = "bound"
+python = "antecedent.scientific_bridge.PreparedDistributionBridge"
+
+[[entry]]
 rust = "antecedent::PreparedSmoothedDose"
 kind = "type"
 status = "bound"
@@ -2359,6 +2432,7 @@ rust = "antecedent::counterfactual_id::PreparedCounterfactualId"
 kind = "type"
 status = "bound"
 python = "antecedent.counterfactual_id.PreparedEffectOnTreated"
+
 [[entry]]
 rust = "antecedent::analysis::inverse_sources::evaluate"
 kind = "fn"
@@ -2527,6 +2601,24 @@ rust = "antecedent::host::error_response"
 kind = "fn"
 status = "bound"
 python = "antecedent.host.error_response"
+
+[[entry]]
+rust = "antecedent::host::evidence_obligation_record"
+kind = "fn"
+status = "internal"
+reason = "shapes one obligation inside host.fallback_response; Python reads the same fields off repair.EvidenceObligation.to_dict"
+
+[[entry]]
+rust = "antecedent::host::fallback_response"
+kind = "fn"
+status = "bound"
+python = "antecedent.host.fallback_response"
+
+[[entry]]
+rust = "antecedent::host::fallback_unavailable_record"
+kind = "fn"
+status = "bound"
+python = "antecedent.fallback.FallbackUnavailable.to_dict"
 
 [[entry]]
 rust = "antecedent::host::host_schema"

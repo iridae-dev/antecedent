@@ -786,6 +786,14 @@ path = "tests/report.rs"
 name = "host_contract"
 path = "tests/host_contract.rs"
 
+[[test]]
+name = "association_route"
+path = "tests/association_route.rs"
+
+[[test]]
+name = "descriptive_fallback"
+path = "tests/descriptive_fallback.rs"
+
 [[example]]
 name = "joint_panel_workflow"
 path = "../../examples/rust/joint_panel_workflow.rs"

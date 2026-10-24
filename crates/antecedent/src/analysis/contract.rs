@@ -11,10 +11,11 @@ use std::sync::Arc;
 
 use antecedent_contract::{
     AssumptionSlot, AttestedEvidence, CalibrationView, ClaimDomains, ClaimEnvelope, ClaimKind,
-    DomainStatus, IdentificationSlot, NextAction, ObligationKind, ObligationRecord,
-    ObligationScope, OperationKind, OperationReadiness, OperationReport, ReasoningView,
-    SemanticApplicability, SemanticLayer, SlotAvailability, SupportSlot, TransformIntent,
-    TransformationReport, UncertaintyComponent, UncertaintySlot, UncertaintySource, intent_effects,
+    DomainStatus, IDENTIFICATION_NOT_CLAIMED, IdentificationSlot, NextAction, ObligationKind,
+    ObligationRecord, ObligationScope, OperationKind, OperationReadiness, OperationReport,
+    ReasoningView, SemanticApplicability, SemanticLayer, SlotAvailability, SupportSlot,
+    TransformIntent, TransformationReport, UncertaintyComponent, UncertaintySlot,
+    UncertaintySource, intent_effects,
 };
 use antecedent_core::{
     Assumption, AssumptionSet, AssumptionSource, AssumptionStatus, CausalQuery, CausalSchema,
@@ -60,9 +61,13 @@ use super::prepared::{
     PreparedStudy,
 };
 
+mod evidence_needs;
+mod failure_inputs;
 mod program_wire;
 mod result_wire;
 
+pub(crate) use evidence_needs::evidence_next_actions;
+pub(crate) use failure_inputs::{FailureInputs, failure_inputs};
 use result_wire::{LicensedWire, distribution_wire};
 
 /// Bind an executed graphless license onto the contract's support reasoning.
@@ -288,6 +293,14 @@ pub struct CausalContract {
     /// scope's draw count when the result keeps no posterior artifact (a
     /// Bayesian response's band summarizes draws it does not retain).
     pub posterior_draws: Option<u32>,
+    /// Evidence that would resolve a not-identified product, one verified
+    /// obligation per route with its proof step. Empty unless the contract holds
+    /// a not-identified product (cheap inspection holds none).
+    pub evidence_obligations: Arc<[antecedent_contract::EvidenceObligation]>,
+    /// The evidence-gathering next actions those obligations imply
+    /// (`measure_variable:<name>`, `run_experiment:<target>`, `find_instrument`,
+    /// `collect_panel`), appended to the capability report's next actions.
+    pub(crate) evidence_actions: Arc<[NextAction]>,
     /// What an executed body reports about this program: the target query and
     /// the identification certificate the program was compiled with.
     pub(crate) body: Arc<BodyFrame>,
@@ -1279,7 +1292,7 @@ impl StudyResult {
         }
         let reasoning_wire = reasoning_section(&reasoning);
         let kind_name =
-            antecedent_io::claim_kind_name(&body, reasoning_wire.identification.value.as_ref());
+            antecedent_io::claim_kind_name_of_section(&body, &reasoning_wire.identification);
         let kind = ClaimKind::from_name(kind_name).ok_or_else(|| CausalError::Compile {
             message: format!("unknown claim kind {kind_name}"),
         })?;
@@ -1287,9 +1300,9 @@ impl StudyResult {
             ClaimKind::Point => executed_scalar(self),
             _ => None,
         };
-        let domains = antecedent_io::claim_domains(
+        let domains = antecedent_io::claim_domains_of_section(
             reasoning_wire.support.value.as_ref(),
-            reasoning_wire.identification.value.as_ref(),
+            &reasoning_wire.identification,
         );
         let domain = |name: &str| {
             DomainStatus::from_name(name).ok_or_else(|| CausalError::Compile {
@@ -1312,6 +1325,7 @@ impl StudyResult {
             || self.quasi_rollout().is_some()
             || self.temporal_design().is_some()
             || self.iv_bounds().is_some()
+            || self.association().is_some()
         {
             // These non-effect result families report no calibrated scalar
             // effect interval. Their uncertainty semantics live in their
@@ -2053,6 +2067,7 @@ fn compile_with_payloads(
     let lagged = full_temporal_identification(study);
     let body =
         body_frame(&study.query, lagged.as_deref(), cached, study.population_registry.as_ref())?;
+    let (evidence_obligations, evidence_actions) = evidence_needs::derive(study, cached);
     let mut functional = match overlap_label(study, resolved_estimator.as_deref()) {
         Some(overlap) => format!("{}+{overlap}", functional_label(&study.query)),
         None => functional_label(&study.query),
@@ -2123,6 +2138,8 @@ fn compile_with_payloads(
                 InferenceMode::Bayesian(cfg) => u32::try_from(cfg.n_draws).ok(),
                 InferenceMode::Frequentist => None,
             },
+            evidence_obligations,
+            evidence_actions,
             body: Arc::new(body),
         },
         payloads,
@@ -2257,6 +2274,13 @@ fn observation_tags(query: &antecedent_core::CausalQuery) -> Vec<String> {
             }
             tags
         }
+        // The premises of a description: stated beside every association claim, none of them a
+        // causal identification premise.
+        antecedent_core::CausalQuery::Association(_) => vec![
+            "association.descriptive_only".into(),
+            "association.no_confounding_adjustment".into(),
+            "association.uncalibrated_uncertainty".into(),
+        ],
         _ => Vec::new(),
     }
 }
@@ -2564,6 +2588,7 @@ const fn compiled_off_axis_kind(query: &CausalQuery) -> Option<&'static str> {
         CausalQuery::Simulate(_) => Some("Simulate"),
         CausalQuery::TemporalDesign(_) => Some("TemporalDesign"),
         CausalQuery::IvBounds(_) => Some("IvBounds"),
+        CausalQuery::Association(_) => Some("Association"),
         _ => None,
     }
 }
@@ -2869,6 +2894,7 @@ fn functional_label(query: &CausalQuery) -> String {
         CausalQuery::Simulate(q) => format!("simulate.{}", q.target.as_str()),
         CausalQuery::TemporalDesign(q) => format!("temporal_design.{}", q.design_name()),
         CausalQuery::IvBounds(_) => "iv_bounds.binary_instrument".into(),
+        CausalQuery::Association(q) => format!("association.{}", q.functional.as_str()),
         _ => String::new(),
     }
 }
@@ -3096,6 +3122,16 @@ fn reasoning_view(
         view.identification = SlotAvailability::unavailable(IDENTIFIED_PER_EXECUTION);
         return view;
     }
+    if matches!(study.query, CausalQuery::Association(_)) {
+        // A description of the observed law claims no identification; the slot says so with
+        // the stable reason the independent consumer reads.
+        return ReasoningView::new(
+            SlotAvailability::unavailable(IDENTIFICATION_NOT_CLAIMED),
+            SlotAvailability::Available(support),
+            SlotAvailability::unavailable("execution_specific"),
+            SlotAvailability::Available(assumptions),
+        );
+    }
     let (Some(_), Some(result)) = (prepared, cached) else {
         return ReasoningView::structural(support, assumptions);
     };
@@ -3215,7 +3251,7 @@ fn operation_report(contract: &CausalContract, operation: OperationKind) -> Oper
         Some(OperationReadiness::Executable)
     };
 
-    let next_actions: Vec<NextAction> =
+    let mut next_actions: Vec<NextAction> =
         if applicability == SemanticApplicability::Licensed && blockers.is_empty() {
             Vec::new()
         } else if neighbors.is_empty() {
@@ -3229,6 +3265,9 @@ fn operation_report(contract: &CausalContract, operation: OperationKind) -> Oper
                 "choose an explicit licensed neighbor; never an automatic fallback",
             )]
         };
+    // Evidence-gathering actions follow the existing ones; a contract without a
+    // not-identified product holds none.
+    next_actions.extend(contract.evidence_actions.iter().cloned());
 
     let (preserved, invalidated) =
         if applicability == SemanticApplicability::Licensed && blockers.is_empty() {
@@ -3397,6 +3436,9 @@ fn result_reasoning(
     prepared: &ReasoningView,
     body: &AnalysisResultWire,
 ) -> Result<ReasoningView, CausalError> {
+    if let Some(association) = result.association() {
+        return Ok(association_reasoning(association, prepared));
+    }
     let identification = identification_slot_from_result(result)?;
     let mut components = Vec::new();
     if let Some(effect) = result.estimate.as_effect() {
@@ -3468,6 +3510,52 @@ fn result_reasoning(
         uncertainty,
         prepared.assumptions.clone(),
     ))
+}
+
+/// The reasoning of an executed association: identification not claimed, the uncertainty the
+/// description reports, and the premises of a description.
+fn association_reasoning(
+    association: &crate::analysis::association::AssociationPayload,
+    prepared: &ReasoningView,
+) -> ReasoningView {
+    let mut components = Vec::new();
+    if association.estimate.resampling.is_some() {
+        components.push(UncertaintyComponent::new(
+            UncertaintySource::Sampling,
+            "association_resampling_standard_error",
+            false,
+        ));
+    } else if association.estimate.terms.iter().any(|term| term.standard_error.is_some()) {
+        components.push(UncertaintyComponent::new(
+            UncertaintySource::Sampling,
+            "association_analytic_standard_error",
+            false,
+        ));
+    }
+    if association.estimate.posterior.is_some() {
+        components.push(UncertaintyComponent::new(
+            UncertaintySource::Parameter,
+            "association_posterior",
+            false,
+        ));
+    }
+    let uncertainty = if components.is_empty() {
+        SlotAvailability::unavailable("omitted")
+    } else {
+        SlotAvailability::Available(UncertaintySlot::new(components))
+    };
+    // No overlap or positivity check speaks to a description: the empirical support is
+    // not evaluated.
+    let mut support = prepared.support.clone();
+    if let SlotAvailability::Available(slot) = &mut support {
+        slot.empirical = SlotAvailability::unavailable("not_evaluated");
+    }
+    ReasoningView::new(
+        SlotAvailability::unavailable(IDENTIFICATION_NOT_CLAIMED),
+        support,
+        uncertainty,
+        prepared.assumptions.clone(),
+    )
 }
 
 fn executed_scalar(result: &StudyResult) -> Option<f64> {
@@ -3542,6 +3630,7 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
         quasi_rollout: result.quasi_rollout().map(Into::into),
         temporal_design: result.temporal_design().map(Into::into),
         iv_bounds: result.iv_bounds().map(result_wire::iv_bounds_wire),
+        association: result.association().map(result_wire::association_wire),
         interference_inference: result.interference_inference().map(Into::into),
         interventional_distribution: result.distribution().map(distribution_wire),
         // A standard error describes the published scalar; none rides without it.

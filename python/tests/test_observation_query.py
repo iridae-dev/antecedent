@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import itertools
 import json
+import math
 import subprocess
 import sys
 
@@ -566,3 +567,205 @@ def test_a_declared_model_interval_has_no_sampling_distribution():
     with pytest.raises(ObservationQueryRefusal) as interval:
         claim.interval()
     assert interval.value.detail == "observation_query.declared_model_has_no_sampling_interval"
+
+
+# ------------------------------------------------ continuous evidence, mixed queries, redraw
+
+
+def real_quantity(variable: str) -> mc.Quantity:
+    return mc.Quantity(
+        variable,
+        units="u",
+        population_id="pop",
+        role="outcome" if variable == "Y" else "covariate",
+        variable_name=f"label of {variable}",
+    )
+
+
+def linear(variable, parents, *, intercept, sigma) -> mc.Mechanism:
+    declaration = mc.MechanismDeclaration(
+        output=real_quantity(variable),
+        parents=tuple(real_quantity(p) for p in parents),
+        artifact_id=f"declared:{variable}",
+        evidence_id=f"assumed:{variable}",
+    )
+    return mc.Mechanism.declared_linear(
+        declaration, intercept=intercept, sigma=sigma, coefficients=dict(parents)
+    )
+
+
+def gaussian_chain() -> mc.PreparedMechanismComposition:
+    """X ~ N(1, 4); M = 0.5 + 2 X + e; Y = -1 + 0.5 X + 3 M + 0.5 e.
+
+    The joint law (hand computed): means 1, 2.5, 7; variances 4, 17, 178.25; covariances
+    cov(X, M) = 8, cov(X, Y) = 26, cov(M, Y) = 55.
+    """
+    return mc.compose_mechanisms(
+        [
+            linear("X", {}, intercept=1.0, sigma=2.0),
+            linear("M", {"X": 2.0}, intercept=0.5, sigma=1.0),
+            linear("Y", {"X": 0.5, "M": 3.0}, intercept=-1.0, sigma=0.5),
+        ],
+        target_population_id="pop",
+        admit_declared_mechanisms=True,
+    )
+
+
+def test_continuous_evidence_is_conditioned_by_the_schur_complement():
+    model = gaussian_chain()
+    claim = oq.condition_on_values(model, "Y", {"M": 3.0})
+    assert claim.operation == "conditioning"
+    assert claim.gaussian.mean == pytest.approx(7.0 + 55.0 / 17.0 * 0.5, abs=1e-10)
+    assert claim.gaussian.variance == pytest.approx(178.25 - 55.0**2 / 17.0, abs=1e-10)
+    density = -0.5 * (math.log(2 * math.pi) + math.log(17.0) + 0.25 / 17.0)
+    assert claim.gaussian.evidence_log_density == pytest.approx(density, abs=1e-10)
+    # Conditioning on both parents of Y returns its structural equation N(9, 0.25).
+    parents = oq.condition_on_values(model, "Y", {"X": 2.0, "M": 3.0})
+    assert parents.gaussian.mean == pytest.approx(9.0, abs=1e-10)
+    assert parents.gaussian.variance == pytest.approx(0.25, abs=1e-10)
+    # do(X=2), M=5 is the structural equation at X=2, M=5: N(15, 0.25).
+    mixed = oq.condition_on_values(model, "Y", {"M": 5.0}, interventions={"X": 2.0})
+    assert mixed.operation == "conditional_intervention"
+    assert mixed.gaussian.mean == pytest.approx(15.0, abs=1e-10)
+    assert mixed.gaussian.variance == pytest.approx(0.25, abs=1e-10)
+    consumed = oq.consume_observation_query_artifact(mixed.export(), mixed.identity)
+    assert consumed.claim.gaussian == mixed.gaussian
+
+
+def test_continuous_evidence_refusals_are_typed_with_remedies():
+    model = gaussian_chain()
+    with pytest.raises(ObservationQueryRefusal) as levels:
+        oq.condition_on(model, "Y", {"M": "3"})
+    assert levels.value.detail == "observation_query.levels_for_continuous_model"
+    assert levels.value.remedy
+    with pytest.raises(ObservationQueryRefusal) as both:
+        oq.condition_on_values(model, "Y", {"X": 2.0}, interventions={"X": 2.0})
+    assert both.value.reason_code == "route_not_supported"
+    assert both.value.detail == "observation_query.mixed_conditioning_and_intervention"
+    with pytest.raises(ObservationQueryRefusal) as finite:
+        oq.condition_on_values(confounded(), "Y", {"S": 1.0})
+    assert finite.value.detail == "observation_query.real_values_for_finite_model"
+
+
+def test_observation_after_intervention_matches_hand_enumeration_on_the_confounded_model():
+    model = confounded()
+    # P(Y=1 | do(S=1), Z=1) = 0.9 and P(Z=1 | do(S=1), Y=1) = 0.45 / 0.6 = 0.75.
+    seen = oq.intervene_on(model, "Y", {"S": "1"}, given={"Z": "1"})
+    assert seen.operation == "conditional_intervention"
+    assert seen.distribution["1"] == pytest.approx(0.9, abs=TOL)
+    assert seen.evidence_probability == pytest.approx(0.5, abs=TOL)
+    after = oq.intervene_on(model, "Z", {"S": "1"}, given={"Y": "1"})
+    weights = {z: (P_Z1 if z == "1" else 1 - P_Z1) * P_Y1[("1", z)] for z in "01"}
+    assert after.distribution["1"] == pytest.approx(weights["1"] / sum(weights.values()), abs=TOL)
+    assert after.distribution["1"] == pytest.approx(0.75, abs=TOL)
+    # The observational conditional on the same values keeps the S-Z association.
+    observed = oq.condition_on(model, "Z", {"S": "1", "Y": "1"})
+    assert observed.distribution["1"] == pytest.approx(0.36 / 0.39, abs=TOL)
+    # A variable that is both recorded and set is refused, with a next attempt.
+    with pytest.raises(ObservationQueryRefusal) as caught:
+        oq.intervene_on(model, "Y", {"S": "1"}, given={"S": "1"})
+    assert caught.value.reason_code == "route_not_supported"
+    assert caught.value.detail == "observation_query.mixed_conditioning_and_intervention"
+    assert caught.value.remedy
+
+
+def counts_for_confounded() -> list[oq.CountData]:
+    return [
+        oq.CountData("Z", [({}, {"0": 100, "1": 100})]),
+        oq.CountData("S", [({"Z": "0"}, {"0": 160, "1": 40}), ({"Z": "1"}, {"0": 40, "1": 160})]),
+        oq.CountData(
+            "Y",
+            [
+                ({"S": "0", "Z": "0"}, {"0": 45, "1": 5}),
+                ({"S": "0", "Z": "1"}, {"0": 25, "1": 25}),
+                ({"S": "1", "Z": "0"}, {"0": 35, "1": 15}),
+                ({"S": "1", "Z": "1"}, {"0": 5, "1": 45}),
+            ],
+        ),
+    ]
+
+
+def test_dirichlet_redraw_returns_aligned_draws_around_the_posterior_mean():
+    claim = oq.parameter_uncertainty(
+        confounded(),
+        "Y",
+        given={"S": "1"},
+        retained=counts_for_confounded(),
+        draws=4000,
+        seed=3,
+    )
+    assert claim.operation == "parameter_redraw"
+    aligned = claim.parameter_draws
+    assert aligned.quantities == ("probability:0", "probability:1")
+    assert aligned.draws == 4000
+    assert aligned.reading == "uncalibrated_spread"
+    assert aligned.point[1] == pytest.approx(0.78, abs=TOL)
+    # One draw produced both levels: each row is one distribution.
+    assert all(abs(row[0] + row[1] - 1.0) < 1e-12 for row in aligned.values)
+    # The plug-in at the posterior-mean tables, by brute force over the counted cells.
+    def posterior_mean(counts, a=1.0):
+        return {k: (v + a) / (sum(counts.values()) + 2 * a) for k, v in counts.items()}
+
+    pz = posterior_mean({"0": 100, "1": 100})
+    ps = {z: posterior_mean(c) for z, c in {"0": {"0": 160, "1": 40}, "1": {"0": 40, "1": 160}}.items()}
+    py = {
+        ("0", "0"): posterior_mean({"0": 45, "1": 5}),
+        ("0", "1"): posterior_mean({"0": 25, "1": 25}),
+        ("1", "0"): posterior_mean({"0": 35, "1": 15}),
+        ("1", "1"): posterior_mean({"0": 5, "1": 45}),
+    }
+    num = den = 0.0
+    for z in "01":
+        w = pz[z] * ps[z]["1"]
+        den += w
+        num += w * py[("1", z)]["1"]
+    mean, spread = aligned.spread("probability:1")
+    assert abs(mean - num / den) < 0.01
+    assert 0.0 < spread < 0.1
+    # Determinism: the same seed gives the same draws and identity.
+    again = oq.parameter_uncertainty(
+        confounded(), "Y", given={"S": "1"}, retained=counts_for_confounded(), draws=4000, seed=3
+    )
+    assert again.identity == claim.identity
+    assert again.parameter_draws.values == aligned.values
+
+
+def test_an_interval_of_redrawn_parameters_needs_a_measured_coverage_record():
+    claim = oq.parameter_uncertainty(
+        confounded(), "Y", given={"S": "1"}, retained=counts_for_confounded(), draws=500
+    )
+    with pytest.raises(ObservationQueryRefusal) as caught:
+        claim.parameter_interval(
+            "probability:1", "aligned_draw_equal_tail_exchangeable_rank", evidence_rows=200
+        )
+    assert caught.value.reason_code == "cell_not_licensed"
+    with pytest.raises(ObservationQueryRefusal):
+        claim.interval()
+
+
+def test_a_regression_redraw_spreads_around_the_declared_structural_equation():
+    x = [i / 12.0 for i in range(60)]
+    m = [0.5 + 2.0 * v + 0.3 * math.sin(5.0 * i) for i, v in enumerate(x)]
+    y = [-1.0 + 0.5 * a + 3.0 * b + 0.2 * math.cos(11.0 * i) for i, (a, b) in enumerate(zip(x, m, strict=True))]
+    claim = oq.parameter_uncertainty(
+        gaussian_chain(),
+        "Y",
+        retained=[oq.RegressionData("Y", y, {"X": x, "M": m})],
+        interventions={"X": 2.0},
+        observed_values={"M": 3.0},
+        draws=1000,
+        seed=2,
+    )
+    aligned = claim.parameter_draws
+    assert aligned.quantities == ("conditional_mean", "conditional_variance")
+    assert aligned.point == pytest.approx((9.0, 0.25), abs=1e-10)
+    mean, spread = aligned.spread("conditional_mean")
+    assert spread > 0.0
+    assert abs(mean - 9.0) < 0.5
+    with pytest.raises(ObservationQueryRefusal):
+        oq.parameter_uncertainty(
+            gaussian_chain(),
+            "Y",
+            retained=[oq.RegressionData("Y", y, {"X": x})],
+            observed_values={"M": 3.0},
+        )

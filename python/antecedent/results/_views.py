@@ -933,6 +933,10 @@ class AnalysisResult(ResultModel, ResultAPI):
     #: Sharp bounds on the average effect under a binary instrument
     #: (:class:`antecedent.quasi.IvBoundsEstimate`): an identified set, never a point; unlicensed.
     iv_bounds: Any | None = None
+    #: Noncausal association of the observed data
+    #: (:class:`antecedent.descriptive.AssociationEstimate`): identification is not claimed, never
+    #: an intervention effect, ranks no action; unlicensed, calibration unmeasured.
+    association: Any | None = None
     #: Heterogeneity-robust or covariate-adjusted DiD, conformal or multi-unit synthetic panel,
     #: or optioned local ratio (:class:`antecedent.quasi.QuasiRolloutEstimate`); unlicensed.
     quasi_rollout: Any | None = None

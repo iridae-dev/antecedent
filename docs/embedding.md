@@ -75,6 +75,9 @@ cannot differ:
 
 The rules, in order, for a claim: a `refusal` kind, or any domain `contradicted` or
 `outside_scope`, is `unsupported`; an `incomplete` or `bounds` kind is `partial`; an
+`associational` claim, which is noncausal and reports identification as `not_claimed`, is
+`supported` when it is evaluated and `partial` otherwise (it is never counted as an
+identified, causal claim, and its record states `causal: false`); an
 identified and evaluated claim is `supported` (an `unknown` support domain means no
 empirical check ran, stays visible in the domains and does not demote it); anything else
 is `partial`. For an operation: an impossible or unlicensed cell, or a failed empirical

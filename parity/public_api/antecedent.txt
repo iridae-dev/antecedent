@@ -91,6 +91,7 @@
 #[non_exhaustive] pub enum antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresReportRequest
 #[non_exhaustive] pub enum antecedent::analysis::design_ranking::DesignRankingError
 #[non_exhaustive] pub enum antecedent::analysis::discretized_composition::DiscretizationRefusal
+#[non_exhaustive] pub enum antecedent::analysis::evidence_plan::EvidencePlanFacadeError
 #[non_exhaustive] pub enum antecedent::analysis::file_table::FileTableError
 #[non_exhaustive] pub enum antecedent::analysis::inverse_sources::ComposedSourceRefusal
 #[non_exhaustive] pub enum antecedent::analysis::recalc_receipt::RecalcSessionKind
@@ -255,6 +256,7 @@ impl core::clone::Clone for antecedent::ConsumedEvidenceLedger
 impl core::clone::Clone for antecedent::ConsumedMeasurement
 impl core::clone::Clone for antecedent::ConsumedMonitoringContract
 impl core::clone::Clone for antecedent::ConsumedScientificBridge
+impl core::clone::Clone for antecedent::ConsumedScientificBridgeDistribution
 impl core::clone::Clone for antecedent::ContinuousDoseResponseEstimate
 impl core::clone::Clone for antecedent::ContinuousErrorInput
 impl core::clone::Clone for antecedent::ContinuousMeasurementEstimate
@@ -276,6 +278,7 @@ impl core::clone::Clone for antecedent::DesignPosteriorModel
 impl core::clone::Clone for antecedent::DiscoveredStructure
 impl core::clone::Clone for antecedent::DiscoveryPayload
 impl core::clone::Clone for antecedent::DiscoverySpec
+impl core::clone::Clone for antecedent::DistributionBridgeInspection
 impl core::clone::Clone for antecedent::DroppedColumn
 impl core::clone::Clone for antecedent::DuplicateGroup
 impl core::clone::Clone for antecedent::EnumeratedStatus
@@ -374,6 +377,7 @@ impl core::clone::Clone for antecedent::PreparedMzTransport
 impl core::clone::Clone for antecedent::PreparedObservationRecovery
 impl core::clone::Clone for antecedent::PreparedPredictiveAssessment
 impl core::clone::Clone for antecedent::PreparedScientificBridge
+impl core::clone::Clone for antecedent::PreparedScientificBridgeDistribution
 impl core::clone::Clone for antecedent::PreparedSmoothedDose
 impl core::clone::Clone for antecedent::PreparedTemporalTransport
 impl core::clone::Clone for antecedent::PreparedTransportScenarios
@@ -396,6 +400,7 @@ impl core::clone::Clone for antecedent::RetargetCostEstimate
 impl core::clone::Clone for antecedent::ReviewKind
 impl core::clone::Clone for antecedent::RevisionReport
 impl core::clone::Clone for antecedent::RowWeightsBinding
+impl core::clone::Clone for antecedent::ScientificBridgeDistributionResult
 impl core::clone::Clone for antecedent::ScientificBridgeExport
 impl core::clone::Clone for antecedent::ScientificBridgeRefusal
 impl core::clone::Clone for antecedent::ScientificBridgeResult
@@ -553,6 +558,8 @@ impl core::clone::Clone for antecedent::analysis::array_fits::ArrayFit
 impl core::clone::Clone for antecedent::analysis::array_fits::TemporalScoreModel
 impl core::clone::Clone for antecedent::analysis::array_fits::TemporalTreatmentScoreSpec
 impl core::clone::Clone for antecedent::analysis::array_fits::TreatmentScoreSpec
+impl core::clone::Clone for antecedent::analysis::association::AssociationPayload
+impl core::clone::Clone for antecedent::analysis::association::PredictionScores
 impl core::clone::Clone for antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow
 impl core::clone::Clone for antecedent::analysis::bayesian_posterior_row::PosteriorRowPreparedState
 impl core::clone::Clone for antecedent::analysis::categorical_treatment::CategoricalTreatment
@@ -603,6 +610,7 @@ impl core::clone::Clone for antecedent::analysis::design_ranking::PriorDeclWire
 impl core::clone::Clone for antecedent::analysis::design_ranking::ProviderDeclWire
 impl core::clone::Clone for antecedent::analysis::design_ranking::SignalDeclWire
 impl core::clone::Clone for antecedent::analysis::design_ranking::StructuralCandidateDeclWire
+impl core::clone::Clone for antecedent::analysis::design_ranking::UtilityTableDeclWire
 impl core::clone::Clone for antecedent::analysis::discovered_transport::DiscoveredTransportReport
 impl core::clone::Clone for antecedent::analysis::discovered_transport::DiscoveredTransportRun
 impl core::clone::Clone for antecedent::analysis::discovered_transport_estimate::AnswerKind
@@ -639,6 +647,9 @@ impl core::clone::Clone for antecedent::analysis::effect_constancy_consumers::Co
 impl core::clone::Clone for antecedent::analysis::effect_constancy_consumers::PriorPartitionBinding
 impl core::clone::Clone for antecedent::analysis::effect_constancy_consumers::TransportConstancyDiagnostic
 impl core::clone::Clone for antecedent::analysis::evidence_ledger::PooledIntervalCandidate
+impl core::clone::Clone for antecedent::analysis::evidence_plan::EvidencePlanRequest
+impl core::clone::Clone for antecedent::analysis::evidence_plan::EvidenceValueRequest
+impl core::clone::Clone for antecedent::analysis::evidence_plan::StudyValueWire
 impl core::clone::Clone for antecedent::analysis::file_table::GaussianSummarySpec
 impl core::clone::Clone for antecedent::analysis::file_table::SummaryMissing
 impl core::clone::Clone for antecedent::analysis::horizon_composition::ComposedHorizons
@@ -701,9 +712,13 @@ impl core::clone::Clone for antecedent::analysis::native_claims::WithheldCoordin
 impl core::clone::Clone for antecedent::analysis::nonlinear_mediation::NonlinearMediation
 impl core::clone::Clone for antecedent::analysis::observation_posterior::FiniteBayesInput
 impl core::clone::Clone for antecedent::analysis::observation_query::ConsumedObservationClaim
+impl core::clone::Clone for antecedent::analysis::observation_query::ContinuousAssignments
 impl core::clone::Clone for antecedent::analysis::observation_query::ObservationClaim
 impl core::clone::Clone for antecedent::analysis::observation_query::ObservationQueryRefusal
 impl core::clone::Clone for antecedent::analysis::observation_query::ObservationRequest
+impl core::clone::Clone for antecedent::analysis::observation_query::ParameterInterval
+impl core::clone::Clone for antecedent::analysis::observation_query::ParameterRedrawRequest
+impl core::clone::Clone for antecedent::analysis::observation_query::PosteriorDraws
 impl core::clone::Clone for antecedent::analysis::observational_policy::ActionValueWire
 impl core::clone::Clone for antecedent::analysis::observational_policy::ObservationalPolicyReportWire
 impl core::clone::Clone for antecedent::analysis::observational_policy::ObservationalPolicyRequest
@@ -815,6 +830,7 @@ impl core::clone::Clone for antecedent::counterfactual_id::PreparedCounterfactua
 impl core::clone::Clone for antecedent::cross_world::CrossWorldEffect
 impl core::clone::Clone for antecedent::cross_world::CrossWorldOptions
 impl core::clone::Clone for antecedent::design::DesignRankPreview
+impl core::clone::Clone for antecedent::design::StudyDesignRanking
 impl core::clone::Clone for antecedent::discovery::BayesianDiscoverParams
 impl core::clone::Clone for antecedent::discovery::DiscoverParams
 impl core::clone::Clone for antecedent::discovery::GraphMcmcSchedule
@@ -1126,6 +1142,7 @@ impl core::cmp::PartialEq for antecedent::DependentColumn
 impl core::cmp::PartialEq for antecedent::DerivedTreatmentDeclaration
 impl core::cmp::PartialEq for antecedent::DerivedTreatmentPlan
 impl core::cmp::PartialEq for antecedent::DesignPosteriorModel
+impl core::cmp::PartialEq for antecedent::DistributionBridgeInspection
 impl core::cmp::PartialEq for antecedent::DroppedColumn
 impl core::cmp::PartialEq for antecedent::DuplicateGroup
 impl core::cmp::PartialEq for antecedent::EnumeratedStatus
@@ -1305,6 +1322,8 @@ impl core::cmp::PartialEq for antecedent::analysis::array_fits::ArrayFit
 impl core::cmp::PartialEq for antecedent::analysis::array_fits::TemporalScoreModel
 impl core::cmp::PartialEq for antecedent::analysis::array_fits::TemporalTreatmentScoreSpec
 impl core::cmp::PartialEq for antecedent::analysis::array_fits::TreatmentScoreSpec
+impl core::cmp::PartialEq for antecedent::analysis::association::AssociationPayload
+impl core::cmp::PartialEq for antecedent::analysis::association::PredictionScores
 impl core::cmp::PartialEq for antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow
 impl core::cmp::PartialEq for antecedent::analysis::categorical_treatment::CategoricalTreatment
 impl core::cmp::PartialEq for antecedent::analysis::closed_pilots::ClosedPilotRefusal
@@ -1401,9 +1420,13 @@ impl core::cmp::PartialEq for antecedent::analysis::native_claims::WithheldCoord
 impl core::cmp::PartialEq for antecedent::analysis::nonlinear_mediation::NonlinearMediation
 impl core::cmp::PartialEq for antecedent::analysis::observation_posterior::FiniteBayesInput
 impl core::cmp::PartialEq for antecedent::analysis::observation_query::ConsumedObservationClaim
+impl core::cmp::PartialEq for antecedent::analysis::observation_query::ContinuousAssignments
 impl core::cmp::PartialEq for antecedent::analysis::observation_query::ObservationClaim
 impl core::cmp::PartialEq for antecedent::analysis::observation_query::ObservationQueryRefusal
 impl core::cmp::PartialEq for antecedent::analysis::observation_query::ObservationRequest
+impl core::cmp::PartialEq for antecedent::analysis::observation_query::ParameterInterval
+impl core::cmp::PartialEq for antecedent::analysis::observation_query::ParameterRedrawRequest
+impl core::cmp::PartialEq for antecedent::analysis::observation_query::PosteriorDraws
 impl core::cmp::PartialEq for antecedent::analysis::observational_policy::ActionValueWire
 impl core::cmp::PartialEq for antecedent::analysis::observational_policy::ObservationalPolicyReportWire
 impl core::cmp::PartialEq for antecedent::analysis::observational_policy::ObservationalPolicyRequest
@@ -1555,6 +1578,7 @@ impl core::convert::From<antecedent::analysis::DecisionCarrierError> for anteced
 impl core::convert::From<antecedent::analysis::DecisionDemand> for antecedent::analysis::DecisionCompileRequest
 impl core::convert::From<antecedent::analysis::InterfaceContractRefusal> for antecedent::CausalError
 impl core::convert::From<antecedent::analysis::JointLawPropagationRefusal> for antecedent::analysis::FlagshipError
+impl core::convert::From<antecedent::analysis::design_ranking::DesignRankingError> for antecedent::analysis::evidence_plan::EvidencePlanFacadeError
 impl core::convert::From<antecedent::analysis::observation_query::ObservationQueryRefusal> for antecedent::CausalError
 impl core::convert::From<antecedent::analysis::recalc_receipt::RecalcRunError> for antecedent::analysis::FlagshipError
 impl core::convert::From<antecedent::analysis::recalc_receipt::RecalcRunError> for antecedent::analysis::recalc_design::DesignRunError
@@ -1580,9 +1604,11 @@ impl core::convert::From<antecedent_data::file_source::error::FileSourceError> f
 impl core::convert::From<antecedent_design::decision_eval::DecisionEvalError> for antecedent::analysis::FlagshipError
 impl core::convert::From<antecedent_design::design_ranking_artifact::DesignRankingArtifactError> for antecedent::analysis::design_ranking::DesignRankingError
 impl core::convert::From<antecedent_design::error::DesignError> for antecedent::CausalError
+impl core::convert::From<antecedent_design::evidence_plan::EvidencePlanError> for antecedent::analysis::evidence_plan::EvidencePlanFacadeError
 impl core::convert::From<antecedent_design::evsi::EvsiError> for antecedent::analysis::design_ranking::DesignRankingError
 impl core::convert::From<antecedent_design::inverse_forward_source::ForwardSourceRefusal> for antecedent::analysis::inverse_sources::ComposedSourceRefusal
 impl core::convert::From<antecedent_design::ranking::RankingError> for antecedent::analysis::design_ranking::DesignRankingError
+impl core::convert::From<antecedent_design::repair::RepairError> for antecedent::analysis::evidence_plan::EvidencePlanFacadeError
 impl core::convert::From<antecedent_design::repair::RepairError> for antecedent::analysis::repair::RepairFacadeError
 impl core::convert::From<antecedent_design::repair_artifact::RepairArtifactError> for antecedent::analysis::repair::RepairFacadeError
 impl core::convert::From<antecedent_design::signal::SignalError> for antecedent::analysis::design_ranking::DesignRankingError
@@ -1632,6 +1658,7 @@ impl core::convert::From<antecedent_io::latent_class_artifact::LatentClassArtifa
 impl core::convert::From<antecedent_io::nonlinear_mediation_artifact::NonlinearMediationArtifactError> for antecedent::CausalError
 impl core::convert::From<antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError> for antecedent::CausalError
 impl core::convert::From<antecedent_io::vector_treatment_artifact::VectorTreatmentArtifactError> for antecedent::CausalError
+impl core::convert::From<antecedent_io_core::bridge_distribution::BridgedDistribution> for antecedent::ScientificBridgeDistributionResult
 impl core::convert::From<antecedent_io_core::capacity_account::weighted_gaussian_capacity::WeightedCapacityError> for antecedent::analysis::file_table::FileTableError
 impl core::convert::From<antecedent_io_core::compact_export::ExportRefusal> for antecedent::CausalError
 impl core::convert::From<antecedent_io_core::error::IoError> for antecedent::CausalError
@@ -1667,6 +1694,7 @@ impl core::default::Default for antecedent::analysis::CallbackSession
 impl core::default::Default for antecedent::analysis::ProcedureElements
 impl core::default::Default for antecedent::analysis::composition::BundleBuilder
 impl core::default::Default for antecedent::analysis::file_table::SummaryMissing
+impl core::default::Default for antecedent::analysis::observation_query::ContinuousAssignments
 impl core::default::Default for antecedent::analysis::observational_policy::ObservationalPolicySpecWire
 impl core::default::Default for antecedent::analysis::recalc_adjusted::AdjustedSession
 impl core::default::Default for antecedent::analysis::recalc_bayesian::BayesianSession
@@ -1710,6 +1738,7 @@ impl core::error::Error for antecedent::analysis::JointLawPropagationRefusal
 impl core::error::Error for antecedent::analysis::design_ranking::DesignRankingError
 impl core::error::Error for antecedent::analysis::discretized_composition::DiscretizationRefusal
 impl core::error::Error for antecedent::analysis::effect_constancy_consumers::ConstancyConsumerError
+impl core::error::Error for antecedent::analysis::evidence_plan::EvidencePlanFacadeError
 impl core::error::Error for antecedent::analysis::file_table::FileTableError
 impl core::error::Error for antecedent::analysis::inverse_sources::ComposedSourceRefusal
 impl core::error::Error for antecedent::analysis::joint_panel::JointPanelError
@@ -1789,6 +1818,7 @@ impl core::fmt::Debug for antecedent::ConsumedEvidenceLedger
 impl core::fmt::Debug for antecedent::ConsumedMeasurement
 impl core::fmt::Debug for antecedent::ConsumedMonitoringContract
 impl core::fmt::Debug for antecedent::ConsumedScientificBridge
+impl core::fmt::Debug for antecedent::ConsumedScientificBridgeDistribution
 impl core::fmt::Debug for antecedent::ContinuousDoseResponseEstimate
 impl core::fmt::Debug for antecedent::ContinuousErrorInput
 impl core::fmt::Debug for antecedent::ContinuousMeasurementEstimate
@@ -1810,6 +1840,7 @@ impl core::fmt::Debug for antecedent::DesignPosteriorModel
 impl core::fmt::Debug for antecedent::DiscoveredStructure
 impl core::fmt::Debug for antecedent::DiscoveryPayload
 impl core::fmt::Debug for antecedent::DiscoverySpec
+impl core::fmt::Debug for antecedent::DistributionBridgeInspection
 impl core::fmt::Debug for antecedent::DroppedColumn
 impl core::fmt::Debug for antecedent::DuplicateGroup
 impl core::fmt::Debug for antecedent::EnumeratedStatus
@@ -1908,6 +1939,7 @@ impl core::fmt::Debug for antecedent::PreparedMzTransport
 impl core::fmt::Debug for antecedent::PreparedObservationRecovery
 impl core::fmt::Debug for antecedent::PreparedPredictiveAssessment
 impl core::fmt::Debug for antecedent::PreparedScientificBridge
+impl core::fmt::Debug for antecedent::PreparedScientificBridgeDistribution
 impl core::fmt::Debug for antecedent::PreparedSmoothedDose
 impl core::fmt::Debug for antecedent::PreparedTemporalTransport
 impl core::fmt::Debug for antecedent::PreparedTransportScenarios
@@ -1930,6 +1962,7 @@ impl core::fmt::Debug for antecedent::RetargetCostEstimate
 impl core::fmt::Debug for antecedent::ReviewKind
 impl core::fmt::Debug for antecedent::RevisionReport
 impl core::fmt::Debug for antecedent::RowWeightsBinding
+impl core::fmt::Debug for antecedent::ScientificBridgeDistributionResult
 impl core::fmt::Debug for antecedent::ScientificBridgeExport
 impl core::fmt::Debug for antecedent::ScientificBridgeRefusal
 impl core::fmt::Debug for antecedent::ScientificBridgeResult
@@ -2091,6 +2124,8 @@ impl core::fmt::Debug for antecedent::analysis::array_fits::ArrayFit
 impl core::fmt::Debug for antecedent::analysis::array_fits::TemporalScoreModel
 impl core::fmt::Debug for antecedent::analysis::array_fits::TemporalTreatmentScoreSpec
 impl core::fmt::Debug for antecedent::analysis::array_fits::TreatmentScoreSpec
+impl core::fmt::Debug for antecedent::analysis::association::AssociationPayload
+impl core::fmt::Debug for antecedent::analysis::association::PredictionScores
 impl core::fmt::Debug for antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow
 impl core::fmt::Debug for antecedent::analysis::bayesian_posterior_row::PosteriorRowPreparedState
 impl core::fmt::Debug for antecedent::analysis::categorical_treatment::CategoricalTreatment
@@ -2143,6 +2178,7 @@ impl core::fmt::Debug for antecedent::analysis::design_ranking::PriorDeclWire
 impl core::fmt::Debug for antecedent::analysis::design_ranking::ProviderDeclWire
 impl core::fmt::Debug for antecedent::analysis::design_ranking::SignalDeclWire
 impl core::fmt::Debug for antecedent::analysis::design_ranking::StructuralCandidateDeclWire
+impl core::fmt::Debug for antecedent::analysis::design_ranking::UtilityTableDeclWire
 impl core::fmt::Debug for antecedent::analysis::discovered_transport::DiscoveredTransportReport
 impl core::fmt::Debug for antecedent::analysis::discovered_transport::DiscoveredTransportRun
 impl core::fmt::Debug for antecedent::analysis::discovered_transport_estimate::AnswerKind
@@ -2179,6 +2215,11 @@ impl core::fmt::Debug for antecedent::analysis::effect_constancy_consumers::Cons
 impl core::fmt::Debug for antecedent::analysis::effect_constancy_consumers::PriorPartitionBinding
 impl core::fmt::Debug for antecedent::analysis::effect_constancy_consumers::TransportConstancyDiagnostic
 impl core::fmt::Debug for antecedent::analysis::evidence_ledger::PooledIntervalCandidate
+impl core::fmt::Debug for antecedent::analysis::evidence_plan::EvidencePlanFacadeError
+impl core::fmt::Debug for antecedent::analysis::evidence_plan::EvidencePlanRequest
+impl core::fmt::Debug for antecedent::analysis::evidence_plan::EvidencePlanResult
+impl core::fmt::Debug for antecedent::analysis::evidence_plan::EvidenceValueRequest
+impl core::fmt::Debug for antecedent::analysis::evidence_plan::StudyValueWire
 impl core::fmt::Debug for antecedent::analysis::file_table::FileGaussianSummary
 impl core::fmt::Debug for antecedent::analysis::file_table::FileTableError
 impl core::fmt::Debug for antecedent::analysis::file_table::GaussianSummarySpec
@@ -2243,9 +2284,13 @@ impl core::fmt::Debug for antecedent::analysis::native_claims::WithheldCoordinat
 impl core::fmt::Debug for antecedent::analysis::nonlinear_mediation::NonlinearMediation
 impl core::fmt::Debug for antecedent::analysis::observation_posterior::FiniteBayesInput
 impl core::fmt::Debug for antecedent::analysis::observation_query::ConsumedObservationClaim
+impl core::fmt::Debug for antecedent::analysis::observation_query::ContinuousAssignments
 impl core::fmt::Debug for antecedent::analysis::observation_query::ObservationClaim
 impl core::fmt::Debug for antecedent::analysis::observation_query::ObservationQueryRefusal
 impl core::fmt::Debug for antecedent::analysis::observation_query::ObservationRequest
+impl core::fmt::Debug for antecedent::analysis::observation_query::ParameterInterval
+impl core::fmt::Debug for antecedent::analysis::observation_query::ParameterRedrawRequest
+impl core::fmt::Debug for antecedent::analysis::observation_query::PosteriorDraws
 impl core::fmt::Debug for antecedent::analysis::observational_policy::ActionValueWire
 impl core::fmt::Debug for antecedent::analysis::observational_policy::ObservationalPolicyReportWire
 impl core::fmt::Debug for antecedent::analysis::observational_policy::ObservationalPolicyRequest
@@ -2363,6 +2408,7 @@ impl core::fmt::Debug for antecedent::counterfactual_id::PreparedCounterfactualI
 impl core::fmt::Debug for antecedent::cross_world::CrossWorldEffect
 impl core::fmt::Debug for antecedent::cross_world::CrossWorldOptions
 impl core::fmt::Debug for antecedent::design::DesignRankPreview
+impl core::fmt::Debug for antecedent::design::StudyDesignRanking
 impl core::fmt::Debug for antecedent::discovery::BayesianDiscoverParams
 impl core::fmt::Debug for antecedent::discovery::DiscoverParams
 impl core::fmt::Debug for antecedent::discovery::GraphMcmcSchedule
@@ -2477,6 +2523,7 @@ impl core::fmt::Display for antecedent::analysis::JointLawPropagationRefusal
 impl core::fmt::Display for antecedent::analysis::design_ranking::DesignRankingError
 impl core::fmt::Display for antecedent::analysis::discretized_composition::DiscretizationRefusal
 impl core::fmt::Display for antecedent::analysis::effect_constancy_consumers::ConstancyConsumerError
+impl core::fmt::Display for antecedent::analysis::evidence_plan::EvidencePlanFacadeError
 impl core::fmt::Display for antecedent::analysis::file_table::FileTableError
 impl core::fmt::Display for antecedent::analysis::inverse_sources::ComposedSourceRefusal
 impl core::fmt::Display for antecedent::analysis::joint_panel::JointPanelError
@@ -2741,6 +2788,7 @@ impl core::marker::Freeze for antecedent::ConsumedEvidenceLedger [auto]
 impl core::marker::Freeze for antecedent::ConsumedMeasurement [auto]
 impl core::marker::Freeze for antecedent::ConsumedMonitoringContract [auto]
 impl core::marker::Freeze for antecedent::ConsumedScientificBridge [auto]
+impl core::marker::Freeze for antecedent::ConsumedScientificBridgeDistribution [auto]
 impl core::marker::Freeze for antecedent::ContinuousDoseResponseEstimate [auto]
 impl core::marker::Freeze for antecedent::ContinuousErrorInput [auto]
 impl core::marker::Freeze for antecedent::ContinuousMeasurementEstimate [auto]
@@ -2761,6 +2809,7 @@ impl core::marker::Freeze for antecedent::DerivedTreatmentDeclaration [auto]
 impl core::marker::Freeze for antecedent::DerivedTreatmentPlan [auto]
 impl core::marker::Freeze for antecedent::DesignPosteriorModel [auto]
 impl core::marker::Freeze for antecedent::DiscoverySpec [auto]
+impl core::marker::Freeze for antecedent::DistributionBridgeInspection [auto]
 impl core::marker::Freeze for antecedent::DroppedColumn [auto]
 impl core::marker::Freeze for antecedent::DuplicateGroup [auto]
 impl core::marker::Freeze for antecedent::EmpiricalScenarioInput [auto]
@@ -2861,6 +2910,7 @@ impl core::marker::Freeze for antecedent::PreparedMzTransport [auto]
 impl core::marker::Freeze for antecedent::PreparedObservationRecovery [auto]
 impl core::marker::Freeze for antecedent::PreparedPredictiveAssessment [auto]
 impl core::marker::Freeze for antecedent::PreparedScientificBridge [auto]
+impl core::marker::Freeze for antecedent::PreparedScientificBridgeDistribution [auto]
 impl core::marker::Freeze for antecedent::PreparedSmoothedDose [auto]
 impl core::marker::Freeze for antecedent::PreparedTemporalTransport [auto]
 impl core::marker::Freeze for antecedent::PreparedTransportScenarios [auto]
@@ -2884,6 +2934,7 @@ impl core::marker::Freeze for antecedent::RetargetCostEstimate [auto]
 impl core::marker::Freeze for antecedent::ReviewKind [auto]
 impl core::marker::Freeze for antecedent::RevisionReport [auto]
 impl core::marker::Freeze for antecedent::RowWeightsBinding [auto]
+impl core::marker::Freeze for antecedent::ScientificBridgeDistributionResult [auto]
 impl core::marker::Freeze for antecedent::ScientificBridgeExport [auto]
 impl core::marker::Freeze for antecedent::ScientificBridgeRefusal [auto]
 impl core::marker::Freeze for antecedent::ScientificBridgeResult [auto]
@@ -3044,6 +3095,8 @@ impl core::marker::Freeze for antecedent::analysis::array_fits::ArrayFit [auto]
 impl core::marker::Freeze for antecedent::analysis::array_fits::TemporalScoreModel [auto]
 impl core::marker::Freeze for antecedent::analysis::array_fits::TemporalTreatmentScoreSpec [auto]
 impl core::marker::Freeze for antecedent::analysis::array_fits::TreatmentScoreSpec [auto]
+impl core::marker::Freeze for antecedent::analysis::association::AssociationPayload [auto]
+impl core::marker::Freeze for antecedent::analysis::association::PredictionScores [auto]
 impl core::marker::Freeze for antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow [auto]
 impl core::marker::Freeze for antecedent::analysis::bayesian_posterior_row::PosteriorRowPreparedState [auto]
 impl core::marker::Freeze for antecedent::analysis::categorical_treatment::CategoricalTreatment [auto]
@@ -3097,6 +3150,7 @@ impl core::marker::Freeze for antecedent::analysis::design_ranking::PriorDeclWir
 impl core::marker::Freeze for antecedent::analysis::design_ranking::ProviderDeclWire [auto]
 impl core::marker::Freeze for antecedent::analysis::design_ranking::SignalDeclWire [auto]
 impl core::marker::Freeze for antecedent::analysis::design_ranking::StructuralCandidateDeclWire [auto]
+impl core::marker::Freeze for antecedent::analysis::design_ranking::UtilityTableDeclWire [auto]
 impl core::marker::Freeze for antecedent::analysis::discovered_transport::DiscoveredTransportReport [auto]
 impl core::marker::Freeze for antecedent::analysis::discovered_transport_estimate::AnswerKind [auto]
 impl core::marker::Freeze for antecedent::analysis::discovered_transport_estimate::ContrastInterval [auto]
@@ -3131,6 +3185,11 @@ impl core::marker::Freeze for antecedent::analysis::effect_constancy_consumers::
 impl core::marker::Freeze for antecedent::analysis::effect_constancy_consumers::ConstancyPriorRanking [auto]
 impl core::marker::Freeze for antecedent::analysis::effect_constancy_consumers::PriorPartitionBinding [auto]
 impl core::marker::Freeze for antecedent::analysis::effect_constancy_consumers::TransportConstancyDiagnostic [auto]
+impl core::marker::Freeze for antecedent::analysis::evidence_plan::EvidencePlanFacadeError [auto]
+impl core::marker::Freeze for antecedent::analysis::evidence_plan::EvidencePlanRequest [auto]
+impl core::marker::Freeze for antecedent::analysis::evidence_plan::EvidencePlanResult [auto]
+impl core::marker::Freeze for antecedent::analysis::evidence_plan::EvidenceValueRequest [auto]
+impl core::marker::Freeze for antecedent::analysis::evidence_plan::StudyValueWire [auto]
 impl core::marker::Freeze for antecedent::analysis::file_table::FileTableError [auto]
 impl core::marker::Freeze for antecedent::analysis::file_table::GaussianSummarySpec [auto]
 impl core::marker::Freeze for antecedent::analysis::file_table::SummaryMissing [auto]
@@ -3195,9 +3254,13 @@ impl core::marker::Freeze for antecedent::analysis::native_claims::WithheldCoord
 impl core::marker::Freeze for antecedent::analysis::nonlinear_mediation::NonlinearMediation [auto]
 impl core::marker::Freeze for antecedent::analysis::observation_posterior::FiniteBayesInput [auto]
 impl core::marker::Freeze for antecedent::analysis::observation_query::ConsumedObservationClaim [auto]
+impl core::marker::Freeze for antecedent::analysis::observation_query::ContinuousAssignments [auto]
 impl core::marker::Freeze for antecedent::analysis::observation_query::ObservationClaim [auto]
 impl core::marker::Freeze for antecedent::analysis::observation_query::ObservationQueryRefusal [auto]
 impl core::marker::Freeze for antecedent::analysis::observation_query::ObservationRequest [auto]
+impl core::marker::Freeze for antecedent::analysis::observation_query::ParameterInterval [auto]
+impl core::marker::Freeze for antecedent::analysis::observation_query::ParameterRedrawRequest [auto]
+impl core::marker::Freeze for antecedent::analysis::observation_query::PosteriorDraws [auto]
 impl core::marker::Freeze for antecedent::analysis::observational_policy::ActionValueWire [auto]
 impl core::marker::Freeze for antecedent::analysis::observational_policy::ObservationalPolicyReportWire [auto]
 impl core::marker::Freeze for antecedent::analysis::observational_policy::ObservationalPolicyRequest [auto]
@@ -3332,6 +3395,7 @@ impl core::marker::Freeze for antecedent::counterfactual_id::PreparedCounterfact
 impl core::marker::Freeze for antecedent::cross_world::CrossWorldEffect [auto]
 impl core::marker::Freeze for antecedent::cross_world::CrossWorldOptions [auto]
 impl core::marker::Freeze for antecedent::design::DesignRankPreview [auto]
+impl core::marker::Freeze for antecedent::design::StudyDesignRanking [auto]
 impl core::marker::Freeze for antecedent::discovery::BayesianDiscoverParams [auto]
 impl core::marker::Freeze for antecedent::discovery::DiscoverParams [auto]
 impl core::marker::Freeze for antecedent::discovery::GraphMcmcSchedule [auto]
@@ -3479,6 +3543,7 @@ impl core::marker::Send for antecedent::ConsumedEvidenceLedger [auto]
 impl core::marker::Send for antecedent::ConsumedMeasurement [auto]
 impl core::marker::Send for antecedent::ConsumedMonitoringContract [auto]
 impl core::marker::Send for antecedent::ConsumedScientificBridge [auto]
+impl core::marker::Send for antecedent::ConsumedScientificBridgeDistribution [auto]
 impl core::marker::Send for antecedent::ContinuousDoseResponseEstimate [auto]
 impl core::marker::Send for antecedent::ContinuousErrorInput [auto]
 impl core::marker::Send for antecedent::ContinuousMeasurementEstimate [auto]
@@ -3501,6 +3566,7 @@ impl core::marker::Send for antecedent::DesignPosteriorModel [auto]
 impl core::marker::Send for antecedent::DiscoveredStructure [auto]
 impl core::marker::Send for antecedent::DiscoveryPayload [auto]
 impl core::marker::Send for antecedent::DiscoverySpec [auto]
+impl core::marker::Send for antecedent::DistributionBridgeInspection [auto]
 impl core::marker::Send for antecedent::DroppedColumn [auto]
 impl core::marker::Send for antecedent::DuplicateGroup [auto]
 impl core::marker::Send for antecedent::EmpiricalScenarioInput [auto]
@@ -3601,6 +3667,7 @@ impl core::marker::Send for antecedent::PreparedMzTransport [auto]
 impl core::marker::Send for antecedent::PreparedObservationRecovery [auto]
 impl core::marker::Send for antecedent::PreparedPredictiveAssessment [auto]
 impl core::marker::Send for antecedent::PreparedScientificBridge [auto]
+impl core::marker::Send for antecedent::PreparedScientificBridgeDistribution [auto]
 impl core::marker::Send for antecedent::PreparedSmoothedDose [auto]
 impl core::marker::Send for antecedent::PreparedTemporalTransport [auto]
 impl core::marker::Send for antecedent::PreparedTransportScenarios [auto]
@@ -3624,6 +3691,7 @@ impl core::marker::Send for antecedent::RetargetCostEstimate [auto]
 impl core::marker::Send for antecedent::ReviewKind [auto]
 impl core::marker::Send for antecedent::RevisionReport [auto]
 impl core::marker::Send for antecedent::RowWeightsBinding [auto]
+impl core::marker::Send for antecedent::ScientificBridgeDistributionResult [auto]
 impl core::marker::Send for antecedent::ScientificBridgeExport [auto]
 impl core::marker::Send for antecedent::ScientificBridgeRefusal [auto]
 impl core::marker::Send for antecedent::ScientificBridgeResult [auto]
@@ -3785,6 +3853,8 @@ impl core::marker::Send for antecedent::analysis::array_fits::ArrayFit [auto]
 impl core::marker::Send for antecedent::analysis::array_fits::TemporalScoreModel [auto]
 impl core::marker::Send for antecedent::analysis::array_fits::TemporalTreatmentScoreSpec [auto]
 impl core::marker::Send for antecedent::analysis::array_fits::TreatmentScoreSpec [auto]
+impl core::marker::Send for antecedent::analysis::association::AssociationPayload [auto]
+impl core::marker::Send for antecedent::analysis::association::PredictionScores [auto]
 impl core::marker::Send for antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow [auto]
 impl core::marker::Send for antecedent::analysis::bayesian_posterior_row::PosteriorRowPreparedState [auto]
 impl core::marker::Send for antecedent::analysis::categorical_treatment::CategoricalTreatment [auto]
@@ -3838,6 +3908,7 @@ impl core::marker::Send for antecedent::analysis::design_ranking::PriorDeclWire 
 impl core::marker::Send for antecedent::analysis::design_ranking::ProviderDeclWire [auto]
 impl core::marker::Send for antecedent::analysis::design_ranking::SignalDeclWire [auto]
 impl core::marker::Send for antecedent::analysis::design_ranking::StructuralCandidateDeclWire [auto]
+impl core::marker::Send for antecedent::analysis::design_ranking::UtilityTableDeclWire [auto]
 impl core::marker::Send for antecedent::analysis::discovered_transport::DiscoveredTransportReport [auto]
 impl core::marker::Send for antecedent::analysis::discovered_transport::DiscoveredTransportRun [auto]
 impl core::marker::Send for antecedent::analysis::discovered_transport_estimate::AnswerKind [auto]
@@ -3873,6 +3944,11 @@ impl core::marker::Send for antecedent::analysis::effect_constancy_consumers::Co
 impl core::marker::Send for antecedent::analysis::effect_constancy_consumers::ConstancyPriorRanking [auto]
 impl core::marker::Send for antecedent::analysis::effect_constancy_consumers::PriorPartitionBinding [auto]
 impl core::marker::Send for antecedent::analysis::effect_constancy_consumers::TransportConstancyDiagnostic [auto]
+impl core::marker::Send for antecedent::analysis::evidence_plan::EvidencePlanFacadeError [auto]
+impl core::marker::Send for antecedent::analysis::evidence_plan::EvidencePlanRequest [auto]
+impl core::marker::Send for antecedent::analysis::evidence_plan::EvidencePlanResult [auto]
+impl core::marker::Send for antecedent::analysis::evidence_plan::EvidenceValueRequest [auto]
+impl core::marker::Send for antecedent::analysis::evidence_plan::StudyValueWire [auto]
 impl core::marker::Send for antecedent::analysis::file_table::FileGaussianSummary [auto]
 impl core::marker::Send for antecedent::analysis::file_table::FileTableError [auto]
 impl core::marker::Send for antecedent::analysis::file_table::GaussianSummarySpec [auto]
@@ -3938,9 +4014,13 @@ impl core::marker::Send for antecedent::analysis::native_claims::WithheldCoordin
 impl core::marker::Send for antecedent::analysis::nonlinear_mediation::NonlinearMediation [auto]
 impl core::marker::Send for antecedent::analysis::observation_posterior::FiniteBayesInput [auto]
 impl core::marker::Send for antecedent::analysis::observation_query::ConsumedObservationClaim [auto]
+impl core::marker::Send for antecedent::analysis::observation_query::ContinuousAssignments [auto]
 impl core::marker::Send for antecedent::analysis::observation_query::ObservationClaim [auto]
 impl core::marker::Send for antecedent::analysis::observation_query::ObservationQueryRefusal [auto]
 impl core::marker::Send for antecedent::analysis::observation_query::ObservationRequest [auto]
+impl core::marker::Send for antecedent::analysis::observation_query::ParameterInterval [auto]
+impl core::marker::Send for antecedent::analysis::observation_query::ParameterRedrawRequest [auto]
+impl core::marker::Send for antecedent::analysis::observation_query::PosteriorDraws [auto]
 impl core::marker::Send for antecedent::analysis::observational_policy::ActionValueWire [auto]
 impl core::marker::Send for antecedent::analysis::observational_policy::ObservationalPolicyReportWire [auto]
 impl core::marker::Send for antecedent::analysis::observational_policy::ObservationalPolicyRequest [auto]
@@ -4076,6 +4156,7 @@ impl core::marker::Send for antecedent::counterfactual_id::PreparedCounterfactua
 impl core::marker::Send for antecedent::cross_world::CrossWorldEffect [auto]
 impl core::marker::Send for antecedent::cross_world::CrossWorldOptions [auto]
 impl core::marker::Send for antecedent::design::DesignRankPreview [auto]
+impl core::marker::Send for antecedent::design::StudyDesignRanking [auto]
 impl core::marker::Send for antecedent::discovery::BayesianDiscoverParams [auto]
 impl core::marker::Send for antecedent::discovery::DiscoverParams [auto]
 impl core::marker::Send for antecedent::discovery::GraphMcmcSchedule [auto]
@@ -4213,6 +4294,7 @@ impl core::marker::StructuralPartialEq for antecedent::DependentColumn
 impl core::marker::StructuralPartialEq for antecedent::DerivedTreatmentDeclaration
 impl core::marker::StructuralPartialEq for antecedent::DerivedTreatmentPlan
 impl core::marker::StructuralPartialEq for antecedent::DesignPosteriorModel
+impl core::marker::StructuralPartialEq for antecedent::DistributionBridgeInspection
 impl core::marker::StructuralPartialEq for antecedent::DroppedColumn
 impl core::marker::StructuralPartialEq for antecedent::DuplicateGroup
 impl core::marker::StructuralPartialEq for antecedent::EnumeratedStatus
@@ -4392,6 +4474,8 @@ impl core::marker::StructuralPartialEq for antecedent::analysis::array_fits::Arr
 impl core::marker::StructuralPartialEq for antecedent::analysis::array_fits::TemporalScoreModel
 impl core::marker::StructuralPartialEq for antecedent::analysis::array_fits::TemporalTreatmentScoreSpec
 impl core::marker::StructuralPartialEq for antecedent::analysis::array_fits::TreatmentScoreSpec
+impl core::marker::StructuralPartialEq for antecedent::analysis::association::AssociationPayload
+impl core::marker::StructuralPartialEq for antecedent::analysis::association::PredictionScores
 impl core::marker::StructuralPartialEq for antecedent::analysis::categorical_treatment::CategoricalTreatment
 impl core::marker::StructuralPartialEq for antecedent::analysis::closed_pilots::ClosedPilotRefusal
 impl core::marker::StructuralPartialEq for antecedent::analysis::closed_pilots::ClosedRegimeCounts
@@ -4487,9 +4571,13 @@ impl core::marker::StructuralPartialEq for antecedent::analysis::native_claims::
 impl core::marker::StructuralPartialEq for antecedent::analysis::nonlinear_mediation::NonlinearMediation
 impl core::marker::StructuralPartialEq for antecedent::analysis::observation_posterior::FiniteBayesInput
 impl core::marker::StructuralPartialEq for antecedent::analysis::observation_query::ConsumedObservationClaim
+impl core::marker::StructuralPartialEq for antecedent::analysis::observation_query::ContinuousAssignments
 impl core::marker::StructuralPartialEq for antecedent::analysis::observation_query::ObservationClaim
 impl core::marker::StructuralPartialEq for antecedent::analysis::observation_query::ObservationQueryRefusal
 impl core::marker::StructuralPartialEq for antecedent::analysis::observation_query::ObservationRequest
+impl core::marker::StructuralPartialEq for antecedent::analysis::observation_query::ParameterInterval
+impl core::marker::StructuralPartialEq for antecedent::analysis::observation_query::ParameterRedrawRequest
+impl core::marker::StructuralPartialEq for antecedent::analysis::observation_query::PosteriorDraws
 impl core::marker::StructuralPartialEq for antecedent::analysis::observational_policy::ActionValueWire
 impl core::marker::StructuralPartialEq for antecedent::analysis::observational_policy::ObservationalPolicyReportWire
 impl core::marker::StructuralPartialEq for antecedent::analysis::observational_policy::ObservationalPolicyRequest
@@ -4681,6 +4769,7 @@ impl core::marker::Sync for antecedent::ConsumedEvidenceLedger [auto]
 impl core::marker::Sync for antecedent::ConsumedMeasurement [auto]
 impl core::marker::Sync for antecedent::ConsumedMonitoringContract [auto]
 impl core::marker::Sync for antecedent::ConsumedScientificBridge [auto]
+impl core::marker::Sync for antecedent::ConsumedScientificBridgeDistribution [auto]
 impl core::marker::Sync for antecedent::ContinuousDoseResponseEstimate [auto]
 impl core::marker::Sync for antecedent::ContinuousErrorInput [auto]
 impl core::marker::Sync for antecedent::ContinuousMeasurementEstimate [auto]
@@ -4703,6 +4792,7 @@ impl core::marker::Sync for antecedent::DesignPosteriorModel [auto]
 impl core::marker::Sync for antecedent::DiscoveredStructure [auto]
 impl core::marker::Sync for antecedent::DiscoveryPayload [auto]
 impl core::marker::Sync for antecedent::DiscoverySpec [auto]
+impl core::marker::Sync for antecedent::DistributionBridgeInspection [auto]
 impl core::marker::Sync for antecedent::DroppedColumn [auto]
 impl core::marker::Sync for antecedent::DuplicateGroup [auto]
 impl core::marker::Sync for antecedent::EmpiricalScenarioInput [auto]
@@ -4803,6 +4893,7 @@ impl core::marker::Sync for antecedent::PreparedMzTransport [auto]
 impl core::marker::Sync for antecedent::PreparedObservationRecovery [auto]
 impl core::marker::Sync for antecedent::PreparedPredictiveAssessment [auto]
 impl core::marker::Sync for antecedent::PreparedScientificBridge [auto]
+impl core::marker::Sync for antecedent::PreparedScientificBridgeDistribution [auto]
 impl core::marker::Sync for antecedent::PreparedSmoothedDose [auto]
 impl core::marker::Sync for antecedent::PreparedTemporalTransport [auto]
 impl core::marker::Sync for antecedent::PreparedTransportScenarios [auto]
@@ -4826,6 +4917,7 @@ impl core::marker::Sync for antecedent::RetargetCostEstimate [auto]
 impl core::marker::Sync for antecedent::ReviewKind [auto]
 impl core::marker::Sync for antecedent::RevisionReport [auto]
 impl core::marker::Sync for antecedent::RowWeightsBinding [auto]
+impl core::marker::Sync for antecedent::ScientificBridgeDistributionResult [auto]
 impl core::marker::Sync for antecedent::ScientificBridgeExport [auto]
 impl core::marker::Sync for antecedent::ScientificBridgeRefusal [auto]
 impl core::marker::Sync for antecedent::ScientificBridgeResult [auto]
@@ -4987,6 +5079,8 @@ impl core::marker::Sync for antecedent::analysis::array_fits::ArrayFit [auto]
 impl core::marker::Sync for antecedent::analysis::array_fits::TemporalScoreModel [auto]
 impl core::marker::Sync for antecedent::analysis::array_fits::TemporalTreatmentScoreSpec [auto]
 impl core::marker::Sync for antecedent::analysis::array_fits::TreatmentScoreSpec [auto]
+impl core::marker::Sync for antecedent::analysis::association::AssociationPayload [auto]
+impl core::marker::Sync for antecedent::analysis::association::PredictionScores [auto]
 impl core::marker::Sync for antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow [auto]
 impl core::marker::Sync for antecedent::analysis::bayesian_posterior_row::PosteriorRowPreparedState [auto]
 impl core::marker::Sync for antecedent::analysis::categorical_treatment::CategoricalTreatment [auto]
@@ -5040,6 +5134,7 @@ impl core::marker::Sync for antecedent::analysis::design_ranking::PriorDeclWire 
 impl core::marker::Sync for antecedent::analysis::design_ranking::ProviderDeclWire [auto]
 impl core::marker::Sync for antecedent::analysis::design_ranking::SignalDeclWire [auto]
 impl core::marker::Sync for antecedent::analysis::design_ranking::StructuralCandidateDeclWire [auto]
+impl core::marker::Sync for antecedent::analysis::design_ranking::UtilityTableDeclWire [auto]
 impl core::marker::Sync for antecedent::analysis::discovered_transport::DiscoveredTransportReport [auto]
 impl core::marker::Sync for antecedent::analysis::discovered_transport::DiscoveredTransportRun [auto]
 impl core::marker::Sync for antecedent::analysis::discovered_transport_estimate::AnswerKind [auto]
@@ -5075,6 +5170,11 @@ impl core::marker::Sync for antecedent::analysis::effect_constancy_consumers::Co
 impl core::marker::Sync for antecedent::analysis::effect_constancy_consumers::ConstancyPriorRanking [auto]
 impl core::marker::Sync for antecedent::analysis::effect_constancy_consumers::PriorPartitionBinding [auto]
 impl core::marker::Sync for antecedent::analysis::effect_constancy_consumers::TransportConstancyDiagnostic [auto]
+impl core::marker::Sync for antecedent::analysis::evidence_plan::EvidencePlanFacadeError [auto]
+impl core::marker::Sync for antecedent::analysis::evidence_plan::EvidencePlanRequest [auto]
+impl core::marker::Sync for antecedent::analysis::evidence_plan::EvidencePlanResult [auto]
+impl core::marker::Sync for antecedent::analysis::evidence_plan::EvidenceValueRequest [auto]
+impl core::marker::Sync for antecedent::analysis::evidence_plan::StudyValueWire [auto]
 impl core::marker::Sync for antecedent::analysis::file_table::FileGaussianSummary [auto]
 impl core::marker::Sync for antecedent::analysis::file_table::FileTableError [auto]
 impl core::marker::Sync for antecedent::analysis::file_table::GaussianSummarySpec [auto]
@@ -5140,9 +5240,13 @@ impl core::marker::Sync for antecedent::analysis::native_claims::WithheldCoordin
 impl core::marker::Sync for antecedent::analysis::nonlinear_mediation::NonlinearMediation [auto]
 impl core::marker::Sync for antecedent::analysis::observation_posterior::FiniteBayesInput [auto]
 impl core::marker::Sync for antecedent::analysis::observation_query::ConsumedObservationClaim [auto]
+impl core::marker::Sync for antecedent::analysis::observation_query::ContinuousAssignments [auto]
 impl core::marker::Sync for antecedent::analysis::observation_query::ObservationClaim [auto]
 impl core::marker::Sync for antecedent::analysis::observation_query::ObservationQueryRefusal [auto]
 impl core::marker::Sync for antecedent::analysis::observation_query::ObservationRequest [auto]
+impl core::marker::Sync for antecedent::analysis::observation_query::ParameterInterval [auto]
+impl core::marker::Sync for antecedent::analysis::observation_query::ParameterRedrawRequest [auto]
+impl core::marker::Sync for antecedent::analysis::observation_query::PosteriorDraws [auto]
 impl core::marker::Sync for antecedent::analysis::observational_policy::ActionValueWire [auto]
 impl core::marker::Sync for antecedent::analysis::observational_policy::ObservationalPolicyReportWire [auto]
 impl core::marker::Sync for antecedent::analysis::observational_policy::ObservationalPolicyRequest [auto]
@@ -5278,6 +5382,7 @@ impl core::marker::Sync for antecedent::counterfactual_id::PreparedCounterfactua
 impl core::marker::Sync for antecedent::cross_world::CrossWorldEffect [auto]
 impl core::marker::Sync for antecedent::cross_world::CrossWorldOptions [auto]
 impl core::marker::Sync for antecedent::design::DesignRankPreview [auto]
+impl core::marker::Sync for antecedent::design::StudyDesignRanking [auto]
 impl core::marker::Sync for antecedent::discovery::BayesianDiscoverParams [auto]
 impl core::marker::Sync for antecedent::discovery::DiscoverParams [auto]
 impl core::marker::Sync for antecedent::discovery::GraphMcmcSchedule [auto]
@@ -5426,6 +5531,7 @@ impl core::marker::Unpin for antecedent::ConsumedEvidenceLedger [auto]
 impl core::marker::Unpin for antecedent::ConsumedMeasurement [auto]
 impl core::marker::Unpin for antecedent::ConsumedMonitoringContract [auto]
 impl core::marker::Unpin for antecedent::ConsumedScientificBridge [auto]
+impl core::marker::Unpin for antecedent::ConsumedScientificBridgeDistribution [auto]
 impl core::marker::Unpin for antecedent::ContinuousDoseResponseEstimate [auto]
 impl core::marker::Unpin for antecedent::ContinuousErrorInput [auto]
 impl core::marker::Unpin for antecedent::ContinuousMeasurementEstimate [auto]
@@ -5448,6 +5554,7 @@ impl core::marker::Unpin for antecedent::DesignPosteriorModel [auto]
 impl core::marker::Unpin for antecedent::DiscoveredStructure [auto]
 impl core::marker::Unpin for antecedent::DiscoveryPayload [auto]
 impl core::marker::Unpin for antecedent::DiscoverySpec [auto]
+impl core::marker::Unpin for antecedent::DistributionBridgeInspection [auto]
 impl core::marker::Unpin for antecedent::DroppedColumn [auto]
 impl core::marker::Unpin for antecedent::DuplicateGroup [auto]
 impl core::marker::Unpin for antecedent::EmpiricalScenarioInput [auto]
@@ -5548,6 +5655,7 @@ impl core::marker::Unpin for antecedent::PreparedMzTransport [auto]
 impl core::marker::Unpin for antecedent::PreparedObservationRecovery [auto]
 impl core::marker::Unpin for antecedent::PreparedPredictiveAssessment [auto]
 impl core::marker::Unpin for antecedent::PreparedScientificBridge [auto]
+impl core::marker::Unpin for antecedent::PreparedScientificBridgeDistribution [auto]
 impl core::marker::Unpin for antecedent::PreparedSmoothedDose [auto]
 impl core::marker::Unpin for antecedent::PreparedTemporalTransport [auto]
 impl core::marker::Unpin for antecedent::PreparedTransportScenarios [auto]
@@ -5571,6 +5679,7 @@ impl core::marker::Unpin for antecedent::RetargetCostEstimate [auto]
 impl core::marker::Unpin for antecedent::ReviewKind [auto]
 impl core::marker::Unpin for antecedent::RevisionReport [auto]
 impl core::marker::Unpin for antecedent::RowWeightsBinding [auto]
+impl core::marker::Unpin for antecedent::ScientificBridgeDistributionResult [auto]
 impl core::marker::Unpin for antecedent::ScientificBridgeExport [auto]
 impl core::marker::Unpin for antecedent::ScientificBridgeRefusal [auto]
 impl core::marker::Unpin for antecedent::ScientificBridgeResult [auto]
@@ -5732,6 +5841,8 @@ impl core::marker::Unpin for antecedent::analysis::array_fits::ArrayFit [auto]
 impl core::marker::Unpin for antecedent::analysis::array_fits::TemporalScoreModel [auto]
 impl core::marker::Unpin for antecedent::analysis::array_fits::TemporalTreatmentScoreSpec [auto]
 impl core::marker::Unpin for antecedent::analysis::array_fits::TreatmentScoreSpec [auto]
+impl core::marker::Unpin for antecedent::analysis::association::AssociationPayload [auto]
+impl core::marker::Unpin for antecedent::analysis::association::PredictionScores [auto]
 impl core::marker::Unpin for antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow [auto]
 impl core::marker::Unpin for antecedent::analysis::bayesian_posterior_row::PosteriorRowPreparedState [auto]
 impl core::marker::Unpin for antecedent::analysis::categorical_treatment::CategoricalTreatment [auto]
@@ -5785,6 +5896,7 @@ impl core::marker::Unpin for antecedent::analysis::design_ranking::PriorDeclWire
 impl core::marker::Unpin for antecedent::analysis::design_ranking::ProviderDeclWire [auto]
 impl core::marker::Unpin for antecedent::analysis::design_ranking::SignalDeclWire [auto]
 impl core::marker::Unpin for antecedent::analysis::design_ranking::StructuralCandidateDeclWire [auto]
+impl core::marker::Unpin for antecedent::analysis::design_ranking::UtilityTableDeclWire [auto]
 impl core::marker::Unpin for antecedent::analysis::discovered_transport::DiscoveredTransportReport [auto]
 impl core::marker::Unpin for antecedent::analysis::discovered_transport::DiscoveredTransportRun [auto]
 impl core::marker::Unpin for antecedent::analysis::discovered_transport_estimate::AnswerKind [auto]
@@ -5820,6 +5932,11 @@ impl core::marker::Unpin for antecedent::analysis::effect_constancy_consumers::C
 impl core::marker::Unpin for antecedent::analysis::effect_constancy_consumers::ConstancyPriorRanking [auto]
 impl core::marker::Unpin for antecedent::analysis::effect_constancy_consumers::PriorPartitionBinding [auto]
 impl core::marker::Unpin for antecedent::analysis::effect_constancy_consumers::TransportConstancyDiagnostic [auto]
+impl core::marker::Unpin for antecedent::analysis::evidence_plan::EvidencePlanFacadeError [auto]
+impl core::marker::Unpin for antecedent::analysis::evidence_plan::EvidencePlanRequest [auto]
+impl core::marker::Unpin for antecedent::analysis::evidence_plan::EvidencePlanResult [auto]
+impl core::marker::Unpin for antecedent::analysis::evidence_plan::EvidenceValueRequest [auto]
+impl core::marker::Unpin for antecedent::analysis::evidence_plan::StudyValueWire [auto]
 impl core::marker::Unpin for antecedent::analysis::file_table::FileGaussianSummary [auto]
 impl core::marker::Unpin for antecedent::analysis::file_table::FileTableError [auto]
 impl core::marker::Unpin for antecedent::analysis::file_table::GaussianSummarySpec [auto]
@@ -5885,9 +6002,13 @@ impl core::marker::Unpin for antecedent::analysis::native_claims::WithheldCoordi
 impl core::marker::Unpin for antecedent::analysis::nonlinear_mediation::NonlinearMediation [auto]
 impl core::marker::Unpin for antecedent::analysis::observation_posterior::FiniteBayesInput [auto]
 impl core::marker::Unpin for antecedent::analysis::observation_query::ConsumedObservationClaim [auto]
+impl core::marker::Unpin for antecedent::analysis::observation_query::ContinuousAssignments [auto]
 impl core::marker::Unpin for antecedent::analysis::observation_query::ObservationClaim [auto]
 impl core::marker::Unpin for antecedent::analysis::observation_query::ObservationQueryRefusal [auto]
 impl core::marker::Unpin for antecedent::analysis::observation_query::ObservationRequest [auto]
+impl core::marker::Unpin for antecedent::analysis::observation_query::ParameterInterval [auto]
+impl core::marker::Unpin for antecedent::analysis::observation_query::ParameterRedrawRequest [auto]
+impl core::marker::Unpin for antecedent::analysis::observation_query::PosteriorDraws [auto]
 impl core::marker::Unpin for antecedent::analysis::observational_policy::ActionValueWire [auto]
 impl core::marker::Unpin for antecedent::analysis::observational_policy::ObservationalPolicyReportWire [auto]
 impl core::marker::Unpin for antecedent::analysis::observational_policy::ObservationalPolicyRequest [auto]
@@ -6023,6 +6144,7 @@ impl core::marker::Unpin for antecedent::counterfactual_id::PreparedCounterfactu
 impl core::marker::Unpin for antecedent::cross_world::CrossWorldEffect [auto]
 impl core::marker::Unpin for antecedent::cross_world::CrossWorldOptions [auto]
 impl core::marker::Unpin for antecedent::design::DesignRankPreview [auto]
+impl core::marker::Unpin for antecedent::design::StudyDesignRanking [auto]
 impl core::marker::Unpin for antecedent::discovery::BayesianDiscoverParams [auto]
 impl core::marker::Unpin for antecedent::discovery::DiscoverParams [auto]
 impl core::marker::Unpin for antecedent::discovery::GraphMcmcSchedule [auto]
@@ -6172,6 +6294,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ConsumedEvidenceLed
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ConsumedMeasurement [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ConsumedMonitoringContract [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ConsumedScientificBridge [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ConsumedScientificBridgeDistribution [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ContinuousDoseResponseEstimate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ContinuousErrorInput [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ContinuousMeasurementEstimate [auto]
@@ -6193,6 +6316,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::DerivedTreatmentPla
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::DesignPosteriorModel [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::DiscoveredStructure [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::DiscoveryPayload
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::DistributionBridgeInspection [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::DroppedColumn [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::DuplicateGroup [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::EmpiricalScenarioInput [auto]
@@ -6290,6 +6414,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::PreparedMzTransport
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::PreparedObservationRecovery [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::PreparedPredictiveAssessment [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::PreparedScientificBridge [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::PreparedScientificBridgeDistribution [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::PreparedSmoothedDose [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::PreparedTemporalTransport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::PreparedTransportScenarios [auto]
@@ -6313,6 +6438,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::RetargetCostEstimat
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ReviewKind [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::RevisionReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::RowWeightsBinding [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ScientificBridgeDistributionResult [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ScientificBridgeExport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ScientificBridgeRefusal [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ScientificBridgeResult [auto]
@@ -6471,6 +6597,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::array_fit
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::array_fits::TemporalScoreModel [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::array_fits::TemporalTreatmentScoreSpec [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::array_fits::TreatmentScoreSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::association::AssociationPayload [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::association::PredictionScores [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::bayesian_posterior_row::PosteriorRowPreparedState [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::categorical_treatment::CategoricalTreatment [auto]
@@ -6523,6 +6651,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::design_ra
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::design_ranking::ProviderDeclWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::design_ranking::SignalDeclWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::design_ranking::StructuralCandidateDeclWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::design_ranking::UtilityTableDeclWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::discovered_transport::DiscoveredTransportReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::discovered_transport::DiscoveredTransportRun [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::discovered_transport_estimate::AnswerKind [auto]
@@ -6558,6 +6687,11 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::effect_co
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::effect_constancy_consumers::ConstancyPriorRanking [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::effect_constancy_consumers::PriorPartitionBinding [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::effect_constancy_consumers::TransportConstancyDiagnostic [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::evidence_plan::EvidencePlanFacadeError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::evidence_plan::EvidencePlanRequest [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::evidence_plan::EvidencePlanResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::evidence_plan::EvidenceValueRequest [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::evidence_plan::StudyValueWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::file_table::FileGaussianSummary [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::file_table::GaussianSummarySpec [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::file_table::SummaryMissing [auto]
@@ -6616,9 +6750,13 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::native_cl
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::nonlinear_mediation::NonlinearMediation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::observation_posterior::FiniteBayesInput [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::observation_query::ConsumedObservationClaim [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::observation_query::ContinuousAssignments [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::observation_query::ObservationClaim [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::observation_query::ObservationQueryRefusal [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::observation_query::ObservationRequest [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::observation_query::ParameterInterval [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::observation_query::ParameterRedrawRequest [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::observation_query::PosteriorDraws [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::observational_policy::ActionValueWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::observational_policy::ObservationalPolicyReportWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::observational_policy::ObservationalPolicyRequest [auto]
@@ -6745,6 +6883,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::counterfactual_id::
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::cross_world::CrossWorldEffect [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::cross_world::CrossWorldOptions [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::design::DesignRankPreview [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::design::StudyDesignRanking [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::discovery::BayesianDiscoverParams [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::discovery::GraphMcmcSchedule [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::error::PendingEdge [auto]
@@ -6888,6 +7027,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::ConsumedEvidenceLedger
 impl core::panic::unwind_safe::UnwindSafe for antecedent::ConsumedMeasurement [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::ConsumedMonitoringContract [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::ConsumedScientificBridge [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::ConsumedScientificBridgeDistribution [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::ContinuousDoseResponseEstimate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::ContinuousErrorInput [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::ContinuousMeasurementEstimate [auto]
@@ -6909,6 +7049,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::DerivedTreatmentPlan [
 impl core::panic::unwind_safe::UnwindSafe for antecedent::DesignPosteriorModel [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::DiscoveredStructure [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::DiscoveryPayload
+impl core::panic::unwind_safe::UnwindSafe for antecedent::DistributionBridgeInspection [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::DroppedColumn [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::DuplicateGroup [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::EmpiricalScenarioInput [auto]
@@ -7005,6 +7146,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::PreparedMzTransport [a
 impl core::panic::unwind_safe::UnwindSafe for antecedent::PreparedObservationRecovery [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::PreparedPredictiveAssessment [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::PreparedScientificBridge [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::PreparedScientificBridgeDistribution [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::PreparedSmoothedDose [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::PreparedTemporalTransport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::PreparedTransportScenarios [auto]
@@ -7028,6 +7170,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::RetargetCostEstimate [
 impl core::panic::unwind_safe::UnwindSafe for antecedent::ReviewKind [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::RevisionReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::RowWeightsBinding [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::ScientificBridgeDistributionResult [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::ScientificBridgeExport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::ScientificBridgeRefusal [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::ScientificBridgeResult [auto]
@@ -7186,6 +7329,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::array_fits::
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::array_fits::TemporalScoreModel [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::array_fits::TemporalTreatmentScoreSpec [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::array_fits::TreatmentScoreSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::association::AssociationPayload [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::association::PredictionScores [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::bayesian_posterior_row::PosteriorRowPreparedState [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::categorical_treatment::CategoricalTreatment [auto]
@@ -7238,6 +7383,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::design_ranki
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::design_ranking::ProviderDeclWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::design_ranking::SignalDeclWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::design_ranking::StructuralCandidateDeclWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::design_ranking::UtilityTableDeclWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::discovered_transport::DiscoveredTransportReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::discovered_transport::DiscoveredTransportRun [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::discovered_transport_estimate::AnswerKind [auto]
@@ -7273,6 +7419,11 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::effect_const
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::effect_constancy_consumers::ConstancyPriorRanking [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::effect_constancy_consumers::PriorPartitionBinding [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::effect_constancy_consumers::TransportConstancyDiagnostic [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::evidence_plan::EvidencePlanFacadeError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::evidence_plan::EvidencePlanRequest [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::evidence_plan::EvidencePlanResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::evidence_plan::EvidenceValueRequest [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::evidence_plan::StudyValueWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::file_table::FileGaussianSummary [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::file_table::GaussianSummarySpec [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::file_table::SummaryMissing [auto]
@@ -7331,9 +7482,13 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::native_claim
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::nonlinear_mediation::NonlinearMediation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::observation_posterior::FiniteBayesInput [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::observation_query::ConsumedObservationClaim [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::observation_query::ContinuousAssignments [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::observation_query::ObservationClaim [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::observation_query::ObservationQueryRefusal [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::observation_query::ObservationRequest [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::observation_query::ParameterInterval [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::observation_query::ParameterRedrawRequest [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::observation_query::PosteriorDraws [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::observational_policy::ActionValueWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::observational_policy::ObservationalPolicyReportWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::observational_policy::ObservationalPolicyRequest [auto]
@@ -7460,6 +7615,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::counterfactual_id::Pre
 impl core::panic::unwind_safe::UnwindSafe for antecedent::cross_world::CrossWorldEffect [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::cross_world::CrossWorldOptions [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::design::DesignRankPreview [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::design::StudyDesignRanking [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::discovery::BayesianDiscoverParams [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::discovery::GraphMcmcSchedule [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::error::PendingEdge [auto]
@@ -7799,6 +7955,7 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent::analysis::design_rank
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::analysis::design_ranking::ProviderDeclWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::analysis::design_ranking::SignalDeclWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::analysis::design_ranking::StructuralCandidateDeclWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent::analysis::design_ranking::UtilityTableDeclWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::analysis::discovered_transport_trial::TransportOutcomeSupport
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::analysis::discovered_transport_trial::TrialCompatibilityProof
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::analysis::discovered_transport_trial::TrialConfidenceSetKind
@@ -7807,6 +7964,8 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent::analysis::discovered_
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::analysis::discovered_transport_trial::TrialRandomization
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::analysis::discovered_transport_trial::TrialStructuralVerdict
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::analysis::effect_constancy_consumers::PriorPartitionBinding
+impl<'de> serde_core::de::Deserialize<'de> for antecedent::analysis::evidence_plan::EvidenceValueRequest
+impl<'de> serde_core::de::Deserialize<'de> for antecedent::analysis::evidence_plan::StudyValueWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::analysis::multi_level_treatment::LevelMeanWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::analysis::multi_level_treatment::LevelRowsWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::analysis::multi_level_treatment::MultiLevelIntervalWire
@@ -7889,6 +8048,7 @@ pub const antecedent::analysis::STANDARD_BOOTSTRAP: u32
 pub const antecedent::analysis::STANDARD_N_DRAWS: usize
 pub const antecedent::analysis::adaptive_procedure_declaration::ADAPTIVE_PROCEDURE_VERSION: u64
 pub const antecedent::analysis::adaptive_procedure_report::REPEATED_MEASURES_PROCEDURE_VERSION: u64
+pub const antecedent::analysis::association::ASSOCIATION_CALIBRATION: &str
 pub const antecedent::analysis::count_fitted_observation::DEFAULT_SEED: u64
 pub const antecedent::analysis::cross_world_interval::CROSS_WORLD_CONSTRUCTION: &str
 pub const antecedent::analysis::cross_world_interval::CROSS_WORLD_ESTIMATOR: &str
@@ -7897,11 +8057,12 @@ pub const antecedent::analysis::cross_world_interval::CROSS_WORLD_QUERY: &str
 pub const antecedent::analysis::decision_claims::NOT_ENUMERATED_ATOM: &str
 pub const antecedent::analysis::discovered_transport::TEMPORAL_STRUCTURE_DETAIL: &str
 pub const antecedent::analysis::discovered_transport_estimate::MAX_LEVELS_PER_VARIABLE: u32
+pub const antecedent::analysis::evidence_plan::STUDY_POPULATION: &str
 pub const antecedent::analysis::file_table::INTERCEPT_COLUMN: &str
 pub const antecedent::analysis::joint_law_composed_basis::COMPOSED_LEVEL: f64
 pub const antecedent::analysis::joint_law_composed_basis::COMPOSED_NORMAL_CONSTRUCTION: &str
 pub const antecedent::analysis::joint_law_composed_basis::COMPOSED_QUERY: &str
-pub const antecedent::analysis::missing_support::ALL_QUERY_KINDS: [antecedent_core::query::CausalQueryKind; 30]
+pub const antecedent::analysis::missing_support::ALL_QUERY_KINDS: [antecedent_core::query::CausalQueryKind; 31]
 pub const antecedent::analysis::multi_level_treatment::MULTI_LEVEL_ESTIMATOR: &str
 pub const antecedent::analysis::multi_level_treatment::MULTI_LEVEL_INTERVAL_CALIBRATED: &str
 pub const antecedent::analysis::multi_level_treatment::MULTI_LEVEL_INTERVAL_WITHHELD: &str
@@ -8197,6 +8358,7 @@ pub field antecedent::CausalContract::accepted_variable_names: core::option::Opt
 pub field antecedent::CausalContract::accepted_version: u32
 pub field antecedent::CausalContract::discovery_algorithm: core::option::Option<alloc::sync::Arc<str>>
 pub field antecedent::CausalContract::estimator: core::option::Option<alloc::sync::Arc<str>>
+pub field antecedent::CausalContract::evidence_obligations: alloc::sync::Arc<[antecedent_contract::evidence_obligation::EvidenceObligation]>
 pub field antecedent::CausalContract::functional: alloc::sync::Arc<str>
 pub field antecedent::CausalContract::graph_class: antecedent::GraphClass
 pub field antecedent::CausalContract::identifier: core::option::Option<alloc::sync::Arc<str>>
@@ -8316,6 +8478,8 @@ pub field antecedent::ConsumedComposition::result: antecedent_io_core::mechanism
 pub field antecedent::ConsumedScientificBridge::bridged: antecedent_contract::bridge::claim::BridgedClaim
 pub field antecedent::ConsumedScientificBridge::identity: alloc::string::String
 pub field antecedent::ConsumedScientificBridge::source: antecedent_contract::claim::ClaimEnvelope
+pub field antecedent::ConsumedScientificBridgeDistribution::bridged: antecedent_io_core::bridge_distribution::BridgedDistribution
+pub field antecedent::ConsumedScientificBridgeDistribution::identity: alloc::string::String
 pub field antecedent::ContinuousDoseResponseEstimate::bandwidth: f64
 pub field antecedent::ContinuousDoseResponseEstimate::density_provenance: alloc::sync::Arc<str>
 pub field antecedent::ContinuousDoseResponseEstimate::fixed_policy: core::option::Option<antecedent_estimate::continuous_dose::DosePolicyValue>
@@ -8388,6 +8552,24 @@ pub field antecedent::DerivedTreatmentPlan::rows_complete: usize
 pub field antecedent::DerivedTreatmentPlan::treatment_columns: alloc::vec::Vec<alloc::string::String>
 pub field antecedent::DiscoveryPayload::query: antecedent_core::query::discover::DiscoverQuery
 pub field antecedent::DiscoveryPayload::structure: antecedent::DiscoveredStructure
+pub field antecedent::DistributionBridgeInspection::alignment_identity: alloc::string::String
+pub field antecedent::DistributionBridgeInspection::assumptions: alloc::vec::Vec<(alloc::string::String, alloc::string::String, core::option::Option<alloc::string::String>)>
+pub field antecedent::DistributionBridgeInspection::claim_id: alloc::string::String
+pub field antecedent::DistributionBridgeInspection::contract_identity: alloc::string::String
+pub field antecedent::DistributionBridgeInspection::draws_digest: alloc::string::String
+pub field antecedent::DistributionBridgeInspection::kind: antecedent_contract::bridge::kind::BridgeKind
+pub field antecedent::DistributionBridgeInspection::mapping: antecedent_contract::bridge::mapping::MappingKind
+pub field antecedent::DistributionBridgeInspection::mean: f64
+pub field antecedent::DistributionBridgeInspection::n_draws: usize
+pub field antecedent::DistributionBridgeInspection::reading: &'static str
+pub field antecedent::DistributionBridgeInspection::source_claim_id: alloc::string::String
+pub field antecedent::DistributionBridgeInspection::source_mean: f64
+pub field antecedent::DistributionBridgeInspection::source_variance: f64
+pub field antecedent::DistributionBridgeInspection::stream: u64
+pub field antecedent::DistributionBridgeInspection::transported: bool
+pub field antecedent::DistributionBridgeInspection::unavailable: alloc::vec::Vec<alloc::string::String>
+pub field antecedent::DistributionBridgeInspection::value_kind: antecedent_contract::bridge::kind::ValueKind
+pub field antecedent::DistributionBridgeInspection::variance: f64
 pub field antecedent::DroppedColumn::column: alloc::string::String
 pub field antecedent::DroppedColumn::explained_by: alloc::vec::Vec<antecedent::ColumnWeight>
 pub field antecedent::DroppedColumn::residual_ratio: f64
@@ -9425,6 +9607,14 @@ pub field antecedent::analysis::array_fits::TreatmentScoreSpec::draws: usize
 pub field antecedent::analysis::array_fits::TreatmentScoreSpec::prior_sd: f64
 pub field antecedent::analysis::array_fits::TreatmentScoreSpec::seed: u64
 pub field antecedent::analysis::array_fits::TreatmentScoreSpec::summary_rows: alloc::vec::Vec<usize>
+pub field antecedent::analysis::association::AssociationPayload::estimate: antecedent_estimate::association::AssociationEstimate
+pub field antecedent::analysis::association::AssociationPayload::refused_after: core::option::Option<alloc::sync::Arc<str>>
+pub field antecedent::analysis::association::AssociationPayload::scores: core::option::Option<antecedent::analysis::association::PredictionScores>
+pub field antecedent::analysis::association::PredictionScores::baseline_score: f64
+pub field antecedent::analysis::association::PredictionScores::cases: usize
+pub field antecedent::analysis::association::PredictionScores::mean_crps: core::option::Option<f64>
+pub field antecedent::analysis::association::PredictionScores::mean_score: f64
+pub field antecedent::analysis::association::PredictionScores::score: &'static str
 pub field antecedent::analysis::closed_pilots::ClosedPilotRefusal::code: &'static str
 pub field antecedent::analysis::closed_pilots::ClosedPilotRefusal::detail: alloc::string::String
 pub field antecedent::analysis::closed_pilots::ClosedPilotRefusal::message: alloc::string::String
@@ -9565,6 +9755,7 @@ pub field antecedent::analysis::design_ranking::DecisionDeclWire::contract_ident
 pub field antecedent::analysis::design_ranking::DecisionDeclWire::intercepts: alloc::vec::Vec<f64>
 pub field antecedent::analysis::design_ranking::DecisionDeclWire::prior: antecedent::analysis::design_ranking::PriorDeclWire
 pub field antecedent::analysis::design_ranking::DecisionDeclWire::slopes: alloc::vec::Vec<f64>
+pub field antecedent::analysis::design_ranking::DecisionDeclWire::utility_table: core::option::Option<antecedent::analysis::design_ranking::UtilityTableDeclWire>
 pub field antecedent::analysis::design_ranking::DecisionDeclWire::utility_unit: alloc::string::String
 pub field antecedent::analysis::design_ranking::DesignRankingRequestWire::candidates: alloc::vec::Vec<antecedent::analysis::design_ranking::CandidateDeclWire>
 pub field antecedent::analysis::design_ranking::DesignRankingRequestWire::cost_map: core::option::Option<antecedent::analysis::design_ranking::CostMapDeclWire>
@@ -9602,6 +9793,8 @@ pub field antecedent::analysis::design_ranking::StructuralCandidateDeclWire::cos
 pub field antecedent::analysis::design_ranking::StructuralCandidateDeclWire::sample_budget: u64
 pub field antecedent::analysis::design_ranking::StructuralCandidateDeclWire::semantic_id: alloc::string::String
 pub field antecedent::analysis::design_ranking::StructuralCandidateDeclWire::verified_sufficient: bool
+pub field antecedent::analysis::design_ranking::UtilityTableDeclWire::rows: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent::analysis::design_ranking::UtilityTableDeclWire::states: alloc::vec::Vec<f64>
 pub field antecedent::analysis::discovered_transport::DiscoveredTransportRun::discovery: antecedent_discovery::selective::adapter::SelectiveRunReport
 pub field antecedent::analysis::discovered_transport::DiscoveredTransportRun::outcome: antecedent_discovery::selective::outcome::DiscoveryOutcome
 pub field antecedent::analysis::discovered_transport::DiscoveredTransportRun::transport: core::result::Result<antecedent::analysis::discovered_transport::DiscoveredTransportReport, antecedent_identify::discovered_transport::DiscoveredTransportError>
@@ -9704,6 +9897,28 @@ pub field antecedent::analysis::evidence_ledger::PooledIntervalCandidate::lower:
 pub field antecedent::analysis::evidence_ledger::PooledIntervalCandidate::method: &'static str
 pub field antecedent::analysis::evidence_ledger::PooledIntervalCandidate::scope: serde_json::value::Value
 pub field antecedent::analysis::evidence_ledger::PooledIntervalCandidate::upper: f64
+pub field antecedent::analysis::evidence_plan::EvidencePlanRequest::candidates: alloc::vec::Vec<antecedent_design::study_candidate::DurableStudyCandidate>
+pub field antecedent::analysis::evidence_plan::EvidencePlanRequest::limits: antecedent_design::repair::RepairLimits
+pub field antecedent::analysis::evidence_plan::EvidencePlanRequest::objective: antecedent_design::repair::RepairObjective
+pub field antecedent::analysis::evidence_plan::EvidencePlanRequest::sensitivity: core::option::Option<antecedent_design::identification_repair::SensitivityFinding>
+pub field antecedent::analysis::evidence_plan::EvidencePlanRequest::value: core::option::Option<antecedent::analysis::evidence_plan::EvidenceValueRequest>
+pub field antecedent::analysis::evidence_plan::EvidencePlanResult::generation: antecedent_design::candidate_generation::CandidateGeneration
+pub field antecedent::analysis::evidence_plan::EvidencePlanResult::names: alloc::vec::Vec<alloc::string::String>
+pub field antecedent::analysis::evidence_plan::EvidencePlanResult::plan: antecedent_design::evidence_plan::EvidencePlan
+pub field antecedent::analysis::evidence_plan::EvidencePlanResult::reports: alloc::vec::Vec<antecedent_design::repair::RepairReport>
+pub field antecedent::analysis::evidence_plan::EvidencePlanResult::value: core::option::Option<antecedent::analysis::design_ranking::DesignRankingEvaluation>
+pub field antecedent::analysis::evidence_plan::EvidenceValueRequest::cost_map: core::option::Option<antecedent::analysis::design_ranking::CostMapDeclWire>
+pub field antecedent::analysis::evidence_plan::EvidenceValueRequest::decision: antecedent::analysis::design_ranking::DecisionDeclWire
+pub field antecedent::analysis::evidence_plan::EvidenceValueRequest::monte_carlo: core::option::Option<antecedent::analysis::design_ranking::MonteCarloDeclWire>
+pub field antecedent::analysis::evidence_plan::EvidenceValueRequest::prior_observation_ids: alloc::vec::Vec<alloc::string::String>
+pub field antecedent::analysis::evidence_plan::EvidenceValueRequest::require_net_value: bool
+pub field antecedent::analysis::evidence_plan::EvidenceValueRequest::rng_seed: u64
+pub field antecedent::analysis::evidence_plan::EvidenceValueRequest::source_digests: alloc::vec::Vec<alloc::string::String>
+pub field antecedent::analysis::evidence_plan::EvidenceValueRequest::studies: alloc::vec::Vec<antecedent::analysis::evidence_plan::StudyValueWire>
+pub field antecedent::analysis::evidence_plan::StudyValueWire::label: alloc::string::String
+pub field antecedent::analysis::evidence_plan::StudyValueWire::provider: antecedent::analysis::design_ranking::ProviderDeclWire
+pub field antecedent::analysis::evidence_plan::StudyValueWire::reused_observation_ids: alloc::vec::Vec<alloc::string::String>
+pub field antecedent::analysis::evidence_plan::StudyValueWire::signal: antecedent::analysis::design_ranking::SignalDeclWire
 pub field antecedent::analysis::file_table::FileGaussianSummary::design_columns: alloc::vec::Vec<alloc::string::String>
 pub field antecedent::analysis::file_table::FileGaussianSummary::file_identity: antecedent_data::file_source::identity::FileContentIdentity
 pub field antecedent::analysis::file_table::FileGaussianSummary::output: antecedent_io_core::capacity_account::weighted_gaussian_capacity::WeightedCapacityOutput
@@ -9924,11 +10139,32 @@ pub field antecedent::analysis::observation_query::ConsumedObservationClaim::ide
 pub field antecedent::analysis::observation_query::ConsumedObservationClaim::inference_basis: alloc::string::String
 pub field antecedent::analysis::observation_query::ConsumedObservationClaim::operation: alloc::string::String
 pub field antecedent::analysis::observation_query::ConsumedObservationClaim::result: antecedent_io_core::observation_query_artifact::ObservationResultWire
+pub field antecedent::analysis::observation_query::ContinuousAssignments::interventions: alloc::vec::Vec<(alloc::string::String, f64)>
+pub field antecedent::analysis::observation_query::ContinuousAssignments::observed: alloc::vec::Vec<(alloc::string::String, f64)>
 pub field antecedent::analysis::observation_query::ObservationQueryRefusal::refusals: alloc::vec::Vec<antecedent_contract::external_refusal::ExternalRefusal>
 pub field antecedent::analysis::observation_query::ObservationRequest::conditioning: alloc::vec::Vec<antecedent_contract::observation_query::ObservedSlot>
+pub field antecedent::analysis::observation_query::ObservationRequest::continuous: antecedent::analysis::observation_query::ContinuousAssignments
 pub field antecedent::analysis::observation_query::ObservationRequest::interventions: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
 pub field antecedent::analysis::observation_query::ObservationRequest::operation: antecedent_contract::observation_query::ObservationOperation
 pub field antecedent::analysis::observation_query::ObservationRequest::outcome: alloc::string::String
+pub field antecedent::analysis::observation_query::ParameterInterval::bounds: core::option::Option<(f64, f64)>
+pub field antecedent::analysis::observation_query::ParameterInterval::construction: alloc::string::String
+pub field antecedent::analysis::observation_query::ParameterInterval::coordinate_id: alloc::string::String
+pub field antecedent::analysis::observation_query::ParameterInterval::label: &'static str
+pub field antecedent::analysis::observation_query::ParameterInterval::nominal_level: f64
+pub field antecedent::analysis::observation_query::ParameterInterval::quantity: alloc::string::String
+pub field antecedent::analysis::observation_query::ParameterInterval::record_id: alloc::string::String
+pub field antecedent::analysis::observation_query::ParameterRedrawRequest::draws: u32
+pub field antecedent::analysis::observation_query::ParameterRedrawRequest::prior: antecedent_model::observation_uncertainty::RedrawPrior
+pub field antecedent::analysis::observation_query::ParameterRedrawRequest::request: antecedent::analysis::observation_query::ObservationRequest
+pub field antecedent::analysis::observation_query::ParameterRedrawRequest::retained: alloc::vec::Vec<antecedent_io_core::observation_query_artifact::RetainedMechanismWire>
+pub field antecedent::analysis::observation_query::ParameterRedrawRequest::seed: u64
+pub field antecedent::analysis::observation_query::PosteriorDraws::alignment_identity: alloc::string::String
+pub field antecedent::analysis::observation_query::PosteriorDraws::draws: usize
+pub field antecedent::analysis::observation_query::PosteriorDraws::point: alloc::vec::Vec<f64>
+pub field antecedent::analysis::observation_query::PosteriorDraws::quantities: alloc::vec::Vec<alloc::string::String>
+pub field antecedent::analysis::observation_query::PosteriorDraws::reading: alloc::string::String
+pub field antecedent::analysis::observation_query::PosteriorDraws::values: alloc::vec::Vec<f64>
 pub field antecedent::analysis::observational_policy::ActionValueWire::level: f64
 pub field antecedent::analysis::observational_policy::ActionValueWire::policy_share: f64
 pub field antecedent::analysis::observational_policy::ActionValueWire::propensity_min: f64
@@ -10402,6 +10638,10 @@ pub field antecedent::design::DesignRankPreview::target: antecedent_core::identi
 pub field antecedent::design::DesignRankPreview::unidentified_mass: core::option::Option<f64>
 pub field antecedent::design::DesignRankPreview::unresolved: bool
 pub field antecedent::design::DesignRankPreview::violations: alloc::sync::Arc<[antecedent_design::result::ConstraintViolation]>
+pub field antecedent::design::StudyDesignRanking::ranking: antecedent_design::result::ScoredDesignRanking
+pub field antecedent::design::StudyDesignRanking::unlock: alloc::vec::Vec<antecedent_core::ids::VariableId>
+pub field antecedent::design::StudyDesignRanking::unverified: alloc::vec::Vec<antecedent_design::candidate_generation::UnverifiedStudy>
+pub field antecedent::design::StudyDesignRanking::verified: alloc::vec::Vec<usize>
 pub field antecedent::discovery::BayesianDiscoverParams::prior: antecedent_discovery::graph_posterior::GraphPrior
 pub field antecedent::discovery::BayesianDiscoverParams::score_family: antecedent_state::graph_score::GraphScoreFamily
 pub field antecedent::discovery::DiscoverParams::alpha: f64
@@ -11002,6 +11242,8 @@ pub fn <antecedent::PreparedMechanismComposition>::fn inverse_forward_source_typ
 pub fn <antecedent::PreparedMechanismComposition>::fn mean_contrast(&self, contrast: &antecedent_model::compose::gaussian::MeanContrast) -> core::result::Result<f64, antecedent::MechanismCompositionRefusal>
 pub fn <antecedent::PreparedMechanismComposition>::fn mean_contrast_uncertainty(&self, contrast: &antecedent_model::compose::gaussian::MeanContrast) -> core::result::Result<antecedent_model::compose::gaussian::FunctionalUncertainty, antecedent::MechanismCompositionRefusal>
 pub fn <antecedent::PreparedMechanismComposition>::fn observe(&self, request: &antecedent::analysis::observation_query::ObservationRequest, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::observation_query::ObservationClaim, antecedent::analysis::observation_query::ObservationQueryRefusal>
+pub fn <antecedent::PreparedMechanismComposition>::fn observe_continuous(&self, outcome: &str, interventions: &[(alloc::string::String, f64)], observed: &[(alloc::string::String, f64)], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::observation_query::ObservationClaim, antecedent::analysis::observation_query::ObservationQueryRefusal>
+pub fn <antecedent::PreparedMechanismComposition>::fn observe_with_parameter_uncertainty(&self, request: &antecedent::analysis::observation_query::ParameterRedrawRequest, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::observation_query::ObservationClaim, antecedent::analysis::observation_query::ObservationQueryRefusal>
 pub fn <antecedent::PreparedMechanismComposition>::fn plan_identity_hex(&self) -> alloc::string::String
 pub fn <antecedent::PreparedMechanismComposition>::fn refresh_mechanisms(&self, refits: alloc::vec::Vec<antecedent::MechanismRefit>, dependence: core::option::Option<antecedent::DependenceInput>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent::MechanismCompositionRefusal>
 pub fn <antecedent::PreparedMechanismComposition>::fn sample(&self, interventions: &[(&str, f64)], n_rows: usize, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::compose::gaussian::SampleTable, antecedent::MechanismCompositionRefusal>
@@ -11043,6 +11285,12 @@ pub fn <antecedent::PreparedScientificBridge>::fn derive(&self, source: &anteced
 pub fn <antecedent::PreparedScientificBridge>::fn derive_with_standard_error(&self, source: &antecedent_contract::bridge::claim::BridgeSource<'_>, standard_error: core::option::Option<f64>) -> core::result::Result<antecedent::ScientificBridgeResult, antecedent::ScientificBridgeRefusal>
 pub fn <antecedent::PreparedScientificBridge>::fn prepare(contract: antecedent_contract::bridge::contract::BridgeContract) -> core::result::Result<Self, antecedent::ScientificBridgeRefusal>
 pub fn <antecedent::PreparedScientificBridge>::fn with_contract(&self, contract: antecedent_contract::bridge::contract::BridgeContract) -> core::result::Result<Self, antecedent::ScientificBridgeRefusal>
+pub fn <antecedent::PreparedScientificBridgeDistribution>::const fn contract(&self) -> &antecedent_contract::bridge::contract::BridgeContract
+pub fn <antecedent::PreparedScientificBridgeDistribution>::const fn contract_identity(&self) -> antecedent_core::identity::SemanticDigest
+pub fn <antecedent::PreparedScientificBridgeDistribution>::const fn transported(&self) -> bool
+pub fn <antecedent::PreparedScientificBridgeDistribution>::fn derive(&self, source: &antecedent_io_core::distribution_artifact::DistributionArtifact, claim_kind: core::option::Option<antecedent_contract::claim::ClaimKind>, seed: u64) -> core::result::Result<antecedent::ScientificBridgeDistributionResult, antecedent::ScientificBridgeRefusal>
+pub fn <antecedent::PreparedScientificBridgeDistribution>::fn prepare(contract: antecedent_contract::bridge::contract::BridgeContract) -> core::result::Result<Self, antecedent::ScientificBridgeRefusal>
+pub fn <antecedent::PreparedScientificBridgeDistribution>::fn with_contract(&self, contract: antecedent_contract::bridge::contract::BridgeContract) -> core::result::Result<Self, antecedent::ScientificBridgeRefusal>
 pub fn <antecedent::PreparedSmoothedDose>::const fn identification(&self) -> &antecedent_identify::transport::TransportIdentification
 pub fn <antecedent::PreparedSmoothedDose>::const fn options(&self) -> &antecedent_estimate::smoothed_dose::SmoothedDoseOptions
 pub fn <antecedent::PreparedSmoothedDose>::const fn query(&self) -> &antecedent_core::query::smoothed_dose::SmoothedDoseTransportQuery
@@ -11146,6 +11394,7 @@ pub fn <antecedent::PreparedStudy>::fn apply_period_refresh(&self, refresh: &mut
 pub fn <antecedent::PreparedStudy>::fn apply_refresh(&mut self, preview: &antecedent_contract::transform::TransformationReport, data: antecedent_data::dataset::TabularData, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn apply_retarget(&self, preview: &antecedent_contract::transform::TransformationReport, weights: &[f64], depends_on: &[antecedent_core::ids::VariableId], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn batch_share_identity(&self) -> core::result::Result<core::option::Option<antecedent_core::identity::SemanticDigest>, antecedent::CausalError>
+pub fn <antecedent::PreparedStudy>::fn candidate_templates(&self, sensitivity: core::option::Option<&antecedent_design::identification_repair::SensitivityFinding>) -> core::result::Result<antecedent_design::candidate_generation::CandidateGeneration, antecedent::analysis::evidence_plan::EvidencePlanFacadeError>
 pub fn <antecedent::PreparedStudy>::fn capability(&self) -> core::result::Result<antecedent_contract::capability::OperationReport, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn compile_joint_response(&self, target: &antecedent_core::scientific_target::identity::ScientificTarget, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::PreparedJointResponse, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn compiled_linear_program(&self) -> core::option::Option<&antecedent::analysis::compiled_linear::CompiledLinearProgram>
@@ -11163,6 +11412,7 @@ pub fn <antecedent::PreparedStudy>::fn estimate_panel(&self, data: &antecedent_d
 pub fn <antecedent::PreparedStudy>::fn estimate_retained(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn estimate_retained_observed(&self, ctx: &antecedent_core::execution::ExecutionContext) -> antecedent_core::execution_attempt::ExecutionAttempt<antecedent::StudyResult, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn estimate_series(&self, data: &antecedent_data::dataset::TimeSeriesData, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>
+pub fn <antecedent::PreparedStudy>::fn evidence_plan(&self, request: &antecedent::analysis::evidence_plan::EvidencePlanRequest, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::evidence_plan::EvidencePlanResult, antecedent::analysis::evidence_plan::EvidencePlanFacadeError>
 pub fn <antecedent::PreparedStudy>::fn execution_contract(&self, result: &antecedent::StudyResult, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(antecedent::CausalContract, antecedent_contract::claim::ClaimEnvelope), antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn identification_details(&self) -> core::result::Result<serde_json::value::Value, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn inspect(&self) -> core::result::Result<antecedent::CausalContract, antecedent::CausalError>
@@ -11261,10 +11511,12 @@ pub fn <antecedent::ResultPayload>::const fn synthetic_did(&self) -> core::optio
 pub fn <antecedent::ResultPayload>::const fn transport(&self) -> core::option::Option<&antecedent_estimate::transport::TransportEffectEstimate>
 pub fn <antecedent::ResultPayload>::const fn unit_change(&self) -> core::option::Option<&antecedent_attribution::result::UnitChangeResult>
 pub fn <antecedent::ResultPayload>::fn anomaly(&self) -> core::option::Option<&[antecedent_attribution::anomaly::AnomalyScores]>
+pub fn <antecedent::ResultPayload>::fn association(&self) -> core::option::Option<&antecedent::analysis::association::AssociationPayload>
 pub fn <antecedent::ResultPayload>::fn attribution(&self) -> core::option::Option<&antecedent::AttributionPayload>
 pub fn <antecedent::ResultPayload>::fn discovery(&self) -> core::option::Option<&antecedent::DiscoveryPayload>
 pub fn <antecedent::ResultPayload>::fn from_interference(estimate: core::option::Option<antecedent_estimate::interference::InterferenceEstimate>, inference: core::option::Option<antecedent::result::InterferenceInference>) -> Self
 pub fn <antecedent::ResultPayload>::fn from_mediation(decomposition: core::option::Option<antecedent_estimate::temporal_mediation::TemporalMediationEstimate>, grid: core::option::Option<antecedent_estimate::temporal_mediation::TemporalMediationGrid>) -> Self
+pub fn <antecedent::ResultPayload>::fn into_association(self) -> core::option::Option<antecedent::analysis::association::AssociationPayload>
 pub fn <antecedent::ResultPayload>::fn into_attribution(self) -> core::option::Option<antecedent::AttributionPayload>
 pub fn <antecedent::ResultPayload>::fn into_change_attribution(self) -> core::option::Option<antecedent_attribution::result::ChangeAttributionResult>
 pub fn <antecedent::ResultPayload>::fn into_continuous_dose_response(self) -> core::option::Option<antecedent::ContinuousDoseResponseEstimate>
@@ -11298,6 +11550,21 @@ pub fn <antecedent::ResultPayload>::fn simulation(&self) -> core::option::Option
 pub fn <antecedent::ResultPayload>::fn temporal_design(&self) -> core::option::Option<&antecedent::TemporalDesignEstimate>
 pub fn <antecedent::ReviewKind>::const fn as_str(&self) -> &'static str
 pub fn <antecedent::RowWeightsBinding>::fn population(&self) -> antecedent_core::query::target::TargetPopulation
+pub fn <antecedent::ScientificBridgeDistributionResult>::const fn bridged(&self) -> &antecedent_io_core::bridge_distribution::BridgedDistribution
+pub fn <antecedent::ScientificBridgeDistributionResult>::const fn claim(&self) -> &antecedent_contract::bridge::contract::draws::BridgedDistributionClaim
+pub fn <antecedent::ScientificBridgeDistributionResult>::const fn distribution(&self) -> &antecedent_io_core::distribution_artifact::DistributionArtifact
+pub fn <antecedent::ScientificBridgeDistributionResult>::const fn envelope(&self) -> &antecedent_contract::claim::ClaimEnvelope
+pub fn <antecedent::ScientificBridgeDistributionResult>::const fn mean(&self) -> f64
+pub fn <antecedent::ScientificBridgeDistributionResult>::const fn reading(&self) -> &'static str
+pub fn <antecedent::ScientificBridgeDistributionResult>::const fn source(&self) -> &antecedent_io_core::distribution_artifact::DistributionArtifact
+pub fn <antecedent::ScientificBridgeDistributionResult>::const fn variance(&self) -> f64
+pub fn <antecedent::ScientificBridgeDistributionResult>::fn bridged_interval(&self, level: f64) -> core::result::Result<antecedent_io::bridge_interval::BridgedClaimInterval, antecedent::ScientificBridgeRefusal>
+pub fn <antecedent::ScientificBridgeDistributionResult>::fn chain_stage(&self, stage_id: &str) -> core::result::Result<antecedent_io_core::bridge_distribution::BridgeChainStage, antecedent::ScientificBridgeRefusal>
+pub fn <antecedent::ScientificBridgeDistributionResult>::fn export(&self, artifact_id: &str) -> core::result::Result<antecedent::ScientificBridgeExport, antecedent::ScientificBridgeRefusal>
+pub fn <antecedent::ScientificBridgeDistributionResult>::fn freshness(&self, source: &antecedent_contract::claim::ClaimFreshness) -> antecedent_contract::claim::ClaimFreshness
+pub fn <antecedent::ScientificBridgeDistributionResult>::fn inspect(&self) -> antecedent::DistributionBridgeInspection
+pub fn <antecedent::ScientificBridgeDistributionResult>::fn interval(&self) -> core::result::Result<(), antecedent::ScientificBridgeRefusal>
+pub fn <antecedent::ScientificBridgeDistributionResult>::fn require_value_kind(&self, requested: antecedent_contract::bridge::kind::ValueKind) -> core::result::Result<(), antecedent::ScientificBridgeRefusal>
 pub fn <antecedent::ScientificBridgeResult>::const fn bridged(&self) -> &antecedent_contract::bridge::claim::BridgedClaim
 pub fn <antecedent::ScientificBridgeResult>::const fn claim(&self) -> &antecedent_contract::claim::ClaimEnvelope
 pub fn <antecedent::ScientificBridgeResult>::const fn source_claim(&self) -> &antecedent_contract::claim::ClaimEnvelope
@@ -11431,6 +11698,7 @@ pub fn <antecedent::StudyResult>::fn analysis_result_wire(&self, query: &anteced
 pub fn <antecedent::StudyResult>::fn analysis_result_wire_with_context(&self, query: &antecedent_core::query::CausalQuery, registry: core::option::Option<&antecedent_core::query::population::PopulationRegistry>, temporal: core::option::Option<&antecedent::analysis::CachedTemporalIdentification>) -> core::result::Result<antecedent_io_core::analysis_result_artifact::AnalysisResultWire, antecedent::CausalError>
 pub fn <antecedent::StudyResult>::fn analysis_trace_wire(&self) -> antecedent_io_core::trace::AnalysisTraceWire
 pub fn <antecedent::StudyResult>::fn anomaly(&self) -> core::option::Option<&[antecedent_attribution::anomaly::AnomalyScores]>
+pub fn <antecedent::StudyResult>::fn association(&self) -> core::option::Option<&antecedent::analysis::association::AssociationPayload>
 pub fn <antecedent::StudyResult>::fn attribution(&self) -> core::option::Option<&antecedent::AttributionPayload>
 pub fn <antecedent::StudyResult>::fn calibration_bases(&self, contract: &antecedent::CausalContract) -> core::result::Result<alloc::vec::Vec<antecedent_io_core::calibration::CalibrationBasisWire>, antecedent::CausalError>
 pub fn <antecedent::StudyResult>::fn change_attribution(&self) -> core::option::Option<&antecedent_attribution::result::ChangeAttributionResult>
@@ -11724,6 +11992,7 @@ pub fn <antecedent::analysis::array_fits::ArrayFit>::fn fit(request: antecedent_
 pub fn <antecedent::analysis::array_fits::ArrayFit>::fn request(&self) -> &antecedent_io::array_fit_artifact::ArrayFitRequestWire
 pub fn <antecedent::analysis::array_fits::ArrayFit>::fn result(&self) -> &antecedent_io::array_fit_artifact::ArrayFitResultWire
 pub fn <antecedent::analysis::array_fits::ArrayFit>::fn value(&self, name: &str) -> core::option::Option<f64>
+pub fn <antecedent::analysis::association::AssociationPayload>::fn uncertainty_label(&self) -> &'static str
 pub fn <antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow>::const fn artifact(&self) -> &antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire
 pub fn <antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow>::const fn request(&self) -> &antecedent_io::bayesian_posterior_row_artifact::PosteriorRowRequestWire
 pub fn <antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow>::const fn result(&self) -> &antecedent_io_core::analysis_result_artifact::PosteriorRowWire
@@ -11895,6 +12164,11 @@ pub fn <antecedent::analysis::effect_constancy_consumers::ConstancyConsumers>::f
 pub fn <antecedent::analysis::effect_constancy_consumers::ConstancyConsumers>::fn policy_review(&self, contract: &antecedent_design::decision_contract::DecisionContract, effect: &antecedent_contract::quantity::ScientificQuantity) -> core::result::Result<antecedent::analysis::effect_constancy_consumers::ConstancyPolicyReview, antecedent::analysis::effect_constancy_consumers::ConstancyConsumerError>
 pub fn <antecedent::analysis::effect_constancy_consumers::ConstancyConsumers>::fn rank_prior_sources(&self, catalog: &antecedent_io_core::prior_bank::PriorCatalog, target: &antecedent_io_core::prior_bank::TargetDesign, target_partition: &str, bindings: &[antecedent::analysis::effect_constancy_consumers::PriorPartitionBinding]) -> core::result::Result<antecedent::analysis::effect_constancy_consumers::ConstancyPriorRanking, antecedent::analysis::effect_constancy_consumers::ConstancyConsumerError>
 pub fn <antecedent::analysis::effect_constancy_consumers::ConstancyConsumers>::fn transport_diagnostic(&self, left: &str, right: &str) -> core::result::Result<antecedent::analysis::effect_constancy_consumers::TransportConstancyDiagnostic, antecedent::analysis::effect_constancy_consumers::ConstancyConsumerError>
+pub fn <antecedent::analysis::evidence_plan::EvidencePlanFacadeError>::fn code(&self) -> &'static str
+pub fn <antecedent::analysis::evidence_plan::EvidencePlanFacadeError>::fn detail(&self) -> alloc::string::String
+pub fn <antecedent::analysis::evidence_plan::EvidencePlanResult>::fn artifact(&self) -> core::result::Result<&antecedent_design::evidence_plan_artifact::EvidencePlanArtifact, &antecedent_design::evidence_plan_artifact::EvidencePlanArtifactError>
+pub fn <antecedent::analysis::evidence_plan::EvidencePlanResult>::fn export(&self, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_design::evidence_plan_artifact::EvidencePlanArtifactError>
+pub fn <antecedent::analysis::evidence_plan::EvidencePlanResult>::fn name_of(&self, variable: antecedent_core::ids::VariableId) -> alloc::string::String
 pub fn <antecedent::analysis::file_table::GaussianSummarySpec>::fn design_columns(&self) -> alloc::vec::Vec<alloc::string::String>
 pub fn <antecedent::analysis::file_table::GaussianSummarySpec>::fn new(covariates: alloc::vec::Vec<alloc::string::String>, response: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn <antecedent::analysis::file_table::SummaryMissing>::const fn as_str(self) -> &'static str
@@ -11914,6 +12188,7 @@ pub fn <antecedent::analysis::joint_panel::JointPanelResult>::fn attempt_explana
 pub fn <antecedent::analysis::joint_panel::JointPanelResult>::fn compile_continuous_search(&self, request: antecedent::analysis::joint_panel::JointPanelContinuousSearchRequest, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::joint_panel::JointPanelContinuousSearch, antecedent::analysis::joint_panel::JointPanelError>
 pub fn <antecedent::analysis::joint_panel::JointPanelResult>::fn compile_search(&self, request: &antecedent::analysis::joint_panel::JointPanelSearchRequest, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::joint_panel::JointPanelSearch, antecedent::analysis::joint_panel::JointPanelError>
 pub fn <antecedent::analysis::joint_panel::JointPanelResult>::fn consume_current(&self, bytes: &[u8], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io::joint_panel_artifact::PanelArtifactError>
+pub fn <antecedent::analysis::joint_panel::JointPanelResult>::fn decompose_reference(&self, request: &antecedent_estimate::joint_panel::decomposition::PanelDecompositionRequest, periods: &antecedent_estimate::joint_panel::decomposition::MechanismPeriodMap, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_panel::decomposition::PanelDecomposition, antecedent::analysis::joint_panel::JointPanelError>
 pub fn <antecedent::analysis::joint_panel::JointPanelResult>::fn dependency_identity(&self) -> antecedent_core::identity::SemanticDigest
 pub fn <antecedent::analysis::joint_panel::JointPanelResult>::fn design_attempts(&self) -> &[antecedent::analysis::joint_panel::JointPanelDesignAttempt]
 pub fn <antecedent::analysis::joint_panel::JointPanelResult>::fn experiment_quantity(&self, functional: &antecedent::analysis::joint_panel::JointPanelResponseFunctional) -> core::result::Result<antecedent_contract::quantity::ScientificQuantity, antecedent::analysis::joint_panel::JointPanelError>
@@ -12002,20 +12277,27 @@ pub fn <antecedent::analysis::observation_query::ObservationClaim>::fn calibrate
 pub fn <antecedent::analysis::observation_query::ObservationClaim>::fn conditional_levels(&self) -> core::option::Option<alloc::vec::Vec<(alloc::string::String, f64)>>
 pub fn <antecedent::analysis::observation_query::ObservationClaim>::fn conjugate_posterior(&self) -> core::option::Option<(f64, f64, f64)>
 pub fn <antecedent::analysis::observation_query::ObservationClaim>::fn construct_posterior(&self) -> core::option::Option<alloc::vec::Vec<(alloc::string::String, f64)>>
+pub fn <antecedent::analysis::observation_query::ObservationClaim>::fn distribution(&self) -> core::result::Result<antecedent_io_core::distribution_artifact::DistributionArtifact, antecedent::analysis::observation_query::ObservationQueryRefusal>
 pub fn <antecedent::analysis::observation_query::ObservationClaim>::fn evidence_probability(&self) -> core::option::Option<f64>
 pub fn <antecedent::analysis::observation_query::ObservationClaim>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent::analysis::observation_query::ObservationQueryRefusal>
+pub fn <antecedent::analysis::observation_query::ObservationClaim>::fn from_artifact(bytes: &[u8], expected_identity: core::option::Option<&str>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent::analysis::observation_query::ObservationQueryRefusal>
+pub fn <antecedent::analysis::observation_query::ObservationClaim>::fn gaussian_conditional(&self) -> core::option::Option<(f64, f64, core::option::Option<f64>)>
 pub fn <antecedent::analysis::observation_query::ObservationClaim>::fn identity(&self) -> &str
 pub fn <antecedent::analysis::observation_query::ObservationClaim>::fn inference_basis(&self) -> &str
 pub fn <antecedent::analysis::observation_query::ObservationClaim>::fn interval(&self) -> core::result::Result<core::convert::Infallible, antecedent::analysis::observation_query::ObservationQueryRefusal>
 pub fn <antecedent::analysis::observation_query::ObservationClaim>::fn interventional_levels(&self) -> core::option::Option<alloc::vec::Vec<(alloc::string::String, f64)>>
 pub fn <antecedent::analysis::observation_query::ObservationClaim>::fn operation(&self) -> &'static str
 pub fn <antecedent::analysis::observation_query::ObservationClaim>::fn paired(&self) -> core::option::Option<antecedent::analysis::observation_query::PairedLaws>
+pub fn <antecedent::analysis::observation_query::ObservationClaim>::fn parameter_draws(&self) -> core::option::Option<antecedent::analysis::observation_query::PosteriorDraws>
+pub fn <antecedent::analysis::observation_query::ObservationClaim>::fn parameter_interval(&self, quantity: &str, construction: &str, evidence_rows: u64) -> core::result::Result<antecedent::analysis::observation_query::ParameterInterval, antecedent::analysis::observation_query::ObservationQueryRefusal>
 pub fn <antecedent::analysis::observation_query::ObservationClaim>::fn posterior(&self) -> core::option::Option<alloc::vec::Vec<(alloc::string::String, f64)>>
 pub fn <antecedent::analysis::observation_query::ObservationClaim>::fn required_factor(&self) -> core::option::Option<f64>
 pub fn <antecedent::analysis::observation_query::ObservationClaim>::fn required_observations(&self) -> core::option::Option<(u64, f64)>
 pub fn <antecedent::analysis::observation_query::ObservationClaim>::fn threshold_rows(&self) -> core::option::Option<antecedent::analysis::observation_query::ThresholdRows>
 pub fn <antecedent::analysis::observation_query::ObservationQueryRefusal>::fn code(&self) -> &'static str
 pub fn <antecedent::analysis::observation_query::ObservationQueryRefusal>::fn details(&self) -> alloc::vec::Vec<&str>
+pub fn <antecedent::analysis::observation_query::PosteriorDraws>::fn column(&self, quantity: usize) -> alloc::vec::Vec<f64>
+pub fn <antecedent::analysis::observation_query::PosteriorDraws>::fn spread(&self, quantity: usize) -> (f64, f64)
 pub fn <antecedent::analysis::observational_policy::ObservationalPolicyValue>::fn evaluate(request: &antecedent::analysis::observational_policy::ObservationalPolicyRequest) -> core::result::Result<antecedent::analysis::observational_policy::ObservationalPolicyReportWire, antecedent::CausalError>
 pub fn <antecedent::analysis::observational_survival::ObservationalSurvivalEffect>::fn evaluate(request: &antecedent::analysis::observational_survival::ObservationalSurvivalRequest) -> core::result::Result<antecedent::analysis::observational_survival::ObservationalSurvivalReportWire, antecedent::CausalError>
 pub fn <antecedent::analysis::planning::PlanningPlan>::const fn simulation_quote(&self) -> core::option::Option<antecedent::planner::lowered::SimulationQuote>
@@ -12538,6 +12820,7 @@ pub fn <antecedent::planner::plan_view::IdentificationView>::const fn reason(&se
 pub fn <antecedent::planner::plan_view::IdentificationView>::const fn retention_key(&self) -> core::option::Option<[u8; 32]>
 pub fn <antecedent::planner::plan_view::IdentificationView>::const fn unresolved_directions(&self) -> usize
 pub fn <antecedent::planner::plan_view::IdentificationView>::fn assumptions(&self) -> alloc::vec::Vec<antecedent::planner::plan_view::AssumptionView>
+pub fn <antecedent::planner::plan_view::IdentificationView>::fn refusal(&self) -> core::option::Option<&str>
 pub fn <antecedent::planner::plan_view::IdentificationView>::fn retained(&self) -> &[antecedent::planner::plan_view::RetainedProductView]
 pub fn <antecedent::planner::plan_view::IdentificationView>::fn status(&self) -> core::option::Option<antecedent_core::identification::IdentificationStatus>
 pub fn <antecedent::planner::plan_view::IdentificationView>::fn unresolved_obligations(&self) -> &[antecedent::planner::plan_view::ObligationView]
@@ -12663,6 +12946,7 @@ pub fn antecedent::analysis::api::consume_period_refresh_artifact(bytes: &[u8]) 
 pub fn antecedent::analysis::api::consume_predictive_assessment_artifact(bytes: &[u8], expected: core::option::Option<&antecedent_validate::predictive_assessment::identity::AssessmentIdentity>, limits: antecedent_io::predictive_assessment_artifact::PredictiveAssessmentConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::PreparedPredictiveAssessment, antecedent::PredictiveAssessmentRefusal>
 pub fn antecedent::analysis::api::consume_scenario_covariance_artifact(bytes: &[u8], limits: antecedent_io::scenario_covariance_artifact::ScenarioCovarianceConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::scenario_covariance::ScenarioCovariance, antecedent_io_core::error::IoError>
 pub fn antecedent::analysis::api::consume_scientific_bridge_artifact(bytes: &[u8], expected_identity: core::option::Option<&str>) -> core::result::Result<antecedent::ConsumedScientificBridge, antecedent::ScientificBridgeRefusal>
+pub fn antecedent::analysis::api::consume_scientific_bridge_distribution_artifact(bytes: &[u8], expected_identity: core::option::Option<&str>) -> core::result::Result<antecedent::ConsumedScientificBridgeDistribution, antecedent::ScientificBridgeRefusal>
 pub fn antecedent::analysis::api::consume_smoothed_dose_artifact(bytes: &[u8], limits: antecedent_io::smoothed_dose_artifact::SmoothedDoseConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::SmoothedDoseResult, antecedent_io_core::error::IoError>
 pub fn antecedent::analysis::api::consume_temporal_initial_state_artifact(bytes: &[u8], limits: &antecedent_io::temporal_initial_state_artifact::TemporalInitialStateConsumeLimits) -> core::result::Result<(antecedent_io::temporal_initial_state_artifact::TemporalInitialStateArtifactWire, antecedent_io::temporal_initial_state_artifact::InitialStateReplay), antecedent_io_core::error::IoError>
 pub fn antecedent::analysis::api::consume_temporal_refresh_artifact(bytes: &[u8], limits: &antecedent_io::temporal_initial_state_artifact::TemporalInitialStateConsumeLimits) -> core::result::Result<(antecedent_io::temporal_refresh_artifact::TemporalRefreshArtifactWire, antecedent_io::temporal_refresh_artifact::RefreshReplay), antecedent_io_core::error::IoError>
@@ -12684,6 +12968,7 @@ pub fn antecedent::analysis::api::posterior_predictive_predictor(check: &anteced
 pub fn antecedent::analysis::api::preflight_design(input: &antecedent::PreflightInput<'_>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::PreflightReport, antecedent::CausalError>
 pub fn antecedent::analysis::api::prepare_counterfactual_transport(problem: &antecedent_identify::sid::counterfactual_transport::CounterfactualTransportProblem, query: &antecedent_identify::sid::counterfactual_transport::CounterfactualTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, evidence: core::option::Option<antecedent_expr::exact::ExactTransportData>, options: &antecedent::CounterfactualTransportOptions, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::CounterfactualTransportPreparation, antecedent_io_core::error::IoError>
 pub fn antecedent::analysis::api::route_missing_support(cell: antecedent::MissingRouteCell) -> core::option::Option<&'static antecedent::MissingRouteSupport>
+pub fn antecedent::analysis::api::scientific_bridge_artifact_shape(bytes: &[u8]) -> core::result::Result<&'static str, antecedent::ScientificBridgeRefusal>
 pub fn antecedent::analysis::api::temporal_dependent_interval(snapshot_id: &str, units: core::option::Option<alloc::vec::Vec<antecedent_estimate::temporal_dependent_interval::UnitHistories>>, sequence: [u32; 2], estimand: antecedent::IntervalEstimand, config: &antecedent_estimate::temporal_dependent_interval::DependentIntervalConfig) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
 pub fn antecedent::analysis::api::tier_diagnostics(result: &antecedent::StudyResult, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::TierDiagnostics, antecedent::TierDiagnosticsError>
 pub fn antecedent::analysis::check_callback_connection(declaration: &antecedent_contract::callback_protocol::declaration::CallbackDeclaration, consumer: &antecedent_contract::interface_contract::declaration::InterfaceContract, consumed_port: &str) -> core::result::Result<antecedent_contract::interface_contract::connection::Connection, alloc::vec::Vec<antecedent_contract::external_refusal::ExternalRefusal>>
@@ -12761,6 +13046,9 @@ pub fn antecedent::analysis::discovered_transport_trial::estimate_trial_compatib
 pub fn antecedent::analysis::discovered_transport_trial::verify_trial_compatible_transport_confidence_set_against(bytes: &[u8], report: &antecedent::analysis::discovered_transport::DiscoveredTransportReport, query: &antecedent_core::query::transport::TransportQuery, evidence: &antecedent::analysis::discovered_transport_estimate::TransportEvidence<'_>, options: antecedent::analysis::discovered_transport_trial::TrialCompatibilityOptions, support: antecedent::analysis::discovered_transport_trial::TransportOutcomeSupport, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::discovered_transport_trial::TrialCompatibleTransportConfidenceSet, antecedent_io_core::error::IoError>
 pub fn antecedent::analysis::discovered_transport_trial::verify_trial_compatible_transport_estimate(bytes: &[u8], limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(antecedent::analysis::discovered_transport_trial::TrialCompatibilityProof, antecedent::analysis::discovered_transport_estimate::VerifiedEstimate), antecedent_io_core::error::IoError>
 pub fn antecedent::analysis::discretized_composition::consume_discretized_composition(bytes: &[u8], expected_identity: core::option::Option<[u8; 32]>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::discretized_scm::DiscretizedLinearGaussian, antecedent::analysis::discretized_composition::DiscretizationRefusal>
+pub fn antecedent::analysis::evidence_plan::plan_for_failure(result: &antecedent_identify::result::IdentificationResult, graph: &antecedent_graph::admg::Admg, names: &[alloc::sync::Arc<str>], observed: &[antecedent_core::ids::VariableId], request: &antecedent::analysis::evidence_plan::EvidencePlanRequest, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::evidence_plan::EvidencePlanResult, antecedent::analysis::evidence_plan::EvidencePlanFacadeError>
+pub fn antecedent::analysis::evidence_plan::plan_over_routes(routes: &antecedent_design::failure_routes::FailureRoutes, names: alloc::vec::Vec<alloc::string::String>, request: &antecedent::analysis::evidence_plan::EvidencePlanRequest, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::evidence_plan::EvidencePlanResult, antecedent::analysis::evidence_plan::EvidencePlanFacadeError>
+pub fn antecedent::analysis::evidence_plan::variable_names(names: &[alloc::sync::Arc<str>], routes: &antecedent_design::failure_routes::FailureRoutes, graph: &antecedent_graph::admg::Admg) -> alloc::vec::Vec<alloc::string::String>
 pub fn antecedent::analysis::export_callback_result(record: &antecedent_io_core::callback_result_artifact::CallbackResultRecord, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::callback_result_artifact::CallbackResultArtifactError>
 pub fn antecedent::analysis::export_interface_contract(contract: &antecedent_contract::interface_contract::declaration::InterfaceContract, artifact_id: &str) -> core::result::Result<antecedent::analysis::InterfaceContractExport, antecedent::analysis::InterfaceContractRefusal>
 pub fn antecedent::analysis::file_table::summarize_weighted_gaussian(file: &antecedent_data::file_source::TableFile, spec: &antecedent::analysis::file_table::GaussianSummarySpec, control: antecedent_io_core::capacity_account::weighted_gaussian_capacity::CapacityControl, options: &antecedent_io_core::capacity_account::weighted_gaussian_capacity::CapacityOptions, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::file_table::FileGaussianSummary, antecedent::analysis::file_table::FileTableError>
@@ -12822,6 +13110,8 @@ pub fn antecedent::analysis::observation_evidence::required_observations_conjuga
 pub fn antecedent::analysis::observation_posterior::conjugate_posterior(alpha: f64, beta: f64, successes: u64, failures: u64, basis: antecedent_contract::observation_query::InferenceBasis, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::observation_query::ObservationClaim, antecedent::analysis::observation_query::ObservationQueryRefusal>
 pub fn antecedent::analysis::observation_posterior::finite_posterior(model: &antecedent::analysis::observation_posterior::FiniteBayesInput, observations: &[alloc::string::String], basis: antecedent_contract::observation_query::InferenceBasis, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::observation_query::ObservationClaim, antecedent::analysis::observation_query::ObservationQueryRefusal>
 pub fn antecedent::analysis::observation_query::consume_observation_query_artifact(bytes: &[u8], expected_identity: core::option::Option<&str>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::observation_query::ConsumedObservationClaim, antecedent::analysis::observation_query::ObservationQueryRefusal>
+pub fn antecedent::analysis::observation_query::retain_counts(variable: &str, rows: alloc::vec::Vec<(alloc::vec::Vec<(alloc::string::String, alloc::string::String)>, alloc::vec::Vec<(alloc::string::String, u64)>)>) -> antecedent_io_core::observation_query_artifact::RetainedMechanismWire
+pub fn antecedent::analysis::observation_query::retain_regression(variable: &str, parents: &[(&str, &[f64])], y: &[f64]) -> core::result::Result<antecedent_io_core::observation_query_artifact::RetainedMechanismWire, antecedent::analysis::observation_query::ObservationQueryRefusal>
 pub fn antecedent::analysis::per_population_discovery::add_per_population_claims(graph: &mut antecedent_contract::composition_verification::graph::CompositionGraph, prefix: &str, driver: &antecedent_discovery::selective::populations::PerPopulationDiscovery) -> core::result::Result<alloc::collections::btree::map::BTreeMap<alloc::string::String, antecedent::analysis::selective_discovery::DiscoveryClaimKeys>, antecedent_contract::composition_verification::graph::GraphError>
 pub fn antecedent::analysis::per_population_discovery::discover_per_population(contract: &antecedent_discovery::selective::contract::StaticDiscoveryContract, populations: &[antecedent_discovery::selective::populations::PopulationRows<'_>], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::selective::populations::PerPopulationDiscovery, antecedent_discovery::selective::refusal::SelectiveDiscoveryError>
 pub fn antecedent::analysis::per_population_discovery::request_selection_targets_from_differences(report: &antecedent_discovery::selective::populations::PerPopulationReport, _candidate_targets: &[antecedent_core::ids::VariableId]) -> core::result::Result<core::convert::Infallible, antecedent_discovery::selective::transport::DiscoveredStructureRefusal>
@@ -12942,6 +13232,7 @@ pub fn antecedent::cross_world::consume_cross_world_artifact_for_data(bytes: &[u
 pub fn antecedent::cross_world::evaluate_cross_world_effect(graph: impl antecedent::IntoGraphInput, data: &antecedent_data::dataset::TabularData, query: &antecedent_core::query::cross_world::CrossWorldQuery, options: antecedent::cross_world::CrossWorldOptions, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::cross_world::CrossWorldEffect, antecedent::CausalError>
 pub fn antecedent::design::preview_design_rank<A, O>(contract: &antecedent::CausalContract, objective: &antecedent_design::objective::DesignObjective, candidates: &[antecedent_design::candidate::CandidateDesign], eval: &antecedent_design::ranker::DesignEvaluationContext<'_, A, O>, decision_target: core::option::Option<antecedent_core::identity::SemanticDigest>) -> core::result::Result<antecedent::design::DesignRankPreview, antecedent::CausalError>
 pub fn antecedent::design::rank_designs_bound<A, O>(contract: &antecedent::CausalContract, ranker: &antecedent_design::ranker::DesignRanker, objective: &antecedent_design::objective::DesignObjective, candidates: &[antecedent_design::candidate::CandidateDesign], eval: &antecedent_design::ranker::DesignEvaluationContext<'_, A, O>, ctx: &antecedent_core::execution::ExecutionContext, decision_target: core::option::Option<antecedent_core::identity::SemanticDigest>) -> core::result::Result<antecedent_design::result::ScoredDesignRanking, antecedent::CausalError> where A: core::clone::Clone + core::marker::Sync, O: core::clone::Clone + core::marker::Sync
+pub fn antecedent::design::rank_studies_bound<A, O>(contract: &antecedent::CausalContract, ranker: &antecedent_design::ranker::DesignRanker, objective: &antecedent_design::objective::DesignObjective, studies: &[antecedent_design::study_candidate::DurableStudyCandidate], report: &antecedent_design::repair::RepairReport, base_law: &[antecedent_core::ids::VariableId], query: antecedent_core::ids::QueryId, eval: &antecedent_design::ranker::DesignEvaluationContext<'_, A, O>, ctx: &antecedent_core::execution::ExecutionContext, decision_target: core::option::Option<antecedent_core::identity::SemanticDigest>) -> core::result::Result<antecedent::design::StudyDesignRanking, antecedent::CausalError> where A: core::clone::Clone + core::marker::Sync, O: core::clone::Clone + core::marker::Sync
 pub fn antecedent::discovery::pag_definite_directed_edge_count(pag: &antecedent_graph::temporal_pag::TemporalPag) -> u64
 pub fn antecedent::discovery_defaults::contemporaneous_constraints(max_lag: u32, alpha: f64, max_cond_size: usize) -> antecedent_discovery::constraints::DiscoveryConstraints
 pub fn antecedent::discovery_defaults::jpcmci_constraints(max_lag: u32, alpha: f64, max_cond_size: usize, multi_dataset: antecedent_discovery::constraints::MultiDatasetConstraints) -> antecedent_discovery::constraints::DiscoveryConstraints
@@ -12970,9 +13261,11 @@ pub fn antecedent::host::claim_response(claim: &antecedent_contract::claim::Clai
 pub fn antecedent::host::error_family(error: &antecedent::CausalError) -> &'static str
 pub fn antecedent::host::error_response(error: &antecedent::CausalError) -> serde_json::value::Value
 pub fn antecedent::host::host_schema() -> core::result::Result<serde_json::value::Value, serde_json::error::Error>
+pub fn antecedent::host::neighbor_records(neighbors: &[antecedent_contract::capability::LicensedNeighbor]) -> alloc::vec::Vec<serde_json::value::Value>
 pub fn antecedent::host::operation_record(report: &antecedent_contract::capability::OperationReport) -> serde_json::value::Value
 pub fn antecedent::host::refusal_code(error: &antecedent::CausalError) -> core::option::Option<&str>
 pub fn antecedent::host::refusal_record(error: &antecedent::CausalError) -> serde_json::value::Value
+pub fn antecedent::host::unmet_obligation_records(obligations: &[antecedent_contract::obligation::ObligationRecord]) -> alloc::vec::Vec<serde_json::value::Value>
 pub fn antecedent::inference::decode_prior_hydrate_source(cfg: &antecedent::BayesianConfig) -> core::result::Result<core::option::Option<antecedent::inference::DecodedPriorHydrate>, antecedent::CausalError>
 pub fn antecedent::inference::hydrate_mapping_from_io(mapping: &antecedent_io_core::prior_bank::PriorMapping) -> antecedent_estimate::bayesian::hydrate::HydrateMapping
 pub fn antecedent::inference::hydrate_prior_from_posterior_bytes(bytes: &[u8], mapping: &antecedent_estimate::bayesian::hydrate::HydrateMapping, baseline: &antecedent_prob::prior::PriorSet, target_coef_names: &[alloc::sync::Arc<str>], treatment_col: core::option::Option<usize>, fallback_contrast: core::option::Option<f64>) -> core::result::Result<antecedent_prob::prior::PriorSet, antecedent::CausalError>
@@ -13023,6 +13316,7 @@ pub mod antecedent::analysis::adaptive_procedure_report
 pub mod antecedent::analysis::api
 pub mod antecedent::analysis::api::tier_diagnostics
 pub mod antecedent::analysis::array_fits
+pub mod antecedent::analysis::association
 pub mod antecedent::analysis::bayesian_posterior_row
 pub mod antecedent::analysis::categorical_treatment
 pub mod antecedent::analysis::closed_pilots
@@ -13050,6 +13344,7 @@ pub mod antecedent::analysis::dose_grid_functional
 pub mod antecedent::analysis::effect_constancy
 pub mod antecedent::analysis::effect_constancy_consumers
 pub mod antecedent::analysis::evidence_ledger
+pub mod antecedent::analysis::evidence_plan
 pub mod antecedent::analysis::file_table
 pub mod antecedent::analysis::horizon_composition
 pub mod antecedent::analysis::interface_contract
@@ -13220,6 +13515,7 @@ pub struct antecedent::ConsumedMeasurement has private fields
 pub struct antecedent::ConsumedMonitoringContract
 pub struct antecedent::ConsumedMonitoringContract has private fields
 pub struct antecedent::ConsumedScientificBridge
+pub struct antecedent::ConsumedScientificBridgeDistribution
 pub struct antecedent::ContinuousDoseResponseEstimate
 pub struct antecedent::ContinuousErrorInput
 pub struct antecedent::ContinuousMeasurementEstimate
@@ -13241,6 +13537,7 @@ pub struct antecedent::DerivedTreatmentPlan
 pub struct antecedent::DiscoveryPayload
 pub struct antecedent::DiscoverySpec
 pub struct antecedent::DiscoverySpec has private fields
+pub struct antecedent::DistributionBridgeInspection
 pub struct antecedent::DroppedColumn
 pub struct antecedent::DuplicateGroup
 pub struct antecedent::EmpiricalScenarioInput
@@ -13345,6 +13642,8 @@ pub struct antecedent::PreparedPredictiveAssessment
 pub struct antecedent::PreparedPredictiveAssessment has private fields
 pub struct antecedent::PreparedScientificBridge
 pub struct antecedent::PreparedScientificBridge has private fields
+pub struct antecedent::PreparedScientificBridgeDistribution
+pub struct antecedent::PreparedScientificBridgeDistribution has private fields
 pub struct antecedent::PreparedSmoothedDose
 pub struct antecedent::PreparedSmoothedDose has private fields
 pub struct antecedent::PreparedStudy has private fields
@@ -13367,6 +13666,8 @@ pub struct antecedent::RetargetClaim
 pub struct antecedent::RetargetContrast
 pub struct antecedent::RetargetCostEstimate
 pub struct antecedent::RevisionReport
+pub struct antecedent::ScientificBridgeDistributionResult
+pub struct antecedent::ScientificBridgeDistributionResult has private fields
 pub struct antecedent::ScientificBridgeExport
 pub struct antecedent::ScientificBridgeRefusal
 pub struct antecedent::ScientificBridgeResult
@@ -13520,6 +13821,8 @@ pub struct antecedent::analysis::array_fits::ArrayFit
 pub struct antecedent::analysis::array_fits::ArrayFit has private fields
 pub struct antecedent::analysis::array_fits::TemporalTreatmentScoreSpec
 pub struct antecedent::analysis::array_fits::TreatmentScoreSpec
+pub struct antecedent::analysis::association::AssociationPayload
+pub struct antecedent::analysis::association::PredictionScores
 pub struct antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow
 pub struct antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow has private fields
 pub struct antecedent::analysis::bayesian_posterior_row::PosteriorRowPreparedState
@@ -13582,6 +13885,7 @@ pub struct antecedent::analysis::design_ranking::ExternalDeclWire
 pub struct antecedent::analysis::design_ranking::MonteCarloDeclWire
 pub struct antecedent::analysis::design_ranking::SignalDeclWire
 pub struct antecedent::analysis::design_ranking::StructuralCandidateDeclWire
+pub struct antecedent::analysis::design_ranking::UtilityTableDeclWire
 pub struct antecedent::analysis::discovered_transport::DiscoveredTransportReport
 pub struct antecedent::analysis::discovered_transport::DiscoveredTransportReport has private fields
 pub struct antecedent::analysis::discovered_transport::DiscoveredTransportRun
@@ -13622,6 +13926,11 @@ pub struct antecedent::analysis::effect_constancy_consumers::ConstancyPolicyRevi
 pub struct antecedent::analysis::effect_constancy_consumers::ConstancyPriorRanking
 pub struct antecedent::analysis::effect_constancy_consumers::PriorPartitionBinding
 pub struct antecedent::analysis::effect_constancy_consumers::TransportConstancyDiagnostic
+pub struct antecedent::analysis::evidence_plan::EvidencePlanRequest
+pub struct antecedent::analysis::evidence_plan::EvidencePlanResult
+pub struct antecedent::analysis::evidence_plan::EvidencePlanResult has private fields
+pub struct antecedent::analysis::evidence_plan::EvidenceValueRequest
+pub struct antecedent::analysis::evidence_plan::StudyValueWire
 pub struct antecedent::analysis::file_table::FileGaussianSummary
 pub struct antecedent::analysis::file_table::GaussianSummarySpec
 pub struct antecedent::analysis::horizon_composition::ComposedHorizons
@@ -13685,10 +13994,14 @@ pub struct antecedent::analysis::nonlinear_mediation::NonlinearMediation
 pub struct antecedent::analysis::nonlinear_mediation::NonlinearMediation has private fields
 pub struct antecedent::analysis::observation_posterior::FiniteBayesInput
 pub struct antecedent::analysis::observation_query::ConsumedObservationClaim
+pub struct antecedent::analysis::observation_query::ContinuousAssignments
 pub struct antecedent::analysis::observation_query::ObservationClaim
 pub struct antecedent::analysis::observation_query::ObservationClaim has private fields
 pub struct antecedent::analysis::observation_query::ObservationQueryRefusal
 pub struct antecedent::analysis::observation_query::ObservationRequest
+pub struct antecedent::analysis::observation_query::ParameterInterval
+pub struct antecedent::analysis::observation_query::ParameterRedrawRequest
+pub struct antecedent::analysis::observation_query::PosteriorDraws
 pub struct antecedent::analysis::observational_policy::ActionValueWire
 pub struct antecedent::analysis::observational_policy::ObservationalPolicyReportWire
 pub struct antecedent::analysis::observational_policy::ObservationalPolicyRequest
@@ -13844,6 +14157,7 @@ pub struct antecedent::cross_world::CrossWorldEffect
 pub struct antecedent::cross_world::CrossWorldEffect has private fields
 pub struct antecedent::cross_world::CrossWorldOptions
 pub struct antecedent::design::DesignRankPreview
+pub struct antecedent::design::StudyDesignRanking
 pub struct antecedent::discovery::BayesianDiscoverParams
 pub struct antecedent::discovery::DiscoverParams
 pub struct antecedent::discovery::GraphMcmcSchedule
@@ -13969,6 +14283,10 @@ pub use antecedent::AdmissibleContractArtifact = super::AdmissibleContractArtifa
 pub use antecedent::AdmissibleDecisionContract = super::AdmissibleDecisionContract
 pub use antecedent::AnomalyAttributionQuery = query::AnomalyAttributionQuery
 pub use antecedent::AssignmentDesign = query::AssignmentDesign
+pub use antecedent::AssociationFunctional = query::AssociationFunctional
+pub use antecedent::AssociationMeasure = query::AssociationMeasure
+pub use antecedent::AssociationOutcome = query::AssociationOutcome
+pub use antecedent::AssociationQuery = query::AssociationQuery
 pub use antecedent::AtomSupport = super::AtomSupport
 pub use antecedent::AttributeQuery = query::AttributeQuery
 pub use antecedent::AverageEffectQuery = query::AverageEffectQuery
@@ -14129,6 +14447,7 @@ pub use antecedent::analysis::ConsumedEvidenceLedger = antecedent::ConsumedEvide
 pub use antecedent::analysis::ConsumedMeasurement = antecedent::ConsumedMeasurement
 pub use antecedent::analysis::ConsumedMonitoringContract = antecedent::ConsumedMonitoringContract
 pub use antecedent::analysis::ConsumedScientificBridge = antecedent::ConsumedScientificBridge
+pub use antecedent::analysis::ConsumedScientificBridgeDistribution = antecedent::ConsumedScientificBridgeDistribution
 pub use antecedent::analysis::ContinuousErrorInput = antecedent::ContinuousErrorInput
 pub use antecedent::analysis::ContinuousMeasurementEstimate = antecedent::ContinuousMeasurementEstimate
 pub use antecedent::analysis::ContrastPoint = antecedent::ContrastPoint
@@ -14161,6 +14480,7 @@ pub use antecedent::analysis::DependenceRangeRequest = antecedent::DependenceRan
 pub use antecedent::analysis::DependentColumn = antecedent::DependentColumn
 pub use antecedent::analysis::DerivedTreatmentDeclaration = antecedent::DerivedTreatmentDeclaration
 pub use antecedent::analysis::DerivedTreatmentPlan = antecedent::DerivedTreatmentPlan
+pub use antecedent::analysis::DistributionBridgeInspection = antecedent::DistributionBridgeInspection
 pub use antecedent::analysis::DroppedColumn = antecedent::DroppedColumn
 pub use antecedent::analysis::DuplicateGroup = antecedent::DuplicateGroup
 pub use antecedent::analysis::EmpiricalScenarioInput = antecedent::EmpiricalScenarioInput
@@ -14266,6 +14586,7 @@ pub use antecedent::analysis::PreparedMzTransport = antecedent::PreparedMzTransp
 pub use antecedent::analysis::PreparedObservationRecovery = antecedent::PreparedObservationRecovery
 pub use antecedent::analysis::PreparedPredictiveAssessment = antecedent::PreparedPredictiveAssessment
 pub use antecedent::analysis::PreparedScientificBridge = antecedent::PreparedScientificBridge
+pub use antecedent::analysis::PreparedScientificBridgeDistribution = antecedent::PreparedScientificBridgeDistribution
 pub use antecedent::analysis::PreparedSmoothedDose = antecedent::PreparedSmoothedDose
 pub use antecedent::analysis::PreparedStudy = antecedent::PreparedStudy
 pub use antecedent::analysis::PreparedTemporalTransport = antecedent::PreparedTemporalTransport
@@ -14289,6 +14610,7 @@ pub use antecedent::analysis::RobustDecisionResult = decision_contract_facade::R
 pub use antecedent::analysis::RobustResultArtifact = decision_contract_facade::RobustResultArtifact
 pub use antecedent::analysis::RobustVerdict = decision_contract_facade::RobustVerdict
 pub use antecedent::analysis::RobustnessError = decision_contract_facade::RobustnessError
+pub use antecedent::analysis::ScientificBridgeDistributionResult = antecedent::ScientificBridgeDistributionResult
 pub use antecedent::analysis::ScientificBridgeExport = antecedent::ScientificBridgeExport
 pub use antecedent::analysis::ScientificBridgeRefusal = antecedent::ScientificBridgeRefusal
 pub use antecedent::analysis::ScientificBridgeResult = antecedent::ScientificBridgeResult
@@ -14465,6 +14787,7 @@ pub use antecedent::analysis::api::ConsumedEvidenceLedger = antecedent::Consumed
 pub use antecedent::analysis::api::ConsumedMeasurement = antecedent::ConsumedMeasurement
 pub use antecedent::analysis::api::ConsumedMonitoringContract = antecedent::ConsumedMonitoringContract
 pub use antecedent::analysis::api::ConsumedScientificBridge = antecedent::ConsumedScientificBridge
+pub use antecedent::analysis::api::ConsumedScientificBridgeDistribution = antecedent::ConsumedScientificBridgeDistribution
 pub use antecedent::analysis::api::ContinuousErrorInput = antecedent::ContinuousErrorInput
 pub use antecedent::analysis::api::ContinuousMeasurementEstimate = antecedent::ContinuousMeasurementEstimate
 pub use antecedent::analysis::api::ContrastPoint = antecedent::ContrastPoint
@@ -14490,6 +14813,7 @@ pub use antecedent::analysis::api::DerivedTreatmentPlan = antecedent::DerivedTre
 pub use antecedent::analysis::api::DiscoveredStructure = antecedent::DiscoveredStructure
 pub use antecedent::analysis::api::DiscoveryPayload = antecedent::DiscoveryPayload
 pub use antecedent::analysis::api::DiscoverySpec = antecedent::DiscoverySpec
+pub use antecedent::analysis::api::DistributionBridgeInspection = antecedent::DistributionBridgeInspection
 pub use antecedent::analysis::api::DroppedColumn = antecedent::DroppedColumn
 pub use antecedent::analysis::api::DuplicateGroup = antecedent::DuplicateGroup
 pub use antecedent::analysis::api::EmpiricalScenarioInput = antecedent::EmpiricalScenarioInput
@@ -14596,6 +14920,7 @@ pub use antecedent::analysis::api::PreparedMzTransport = antecedent::PreparedMzT
 pub use antecedent::analysis::api::PreparedObservationRecovery = antecedent::PreparedObservationRecovery
 pub use antecedent::analysis::api::PreparedPredictiveAssessment = antecedent::PreparedPredictiveAssessment
 pub use antecedent::analysis::api::PreparedScientificBridge = antecedent::PreparedScientificBridge
+pub use antecedent::analysis::api::PreparedScientificBridgeDistribution = antecedent::PreparedScientificBridgeDistribution
 pub use antecedent::analysis::api::PreparedSmoothedDose = antecedent::PreparedSmoothedDose
 pub use antecedent::analysis::api::PreparedStudy = antecedent::PreparedStudy
 pub use antecedent::analysis::api::PreparedTemporalTransport = antecedent::PreparedTemporalTransport
@@ -14618,6 +14943,7 @@ pub use antecedent::analysis::api::RobustDecisionResult = super::RobustDecisionR
 pub use antecedent::analysis::api::RobustResultArtifact = super::RobustResultArtifact
 pub use antecedent::analysis::api::RobustVerdict = super::RobustVerdict
 pub use antecedent::analysis::api::RobustnessError = super::RobustnessError
+pub use antecedent::analysis::api::ScientificBridgeDistributionResult = antecedent::ScientificBridgeDistributionResult
 pub use antecedent::analysis::api::ScientificBridgeExport = antecedent::ScientificBridgeExport
 pub use antecedent::analysis::api::ScientificBridgeRefusal = antecedent::ScientificBridgeRefusal
 pub use antecedent::analysis::api::ScientificBridgeResult = antecedent::ScientificBridgeResult
@@ -14911,6 +15237,7 @@ pub use antecedent::analysis::consume_period_refresh_artifact = antecedent::anal
 pub use antecedent::analysis::consume_predictive_assessment_artifact = antecedent::analysis::api::consume_predictive_assessment_artifact
 pub use antecedent::analysis::consume_scenario_covariance_artifact = antecedent::analysis::api::consume_scenario_covariance_artifact
 pub use antecedent::analysis::consume_scientific_bridge_artifact = antecedent::analysis::api::consume_scientific_bridge_artifact
+pub use antecedent::analysis::consume_scientific_bridge_distribution_artifact = antecedent::analysis::api::consume_scientific_bridge_distribution_artifact
 pub use antecedent::analysis::consume_smoothed_dose_artifact = antecedent::analysis::api::consume_smoothed_dose_artifact
 pub use antecedent::analysis::consume_temporal_initial_state_artifact = antecedent::analysis::api::consume_temporal_initial_state_artifact
 pub use antecedent::analysis::consume_temporal_refresh_artifact = antecedent::analysis::api::consume_temporal_refresh_artifact
@@ -15212,6 +15539,14 @@ pub use antecedent::analysis::evidence_ledger::SynthesisOutcome = antecedent::Sy
 pub use antecedent::analysis::evidence_ledger::SynthesisValue = antecedent::SynthesisValue
 pub use antecedent::analysis::evidence_ledger::TransportIdentity = antecedent_contract::evidence_ledger::TransportIdentity
 pub use antecedent::analysis::evidence_ledger::consume_evidence_ledger_artifact = antecedent::analysis::api::consume_evidence_ledger_artifact
+pub use antecedent::analysis::evidence_plan::EvidencePlan = antecedent_design::EvidencePlan
+pub use antecedent::analysis::evidence_plan::EvidencePlanArtifact = antecedent_design::EvidencePlanArtifact
+pub use antecedent::analysis::evidence_plan::EvidencePlanArtifactError = antecedent_design::EvidencePlanArtifactError
+pub use antecedent::analysis::evidence_plan::PlanOption = antecedent_design::PlanOption
+pub use antecedent::analysis::evidence_plan::PlanOutcome = antecedent_design::PlanOutcome
+pub use antecedent::analysis::evidence_plan::PlanRoute = antecedent_design::PlanRoute
+pub use antecedent::analysis::evidence_plan::PlanValueBasis = antecedent_design::PlanValueBasis
+pub use antecedent::analysis::evidence_plan::UnverifiedRoute = antecedent_design::UnverifiedRoute
 pub use antecedent::analysis::export_admg_conditional_obstruction = antecedent::analysis::api::export_admg_conditional_obstruction
 pub use antecedent::analysis::export_scenario_covariance = antecedent::analysis::api::export_scenario_covariance
 pub use antecedent::analysis::file_table::CapacityControl = antecedent_io_core::capacity_account::CapacityControl
@@ -15367,7 +15702,13 @@ pub use antecedent::analysis::joint_law_propagation::alignment_identity = antece
 pub use antecedent::analysis::joint_law_propagation::claim_from_artifact = antecedent::analysis::claim_from_artifact
 pub use antecedent::analysis::joint_law_propagation::consume_joint_law_propagation_artifact = antecedent::analysis::consume_joint_law_propagation_artifact
 pub use antecedent::analysis::joint_law_propagation::input_alignment = antecedent::analysis::input_alignment
+pub use antecedent::analysis::joint_panel::ChangeComponent = explanation::ChangeComponent
+pub use antecedent::analysis::joint_panel::DecompositionEndpoint = explanation::DecompositionEndpoint
 pub use antecedent::analysis::joint_panel::JointPanelScientificScope = ports::JointPanelScientificScope
+pub use antecedent::analysis::joint_panel::MechanismPeriodMap = explanation::MechanismPeriodMap
+pub use antecedent::analysis::joint_panel::PanelDecomposition = explanation::PanelDecomposition
+pub use antecedent::analysis::joint_panel::PanelDecompositionRequest = explanation::PanelDecompositionRequest
+pub use antecedent::analysis::joint_panel::ReferenceDecomposition = explanation::ReferenceDecomposition
 pub use antecedent::analysis::latent_class_effects::LATENT_CLASS_ARTIFACT_MAX_ROWS = antecedent_io::latent_class_artifact::LATENT_CLASS_ARTIFACT_MAX_ROWS
 pub use antecedent::analysis::latent_class_effects::LATENT_CLASS_ARTIFACT_VERSION = antecedent_io::latent_class_artifact::LATENT_CLASS_ARTIFACT_VERSION
 pub use antecedent::analysis::latent_class_effects::LATENT_CLASS_CAVEAT = antecedent_estimate::latent_class_effects::LATENT_CLASS_CAVEAT
@@ -15505,6 +15846,10 @@ pub use antecedent::analysis::observation_query::Direction = super::mechanism_ex
 pub use antecedent::analysis::observation_query::MeasuredSlotWire = antecedent_io::observation_query_artifact::MeasuredSlotWire
 pub use antecedent::analysis::observation_query::ObservationQueryWire = antecedent_io::observation_query_artifact::ObservationQueryWire
 pub use antecedent::analysis::observation_query::ObservationResultWire = antecedent_io::observation_query_artifact::ObservationResultWire
+pub use antecedent::analysis::observation_query::RedrawPrior = super::mechanism_exports::model_crate::observation_uncertainty::RedrawPrior
+pub use antecedent::analysis::observation_query::RedrawPriorWire = antecedent_io::observation_query_artifact::RedrawPriorWire
+pub use antecedent::analysis::observation_query::RedrawTargetWire = antecedent_io::observation_query_artifact::RedrawTargetWire
+pub use antecedent::analysis::observation_query::RetainedMechanismWire = antecedent_io::observation_query_artifact::RetainedMechanismWire
 pub use antecedent::analysis::observational_survival::CensoringAssumption = antecedent_estimate::observational_survival::CensoringAssumption
 pub use antecedent::analysis::per_population_discovery::PerPopulationDiscovery = antecedent_discovery::selective::populations::PerPopulationDiscovery
 pub use antecedent::analysis::per_population_discovery::PerPopulationReport = antecedent_discovery::selective::populations::PerPopulationReport
@@ -15727,6 +16072,10 @@ pub use antecedent::analysis::repair::EvidenceObligation = antecedent_contract::
 pub use antecedent::analysis::repair::EvidenceObligationKind = antecedent_contract::EvidenceObligationKind
 pub use antecedent::analysis::repair::ExpectedEvidence = antecedent_design::ExpectedEvidence
 pub use antecedent::analysis::repair::FamilyVerdict = antecedent_design::FamilyVerdict
+pub use antecedent::analysis::repair::FrontDoorRepairFamily = antecedent_design::FrontDoorRepairFamily
+pub use antecedent::analysis::repair::HedgeRepairFamily = antecedent_design::HedgeRepairFamily
+pub use antecedent::analysis::repair::InstrumentRepairFamily = antecedent_design::InstrumentRepairFamily
+pub use antecedent::analysis::repair::LatentCause = antecedent_design::LatentCause
 pub use antecedent::analysis::repair::ObligationProvenance = antecedent_contract::ObligationProvenance
 pub use antecedent::analysis::repair::ObligationRegime = antecedent_contract::ObligationRegime
 pub use antecedent::analysis::repair::RepairArtifactError = antecedent_design::RepairArtifactError
@@ -15741,12 +16090,17 @@ pub use antecedent::analysis::repair::RepairOutcome = antecedent_design::RepairO
 pub use antecedent::analysis::repair::RepairReceipt = antecedent_design::RepairReceipt
 pub use antecedent::analysis::repair::RepairReport = antecedent_design::RepairReport
 pub use antecedent::analysis::repair::RepairReportArtifact = antecedent_design::RepairReportArtifact
+pub use antecedent::analysis::repair::SensitivityFinding = antecedent_design::SensitivityFinding
+pub use antecedent::analysis::repair::SensitivityMethod = antecedent_design::SensitivityMethod
+pub use antecedent::analysis::repair::SensitivityRepairFamily = antecedent_design::SensitivityRepairFamily
 pub use antecedent::analysis::repair::StudyCandidateError = antecedent_design::StudyCandidateError
 pub use antecedent::analysis::repair::StudyCostDeclaration = antecedent_design::StudyCostDeclaration
 pub use antecedent::analysis::repair::StudyKind = antecedent_design::StudyKind
 pub use antecedent::analysis::repair::TransportRepairFamily = antecedent_design::TransportRepairFamily
 pub use antecedent::analysis::repair::UnitRules = antecedent_design::UnitRules
 pub use antecedent::analysis::repair::ZTransportRepairFamily = antecedent_design::ZTransportRepairFamily
+pub use antecedent::analysis::repair::identification_failure_obligations = antecedent_design::obligation_adapters::identification_failure_obligations
+pub use antecedent::analysis::repair::latent_expansion = antecedent_design::latent_expansion
 pub use antecedent::analysis::replay_decision = antecedent::analysis::composition_verification::replay_decision
 pub use antecedent::analysis::route_missing_support = antecedent::analysis::api::route_missing_support
 pub use antecedent::analysis::sample_split_analysis::SampleSplitReceipt = antecedent_discovery::selective::reuse::SampleSplitReceipt
@@ -15775,14 +16129,24 @@ pub use antecedent::analysis::sample_split_parent_set_effect::TOPOLOGIES = antec
 pub use antecedent::analysis::sample_split_parent_set_effect::TOTAL_EFFECT = antecedent_io::measured_inference::split_parent_set_effect::TOTAL_EFFECT
 pub use antecedent::analysis::sample_split_parent_set_effect::Transformation = antecedent_io::measured_inference::split_parent_set_effect::Transformation
 pub use antecedent::analysis::sample_split_parent_set_effect::governing_topologies = antecedent_io::measured_inference::split_parent_set_effect::governing_topologies
+pub use antecedent::analysis::scientific_bridge::AffineColumns = antecedent_io::bridge_distribution::AffineColumns
+pub use antecedent::analysis::scientific_bridge::BridgeChainStage = antecedent_io::bridge_distribution::BridgeChainStage
 pub use antecedent::analysis::scientific_bridge::BridgeInspection = antecedent::BridgeInspection
 pub use antecedent::analysis::scientific_bridge::BridgedClaimInterval = antecedent_io::bridge_interval::BridgedClaimInterval
+pub use antecedent::analysis::scientific_bridge::BridgedDistribution = antecedent_io::bridge_distribution::BridgedDistribution
 pub use antecedent::analysis::scientific_bridge::ConsumedScientificBridge = antecedent::ConsumedScientificBridge
+pub use antecedent::analysis::scientific_bridge::ConsumedScientificBridgeDistribution = antecedent::ConsumedScientificBridgeDistribution
+pub use antecedent::analysis::scientific_bridge::DistributionBridgeInspection = antecedent::DistributionBridgeInspection
 pub use antecedent::analysis::scientific_bridge::PreparedScientificBridge = antecedent::PreparedScientificBridge
+pub use antecedent::analysis::scientific_bridge::PreparedScientificBridgeDistribution = antecedent::PreparedScientificBridgeDistribution
+pub use antecedent::analysis::scientific_bridge::ScientificBridgeDistributionResult = antecedent::ScientificBridgeDistributionResult
 pub use antecedent::analysis::scientific_bridge::ScientificBridgeExport = antecedent::ScientificBridgeExport
 pub use antecedent::analysis::scientific_bridge::ScientificBridgeRefusal = antecedent::ScientificBridgeRefusal
 pub use antecedent::analysis::scientific_bridge::ScientificBridgeResult = antecedent::ScientificBridgeResult
 pub use antecedent::analysis::scientific_bridge::consume_scientific_bridge_artifact = antecedent::analysis::api::consume_scientific_bridge_artifact
+pub use antecedent::analysis::scientific_bridge::consume_scientific_bridge_distribution_artifact = antecedent::analysis::api::consume_scientific_bridge_distribution_artifact
+pub use antecedent::analysis::scientific_bridge::scientific_bridge_artifact_shape = antecedent::analysis::api::scientific_bridge_artifact_shape
+pub use antecedent::analysis::scientific_bridge_artifact_shape = antecedent::analysis::api::scientific_bridge_artifact_shape
 pub use antecedent::analysis::selective_discovery::CiTestSpec = antecedent_discovery::selective::CiTestSpec
 pub use antecedent::analysis::selective_discovery::DataIdentity = antecedent_discovery::selective::DataIdentity
 pub use antecedent::analysis::selective_discovery::DiscoveredStructure = antecedent_discovery::selective::DiscoveredStructure
@@ -16177,6 +16541,7 @@ pub use antecedent::consume_period_refresh_artifact = antecedent::analysis::api:
 pub use antecedent::consume_predictive_assessment_artifact = antecedent::analysis::api::consume_predictive_assessment_artifact
 pub use antecedent::consume_scenario_covariance_artifact = antecedent::analysis::api::consume_scenario_covariance_artifact
 pub use antecedent::consume_scientific_bridge_artifact = antecedent::analysis::api::consume_scientific_bridge_artifact
+pub use antecedent::consume_scientific_bridge_distribution_artifact = antecedent::analysis::api::consume_scientific_bridge_distribution_artifact
 pub use antecedent::consume_smoothed_dose_artifact = antecedent::analysis::api::consume_smoothed_dose_artifact
 pub use antecedent::consume_temporal_initial_state_artifact = antecedent::analysis::api::consume_temporal_initial_state_artifact
 pub use antecedent::consume_temporal_refresh_artifact = antecedent::analysis::api::consume_temporal_refresh_artifact
@@ -16190,6 +16555,10 @@ pub use antecedent::design::AnalyticCharacteristics = antecedent_design::plannin
 pub use antecedent::design::ArmComparison = antecedent_design::planning::ArmComparison
 pub use antecedent::design::BinomialSignal = antecedent_design::BinomialSignal
 pub use antecedent::design::CandidateDesign = antecedent_design::CandidateDesign
+pub use antecedent::design::CandidateGeneration = antecedent_design::CandidateGeneration
+pub use antecedent::design::CandidateTemplate = antecedent_design::CandidateTemplate
+pub use antecedent::design::ConfounderPriorDeclaration = antecedent_design::ConfounderPriorDeclaration
+pub use antecedent::design::ConfounderValueFrame = antecedent_design::ConfounderValueFrame
 pub use antecedent::design::ConstraintViolation = antecedent_design::ConstraintViolation
 pub use antecedent::design::DecisionConstraint = antecedent_design::DecisionConstraint
 pub use antecedent::design::DecisionEvaluation = antecedent_design::DecisionEvaluation
@@ -16205,15 +16574,21 @@ pub use antecedent::design::DesignEvaluationContext = antecedent_design::DesignE
 pub use antecedent::design::DesignObjective = antecedent_design::DesignObjective
 pub use antecedent::design::DesignRankConfig = antecedent_design::DesignRankConfig
 pub use antecedent::design::DesignRanker = antecedent_design::DesignRanker
+pub use antecedent::design::DurableStudyCandidate = antecedent_design::DurableStudyCandidate
 pub use antecedent::design::EffectWidthContext = antecedent_design::EffectWidthContext
 pub use antecedent::design::EnvironmentGramSpec = antecedent_design::EnvironmentGramSpec
 pub use antecedent::design::EnvironmentPlan = antecedent_design::EnvironmentPlan
+pub use antecedent::design::EvidencePlan = antecedent_design::EvidencePlan
+pub use antecedent::design::EvidencePlanArtifact = antecedent_design::EvidencePlanArtifact
+pub use antecedent::design::EvidencePlanArtifactError = antecedent_design::EvidencePlanArtifactError
 pub use antecedent::design::ExperimentPlan = antecedent_design::ExperimentPlan
 pub use antecedent::design::FactorialContrast = antecedent_design::planning::FactorialContrast
 pub use antecedent::design::FamilyCharacteristics = antecedent_design::planning::FamilyCharacteristics
 pub use antecedent::design::FamilyPower = antecedent_design::planning::FamilyPower
 pub use antecedent::design::FamilySimulation = antecedent_design::planning::FamilySimulation
 pub use antecedent::design::GaussianMeanSignal = antecedent_design::GaussianMeanSignal
+pub use antecedent::design::GraphPosteriorSample = antecedent_design::GraphPosteriorSample
+pub use antecedent::design::GridUtility = antecedent_design::GridUtility
 pub use antecedent::design::InterferenceExposure = antecedent_design::planning::InterferenceExposure
 pub use antecedent::design::InterventionDesignEffect = antecedent_design::InterventionDesignEffect
 pub use antecedent::design::MeasureColumnSpec = antecedent_design::MeasureColumnSpec
@@ -16223,6 +16598,10 @@ pub use antecedent::design::Multiplicity = antecedent_design::planning::Multipli
 pub use antecedent::design::NormalPrior = antecedent_design::planning::NormalPrior
 pub use antecedent::design::OutcomeModel = antecedent_design::planning::OutcomeModel
 pub use antecedent::design::PLANNING_NEXT_ATTEMPTS = antecedent_design::planning::PLANNING_NEXT_ATTEMPTS
+pub use antecedent::design::PlanOption = antecedent_design::PlanOption
+pub use antecedent::design::PlanOutcome = antecedent_design::PlanOutcome
+pub use antecedent::design::PlanValue = antecedent_design::PlanValue
+pub use antecedent::design::PlanValueBasis = antecedent_design::PlanValueBasis
 pub use antecedent::design::PlannedDesign = antecedent_design::planning::PlannedDesign
 pub use antecedent::design::PlannedExperiment = antecedent::analysis::planning::PlannedExperiment
 pub use antecedent::design::PlanningAssumptions = antecedent_design::planning::PlanningAssumptions
@@ -16234,6 +16613,7 @@ pub use antecedent::design::PlanningRequest = antecedent_design::planning::Plann
 pub use antecedent::design::PlanningResult = antecedent_design::planning::PlanningResult
 pub use antecedent::design::PreposteriorAnalysis = antecedent_design::PreposteriorAnalysis
 pub use antecedent::design::RankedCandidate = antecedent_design::RankedCandidate
+pub use antecedent::design::RepairReport = antecedent_design::RepairReport
 pub use antecedent::design::STANDALONE_PLANNING = antecedent::analysis::planning::STANDALONE_PLANNING
 pub use antecedent::design::SamplingPlan = antecedent_design::SamplingPlan
 pub use antecedent::design::ScoreEvaluation = antecedent_design::ScoreEvaluation
@@ -16248,6 +16628,8 @@ pub use antecedent::design::StudyArrival = antecedent_design::StudyArrival
 pub use antecedent::design::StudyArrivalDecision = antecedent_design::StudyArrivalDecision
 pub use antecedent::design::StudyCandidate = antecedent_design::StudyCandidate
 pub use antecedent::design::StudyCost = antecedent_design::StudyCost
+pub use antecedent::design::StudyDeclarations = antecedent_design::StudyDeclarations
+pub use antecedent::design::StudyKind = antecedent_design::StudyKind
 pub use antecedent::design::StudyPlan = antecedent_design::StudyPlan
 pub use antecedent::design::StudyPlanArtifactWire = antecedent_design::StudyPlanArtifactWire
 pub use antecedent::design::StudyPlanConsumeLimits = antecedent_design::StudyPlanConsumeLimits
@@ -16261,9 +16643,17 @@ pub use antecedent::design::StudyProposal = antecedent_design::StudyProposal
 pub use antecedent::design::StudySubsetOutcome = antecedent_design::StudySubsetOutcome
 pub use antecedent::design::SuccessCriterion = antecedent_design::planning::SuccessCriterion
 pub use antecedent::design::TestSidedness = antecedent_design::planning::TestSidedness
+pub use antecedent::design::UnmatchedObligation = antecedent_design::UnmatchedObligation
+pub use antecedent::design::UnverifiedStudy = antecedent_design::UnverifiedStudy
 pub use antecedent::design::Utility = antecedent_design::Utility
+pub use antecedent::design::VerifiedUnlocks = antecedent_design::VerifiedUnlocks
 pub use antecedent::design::evaluate_decision = antecedent_design::evaluate_decision
+pub use antecedent::design::generate_candidates = antecedent_design::generate_candidates
+pub use antecedent::design::identified_under_intervention = antecedent_design::identified_under_intervention
+pub use antecedent::design::mutilate = antecedent_design::mutilate
 pub use antecedent::design::plan_studies = antecedent_design::plan_studies
+pub use antecedent::design::structure_posterior = antecedent_design::structure_posterior
+pub use antecedent::design::verified_unlocks = antecedent_design::verified_unlocks
 pub use antecedent::design_posterior_model::DesignPosteriorModel = antecedent::DesignPosteriorModel
 pub use antecedent::discovery::BackgroundKnowledge = antecedent_discovery::BackgroundKnowledge
 pub use antecedent::discovery::CiScreenedPosterior = antecedent_discovery::CiScreenedPosterior
@@ -16678,6 +17068,10 @@ pub use antecedent::prelude::WithinTier = antecedent_graph::WithinTier
 pub use antecedent::prepare_counterfactual_transport = antecedent::analysis::api::prepare_counterfactual_transport
 pub use antecedent::query::AnomalyAttributionQuery = antecedent_core::AnomalyAttributionQuery
 pub use antecedent::query::AssignmentDesign = antecedent_core::AssignmentDesign
+pub use antecedent::query::AssociationFunctional = antecedent_core::AssociationFunctional
+pub use antecedent::query::AssociationMeasure = antecedent_core::AssociationMeasure
+pub use antecedent::query::AssociationOutcome = antecedent_core::AssociationOutcome
+pub use antecedent::query::AssociationQuery = antecedent_core::AssociationQuery
 pub use antecedent::query::AttributeQuery = antecedent_core::AttributeQuery
 pub use antecedent::query::AttributeTarget = antecedent_core::AttributeTarget
 pub use antecedent::query::AverageEffectQuery = antecedent_core::AverageEffectQuery
@@ -16801,6 +17195,7 @@ pub use antecedent::scientific::ScientificQuantity = antecedent_contract::Scient
 pub use antecedent::scientific::SemanticDigest = antecedent_core::SemanticDigest
 pub use antecedent::scientific::TabularRow = crate::analysis::mechanism_exports::model_crate::compose::TabularRow
 pub use antecedent::scientific::UncertaintyMeaning = crate::analysis::mechanism_exports::model_crate::compose::UncertaintyMeaning
+pub use antecedent::scientific_bridge_artifact_shape = antecedent::analysis::api::scientific_bridge_artifact_shape
 pub use antecedent::simultaneous_band_unpublished = antecedent::analysis::simultaneous_band_unpublished
 pub use antecedent::state::CachedResult = antecedent_state::CachedResult
 pub use antecedent::state::CausalState = antecedent_state::CausalState
@@ -17219,6 +17614,7 @@ pub variant antecedent::RefuteSuite::Full
 pub variant antecedent::RefuteSuite::None
 pub variant antecedent::RefuteSuite::PlaceboAndRcc
 pub variant antecedent::ResultPayload::Anomaly(alloc::vec::Vec<antecedent_attribution::anomaly::AnomalyScores>)
+pub variant antecedent::ResultPayload::Association(alloc::boxed::Box<antecedent::analysis::association::AssociationPayload>)
 pub variant antecedent::ResultPayload::Attribution(alloc::boxed::Box<antecedent::AttributionPayload>)
 pub variant antecedent::ResultPayload::ChangeAttribution(antecedent_attribution::result::ChangeAttributionResult)
 pub variant antecedent::ResultPayload::ContinuousDoseResponse(antecedent::ContinuousDoseResponseEstimate)
@@ -17399,6 +17795,7 @@ pub variant antecedent::analysis::ProcedureReportRequest::GroupSequential { trut
 pub variant antecedent::analysis::ProcedureReportRequest::WholeProcedureInversion { observed: antecedent_stats::adaptive_inference::procedure_uncertainty::ObservedTerminal, grid: antecedent_stats::adaptive_inference::procedure_uncertainty::InversionGrid, alpha: f64 }
 pub variant antecedent::analysis::RetainedOperation::AdmgGraphPosteriorResponse(antecedent::CheckedAdmgGraphPosteriorResponseInfo)
 pub variant antecedent::analysis::RetainedOperation::AdmgResponseCurve(&'a [super::CheckedFunctionalEffectResponseMember])
+pub variant antecedent::analysis::RetainedOperation::Association
 pub variant antecedent::analysis::RetainedOperation::Attribution(antecedent::analysis::CheckedAttributionInfo)
 pub variant antecedent::analysis::RetainedOperation::BayesianBasisAte(antecedent::analysis::CheckedBayesianBasisAteInfo)
 pub variant antecedent::analysis::RetainedOperation::BayesianBasisCate(&'a antecedent_core::query::mediation::ConditionalEffectQuery)
@@ -17532,6 +17929,12 @@ pub variant antecedent::analysis::discovered_transport_trial::TrialStructuralVer
 pub variant antecedent::analysis::discretized_composition::DiscretizationRefusal::Artifact(antecedent_model::discretized_scm_artifact::ArtifactRefusal)
 pub variant antecedent::analysis::discretized_composition::DiscretizationRefusal::Bridge(antecedent_model::discretized_scm::BridgeRefusal)
 pub variant antecedent::analysis::discretized_composition::DiscretizationRefusal::Composition(antecedent::MechanismCompositionRefusal)
+pub variant antecedent::analysis::evidence_plan::EvidencePlanFacadeError::NoFailure
+pub variant antecedent::analysis::evidence_plan::EvidencePlanFacadeError::NoRoute
+pub variant antecedent::analysis::evidence_plan::EvidencePlanFacadeError::Plan(antecedent_design::evidence_plan::EvidencePlanError)
+pub variant antecedent::analysis::evidence_plan::EvidencePlanFacadeError::Repair(antecedent_design::repair::RepairError)
+pub variant antecedent::analysis::evidence_plan::EvidencePlanFacadeError::UnknownValueStudy(alloc::string::String)
+pub variant antecedent::analysis::evidence_plan::EvidencePlanFacadeError::Value(antecedent::analysis::design_ranking::DesignRankingError)
 pub variant antecedent::analysis::file_table::FileTableError::Capacity(antecedent_io_core::capacity_account::weighted_gaussian_capacity::WeightedCapacityError)
 pub variant antecedent::analysis::file_table::FileTableError::Source(antecedent_data::file_source::error::FileSourceError)
 pub variant antecedent::analysis::file_table::SummaryMissing::CompleteCase
@@ -17659,6 +18062,8 @@ pub variant antecedent::host::HostStatus::Supported
 pub variant antecedent::host::HostStatus::Unsupported
 pub variant antecedent::period_refresh::PeriodRefreshOutcome::Extended { contiguous: bool }
 pub variant antecedent::period_refresh::PeriodRefreshOutcome::Restarted { invalidated: alloc::vec::Vec<antecedent_estimate::temporal_refresh::WindowProduct> }
+pub variant antecedent::planner::PlanRoute::AssociationStatic
+pub variant antecedent::planner::PlanRoute::AssociationTemporal
 pub variant antecedent::planner::PlanRoute::CodeterminedJoint
 pub variant antecedent::planner::PlanRoute::ConditionalCpdag
 pub variant antecedent::planner::PlanRoute::ConditionalDag
@@ -17717,6 +18122,7 @@ pub variant antecedent::planner::PlanRoute::TemporalResponseDag
 pub variant antecedent::planner::PlanRoute::TransportMixed
 pub variant antecedent::planner::PlanStage::Compiled
 pub variant antecedent::planner::PlanStage::Prepared
+pub variant antecedent::planner::RouteFamily::Associational
 pub variant antecedent::planner::RouteFamily::Cyclic
 pub variant antecedent::planner::RouteFamily::DesignBased
 pub variant antecedent::planner::RouteFamily::Discovery
@@ -17743,6 +18149,7 @@ pub variant antecedent::planner::lowered::EvidenceRole::TransportSource
 pub variant antecedent::planner::lowered::EvidenceRole::Trial
 pub variant antecedent::planner::lowered::FunctionalKind::AnomalyAttribution
 pub variant antecedent::planner::lowered::FunctionalKind::AssignmentContrast
+pub variant antecedent::planner::lowered::FunctionalKind::Association
 pub variant antecedent::planner::lowered::FunctionalKind::Attribution
 pub variant antecedent::planner::lowered::FunctionalKind::ChangeAttribution
 pub variant antecedent::planner::lowered::FunctionalKind::Counterfactual
@@ -17781,6 +18188,7 @@ pub variant antecedent::planner::plan_view::GraphPosteriorCell::TemporalMediatio
 pub variant antecedent::planner::plan_view::GraphPosteriorCell::TemporalResponse
 pub variant antecedent::planner::plan_view::IdentificationKind::Deferred
 pub variant antecedent::planner::plan_view::IdentificationKind::NonGraphical
+pub variant antecedent::planner::plan_view::IdentificationKind::NotClaimed
 pub variant antecedent::planner::plan_view::IdentificationKind::PerExecution
 pub variant antecedent::planner::plan_view::IdentificationKind::Retained
 pub variant antecedent::planner::statistical::ModelRole::Instrument
@@ -17790,6 +18198,7 @@ pub variant antecedent::planner::statistical::ModelRole::Nuisance
 pub variant antecedent::planner::statistical::ModelRole::Outcome
 pub variant antecedent::planner::statistical::ModelRole::Propensity
 pub variant antecedent::planner::statistical::PosteriorAlgorithm::AtomMixture
+pub variant antecedent::planner::statistical::PosteriorAlgorithm::BayesianBootstrap
 pub variant antecedent::planner::statistical::PosteriorAlgorithm::Conjugate
 pub variant antecedent::planner::statistical::PosteriorAlgorithm::DiscreteMcmc
 pub variant antecedent::planner::statistical::PosteriorAlgorithm::Enumeration

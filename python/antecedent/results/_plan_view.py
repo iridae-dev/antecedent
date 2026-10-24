@@ -45,14 +45,17 @@ class PlanIdentificationLayer(ResultModel):
     """Layer two: how identification is carried and what it produced.
 
     ``kind`` is ``retained`` (identified at compile), ``deferred`` (refused at
-    compile, with ``reason``), ``per_execution`` (with ``reason``) or
-    ``non_graphical`` (a feedback model). ``retained`` lists each product with its
-    status, estimands (method and adjustment set), assumptions and masses.
+    compile, with ``reason``), ``per_execution`` (with ``reason``),
+    ``non_graphical`` (a feedback model) or ``not_claimed`` (a noncausal association, which
+    claims no identification; ``refusal`` is the reason code of the refused causal query it
+    follows). ``retained`` lists each product with its status, estimands (method and
+    adjustment set), assumptions and masses.
     """
 
     kind: str
     status: str | None = None
     reason: str | None = None
+    refusal: str | None = None
     non_graphical: str | None = None
     product: Mapping[str, Any] | None = None
     retained: Sequence[Mapping[str, Any]] = ()

@@ -546,6 +546,23 @@ provider_trust = "native_replay_only; no external value is consumed"
 exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
+id = "design.evidence_plan"
+route = "antecedent.design.evidence_plan"
+algorithm_provenance = ["provenance/design.evidence_plan.toml"]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "design.evidence_plan.ordering.positive"
+oracle_kind = "enumerated_finite_law"
+oracle_inputs = "A back-door graph T <- Z -> Y with T -> Y, a front-door graph with an unmeasured confounder, a hedge, an instrument graph and the two-point binomial bet (prior theta in {1/4, 3/4}, the bet pays theta - 1/2)."
+expected_values = "A study measuring Z jointly is verified on the back-door route only and a study measuring the mediator on the front-door route only; an experiment on the treatment answers a hedge and more rows never do; an instrument study is not certified and its three assumptions remain; EVSI(n=2) = 1/16 and EVSI(n=4) = 11/128 with EVPI = 1/8, so net of the declared cost map the larger study leads at 0.01 utility per unit and the smaller at 0.02; a one-operation budget stops the search without an impossibility claim."
+tolerance = "exact semantic equality for gates, derivations, order and refusals; absolute 1e-12 for the closed-form values"
+calibration = "exact_or_point_only_no_interval"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "design.evidence_plan.artifact"
+provider_trust = "native_route_hypothetical_evidence_only; an external signal is at most externally attested and never upgraded by the plan"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
 id = "estimate.dose_grid_functional"
 route = "antecedent.dose.dose_grid_functional"
 algorithm_provenance = ["provenance/estimate.dose_grid_functional.toml"]

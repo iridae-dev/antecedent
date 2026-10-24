@@ -2287,6 +2287,35 @@ def _check_no_bundle_node_kind(producer: str, o: Objs) -> None:
         assert_registered_refusal(wrong.value)
 
 
+def _check_bridge_bundle(o: Objs) -> None:
+    """A bridged mean is a bundle node: replayed, published as a mean only, never a law."""
+    payload = _bridged().exported.data
+    assert cb.detect_kind(payload) == "scientific_bridge"
+    builder = cb.Bundle.builder()
+    builder.add_artifact("auto", payload, node_id="bridge")
+    bundle = builder.build()
+    consumed = cb.consume_bundle(bundle.export(), expected_identity=bundle.identity)
+    consumed.require_verified()
+    node = consumed.node("bridge")
+    assert node.facts["law"] == "mean_only"
+    assert node.facts["trust"] == "unverified"
+    assert consumed.value("bridge", "value") == pytest.approx(0.796, abs=1e-12)
+    assert consumed.value("bridge", "source_value") == pytest.approx(0.8, abs=1e-12)
+
+
+def _check_observation_bundle(o: Objs) -> None:
+    """An observation query is a bundle node: its own consumer replays it."""
+    payload = o.observation.export()
+    assert cb.detect_kind(payload) == "observation_query"
+    builder = cb.Bundle.builder()
+    builder.add_artifact("auto", payload, node_id="query")
+    bundle = builder.build()
+    consumed = cb.consume_bundle(bundle.export(), expected_identity=bundle.identity)
+    consumed.require_verified()
+    assert consumed.node("query").facts["trust"] == "unverified"
+    assert consumed.node("query").facts["observation_operation"] == o.observation.operation
+
+
 # ---------------------------------------------------------------- decision reliability report
 
 
@@ -3183,6 +3212,7 @@ CHECKS: dict[tuple[str, str], Check] = {
     ("evidence_ledger", "inverse_query"): _check_ledger_inverse,
     ("scientific_bridge_claim", "decision"): _check_bridge_decision,
     ("scientific_bridge_claim", "inverse_query"): _check_bridge_inverse,
+    ("scientific_bridge_claim", "bundle_node"): _check_bridge_bundle,
     ("counterfactual_transport_result", "decision"): _check_transport_decision,
     ("counterfactual_transport_result", "inverse_query"): _check_transport_inverse,
     ("cohort_decision_source", "decision"): _check_cohort_decision,
@@ -3191,6 +3221,7 @@ CHECKS: dict[tuple[str, str], Check] = {
     ("decision_reliability_report", "inverse_query"): _check_reliability_inverse,
     ("observation_query_claim", "decision"): _check_observation_decision,
     ("observation_query_claim", "inverse_query"): _check_observation_inverse,
+    ("observation_query_claim", "bundle_node"): _check_observation_bundle,
     ("adaptive_inference_result", "decision"): _check_adaptive_decision,
     ("adaptive_inference_result", "inverse_query"): _check_adaptive_inverse,
     ("sequential_policy_evaluation", "decision"): _check_sequential_decision,
@@ -3215,11 +3246,9 @@ REFUSED_EXTRAS: dict[tuple[str, str], Check] = {
         "counterfactual_transport_result",
         "cohort_decision_source",
         "decision_reliability_report",
-        "observation_query_claim",
         "adaptive_monitoring_contract",
         "adaptive_inference_result",
         "predictive_assessment",
-        "scientific_bridge_claim",
         "sequential_policy_evaluation",
         "interface_contract_artifact",
         "composition_verification_result",
@@ -3256,9 +3285,9 @@ def test_producer_consumer_matrix_declares_every_cell_once_and_counts_them() -> 
     assert all(len(row) == len(CONSUMERS) for row in STATUS.values())
     cells = [status for row in STATUS.values() for status in row]
     assert len(cells) == len(PRODUCERS) * len(CONSUMERS) == 264
-    assert cells.count("DIRECT") == 19
+    assert cells.count("DIRECT") == 21
     assert cells.count("ADAPTER") == 60
-    assert cells.count("REFUSED") == 185
+    assert cells.count("REFUSED") == 183
     assert set(cells) == {"DIRECT", "ADAPTER", "REFUSED"}
     # Every non-refused cell has a check; the only shared one is the recalc adapter.
     for producer in PRODUCERS:

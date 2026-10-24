@@ -529,6 +529,31 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
             ("weight".into(), query.weight.map_or_else(|| "none".into(), |id| id.to_string())),
             ("temporal_coordinates".into(), "cross_section".into()),
         ],
+        CausalQueryWire::Association(query) => vec![
+            ("query_kind".into(), "association".into()),
+            ("outcome".into(), query.outcome.to_string()),
+            ("predictors".into(), join_ids(&query.predictors)),
+            ("conditioning".into(), join_ids(&query.conditioning)),
+            (
+                "functional".into(),
+                match &query.functional {
+                    crate::AssociationFunctionalWire::Auto => "auto".to_owned(),
+                    crate::AssociationFunctionalWire::Conditional => "conditional".to_owned(),
+                    crate::AssociationFunctionalWire::Coefficients => "coefficients".to_owned(),
+                    crate::AssociationFunctionalWire::Measure { measure } => measure.clone(),
+                    crate::AssociationFunctionalWire::Predictive { folds } => {
+                        format!("predictive:{folds}")
+                    }
+                },
+            ),
+            (
+                "outcome_scale".into(),
+                query.outcome_scale.clone().unwrap_or_else(|| "schema".into()),
+            ),
+            ("weight".into(), query.weight.map_or_else(|| "none".into(), |id| id.to_string())),
+            ("refused_after".into(), query.refused_after.clone().unwrap_or_else(|| "none".into())),
+            ("temporal_coordinates".into(), "observed_law".into()),
+        ],
         CausalQueryWire::SequentialContrast(query) => vec![
             ("query_kind".into(), "sequential_contrast".into()),
             ("outcome".into(), query.outcome.to_string()),

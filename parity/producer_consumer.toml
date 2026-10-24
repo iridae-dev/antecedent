@@ -1289,7 +1289,7 @@ where = "the interval of a sampled counterfactual transport estimate"
 [[producer]]
 key = "observation_query_claim"
 object = "an observation-conditioned query claim (exact given a declared model, or a labelled point value of a fitted one; conditioning and intervention are separate claims)"
-built_from = "`observation_query.condition_on`, `intervene_on`, `condition_versus_intervene`, `threshold_crossing`, `finite_posterior`, `conjugate_posterior`, `required_*` (`ObservationClaim`) and its `observation_query_v1` artifact"
+built_from = "`observation_query.condition_on`, `condition_on_values`, `intervene_on`, `condition_versus_intervene`, `threshold_crossing`, `parameter_uncertainty`, `finite_posterior`, `conjugate_posterior`, `required_*` (`ObservationClaim`) and its `observation_query_v1` artifact (the general queries are carried in artifact version 2 under `observation_query_general_v1`; a version-1 reader refuses them by version; parameter draws are the aligned `DistributionArtifact` with its alignment identity, labelled `uncalibrated_spread`)"
 
 [[cell]]
 producer = "observation_query_claim"
@@ -1330,8 +1330,8 @@ detail = "`CausalTypeError` from `obligations` and `repair`"
 [[cell]]
 producer = "observation_query_claim"
 consumer = "bundle_node"
-status = "REFUSED"
-detail = "no node kind: the `observation_query_v1` artifact is not a bundle kind (`detect_kind` is `None`) and the bytes are refused `CompositionBundleRefusal`; the claim exports bytes, but the bundle refuses this unsupported scientific node kind"
+status = "DIRECT"
+detail = "`add_artifact('auto', claim.export())` detects the `observation_query` node kind and replays the query through its own consumer (identity, premises and result recomputed); a parameter-redraw claim publishes its aligned draws (`law = joint_draw`, trust `unverified`, the digest a decision over them retains), so a decision result rests on the node as on a distribution; every other query answers a probability or a count and publishes no law; an edited record is refused at a named stage"
 
 [[cell]]
 producer = "observation_query_claim"
@@ -1358,6 +1358,21 @@ where = "`observation_query.condition_on` with an assigned or hypothetical value
 code = "`proxy_offered_as_construct`"
 detail = "`observation_query.measured_as_construct`"
 where = "`observation_query.condition_on` with a recorded indicator value and no measurement model"
+
+[[refusal]]
+code = "`route_not_supported`"
+detail = "`observation_query.mixed_conditioning_and_intervention`"
+where = "`observation_query.intervene_on` with `given=` naming a variable that is also intervened on (a variable whose mechanism an intervention removes is set, not observed)"
+
+[[refusal]]
+code = "`invalid_argument`"
+detail = "`observation_query.levels_for_continuous_model`"
+where = "`observation_query.condition_on` with level strings on a linear-Gaussian composition (state the evidence as typed real values with `condition_on_values`)"
+
+[[refusal]]
+code = "`cell_not_licensed`"
+detail = "`joint_law_propagation.interval_route_closed`"
+where = "`ObservationClaim.parameter_interval` for redrawn parameters without a currently attesting coverage record at the composed coordinate (the spread of the draws is the labelled `uncalibrated_spread`)"
 
 [[refusal]]
 code = "`evidence_cannot_reach_level`"
@@ -1476,8 +1491,8 @@ detail = "`CausalTypeError` from `obligations` and `repair`"
 [[cell]]
 producer = "scientific_bridge_claim"
 consumer = "bundle_node"
-status = "REFUSED"
-detail = "no node kind: `scientific_bridge_v1` is not a bundle kind (`detect_kind` is `None`) and the bytes are refused `CompositionBundleRefusal`; the claim, prepared bridge and export raise `CausalTypeError`"
+status = "DIRECT"
+detail = "`add_artifact('auto', claim.export())` detects the `scientific_bridge` node kind and derives the bridge again through its own consumer; a bridged mean publishes `law = mean_only` and its value, a bridge of draws publishes the bridged aligned table (`law = joint_draw`, trust `unverified`, the digest a decision over it retains) so a decision result rests on the node as on a distribution and a decision over another realization is refused `composition_bundle.tampered_quantity`; the claim, prepared bridge and export envelope are not bundle protocol objects (`CausalTypeError`)"
 
 [[cell]]
 producer = "scientific_bridge_claim"

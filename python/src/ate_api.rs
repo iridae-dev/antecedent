@@ -951,6 +951,7 @@ pub(crate) fn ate_result_from_analysis(
         history_match: result.history_match().map(Into::into),
         temporal_design: result.temporal_design().map(Into::into),
         iv_bounds: result.iv_bounds().map(Into::into),
+        association: result.association().map(Into::into),
         quasi_rollout: result.quasi_rollout().map(Into::into),
         anomaly: result
             .anomaly()

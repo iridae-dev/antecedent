@@ -95,7 +95,7 @@ pub fn bridged_claim_id(contract: SemanticDigest, source_claim: SemanticDigest) 
     SemanticDigest::from_bytes(out.finish())
 }
 
-const fn mismatch_name(mismatch: QuantityMismatch) -> &'static str {
+pub(super) const fn mismatch_name(mismatch: QuantityMismatch) -> &'static str {
     match mismatch {
         QuantityMismatch::InvalidCoordinate => "invalid_coordinate",
         QuantityMismatch::Variable => "variable",
@@ -109,14 +109,14 @@ const fn mismatch_name(mismatch: QuantityMismatch) -> &'static str {
     }
 }
 
-fn is_alignment_evidence(item: &str) -> bool {
+pub(super) fn is_alignment_evidence(item: &str) -> bool {
     item.starts_with("alignment:")
         || ["joint_draws", "covariance", "replicate_ids"]
             .iter()
             .any(|kind| item == *kind || item.starts_with(&format!("{kind}:")))
 }
 
-fn node(id: SemanticDigest, operation: &str, parents: &[Arc<str>]) -> ProvenanceNode {
+pub(super) fn node(id: SemanticDigest, operation: &str, parents: &[Arc<str>]) -> ProvenanceNode {
     ProvenanceNode {
         artifact_id: Arc::from(id.to_hex()),
         operation: Arc::from(operation),
@@ -127,7 +127,7 @@ fn node(id: SemanticDigest, operation: &str, parents: &[Arc<str>]) -> Provenance
     }
 }
 
-fn obligation(assumption: &BridgeAssumption) -> ObligationRecord {
+pub(super) fn obligation(assumption: &BridgeAssumption) -> ObligationRecord {
     let mut record = ObligationRecord::new(
         format!("bridge:{}", assumption.id),
         ObligationScope::Program,
@@ -300,7 +300,7 @@ fn bridge_receipt(
 /// and data snapshot are the source's: the bridge adds assumptions, not data,
 /// so evidence sharing with the source stays detectable. The program identity
 /// is unavailable, as for any claim whose products were not prepared.
-fn bridged_identities(
+pub(super) fn bridged_identities(
     contract: &BridgeContract,
     contract_identity: SemanticDigest,
     source: &ContractIdentities,

@@ -209,6 +209,43 @@ fn claim_status_separates_supported_partial_and_unsupported() {
 }
 
 #[test]
+fn an_associational_claim_is_supported_as_noncausal_and_never_as_identified() {
+    use DomainStatus::{Contradicted, Evaluated, Identified, NotClaimed, Supported, Unknown};
+    let kind = ClaimKind::Associational;
+    assert!(!kind.is_causal());
+    // Identification not claimed and the association evaluated: a supported noncausal claim,
+    // whether or not an empirical support check ran.
+    for support in [Unknown, Supported] {
+        assert_eq!(
+            HostStatus::of_claim_parts(kind, &domains(NotClaimed, support, Evaluated)),
+            HostStatus::Supported
+        );
+    }
+    // An association never counts as an identified one, and an unevaluated one is partial.
+    assert_eq!(
+        HostStatus::of_claim_parts(kind, &domains(Identified, Supported, Evaluated)),
+        HostStatus::Partial
+    );
+    assert_eq!(
+        HostStatus::of_claim_parts(kind, &domains(NotClaimed, Supported, Unknown)),
+        HostStatus::Partial
+    );
+    assert_eq!(
+        HostStatus::of_claim_parts(kind, &domains(NotClaimed, Contradicted, Evaluated)),
+        HostStatus::Unsupported
+    );
+    // A causal kind that does not claim identification is not supported by that.
+    assert_eq!(
+        HostStatus::of_claim_parts(ClaimKind::Point, &domains(NotClaimed, Supported, Evaluated)),
+        HostStatus::Partial
+    );
+    assert_eq!(
+        HostStatus::of_claim_names("associational", "not_claimed", "unknown", "evaluated"),
+        Some(HostStatus::Supported)
+    );
+}
+
+#[test]
 fn claim_status_names_round_trip_and_refuse_unknown_names() {
     assert_eq!(
         HostStatus::of_claim_names("point", "identified", "supported", "evaluated"),

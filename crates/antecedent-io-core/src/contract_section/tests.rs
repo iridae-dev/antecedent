@@ -205,6 +205,7 @@ fn fixture_body() -> (AnalysisResultWire, TargetIdentityWire, Vec<String>) {
         sequential_contrast: None,
         history_match: None,
         iv_bounds: None,
+        association: None,
         quasi_rollout: None,
         temporal_design: None,
         interference_inference: None,
@@ -1347,6 +1348,109 @@ fn claim_kind_is_never_point_short_of_full_identified_mass_or_for_unknown_status
     for status in ["not_certified", "proven_non_transportable", "surprise"] {
         assert_eq!(claim_kind_name(&body, Some(&slot(status, 1.0, 0.0, 0.0))), "incomplete");
     }
+}
+
+fn not_claimed_section() -> SlotSectionWire<IdentificationSlotWire> {
+    SlotSectionWire { value: None, unavailable: Some("not_claimed".into()) }
+}
+
+#[test]
+fn identification_not_claimed_implies_an_associational_claim_with_its_own_domains() {
+    let (body, _, _) = fixture_body();
+    let section = not_claimed_section();
+    assert!(identification_not_claimed(&section));
+    assert_eq!(claim_kind_name_of_section(&body, &section), "associational");
+    let domains = claim_domains_of_section(None, &section);
+    assert_eq!(domains.identification, "not_claimed");
+    assert_eq!(domains.evaluated, "evaluated");
+    assert_eq!(domains.support, "unknown");
+
+    // Another unavailable reason is an ordinary claim whose identification is unknown.
+    let other = SlotSectionWire { value: None, unavailable: Some("not_prepared".into()) };
+    assert!(!identification_not_claimed(&other));
+    assert_eq!(claim_kind_name_of_section(&body, &other), "point");
+    assert_eq!(claim_domains_of_section(None, &other).identification, "unknown");
+
+    // A present slot reads exactly as before.
+    let slot = IdentificationSlotWire {
+        status: "nonparametrically_identified".into(),
+        identified_mass: 1.0,
+        unidentified_mass: 0.0,
+        unevaluable_mass: 0.0,
+        incomplete_search_mass: 0.0,
+        full_mass_scope: true,
+        search_capped: false,
+        weight_basis: None,
+    };
+    let present = SlotSectionWire { value: Some(slot.clone()), unavailable: None };
+    assert!(!identification_not_claimed(&present));
+    assert_eq!(claim_kind_name_of_section(&body, &present), claim_kind_name(&body, Some(&slot)));
+    assert_eq!(claim_domains_of_section(None, &present), claim_domains(None, Some(&slot)));
+}
+
+#[test]
+fn the_consumer_rederives_an_associational_claim_and_refuses_a_forged_one() {
+    let (body, target, names) = fixture_body();
+    let associational = |mutate: &dyn Fn(&mut AnalysisResultContractWire)| {
+        let mut contract = contract_for(target.clone(), &body);
+        contract.reasoning.identification = not_claimed_section();
+        let claim = contract.claim.as_mut().unwrap();
+        claim.kind = "associational".into();
+        claim.value_bits = None;
+        claim.identification_domain = "not_claimed".into();
+        claim.evaluated_domain = "evaluated".into();
+        mutate(&mut contract);
+        seal_claim(&mut contract, &body);
+        consume_analysis_result(&replace_contract_section(&body, names.clone(), &contract))
+            .unwrap()
+            .acceptance
+            .unresolved
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+    };
+
+    // The claim identity, kind, value and domains all re-derive from the body and the slot.
+    let honest = associational(&|_| {});
+    for reason in ["claim.id", "claim.kind", "claim.value", "claim.domains"] {
+        assert!(!honest.iter().any(|entry| entry == reason), "{reason}: {honest:?}");
+    }
+
+    // A point claim cannot sit over a slot that says identification is not claimed.
+    let forged_kind = associational(&|contract| {
+        let claim = contract.claim.as_mut().unwrap();
+        claim.kind = "point".into();
+        claim.value_bits = body.estimate.map(f64::to_bits);
+    });
+    assert!(forged_kind.iter().any(|entry| entry == "claim.kind"), "{forged_kind:?}");
+
+    // Nor can an associational claim assert an identified domain.
+    let forged_domain = associational(&|contract| {
+        contract.claim.as_mut().unwrap().identification_domain = "identified".into();
+    });
+    assert!(forged_domain.iter().any(|entry| entry == "claim.domains"), "{forged_domain:?}");
+
+    // An associational claim carries no scalar value.
+    let forged_value = associational(&|contract| {
+        contract.claim.as_mut().unwrap().value_bits = body.estimate.map(f64::to_bits);
+    });
+    assert!(forged_value.iter().any(|entry| entry == "claim.value"), "{forged_value:?}");
+}
+
+#[test]
+fn an_associational_claim_changes_no_identity_of_an_existing_kind() {
+    let (body, target, _) = fixture_body();
+    let point = contract_for(target.clone(), &body);
+    let mut associational = point.clone();
+    associational.claim.as_mut().unwrap().kind = "associational".into();
+    seal_claim(&mut associational, &body);
+    let point_id = point.claim.as_ref().unwrap().claim_id;
+    let associational_id = associational.claim.as_ref().unwrap().claim_id;
+    assert_ne!(point_id, associational_id, "the kind is part of the claim identity");
+    // A point claim sealed again is the claim it was: the new kind adds no tag to old ones.
+    let mut again = point.clone();
+    seal_claim(&mut again, &body);
+    assert_eq!(again.claim.as_ref().unwrap().claim_id, point_id);
 }
 
 fn orthogonal_direct_fit() -> crate::NestedCounterfactualFitWire {

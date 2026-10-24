@@ -581,3 +581,75 @@ pub(crate) fn iv_bounds_wire(
         }
     }
 }
+
+/// The artifact section of a compiled noncausal association.
+pub(crate) fn association_wire(
+    payload: &crate::analysis::association::AssociationPayload,
+) -> antecedent_io::analysis_result_artifact::AssociationWire {
+    use antecedent_io::analysis_result_artifact::{
+        AssociationPosteriorWire, AssociationPredictionWire, AssociationResamplingWire,
+        AssociationTermWire, AssociationWire,
+    };
+    let estimate = &payload.estimate;
+    let terms = estimate
+        .terms
+        .iter()
+        .map(|term| AssociationTermWire {
+            label: term.label.clone(),
+            scale: term.scale.to_owned(),
+            estimate: term.estimate,
+            standard_error: term.standard_error,
+            standard_error_method: term.standard_error_method.map(str::to_owned),
+            spread_lower: term.spread.map(|(lower, _)| lower),
+            spread_upper: term.spread.map(|(_, upper)| upper),
+            posterior_mean: term.posterior.map(|posterior| posterior.mean),
+            posterior_sd: term.posterior.map(|posterior| posterior.sd),
+            posterior_lower: term.posterior.map(|posterior| posterior.lower),
+            posterior_upper: term.posterior.map(|posterior| posterior.upper),
+            rows: term.rows as u64,
+        })
+        .collect();
+    let uncertainty = payload.uncertainty_label();
+    AssociationWire {
+        analysis: estimate.selection.analysis.as_str().to_owned(),
+        rule: estimate.selection.rule.to_owned(),
+        requested: estimate.selection.requested.to_owned(),
+        outcome_kind: estimate.selection.outcome_kind.as_str().to_owned(),
+        modality: estimate.selection.modality.as_str().to_owned(),
+        terms,
+        rows: estimate.rows as u64,
+        rows_dropped: estimate.rows_dropped as u64,
+        resampling: estimate.resampling.map(|record| AssociationResamplingWire {
+            method: record.method.to_owned(),
+            unit: record.unit.to_owned(),
+            replicates_requested: u64::from(record.replicates_requested),
+            replicates_ok: u64::from(record.replicates_ok),
+            block_length: record.block_length.map(|length| length as u64),
+            spread_level: antecedent_estimate::SPREAD_LEVEL,
+        }),
+        posterior: estimate.posterior.map(|record| AssociationPosteriorWire {
+            method: record.method.to_owned(),
+            draws: record.draws as u64,
+            level: antecedent_estimate::SPREAD_LEVEL,
+        }),
+        prediction: payload.scores.as_ref().zip(estimate.prediction.as_ref()).map(
+            |(scores, fit)| AssociationPredictionWire {
+                folds: u64::from(fit.folds),
+                fold_design: fit.fold_design.to_owned(),
+                cases: scores.cases as u64,
+                score: scores.score.to_owned(),
+                mean_score: scores.mean_score,
+                baseline_score: scores.baseline_score,
+                mean_crps: scores.mean_crps,
+                calibration: crate::analysis::association::ASSOCIATION_CALIBRATION.to_owned(),
+            },
+        ),
+        assumptions: estimate.assumptions.iter().map(|premise| (*premise).to_owned()).collect(),
+        refused_after: payload.refused_after.as_deref().map(str::to_owned),
+        uncertainty: uncertainty.to_owned(),
+        calibration: crate::analysis::association::ASSOCIATION_CALIBRATION.to_owned(),
+        licensed: false,
+        ranks_actions: false,
+        is_intervention_effect: false,
+    }
+}

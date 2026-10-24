@@ -61,6 +61,7 @@ from .policy import (
     evaluate_multi_action_policy,
     evaluate_policy,
 )
+from .descriptive import Association
 from .quasi import (
     AugmentedPanelDiD,
     CovariateAdjustedDiD,
@@ -318,6 +319,7 @@ _COMPILE_ROUTES: tuple[tuple[tuple[type, ...], str, str], ...] = (
     ((SequentialContrast,), "_sequential_contrast", "pre"),
     ((PeriodHistoryMatch,), "_history_match", "pre"),
     ((IvBounds,), "_iv_bounds", "pre"),
+    ((Association,), "_association", "pre"),
     ((SurvivalOutcome, CompetingRisksOutcome), "_survival", "pre"),
     (TEMPORAL_DESIGN_QUERIES, "_temporal_design", "pre"),
     ((TransportQuery,), "_transport", "post_temporal"),
@@ -1552,6 +1554,55 @@ class _PrepareRoute:
             query.treatment,
             query.instrument,
             query.weight,
+            seed=self.seed,
+            threads=self.threads,
+            options={**self.options, "inference": inference},
+        )
+        return native, "average"
+
+    def _association(self) -> tuple[Any, Literal["average"]]:
+        """A noncausal association of the observed data, picked by the declared selection rule.
+
+        The inference selects the uncertainty: analytic or resampling standard errors, or the
+        posterior (conjugate Normal-Inverse-Gamma for a Gaussian outcome on unweighted rows,
+        the Bayesian bootstrap otherwise); ``bootstrap=`` adds the frequentist resampling spread.
+        """
+        query = cast(Association, self.query)
+        route = "Association"
+        if self.graph is not None or self.discovery is not None:
+            raise _not_applicable("graph/discovery", route)
+        self._refuse_ids(route)
+        self._refuse_estimator_config(route)
+        if self._explicit_refute():
+            raise CausalUnsupportedError(
+                f"{route} has no refutation suite; it describes the observed law",
+                reason_code="option_not_applicable",
+            )
+        if self.inference is not None and not isinstance(self.inference, (Frequentist, Bayesian)):
+            raise _not_applicable("inference", route)
+        declared = self.options.get("inference") or {}
+        if isinstance(self.inference, Bayesian):
+            if declared.get("prior_artifact") is not None or declared.get("composed_prior"):
+                raise _not_applicable("prior_from / composed prior", route)
+            inference = {
+                "mode": "conjugate",
+                "n_draws": declared.get("n_draws"),
+                "prior_scale": float(declared.get("prior_scale", 10.0)),
+            }
+        else:
+            inference = {"mode": "frequentist", "prior_scale": 10.0}
+        native = _NativePreparedAnalysis.prepare_association(
+            self.names,
+            self.columns,
+            query.outcome,
+            list(query.predictors),
+            list(query.conditioning),
+            query.functional,
+            folds=query.folds if query.functional == "predictive" else None,
+            outcome_scale=None if query.outcome_scale == "schema" else query.outcome_scale,
+            weight=query.weight,
+            refused_after=query.refused_after,
+            series=query.temporal,
             seed=self.seed,
             threads=self.threads,
             options={**self.options, "inference": inference},

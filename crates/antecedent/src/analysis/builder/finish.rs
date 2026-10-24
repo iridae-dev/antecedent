@@ -482,7 +482,10 @@ fn contract_query(budget: BudgetedInference) -> Result<ContractedQuery, CausalEr
         carry.refute = RefuteSuite::None;
         if !matches!(
             query,
-            CausalQuery::Survival(_) | CausalQuery::TemporalDesign(_) | CausalQuery::IvBounds(_)
+            CausalQuery::Survival(_)
+                | CausalQuery::TemporalDesign(_)
+                | CausalQuery::IvBounds(_)
+                | CausalQuery::Association(_)
         ) || !carry.bootstrap_explicit
         {
             carry.bootstrap_replicates = 0;
@@ -1052,6 +1055,7 @@ fn apply_design_contract(
             | CausalQuery::TemporalDesign(_)
             | CausalQuery::HistoryMatch(_)
             | CausalQuery::IvBounds(_)
+            | CausalQuery::Association(_)
     );
     if !matches!(carry.inference, InferenceMode::Frequentist) && !bayesian_design {
         return Err(CausalError::Unsupported {
@@ -1066,6 +1070,7 @@ fn apply_design_contract(
             | CausalQuery::ContinuousDoseResponse(_)
             | CausalQuery::TemporalDesign(_)
             | CausalQuery::IvBounds(_)
+            | CausalQuery::Association(_)
     );
     if let (InferenceMode::Bayesian(config), false) = (&carry.inference, reads_own_model) {
         if config.backend != antecedent_estimate::BayesianBackendKind::ConjugateGaussian
@@ -1136,7 +1141,10 @@ fn apply_design_contract(
         && carry.bootstrap_replicates != 0
         && !matches!(
             query,
-            CausalQuery::Survival(_) | CausalQuery::TemporalDesign(_) | CausalQuery::IvBounds(_)
+            CausalQuery::Survival(_)
+                | CausalQuery::TemporalDesign(_)
+                | CausalQuery::IvBounds(_)
+                | CausalQuery::Association(_)
         )
     {
         return Err(CausalError::Unsupported {

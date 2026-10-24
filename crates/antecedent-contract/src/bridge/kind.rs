@@ -47,6 +47,10 @@ pub enum QuantityClass {
     ScientificEndpoint,
     /// The utility a decision maker assigns to an outcome or an effect.
     DecisionUtility,
+    /// A noncausal association of the observed joint law (a regression
+    /// coefficient, a conditional mean, a correlation). Describes the data
+    /// as observed; never an intervention effect.
+    AssociationalQuantity,
 }
 
 named_variants! {
@@ -65,6 +69,7 @@ named_variants! {
         InterventionResponse => "intervention_response",
         ScientificEndpoint => "scientific_endpoint",
         DecisionUtility => "decision_utility",
+        AssociationalQuantity => "associational_quantity",
     }
 }
 
@@ -85,6 +90,7 @@ impl QuantityClass {
             Self::InterventionResponse => 12,
             Self::ScientificEndpoint => 13,
             Self::DecisionUtility => 14,
+            Self::AssociationalQuantity => 15,
         }
     }
 }
@@ -258,6 +264,7 @@ impl BridgeKind {
             Self::SurrogateTerminalOutcome => &[(C::SurrogateEndpoint, C::TerminalOutcome)],
             Self::PredictiveCausalQuantity => &[
                 (C::PredictiveQuantity, C::CausalQuantity),
+                (C::AssociationalQuantity, C::CausalQuantity),
                 (C::PredictiveImportance, C::CausalQuantity),
                 (C::ModelScore, C::PredictiveQuantity),
             ],

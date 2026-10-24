@@ -22,19 +22,20 @@ use super::{
     PosteriorSection, PredictSummary, ProbabilityIntervalSection, PyCancellationToken, PyDict,
     RefutationReportView, RefuteSuite, RpcmciDiscoverySummary, ScoreInferenceSection,
     ScoreTableSection, ValidationFailureSection, ValidationSection, adaptive_inference_api,
-    adaptive_participant_api, adaptive_procedure_api, artifact_api, ate_api, attribution_api,
-    bayesian, bounds_api, candidate_screen_api, categorical_treatment_api, closed_pilot_api,
-    cohort_decision_api, compact_export_api, composition_api, composition_bundle_api,
-    composition_verification_api, counterfactual_id_api, cpdag_scenario_api, cross_world_api,
-    cross_world_execution_api, decision_api, decision_reliability_api, default_user_threads,
-    derived_treatment_api, descriptive_api, design_api, design_ranking_api,
-    discovered_transport_api, discovery_api, discretized_composition_api, distribution_api,
-    dose_grid_api, effect_constancy_api, effect_constancy_review_api, evidence_ledger_api,
-    execution_attempt_api, experiment_api, external_api, factorial_api, forward_source_api,
-    gcm_api, graph_falsification_api, graph_io, graphs, horizon_composition_api,
-    interface_contract_api, interference_saturation_api, inverse_outcome_api, inverse_query_api,
-    joint_law_propagation_api, joint_transport_api, latent_class_api, learned_continuous_api,
-    learned_joint_api, learned_trial_api, load_float64_arrow_c_columns, load_float64_columns,
+    adaptive_participant_api, adaptive_procedure_api, artifact_api, association_api, ate_api,
+    attribution_api, bayesian, bounds_api, candidate_screen_api, categorical_treatment_api,
+    closed_pilot_api, cohort_decision_api, compact_export_api, composition_api,
+    composition_bundle_api, composition_verification_api, counterfactual_id_api,
+    cpdag_scenario_api, cross_world_api, cross_world_execution_api, decision_api,
+    decision_reliability_api, default_user_threads, derived_treatment_api, descriptive_api,
+    design_api, design_ranking_api, discovered_transport_api, discovery_api,
+    discretized_composition_api, distribution_api, dose_grid_api, effect_constancy_api,
+    effect_constancy_review_api, evidence_ledger_api, evidence_plan_api, execution_attempt_api,
+    experiment_api, external_api, factorial_api, forward_source_api, gcm_api,
+    graph_falsification_api, graph_io, graphs, horizon_composition_api, interface_contract_api,
+    interference_saturation_api, inverse_outcome_api, inverse_query_api, joint_law_propagation_api,
+    joint_transport_api, latent_class_api, learned_continuous_api, learned_joint_api,
+    learned_trial_api, load_float64_arrow_c_columns, load_float64_columns,
     matched_case_control_api, measured_inference_api, measurement_model_api,
     mechanism_composition_api, mechanism_discrepancy_api, msm_sensitivity_api,
     multi_level_treatment_api, nested_bayesian_api, nested_fisher_api, nonlinear_mediation_api,
@@ -87,6 +88,7 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     transport_mixed_api::register(m)?;
     study_planning_api::register(m)?;
     repair_api::register(m)?;
+    evidence_plan_api::register(m)?;
     recovery_api::register(m)?;
     closed_pilot_api::register(m)?;
     nested_fisher_api::register(m)?;
@@ -127,6 +129,7 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     preflight_api::register(m)?;
     observation_api::register(m)?;
     bounds_api::register(m)?;
+    association_api::register(m)?;
     artifact_api::register(m)?;
     array_fit_api::register(m)?;
     decision_api::register(m)?;

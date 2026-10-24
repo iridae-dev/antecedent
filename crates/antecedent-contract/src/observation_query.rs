@@ -13,8 +13,10 @@
 //! - an intervention (or any value that was assigned rather than recorded)
 //!   placed in a conditioning slot, and an intervention supplied to a
 //!   conditioning query;
-//! - a conditional intervention (observations and an intervention in one
-//!   request), which has no bounded route here;
+//! - a conditional intervention in which a recorded variable is itself
+//!   intervened on (the mechanism an intervention removes is set, not
+//!   observed); observations of other variables after an intervention are the
+//!   composition of the interventional law with conditioning and are admitted;
 //! - the recorded value of an indicator used as the construct it measures,
 //!   unless a measurement model relating the two is declared and applies in
 //!   the request's population, regime and arm;
@@ -223,16 +225,12 @@ pub fn check_observation_slots(
                 "an intervention is its own claim: ask for the interventional distribution as an intervention query, and for the conditional distribution as a conditioning query",
             ));
         }
-    } else if !request.conditioning.is_empty() {
-        return Err(ExternalRefusal::new(
-            antecedent_core::reason_code!("route_not_supported"),
-            OBSERVATION_QUERY_STAGE,
-            "observation_query.mixed_conditioning_and_intervention",
-        )
-        .with_offending(request.conditioning[0].variable_id.clone())
-        .with_remedy(
-            "a distribution that conditions on observations after an intervention has no bounded route; ask the conditional and the interventional claims separately",
-        ));
+    } else if let Some(slot) = request
+        .conditioning
+        .iter()
+        .find(|slot| request.interventions.iter().any(|(v, _)| *v == slot.variable_id))
+    {
+        return Err(mixed_conditioning_refusal(&slot.variable_id));
     }
     let mut seen = BTreeSet::new();
     let assigned = request
@@ -285,6 +283,123 @@ pub fn check_observation_slots(
             "conditioning",
             "condition on one measured signal per query; several indicators need a joint measurement model",
         ));
+    }
+    Ok(())
+}
+
+/// The refusal of a variable that is both recorded and intervened on.
+#[must_use]
+pub fn mixed_conditioning_refusal(variable: &str) -> ExternalRefusal {
+    ExternalRefusal::new(
+        antecedent_core::reason_code!("route_not_supported"),
+        OBSERVATION_QUERY_STAGE,
+        "observation_query.mixed_conditioning_and_intervention",
+    )
+    .with_offending(variable.to_owned())
+    .with_remedy(
+        "an intervention removes the mechanism of the variable it sets, so that variable is set and not observed and cannot also be a recorded value or a measured signal; condition on recorded variables that are not intervened on (a descendant of the intervention carries information about the unobserved causes of the outcome), or ask the interventional claim alone",
+    )
+}
+
+/// A request with real-valued evidence and interventions, to be checked before
+/// any probability is formed. The values are typed: a continuous variable is
+/// never conditioned on a level string.
+#[derive(Clone, Debug)]
+pub struct ContinuousSlotsRequest<'a> {
+    /// The operation the request performs.
+    pub operation: ObservationOperation,
+    /// The outcome variable.
+    pub outcome_id: &'a str,
+    /// `(variable, value)` recorded without error.
+    pub observed: &'a [(String, f64)],
+    /// `(variable, value)` assignments of `do()`.
+    pub interventions: &'a [(String, f64)],
+}
+
+/// Check the evidence of a request on continuous variables.
+///
+/// # Errors
+/// The first failed check, as a coded structured refusal: a blank name; a value
+/// that is not finite; an intervention supplied to a conditioning query; the
+/// outcome among the assigned variables; a variable assigned twice; a variable
+/// both recorded and intervened on.
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
+pub fn check_continuous_assignments(
+    request: &ContinuousSlotsRequest<'_>,
+) -> Result<(), ExternalRefusal> {
+    let invalid = antecedent_core::reason_code!("invalid_argument");
+    if blank(request.outcome_id) {
+        return Err(refuse(
+            invalid,
+            "observation_query.blank_field",
+            "outcome_id",
+            "name the outcome variable",
+        ));
+    }
+    for (variable, value) in request.observed.iter().chain(request.interventions) {
+        if blank(variable) {
+            return Err(refuse(
+                invalid,
+                "observation_query.blank_field",
+                "continuous",
+                "name the variable of every observed value and intervention",
+            ));
+        }
+        if !value.is_finite() {
+            return Err(refuse(
+                invalid,
+                "observation_query.value_not_finite",
+                variable.clone(),
+                "supply a finite real value",
+            ));
+        }
+    }
+    if request.operation == ObservationOperation::Conditioning {
+        if let Some((variable, _)) = request.interventions.first() {
+            return Err(ExternalRefusal::new(
+                antecedent_core::reason_code!("quantity_semantics_mismatch"),
+                OBSERVATION_QUERY_STAGE,
+                "observation_query.intervention_in_conditioning_slot",
+            )
+            .with_offending(variable.clone())
+            .with_expected(ObservationOperation::Conditioning.as_str())
+            .with_supplied(ObservationOperation::Intervention.as_str())
+            .with_remedy(
+                "an intervention is its own claim: ask for the interventional distribution as an intervention query, and for the conditional distribution as a conditioning query",
+            ));
+        }
+    }
+    let mut seen = BTreeSet::new();
+    for variable in request
+        .observed
+        .iter()
+        .map(|(v, _)| v.as_str())
+        .chain(request.interventions.iter().map(|(v, _)| v.as_str()))
+    {
+        if variable == request.outcome_id {
+            return Err(refuse(
+                invalid,
+                "observation_query.outcome_assigned",
+                variable,
+                "ask about an outcome that is not itself conditioned on or intervened on",
+            ));
+        }
+        if !seen.insert(variable) {
+            let intervened = request.interventions.iter().any(|(v, _)| v == variable);
+            let observed = request.observed.iter().any(|(v, _)| v == variable);
+            if intervened && observed {
+                return Err(mixed_conditioning_refusal(variable));
+            }
+            return Err(refuse(
+                invalid,
+                "observation_query.repeated_slot",
+                variable,
+                "assign each variable at most once",
+            ));
+        }
     }
     Ok(())
 }
@@ -738,7 +853,8 @@ mod tests {
     }
 
     #[test]
-    fn an_intervention_supplied_to_a_conditioning_query_is_refused_and_mixing_is_closed() {
+    fn an_intervention_supplied_to_a_conditioning_query_is_refused_and_an_intervened_variable_cannot_be_observed()
+     {
         let interventions = [("signal".to_owned(), "1".to_owned())];
         let request = ObservationSlotsRequest {
             operation: ObservationOperation::Conditioning,
@@ -750,6 +866,8 @@ mod tests {
         assert_eq!(refusal.detail, "observation_query.intervention_in_conditioning_slot");
         assert_eq!(refusal.supplied.as_deref(), Some("intervention"));
 
+        // Observations of other variables after an intervention are the interventional
+        // law conditioned on them.
         let observed = [direct("other", "0", SlotProvenance::Recorded)];
         let mixed = ObservationSlotsRequest {
             operation: ObservationOperation::Intervention,
@@ -757,9 +875,20 @@ mod tests {
             conditioning: &observed,
             interventions: &interventions,
         };
-        let refusal = check_observation_slots(&mixed).unwrap_err();
+        assert!(check_observation_slots(&mixed).is_ok());
+
+        // A variable cannot be both recorded and set.
+        let set_and_seen = [direct("signal", "1", SlotProvenance::Recorded)];
+        let both = ObservationSlotsRequest {
+            operation: ObservationOperation::Intervention,
+            outcome_id: "outcome",
+            conditioning: &set_and_seen,
+            interventions: &interventions,
+        };
+        let refusal = check_observation_slots(&both).unwrap_err();
         assert_eq!(refusal.code, "route_not_supported");
         assert_eq!(refusal.detail, "observation_query.mixed_conditioning_and_intervention");
+        assert!(refusal.remedy.is_some());
 
         let alone = ObservationSlotsRequest {
             operation: ObservationOperation::Intervention,
@@ -768,6 +897,44 @@ mod tests {
             interventions: &interventions,
         };
         assert!(check_observation_slots(&alone).is_ok());
+    }
+
+    #[test]
+    fn continuous_evidence_is_typed_and_checked() {
+        let observed = [("x".to_owned(), 1.5)];
+        let interventions = [("s".to_owned(), 2.0)];
+        let ok = ContinuousSlotsRequest {
+            operation: ObservationOperation::Intervention,
+            outcome_id: "y",
+            observed: &observed,
+            interventions: &interventions,
+        };
+        assert!(check_continuous_assignments(&ok).is_ok());
+
+        let nan = [("x".to_owned(), f64::NAN)];
+        let refusal =
+            check_continuous_assignments(&ContinuousSlotsRequest { observed: &nan, ..ok.clone() })
+                .unwrap_err();
+        assert_eq!(refusal.detail, "observation_query.value_not_finite");
+
+        let both = [("s".to_owned(), 0.0)];
+        let refusal =
+            check_continuous_assignments(&ContinuousSlotsRequest { observed: &both, ..ok.clone() })
+                .unwrap_err();
+        assert_eq!(refusal.detail, "observation_query.mixed_conditioning_and_intervention");
+
+        let refusal = check_continuous_assignments(&ContinuousSlotsRequest {
+            operation: ObservationOperation::Conditioning,
+            ..ok.clone()
+        })
+        .unwrap_err();
+        assert_eq!(refusal.detail, "observation_query.intervention_in_conditioning_slot");
+
+        let outcome = [("y".to_owned(), 0.0)];
+        let refusal =
+            check_continuous_assignments(&ContinuousSlotsRequest { observed: &outcome, ..ok })
+                .unwrap_err();
+        assert_eq!(refusal.detail, "observation_query.outcome_assigned");
     }
 
     #[test]

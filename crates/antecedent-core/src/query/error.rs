@@ -35,6 +35,9 @@ pub enum QueryError {
     /// Invalid instrumental-variable bounds declaration.
     #[error("invalid iv-bounds query: {0}")]
     InvalidIvBounds(String),
+    /// Invalid noncausal association declaration.
+    #[error("invalid association query: {0}")]
+    InvalidAssociation(String),
     /// Invalid observational sequential regime contrast.
     #[error("invalid sequential-contrast query: {0}")]
     InvalidSequentialContrast(String),

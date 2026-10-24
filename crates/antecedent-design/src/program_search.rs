@@ -968,5 +968,9 @@ mod tests {
     }
 }
 
+/// Deterministic interval certificates for bounded compiled scalar objectives.
+pub mod certified;
 /// Bounded best-found continuous search using compiled program evaluators.
 pub mod continuous;
+/// Joint resampling and observational holdout checks for selected program values.
+pub mod selection;

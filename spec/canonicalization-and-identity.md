@@ -310,6 +310,9 @@ Node kind to stage (the stage written into the link digest):
 | `repair_report` | `evidence` |
 | `recalculation_receipt` | `evidence` |
 | `frozen_scores` | `distribution_artifact` |
+| `observation_query` | `claim` |
+| `scientific_bridge` | `claim` |
+| `propagation_chain` | `claim` |
 
 The bundle format does not interpret embedded bytes. A bundle consumer that
 verifies embedded nodes does so with the verifier registered for the node's

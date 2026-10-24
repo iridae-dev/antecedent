@@ -1,0 +1,46 @@
+schema = 1
+validation_domain = "joint_response_complete_procedures_v1"
+status = "registered_unmeasured"
+requires_stable_candidate = true
+grants_release_license = false
+
+# These are executable procedures, not measurements or inherited licenses from
+# the frozen 2.4.1 family. Q08/E14 run them against the final stable candidate.
+[[procedure]]
+id = "randomized_selected_program_value"
+owner = "X04.3"
+cargo_package = "antecedent"
+cargo_target = "lib"
+test = "analysis::joint_panel::selection::tests::whole_procedure_randomized_selected_value_calibration_l95"
+source = "crates/antecedent/src/analysis/joint_panel/selection.rs"
+stages = ["candidate_generation", "fitting", "feasibility", "search", "selection", "heldout_observational_evaluation", "whole_procedure_cluster_resampling"]
+cells = ["n240_exact_ties", "n240_near_ties", "n240_separated", "n480_exact_ties", "n480_near_ties", "n480_separated"]
+quantities = ["selected_value_coverage", "training_optimism", "heldout_bias", "failed_repetitions", "selection_instability"]
+inference = "frequentist_independent_unit_sandwich"
+minimum_replicates = 400
+
+[[procedure]]
+id = "compiled_reference_decomposition"
+owner = "X03.2"
+cargo_package = "antecedent"
+cargo_target = "lib"
+test = "analysis::joint_panel::explanation::scientific::tests::calibration_compiled_reference_decomposition_full_procedure"
+source = "crates/antecedent/src/analysis/joint_panel/explanation/scientific.rs"
+stages = ["data_generation", "identification", "fitting", "sixteen_compiled_hybrids", "twenty_four_orderings", "joint_uncertainty", "independent_truth_comparison"]
+cells = ["static_frequentist", "static_bayesian", "two_period_frequentist", "two_period_bayesian"]
+quantities = ["joint_shapley_coverage", "interval_width", "failed_slots", "ordering_sensitivity"]
+inference = "native_frequentist_and_bayesian_randomized_parameter_experiment"
+minimum_replicates = 400
+
+[[procedure]]
+id = "native_experiment_decision_chain"
+owner = "X05.2"
+cargo_package = "antecedent"
+cargo_target = "suite_01"
+test = "joint_panel_workflow::experiment_chain::matrix::native_experiment_decision_full_procedure_calibration_l95"
+source = "crates/antecedent/tests/joint_panel_experiment_chain/matrix.rs"
+stages = ["independent_original_data", "identification", "native_posterior_fitting", "estimand_bridge", "experimental_update", "constrained_decision", "future_data_integration", "next_study_ranking", "artifact_replay"]
+cells = ["independent_gaussian_joint_arm_prior_and_experimental_evidence"]
+quantities = ["updated_effect_coverage", "evidence_driven_decision_changes", "next_study_net_value", "withdrawal_refusal"]
+inference = "native_bayesian_gaussian_arm_means_and_modular_importance_update"
+minimum_replicates = 400

@@ -80,8 +80,11 @@ pub use super::{
     consume_evidence_ledger_artifact,
 };
 pub use super::{
-    BridgeInspection, ConsumedScientificBridge, PreparedScientificBridge, ScientificBridgeExport,
-    ScientificBridgeRefusal, ScientificBridgeResult, consume_scientific_bridge_artifact,
+    BridgeInspection, ConsumedScientificBridge, ConsumedScientificBridgeDistribution,
+    DistributionBridgeInspection, PreparedScientificBridge, PreparedScientificBridgeDistribution,
+    ScientificBridgeDistributionResult, ScientificBridgeExport, ScientificBridgeRefusal,
+    ScientificBridgeResult, consume_scientific_bridge_artifact,
+    consume_scientific_bridge_distribution_artifact, scientific_bridge_artifact_shape,
 };
 pub use super::{
     CategoricalTarget, ConsumedMeasurement, MeasurementAnalysisBinding, MeasurementDetail,
@@ -147,4 +150,8 @@ pub use super::{
     tier_diagnostics,
 };
 
+pub use super::fallback::{
+    AnalysisWithFallback, AssociationalFallback, EvidenceNeeds, FallbackOutcome, FallbackPart,
+    FallbackRequest, FallbackRoles, FallbackUnavailable, RankedPlan,
+};
 pub use super::{JointResponseResult, PreparedJointResponse};

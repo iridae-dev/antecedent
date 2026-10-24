@@ -178,6 +178,10 @@ pub use query::{
     randomized_graphless_coordinate,
 };
 pub use query::{
+    AssociationFunctional, AssociationMeasure, AssociationOutcome, AssociationQuery,
+    MAX_ASSOCIATION_COLUMNS, MAX_PREDICTIVE_FOLDS, MAX_REFUSED_AFTER_BYTES, MIN_PREDICTIVE_FOLDS,
+};
+pub use query::{
     AttributeQuery, AttributeTarget, ChangeEstimator, ChangeMeasure, DiscoverQuery,
     DiscoveredClass, DiscoveryInference, DiscoveryMethod, InfluenceAllocation,
     IntrinsicInfluenceTarget, MechanismChangeTest, NoiseDeclaration, ScreenWeight, SearchBounds,

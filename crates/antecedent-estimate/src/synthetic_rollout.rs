@@ -226,6 +226,23 @@ pub fn conformal_synthetic_control(
     intervention: i64,
     ctx: &ExecutionContext,
 ) -> Result<ConformalSyntheticFit, EstimationError> {
+    conformal_synthetic_control_at_level(panel, treated, intervention, ROLLOUT_LEVEL, ctx)
+}
+
+/// Conformal synthetic-control inversion at an explicit level, enabling joint
+/// Bonferroni regions over multiple declared rollout targets.
+/// # Errors
+/// Invalid level, insufficient pre-period resolution, malformed panel or admission refusal.
+pub fn conformal_synthetic_control_at_level(
+    panel: &SyntheticRolloutPanel<'_>,
+    treated: &str,
+    intervention: i64,
+    level: f64,
+    ctx: &ExecutionContext,
+) -> Result<ConformalSyntheticFit, EstimationError> {
+    if !level.is_finite() || level <= 0.0 || level >= 1.0 {
+        return Err(invalid("conformal level must be strictly between zero and one"));
+    }
     let (panel, _lease) = balanced_panel(panel, ctx)?;
     let unit = panel
         .unit(treated)
@@ -234,15 +251,13 @@ pub fn conformal_synthetic_control(
         (0..panel.periods.len()).filter(|t| panel.periods[*t] < intervention).collect();
     let post: Vec<usize> =
         (0..panel.periods.len()).filter(|t| panel.periods[*t] >= intervention).collect();
-    let alpha = 1.0 - ROLLOUT_LEVEL;
+    let alpha = 1.0 - level;
     if post.is_empty() {
         return Err(invalid("conformal synthetic control needs at least one post-period"));
     }
     if ((pre.len() + 1) as f64) * alpha < 1.0 {
         return Err(refused(format!(
-            "a 5% conformal test of one post period needs at least 19 pre-periods (the smallest \
-             attainable p-value is one over the pre-periods plus one); the panel has {}; next \
-             attempt: a longer pre-period, or the placebo-variance interval",
+            "the requested conformal level needs enough pre-periods that one over pre-periods plus one is no greater than alpha; the panel has {}; next attempt: a longer pre-period, or the placebo-variance interval",
             pre.len()
         )));
     }

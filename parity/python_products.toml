@@ -1121,6 +1121,27 @@ binding = "execution_control"
 reason = ""
 test = "python/tests/test_parameter_bindings.py::test_on_stage_reaches_plan"
 
+# Applies only to analyze. "raise" (the default) leaves every refusal raised exactly as without
+# the option; "describe" converts an identification-class refusal into an AnalysisWithFallback
+# (the unchanged refusal beside a compiled associational result and the evidence plan). It
+# changes what analyze returns after a refusal, not a value inside an executed contract, so the
+# control is observed on the returned object.
+[[parameter]]
+name = "on_refusal"
+entry_points = ["analyze"]
+binding = "execution_control"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_on_refusal_reaches_workflow"
+
+# Applies only to analyze with on_refusal="describe": the studies the caller declares, ranked
+# by the descriptive fallback's evidence plan. Refused without the fallback.
+[[parameter]]
+name = "evidence_candidates"
+entry_points = ["analyze"]
+binding = "execution_control"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_evidence_candidates_reach_the_plan"
+
 # Applies only to transport.Transport queries (refused on every other query by
 # refuse_transport_only_kwargs in python/antecedent/transport/_day1.py). Selects the
 # evidence estimator (EmpiricalTable / LearnedCategorical / TrialAipw) that

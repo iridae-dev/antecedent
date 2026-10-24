@@ -192,7 +192,7 @@ pub(super) fn missing_principal(
             "declare the behavioral linkage by which the stated preference determines the realized choice (no hypothetical bias, or a declared calibration of it) and name its evidence",
         )
         .with_expected(target.as_str()),
-        (C::PredictiveQuantity, C::CausalQuantity) => substitution(
+        (C::PredictiveQuantity | C::AssociationalQuantity, C::CausalQuantity) => substitution(
             "scientific_bridge.association_as_intervention",
             source,
             "declare and name the identification (adjustment set, exchangeability, positivity, consistency) under which the predictive quantity equals the causal quantity, or identify the causal quantity from the data",
@@ -451,7 +451,8 @@ pub(super) fn units_mismatch(
 
 // -- values outside what the mapping licenses (cell_not_licensed, bridge_mapping_not_licensed) ------------
 
-/// A value kind that has no executed bridge route.
+/// A value kind the route does not carry: a law or a posterior on the point route, an
+/// identified set or a joint law on either.
 pub(super) fn value_kind_not_carried(kind: ValueKind) -> BridgeRefusal {
     ExternalRefusal::new(
         antecedent_core::reason_code!("cell_not_licensed"),
@@ -461,7 +462,7 @@ pub(super) fn value_kind_not_carried(kind: ValueKind) -> BridgeRefusal {
     .with_supplied(kind.as_str())
     .with_expected(ValueKind::Mean.as_str())
     .with_remedy(
-        "only a point mean is bridged; transforming a law, a posterior, an identified set or a joint law needs its own licensed route",
+        "a point mean takes the point route and a posterior or predictive law takes the draws route; an identified set or joint law has no executed bridge",
     )
 }
 
@@ -620,5 +621,82 @@ pub(super) fn youden_too_small(youden: f64, min_youden: f64) -> BridgeRefusal {
     .with_expected(min_youden.to_string())
     .with_remedy(
         "the indicator is not informative enough to invert; a more accurate measurement or a larger declared minimum-evidence study is needed",
+    )
+}
+
+// -- bridges that carry draws ---------------------------------------------------------------------------
+
+/// A source offered to a distribution bridge that is not a claim about draws:
+/// an associational claim, a refusal, bounds or an incomplete contract.
+pub(super) fn source_not_draws(supplied: &str) -> BridgeRefusal {
+    ExternalRefusal::new(
+        antecedent_core::reason_code!("cell_not_licensed"),
+        STAGE_BIND,
+        "scientific_bridge.source_not_draws",
+    )
+    .with_supplied(supplied)
+    .with_expected("posterior or predictive draws")
+    .with_remedy(
+        "bridge the aligned draws of a posterior or predictive law; an associational claim, a refusal, bounds and an incomplete claim carry none",
+    )
+}
+
+/// The meaning of the supplied draws is not the value kind the contract declares.
+pub(super) fn draws_meaning_mismatch(expected: ValueKind, supplied: &str) -> BridgeRefusal {
+    ExternalRefusal::new(
+        antecedent_core::reason_code!("distribution_meaning_mismatch"),
+        STAGE_BIND,
+        "scientific_bridge.draws_meaning_mismatch",
+    )
+    .with_expected(expected.as_str())
+    .with_supplied(supplied)
+    .with_remedy(
+        "declare the value kind the draws are: a posterior for posterior draws of a parameter or causal functional, a predictive law for posterior predictive draws; a sampling or bootstrap law, or an empirical law, is neither",
+    )
+}
+
+/// Draws that are independent marginals have no row pairing to carry.
+pub(super) fn draws_not_aligned() -> BridgeRefusal {
+    ExternalRefusal::new(
+        antecedent_core::reason_code!("joint_law_required"),
+        STAGE_BIND,
+        "scientific_bridge.draws_not_aligned",
+    )
+    .with_remedy(
+        "supply the draws as columns of one aligned joint draw table; independently sampled marginals have no row pairing, so the bridged draws could not keep one",
+    )
+}
+
+/// Draws that cannot be bridged: empty, non-finite, or without the spread a
+/// declared covariance needs.
+pub fn draws_unusable(field: &str, remedy: &'static str) -> BridgeRefusal {
+    invalid("scientific_bridge.draws_unusable", remedy).with_offending(field)
+}
+
+/// A draw outside the range the mapping is licensed for. The first offending
+/// draw is named.
+pub fn draws_outside_domain(count: usize, total: usize, first: f64) -> BridgeRefusal {
+    ExternalRefusal::new(
+        antecedent_core::reason_code!("bridge_mapping_not_licensed"),
+        STAGE_BIND,
+        "scientific_bridge.draws_outside_domain",
+    )
+    .with_offending(format!("{count} of {total} draws; first {first}"))
+    .with_remedy(
+        "every draw must lie inside the range the mapping is licensed for (the validated surrogate range, the attainable recorded prevalence); the bridge neither truncates nor extrapolates a law",
+    )
+}
+
+/// A mapping that has no propagation through a chain stage.
+pub fn chain_stage_not_affine(supplied: &str) -> BridgeRefusal {
+    ExternalRefusal::new(
+        antecedent_core::reason_code!("route_not_supported"),
+        STAGE_BIND,
+        "scientific_bridge.chain_stage_not_affine",
+    )
+    .with_expected("identity, affine or trial-level mapping of a posterior")
+    .with_supplied(supplied)
+    .with_remedy(
+        "express the bridge as a measurement-mapping stage only where it is an affine map of its inputs; bridge a predictive law or a measurement correction by deriving the bridged draws and supplying them to the chain as a source",
     )
 }

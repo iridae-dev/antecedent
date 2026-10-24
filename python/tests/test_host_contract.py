@@ -158,6 +158,12 @@ def test_a_refusal_record_carries_a_registered_code_and_its_family():
         (("incomplete", "unknown", "unknown", "unknown"), "partial"),
         (("point", "unknown", "supported", "evaluated"), "partial"),
         (("point", "identified", "supported", "unknown"), "partial"),
+        (("associational", "not_claimed", "unknown", "evaluated"), "supported"),
+        (("associational", "not_claimed", "supported", "evaluated"), "supported"),
+        (("associational", "not_claimed", "unknown", "unknown"), "partial"),
+        (("associational", "identified", "supported", "evaluated"), "partial"),
+        (("associational", "not_claimed", "contradicted", "evaluated"), "unsupported"),
+        (("point", "not_claimed", "supported", "evaluated"), "partial"),
         (("refusal", "unknown", "unknown", "unknown"), "unsupported"),
         (("point", "identified", "contradicted", "evaluated"), "unsupported"),
         (("point", "identified", "outside_scope", "evaluated"), "unsupported"),
@@ -182,6 +188,25 @@ def test_claim_status_separates_supported_partial_and_unsupported(claim, status)
     }
     assert host.claim_status(wire) == status
     assert host.claim_status(record) == status
+
+
+def test_an_associational_record_is_noncausal_and_a_point_record_is_causal():
+    association = {
+        "kind": "associational",
+        "domains": {
+            "identification": "not_claimed",
+            "support": "unknown",
+            "evaluated": "evaluated",
+        },
+    }
+    record = host.claim_record(association)
+    assert record["causal"] is False
+    assert record["status"] == "supported"
+    point = {
+        "kind": "point",
+        "domains": {"identification": "identified", "support": "unknown", "evaluated": "evaluated"},
+    }
+    assert host.claim_record(point)["causal"] is True
 
 
 def test_operation_status_follows_applicability_then_readiness():

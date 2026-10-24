@@ -265,6 +265,8 @@ pub enum PosteriorAlgorithm {
     Enumeration,
     /// Markov chain Monte Carlo over a discrete space (orders or structures).
     DiscreteMcmc,
+    /// Bayesian bootstrap: Dirichlet weights on rows, or on contiguous blocks of a series.
+    BayesianBootstrap,
 }
 
 impl PosteriorAlgorithm {
@@ -278,6 +280,7 @@ impl PosteriorAlgorithm {
             Self::AtomMixture => "atom_mixture",
             Self::Enumeration => "enumeration",
             Self::DiscreteMcmc => "discrete_mcmc",
+            Self::BayesianBootstrap => "bayesian_bootstrap",
         }
     }
 }

@@ -153,7 +153,7 @@ impl SourceMappingDependence {
         }
     }
 
-    fn covariance(&self) -> f64 {
+    pub(super) fn covariance(&self) -> f64 {
         match self {
             Self::Independent { .. } => 0.0,
             Self::SlopeCovariance { covariance, .. } => *covariance,

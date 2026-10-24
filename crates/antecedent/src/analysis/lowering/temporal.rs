@@ -677,7 +677,8 @@ fn caches(layer: &IdentificationLayer) -> &[IdentificationCache] {
         IdentificationLayer::Retained(retained) => retained.caches(),
         IdentificationLayer::Deferred { .. }
         | IdentificationLayer::PerExecution { .. }
-        | IdentificationLayer::NonGraphical(_) => &[],
+        | IdentificationLayer::NonGraphical(_)
+        | IdentificationLayer::NotClaimed { .. } => &[],
     }
 }
 

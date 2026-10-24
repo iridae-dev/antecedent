@@ -434,6 +434,18 @@ fn kind_license(kind: CausalQueryKind) -> KindLicense {
             }),
             ..UNLICENSED
         },
+        // Off the support matrix and without a coverage license: a noncausal association states
+        // no intervention and no graph, so the study is a graphless table of the outcome and
+        // its predictors, or one graphless series of them.
+        K::Association => KindLicense {
+            tabular: design(false, || CausalError::Unsupported {
+                message: "Association requires a graphless table of its outcome and predictors",
+            }),
+            series: design(false, || CausalError::Unsupported {
+                message: "Association requires a graphless series of its outcome and predictors",
+            }),
+            ..UNLICENSED
+        },
     }
 }
 

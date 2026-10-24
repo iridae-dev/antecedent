@@ -1,0 +1,38 @@
+feature_id = "design.evidence_plan"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Original engineering: restating the evidence a failed identification owes as
+# unfinished study candidates, collecting the verdicts of each theorem route's repair
+# search into one ordered list of options, and valuing a single study by the existing
+# preposterior expected value of sample information under a decision, prior and signal
+# the caller declares. The checkers it relies on (back-door, front-door, instrument and
+# hedge identification, d-separation) and the value of sample information (Raiffa and
+# Schlaifer, Applied Statistical Decision Theory, 1961, ch. 4) carry their own provenance
+# records (design.identification_repair, design.evsi); nothing here re-derives or extends
+# their theorems, so papers is explicitly empty.
+papers = []
+
+implementation_deviations = [
+  "Options are ordered by the identification gate first and only then by the declared value of a single study, never the reverse: a study that promises more information does not outrank a verified one. A subset of studies has no value of its own because values of studies do not add; it is listed unvalued.",
+  "The value of measuring a named confounder is an expected value of sample information under a prior the caller declares over the evaluated grid coordinates of a sensitivity surface. An assumption range is never a probability; a surface with an assumption range, or an unevaluated grid point, is refused and nothing is interpolated between grid points.",
+  "The repeated-measurement (panel) alternative owes obligations but has no theorem checker: it is listed as an unscored route, never as an option, and the time invariance it relies on is an assumption no study establishes.",
+  "A study that only names a variable, or only adds rows, is never credited with an unlock: the unlock list names the variables of the studies a repair search verified sufficient on their own.",
+  "The evidence_plan_v1 artifact embeds the sealed repair_search_receipt_v1 container of every route and the design_ranking_v1 container of the value evaluation and replays both; its digests are content fingerprints, not cryptographic guarantees against a producer that states another contract and re-seals honestly.",
+  "The ordering is a point ordering conditional on the declared decision, prior, signals and cost map; its calibration is unmeasured and no rank confidence or realized-study guarantee is claimed. A budget stop is reported as a budget, never as an impossibility.",
+  "No causal, interval or calibration claim is made.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-design/tests/evidence_plan.rs",
+  "crates/antecedent-design/src/candidate_generation.rs",
+  "crates/antecedent-design/src/confounder_value.rs",
+  "crates/antecedent-design/src/structure_identification.rs",
+  "crates/antecedent/src/analysis/evidence_plan.rs",
+  "python/tests/test_evidence_plan.py",
+]

@@ -23,6 +23,7 @@ pub mod admg_conditional_transport;
 pub mod aipw;
 pub mod ancova;
 pub mod ar_kernel;
+pub mod association;
 pub mod bayesian;
 pub mod bayesian_iv;
 pub mod bayesian_local_ratio;
@@ -242,6 +243,13 @@ pub use antecedent_learn::{
 };
 pub use antecedent_stats::FirstStageDiagnostics;
 pub use ar_kernel::kernel_bias_factor;
+pub use association::{
+    AssociationAnalysis, AssociationEstimate, AssociationEstimator, AssociationSelection,
+    AssociationTerm, BayesianSettings, HeldOutCase, MAX_STRATA, MAX_STRATUM_LEVELS, MIN_REPLICATES,
+    Modality, OutcomeKind, PosteriorRecord, PredictionFit, PreparedAssociation, ResamplingRecord,
+    SELECTION_RULE, SPREAD_LEVEL, TermPosterior, bayesian_method, descriptive_assumptions,
+    select_analysis,
+};
 pub(crate) use bayesian::require_bayesian_n_draws;
 pub use bayesian::{
     BayesianBackendKind, BayesianGCompWorkspace, BayesianGComputationAte, BayesianTemporalGcomp,

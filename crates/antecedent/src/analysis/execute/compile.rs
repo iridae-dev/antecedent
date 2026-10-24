@@ -213,6 +213,12 @@ impl super::Study {
                 self.compile_logical_temporal_design(data, q)
             }
             RouteInput::IvBounds { data, query: q } => self.compile_logical_iv_bounds(data, q),
+            RouteInput::AssociationStatic { data, query: q } => {
+                self.compile_logical_association(data, q, DataClassification::Tabular)
+            }
+            RouteInput::AssociationTemporal { data, query: q } => {
+                self.compile_logical_association(data, q, DataClassification::Temporal)
+            }
             RouteInput::GcmDag { data, .. } => self.compile_logical_gcm(
                 data.row_count() as u64,
                 PlanId::GcmQuery.as_str(),
@@ -1357,6 +1363,35 @@ impl super::Study {
         ))
     }
 
+    /// Logical plan of a noncausal association. The plan names no causal identifier or
+    /// estimator: the analysis is picked from the outcome scale by the declared selection rule
+    /// and recorded on the lowered program.
+    fn compile_logical_association(
+        &self,
+        data: &impl TableView,
+        q: &antecedent_core::AssociationQuery,
+        classification: DataClassification,
+    ) -> Result<LogicalAnalysisPlan, CausalError> {
+        q.validate()?;
+        for id in q.columns() {
+            data.schema().get(id).map_err(CausalError::rejected)?;
+        }
+        let plan = if self.inference.is_bayesian() {
+            PlanId::BayesianAssociation
+        } else {
+            PlanId::Association
+        }
+        .as_str();
+        Ok(self.study_query_plan(
+            data.row_count() as u64,
+            classification,
+            plan,
+            super::checked_association::ASSOCIATION_IDENTIFIER,
+            plan,
+            Arc::from(q.columns()),
+        ))
+    }
+
     fn compile_logical_temporal_design(
         &self,
         data: &TabularData,
@@ -1746,6 +1781,8 @@ impl super::Study {
             | RouteInput::HistoryMatch { .. }
             | RouteInput::TemporalDesign { .. }
             | RouteInput::IvBounds { .. }
+            | RouteInput::AssociationStatic { .. }
+            | RouteInput::AssociationTemporal { .. }
             | RouteInput::GcmTemporal { .. }
             | RouteInput::TemporalCrossWorldClass { .. } => {
                 self.compile_logical_from(input)?.compile_physical(ctx)

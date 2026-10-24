@@ -347,7 +347,15 @@ ok
 | `observation_query.measured_as_construct` | `proxy_offered_as_construct` | Declare a measurement model (a confusion matrix or reliability) relating the indicator to the construct and condition through it, or ask the question about the recorded indicator itself. |
 | `observation_query.measured_background` | `route_not_supported` | Hold recorded values fixed; condition on a measured signal in a conditional-outcome query. |
 | `observation_query.measurement_route` | `route_not_supported` | Declare a binary-misclassification or categorical-confusion measurement model. |
-| `observation_query.mixed_conditioning_and_intervention` | `route_not_supported` | Ask the conditional and the interventional claims separately; a distribution conditioning on observations after an intervention has no bounded route. |
+| `observation_query.mixed_conditioning_and_intervention` | `route_not_supported` | Condition on recorded variables that are not intervened on (a descendant of the intervention carries information about the unobserved causes of the outcome), or ask the interventional claim alone; a variable whose mechanism an intervention removes is set, not observed. |
+| `observation_query.levels_for_continuous_model` | `invalid_argument` | State the evidence and the interventions of a linear-Gaussian composition as typed real values. |
+| `observation_query.real_values_for_finite_model` | `invalid_argument` | State the evidence and the interventions of a finite composition as levels of the variable. |
+| `observation_query.value_not_finite` | `invalid_argument` | Supply a finite real value. |
+| `observation_query.evidence_covariance_singular` | `invalid_argument` | Observe values whose joint covariance under the model is positive definite: drop an observed variable that is a deterministic function of the others, or give the mechanism a positive residual scale. |
+| `observation_query.measured_signal_not_redrawn` | `route_not_supported` | Ask the point claim of the measured query, or condition on directly recorded values; a measured signal's error rates are declared, not fitted from retained data. |
+| `observation_query.no_parameter_draws` | `invalid_argument` | Ask for parameter uncertainty with a retained-data redraw. |
+| `observation_query.unknown_quantity` | `invalid_argument` | Name one of the quantities of the claim's parameter draws. |
+| `observation_query.invalid_interval` | `invalid_argument` | Supply finite draws and a level strictly between zero and one. |
 | `observation_query.multiple_measured_signals` | `route_not_supported` | Condition on one measured signal per query; several indicators need a joint measurement model. |
 | `observation_query.outcome_assigned` | `invalid_argument` | Ask about an outcome that is not assigned in the same query. |
 | `observation_query.population_mismatch` | `measurement_binding_mismatch` | Establish the measurement model for this population, or declare the invariance premise under a transport contract. |
@@ -370,9 +378,15 @@ ok
 | `scientific_bridge.assumption_evidence_missing` | `bridge_assumption_missing` | Name the identity of the evidence the assumption rests on. |
 | `scientific_bridge.assumption_missing` | `bridge_assumption_missing` | Declare the assumption with an identity and name the evidence it rests on. |
 | `scientific_bridge.blank_field` | `scientific_bridge_invalid` | Name every identity and statement in at most the declared number of bytes. |
+| `scientific_bridge.chain_stage_not_affine` | `route_not_supported` | Derive the bridged draws and supply them to the chain as a source; only an affine bridge is a measurement-mapping stage. |
 | `scientific_bridge.conditioning_mismatch` | `bridge_binding_mismatch` | Bridge quantities with the same conditioning. |
 | `scientific_bridge.degenerate_validation` | `bridge_mapping_not_licensed` | Validate in trials that differ in their effects. |
+| `scientific_bridge.dependence_not_a_covariance` | `bridge_mapping_not_licensed` | State a covariance whose square is at most the product of the slope variance and the source variance. |
 | `scientific_bridge.differential_error` | `differential_error_not_pooled` | Bridge through a non-differential model, or analyse the arms with their own rates. |
+| `scientific_bridge.draws_meaning_mismatch` | `distribution_meaning_mismatch` | Declare the value kind the draws are: a posterior or a predictive law; a bootstrap, sampling or empirical law is neither. |
+| `scientific_bridge.draws_not_aligned` | `joint_law_required` | Supply the draws as columns of one aligned joint draw table. |
+| `scientific_bridge.draws_outside_domain` | `bridge_mapping_not_licensed` | The bridge neither truncates nor extrapolates a law; validate trials that cover the draws, or check the declared rates. |
+| `scientific_bridge.draws_unusable` | `scientific_bridge_invalid` | Supply finite draws that vary and a target quantity the table does not already carry. |
 | `scientific_bridge.duplicate_assumption` | `scientific_bridge_invalid` | Give every declared assumption its own identity. |
 | `scientific_bridge.endpoint_classes` | `scientific_bridge_invalid` | Connect the class pair the bridge kind relates. |
 | `scientific_bridge.functional_not_supported` | `bridge_mapping_not_licensed` | State the quantity as a prevalence or risk on the probability scale. |
@@ -383,6 +397,7 @@ ok
 | `scientific_bridge.malformed_mapping` | `scientific_bridge_invalid` | Declare the mapping within its range. |
 | `scientific_bridge.mapping_not_allowed` | `scientific_bridge_invalid` | Carry the value by a mapping the bridge kind allows. |
 | `scientific_bridge.mapping_scope_mismatch` | `bridge_binding_mismatch` | Establish the model for the bridge's scope, or declare the evidence scope the model was established for. |
+| `scientific_bridge.mapping_uncertainty_invalid` | `scientific_bridge_invalid` | Declare the mapping's uncertainty once: a trial-level line and a correction draw it from their own evidence. |
 | `scientific_bridge.measurement_model_mismatch` | `bridge_binding_mismatch` | Bridge the quantities the measurement model relates. |
 | `scientific_bridge.measurement_route_not_supported` | `bridge_mapping_not_licensed` | Use a binary-misclassification model, or its own corrected-functional record. |
 | `scientific_bridge.model_identity_mismatch` | `bridge_binding_mismatch` | Name the identity of the measurement model the mapping uses. |
@@ -398,6 +413,8 @@ ok
 | `scientific_bridge.regime_mismatch` | `bridge_binding_mismatch` | Bridge quantities of one regime. |
 | `scientific_bridge.replay_mismatch` | `invalid_argument` | Regenerate the artifact from the contract and the source claim. |
 | `scientific_bridge.scientific_endpoint_as_utility` | `bridge_substitution_refused` | Declare the utility function that maps the endpoint to decision utility and bridge through it. |
+| `scientific_bridge.source_dependence_missing` | `sampling_dependence_unknown` | Declare that the source and the mapping are independent, or declare their covariance. |
+| `scientific_bridge.source_not_draws` | `cell_not_licensed` | Bridge the aligned draws of a posterior or predictive law; an associational claim is never a bridge source. |
 | `scientific_bridge.source_not_point` | `cell_not_licensed` | Bridge a claim that carries one finite point value. |
 | `scientific_bridge.stated_preference_as_realized_behavior` | `bridge_substitution_refused` | Declare the behavioral linkage by which the stated preference determines the realized choice and name its evidence. |
 | `scientific_bridge.too_many_assumptions` | `scientific_bridge_invalid` | Declare at most the bounded number of assumptions. |
@@ -407,7 +424,7 @@ ok
 | `scientific_bridge.units_mismatch` | `bridge_binding_mismatch` | Supply the claim in the declared units; no implicit conversion is made. |
 | `scientific_bridge.validation_r_squared_too_low` | `bridge_mapping_not_licensed` | Validate a better surrogate, or declare the coefficient of determination the evidence supports. |
 | `scientific_bridge.validation_trials_too_few` | `bridge_mapping_not_licensed` | Validate the surrogate in at least the declared number of trials. |
-| `scientific_bridge.value_kind_not_carried` | `cell_not_licensed` | Only a point mean is bridged; transforming a law, posterior, identified set or joint law needs its own licensed route. |
+| `scientific_bridge.value_kind_not_carried` | `cell_not_licensed` | A point mean takes the point route and a posterior or predictive law takes the draws route; an identified set or joint law has no executed bridge. |
 | `scientific_bridge.value_kind_substitution` | `bridge_substitution_refused` | Supply the requested object from its own route; these are not interchangeable. |
 | `scientific_bridge.youden_too_small` | `measurement_not_identified` | A more accurate measurement or a larger declared minimum-evidence study is needed. |
 
@@ -795,6 +812,93 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 | `evsi.source_overlap_unknown` | `evidence_overlap_unknown` | Declare the study's observations (or its lineage) in the ledger. |
 | `design_ranking.source_overlap_unknown` | `evidence_overlap_unknown` | Declare the observations of the study and prior sources in the ledger. |
 | `prior_signal.observation_overlap_unknown` | `evidence_overlap_unknown` | Declare the observation ids of every source. |
+
+### Evidence that would resolve a not-identified result
+
+A not-identified refusal says what cannot be claimed. When the contract holds
+the not-identified product (after `prepare`; cheap `inspect` identifies nothing and
+so derives nothing), it also says what evidence would change that, derived from
+the graph and never executed:
+
+| Next action id | Derived from | Meaning |
+| --- | --- | --- |
+| `measure_variable:<name>` | A joint-law obligation of the back-door, front-door or sensitivity route | Measure that variable (an unmeasured common cause of a bidirected edge is named `common_cause_of_<a>_<b>`) jointly with the treatment and outcome. |
+| `run_experiment:<target>` | An `intervene` obligation of a hedge | Run an experiment that sets the target: the treatment, or a hedge node that intercepts every directed path while its response to the treatment is identified. |
+| `find_instrument` | An instrument obligation | Find a variable that moves the treatment without reaching the outcome except through it. |
+| `collect_panel` | The panel alternative, when back-door adjustment needs unmeasured variables | Collect repeated measurements of the same units. |
+
+Each action traces to an `EvidenceObligation` that keeps its proof step
+(`backdoor.adjustment_set:<ids>`, `frontdoor.mediator_set:<ids>`,
+`iv.instrument:<id>`, `hedge:f=[..];f_prime=[..]`, `hedge.surrogate:<id>`,
+`sensitivity.<method>:strength=<s>`). An instrument's relevance and exclusion,
+the effect restriction of the Wald ratio and the time-invariance a panel relies on
+are `establish_assumption` obligations: no study satisfies them, so a repair report
+over an instrument contract never certifies on data alone and an assumption yields no
+action of its own. A family whose observed law already identifies the effect refuses
+with `identification_repair.not_a_failure`; a search stopped by its budget keeps its
+unevaluated subsets and is never reported as impossibility.
+
+The capability report also carries the licensed neighbors and the unmet obligations:
+the host record (`operation_record`) emits `neighbors` and `unmet_obligations` beside
+`next_actions`, and Python exposes `next_actions`, `neighbors`, `unmet_obligations` and
+`evidence_obligations` on `inspect()` reports. A neighbor is an explicit alternative
+that changes named premises, never an automatic fallback; the descriptive fallback
+below is likewise opt-in and returned beside the refusal.
+
+### Ranked evidence plans
+
+`design.evidence_plan` turns the evidence a failed identification owes into the options
+that would close it: each declared study is checked by the theorem of every route, and the
+plan is ordered by the identification gate and then by value net of a declared cost map.
+It never converts a refusal into a verdict about the world:
+
+| Detail | Code | What it says |
+| --- | --- | --- |
+| `evidence_plan.budget` | `transport_budget_cancel` | A declared search budget stopped with nothing certified; the unexamined subsets are unknown, not impossible. |
+| `evidence_plan.none_certified` | `transport_not_certified` | Nothing declared was certified; that does not show that no study can close the gap. |
+| `evidence_obligations.wrong_contract` | `transport_missing_evidence` | The only verified-but-uncertified options rest on assumptions (an instrument's validity) that no study establishes. |
+| `evidence_plan.cost_units_mismatch` | `design_cost_units_mismatch` | The declared studies, or the cost map, do not share one cost unit. |
+| `evidence_plan.invalid_request` | `invalid_argument` | No route report, no declared study, or a report naming an undeclared study. |
+| `study_candidate.declarations_required` | `design_signal_invalid` | A template was used as a study: cost, timing, recruitment, unit rules, feasibility and sample size are never defaulted. |
+| `study_candidate.sample_below_obligation` | `design_signal_invalid` | The declared sample size is below what an addressed obligation needs. |
+| `confounder_value.range_surface` | `decision_contract_unsatisfied` | An assumption range is not a probability law; only a point surface can be valued under a declared prior. |
+| `evidence_plan_artifact.replay_mismatch` | `transport_not_certified` | A stored option, outcome or identity differs from the replay of its routes and value ranking. |
+
+A plan is hypothetical identification, not an estimate: its inference claim is `none`, the
+ordering is `point_only` and its calibration `unmeasured`.
+
+### An opt-in description beside the refusal
+
+A not-identified refusal is the answer to the causal question and is never replaced. A
+caller who also wants to know what the data do say, and what evidence would change the
+answer, opts in: Python `analyze(..., on_refusal="describe")`, Rust
+`Study::analyze_with_fallback`. Without the option nothing changes and the refusal is raised.
+With it, an identification-class refusal (`effect_not_identified`, `cross_world_not_identified`;
+never a search a budget stopped, a cancellation, a resource limit, an invalid argument or a
+data or estimation error) returns an `AnalysisWithFallback`:
+
+| Part | What it is |
+| --- | --- |
+| `refusal` | The original refusal object, unchanged: same class, reason code, remedy and report. |
+| `associational` | The compiled associational route over the same outcome, treatment and adjustment variables (the measured parents of the treatment and the declared modifiers), labelled noncausal, with the refusal's reason code retained in its identification layer. Identification is not claimed; it is not the effect of an intervention and it ranks no action. |
+| `evidence_plan` | The verified evidence obligations, the evidence-gathering next actions and the candidate templates; with declared candidate studies, the ranked plan of the options that would close the gap. |
+
+Each of `associational` and `evidence_plan` is either present or a typed
+`FallbackUnavailable` that says why not:
+
+| Detail | Code | What it says |
+| --- | --- | --- |
+| `fallback.no_association_form` | `route_not_supported` | The query kind relates no single outcome to a single treatment (a counterfactual, a distribution, a mediation), so there is nothing to describe; state the associational question directly. |
+| `fallback.variable_not_measured` | `invalid_argument` | A variable the query names is not a measured column. |
+| `fallback.modality_not_described` | `route_not_supported` | The data are a panel, events or several environments; describe one table or one series. |
+| `fallback.graph_class_not_read` | `route_not_supported` | The evidence routes are read from a declared directed or bidirected graph. |
+| `identification_repair.not_a_failure` | `invalid_argument` | The declared graph identifies the effect, so the refusal came from the estimator or the data and no structural evidence gap is owed. |
+| `fallback.association_refused` | the refusing route's code | The compiled associational route itself refused (for example an option it does not take); the message carries the next attempt. |
+
+The returned object states plainly that the associational result is not an answer to the
+causal question, and the host record (`antecedent.host.fallback_response`,
+`antecedent::host::fallback_response`) shows `causal_status: unsupported` beside the status of
+the noncausal claim. See the [fallback guide](guides/fallback.md).
 
 ## Remedies
 

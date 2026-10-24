@@ -26,6 +26,7 @@ pub mod adaptive_procedure_declaration;
 pub mod adaptive_procedure_report;
 mod admg_conditional_transport;
 pub mod array_fits;
+pub mod association;
 mod batch;
 mod batch_export;
 mod batch_retarget;
@@ -79,8 +80,10 @@ pub mod dose_grid_functional;
 pub mod effect_constancy;
 pub mod effect_constancy_consumers;
 pub mod evidence_ledger;
+pub mod evidence_plan;
 mod exact;
 mod execute;
+pub mod fallback;
 #[cfg(feature = "file-source")]
 pub mod file_table;
 mod finite_discrete;
@@ -343,8 +346,11 @@ pub use recovery::{
     consume_observation_recovery_artifact,
 };
 pub use scientific_bridge::{
-    BridgeInspection, ConsumedScientificBridge, PreparedScientificBridge, ScientificBridgeExport,
-    ScientificBridgeRefusal, ScientificBridgeResult, consume_scientific_bridge_artifact,
+    BridgeInspection, ConsumedScientificBridge, ConsumedScientificBridgeDistribution,
+    DistributionBridgeInspection, PreparedScientificBridge, PreparedScientificBridgeDistribution,
+    ScientificBridgeDistributionResult, ScientificBridgeExport, ScientificBridgeRefusal,
+    ScientificBridgeResult, consume_scientific_bridge_artifact,
+    consume_scientific_bridge_distribution_artifact, scientific_bridge_artifact_shape,
 };
 pub use smoothed_dose::{
     PreparedSmoothedDose, SmoothedDosePosteriorResult, SmoothedDoseResult,

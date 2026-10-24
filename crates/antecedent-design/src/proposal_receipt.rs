@@ -851,6 +851,10 @@ fn owner(family: RepairFamilyRef<'_>) -> &dyn RepairFamily {
         RepairFamilyRef::Transport(f) => f,
         RepairFamilyRef::Backdoor(f) => f,
         RepairFamilyRef::ZTransport(f) => f,
+        RepairFamilyRef::FrontDoor(f) => f,
+        RepairFamilyRef::Instrument(f) => f,
+        RepairFamilyRef::Hedge(f) => f,
+        RepairFamilyRef::Sensitivity(f) => f,
     }
 }
 
@@ -862,6 +866,10 @@ fn hypothetical_of(
         RepairFamilyRef::Transport(f) => f.hypothetical_regimes(&[candidate]),
         RepairFamilyRef::Backdoor(f) => f.hypothetical_regimes(&[candidate]),
         RepairFamilyRef::ZTransport(f) => f.hypothetical_regimes(&[candidate]),
+        RepairFamilyRef::FrontDoor(f) => f.hypothetical_regimes(&[candidate]),
+        RepairFamilyRef::Instrument(f) => f.hypothetical_regimes(&[candidate]),
+        RepairFamilyRef::Hedge(f) => f.hypothetical_regimes(&[candidate]),
+        RepairFamilyRef::Sensitivity(f) => f.hypothetical_regimes(&[candidate]),
     };
     regimes.map_err(|reasons| {
         ProposalReceiptError::invalid("proposal_receipt.invalid_delta", reasons.join("; "))
@@ -1078,6 +1086,10 @@ fn run_family(
                 .collect(),
             ctx,
         ),
+        RepairFamilyRef::FrontDoor(f) => f.check_regimes(regimes, ctx),
+        RepairFamilyRef::Instrument(f) => f.check_regimes(regimes, ctx),
+        RepairFamilyRef::Hedge(f) => f.check_regimes(regimes, ctx),
+        RepairFamilyRef::Sensitivity(f) => f.check_regimes(regimes, ctx),
     };
     verdict.map_err(|RepairCancelled| ProposalReceiptError::cancelled())
 }

@@ -3,6 +3,216 @@
 
 use std::collections::BTreeMap;
 
+/// Finite assignment distribution for one independent switchback sequence.
+/// Each arm labels a complete simultaneous multichannel assignment at one period.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HistoryAssignment {
+    /// All possible schedules, including schedules not realized in this sample.
+    pub schedules: Vec<Vec<usize>>,
+    /// Known probabilities in schedule order; strictly positive and summing to one.
+    pub probabilities: Vec<f64>,
+    /// Index of the schedule actually assigned.
+    pub realized: usize,
+    /// Observed outcomes for the complete realized schedule.
+    pub outcomes: Vec<f64>,
+}
+
+/// History-aware Horvitz--Thompson response means from independent sequences.
+/// Uncertainty is an uncalibrated sequence-cluster sandwich approximation.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct HistorySwitchbackFit {
+    /// One mean per requested history, in caller order.
+    pub means: Vec<f64>,
+    /// Row-major joint covariance, including cross-history covariance.
+    pub covariance: Vec<f64>,
+    /// Sequence-level contributions, retained for joint contrasts and resampling.
+    pub sequence_scores: Vec<Vec<f64>>,
+    /// Number of observed matches for each requested history.
+    pub observed_support: Vec<usize>,
+    /// Number of outcome periods included across all independent sequences.
+    pub eligible_periods: usize,
+}
+
+/// Estimate joint-history means under a known finite schedule randomization.
+///
+/// A history of length `L+1` identifies the response at its final period under
+/// consistency, no anticipation, no interference between independent sequences,
+/// and no carryover beyond `L`. These are design premises, not tests on the data.
+/// Inclusion probabilities are computed from *whole schedules*, never multiplied
+/// from marginal arm probabilities. Correlation within a sequence is unrestricted.
+/// The first `L` periods have no observed prehistory and are excluded explicitly.
+///
+/// # Errors
+/// Refuses malformed/duplicate schedules, impossible realizations, nonfinite inputs,
+/// histories without design or observed support, fewer than two independent sequences,
+/// and numerical overflow. It never silently substitutes a shorter carryover order.
+pub fn switchback_history_means(
+    sequences: &[HistoryAssignment],
+    histories: &[Vec<usize>],
+) -> Result<HistorySwitchbackFit, &'static str> {
+    let width = histories.first().ok_or("at least one history is required")?.len();
+    if width == 0 || histories.iter().any(|h| h.len() != width) {
+        return Err("histories must have one common positive length");
+    }
+    if sequences.len() < 2 {
+        return Err("at least two independent assignment sequences are required");
+    }
+    for (i, h) in histories.iter().enumerate() {
+        if histories[..i].contains(h) {
+            return Err("duplicate requested history");
+        }
+    }
+    let mut scores = Vec::with_capacity(sequences.len());
+    let mut support = vec![0; histories.len()];
+    let mut eligible = 0_usize;
+    for sequence in sequences {
+        let n = sequence.outcomes.len();
+        if n < width
+            || sequence.schedules.is_empty()
+            || sequence.schedules.len() != sequence.probabilities.len()
+            || sequence.realized >= sequence.schedules.len()
+            || sequence.schedules.iter().any(|s| s.len() != n)
+            || sequence.outcomes.iter().any(|y| !y.is_finite())
+            || sequence.probabilities.iter().any(|p| !p.is_finite() || *p <= 0.0)
+            || (sequence.probabilities.iter().sum::<f64>() - 1.0).abs() > 1e-12
+        {
+            return Err("invalid finite schedule distribution or observed sequence");
+        }
+        for (i, schedule) in sequence.schedules.iter().enumerate() {
+            if sequence.schedules[..i].contains(schedule) {
+                return Err("duplicate assignment schedule");
+            }
+        }
+        eligible = eligible.checked_add(n - width + 1).ok_or("period count overflow")?;
+        let observed = &sequence.schedules[sequence.realized];
+        let mut score = vec![0.0; histories.len()];
+        for time in width - 1..n {
+            for (j, history) in histories.iter().enumerate() {
+                let range = time + 1 - width..=time;
+                let probability = sequence
+                    .schedules
+                    .iter()
+                    .zip(&sequence.probabilities)
+                    .filter(|(schedule, _)| schedule[range.clone()] == history[..])
+                    .map(|(_, probability)| probability)
+                    .sum::<f64>();
+                if probability <= 0.0 {
+                    return Err("joint-history positivity failure at an eligible period");
+                }
+                if observed[range] == history[..] {
+                    score[j] += sequence.outcomes[time] / probability;
+                    support[j] += 1;
+                }
+            }
+        }
+        scores.push(score);
+    }
+    if support.contains(&0) {
+        return Err("a requested history has no observed support");
+    }
+    let count = sequences.len() as f64;
+    let total = eligible as f64;
+    let means = (0..histories.len())
+        .map(|j| scores.iter().map(|s| s[j]).sum::<f64>() / total)
+        .collect::<Vec<_>>();
+    // Center the cluster estimating equations, accounting for unequal sequence lengths.
+    let mut covariance =
+        vec![0.0; histories.len().checked_mul(histories.len()).ok_or("covariance size overflow")?];
+    for (sequence, score) in sequences.iter().zip(&scores) {
+        let periods = (sequence.outcomes.len() - width + 1) as f64;
+        for j in 0..histories.len() {
+            for k in 0..histories.len() {
+                covariance[j * histories.len() + k] += count / (count - 1.0)
+                    * (score[j] - periods * means[j])
+                    * (score[k] - periods * means[k])
+                    / total.powi(2);
+            }
+        }
+    }
+    if means.iter().chain(&covariance).chain(scores.iter().flatten()).any(|v| !v.is_finite()) {
+        return Err("history-weighted response overflow");
+    }
+    Ok(HistorySwitchbackFit {
+        means,
+        covariance,
+        sequence_scores: scores,
+        observed_support: support,
+        eligible_periods: eligible,
+    })
+}
+
+#[cfg(test)]
+mod history_tests {
+    use super::*;
+
+    fn fixture() -> Vec<HistoryAssignment> {
+        let schedules = vec![vec![0, 0], vec![0, 1], vec![1, 0], vec![1, 1]];
+        schedules
+            .iter()
+            .enumerate()
+            .map(|(realized, schedule)| {
+                let a = schedule[0] as f64;
+                let b = schedule[1] as f64;
+                HistoryAssignment {
+                    schedules: schedules.clone(),
+                    probabilities: vec![0.25; 4],
+                    realized,
+                    outcomes: vec![0.0, 2.0 * a + 3.0 * b + 5.0 * a * b],
+                }
+            })
+            .collect()
+    }
+
+    #[test]
+    fn finite_history_randomization_recovers_carryover_and_interaction() {
+        let histories = vec![vec![0, 0], vec![0, 1], vec![1, 0], vec![1, 1]];
+        let fit = switchback_history_means(&fixture(), &histories).unwrap();
+        assert_eq!(fit.means, vec![0.0, 3.0, 2.0, 10.0]);
+        assert_eq!(fit.means[3] - fit.means[2] - fit.means[1] + fit.means[0], 5.0);
+        assert_eq!(fit.eligible_periods, 4);
+        assert_eq!(fit.observed_support, vec![1; 4]);
+        assert!(fit.covariance[1 * 4 + 2] < 0.0);
+        for j in 0..4 {
+            for k in 0..4 {
+                assert_eq!(fit.covariance[j * 4 + k], fit.covariance[k * 4 + j]);
+            }
+        }
+    }
+
+    #[test]
+    fn blocked_assignment_cannot_be_replaced_with_marginal_probabilities() {
+        let schedules = vec![vec![0, 0], vec![1, 1]];
+        let sequences = (0..2)
+            .map(|realized| HistoryAssignment {
+                schedules: schedules.clone(),
+                probabilities: vec![0.5, 0.5],
+                realized,
+                outcomes: vec![0.0, realized as f64 * 4.0],
+            })
+            .collect::<Vec<_>>();
+        let fit = switchback_history_means(&sequences, &[vec![0, 0], vec![1, 1]]).unwrap();
+        assert_eq!(fit.means, vec![0.0, 4.0]);
+        assert!(switchback_history_means(&sequences, &[vec![0, 1]]).is_err());
+    }
+
+    #[test]
+    fn malformed_design_and_unsupported_observations_are_refused() {
+        let mut sequences = fixture();
+        assert!(switchback_history_means(&sequences, &[vec![0], vec![0, 1]]).is_err());
+        sequences[0].schedules[1] = sequences[0].schedules[0].clone();
+        assert!(switchback_history_means(&sequences, &[vec![0, 0]]).is_err());
+        let mut sequences = fixture();
+        sequences[0].probabilities[0] = f64::NAN;
+        assert!(switchback_history_means(&sequences, &[vec![0, 0]]).is_err());
+        let mut sequences = fixture();
+        for sequence in &mut sequences {
+            sequence.realized = 0;
+        }
+        assert!(switchback_history_means(&sequences, &[vec![1, 1]]).is_err());
+    }
+}
+
 /// Minimum independent assignment sequences for the pointwise interval.
 pub(crate) const MIN_SEQUENCES_FOR_INTERVAL: usize = 30;
 /// Minimum known marginal assignment probability for either arm.

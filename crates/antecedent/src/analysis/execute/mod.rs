@@ -318,6 +318,7 @@ mod checked_history_match;
 mod checked_route;
 pub(crate) use checked_history_match::CheckedHistoryMatchOperation;
 pub(crate) use checked_route::CheckedRouteOperation;
+mod checked_association;
 mod checked_iv_bounds;
 mod checked_temporal_design;
 pub(crate) use checked_iv_bounds::CheckedIvBoundsOperation;

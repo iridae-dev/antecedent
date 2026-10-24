@@ -36,6 +36,19 @@ pub enum StudyKind {
     Observation,
     /// More rows of an existing design; produces no new regime.
     SampleIncrease,
+    /// Observation of an instrument, the treatment and the outcome on one joint
+    /// law. The study supplies the data a Wald-type contrast is read from; it
+    /// never establishes that the instrument is valid.
+    Instrument,
+    /// Observation that exploits variation the investigator does not set (a
+    /// policy change, a lottery, an administrative cutoff). It sets no hard
+    /// intervention, so it never supplies an interventional regime, and its
+    /// as-if-random assignment is an assumption no study establishes.
+    NaturalExperiment,
+    /// Repeated measurements of the same units over a stated window, observed
+    /// jointly. Within-unit comparisons remove confounding by causes that do not
+    /// change over the window; that time invariance is an assumption.
+    Panel,
 }
 
 impl StudyKind {
@@ -46,7 +59,33 @@ impl StudyKind {
             Self::Experiment => "experiment",
             Self::Observation => "observation",
             Self::SampleIncrease => "sample_increase",
+            Self::Instrument => "instrument",
+            Self::NaturalExperiment => "natural_experiment",
+            Self::Panel => "panel",
         }
+    }
+
+    /// Every kind, in declaration order.
+    pub const ALL: [Self; 6] = [
+        Self::Experiment,
+        Self::Observation,
+        Self::SampleIncrease,
+        Self::Instrument,
+        Self::NaturalExperiment,
+        Self::Panel,
+    ];
+
+    /// The kind named `name` (the [`Self::as_str`] spelling).
+    #[must_use]
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|kind| kind.as_str() == name)
+    }
+
+    /// Whether the kind sets no hard intervention and delivers observational laws
+    /// only.
+    #[must_use]
+    pub const fn is_observational(self) -> bool {
+        !matches!(self, Self::Experiment | Self::SampleIncrease)
     }
 }
 
@@ -286,7 +325,40 @@ impl DurableStudyCandidate {
             StudyKind::SampleIncrease if !self.expected_evidence.is_empty() => {
                 return Err(wrong("a sample increase delivers no new regime"));
             }
-            StudyKind::Experiment | StudyKind::Observation | StudyKind::SampleIncrease => {}
+            StudyKind::Instrument
+                if !self.interventions.is_empty()
+                    || self.measured.len() < 3
+                    || !self.joint_measurement =>
+            {
+                return Err(wrong(
+                    "an instrument study sets no intervention and jointly measures the \
+                     instrument, the treatment and the outcome",
+                ));
+            }
+            StudyKind::NaturalExperiment
+                if !self.interventions.is_empty() || self.measured.len() < 2 =>
+            {
+                return Err(wrong(
+                    "a natural experiment sets no intervention (the variation is not the \
+                     investigator's) and measures at least the exposure and the outcome",
+                ));
+            }
+            StudyKind::Panel
+                if !self.interventions.is_empty()
+                    || self.measured.len() < 2
+                    || !self.joint_measurement =>
+            {
+                return Err(wrong(
+                    "a panel sets no intervention and jointly measures at least the exposure and \
+                     the outcome on the same units",
+                ));
+            }
+            StudyKind::Experiment
+            | StudyKind::Observation
+            | StudyKind::SampleIncrease
+            | StudyKind::Instrument
+            | StudyKind::NaturalExperiment
+            | StudyKind::Panel => {}
         }
         if self.kind != StudyKind::SampleIncrease && self.expected_evidence.is_empty() {
             return Err(wrong("a study declares the evidence it would deliver"));
@@ -413,7 +485,10 @@ impl DurableStudyCandidate {
                 cost,
                 tag: 0,
             }),
-            StudyKind::Observation => CandidateDesign::Measure(MeasurementPlan {
+            StudyKind::Observation
+            | StudyKind::Instrument
+            | StudyKind::NaturalExperiment
+            | StudyKind::Panel => CandidateDesign::Measure(MeasurementPlan {
                 variables: Arc::clone(&self.measured),
                 cost,
                 tag: 0,

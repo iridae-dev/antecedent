@@ -78,6 +78,8 @@ ROUTE_CELLS = (
     (r"period_history", "HistoryMatch"),
     (r"^(?:bayesian\.)?temporal_design\.", "TemporalDesign"),
     (r"^(?:bayesian\.)?iv_bounds\.", "IvBounds"),
+    (r"^(?:bayesian\.)?association\.descriptive\.static$", "AssociationStatic"),
+    (r"^(?:bayesian\.)?association\.descriptive\.temporal$", "AssociationTemporal"),
     (r"randomized|complier|switchback", "RandomizedEffect"),
 )
 

@@ -951,6 +951,9 @@ KIND_STAGE = {
     "decision_contract": "decision_contract",
     "decision_result": "claim",
     "inverse_query": "claim",
+    "observation_query": "claim",
+    "scientific_bridge": "claim",
+    "propagation_chain": "claim",
     "sensitivity": "sensitivity_input",
     "study_ranking": "study_ranking_provider",
 }

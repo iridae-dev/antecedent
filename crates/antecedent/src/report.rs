@@ -25,14 +25,17 @@
 use std::sync::Arc;
 
 use antecedent_contract::{
-    AttestedEvidence, CalibrationView, ClaimEnvelope, ClaimKind, IdentificationSlot,
-    ObligationRecord, ObligationScope, ReasoningView, SemanticLayer, SlotAvailability,
+    AttestedEvidence, CalibrationView, ClaimEnvelope, ClaimKind, IDENTIFICATION_NOT_CLAIMED,
+    IdentificationSlot, ObligationRecord, ObligationScope, ReasoningView, SemanticLayer,
+    SlotAvailability,
 };
 use antecedent_core::{AssumptionSource, ExecutionContext, VariableId};
 use serde_json::Value as Json;
 
 use crate::PreparedStudy;
 use crate::analysis::CausalContract;
+use crate::analysis::association::ASSOCIATION_CALIBRATION;
+use crate::analysis::fallback::{AnalysisWithFallback, NONCAUSAL_NOTICE, RankedPlan};
 use crate::error::CausalError;
 use crate::planner::PlanView;
 use crate::result::StudyResult;
@@ -122,6 +125,140 @@ pub fn render_report(input: &ReportInput<'_>, format: ReportFormat) -> String {
         ReportFormat::Markdown => report.markdown(),
         ReportFormat::Html => report.html(),
     }
+}
+
+/// Render the report of a descriptive fallback in `format`.
+///
+/// The causal refusal comes first, unchanged. Then the noncausal description (or the typed reason
+/// there is none) and the evidence that would resolve the refusal, with the sentence that the
+/// associational result is not an answer to the causal question. Like [`render_report`] it
+/// computes nothing: every figure is read from the fallback.
+#[must_use]
+pub fn render_fallback_report(fallback: &AnalysisWithFallback, format: ReportFormat) -> String {
+    let report = Report {
+        title: "Refusal with descriptive fallback",
+        sections: fallback_sections(fallback),
+    };
+    match format {
+        ReportFormat::Markdown => report.markdown(),
+        ReportFormat::Html => report.html(),
+    }
+}
+
+fn fallback_sections(fallback: &AnalysisWithFallback) -> Vec<Section> {
+    let mut refusal = Vec::new();
+    fact(&mut refusal, "Status", "unsupported");
+    fact(&mut refusal, "Reason code", opt_str(fallback.refusal.reason_code()));
+    fact(&mut refusal, "Message", clean(&fallback.refusal.to_string()));
+    fact(&mut refusal, "Remedy", opt_str(fallback.refusal.remedy()));
+    let mut sections = vec![
+        Section {
+            title: "Causal question",
+            blocks: vec![
+                Block::Text(
+                    "The causal query is refused. The refusal below is the answer to the causal \
+                     question and is unchanged by anything else in this report."
+                        .to_owned(),
+                ),
+                Block::Facts(refusal),
+            ],
+        },
+        Section {
+            title: "Noncausal description",
+            blocks: vec![Block::Text(NONCAUSAL_NOTICE.to_owned()), associational_block(fallback)],
+        },
+    ];
+    sections.push(Section {
+        title: "Evidence that would resolve the refusal",
+        blocks: evidence_blocks(fallback),
+    });
+    sections
+}
+
+fn associational_block(fallback: &AnalysisWithFallback) -> Block {
+    match &fallback.associational {
+        Err(reason) => unavailable_text("The associational description", &reason.to_string()),
+        Ok(part) => {
+            let mut facts = Vec::new();
+            fact(&mut facts, "Claim kind", part.claim.kind.as_str());
+            fact(&mut facts, "Identification", part.claim.domains.identification.as_str());
+            fact(&mut facts, "Selection rule", part.roles.rule);
+            if let Some(payload) = part.result.association() {
+                fact(&mut facts, "Analysis", payload.estimate.selection.analysis.as_str());
+                fact(&mut facts, "Rows", payload.estimate.rows.to_string());
+                fact(&mut facts, "Uncertainty", payload.uncertainty_label());
+                fact(&mut facts, "Calibration", ASSOCIATION_CALIBRATION);
+                fact(&mut facts, "Refusal retained", opt_str(payload.refused_after.as_deref()));
+                for term in &payload.estimate.terms {
+                    fact(&mut facts, &term.label, num(term.estimate));
+                }
+            }
+            fact(&mut facts, "Ranks actions", "no");
+            fact(&mut facts, "Is an intervention effect", "no");
+            Block::Facts(facts)
+        }
+    }
+}
+
+fn evidence_blocks(fallback: &AnalysisWithFallback) -> Vec<Block> {
+    let needs = match &fallback.evidence {
+        Err(reason) => return vec![unavailable_text("The evidence plan", &reason.to_string())],
+        Ok(needs) => needs,
+    };
+    let mut blocks = Vec::new();
+    let rows = needs
+        .obligations
+        .iter()
+        .map(|o| {
+            vec![
+                clean(&o.id),
+                o.kind.as_str().to_owned(),
+                o.provenance.family.to_string(),
+                o.provenance.proof_step.as_deref().unwrap_or("unrecorded").to_owned(),
+                yes_no(o.satisfiable_by_study()).to_owned(),
+            ]
+        })
+        .collect();
+    blocks.push(Block::Table {
+        head: &["Obligation", "Kind", "Route", "Proof step", "A study can satisfy it"],
+        rows,
+    });
+    if needs.next_actions.is_empty() {
+        blocks.push(Block::Text("No evidence-gathering next action follows.".to_owned()));
+    } else {
+        blocks.push(Block::Bullets(
+            needs.next_actions.iter().map(|a| format!("{}: {}", a.id, a.description)).collect(),
+        ));
+    }
+    blocks.push(match &needs.ranking {
+        RankedPlan::NotRequested => Block::Text(
+            "No candidate studies were declared, so the options are not ranked.".to_owned(),
+        ),
+        RankedPlan::Unavailable(reason) => unavailable_text("The ranked plan", &reason.to_string()),
+        RankedPlan::Ranked(result) => Block::Table {
+            head: &["Rank", "Route", "Studies", "Gate", "Cost"],
+            rows: result
+                .plan
+                .options
+                .iter()
+                .map(|option| {
+                    vec![
+                        option.rank.to_string(),
+                        option.route.to_owned(),
+                        option
+                            .labels
+                            .iter()
+                            .map(ToString::to_string)
+                            .collect::<Vec<_>>()
+                            .join(", "),
+                        option.gate.as_str().to_owned(),
+                        format!("{} {}", option.cost.units, option.cost.unit_label),
+                    ]
+                })
+                .collect(),
+        },
+    });
+    blocks
 }
 
 impl PreparedStudy {
@@ -689,6 +826,9 @@ fn summary_section(input: &ReportInput<'_>) -> Section {
     }
     if let Some(claim) = input.claim {
         fact(&mut facts, "Claim kind", claim.kind.as_str());
+        if !claim.kind.is_causal() {
+            fact(&mut facts, "Causal reading", "noncausal: identification is not claimed");
+        }
         if let Some(value) = claim.value {
             fact(&mut facts, "Value", num(value));
         }
@@ -713,6 +853,11 @@ fn summary_section(input: &ReportInput<'_>) -> Section {
             ClaimKind::Incomplete => readings.push(
                 "The analysis is incomplete: it publishes no estimate while its obligations \
                  remain."
+                    .to_owned(),
+            ),
+            ClaimKind::Associational => readings.push(
+                "The claim is a noncausal association: identification is not claimed, so it is \
+                 not an effect of any intervention and ranks no action."
                     .to_owned(),
             ),
             kind => readings.push(format!(
@@ -782,6 +927,14 @@ fn identification_section(input: &ReportInput<'_>) -> Section {
     let mut blocks = vec![Block::Facts(program)];
     match &reasoning(input).identification {
         SlotAvailability::Available(slot) => blocks.push(Block::Facts(identification_facts(slot))),
+        SlotAvailability::Unavailable { reason } if &**reason == IDENTIFICATION_NOT_CLAIMED => {
+            blocks.push(Block::Text(
+                "Identification is not claimed: the result is a noncausal association of the \
+                 observed data, so there is nothing to identify and it is not read as the effect \
+                 of an intervention."
+                    .to_owned(),
+            ));
+        }
         SlotAvailability::Unavailable { reason } => {
             blocks.push(unavailable_text("The identification slot", reason));
         }
@@ -1113,6 +1266,11 @@ fn recorded_limits(input: &ReportInput<'_>) -> Vec<String> {
         match claim.kind {
             ClaimKind::Refusal => limits.push("The claim is a refusal.".to_owned()),
             ClaimKind::Incomplete => limits.push("The claim is incomplete.".to_owned()),
+            ClaimKind::Associational => limits.push(
+                "The claim is a noncausal association: identification is not claimed, so it is \
+                 not an effect of any intervention."
+                    .to_owned(),
+            ),
             _ => {}
         }
         if claim.value.is_none()

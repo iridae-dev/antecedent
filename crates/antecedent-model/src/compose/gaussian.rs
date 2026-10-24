@@ -90,6 +90,248 @@ impl JointGaussian {
         let j = self.position(b)?;
         Some(self.covariance[i * self.variables.len() + j])
     }
+
+    /// The law of the remaining variables after conditioning on observed real
+    /// values of some coordinates, by the Schur complement of the observed
+    /// block.
+    ///
+    /// With the coordinates split into observed `o` and remaining `r`,
+    /// `mean_r' = mean_r + S_ro S_oo^-1 (x_o - mean_o)` and
+    /// `cov_r' = S_rr - S_ro S_oo^-1 S_or`. The log density of the evidence
+    /// under the marginal law of `o` is returned with it, so the same call
+    /// serves a conditional query and a likelihood. An empty observation is the
+    /// law itself with log density zero.
+    ///
+    /// # Errors
+    /// An unknown or repeated variable, a value that is not finite, or an
+    /// observed block that is singular (an intervened or deterministic
+    /// coordinate has no conditional law given a value other than its own).
+    pub fn condition(
+        &self,
+        observed: &[(&str, f64)],
+    ) -> Result<ConditionedGaussian, GaussianConditioningError> {
+        let n = self.variables.len();
+        let mut seen = vec![false; n];
+        let mut evidence: Vec<(usize, f64)> = Vec::with_capacity(observed.len());
+        for &(name, value) in observed {
+            let Some(i) = self.position(name) else {
+                return Err(GaussianConditioningError::UnknownVariable(name.to_owned()));
+            };
+            if !value.is_finite() {
+                return Err(GaussianConditioningError::NotFinite(name.to_owned()));
+            }
+            if seen[i] {
+                return Err(GaussianConditioningError::RepeatedVariable(name.to_owned()));
+            }
+            seen[i] = true;
+            evidence.push((i, value));
+        }
+        evidence.sort_by_key(|&(i, _)| i);
+        let rest: Vec<usize> = (0..n).filter(|&i| !seen[i]).collect();
+        let k = evidence.len();
+        let m = rest.len();
+        let remaining: Vec<String> = rest.iter().map(|&i| self.variables[i].clone()).collect();
+        let named: Vec<(String, f64)> =
+            evidence.iter().map(|&(i, x)| (self.variables[i].clone(), x)).collect();
+        if k == 0 {
+            return Ok(ConditionedGaussian {
+                variables: remaining,
+                mean: self.mean.clone(),
+                covariance: self.covariance.clone(),
+                evidence_log_density: 0.0,
+                observed: named,
+            });
+        }
+        let cov = |a: usize, b: usize| self.covariance[a * n + b];
+        let mut s_oo = vec![0.0_f64; k * k];
+        for (a, &(ia, _)) in evidence.iter().enumerate() {
+            for (b, &(ib, _)) in evidence.iter().enumerate() {
+                s_oo[a * k + b] = cov(ia, ib);
+            }
+        }
+        let factor = cholesky_lower(&s_oo, k).ok_or(GaussianConditioningError::SingularEvidence)?;
+        let residual: Vec<f64> = evidence.iter().map(|&(i, x)| x - self.mean[i]).collect();
+        // z = L^-1 r gives the Mahalanobis term; w = S_oo^-1 r gives the mean shift.
+        let z = forward_solve(&factor, k, &residual);
+        let w = backward_solve(&factor, k, &z);
+        let mahalanobis: f64 = z.iter().map(|v| v * v).sum();
+        let log_det: f64 = (0..k).map(|i| factor[i * k + i].ln()).sum::<f64>() * 2.0;
+        let evidence_log_density =
+            -0.5 * (k as f64 * (2.0 * std::f64::consts::PI).ln() + log_det + mahalanobis);
+        let mut mean = vec![0.0_f64; m];
+        for (r, &ir) in rest.iter().enumerate() {
+            let shift: f64 =
+                evidence.iter().enumerate().map(|(a, &(ia, _))| cov(ir, ia) * w[a]).sum();
+            mean[r] = self.mean[ir] + shift;
+        }
+        // A = S_oo^-1 S_or, one column per remaining variable.
+        let mut a_columns: Vec<Vec<f64>> = Vec::with_capacity(m);
+        for &ir in &rest {
+            let column: Vec<f64> = evidence.iter().map(|&(ia, _)| cov(ia, ir)).collect();
+            a_columns.push(backward_solve(&factor, k, &forward_solve(&factor, k, &column)));
+        }
+        let mut covariance = vec![0.0_f64; m * m];
+        for (r, &ir) in rest.iter().enumerate() {
+            for (c, &ic) in rest.iter().enumerate().take(r + 1) {
+                let reduction: f64 = evidence
+                    .iter()
+                    .enumerate()
+                    .map(|(a, &(ia, _))| cov(ir, ia) * a_columns[c][a])
+                    .sum();
+                let value = cov(ir, ic) - reduction;
+                covariance[r * m + c] = value;
+                covariance[c * m + r] = value;
+            }
+        }
+        Ok(ConditionedGaussian {
+            variables: remaining,
+            mean,
+            covariance,
+            evidence_log_density,
+            observed: named,
+        })
+    }
+}
+
+/// Why a Gaussian law could not be conditioned.
+#[derive(Clone, Debug, PartialEq, thiserror::Error)]
+#[non_exhaustive]
+pub enum GaussianConditioningError {
+    /// A named variable is not in the law.
+    #[error("unknown variable `{0}`")]
+    UnknownVariable(String),
+    /// A variable is observed more than once.
+    #[error("variable `{0}` is observed more than once")]
+    RepeatedVariable(String),
+    /// An observed value is not finite.
+    #[error("observed value of `{0}` is not finite")]
+    NotFinite(String),
+    /// The covariance of the observed block is not positive definite.
+    #[error("the covariance of the observed block is singular")]
+    SingularEvidence,
+}
+
+/// The Gaussian law of the unobserved variables after conditioning, with the
+/// log density of the evidence.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ConditionedGaussian {
+    variables: Vec<String>,
+    mean: Vec<f64>,
+    covariance: Vec<f64>,
+    evidence_log_density: f64,
+    observed: Vec<(String, f64)>,
+}
+
+impl ConditionedGaussian {
+    /// The unobserved variables, in canonical order.
+    #[must_use]
+    pub fn variables(&self) -> &[String] {
+        &self.variables
+    }
+
+    /// Conditional mean aligned with [`Self::variables`].
+    #[must_use]
+    pub fn mean(&self) -> &[f64] {
+        &self.mean
+    }
+
+    /// Row-major conditional covariance aligned with [`Self::variables`].
+    #[must_use]
+    pub fn covariance_matrix(&self) -> &[f64] {
+        &self.covariance
+    }
+
+    /// Log density of the observed values under their marginal law; zero when
+    /// nothing was observed.
+    #[must_use]
+    pub fn evidence_log_density(&self) -> f64 {
+        self.evidence_log_density
+    }
+
+    /// The observed `(variable, value)` pairs, in canonical order.
+    #[must_use]
+    pub fn observed(&self) -> &[(String, f64)] {
+        &self.observed
+    }
+
+    /// Conditional mean of one remaining variable.
+    #[must_use]
+    pub fn mean_of(&self, variable: &str) -> Option<f64> {
+        self.variables.iter().position(|v| v == variable).map(|i| self.mean[i])
+    }
+
+    /// Conditional variance of one remaining variable.
+    #[must_use]
+    pub fn variance_of(&self, variable: &str) -> Option<f64> {
+        let i = self.variables.iter().position(|v| v == variable)?;
+        Some(self.covariance[i * self.variables.len() + i])
+    }
+}
+
+/// Lower Cholesky factor of a symmetric positive-definite row-major matrix;
+/// `None` when a pivot is not positive relative to the matrix scale.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "dense triangular algebra indexes several row-major buffers by the same position"
+)]
+pub(crate) fn cholesky_lower(a: &[f64], n: usize) -> Option<Vec<f64>> {
+    let scale = (0..n).map(|i| a[i * n + i].abs()).fold(0.0_f64, f64::max);
+    if !(scale.is_finite() && scale > 0.0) {
+        return None;
+    }
+    let floor = scale * 1e-12;
+    let mut l = vec![0.0_f64; n * n];
+    for i in 0..n {
+        for j in 0..=i {
+            let mut sum = a[i * n + j];
+            for k in 0..j {
+                sum -= l[i * n + k] * l[j * n + k];
+            }
+            if i == j {
+                if sum.is_nan() || sum <= floor {
+                    return None;
+                }
+                l[i * n + i] = sum.sqrt();
+            } else {
+                l[i * n + j] = sum / l[j * n + j];
+            }
+        }
+    }
+    Some(l)
+}
+
+/// Solve `L z = b` for lower-triangular `L`.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "dense triangular algebra indexes several row-major buffers by the same position"
+)]
+fn forward_solve(l: &[f64], n: usize, b: &[f64]) -> Vec<f64> {
+    let mut z = vec![0.0_f64; n];
+    for i in 0..n {
+        let mut sum = b[i];
+        for k in 0..i {
+            sum -= l[i * n + k] * z[k];
+        }
+        z[i] = sum / l[i * n + i];
+    }
+    z
+}
+
+/// Solve `L' x = z` for lower-triangular `L`.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "dense triangular algebra indexes several row-major buffers by the same position"
+)]
+fn backward_solve(l: &[f64], n: usize, z: &[f64]) -> Vec<f64> {
+    let mut x = vec![0.0_f64; n];
+    for i in (0..n).rev() {
+        let mut sum = z[i];
+        for k in (i + 1)..n {
+            sum -= l[k * n + i] * x[k];
+        }
+        x[i] = sum / l[i * n + i];
+    }
+    x
 }
 
 /// Columns of one structural sample, aligned with canonical variable order.

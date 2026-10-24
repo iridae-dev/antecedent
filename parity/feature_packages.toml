@@ -142,6 +142,13 @@ record = "design.identification_repair"
 record_state = "frozen"
 
 [[feature]]
+id = "design.evidence_plan"
+purpose = "ranked evidence plan over the theorem routes of a failed identification"
+depends_on = ["design.identification_repair", "design.study_candidate"]
+record = "design.evidence_plan"
+record_state = "frozen"
+
+[[feature]]
 id = "design.external_signal"
 purpose = "external candidate signal and update"
 depends_on = ["external.scientific_providers", "decision.contract", "external.capability_negotiation"]

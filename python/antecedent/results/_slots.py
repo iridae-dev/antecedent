@@ -232,6 +232,18 @@ def json_value(value: Any) -> Any:
     return {"available": False, "reason": "not_json_serializable", "type": type(value).__name__}
 
 
+def _json_records(contract: Mapping[str, Any], key: str) -> tuple[dict[str, Any], ...]:
+    """The JSON array the native contract stores under ``key``, as records; empty when absent."""
+    raw = contract.get(key)
+    if not raw:
+        return ()
+    try:
+        loaded = json.loads(raw) if isinstance(raw, str) else raw
+    except ValueError:
+        return ()
+    return tuple(dict(item) for item in loaded if isinstance(item, Mapping))
+
+
 @dataclass(frozen=True, slots=True)
 class SlotView:
     available: bool
@@ -263,6 +275,17 @@ class ReasoningSlots:
     answer: Any = None
     calibration: Any = None
     diagnostics: tuple[str, ...] = ()
+    #: What the capability report suggests next (`id`, `description`), never executed.
+    #: A not-identified contract adds the evidence-gathering ids `measure_variable:<name>`,
+    #: `run_experiment:<target>`, `find_instrument` and `collect_panel`.
+    next_actions: tuple[dict[str, Any], ...] = ()
+    #: Licensed alternatives that change named premises (`coordinate`, `changed`,
+    #: `required_action`): an explicit choice, never an automatic fallback.
+    neighbors: tuple[dict[str, Any], ...] = ()
+    #: Unresolved obligations of the contract (`id`, `scope`, `kind`, `status`, ...).
+    unmet_obligations: tuple[dict[str, Any], ...] = ()
+    #: Verified evidence obligations of a not-identified product, each with its proof step.
+    evidence_obligations: tuple[dict[str, Any], ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         """Structured report using native booleans, numbers, and explicit unavailable slots."""
@@ -334,6 +357,10 @@ class ReasoningSlots:
             target_weights_id=contract.get("target_weights")
             or _nested(contract, "identities", "target_weights"),
             contract=dict(contract) if contract else None,
+            next_actions=_json_records(contract, "next_actions"),
+            neighbors=_json_records(contract, "neighbors"),
+            unmet_obligations=_json_records(contract, "unmet_obligations"),
+            evidence_obligations=_json_records(contract, "evidence_obligations"),
         )
 
     @classmethod

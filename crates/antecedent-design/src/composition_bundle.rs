@@ -322,6 +322,15 @@ pub enum NodeKind {
     RecalculationReceipt,
     /// Independently checked frozen same-row scores for their licensed retarget operation.
     FrozenScores,
+    /// An observation query: a conditional or interventional law, a posterior, a
+    /// required-observation count, or aligned draws of parameter redraw.
+    ObservationQuery,
+    /// A scientific bridge: a mean, or aligned draws, carried to another
+    /// quantity under declared assumptions.
+    ScientificBridge,
+    /// A propagation chain: uncertain quantities carried through several
+    /// transformations, with the summary of every stage.
+    PropagationChain,
 }
 
 named_variants! {
@@ -344,6 +353,9 @@ named_variants! {
         RepairReport => "repair_report",
         RecalculationReceipt => "recalculation_receipt",
         FrozenScores => "frozen_scores",
+        ObservationQuery => "observation_query",
+        ScientificBridge => "scientific_bridge",
+        PropagationChain => "propagation_chain",
     }
 }
 
@@ -364,7 +376,11 @@ impl NodeKind {
             | Self::RecalculationReceipt => CompositionStage::Evidence,
             Self::Transformation | Self::Rollout => CompositionStage::Transformation,
             Self::DecisionContract => CompositionStage::DecisionContract,
-            Self::DecisionResult | Self::InverseQuery => CompositionStage::Claim,
+            Self::DecisionResult
+            | Self::InverseQuery
+            | Self::ObservationQuery
+            | Self::ScientificBridge
+            | Self::PropagationChain => CompositionStage::Claim,
             Self::Sensitivity => CompositionStage::SensitivityInput,
             Self::StudyRanking => CompositionStage::StudyRankingProvider,
         }
@@ -379,7 +395,10 @@ impl NodeKind {
             | Self::Sensitivity
             | Self::StudyRanking
             | Self::Rollout
-            | Self::InverseQuery => BundleStage::TamperedQuantity,
+            | Self::InverseQuery
+            | Self::ObservationQuery
+            | Self::ScientificBridge
+            | Self::PropagationChain => BundleStage::TamperedQuantity,
             _ => BundleStage::SwappedEvidence,
         }
     }

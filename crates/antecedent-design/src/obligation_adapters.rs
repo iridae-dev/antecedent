@@ -18,11 +18,17 @@ use antecedent_contract::{
     unresolved_assumption_obligations,
 };
 use antecedent_core::{
-    DistributionAvailability, EvidenceCatalog, EvidenceCatalogDelta, FactorNeed, RegimeKind,
-    SupportReport, SupportStatus, VariableId,
+    CausalQuery, DistributionAvailability, EvidenceCatalog, EvidenceCatalogDelta, FactorNeed,
+    IdentificationStatus, RegimeKind, SupportReport, SupportStatus, VariableId,
 };
-use antecedent_identify::{CatalogTransportResult, ClassicalTransportQuery};
+use antecedent_graph::Admg;
+use antecedent_identify::{CatalogTransportResult, ClassicalTransportQuery, IdentificationResult};
 
+use crate::identification_repair::{
+    FrontDoorRepairFamily, HedgeRepairFamily, InstrumentRepairFamily, SensitivityFinding,
+    SensitivityRepairFamily, latent_expansion, panel_obligations,
+};
+use crate::repair::{BackdoorRepairFamily, RepairError, RepairFamily};
 use crate::z_transport_planner::{ZTransportFailureSnapshot, ZTransportFailureStatus};
 
 fn provenance(family: &str, source: &str, step: Option<String>) -> ObligationProvenance {
@@ -299,4 +305,135 @@ pub fn delta_obligations(
 #[must_use]
 pub fn assumption_obligations(records: &[ObligationRecord]) -> Vec<EvidenceObligation> {
     unresolved_assumption_obligations(records)
+}
+
+/// A route that already identifies from the observed law is not a failure; its
+/// obligations are simply absent from the failure's evidence.
+fn absent_when_identified<T>(attempt: Result<T, RepairError>) -> Result<Option<T>, RepairError> {
+    match attempt {
+        Ok(family) => Ok(Some(family)),
+        Err(error) if error.detail == "identification_repair.not_a_failure" => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+
+/// The evidence that would resolve a failed identification, one verified
+/// obligation per route, each retaining the proof step it was derived from.
+///
+/// `graph` is the structure the identification ran on (bidirected edges become
+/// unmeasured common causes, one past the largest graph variable each), and
+/// `observed` the variables measured jointly with the treatment and the outcome
+/// in `population`. The routes are:
+///
+/// * back-door: one joint observational law over the treatment, the outcome and
+///   the first admissible adjustment set ([`BackdoorRepairFamily`]);
+/// * front-door: one joint law over the treatment, the outcome and a mediator
+///   set the criterion accepts ([`FrontDoorRepairFamily`]);
+/// * instrument: a joint law with an instrument, with its relevance, exclusion
+///   and effect restriction as `EstablishAssumption` obligations that no study
+///   satisfies, or the search for an instrument when the graph has none
+///   ([`InstrumentRepairFamily`]);
+/// * hedge: experiments on the treatment and on the hedge nodes that identify the
+///   effect through a surrogate ([`HedgeRepairFamily`]);
+/// * sensitivity: the confounder to measure when `sensitivity` reports a
+///   conclusion an unmeasured confounder would overturn
+///   ([`SensitivityRepairFamily`]);
+/// * panel: repeated measurement, when back-door adjustment needs variables that
+///   are not observed.
+///
+/// A route whose observed law already identifies the effect contributes nothing.
+/// The query must be an average effect; other queries owe nothing here.
+///
+/// # Errors
+/// `identification_repair.not_a_failure` when `result` is identified, and
+/// `identification_repair.invalid_request` for a graph or variables the
+/// identifiers cannot read.
+pub fn identification_failure_obligations(
+    result: &IdentificationResult,
+    graph: &Admg,
+    observed: &[VariableId],
+    population: &str,
+    sensitivity: Option<&SensitivityFinding>,
+) -> Result<Vec<EvidenceObligation>, RepairError> {
+    if matches!(
+        result.status,
+        IdentificationStatus::NonparametricallyIdentified
+            | IdentificationStatus::IdentifiedUnderParametricRestrictions
+            | IdentificationStatus::IdentifiedUnderPriorRestrictions
+    ) {
+        return Err(RepairError::not_a_failure("the identification already succeeded"));
+    }
+    let CausalQuery::AverageEffect(query) = &result.query else {
+        return Ok(Vec::new());
+    };
+    let (treatment, outcome) = (query.treatment, query.outcome);
+    let (dag, _latents) = latent_expansion(graph)?;
+    let population: Arc<str> = Arc::from(population);
+    let mut out = Vec::new();
+
+    let backdoor = absent_when_identified(BackdoorRepairFamily::try_new(
+        dag.clone(),
+        treatment,
+        outcome,
+        Arc::clone(&population),
+        observed.iter().copied(),
+        &[],
+    ))?;
+    let mut unmeasured: Vec<VariableId> = Vec::new();
+    if let Some(family) = backdoor {
+        for obligation in family.unresolved_obligations() {
+            if obligation.kind == EvidenceObligationKind::ProvideJointLaw {
+                for variable in obligation.variables.iter() {
+                    if !observed.contains(variable) && !unmeasured.contains(variable) {
+                        unmeasured.push(*variable);
+                    }
+                }
+            }
+            out.push(obligation);
+        }
+    }
+    if let Some(family) = absent_when_identified(FrontDoorRepairFamily::try_new(
+        dag.clone(),
+        treatment,
+        outcome,
+        Arc::clone(&population),
+        observed.iter().copied(),
+    ))? {
+        out.extend(family.unresolved_obligations());
+    }
+    if let Some(family) = absent_when_identified(InstrumentRepairFamily::try_new(
+        dag.clone(),
+        treatment,
+        outcome,
+        Arc::clone(&population),
+        observed.iter().copied(),
+    ))? {
+        out.extend(family.unresolved_obligations());
+    }
+    if let Some(family) = absent_when_identified(HedgeRepairFamily::try_new(
+        graph.clone(),
+        treatment,
+        outcome,
+        Arc::clone(&population),
+        observed.iter().copied(),
+    ))? {
+        out.extend(family.unresolved_obligations());
+    }
+    if let Some(finding) = sensitivity {
+        if let Some(family) = absent_when_identified(SensitivityRepairFamily::try_new(
+            dag,
+            treatment,
+            outcome,
+            Arc::clone(&population),
+            observed.iter().copied(),
+            *finding,
+        ))? {
+            out.extend(family.unresolved_obligations());
+        }
+    }
+    if !unmeasured.is_empty() {
+        unmeasured.sort_unstable_by_key(|v| v.raw());
+        out.extend(panel_obligations(treatment, outcome, &population, &unmeasured)?);
+    }
+    Ok(out)
 }

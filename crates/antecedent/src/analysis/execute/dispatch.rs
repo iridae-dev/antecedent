@@ -85,6 +85,11 @@ impl super::Study {
             // method against the data modality.
             return self.ensure_discovery_admitted(query);
         }
+        if let CausalQuery::Association(query) = &self.query {
+            // An association reads no supplied graph; its admission is the declared
+            // sampling design against the data modality.
+            return self.ensure_association_admitted(query);
+        }
         let class = self.graph.class();
         self.ensure_nested_counterfactual_licensed(class)?;
         if self.estimator == Some(EstimatorId::BayesianBasisGcomp)
@@ -816,6 +821,12 @@ impl super::Study {
                 })?;
                 self.execute_temporal_response(data, graph, q, physical, ctx)
             }
+            Some(AnalysisRoute::Association) => {
+                let (DataInput::Temporal(series) | DataInput::Event(series)) = data else {
+                    return Err(route_mismatch());
+                };
+                self.execute_association_series(series, physical, ctx)
+            }
             Some(AnalysisRoute::PanelTemporalEffect) => {
                 self.execute_panel_effect_route(data, physical, ctx)
             }
@@ -1214,6 +1225,7 @@ impl super::Study {
             AnalysisRoute::HistoryMatch => self.execute_history_match(data, physical, ctx),
             AnalysisRoute::TemporalDesign => self.execute_temporal_design(data, physical, ctx),
             AnalysisRoute::IvBounds => self.execute_iv_bounds(data, physical, ctx),
+            AnalysisRoute::Association => self.execute_association_tabular(data, physical, ctx),
             AnalysisRoute::SequentialContrast => {
                 self.execute_sequential_contrast(data, physical, ctx)
             }

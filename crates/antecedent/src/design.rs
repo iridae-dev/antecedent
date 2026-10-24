@@ -6,7 +6,8 @@ use std::sync::Arc;
 
 use antecedent_contract::{ObligationKind, ObligationRecord, ObligationScope};
 use antecedent_core::{
-    AssumptionSource, AssumptionStatus, ExecutionContext, MonteCarloBudget, SemanticDigest,
+    AssumptionSource, AssumptionStatus, ExecutionContext, MonteCarloBudget, QueryId,
+    SemanticDigest, VariableId,
 };
 
 use crate::analysis::CausalContract;
@@ -33,6 +34,16 @@ pub use antecedent_design::{
     EnvironmentPlan, ExperimentPlan, GaussianMeanSignal, InterventionDesignEffect,
     MeasureColumnSpec, MeasurementPlan, ModelLoglikDraws, PreposteriorAnalysis, RankedCandidate,
     SamplingPlan, ScoreEvaluation, ScoredDesignRanking, Utility, evaluate_decision,
+};
+/// Candidate studies generated from verified obligations, the plan of options that
+/// close an identification gap, and the derived structure of a graph posterior.
+pub use antecedent_design::{
+    CandidateGeneration, CandidateTemplate, ConfounderPriorDeclaration, ConfounderValueFrame,
+    DurableStudyCandidate, EvidencePlan, EvidencePlanArtifact, EvidencePlanArtifactError,
+    GraphPosteriorSample, GridUtility, PlanOption, PlanOutcome, PlanValue, PlanValueBasis,
+    RepairReport, StudyDeclarations, StudyKind, UnmatchedObligation, UnverifiedStudy,
+    VerifiedUnlocks, generate_candidates, identified_under_intervention, mutilate,
+    structure_posterior, verified_unlocks,
 };
 use antecedent_design::{ObjectiveChannel, ObjectiveScorer};
 /// Study planning over the mz-transport and mixed-source catalogs: declared
@@ -475,4 +486,142 @@ fn remap_ranking(
         budget: ranking.budget,
         early_stopped: ranking.early_stopped,
     }
+}
+
+/// Candidate studies ranked with unlocks derived from a repair search.
+#[derive(Clone, Debug)]
+pub struct StudyDesignRanking {
+    /// The ranking of the verified studies. Candidate indices are positions in the
+    /// declared `studies` slice.
+    pub ranking: ScoredDesignRanking,
+    /// Indices of the studies the repair search verified sufficient on their own.
+    pub verified: Vec<usize>,
+    /// Every other declared study, with what the search found.
+    pub unverified: Vec<UnverifiedStudy>,
+    /// The variables the verified studies measure (outside the base law) or set:
+    /// the unlock list the ranking used for the query.
+    pub unlock: Vec<VariableId>,
+}
+
+/// Rank declared studies by identification gain, deriving the unlock lists from a
+/// finished repair search instead of a manual list.
+///
+/// Only a study that `report` classifies verified sufficient on its own unlocks
+/// identification: its measured variables outside `base_law` and its set
+/// variables become the unlock list for `query`, and its
+/// [`DurableStudyCandidate::design_action`] is what the ranker scores. Every other
+/// study is reported in [`StudyDesignRanking::unverified`] and as an
+/// `unlicensed_candidate` violation, so a study that merely names a variable (or only
+/// adds rows) is never credited. Any unlock entries already in `eval` are kept.
+///
+/// For studies that set variables, supply `eval.identified_under_intervention` from
+/// [`identified_under_intervention`] on the graph posterior: one flag vector applies
+/// to every intervention candidate, so rank experiments on different target sets
+/// separately.
+///
+/// # Errors
+///
+/// As [`rank_designs_bound`].
+#[allow(clippy::too_many_arguments, reason = "the bound ranking plus the repair evidence")]
+pub fn rank_studies_bound<A, O>(
+    contract: &CausalContract,
+    ranker: &DesignRanker,
+    objective: &DesignObjective,
+    studies: &[DurableStudyCandidate],
+    report: &RepairReport,
+    base_law: &[VariableId],
+    query: QueryId,
+    eval: &DesignEvaluationContext<'_, A, O>,
+    ctx: &ExecutionContext,
+    decision_target: Option<SemanticDigest>,
+) -> Result<StudyDesignRanking, CausalError>
+where
+    A: Clone + Sync,
+    O: Clone + Sync,
+{
+    let unlocks = verified_unlocks(report, studies, base_law);
+    let not_verified = unlocks
+        .unverified
+        .iter()
+        .map(|study| {
+            violation(
+                study.index,
+                "unlicensed_candidate",
+                "the repair search did not verify this study sufficient on its own",
+            )
+        })
+        .collect::<Vec<_>>();
+    let designs = unlocks.designs(studies);
+    let (indices, candidates): (Vec<usize>, Vec<CandidateDesign>) = designs.into_iter().unzip();
+    if candidates.is_empty() {
+        return Ok(StudyDesignRanking {
+            ranking: incomplete_ranking(&not_verified),
+            verified: Vec::new(),
+            unverified: unlocks.unverified,
+            unlock: unlocks.variables,
+        });
+    }
+    let mut merged: Vec<(QueryId, Arc<[VariableId]>)> =
+        eval.query_id_unlock.map(<[_]>::to_vec).unwrap_or_default();
+    if let Some((_, derived)) = unlocks.unlock_entry(query) {
+        match merged.iter_mut().find(|(id, _)| *id == query) {
+            Some((_, existing)) => {
+                let mut union: Vec<VariableId> = existing.to_vec();
+                union.extend(derived.iter().copied().filter(|v| !existing.contains(v)));
+                *existing = Arc::from(union);
+            }
+            None => merged.push((query, derived)),
+        }
+    }
+    let derived_eval = DesignEvaluationContext {
+        graphs: eval.graphs,
+        effect_width: eval.effect_width,
+        model_loglik: eval.model_loglik,
+        decisions: eval.decisions,
+        query_id_unlock: Some(&merged),
+        env_id_unlock: eval.env_id_unlock,
+        identified_under_intervention: eval.identified_under_intervention,
+        graph_features: eval.graph_features,
+    };
+    let preview =
+        preview_design_rank(contract, objective, &candidates, &derived_eval, decision_target)?;
+    let ranking = if preview.unresolved {
+        incomplete_ranking(&preview.violations)
+    } else {
+        let (active, index_map) = active_candidates(&candidates, &preview.violations);
+        if active.is_empty() {
+            incomplete_ranking(&preview.violations)
+        } else {
+            let scored = rank_designs(ranker, objective, &active, &derived_eval, ctx)?;
+            remap_ranking(scored, &index_map, &preview.violations)
+        }
+    };
+    // Candidate indices are positions among the verified designs; report them as
+    // positions in the declared slice, violations included.
+    let to_declared = |index: usize| indices[index];
+    let ranked: Vec<RankedCandidate> = ranking
+        .ranked
+        .iter()
+        .cloned()
+        .map(|mut item| {
+            item.candidate_index = to_declared(item.candidate_index);
+            item
+        })
+        .collect();
+    let mut violations = not_verified;
+    violations.extend(ranking.violations.iter().cloned().map(|mut item| {
+        item.candidate_index = to_declared(item.candidate_index);
+        item
+    }));
+    Ok(StudyDesignRanking {
+        ranking: ScoredDesignRanking {
+            ranked: ranked.into(),
+            violations: violations.into(),
+            budget: ranking.budget,
+            early_stopped: ranking.early_stopped,
+        },
+        verified: indices,
+        unverified: unlocks.unverified,
+        unlock: unlocks.variables,
+    })
 }

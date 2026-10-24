@@ -85,6 +85,48 @@ pub(crate) fn contract_to_map(
         })).collect();
         out.insert("assumption_obligations".into(), serde_json::json!(obligations).to_string());
     }
+    // The capability report beside the identities: what the contract would do next, which
+    // licensed neighbors exist, which obligations are unmet, and, for a not-identified
+    // product, the evidence that would resolve it.
+    let capability = contract.capability();
+    out.insert(
+        "next_actions".into(),
+        serde_json::json!(
+            capability
+                .next_actions
+                .iter()
+                .map(|a| serde_json::json!({
+                    "id": a.id.as_ref(),
+                    "description": a.description.as_ref(),
+                }))
+                .collect::<Vec<_>>()
+        )
+        .to_string(),
+    );
+    out.insert(
+        "neighbors".into(),
+        serde_json::json!(antecedent::host::neighbor_records(&capability.neighbors)).to_string(),
+    );
+    out.insert(
+        "unmet_obligations".into(),
+        serde_json::json!(antecedent::host::unmet_obligation_records(
+            &capability.unmet_obligations
+        ))
+        .to_string(),
+    );
+    let names: Vec<String> =
+        schema.variables().iter().map(|variable| variable.name.to_string()).collect();
+    out.insert(
+        "evidence_obligations".into(),
+        serde_json::json!(
+            contract
+                .evidence_obligations
+                .iter()
+                .map(|o| crate::repair_api::obligation_json(o, &names))
+                .collect::<Vec<_>>()
+        )
+        .to_string(),
+    );
     out.insert("uncertainty".into(), contract.reasoning.uncertainty.label(|_| "available".into()));
     out.insert(
         "variable_names".into(),

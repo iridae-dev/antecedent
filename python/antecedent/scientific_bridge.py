@@ -47,6 +47,33 @@ is published only inside a measured design; with no ``level``, a posterior, a pr
 identified set or a joint law the request is refused
 (:meth:`BridgedClaim.interval`, :meth:`BridgedClaim.require_value_kind`).
 
+A bridge whose source is the aligned draws of a posterior or a predictive law
+(:func:`prepare_distribution_bridge`) derives the same draw table with the bridged column in
+place of the source column, row for row and with the table's alignment identity unchanged, so the
+bridged column still pairs by index with every column it was sampled with::
+
+    contract = sb.BridgeContract(
+        kind="surrogate_terminal_outcome",
+        source=surrogate, source_class="surrogate_endpoint",
+        target=terminal, target_class="terminal_outcome",
+        evidence_scope=sb.Scope("adults", "do(t=1)"),
+        mapping=sb.AffineMapping(intercept=0.5, slope=2.0),
+        mapping_uncertainty=sb.MappingUncertainty("calibration-fit", slope_variance=0.04),
+        source_dependence=sb.SourceDependence.independent("disjoint-samples"),
+        source_value="posterior", target_value="posterior",
+        assumptions=[...],
+    )
+    bridged = sb.prepare_distribution_bridge(contract).derive(posterior_draws, seed=7)
+    bridged.distribution()      # the aligned draws of the terminal outcome
+    bridged.reading             # "uncalibrated_spread": an interval needs a measured coverage record
+
+An affine map with uncertain coefficients draws them jointly from its declared
+:class:`MappingUncertainty` and :class:`SourceDependence`; a trial-level line draws them from the
+Student-t law of its least-squares fit; a measurement correction draws its rates. The source's
+spread comes only from its draws and the mapping's only from the mapping, so neither is counted
+twice. :meth:`BridgedDistribution.chain_stage` expresses the bridge as a measurement-mapping stage
+of a propagation chain whose slope and intercept are inputs.
+
 Every licensing check, mapping, identity and refusal is computed in Rust; this module builds the
 declaration and presents the result. Refusals are :class:`ScientificBridgeRefusal` (a
 :class:`~antecedent.errors.CausalUnsupportedError`) with a registered ``reason_code``, a
@@ -84,19 +111,28 @@ __all__ = [
     "BridgeExport",
     "BridgedClaim",
     "BridgedClaimInterval",
+    "BridgedDistribution",
+    "ChainStageParts",
     "ConsumedBridge",
+    "ConsumedBridgeDistribution",
+    "EstimandBridge",
+    "ExposureSetting",
     "Freshness",
     "IdentityMapping",
+    "MappingUncertainty",
     "MeasurementCorrection",
     "PreparedBridge",
+    "PreparedDistributionBridge",
     "Scope",
     "ScientificBridgeRefusal",
     "SourceClaim",
+    "SourceDependence",
     "TransportabilityPremise",
     "TrialFit",
     "TrialLevelMapping",
     "consume_scientific_bridge_artifact",
     "contract_identity",
+    "prepare_distribution_bridge",
     "prepare_scientific_bridge",
 ]
 
@@ -126,6 +162,7 @@ QUANTITY_CLASSES: tuple[str, ...] = (
     "intervention_response",
     "scientific_endpoint",
     "decision_utility",
+    "associational_quantity",
 )
 
 #: The kinds of declared assumption.
@@ -148,7 +185,16 @@ VALUE_KINDS: tuple[str, ...] = (
     "joint_outcome_law",
 )
 
-_CLAIM_KINDS = ("point", "bounds", "mixture", "response", "policy_value", "refusal", "incomplete")
+_CLAIM_KINDS = (
+    "point",
+    "bounds",
+    "mixture",
+    "response",
+    "policy_value",
+    "refusal",
+    "incomplete",
+    "associational",
+)
 _DOMAIN_STATUSES = (
     "identified",
     "supported",
@@ -156,6 +202,7 @@ _DOMAIN_STATUSES = (
     "outside_scope",
     "contradicted",
     "unknown",
+    "not_claimed",
 )
 
 
@@ -182,6 +229,7 @@ QuantityClassesName = Literal[
     "intervention_response",
     "scientific_endpoint",
     "decision_utility",
+    "associational_quantity",
 ]
 AssumptionKindsName = Literal[
     "measurement_model",
@@ -196,10 +244,23 @@ ValueKindsName = Literal[
     "mean", "predictive_law", "posterior", "identified_set", "joint_outcome_law"
 ]
 ClaimKindsName = Literal[
-    "point", "bounds", "mixture", "response", "policy_value", "refusal", "incomplete"
+    "point",
+    "bounds",
+    "mixture",
+    "response",
+    "policy_value",
+    "refusal",
+    "incomplete",
+    "associational",
 ]
 DomainStatusesName = Literal[
-    "identified", "supported", "evaluated", "outside_scope", "contradicted", "unknown"
+    "identified",
+    "supported",
+    "evaluated",
+    "outside_scope",
+    "contradicted",
+    "unknown",
+    "not_claimed",
 ]
 
 
@@ -458,6 +519,234 @@ _MappingDeclaration = IdentityMapping | AffineMapping | TrialLevelMapping | Meas
 
 
 @dataclass(frozen=True, slots=True)
+class MappingUncertainty:
+    """The variance of a declared affine map's coefficients, apart from the source estimate.
+
+    A variance of zero states the coefficient exact. ``intercept_slope_covariance`` of zero
+    declares the two estimators independent; a regression calibration usually has a negative one
+    (about ``-mean(x) * slope_variance``). Its square must not exceed the product of the variances.
+    """
+
+    id: str
+    intercept_variance: float = 0.0
+    slope_variance: float = 0.0
+    intercept_slope_covariance: float = 0.0
+
+    def __post_init__(self) -> None:
+        _name(self.id, "id")
+        for label, value in (
+            ("intercept_variance", self.intercept_variance),
+            ("slope_variance", self.slope_variance),
+        ):
+            if _number(value, label) < 0:
+                raise CausalValueError(f"{label} must be non-negative")
+        _number(self.intercept_slope_covariance, "intercept_slope_covariance")
+
+    def to_wire(self) -> dict[str, Any]:
+        """The declaration the native layer reads."""
+        return {
+            "id": self.id,
+            "intercept_variance": float(self.intercept_variance),
+            "slope_variance": float(self.slope_variance),
+            "intercept_slope_covariance": float(self.intercept_slope_covariance),
+        }
+
+    @classmethod
+    def from_wire(cls, wire: Mapping[str, Any]) -> MappingUncertainty:
+        """The declaration a native summary reports."""
+        return cls(
+            wire["id"],
+            float(wire["intercept_variance"]),
+            float(wire["slope_variance"]),
+            float(wire["intercept_slope_covariance"]),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class SourceDependence:
+    """How the source estimate and the mapping share information.
+
+    Independence is a declaration naming its evidence; ``slope_covariance`` is a different
+    declaration that states a number, the covariance of the slope estimator and the source
+    estimator. An absent dependence is not a declaration of independence.
+    """
+
+    kind: Literal["independent", "slope_covariance"]
+    evidence: str
+    covariance: float | None = None
+
+    def __post_init__(self) -> None:
+        _choice(self.kind, "kind", ("independent", "slope_covariance"))
+        _name(self.evidence, "evidence")
+        if self.kind == "slope_covariance":
+            if self.covariance is None:
+                raise CausalValueError("a slope covariance declares its value")
+            _number(self.covariance, "covariance")
+        elif self.covariance is not None:
+            raise CausalValueError("an independence declaration states no covariance")
+
+    @classmethod
+    def independent(cls, evidence: str) -> SourceDependence:
+        """The source estimate and the mapping's evidence are disjoint."""
+        return cls("independent", evidence)
+
+    @classmethod
+    def slope_covariance(cls, covariance: float, evidence: str) -> SourceDependence:
+        """The covariance of the slope estimator and the source estimator."""
+        return cls("slope_covariance", evidence, covariance)
+
+    def to_wire(self) -> dict[str, Any]:
+        """The declaration the native layer reads."""
+        if self.kind == "independent":
+            return {"kind": "independent", "evidence": self.evidence}
+        return {
+            "kind": "slope_covariance",
+            "covariance": float(self.covariance or 0.0),
+            "evidence": self.evidence,
+        }
+
+    @classmethod
+    def from_wire(cls, wire: Mapping[str, Any]) -> SourceDependence:
+        """The declaration a native summary reports."""
+        if wire["kind"] == "independent":
+            return cls.independent(wire["evidence"])
+        return cls.slope_covariance(float(wire["covariance"]), wire["evidence"])
+
+
+@dataclass(frozen=True, slots=True)
+class ExposureSetting:
+    """One side of an estimand bridge: population, window, dose, duration and exposure regime."""
+
+    population_id: str
+    time_start: str
+    time_end: str
+    dose: float
+    dose_units: str
+    duration: float
+    duration_units: str
+    exposure_regime: str
+
+    def __post_init__(self) -> None:
+        for label in (
+            "population_id",
+            "time_start",
+            "time_end",
+            "dose_units",
+            "duration_units",
+            "exposure_regime",
+        ):
+            _name(getattr(self, label), label)
+        _number(self.dose, "dose")
+        if _number(self.duration, "duration") < 0:
+            raise CausalValueError("duration must be non-negative")
+
+    def to_wire(self) -> dict[str, Any]:
+        """The declaration the native layer reads."""
+        return {
+            "population_id": self.population_id,
+            "time_start": self.time_start,
+            "time_end": self.time_end,
+            "dose": float(self.dose),
+            "dose_units": self.dose_units,
+            "duration": float(self.duration),
+            "duration_units": self.duration_units,
+            "exposure_regime": self.exposure_regime,
+        }
+
+    @classmethod
+    def from_wire(cls, wire: Mapping[str, Any]) -> ExposureSetting:
+        """The declaration a native summary reports."""
+        return cls(
+            wire["population_id"],
+            wire["time_start"],
+            wire["time_end"],
+            float(wire["dose"]),
+            wire["dose_units"],
+            float(wire["duration"]),
+            wire["duration_units"],
+            wire["exposure_regime"],
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class EstimandBridge:
+    """The translation of an experiment's estimand into the estimand the bridge answers.
+
+    Recency and spend are differences of the target relative to the experiment; zero declares that
+    they do not differ. The spend difference must equal the target dose minus the experiment dose.
+    """
+
+    id: str
+    experiment_id: str
+    experiment: ExposureSetting
+    target: ExposureSetting
+    recency_delta: float
+    recency_units: str
+    spend_delta: float
+    spend_units: str
+
+    def __post_init__(self) -> None:
+        _name(self.id, "id")
+        _name(self.experiment_id, "experiment_id")
+        if not isinstance(self.experiment, ExposureSetting) or not isinstance(
+            self.target, ExposureSetting
+        ):
+            raise CausalTypeError("experiment and target must be ExposureSetting values")
+        _number(self.recency_delta, "recency_delta")
+        _name(self.recency_units, "recency_units")
+        _number(self.spend_delta, "spend_delta")
+        _name(self.spend_units, "spend_units")
+
+    def to_wire(self) -> dict[str, Any]:
+        """The declaration the native layer reads."""
+        return {
+            "id": self.id,
+            "experiment_id": self.experiment_id,
+            "experiment": self.experiment.to_wire(),
+            "target": self.target.to_wire(),
+            "recency_delta": float(self.recency_delta),
+            "recency_units": self.recency_units,
+            "spend_delta": float(self.spend_delta),
+            "spend_units": self.spend_units,
+        }
+
+    @classmethod
+    def from_wire(cls, wire: Mapping[str, Any]) -> EstimandBridge:
+        """The declaration a native summary reports."""
+        return cls(
+            wire["id"],
+            wire["experiment_id"],
+            ExposureSetting.from_wire(wire["experiment"]),
+            ExposureSetting.from_wire(wire["target"]),
+            float(wire["recency_delta"]),
+            wire["recency_units"],
+            float(wire["spend_delta"]),
+            wire["spend_units"],
+        )
+
+
+def _extension(contract: Mapping[str, Any]) -> dict[str, Any]:
+    """The extended declarations a native contract summary reports, as typed values."""
+    return {
+        "mapping_uncertainty": (
+            None
+            if contract.get("mapping_uncertainty") is None
+            else MappingUncertainty.from_wire(contract["mapping_uncertainty"])
+        ),
+        "source_dependence": (
+            None
+            if contract.get("source_dependence") is None
+            else SourceDependence.from_wire(contract["source_dependence"])
+        ),
+        "estimand_bridge": (
+            None
+            if contract.get("estimand_bridge") is None
+            else EstimandBridge.from_wire(contract["estimand_bridge"])
+        ),
+    }
+
+
+@dataclass(frozen=True, slots=True)
 class BridgeContract:
     """What is bridged, under which declared assumptions, by which mapping, for which scope.
 
@@ -478,6 +767,9 @@ class BridgeContract:
     transport: TransportabilityPremise | None = None
     source_value: ValueKindsName = "mean"
     target_value: ValueKindsName = "mean"
+    mapping_uncertainty: MappingUncertainty | None = None
+    source_dependence: SourceDependence | None = None
+    estimand_bridge: EstimandBridge | None = None
 
     def __post_init__(self) -> None:
         _choice(self.kind, "kind", BRIDGE_KINDS)
@@ -496,12 +788,23 @@ class BridgeContract:
             raise CausalTypeError("assumptions must contain Assumption values")
         if self.transport is not None and not isinstance(self.transport, TransportabilityPremise):
             raise CausalTypeError("transport must be a TransportabilityPremise or None")
+        for label, value, expected in (
+            ("mapping_uncertainty", self.mapping_uncertainty, MappingUncertainty),
+            ("source_dependence", self.source_dependence, SourceDependence),
+            ("estimand_bridge", self.estimand_bridge, EstimandBridge),
+        ):
+            if value is not None and not isinstance(value, expected):
+                raise CausalTypeError(f"{label} must be a {expected.__name__} or None")
         _quantity_wire(self.source, "source")
         _quantity_wire(self.target, "target")
 
     def to_wire(self) -> dict[str, Any]:
-        """The declaration the native layer reads."""
-        return {
+        """The declaration the native layer reads.
+
+        The extended declarations are listed only where the contract makes them, so a contract
+        that declares none reads exactly as before.
+        """
+        wire: dict[str, Any] = {
             "kind": self.kind,
             "source": {
                 "quantity": _quantity_wire(self.source, "source"),
@@ -518,6 +821,13 @@ class BridgeContract:
             "assumptions": [a.to_wire() for a in self.assumptions],
             "transport": None if self.transport is None else self.transport.to_wire(),
         }
+        if self.mapping_uncertainty is not None:
+            wire["mapping_uncertainty"] = self.mapping_uncertainty.to_wire()
+        if self.source_dependence is not None:
+            wire["source_dependence"] = self.source_dependence.to_wire()
+        if self.estimand_bridge is not None:
+            wire["estimand_bridge"] = self.estimand_bridge.to_wire()
+        return wire
 
 
 @dataclass(frozen=True, slots=True)
@@ -719,6 +1029,9 @@ class BridgedClaim(ScientificResult):
     provenance: tuple[Mapping[str, Any], ...]
     _handle: Any = field(repr=False, compare=False)
     quantity: Any = None
+    mapping_uncertainty: MappingUncertainty | None = None
+    source_dependence: SourceDependence | None = None
+    estimand_bridge: EstimandBridge | None = None
 
     def artifact(self, artifact_id: str = "scientific_bridge") -> ExportedArtifact[ConsumedBridge]:
         """Bytes and producer metadata; load returns the typed consumed result."""
@@ -836,6 +1149,7 @@ def _claim(summary: Mapping[str, Any], handle: Any) -> BridgedClaim:
         provenance=tuple(summary["provenance"]),
         _handle=handle,
         quantity=ScientificQuantity.from_wire(contract["target"]["quantity"]),
+        **_extension(contract),
     )
 
 
@@ -945,10 +1259,25 @@ class ConsumedBridge(ScientificResult):
         raise_refusal(self._handle.interval(), ScientificBridgeRefusal)
 
 
-@bind_mean_reading
 def consume_scientific_bridge_artifact(
     artifact: bytes, expected_identity: str | None = None
-) -> ConsumedBridge:
+) -> ConsumedBridge | ConsumedBridgeDistribution:
+    """Independently consume a scientific bridge artifact by replaying its derivation.
+
+    A bridge of one mean returns a :class:`ConsumedBridge`; a bridge of draws maps its stored draws
+    again and returns a :class:`ConsumedBridgeDistribution`. The artifact's container tells which.
+    """
+    if not isinstance(artifact, (bytes, bytearray, memoryview)):
+        raise CausalTypeError("artifact must be bytes")
+    shape, refusal = _native.scientific_bridge_shape(bytes(artifact))
+    raise_refusal(refusal, ScientificBridgeRefusal)
+    if shape == "draws":
+        return _consume_distribution(bytes(artifact), expected_identity)
+    return _consume_point(bytes(artifact), expected_identity)
+
+
+@bind_mean_reading
+def _consume_point(artifact: bytes, expected_identity: str | None = None) -> ConsumedBridge:
     """Independently consume a scientific bridge artifact by replaying its derivation.
 
     ``expected_identity`` is the artifact identity the consumer retained independently of the
@@ -972,4 +1301,318 @@ def consume_scientific_bridge_artifact(
         source=summary["source"],
         identity=summary["identity"],
         _handle=handle,
+    )
+
+
+# ------------------------------------------------------------------ bridges of distributions
+
+
+def _seed(value: object) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value < 2**64:
+        raise CausalValueError("seed must be an integer in [0, 2**64)")
+    return value
+
+
+@dataclass(frozen=True, slots=True)
+class ChainStageParts:
+    """A bridge as a stage of a propagation chain, with the sources it reads.
+
+    ``sources`` are the source draws, the drawn slope and the drawn intercept, columns of one
+    aligned draw table; ``stage`` is the measurement-mapping stage that reads them with the slope
+    and the intercept as inputs. Pass both to :func:`antecedent.propagation_chain.propagate`
+    together with the stages that read ``stage.id``.
+    """
+
+    sources: tuple[Any, ...]
+    stage: Any
+
+
+@dataclass(repr=False, frozen=True, slots=True, eq=False)
+class BridgedDistribution(ScientificResult):
+    """A claim derived across a bridge from the aligned draws of a posterior or a predictive law.
+
+    :meth:`distribution` is the source draw table with the bridged column in place of the source
+    column, row for row and with the source table's alignment identity (``alignment_identity``),
+    so the bridged column still pairs by index with every column it was sampled with. ``mean`` and
+    ``variance`` summarize it. ``reading`` is ``uncalibrated_spread`` and ``calibration`` is
+    ``unmeasured``: the spread is not an interval, and :meth:`interval` publishes one only inside
+    a measured design. The bridge's declared assumptions stay in ``unresolved``, with the
+    assumption that the mapping's evidence is independent of the other columns of the table.
+    """
+
+    kind: str
+    mapping: str
+    value_kind: str
+    n_draws: int
+    source_mean: float
+    source_variance: float
+    mean: float
+    variance: float
+    stream: int
+    alignment_identity: str
+    draws_digest: str
+    claim_id: str
+    source_claim_id: str
+    contract_identity: str
+    transported: bool
+    reading: str
+    calibration: str
+    units: str | None
+    assumptions: tuple[Assumption, ...]
+    unresolved: tuple[str, ...]
+    unavailable: tuple[str, ...]
+    evidence: tuple[str, ...]
+    domains: Mapping[str, str]
+    provenance: tuple[Mapping[str, Any], ...]
+    identity: str | None
+    _handle: Any = field(repr=False, compare=False)
+    quantity: Any = None
+    mapping_uncertainty: MappingUncertainty | None = None
+    source_dependence: SourceDependence | None = None
+    estimand_bridge: EstimandBridge | None = None
+
+    def distribution(self) -> Any:
+        """The bridged draw table as a :class:`~antecedent.joint_distribution.JointDistributionArtifact`."""
+        from .joint_distribution import JointDistributionArtifact
+
+        return JointDistributionArtifact._from_native(self._handle.distribution())
+
+    def source_distribution(self) -> Any:
+        """The source draw table, unchanged."""
+        from .joint_distribution import JointDistributionArtifact
+
+        return JointDistributionArtifact._from_native(self._handle.source_distribution())
+
+    def require_value_kind(self, requested: str) -> None:
+        """Raise the refusal when a consumer requires another kind of object than these draws.
+
+        Raises:
+            ScientificBridgeRefusal: ``bridge_substitution_refused`` /
+                ``scientific_bridge.value_kind_substitution``.
+        """
+        _choice(requested, "requested", VALUE_KINDS)
+        raise_refusal(self._handle.require_value_kind(requested), ScientificBridgeRefusal)
+
+    def interval(self, level: float | None = None) -> BridgedClaimInterval:
+        """The interval of the bridged value at ``level``, through the measured-coverage gate.
+
+        The standard deviation of the source draws is carried through the mapping together with
+        the mapping's own estimation uncertainty, at the source's mean: the construction the
+        bridged-mean coverage records measured. It is published only where such a record exists.
+        With no ``level`` the request is unscoped and always raises.
+
+        Raises:
+            ScientificBridgeRefusal: ``cell_not_licensed`` /
+                ``scientific_bridge.interval_not_licensed`` for an unscoped request, and
+                ``scientific_bridge.interval_scope_outside_measured`` for a map with uncertain
+                coefficients, a declared source-mapping covariance, or a design no record measured.
+        """
+        if level is None:
+            raise_refusal(self._handle.interval(), ScientificBridgeRefusal)
+            raise AssertionError("an unscoped interval request always refuses")  # pragma: no cover
+        payload = _unwrap(self._handle.bridged_interval(_number(level, "level")))
+        return BridgedClaimInterval(**json.loads(payload))
+
+    def chain_stage(self, stage_id: str = "bridge") -> ChainStageParts:
+        """The bridge as a measurement-mapping stage of a propagation chain.
+
+        The stage reads the source draws, the drawn slope and the drawn intercept (columns of one
+        aligned draw table) and applies ``source * slope + intercept`` with the slope and the
+        intercept as the stage's inputs, so a chain of bridge, transport and utility propagates
+        the source, the mapping's coefficients and every later stage jointly.
+
+        Raises:
+            ScientificBridgeRefusal: the bridge is not an affine map of its inputs (a measurement
+                correction, or a predictive law through a trial-level line).
+        """
+        from . import propagation_chain as chain
+
+        payload = json.loads(_unwrap(self._handle.chain_stage_json(_name(stage_id, "stage_id"))))
+        sources = tuple(
+            chain.ChainSource(
+                id=wire["id"],
+                representation=wire["representation"],
+                values=tuple(chain._float(bits) for bits in wire["values"]),
+                meaning=wire["meaning"],
+                alignment=wire["alignment"],
+                complete_disclosure=bool(wire["complete_disclosure"]),
+                factors=tuple((f["kind"], f["id"]) for f in wire["factors"]),
+            )
+            for wire in payload["sources"]
+        )
+        wire = payload["stage"]
+        stage = chain.ChainStage(
+            id=wire["id"],
+            kind=wire["kind"],
+            inputs=tuple(wire["inputs"]),
+            op=wire["op"],
+            own_factors=tuple((f["kind"], f["id"]) for f in wire["own_factors"]),
+        )
+        return ChainStageParts(sources, stage)
+
+    def freshness(
+        self, *, source_withdrawn: bool = False, source_superseded: bool = False
+    ) -> Freshness:
+        """Applicability given the source's standing; history is preserved either way."""
+        wire = json.loads(
+            self._handle.freshness_json(bool(source_withdrawn), bool(source_superseded))
+        )
+        return Freshness(wire["historically_valid"], wire["currently_applicable"])
+
+    def artifact(
+        self, artifact_id: str = "scientific_bridge"
+    ) -> ExportedArtifact[ConsumedBridgeDistribution]:
+        """Bytes and producer metadata; load returns the typed consumed result."""
+        from ._artifact_protocol import exported_artifact
+
+        return exported_artifact(self, artifact_id)
+
+    @bytes_export
+    def export(self, artifact_id: str = "scientific_bridge") -> BridgeExport:
+        """Write the extended ``scientific_bridge_v1`` artifact: the contract, the source draw
+        table, the seed and the summary of the mapped table.
+
+        Raises:
+            ScientificBridgeRefusal: the bridge does not seal.
+        """
+        done = _unwrap(self._handle.export(_name(artifact_id, "artifact_id")))
+        data, identity = done
+        return BridgeExport(bytes(data), identity)
+
+
+def _distribution(summary: Mapping[str, Any], handle: Any) -> BridgedDistribution:
+    from .joint_distribution import ScientificQuantity
+
+    contract = summary["contract"]
+    return BridgedDistribution(
+        kind=summary["kind"],
+        mapping=summary["mapping"],
+        value_kind=summary["value_kind"],
+        n_draws=int(summary["n_draws"]),
+        source_mean=float(summary["source_mean"]),
+        source_variance=float(summary["source_variance"]),
+        mean=float(summary["mean"]),
+        variance=float(summary["variance"]),
+        stream=int(summary["stream"]),
+        alignment_identity=summary["alignment_identity"],
+        draws_digest=summary["draws_digest"],
+        claim_id=summary["claim_id"],
+        source_claim_id=summary["source_claim_id"],
+        contract_identity=summary["contract_identity"],
+        transported=bool(summary["transported"]),
+        reading=summary["reading"],
+        calibration=summary["calibration"],
+        units=summary["units"],
+        assumptions=tuple(
+            Assumption(a["id"], a["kind"], a["statement"], a["evidence"])
+            for a in contract["assumptions"]
+        ),
+        unresolved=tuple(summary["unresolved"]),
+        unavailable=tuple(summary["unavailable"]),
+        evidence=tuple(summary["evidence"]),
+        domains=dict(summary["domains"]),
+        provenance=tuple(summary["provenance"]),
+        identity=summary.get("identity"),
+        _handle=handle,
+        quantity=ScientificQuantity.from_wire(contract["target"]["quantity"]),
+        **_extension(contract),
+    )
+
+
+@dataclass(frozen=True, slots=True, eq=False)
+class PreparedDistributionBridge:
+    """A bridge of draws whose contract was checked once, with its licensing verdict kept.
+
+    :meth:`derive` and :meth:`with_contract` return new values and leave this one untouched.
+    """
+
+    contract: BridgeContract
+    contract_identity: str
+    transported: bool
+    _handle: Any = field(repr=False, compare=False)
+
+    def derive(self, draws: Any, *, seed: int, source_kind: str | None = None) -> BridgedDistribution:
+        """Bridge the draws of ``draws``, a :class:`~antecedent.joint_distribution.JointDistributionArtifact`.
+
+        ``draws`` is an aligned table with a column about the contract's source quantity, of a
+        meaning that is a posterior or a predictive law (a bootstrap, a sampling law or an empirical
+        law is neither). ``source_kind`` is the kind of the claim the draws come from, when they
+        come from one: an ``associational`` claim is never a bridge source. ``seed`` selects the
+        random stream of the mapping's coefficients, so the result is a function of the contract,
+        the table and the seed.
+
+        Raises:
+            ScientificBridgeRefusal: draws of another quantity or meaning, independent marginals,
+                an associational source, a draw outside the range the mapping is licensed for, a
+                dependence no joint law has, or a mapped draw that is not finite.
+        """
+        from .joint_distribution import JointDistributionArtifact
+
+        if not isinstance(draws, JointDistributionArtifact):
+            raise CausalTypeError("draws must be a JointDistributionArtifact")
+        if source_kind is not None:
+            _choice(source_kind, "source_kind", _CLAIM_KINDS)
+        handle = _unwrap(self._handle.derive(draws._native, _seed(seed), source_kind))
+        return _distribution(json.loads(handle.summary_json()), handle)
+
+    def with_contract(self, contract: BridgeContract) -> PreparedDistributionBridge:
+        """A prepared bridge for a replacement contract, re-checked in full.
+
+        Raises:
+            ScientificBridgeRefusal: the first defect of the replacement; ``self`` is unchanged.
+        """
+        if not isinstance(contract, BridgeContract):
+            raise CausalTypeError("contract must be a BridgeContract")
+        handle = _unwrap(self._handle.with_contract(_dumps(contract.to_wire())))
+        return _prepared_distribution(contract, handle)
+
+
+def _prepared_distribution(contract: BridgeContract, handle: Any) -> PreparedDistributionBridge:
+    return PreparedDistributionBridge(
+        contract=contract,
+        contract_identity=handle.contract_identity(),
+        transported=bool(handle.transported()),
+        _handle=handle,
+    )
+
+
+def prepare_distribution_bridge(contract: BridgeContract) -> PreparedDistributionBridge:
+    """Check a contract whose source is the draws of a posterior or a predictive law.
+
+    ``source_value`` and ``target_value`` are both ``posterior`` or both ``predictive_law``. An
+    affine map with uncertain coefficients declares its ``mapping_uncertainty`` and its
+    ``source_dependence``; a trial-level line and a measurement correction take their uncertainty
+    from their own evidence and declare only the dependence.
+
+    Raises:
+        ScientificBridgeRefusal: the first defect, as for :func:`prepare_scientific_bridge`, a
+            value kind that is neither a posterior nor a predictive law, an uncertain map with no
+            declared dependence, or a mapping that declares its uncertainty a second time.
+    """
+    if not isinstance(contract, BridgeContract):
+        raise CausalTypeError("contract must be a BridgeContract")
+    handle = _unwrap(_native.scientific_bridge_distribution_prepare(_dumps(contract.to_wire())))
+    return _prepared_distribution(contract, handle)
+
+
+@dataclass(repr=False, frozen=True, slots=True, eq=False)
+class ConsumedBridgeDistribution(ScientificResult):
+    """A consumed bridge-of-draws artifact: its stored draws mapped again, bit for bit."""
+
+    claim: BridgedDistribution
+    identity: str
+    _handle: Any = field(repr=False, compare=False)
+
+    def interval(self, level: float | None = None) -> BridgedClaimInterval:
+        """As :meth:`BridgedDistribution.interval`."""
+        return self.claim.interval(level)
+
+
+def _consume_distribution(artifact: bytes, expected_identity: str | None) -> ConsumedBridgeDistribution:
+    if expected_identity is not None:
+        _name(expected_identity, "expected_identity")
+    handle = _unwrap(_native.scientific_bridge_distribution_consume(artifact, expected_identity))
+    summary = json.loads(handle.summary_json())
+    return ConsumedBridgeDistribution(
+        claim=_distribution(summary, handle), identity=summary["identity"], _handle=handle
     )

@@ -176,6 +176,7 @@ fn receipt_body(
         sequential_contrast: None,
         history_match: None,
         iv_bounds: None,
+        association: None,
         quasi_rollout: None,
         temporal_design: None,
         interference_inference: None,

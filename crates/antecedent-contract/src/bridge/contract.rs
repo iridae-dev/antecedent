@@ -47,12 +47,18 @@ use super::refusal::{
 };
 use crate::ScientificQuantity;
 
+#[path = "draws.rs"]
+mod draws;
 #[path = "propagation.rs"]
 mod propagation;
 
 use crate::interface_contract::{
     CalibrationStatus, ContractOperation, DependenceRequirement, EvidenceBasis, InterfaceContract,
     PortFacts,
+};
+pub use draws::{
+    AffineDrawLaw, AffineInnovation, BridgeDrawsSource, BridgedDistributionClaim,
+    CorrectionDrawLaw, DrawMapping, DrawsPlan, MappedDrawsSummary, bridged_distribution_claim_id,
 };
 pub use propagation::{
     AnalyticLaw, EstimandBridge, ExperimentalPrior, ExposureSetting, ImportedExperimentalPrior,
@@ -295,6 +301,30 @@ impl BridgeContract {
     /// The first defect, in the order described in the module documentation,
     /// as a coded refusal with the declaration that would license it.
     pub fn check_licensing(&self) -> Result<Licensing, BridgeRefusal> {
+        self.check_licensing_carrying(false)
+    }
+
+    /// Check the contract licenses its bridge when the source value is a
+    /// distribution carried as aligned draws.
+    ///
+    /// The checks are those of [`Self::check_licensing`] in the same order,
+    /// except that the value kinds may be a posterior or a predictive law (and
+    /// then must agree), and that the declaration of the mapping's uncertainty
+    /// and of its dependence on the source is checked for the draws it
+    /// propagates: an uncertain map declares how it depends on the source
+    /// estimate, a trial-level line or a measurement correction does not
+    /// declare its uncertainty a second time, and an identified set or a joint
+    /// outcome law is still not carried.
+    ///
+    /// # Errors
+    /// As [`Self::check_licensing`], and the refusals of the draws declaration.
+    pub fn check_draws_licensing(&self) -> Result<Licensing, BridgeRefusal> {
+        let licensing = self.check_licensing_carrying(true)?;
+        draws::check_draws_declaration(self)?;
+        Ok(licensing)
+    }
+
+    fn check_licensing_carrying(&self, draws: bool) -> Result<Licensing, BridgeRefusal> {
         self.validate()?;
         let pair = (self.source.class, self.target.class);
         if !self.kind.endpoint_pairs().contains(&pair) {
@@ -312,7 +342,10 @@ impl BridgeContract {
         if self.source_value != self.target_value {
             return Err(wrong_value_kind(self.target_value, self.source_value));
         }
-        if self.source_value != ValueKind::Mean {
+        let carried = self.source_value == ValueKind::Mean
+            || (draws
+                && matches!(self.source_value, ValueKind::Posterior | ValueKind::PredictiveLaw));
+        if !carried {
             return Err(value_kind_not_carried(self.source_value));
         }
         let principal_kind = self.kind.principal_assumption();
@@ -401,7 +434,13 @@ impl BridgeContract {
 
     fn check_coordinates(&self) -> Result<(), BridgeRefusal> {
         let (source, target) = (&self.source.quantity, &self.target.quantity);
-        if source.population_id != target.population_id {
+        if source.population_id != target.population_id
+            && !self.estimand_bridge.as_ref().is_some_and(|translation| {
+                self.kind == BridgeKind::ParameterInterventionResponse
+                    && translation.experiment.population_id == source.population_id
+                    && translation.target.population_id == target.population_id
+            })
+        {
             return Err(population_mismatch(
                 source.population_id.clone(),
                 target.population_id.clone(),
@@ -410,7 +449,10 @@ impl BridgeContract {
         if !self.kind.regime_may_change() && source.regime_id != target.regime_id {
             return Err(regime_mismatch(source.regime_id.clone(), target.regime_id.clone()));
         }
-        if source.horizon != target.horizon {
+        if source.horizon != target.horizon
+            && !(self.kind == BridgeKind::ParameterInterventionResponse
+                && self.estimand_bridge.is_some())
+        {
             return Err(horizon_mismatch(source.horizon.to_string(), target.horizon.to_string()));
         }
         if source.conditioning != target.conditioning {
@@ -423,11 +465,24 @@ impl BridgeContract {
     }
 
     fn check_transport(&self) -> Result<bool, BridgeRefusal> {
-        let claim_scope = BridgeScope {
-            population_id: self.source.quantity.population_id.clone(),
-            regime_id: self.source.quantity.regime_id.clone(),
+        // An explicit experimental translation maps the source experimental
+        // estimand into the target response. Its transport premise therefore
+        // applies to the target scope, including a changed time horizon. The
+        // ordinary six bridge families retain their original coordinate checks.
+        let experimental_endpoint_change = self.kind == BridgeKind::ParameterInterventionResponse
+            && self.estimand_bridge.is_some()
+            && (self.source.quantity.population_id != self.target.quantity.population_id
+                || self.source.quantity.horizon != self.target.quantity.horizon);
+        let claim = if experimental_endpoint_change {
+            &self.target.quantity
+        } else {
+            &self.source.quantity
         };
-        let moved = claim_scope != self.evidence_scope;
+        let claim_scope = BridgeScope {
+            population_id: claim.population_id.clone(),
+            regime_id: claim.regime_id.clone(),
+        };
+        let moved = claim_scope != self.evidence_scope || experimental_endpoint_change;
         let described = format!(
             "the {} relation established in population `{}` under regime `{}` holds in population `{}` under regime `{}`",
             self.kind.as_str(),

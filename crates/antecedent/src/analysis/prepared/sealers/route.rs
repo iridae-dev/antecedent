@@ -31,6 +31,15 @@ pub(super) fn discovery(cx: &SealContext<'_>) -> SealOutcome {
     Ok(sealed.map(PreparedExecution::Discovery))
 }
 
+pub(super) fn association(cx: &SealContext<'_>) -> SealOutcome {
+    let sealed = match cx.route {
+        Some(RouteInput::AssociationStatic { .. }) => seal(cx, RouteCell::AssociationStatic)?,
+        Some(RouteInput::AssociationTemporal { .. }) => seal(cx, RouteCell::AssociationTemporal)?,
+        _ => None,
+    };
+    Ok(sealed.map(PreparedExecution::Association))
+}
+
 pub(super) fn panel_temporal(cx: &SealContext<'_>) -> SealOutcome {
     let sealed = match cx.route {
         Some(RouteInput::PanelTemporalEffectDag { .. }) => {

@@ -36,6 +36,7 @@ mod adaptive_participant_api;
 mod adaptive_procedure_api;
 mod array_fit_api;
 mod artifact_api;
+mod association_api;
 mod ate_api;
 mod attribution_api;
 mod batch_retarget_api;
@@ -76,6 +77,7 @@ mod effect_constancy_api;
 mod effect_constancy_review_api;
 mod estimator_config;
 mod evidence_ledger_api;
+mod evidence_plan_api;
 mod execution_attempt_api;
 mod experiment_api;
 mod external_api;
@@ -1432,6 +1434,10 @@ pub(crate) struct AteAnalysisResult {
     /// set, never a point.
     #[pyo3(get)]
     iv_bounds: Option<bounds_api::IvBoundsSection>,
+    /// Noncausal association of the observed data (unlicensed, calibration unmeasured): never
+    /// an intervention effect, ranks no action.
+    #[pyo3(get)]
+    association: Option<association_api::AssociationSection>,
     /// Heterogeneity-robust or covariate-adjusted DiD, conformal or multi-unit synthetic
     /// panel, or optioned local ratio (unlicensed, calibration unmeasured).
     #[pyo3(get)]

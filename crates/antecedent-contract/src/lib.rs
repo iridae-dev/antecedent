@@ -131,10 +131,11 @@ pub use mechanism_composition::{
 };
 pub use obligation::{ObligationKind, ObligationRecord, ObligationScope};
 pub use observation_query::{
-    InferenceBasis, MeasuredIndicator, OBSERVATION_QUERY_STAGE, ObservationContext,
-    ObservationOperation, ObservationSlotsRequest, ObservedSlot, SlotProvenance, SlotValue,
-    calibration_refusal, check_observation_slots, interval_refusal, level_unreachable_refusal,
-    measured_likelihood, zero_probability_evidence_refusal,
+    ContinuousSlotsRequest, InferenceBasis, MeasuredIndicator, OBSERVATION_QUERY_STAGE,
+    ObservationContext, ObservationOperation, ObservationSlotsRequest, ObservedSlot,
+    SlotProvenance, SlotValue, calibration_refusal, check_continuous_assignments,
+    check_observation_slots, interval_refusal, level_unreachable_refusal, measured_likelihood,
+    mixed_conditioning_refusal, zero_probability_evidence_refusal,
 };
 pub use plan::{
     BufferMaterialization, DataClassification, ExecutionPerformanceRecord, KernelSelection,
@@ -157,8 +158,8 @@ pub use quantity::{
     DistributionMeaning, QuantityCondition, QuantityMismatch, QuantityRole, ScientificQuantity,
 };
 pub use reasoning::{
-    AssumptionSlot, IdentificationSlot, ReasoningView, SlotAvailability, SupportSlot,
-    UncertaintyComponent, UncertaintySlot, UncertaintySource,
+    AssumptionSlot, IDENTIFICATION_NOT_CLAIMED, IdentificationSlot, ReasoningView,
+    SlotAvailability, SupportSlot, UncertaintyComponent, UncertaintySlot, UncertaintySource,
 };
 pub use response_coordinates::{
     ResponseCoordinateLabels, ResponseCoordinateSkeleton, label_coordinates,

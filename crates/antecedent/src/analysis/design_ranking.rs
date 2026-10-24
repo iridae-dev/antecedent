@@ -42,7 +42,7 @@ use antecedent_design::signal::{
 };
 use antecedent_design::{
     AffineUtility, CandidateDesign, DecisionPrior, DecisionProblem, DesignCost, DesignRankConfig,
-    SamplingPlan, StudyCost,
+    GridUtility, SamplingPlan, StudyCost,
 };
 use antecedent_io::quantity_wire::ScientificQuantityWire;
 use serde::Deserialize;
@@ -98,12 +98,29 @@ pub struct DecisionDeclWire {
     pub utility_unit: String,
     /// Terminal action identities.
     pub action_ids: Vec<String>,
-    /// Per-action intercepts.
+    /// Per-action intercepts (empty when `utility_table` is declared).
+    #[serde(default)]
     pub intercepts: Vec<f64>,
-    /// Per-action slopes.
+    /// Per-action slopes (empty when `utility_table` is declared).
+    #[serde(default)]
     pub slopes: Vec<f64>,
+    /// The utilities as an explicit table over the states the decision was evaluated
+    /// at, instead of an affine function of the state. Needs a prior of draws that
+    /// all lie on the table's states; nothing is interpolated between them.
+    #[serde(default)]
+    pub utility_table: Option<UtilityTableDeclWire>,
     /// Belief.
     pub prior: PriorDeclWire,
+}
+
+/// Utilities tabulated over the states a decision was evaluated at.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UtilityTableDeclWire {
+    /// The evaluated states, distinct.
+    pub states: Vec<f64>,
+    /// `rows[action][state]`, one row per action in `action_ids` order.
+    pub rows: Vec<Vec<f64>>,
 }
 
 /// Declared study cost.
@@ -523,11 +540,30 @@ struct Prepared {
 
 fn prepare(wire: &DesignRankingRequestWire) -> Result<Prepared, DesignRankingError> {
     let decision = &wire.decision;
-    let utility = AffineUtility::new(decision.intercepts.clone(), decision.slopes.clone())
-        .map_err(|e| invalid(format!("utility: {e}")))?;
     let actions: Vec<usize> = (0..decision.action_ids.len()).collect();
-    let problem: DecisionProblem<usize, f64> =
-        DecisionProblem::new(actions, Arc::new(utility), vec![]);
+    let problem: DecisionProblem<usize, f64> = match &decision.utility_table {
+        Some(table) => {
+            if !decision.intercepts.is_empty() || !decision.slopes.is_empty() {
+                return Err(invalid(
+                    "declare the utility as an affine function or as a table, not both",
+                ));
+            }
+            if !matches!(decision.prior, PriorDeclWire::Draws { .. }) {
+                return Err(invalid("a tabulated utility needs a prior of draws on its states"));
+            }
+            if table.rows.len() != decision.action_ids.len() {
+                return Err(invalid("a utility table needs one row per action"));
+            }
+            let utility = GridUtility::new(table.states.clone(), table.rows.clone())
+                .map_err(|e| invalid(format!("utility table: {e}")))?;
+            DecisionProblem::new(actions, Arc::new(utility), vec![])
+        }
+        None => {
+            let utility = AffineUtility::new(decision.intercepts.clone(), decision.slopes.clone())
+                .map_err(|e| invalid(format!("utility: {e}")))?;
+            DecisionProblem::new(actions, Arc::new(utility), vec![])
+        }
+    };
     let prior = match &decision.prior {
         PriorDeclWire::Draws { states } => DecisionPrior::Draws(states.clone()),
         PriorDeclWire::Normal { mean, variance } => {

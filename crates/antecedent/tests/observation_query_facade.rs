@@ -20,8 +20,9 @@ use antecedent::analysis::observation_posterior::{
     FiniteBayesInput, conjugate_posterior, finite_posterior,
 };
 use antecedent::analysis::observation_query::{
-    Direction, ObservationQueryRefusal, ObservationQueryWire, ObservationRequest,
-    ObservationResultWire, consume_observation_query_artifact,
+    ContinuousAssignments, Direction, ObservationQueryRefusal, ObservationQueryWire,
+    ObservationRequest, ObservationResultWire, ParameterRedrawRequest, RedrawPrior,
+    consume_observation_query_artifact, retain_counts, retain_regression,
 };
 use antecedent::{
     DependenceInput, MechanismCompositionRequest, MechanismInput, MechanismRefit, MechanismSource,
@@ -281,23 +282,40 @@ fn an_intervention_smuggled_into_a_conditioning_slot_is_refused_with_its_remedy(
         outcome: "Y".into(),
         conditioning: vec![direct("Z", "1")],
         interventions: vec![pair("S", "1")],
+        continuous: ContinuousAssignments::default(),
     };
     let refusal = prepared.observe(&smuggled, &ctx()).unwrap_err();
     assert_eq!(refusal_details(&refusal), ["observation_query.intervention_in_conditioning_slot"]);
 
-    // Observations and an intervention in one request have no bounded route.
+    // Observations of another variable after an intervention are the interventional law
+    // conditioned on them: P(Y=1 | do(S=1), Z=1) = 0.9, with P(Z=1) = 0.5 unchanged.
     let mixed = ObservationRequest {
         operation: ObservationOperation::Intervention,
         outcome: "Y".into(),
         conditioning: vec![direct("Z", "1")],
         interventions: vec![pair("S", "1")],
+        continuous: ContinuousAssignments::default(),
     };
-    let refusal = prepared.observe(&mixed, &ctx()).unwrap_err();
+    let claim = prepared.observe(&mixed, &ctx()).unwrap();
+    assert_eq!(claim.operation(), "conditional_intervention");
+    near(level(&claim.conditional_levels().unwrap(), "1"), 0.9);
+    near(claim.evidence_probability().unwrap(), 0.5);
+
+    // A variable cannot be both recorded and set: its mechanism was removed.
+    let set_and_seen = ObservationRequest {
+        operation: ObservationOperation::Intervention,
+        outcome: "Y".into(),
+        conditioning: vec![direct("S", "1")],
+        interventions: vec![pair("S", "1")],
+        continuous: ContinuousAssignments::default(),
+    };
+    let refusal = prepared.observe(&set_and_seen, &ctx()).unwrap_err();
     assert_eq!(refusal.code(), "route_not_supported");
     assert_eq!(
         refusal_details(&refusal),
         ["observation_query.mixed_conditioning_and_intervention"]
     );
+    assert!(refusal.refusals[0].remedy.is_some());
 }
 
 #[test]
@@ -584,4 +602,345 @@ fn cancellation_is_not_a_verdict() {
     ctx.cancellation.cancel();
     let refusal = prepared.condition_on("Y", &[direct("S", "1")], &ctx).unwrap_err();
     assert_eq!(refusal.code(), "cancelled_no_claim");
+}
+
+// -------------------------------------------------- continuous evidence and redraw
+
+fn real_quantity(variable: &str) -> ScientificQuantity {
+    ScientificQuantity {
+        variable_id: variable.into(),
+        variable_name: format!("label of {variable}"),
+        role: if variable == "Y" { QuantityRole::Outcome } else { QuantityRole::Covariate },
+        units: "u".into(),
+        population_id: "pop".into(),
+        regime_id: "observational".into(),
+        horizon: 0,
+        functional_id: "realization".into(),
+        conditioning: Vec::new(),
+        transform_id: "identity".into(),
+    }
+}
+
+fn linear_input(
+    variable: &str,
+    intercept: f64,
+    sigma: f64,
+    parents: &[(&str, f64)],
+) -> MechanismInput {
+    MechanismInput {
+        declaration: MechanismDeclaration {
+            output: real_quantity(variable),
+            parents: parents.iter().map(|(p, _)| real_quantity(p)).collect(),
+            conditioning_variable_ids: parents.iter().map(|(p, _)| (*p).to_owned()).collect(),
+            origin: MechanismOriginKind::Declared,
+            artifact_id: format!("declared:{variable}"),
+            evidence_id: format!("assumed:{variable}"),
+            latent_causes: Vec::new(),
+        },
+        source: MechanismSource::DeclaredLinear {
+            intercept,
+            sigma,
+            coefficients: parents.iter().map(|(p, c)| ((*p).to_owned(), *c)).collect(),
+        },
+        output_support: Domain::Real,
+        parent_domains: parents.iter().map(|(p, _)| ((*p).to_owned(), Domain::Real)).collect(),
+        uncertainty: None,
+        latent_loadings: Vec::new(),
+    }
+}
+
+/// X ~ N(1, 4); M = 0.5 + 2 X + e; Y = -1 + 0.5 X + 3 M + 0.5 e.
+fn gaussian_chain() -> PreparedMechanismComposition {
+    StudyBuilder::mechanism_composition(
+        request_of(vec![
+            linear_input("X", 1.0, 2.0, &[]),
+            linear_input("M", 0.5, 1.0, &[("X", 2.0)]),
+            linear_input("Y", -1.0, 0.5, &[("X", 0.5), ("M", 3.0)]),
+        ]),
+        &ctx(),
+    )
+    .unwrap()
+}
+
+fn real(name: &str, value: f64) -> (String, f64) {
+    (name.to_owned(), value)
+}
+
+#[test]
+fn a_linear_gaussian_composition_answers_typed_real_evidence_and_replays() {
+    let prepared = gaussian_chain();
+    // Y | M = 3: mean 7 + (55/17)(0.5), variance 178.25 - 55^2/17 (Schur complement).
+    let claim = prepared.observe_continuous("Y", &[], &[real("M", 3.0)], &ctx()).unwrap();
+    assert_eq!(claim.operation(), "conditioning");
+    let (mean, variance, density) = claim.gaussian_conditional().unwrap();
+    near(mean, 7.0 + 55.0 / 17.0 * 0.5);
+    near(variance, 178.25 - 3025.0 / 17.0);
+    let expected = -0.5 * ((2.0 * std::f64::consts::PI).ln() + 17.0_f64.ln() + 0.25 / 17.0);
+    near(density.unwrap(), expected);
+    assert_eq!(claim.inference_basis(), "exact_given_declared_model");
+
+    // Observation after an intervention: do(X=2), M=5 is the structural equation N(15, 0.25).
+    let mixed =
+        prepared.observe_continuous("Y", &[real("X", 2.0)], &[real("M", 5.0)], &ctx()).unwrap();
+    assert_eq!(mixed.operation(), "conditional_intervention");
+    let (mean, variance, _) = mixed.gaussian_conditional().unwrap();
+    near(mean, 15.0);
+    near(variance, 0.25);
+    assert_ne!(mixed.identity(), claim.identity());
+
+    // The claim is a general-format artifact that an independent consumer replays.
+    let bytes = mixed.export().unwrap();
+    let consumed =
+        consume_observation_query_artifact(&bytes, Some(mixed.identity()), &ctx()).unwrap();
+    assert_eq!(consumed.operation, "conditional_intervention");
+    assert_eq!(&consumed.result, mixed.result());
+
+    // The typed values are refused where they do not belong, each with a remedy.
+    let levels = prepared.condition_on("Y", &[direct("M", "3")], &ctx()).unwrap_err();
+    assert_eq!(levels.code(), "invalid_argument");
+    assert_eq!(refusal_details(&levels), ["observation_query.levels_for_continuous_model"]);
+    assert!(levels.refusals[0].remedy.is_some());
+    let both =
+        prepared.observe_continuous("Y", &[real("X", 2.0)], &[real("X", 2.0)], &ctx()).unwrap_err();
+    assert_eq!(refusal_details(&both), ["observation_query.mixed_conditioning_and_intervention"]);
+    let nan = prepared.observe_continuous("Y", &[], &[real("M", f64::NAN)], &ctx()).unwrap_err();
+    assert_eq!(refusal_details(&nan), ["observation_query.value_not_finite"]);
+    let finite = confounded();
+    let request = ObservationRequest {
+        operation: ObservationOperation::Conditioning,
+        outcome: "Y".into(),
+        conditioning: Vec::new(),
+        interventions: Vec::new(),
+        continuous: ContinuousAssignments { observed: vec![real("S", 1.0)], interventions: vec![] },
+    };
+    let real_for_finite = finite.observe(&request, &ctx()).unwrap_err();
+    assert_eq!(
+        refusal_details(&real_for_finite),
+        ["observation_query.real_values_for_finite_model"]
+    );
+}
+
+fn confounded_counts() -> Vec<antecedent::analysis::observation_query::RetainedMechanismWire> {
+    let count = |a: u64, b: u64| vec![("0".to_owned(), a), ("1".to_owned(), b)];
+    let config = |pairs: &[(&str, &str)]| {
+        pairs.iter().map(|(p, l)| ((*p).to_owned(), (*l).to_owned())).collect::<Vec<_>>()
+    };
+    vec![
+        retain_counts("Z", vec![(vec![], count(100, 100))]),
+        retain_counts(
+            "S",
+            vec![(config(&[("Z", "0")]), count(160, 40)), (config(&[("Z", "1")]), count(40, 160))],
+        ),
+        retain_counts(
+            "Y",
+            vec![
+                (config(&[("S", "0"), ("Z", "0")]), count(45, 5)),
+                (config(&[("S", "0"), ("Z", "1")]), count(25, 25)),
+                (config(&[("S", "1"), ("Z", "0")]), count(35, 15)),
+                (config(&[("S", "1"), ("Z", "1")]), count(5, 45)),
+            ],
+        ),
+    ]
+}
+
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the rank is a rounded non-negative position inside the sorted draws"
+)]
+fn quantile(sorted: &[f64], p: f64) -> f64 {
+    sorted[((sorted.len() - 1) as f64 * p).round() as usize]
+}
+
+#[test]
+fn dirichlet_table_redraw_agrees_with_the_count_fitted_posterior_and_labels_its_spread() {
+    use antecedent_estimate::count_fitted_posterior::{
+        CountFittedModel, CountNode, NodeTable, PosteriorQuery,
+    };
+    let prepared = confounded();
+    let draws = 8000;
+    let claim = prepared
+        .observe_with_parameter_uncertainty(
+            &ParameterRedrawRequest {
+                request: ObservationRequest {
+                    operation: ObservationOperation::Conditioning,
+                    outcome: "Y".into(),
+                    conditioning: vec![direct("S", "1")],
+                    interventions: Vec::new(),
+                    continuous: ContinuousAssignments::default(),
+                },
+                retained: confounded_counts(),
+                prior: RedrawPrior::default(),
+                draws,
+                seed: 17,
+            },
+            &ctx(),
+        )
+        .unwrap();
+    assert_eq!(claim.operation(), "parameter_redraw");
+    let aligned = claim.parameter_draws().unwrap();
+    assert_eq!(aligned.quantities, ["probability:0", "probability:1"]);
+    assert_eq!(aligned.draws, draws as usize);
+    assert_eq!(aligned.reading, "uncalibrated_spread");
+    // The point value is the declared tables' own: P(Y=1 | S=1) = 0.78.
+    near(aligned.point[1], 0.78);
+    // One draw produced both levels, so every row is one distribution.
+    for row in aligned.values.chunks(2) {
+        assert!((row[0] + row[1] - 1.0).abs() < 1e-12);
+    }
+
+    // Against the count-fitted posterior of the estimator on the same counts and prior.
+    let node = |cardinality: usize, parents: Vec<usize>, counts: Vec<u64>| CountNode {
+        cardinality,
+        parents,
+        table: NodeTable::Counts(counts),
+    };
+    let model = CountFittedModel::new(
+        vec![
+            node(2, vec![], vec![100, 100]),
+            node(2, vec![0], vec![160, 40, 40, 160]),
+            node(2, vec![1, 0], vec![45, 5, 25, 25, 35, 15, 5, 45]),
+        ],
+        200,
+    )
+    .unwrap();
+    let query = PosteriorQuery { target: 2, level: 1, evidence: vec![(1, 1)] };
+    let reference = model.posterior_interval(&query, 0.90, 1.0, 8000, 3).unwrap();
+    let mut column = aligned.column(1);
+    column.sort_by(f64::total_cmp);
+    assert!((quantile(&column, 0.05) - reference.lower).abs() < 0.02);
+    assert!((quantile(&column, 0.95) - reference.upper).abs() < 0.02);
+    let (mean, spread) = aligned.spread(1);
+    assert!((mean - reference.point).abs() < 0.01, "{mean} vs {}", reference.point);
+    assert!(spread > 0.0 && spread.is_finite());
+
+    // The same draws as the repo's distribution artifact, jointly aligned.
+    let distribution = claim.distribution().unwrap();
+    assert_eq!(distribution.alignment_identity().unwrap(), aligned.alignment_identity);
+
+    // An interval is never produced without a currently attesting coverage record.
+    assert!(claim.interval().is_err());
+    let refusal = claim
+        .parameter_interval("probability:1", "aligned_draw_equal_tail_exchangeable_rank", 200)
+        .unwrap_err();
+    assert!(!refusal.refusals.is_empty());
+
+    // Same seed, same draws; the claim replays from its artifact.
+    let again = prepared
+        .observe_with_parameter_uncertainty(
+            &ParameterRedrawRequest {
+                request: ObservationRequest {
+                    operation: ObservationOperation::Conditioning,
+                    outcome: "Y".into(),
+                    conditioning: vec![direct("S", "1")],
+                    interventions: Vec::new(),
+                    continuous: ContinuousAssignments::default(),
+                },
+                retained: confounded_counts(),
+                prior: RedrawPrior::default(),
+                draws,
+                seed: 17,
+            },
+            &ctx(),
+        )
+        .unwrap();
+    assert_eq!(again.identity(), claim.identity());
+    assert_eq!(again.result(), claim.result());
+    let bytes = claim.export().unwrap();
+    assert!(consume_observation_query_artifact(&bytes, Some(claim.identity()), &ctx()).is_ok());
+}
+
+#[test]
+fn a_redraw_after_an_intervention_and_a_gaussian_redraw_return_aligned_draws() {
+    let prepared = confounded();
+    // P(Y | do(S=1), Z=1) = 0.9 at the declared tables; the draws spread around it.
+    let claim = prepared
+        .observe_with_parameter_uncertainty(
+            &ParameterRedrawRequest {
+                request: ObservationRequest {
+                    operation: ObservationOperation::Intervention,
+                    outcome: "Y".into(),
+                    conditioning: vec![direct("Z", "1")],
+                    interventions: vec![pair("S", "1")],
+                    continuous: ContinuousAssignments::default(),
+                },
+                retained: confounded_counts(),
+                prior: RedrawPrior::default(),
+                draws: 2000,
+                seed: 4,
+            },
+            &ctx(),
+        )
+        .unwrap();
+    let aligned = claim.parameter_draws().unwrap();
+    near(aligned.point[1], 0.9);
+    let (mean, _) = aligned.spread(1);
+    // Y | S=1, Z=1 has counts (5, 45): posterior mean 46 / 52.
+    assert!((mean - 46.0 / 52.0).abs() < 0.01);
+
+    // A regression on the chain: the draws of E[Y | do(X = 2)] and its variance, one joint
+    // realization per row.
+    let chain = gaussian_chain();
+    let x: Vec<f64> = (0..60_u32).map(|i| f64::from(i) / 12.0).collect();
+    let m: Vec<f64> =
+        x.iter().enumerate().map(|(i, v)| 0.5 + 2.0 * v + 0.3 * (5.0 * i as f64).sin()).collect();
+    let y: Vec<f64> = x
+        .iter()
+        .zip(&m)
+        .enumerate()
+        .map(|(i, (a, b))| -1.0 + 0.5 * a + 3.0 * b + 0.2 * (11.0 * i as f64).cos())
+        .collect();
+    let retained = vec![retain_regression("Y", &[("X", &x), ("M", &m)], &y).unwrap()];
+    let claim = chain
+        .observe_with_parameter_uncertainty(
+            &ParameterRedrawRequest {
+                request: ObservationRequest {
+                    operation: ObservationOperation::Intervention,
+                    outcome: "Y".into(),
+                    conditioning: Vec::new(),
+                    interventions: Vec::new(),
+                    continuous: ContinuousAssignments {
+                        observed: vec![real("M", 3.0)],
+                        interventions: vec![real("X", 2.0)],
+                    },
+                },
+                retained,
+                prior: RedrawPrior::default(),
+                draws: 1000,
+                seed: 2,
+            },
+            &ctx(),
+        )
+        .unwrap();
+    let aligned = claim.parameter_draws().unwrap();
+    assert_eq!(aligned.quantities, ["conditional_mean", "conditional_variance"]);
+    // The point value is the declared structural equation at X = 2, M = 3.
+    near(aligned.point[0], -1.0 + 1.0 + 9.0);
+    near(aligned.point[1], 0.25);
+    assert_eq!(claim.operation(), "parameter_redraw");
+}
+
+#[test]
+fn a_redraw_of_a_measured_signal_is_refused_with_a_next_attempt() {
+    let prepared = confounded();
+    let refusal = prepared
+        .observe_with_parameter_uncertainty(
+            &ParameterRedrawRequest {
+                request: ObservationRequest {
+                    operation: ObservationOperation::Conditioning,
+                    outcome: "Y".into(),
+                    conditioning: vec![measured(Some(assay_model("pop")), "1")],
+                    interventions: Vec::new(),
+                    continuous: ContinuousAssignments::default(),
+                },
+                retained: confounded_counts(),
+                prior: RedrawPrior::default(),
+                draws: 100,
+                seed: 1,
+            },
+            &ctx(),
+        )
+        .unwrap_err();
+    assert_eq!(refusal.code(), "route_not_supported");
+    assert_eq!(refusal_details(&refusal), ["observation_query.measured_signal_not_redrawn"]);
 }

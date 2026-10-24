@@ -31,6 +31,22 @@ What this is, and is not:
   its confusion matrix against the model's own law.
 * **A level no evidence reaches is refused**, with the supremum (raising) or infimum (lowering)
   that is reachable stated in ``supplied``.
+* **Continuous variables** are conditioned with typed real values, never level strings:
+  :func:`condition_on_values` answers ``P(outcome | observed values)`` and, with ``interventions=``,
+  ``P(outcome | do(...), observed values)`` on a linear-Gaussian composition (the conditional mean
+  and variance, by the Schur complement of the observed block of the joint law).
+* **Observing after intervening** on a finite model, ``P(y | do(s), z)``, is
+  ``intervene_on(..., given=...)``: the interventional law conditioned on the recorded values of
+  variables that are not themselves intervened on. A variable that is both recorded and set, and a
+  measured signal on an intervened variable, are refused
+  (``observation_query.mixed_conditioning_and_intervention``).
+* **Parameter uncertainty** is :func:`parameter_uncertainty`: the parameters of mechanisms whose
+  fitting data was retained (:class:`RegressionData`, :class:`CountData`) are redrawn from their
+  conjugate posterior (Normal-Inverse-Gamma, Dirichlet) and the query is re-answered under each
+  draw. The result is aligned draws (:attr:`ObservationClaim.parameter_draws`); their spread is
+  labelled ``uncalibrated_spread`` and an interval is returned by
+  :meth:`ObservationClaim.parameter_interval` only when a currently attesting coverage record
+  governs the construction, and is otherwise refused.
 
 Every refusal is an :class:`ObservationQueryRefusal` with a registered ``reason_code``, an
 ``observation_query.*`` ``detail`` and a remedy. Every number, identity and the artifact is
@@ -58,21 +74,29 @@ from .errors import CausalTypeError, CausalValueError
 __all__ = [
     "Assigned",
     "ConsumedObservationClaim",
+    "CountData",
     "CountFittedObservation",
+    "GaussianConditional",
     "Hypothetical",
     "Measured",
     "ObservationClaim",
     "ObservationQueryRefusal",
     "PairedLaw",
+    "ParameterDraws",
+    "ParameterInterval",
     "Recorded",
+    "RedrawPrior",
+    "RegressionData",
     "ThresholdRow",
     "condition_on",
+    "condition_on_values",
     "condition_versus_intervene",
     "conjugate_posterior",
     "consume_observation_query_artifact",
     "count_fitted_observation",
     "finite_posterior",
     "intervene_on",
+    "parameter_uncertainty",
     "required_bayes_factor",
     "required_observations_binary_signal",
     "required_observations_conjugate",
@@ -282,6 +306,68 @@ class ThresholdRow:
     crosses: bool
 
 
+@dataclass(frozen=True, slots=True)
+class GaussianConditional:
+    """The conditional law of a continuous outcome given observed real values.
+
+    ``evidence_log_density`` is the log density of the observed values under their marginal law
+    (``None`` when nothing was observed).
+    """
+
+    mean: float
+    variance: float
+    evidence_log_density: float | None
+
+
+@dataclass(frozen=True, slots=True)
+class ParameterDraws:
+    """Aligned posterior draws of the queried quantities.
+
+    One row of :attr:`values` is one joint realization of every quantity in :attr:`quantities`
+    (one parameter draw produced them all); rows are paired only under
+    :attr:`alignment_identity`. :attr:`point` is each quantity under the composition's own fitted
+    numbers. The spread (:meth:`spread`) is exact for the posterior but makes no coverage
+    statement: :attr:`reading` is ``uncalibrated_spread``.
+    """
+
+    quantities: tuple[str, ...]
+    point: tuple[float, ...]
+    values: tuple[tuple[float, ...], ...]
+    alignment_identity: str
+    reading: str
+
+    @property
+    def draws(self) -> int:
+        """Number of draws."""
+        return len(self.values)
+
+    def column(self, quantity: str) -> tuple[float, ...]:
+        """The draws of one quantity."""
+        index = self.quantities.index(quantity)
+        return tuple(row[index] for row in self.values)
+
+    def spread(self, quantity: str) -> tuple[float, float]:
+        """``(mean, sample standard deviation)`` of one quantity over the draws."""
+        column = self.column(quantity)
+        n = len(column)
+        mean = math.fsum(column) / n
+        variance = math.fsum((v - mean) ** 2 for v in column) / (n - 1)
+        return mean, math.sqrt(variance)
+
+
+@dataclass(frozen=True, slots=True)
+class ParameterInterval:
+    """An interval of one redrawn quantity that a currently attesting coverage record licensed."""
+
+    quantity: str
+    coordinate_id: str
+    record_id: str
+    construction: str
+    nominal_level: float
+    label: str
+    bounds: tuple[float, float] | None
+
+
 def _levels(pairs: Any) -> dict[str, float]:
     return {str(level): float(p) for level, p in pairs}
 
@@ -290,9 +376,11 @@ def _levels(pairs: Any) -> dict[str, float]:
 class ObservationClaim(ScientificResult):
     """One answered query: the value, how to read it, and the identity binding the operation.
 
-    ``operation`` is one of ``conditioning``, ``intervention``, ``conditioning_and_intervention``,
-    ``threshold_crossing``, ``posterior_update`` or ``evidence_requirement``. ``artifact`` is the
-    sealed ``observation_query_v1`` artifact, replayed by
+    ``operation`` is one of ``conditioning``, ``intervention``, ``conditional_intervention``,
+    ``conditioning_and_intervention``, ``threshold_crossing``, ``posterior_update``,
+    ``evidence_requirement`` or ``parameter_redraw``. ``artifact`` is the sealed
+    ``observation_query_v1`` artifact (or, for the general queries, ``observation_query_general_v1``;
+    an older reader refuses it by version), replayed by
     :func:`consume_observation_query_artifact`. Only the accessors of the claim's own kind carry a
     value; the others are ``None``.
     """
@@ -331,6 +419,67 @@ class ObservationClaim(ScientificResult):
         """Probability of the observed evidence under the model, when the claim has one."""
         value = self._result.get("evidence_probability", self._result.get("conditioning_evidence"))
         return None if value is None else float(value)
+
+    @property
+    def gaussian(self) -> GaussianConditional | None:
+        """The conditional mean and variance of a claim on a linear-Gaussian composition."""
+        if self.kind != "gaussian_conditional":
+            return None
+        r = self._result
+        density = r.get("evidence_log_density")
+        return GaussianConditional(
+            mean=float(r["mean"]),
+            variance=float(r["variance"]),
+            evidence_log_density=None if density is None else float(density),
+        )
+
+    @property
+    def parameter_draws(self) -> ParameterDraws | None:
+        """The aligned posterior draws of a parameter-uncertainty claim."""
+        if self.kind != "parameter_draws":
+            return None
+        r = self._result
+        return ParameterDraws(
+            quantities=tuple(str(q) for q in r["quantities"]),
+            point=tuple(float(v) for v in r["point"]),
+            values=tuple(tuple(float(v) for v in row) for row in r["values"]),
+            alignment_identity=str(r["alignment_identity"]),
+            reading=str(r["reading"]),
+        )
+
+    def parameter_interval(
+        self, quantity: str, construction: str, *, evidence_rows: int
+    ) -> ParameterInterval:
+        """The interval of one redrawn quantity, licensed only by a measured coverage record.
+
+        ``evidence_rows`` is declared, not authenticated: the number of observations behind the
+        least-supported retained mechanism. No record is measured for any coordinate yet, so this
+        raises the typed refusal; use :meth:`ParameterDraws.spread` for the labelled
+        ``uncalibrated_spread``.
+
+        Raises:
+            ObservationQueryRefusal: ``cell_not_licensed`` without a currently attesting record
+                at this composed coordinate, construction, level and size.
+        """
+        raw = _unwrap(
+            _native.observation_query_parameter_interval(
+                self._artifact_bytes,
+                _name(quantity, "quantity"),
+                _name(construction, "construction"),
+                _count(evidence_rows, "evidence_rows"),
+            )
+        )
+        wire = json.loads(raw)
+        bounds = wire.get("bounds")
+        return ParameterInterval(
+            quantity=str(wire["quantity"]),
+            coordinate_id=str(wire["coordinate_id"]),
+            record_id=str(wire["record_id"]),
+            construction=str(wire["construction"]),
+            nominal_level=float(wire["nominal_level"]),
+            label=str(wire["label"]),
+            bounds=None if bounds is None else (float(bounds[0]), float(bounds[1])),
+        )
 
     @property
     def distribution(self) -> dict[str, float] | None:
@@ -489,7 +638,7 @@ def condition_on(
 
     Raises:
         ObservationQueryRefusal: the slot refusals above, an unknown variable or level, evidence
-            of probability zero, or a linear-Gaussian composition.
+            of probability zero, or a linear-Gaussian composition (use :func:`condition_on_values`).
     """
     wire = {
         "operation": "conditioning",
@@ -507,17 +656,24 @@ def intervene_on(
     outcome: str,
     interventions: Mapping[str, Any],
     *,
+    given: Sequence[Slot] | Mapping[str, Any] | None = None,
     cancel: Any = None,
 ) -> ObservationClaim:
-    """``P(outcome | do(interventions))`` on a composed finite model.
+    """``P(outcome | do(interventions))``, or ``P(outcome | do(interventions), given)``.
+
+    With ``given`` the claim is the interventional law conditioned on recorded values of variables
+    that are not themselves intervened on (its operation is ``conditional_intervention``).
 
     Raises:
-        ObservationQueryRefusal: an unknown variable or level, or a linear-Gaussian composition.
+        ObservationQueryRefusal: an unknown variable or level; a variable both recorded and
+            intervened on, or a measured signal on an intervened variable
+            (``observation_query.mixed_conditioning_and_intervention``); a linear-Gaussian
+            composition (use :func:`condition_on_values`).
     """
     wire = {
         "operation": "intervention",
         "outcome": _name(outcome, "outcome"),
-        "conditioning": [],
+        "conditioning": _slots(given),
         "interventions": _assignment(interventions, "interventions"),
     }
     return _claim(
@@ -539,6 +695,184 @@ def condition_versus_intervene(
             _name(outcome, "outcome"),
             _dumps(_assignment(assignment, "assignment")),
             cancel=cancel,
+        )
+    )
+
+
+def _real_assignment(values: Mapping[str, Any] | None, what: str) -> list[list[Any]]:
+    if values is None:
+        return []
+    if not isinstance(values, Mapping):
+        raise CausalTypeError(f"{what} must be a mapping of variable to real value")
+    return [[_name(v, f"{what} variable"), _number(x, f"{what} value")] for v, x in values.items()]
+
+
+def condition_on_values(
+    composition: Any,
+    outcome: str,
+    observed: Mapping[str, float] | None = None,
+    *,
+    interventions: Mapping[str, float] | None = None,
+    cancel: Any = None,
+) -> ObservationClaim:
+    """``P(outcome | observed values)`` or ``P(outcome | do(...), observed values)`` on a
+    linear-Gaussian composition.
+
+    ``observed`` and ``interventions`` map variables to typed real values. The claim carries the
+    conditional mean and variance of the outcome (:attr:`ObservationClaim.gaussian`), computed by
+    the Schur complement of the observed block of the (possibly intervened) joint law, and the
+    log density of the observed values. A variable cannot be both observed and intervened on.
+
+    Raises:
+        ObservationQueryRefusal: a non-finite value, a repeated or assigned outcome, a variable
+            both observed and intervened on, observed values of singular covariance, or a finite
+            composition (use :func:`condition_on`).
+    """
+    wire = {
+        "operation": "intervention" if interventions else "conditioning",
+        "outcome": _name(outcome, "outcome"),
+        "conditioning": [],
+        "interventions": [],
+        "continuous": {
+            "observed": _real_assignment(observed, "observed"),
+            "interventions": _real_assignment(interventions, "interventions"),
+        },
+    }
+    return _claim(
+        _native.observation_query_observe(_handle(composition), _dumps(wire), cancel=cancel)
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class RegressionData:
+    """The data a linear-Gaussian mechanism was fitted from, retained for redraw.
+
+    ``y`` is the mechanism's variable and ``parents`` maps each declared parent to its column,
+    all of the same length; the regression has an intercept. The parents must be exactly the
+    mechanism's declared parents.
+    """
+
+    variable: str
+    y: Sequence[float]
+    parents: Mapping[str, Sequence[float]] = field(default_factory=dict)
+
+    def to_wire(self) -> dict[str, Any]:
+        return {
+            "kind": "regression",
+            "variable": _name(self.variable, "variable"),
+            "y": [_number(v, "y") for v in self.y],
+            "parents": {
+                _name(name, "parent"): [_number(v, "parent value") for v in column]
+                for name, column in self.parents.items()
+            },
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class CountData:
+    """The counts a finite mechanism was fitted from, retained for redraw.
+
+    ``rows`` holds one ``(parent configuration, level counts)`` pair per parent configuration of
+    the mechanism's table: a mapping of parent to level and a mapping of level to count.
+    """
+
+    variable: str
+    rows: Sequence[tuple[Mapping[str, str], Mapping[str, int]]]
+
+    def to_wire(self) -> dict[str, Any]:
+        return {
+            "kind": "counts",
+            "variable": _name(self.variable, "variable"),
+            "rows": [
+                [
+                    [[_name(p, "parent"), str(level)] for p, level in config.items()],
+                    [[str(level), _count(n, "count")] for level, n in counts.items()],
+                ]
+                for config, counts in self.rows
+            ],
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class RedrawPrior:
+    """Priors of the redraw: every parameter is finite and positive.
+
+    ``dirichlet_alpha`` is added to every table count; ``coefficient_precision`` is the prior
+    precision of each regression coefficient relative to the error variance; ``variance_shape``
+    and ``variance_scale`` are the Inverse-Gamma prior of the error variance. The defaults are
+    weak (a uniform Dirichlet, near-flat coefficients, a near-Jeffreys variance).
+    """
+
+    dirichlet_alpha: float = 1.0
+    coefficient_precision: float = 1e-6
+    variance_shape: float = 1e-3
+    variance_scale: float = 1e-3
+
+    def to_wire(self) -> dict[str, float]:
+        return {
+            "dirichlet_alpha": _number(self.dirichlet_alpha, "dirichlet_alpha"),
+            "coefficient_precision": _number(self.coefficient_precision, "coefficient_precision"),
+            "variance_shape": _number(self.variance_shape, "variance_shape"),
+            "variance_scale": _number(self.variance_scale, "variance_scale"),
+        }
+
+
+def parameter_uncertainty(
+    composition: Any,
+    outcome: str,
+    *,
+    retained: Sequence[RegressionData | CountData],
+    given: Sequence[Slot] | Mapping[str, Any] | None = None,
+    interventions: Mapping[str, Any] | None = None,
+    observed_values: Mapping[str, float] | None = None,
+    draws: int = 2000,
+    seed: int = 0,
+    prior: RedrawPrior | None = None,
+    cancel: Any = None,
+) -> ObservationClaim:
+    """The parameter uncertainty of a conditional query, by retained-data redraw.
+
+    The mechanisms named in ``retained`` have their parameters redrawn from their conjugate
+    posterior (Normal-Inverse-Gamma for a regression, Dirichlet for a table); the other
+    mechanisms stay at their declared numbers. The query is re-answered under each draw, and the
+    result is aligned draws (:attr:`ObservationClaim.parameter_draws`): a conditional mean and
+    variance for a linear-Gaussian composition (``observed_values`` and real-valued
+    ``interventions``), or the probability of every outcome level for a finite one (``given``
+    and level ``interventions``).
+
+    Draws are exact posterior draws given the priors and carry no coverage statement; their
+    spread is the labelled ``uncalibrated_spread``. A measured signal is not redrawn.
+
+    Raises:
+        ObservationQueryRefusal: the refusals of the underlying query; retained data that does
+            not match the composition (or a mechanism with declared shared latents); a prior or a
+            draw count outside its range; evidence of probability zero under a draw.
+    """
+    if not retained:
+        raise CausalValueError("retained must name at least one mechanism's data")
+    finite = getattr(composition, "family", None) == "tabular"
+    request: dict[str, Any] = {
+        "operation": "intervention" if interventions else "conditioning",
+        "outcome": _name(outcome, "outcome"),
+        "conditioning": _slots(given) if finite else [],
+        "interventions": (
+            _assignment(interventions, "interventions") if finite and interventions else []
+        ),
+    }
+    if not finite:
+        request["continuous"] = {
+            "observed": _real_assignment(observed_values, "observed_values"),
+            "interventions": _real_assignment(interventions, "interventions"),
+        }
+    uncertainty = {
+        "retained": [item.to_wire() for item in retained],
+        "prior": (prior or RedrawPrior()).to_wire(),
+        "draws": _count(draws, "draws"),
+        "seed": _count(seed, "seed"),
+    }
+    return _claim(
+        _native.observation_query_observe_with_uncertainty(
+            _handle(composition), _dumps(request), _dumps(uncertainty), cancel=cancel
         )
     )
 

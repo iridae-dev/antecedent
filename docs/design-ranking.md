@@ -364,11 +364,82 @@ Runnable examples: [`rank_designs.py`](https://github.com/iridae-dev/antecedent/
 (net value) and [`decision_lifecycle.py`](https://github.com/iridae-dev/antecedent/blob/v2.4.1/examples/python/decision_lifecycle.py)
 (contract to ranking).
 
+## From a failed identification to a ranked evidence plan
+
+A not-identified result owes evidence, and several kinds of study can supply it.
+`repair.FailureContract` freezes the failure (graph, treatment, outcome, the variables
+measured so far and, optionally, a non-robust `repair.SensitivityFinding`) as every
+theorem route a study could repair: back-door, front-door, instrument, hedge and the
+sensitivity confounder. Three steps follow.
+
+**Candidate templates.** `repair.candidate_templates(contract)` restates the verified
+obligations as unfinished studies. The kind, population, hard interventions, measured
+variables, joint measurement and expected evidence come from the obligations; an
+instrument route also proposes an `instrument` study and a `natural_experiment`, the
+repeated-measurement alternative a `panel`. Cost, timing, recruitment, unit rules,
+feasibility and sample size are facts about a real study that only you know, so a
+template refuses `validate()` (`study_candidate.declarations_required`) and becomes a
+`StudyCandidate` only through `template.complete(...)`, where each is required and none is
+defaulted. An assumption (an instrument's validity, the time invariance a panel relies on)
+is never addressed by a study; it is returned in `generation.unmatched` with its reason.
+
+**Verification and order.** `design.evidence_plan(contract, candidates)` asks every route's
+own theorem checker which declared studies (or bounded subsets) would identify the effect.
+The options are ordered by the identification gate first (`verified_sufficient`, then
+`not_certified` with its reason, `insufficient`, `unevaluated`, `invalid`) and only then,
+with `value=design.EvidenceValue(...)`, by expected value of sample information net of the
+declared `CostMap`: a study never outranks a verified one because it promises more
+information. All studies must declare one cost unit (`design_cost_units_mismatch`
+otherwise). Each option states what it resolves, what it costs and what remains
+unresolved, including the assumptions no study can establish. A subset of studies has no
+value of its own (values do not add), so it is listed unvalued. A search a budget stopped is
+`budget_exhausted` and never an impossibility claim; the ordering is `point_only` with
+calibration `unmeasured`.
+
+```python
+contract = repair.FailureContract(graph=graph, treatment="t", outcome="y",
+                                  population="study", observed=["t", "y"])
+cohort = repair.candidate_templates(contract)[0].complete(
+    sample_size=200, recruitment="registry", timing="baseline", unit="patient",
+    cost=5, cost_unit="usd", sample_budget=200, feasible=True)
+plan = design.evidence_plan(contract, [cohort])
+plan.best.resolves, plan.best.unresolved, plan.explain()
+design.consume_plan(plan.export())           # independent replay of every route and value
+```
+
+**Unlocks and structure from the evidence.** `plan.variable_unlocks()` is the list for
+`rank_designs(variable_unlocks=...)`, derived from the studies a repair search verified
+sufficient on their own; a study that merely names a variable, or only adds rows, is
+listed unverified and never credited. In Rust, `design::rank_studies_bound` does the same
+for a prepared contract: unverified studies are reported as `unlicensed_candidate`
+violations, so a `Measure` candidate is licensed by the verified obligation instead of a
+hand-written list. `design.StructurePrior.from_graphs(...)` derives the `identified` flags
+of a graph posterior by running the complete ID algorithm on each structure, and
+`identified_under_intervention` on each structure's mutilated graph (every edge into the
+intervened variables removed).
+
+**Valuing the confounder a sensitivity analysis names.** The assumption range of a
+sensitivity surface says what is possible, not what is probable, so it cannot be valued
+by itself. `design.confounder_decision(artifact, design.ConfounderPrior(declared_by, basis,
+draws_per_coordinate))` reads the surface's exact per-coordinate utilities (nothing is
+interpolated between grid points) and values learning the coordinate only under the prior
+you declare, which is recorded in the ranking's sources. A surface with an assumption
+range, or an unevaluated grid point, is refused (`confounder_value.range_surface`,
+`confounder_value.unevaluated_point`).
+
 ## Where it fits
 
 Study candidates also come from [identification repair](decisions-breadth.md#repair),
 which names the evidence a failed contract owes; the ranking values the studies
-that would supply it. A ranking exported here is a `study_ranking` bundle node (see
+that would supply it. A failed identification owes evidence per identifier: back-door
+adjustment (a joint law over the adjustment set), front-door adjustment (a mediator
+set), an instrument (its validity stays an assumption no study satisfies), a hedge
+(experiments on the treatment or on a verified surrogate on the hedge) and a
+non-robust sensitivity finding (the unmeasured confounder to measure). Each is a
+repair contract that refuses `not_a_failure` when the observed law already
+identifies the effect, and the obligations it exposes are the unlocks a design
+ranking should value; see
+[evidence that would resolve a not-identified result](refusal-and-partial-knowledge.md#evidence-that-would-resolve-a-not-identified-result). A ranking exported here is a `study_ranking` bundle node (see
 [composition](composition.md)), and the full path from analysis to ranking is the
 [lifecycle](lifecycle.md). The route-by-route scope table is in
 [decisions, design, repair and estimator breadth](decisions-breadth.md#signals-evsi-and-design-ranking).

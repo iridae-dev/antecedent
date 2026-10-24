@@ -14,8 +14,9 @@ use antecedent::analysis::observation_posterior::{
     FiniteBayesInput, conjugate_posterior, finite_posterior,
 };
 use antecedent::analysis::observation_query::{
-    Direction, ObservationClaim, ObservationQueryRefusal, ObservationRequest,
-    ObservationResultWire, consume_observation_query_artifact,
+    ContinuousAssignments, Direction, ObservationClaim, ObservationQueryRefusal,
+    ObservationRequest, ObservationResultWire, ParameterRedrawRequest, RedrawPrior,
+    consume_observation_query_artifact, retain_counts, retain_regression,
 };
 use antecedent_contract::{
     ExternalRefusal, InferenceBasis, MeasuredIndicator, ObservationOperation, ObservedSlot,
@@ -27,7 +28,7 @@ use pyo3::types::PyBytes;
 use serde_json::{Map, Value as Json, json};
 
 use crate::measurement_model_api::{
-    list, member, object, opt_text, parse, parse_model, present, real, small, text,
+    list, member, object, opt_text, parse, parse_model, present, real, reals, small, text,
 };
 use crate::mechanism_composition_api::PreparedCompositionHandle;
 use crate::transport_common::execution_context;
@@ -115,6 +116,41 @@ fn result_json(result: &ObservationResultWire) -> Json {
                 "crosses": x,
             })).collect::<Vec<_>>(),
         }),
+        ObservationResultWire::GaussianConditional {
+            operation,
+            mean_bits,
+            variance_bits,
+            evidence_log_density_bits,
+        } => json!({
+            "kind": "gaussian_conditional",
+            "operation": operation,
+            "mean": f64::from_bits(*mean_bits),
+            "variance": f64::from_bits(*variance_bits),
+            "evidence_log_density": evidence_log_density_bits.map(f64::from_bits),
+        }),
+        ObservationResultWire::ParameterDraws {
+            quantities,
+            draws,
+            point_bits,
+            values_bits,
+            alignment_identity,
+            reading,
+        } => {
+            let width = quantities.len().max(1);
+            let rows: Vec<Json> = values_bits
+                .chunks(width)
+                .map(|row| Json::Array(row.iter().map(|b| json!(f64::from_bits(*b))).collect()))
+                .collect();
+            json!({
+                "kind": "parameter_draws",
+                "quantities": quantities,
+                "draws": draws,
+                "point": point_bits.iter().map(|b| f64::from_bits(*b)).collect::<Vec<_>>(),
+                "values": rows,
+                "alignment_identity": alignment_identity,
+                "reading": reading,
+            })
+        }
         ObservationResultWire::FinitePosterior {
             posterior,
             log_evidence_bits,
@@ -262,6 +298,36 @@ fn parse_pairs(map: &Map<String, Json>, key: &str) -> PyResult<Vec<(String, Stri
         .collect()
 }
 
+fn parse_real_pairs(map: &Map<String, Json>, key: &str) -> PyResult<Vec<(String, f64)>> {
+    match map.get(key) {
+        None | Some(Json::Null) => Ok(Vec::new()),
+        Some(Json::Array(entries)) => entries
+            .iter()
+            .map(|entry| {
+                let pair = entry.as_array().filter(|p| p.len() == 2 && p[0].is_string());
+                pair.and_then(|p| {
+                    p[1].as_f64().map(|v| (p[0].as_str().unwrap_or_default().to_owned(), v))
+                })
+                .ok_or_else(|| crate::value_err(format!("`{key}` must hold [name, value] pairs")))
+            })
+            .collect(),
+        Some(_) => Err(crate::value_err(format!("`{key}` must be a list"))),
+    }
+}
+
+fn parse_continuous(map: &Map<String, Json>) -> PyResult<ContinuousAssignments> {
+    match map.get("continuous") {
+        None | Some(Json::Null) => Ok(ContinuousAssignments::default()),
+        Some(value) => {
+            let inner = object(value, "continuous assignments")?;
+            Ok(ContinuousAssignments {
+                observed: parse_real_pairs(inner, "observed")?,
+                interventions: parse_real_pairs(inner, "interventions")?,
+            })
+        }
+    }
+}
+
 fn parse_request(value: &Json) -> PyResult<ObservationRequest> {
     let map = object(value, "observation request")?;
     let operation = match text(map, "operation")?.as_str() {
@@ -274,7 +340,72 @@ fn parse_request(value: &Json) -> PyResult<ObservationRequest> {
         outcome: text(map, "outcome")?,
         conditioning: parse_slots(map, "conditioning")?,
         interventions: parse_pairs(map, "interventions")?,
+        continuous: parse_continuous(map)?,
     })
+}
+
+fn opt_real(map: &Map<String, Json>, key: &str) -> PyResult<Option<f64>> {
+    match present(map, key) {
+        None => Ok(None),
+        Some(_) => real(map, key).map(Some),
+    }
+}
+
+fn parse_retained(
+    value: &Json,
+) -> PyResult<
+    Result<antecedent::analysis::observation_query::RetainedMechanismWire, ObservationQueryRefusal>,
+> {
+    let map = object(value, "retained mechanism")?;
+    let variable = text(map, "variable")?;
+    match text(map, "kind")?.as_str() {
+        "regression" => {
+            let y = reals(map, "y")?;
+            let parents_value = object(member(map, "parents")?, "retained parents")?;
+            let mut columns: Vec<(String, Vec<f64>)> = Vec::new();
+            for name in parents_value.keys() {
+                columns.push((name.clone(), reals(parents_value, name)?));
+            }
+            let borrowed: Vec<(&str, &[f64])> =
+                columns.iter().map(|(n, c)| (n.as_str(), c.as_slice())).collect();
+            Ok(retain_regression(&variable, &borrowed, &y))
+        }
+        "counts" => {
+            let rows = list(map, "rows")?
+                .iter()
+                .map(|entry| {
+                    let pair = entry.as_array().filter(|p| p.len() == 2);
+                    let parsed = pair.and_then(|p| {
+                        let config = p[0]
+                            .as_array()?
+                            .iter()
+                            .map(|c| {
+                                let c = c.as_array().filter(|c| c.len() == 2)?;
+                                Some((c[0].as_str()?.to_owned(), c[1].as_str()?.to_owned()))
+                            })
+                            .collect::<Option<Vec<_>>>()?;
+                        let counts = p[1]
+                            .as_array()?
+                            .iter()
+                            .map(|c| {
+                                let c = c.as_array().filter(|c| c.len() == 2)?;
+                                Some((c[0].as_str()?.to_owned(), c[1].as_u64()?))
+                            })
+                            .collect::<Option<Vec<_>>>()?;
+                        Some((config, counts))
+                    });
+                    parsed.ok_or_else(|| {
+                        crate::value_err(
+                            "`rows` must hold [[[parent, level], ...], [[level, count], ...]] entries"
+                                .to_owned(),
+                        )
+                    })
+                })
+                .collect::<PyResult<Vec<_>>>()?;
+            Ok(Ok(retain_counts(&variable, rows)))
+        }
+        other => Err(crate::value_err(format!("unknown retained mechanism kind `{other}`"))),
+    }
 }
 
 // ---------------------------------------------------------------- entry points
@@ -295,6 +426,94 @@ fn observation_query_observe(
         Ok(inner.observe(&request, &ctx))
     })?;
     Ok(claimed(py, outcome))
+}
+
+/// Answer a conditional query with its parameter uncertainty by retained-data redraw.
+#[pyfunction]
+#[pyo3(signature = (handle, request_json, uncertainty_json, *, cancel=None))]
+fn observation_query_observe_with_uncertainty(
+    py: Python<'_>,
+    handle: PyRef<'_, PreparedCompositionHandle>,
+    request_json: &str,
+    uncertainty_json: &str,
+    cancel: Option<crate::PyCancellationToken>,
+) -> PyResult<Refused<Claimed>> {
+    let request = parse_request(&parse(request_json, "observation request")?)?;
+    let value = parse(uncertainty_json, "parameter uncertainty")?;
+    let map = object(&value, "parameter uncertainty")?;
+    let mut retained = Vec::new();
+    for entry in list(map, "retained")? {
+        match parse_retained(entry)? {
+            Ok(item) => retained.push(item),
+            Err(refusal) => return Ok(refused(&refusal)),
+        }
+    }
+    let defaults = RedrawPrior::default();
+    let prior = match present(map, "prior") {
+        None => defaults,
+        Some(prior) => {
+            let p = object(prior, "redraw prior")?;
+            RedrawPrior {
+                dirichlet_alpha: opt_real(p, "dirichlet_alpha")?
+                    .unwrap_or(defaults.dirichlet_alpha),
+                coefficient_precision: opt_real(p, "coefficient_precision")?
+                    .unwrap_or(defaults.coefficient_precision),
+                variance_shape: opt_real(p, "variance_shape")?.unwrap_or(defaults.variance_shape),
+                variance_scale: opt_real(p, "variance_scale")?.unwrap_or(defaults.variance_scale),
+            }
+        }
+    };
+    let draws = small(map, "draws")?;
+    let seed = match present(map, "seed") {
+        None => 0,
+        Some(_) => crate::measurement_model_api::unsigned(map, "seed")?,
+    };
+    let redraw = ParameterRedrawRequest { request, retained, prior, draws, seed };
+    let inner = handle.inner.clone();
+    let outcome = crate::detach_catch(py, move || {
+        let ctx = execution_context(0, None, cancel);
+        Ok(inner.observe_with_parameter_uncertainty(&redraw, &ctx))
+    })?;
+    Ok(claimed(py, outcome))
+}
+
+/// The interval of one redrawn quantity, or the typed refusal: `(json, refusal json)`.
+#[pyfunction]
+#[pyo3(signature = (artifact, quantity, construction, evidence_rows, *, cancel=None))]
+fn observation_query_parameter_interval(
+    py: Python<'_>,
+    artifact: &[u8],
+    quantity: &str,
+    construction: &str,
+    evidence_rows: u64,
+    cancel: Option<crate::PyCancellationToken>,
+) -> PyResult<Refused<String>> {
+    let bytes = artifact.to_vec();
+    let quantity = quantity.to_owned();
+    let construction = construction.to_owned();
+    let outcome = crate::detach_catch(py, move || {
+        let ctx = execution_context(0, None, cancel);
+        Ok(ObservationClaim::from_artifact(&bytes, None, &ctx)
+            .and_then(|claim| claim.parameter_interval(&quantity, &construction, evidence_rows)))
+    })?;
+    Ok(match outcome {
+        Ok(interval) => (
+            Some(
+                json!({
+                    "quantity": interval.quantity,
+                    "coordinate_id": interval.coordinate_id,
+                    "record_id": interval.record_id,
+                    "construction": interval.construction,
+                    "nominal_level": interval.nominal_level,
+                    "label": interval.label,
+                    "bounds": interval.bounds.map(|(lo, hi)| json!([lo, hi])),
+                })
+                .to_string(),
+            ),
+            None,
+        ),
+        Err(refusal) => refused(&refusal),
+    })
 }
 
 /// Both laws of one assignment from one model.
@@ -637,6 +856,8 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(count_fitted_observation_point, module)?)?;
     module.add_function(wrap_pyfunction!(count_fitted_observation_interval, module)?)?;
     module.add_function(wrap_pyfunction!(observation_query_observe, module)?)?;
+    module.add_function(wrap_pyfunction!(observation_query_observe_with_uncertainty, module)?)?;
+    module.add_function(wrap_pyfunction!(observation_query_parameter_interval, module)?)?;
     module.add_function(wrap_pyfunction!(observation_query_pair, module)?)?;
     module.add_function(wrap_pyfunction!(observation_query_threshold, module)?)?;
     module.add_function(wrap_pyfunction!(observation_query_finite_posterior, module)?)?;

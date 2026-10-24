@@ -258,6 +258,12 @@ def build() -> dict[str, object]:
             "properties": {
                 "claim_id": {"$ref": "#/$defs/digest"},
                 "kind": {"$ref": "#/$defs/claim_kind"},
+                "causal": {
+                    "type": "boolean",
+                    "description": "False for an associational claim: identification is not "
+                    "claimed, so the claim is never an intervention effect and is not counted "
+                    "as a causal one.",
+                },
                 "value": {"type": ["number", "null"]},
                 "outcome_units": {"type": ["string", "null"]},
                 "domains": {"$ref": "#/$defs/claim_domains"},
@@ -347,6 +353,45 @@ def build() -> dict[str, object]:
             "properties": {"id": {"type": "string"}, "description": {"type": "string"}},
             "additionalProperties": False,
         },
+        "licensed_neighbor": {
+            "type": "object",
+            "description": "A licensed alternative that changes named premises. An explicit "
+            "choice for the caller, never an automatic fallback.",
+            "required": ["coordinate", "changed", "required_action"],
+            "properties": {
+                "coordinate": {"type": "string"},
+                "changed": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": ["axis", "from", "to"],
+                        "properties": {
+                            "axis": {"type": "string"},
+                            "from": {"type": "string"},
+                            "to": {"type": "string"},
+                        },
+                        "additionalProperties": False,
+                    },
+                },
+                "required_action": {"type": "string"},
+            },
+            "additionalProperties": False,
+        },
+        "unmet_obligation": {
+            "type": "object",
+            "description": "An obligation of the contract that is not yet resolved: a check "
+            "that has not run or has failed.",
+            "required": ["id", "scope", "kind", "status", "description"],
+            "properties": {
+                "id": {"type": "string"},
+                "scope": {"type": "string"},
+                "kind": {"type": "string"},
+                "status": {"type": "string"},
+                "required_check": {"type": ["string", "null"]},
+                "description": {"type": "string"},
+            },
+            "additionalProperties": False,
+        },
         "operation_report": {
             "type": "object",
             "description": "Capability report for one operation, read before running it.",
@@ -360,9 +405,113 @@ def build() -> dict[str, object]:
                 "coordinate": {"type": ["string", "null"]},
                 "blockers": {"type": "array", "items": {"$ref": "#/$defs/blocker"}},
                 "next_actions": {"type": "array", "items": {"$ref": "#/$defs/next_action"}},
+                "neighbors": {"type": "array", "items": {"$ref": "#/$defs/licensed_neighbor"}},
+                "unmet_obligations": {
+                    "type": "array",
+                    "items": {"$ref": "#/$defs/unmet_obligation"},
+                },
                 "status": {"$ref": "#/$defs/host_status"},
             },
             "additionalProperties": True,
+        },
+        "fallback_unavailable": {
+            "type": "object",
+            "description": "A part of a descriptive fallback that is not provided, with the typed "
+            "reason it is not. Absence is never silent.",
+            "required": ["available", "part", "reason_code", "detail", "message"],
+            "properties": {
+                "available": {"const": False},
+                "part": {"enum": ["associational", "evidence_plan"]},
+                "reason_code": {"type": "string"},
+                "detail": {"type": "string"},
+                "message": {"type": "string"},
+            },
+            "additionalProperties": False,
+        },
+        "evidence_obligation": {
+            "type": "object",
+            "description": "Evidence an identification failure owes, with the proof step that "
+            "derives it. An establish_assumption obligation is satisfiable by no study.",
+            "required": ["id", "kind", "scope", "variables", "reason", "satisfiable_by_study"],
+            "properties": {
+                "id": {"type": "string"},
+                "kind": {"type": "string"},
+                "scope": {"type": "string"},
+                "variables": {"type": "array", "items": {"type": "string"}},
+                "reason": {"type": "string"},
+                "family": {"type": "string"},
+                "proof_step": {"type": ["string", "null"]},
+                "satisfiable_by_study": {"type": "boolean"},
+            },
+            "additionalProperties": False,
+        },
+        "fallback_response": {
+            "type": "object",
+            "description": "The opt-in descriptive fallback of an identification-class refusal. "
+            "The causal question stays refused: status and causal_status are unsupported and "
+            "refusal is the unchanged refusal. associational is a noncausal description of the "
+            "observed law (claim.causal is false, it ranks no action, and it is not an answer to "
+            "the causal question) or the typed reason there is none; evidence_plan carries the "
+            "obligations, next actions and ranked plan or the typed reason there is none. "
+            "associational_status shows the status of the noncausal claim beside the causal one.",
+            "required": [
+                "status",
+                "causal_status",
+                "associational_status",
+                "refusal",
+                "associational",
+                "evidence_plan",
+                "notice",
+            ],
+            "properties": {
+                "status": {"const": "unsupported"},
+                "causal_status": {"const": "unsupported"},
+                "associational_status": {
+                    "oneOf": [{"$ref": "#/$defs/host_status"}, {"const": "unavailable"}]
+                },
+                "refusal": {"$ref": "#/$defs/refusal"},
+                "associational": {
+                    "oneOf": [
+                        {
+                            "type": "object",
+                            "required": ["available", "noncausal", "ranks_actions", "claim"],
+                            "properties": {
+                                "available": {"const": True},
+                                "noncausal": {"const": True},
+                                "ranks_actions": {"const": False},
+                                "rule": {"type": "string"},
+                                "claim": {"$ref": "#/$defs/claim_envelope"},
+                            },
+                            "additionalProperties": False,
+                        },
+                        {"$ref": "#/$defs/fallback_unavailable"},
+                    ]
+                },
+                "evidence_plan": {
+                    "oneOf": [
+                        {
+                            "type": "object",
+                            "required": ["available", "obligations", "next_actions", "ranked_plan"],
+                            "properties": {
+                                "available": {"const": True},
+                                "obligations": {
+                                    "type": "array",
+                                    "items": {"$ref": "#/$defs/evidence_obligation"},
+                                },
+                                "next_actions": {
+                                    "type": "array",
+                                    "items": {"$ref": "#/$defs/next_action"},
+                                },
+                                "ranked_plan": {"type": "object"},
+                            },
+                            "additionalProperties": False,
+                        },
+                        {"$ref": "#/$defs/fallback_unavailable"},
+                    ]
+                },
+                "notice": {"type": "string"},
+            },
+            "additionalProperties": False,
         },
         "analysis_request": {
             "type": "object",
@@ -479,6 +628,9 @@ def build() -> dict[str, object]:
                 "kind refusal: unsupported",
                 "any domain contradicted or outside_scope: unsupported",
                 "kind incomplete or bounds: partial",
+                "kind associational, identification not_claimed and evaluated evaluated: "
+                "supported (a noncausal claim)",
+                "kind associational otherwise: partial",
                 "identification identified and evaluated evaluated (support may be unknown): "
                 "supported",
                 "otherwise: partial",
@@ -498,6 +650,7 @@ def build() -> dict[str, object]:
             "claim": {"$ref": "#/$defs/claim_envelope"},
             "refusal": {"$ref": "#/$defs/refusal"},
             "operation_report": {"$ref": "#/$defs/operation_report"},
+            "fallback": {"$ref": "#/$defs/fallback_response"},
             "status": {"$ref": "#/$defs/host_status"},
         },
         "$defs": defs,

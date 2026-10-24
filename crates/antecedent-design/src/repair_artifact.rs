@@ -52,6 +52,10 @@ use antecedent_io_core::transport_catalog_wire::{EvidenceCatalogWire, EvidenceRe
 use antecedent_io_core::wire::{AdmgWire, DagWire};
 use serde::{Deserialize, Serialize};
 
+use crate::identification_repair::{
+    FrontDoorRepairFamily, HedgeRepairFamily, InstrumentRepairFamily, SensitivityFinding,
+    SensitivityMethod, SensitivityRepairFamily,
+};
 use crate::repair::{
     BackdoorRepairFamily, FamilyVerdict, REPAIR_MAX_CANDIDATES, REPAIR_MAX_DEPTH,
     REPAIR_MAX_MEMORY_BYTES, REPAIR_MAX_OPERATIONS, REPAIR_RECEIPT_REGIONS, RepairCancelled,
@@ -303,6 +307,68 @@ pub struct BackdoorPremisesWire {
     pub assumptions: Vec<AssumptionWire>,
 }
 
+/// A sensitivity finding of a sensitivity contract.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SensitivityFindingWire {
+    /// `e_value`, `omitted_variable_bias` or `tipping`.
+    pub method: SensitivityMethodWire,
+    /// Confounder strength at which the conclusion is overturned.
+    pub strength: f64,
+    /// Whether the conclusion survives the plausible confounding.
+    pub robust: bool,
+}
+
+/// Name of the analysis behind a sensitivity finding, spelled on the wire.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SensitivityMethodWire {
+    /// E-value.
+    EValue,
+    /// Omitted-variable bias.
+    OmittedVariableBias,
+    /// Tipping search.
+    Tipping,
+}
+
+impl From<SensitivityMethod> for SensitivityMethodWire {
+    fn from(method: SensitivityMethod) -> Self {
+        match method {
+            SensitivityMethod::EValue => Self::EValue,
+            SensitivityMethod::OmittedVariableBias => Self::OmittedVariableBias,
+            SensitivityMethod::Tipping => Self::Tipping,
+        }
+    }
+}
+
+impl From<SensitivityMethodWire> for SensitivityMethod {
+    fn from(method: SensitivityMethodWire) -> Self {
+        match method {
+            SensitivityMethodWire::EValue => Self::EValue,
+            SensitivityMethodWire::OmittedVariableBias => Self::OmittedVariableBias,
+            SensitivityMethodWire::Tipping => Self::Tipping,
+        }
+    }
+}
+
+/// The structure of a front-door, instrument, hedge or sensitivity contract.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct IdentificationPremisesWire {
+    /// Directed graph (front-door, instrument and sensitivity contracts).
+    pub graph: Option<DagWire>,
+    /// Graph with bidirected edges (hedge contracts).
+    pub admg: Option<AdmgWire>,
+    /// Treatment.
+    pub treatment: u32,
+    /// Outcome.
+    pub outcome: u32,
+    /// Population of the contract.
+    pub population: String,
+    /// The finding of a sensitivity contract.
+    pub finding: Option<SensitivityFindingWire>,
+}
+
 /// Search limits in force.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -331,7 +397,8 @@ pub struct ZTransportPremisesWire {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RepairPremisesWire {
-    /// `transport` or `backdoor`.
+    /// `transport`, `backdoor`, `z_transport`, `frontdoor`, `instrument`, `hedge` or
+    /// `sensitivity`.
     pub family: String,
     /// The failed contract's identity.
     pub contract: String,
@@ -344,6 +411,9 @@ pub struct RepairPremisesWire {
     /// Checked z-transport snapshot and verification limits.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub z_transport: Option<ZTransportPremisesWire>,
+    /// Front-door, instrument, hedge or sensitivity structure.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub identification: Option<IdentificationPremisesWire>,
     /// Every declared candidate, in semantic-id order.
     pub candidates: Vec<DurableStudyCandidateWire>,
     /// Search limits.
@@ -356,7 +426,8 @@ pub struct RepairPremisesWire {
 pub struct RepairDataWire {
     /// Base evidence catalog (transport family).
     pub catalog: Option<EvidenceCatalogWire>,
-    /// Variables observed jointly with treatment and outcome (back-door family).
+    /// Variables observed jointly with treatment and outcome (back-door, front-door,
+    /// instrument, hedge and sensitivity families).
     pub base_law: Option<Vec<u32>>,
 }
 
@@ -516,6 +587,14 @@ pub enum RepairFamilyRef<'a> {
     Backdoor(&'a BackdoorRepairFamily),
     /// A checked single-source z-transport missing-evidence contract.
     ZTransport(&'a ZTransportRepairFamily),
+    /// A front-door adjustment contract.
+    FrontDoor(&'a FrontDoorRepairFamily),
+    /// An instrumental-variable contract.
+    Instrument(&'a InstrumentRepairFamily),
+    /// A hedge contract answered by experiments.
+    Hedge(&'a HedgeRepairFamily),
+    /// A sensitivity contract answered by measuring the confounder.
+    Sensitivity(&'a SensitivityRepairFamily),
 }
 
 impl RepairFamilyRef<'_> {
@@ -524,6 +603,10 @@ impl RepairFamilyRef<'_> {
             Self::Transport(family) => *family,
             Self::Backdoor(family) => *family,
             Self::ZTransport(family) => *family,
+            Self::FrontDoor(family) => *family,
+            Self::Instrument(family) => *family,
+            Self::Hedge(family) => *family,
+            Self::Sensitivity(family) => *family,
         }
     }
 }
@@ -552,6 +635,47 @@ fn dense_static(nodes: &[NodeRef]) -> bool {
     nodes.iter().enumerate().all(|(i, node)| {
         u32::try_from(i).is_ok_and(|i| *node == NodeRef::Static(VariableId::from_raw(i)))
     })
+}
+
+type GraphRouteWires = (
+    Option<TransportPremisesWire>,
+    Option<BackdoorPremisesWire>,
+    Option<ZTransportPremisesWire>,
+    Option<IdentificationPremisesWire>,
+    RepairDataWire,
+);
+
+/// The premises and data wires of a front-door, instrument or sensitivity contract.
+fn graph_route_wires(
+    dag: &antecedent_graph::Dag,
+    treatment: VariableId,
+    outcome: VariableId,
+    population: &str,
+    base_law: &[VariableId],
+    finding: Option<SensitivityFindingWire>,
+) -> Result<GraphRouteWires, RepairArtifactError> {
+    if !dense_static(dag.nodes()) {
+        return Err(RepairArtifactError::invalid(
+            "a contract graph must be the dense static variables 0..n to be stored",
+        ));
+    }
+    Ok((
+        None,
+        None,
+        None,
+        Some(IdentificationPremisesWire {
+            graph: Some(
+                antecedent_io_core::dag_to_wire(dag)
+                    .map_err(|e| RepairArtifactError::invalid(e.to_string()))?,
+            ),
+            admg: None,
+            treatment: treatment.raw(),
+            outcome: outcome.raw(),
+            population: population.to_owned(),
+            finding,
+        }),
+        RepairDataWire { catalog: None, base_law: Some(raw(base_law)) },
+    ))
 }
 
 fn digest<T: Serialize>(domain: IdentityDomain, value: &T) -> Result<String, RepairArtifactError> {
@@ -588,9 +712,7 @@ fn classification_from_name(name: &str) -> Result<RepairClassification, RepairAr
 }
 
 fn kind_from_name(name: &str) -> Result<StudyKind, RepairArtifactError> {
-    [StudyKind::Experiment, StudyKind::Observation, StudyKind::SampleIncrease]
-        .into_iter()
-        .find(|k| k.as_str() == name)
+    StudyKind::from_name(name)
         .ok_or_else(|| RepairArtifactError::invalid(format!("unknown study kind {name:?}")))
 }
 
@@ -920,7 +1042,7 @@ impl RepairReportArtifact {
             by_id.entry(candidate.semantic_id()).or_insert(candidate);
         }
         let limits = report.receipt.limits;
-        let (transport, backdoor, z_transport, data) = match family {
+        let (transport, backdoor, z_transport, identification, data) = match family {
             RepairFamilyRef::Transport(f) => {
                 let diagram = f.diagram();
                 if !dense_static(diagram.causal_graph().nodes()) {
@@ -941,6 +1063,7 @@ impl RepairReportArtifact {
                         sid_steps: f.sid_limits().steps,
                         sid_depth: f.sid_limits().depth,
                     }),
+                    None,
                     None,
                     None,
                     RepairDataWire {
@@ -985,6 +1108,7 @@ impl RepairReportArtifact {
                         assumptions,
                     }),
                     None,
+                    None,
                     RepairDataWire { catalog: None, base_law: Some(raw(&f.base_law())) },
                 )
             }
@@ -1003,7 +1127,63 @@ impl RepairReportArtifact {
                         sid_steps: f.sid_limits().steps,
                         sid_depth: f.sid_limits().depth,
                     }),
+                    None,
                     data,
+                )
+            }
+            RepairFamilyRef::FrontDoor(f) => graph_route_wires(
+                f.dag(),
+                f.treatment(),
+                f.outcome(),
+                f.population(),
+                &f.base_law(),
+                None,
+            )?,
+            RepairFamilyRef::Instrument(f) => graph_route_wires(
+                f.dag(),
+                f.treatment(),
+                f.outcome(),
+                f.population(),
+                &f.base_law(),
+                None,
+            )?,
+            RepairFamilyRef::Sensitivity(f) => {
+                let finding = f.finding();
+                graph_route_wires(
+                    f.dag(),
+                    f.treatment(),
+                    f.outcome(),
+                    f.population(),
+                    &f.base_law(),
+                    Some(SensitivityFindingWire {
+                        method: finding.method.into(),
+                        strength: finding.strength,
+                        robust: finding.robust,
+                    }),
+                )?
+            }
+            RepairFamilyRef::Hedge(f) => {
+                if !dense_static(f.admg().nodes()) {
+                    return Err(RepairArtifactError::invalid(
+                        "a hedge graph must be the dense static variables 0..n to be stored",
+                    ));
+                }
+                (
+                    None,
+                    None,
+                    None,
+                    Some(IdentificationPremisesWire {
+                        graph: None,
+                        admg: Some(
+                            antecedent_io_core::admg_to_wire(f.admg())
+                                .map_err(|e| RepairArtifactError::invalid(e.to_string()))?,
+                        ),
+                        treatment: f.treatment().raw(),
+                        outcome: f.outcome().raw(),
+                        population: f.population().to_owned(),
+                        finding: None,
+                    }),
+                    RepairDataWire { catalog: None, base_law: Some(raw(&f.base_law())) },
                 )
             }
         };
@@ -1027,6 +1207,10 @@ impl RepairReportArtifact {
                         RepairFamilyRef::Transport(f) => f.hypothetical_regimes(&members),
                         RepairFamilyRef::Backdoor(f) => f.hypothetical_regimes(&members),
                         RepairFamilyRef::ZTransport(f) => f.hypothetical_regimes(&members),
+                        RepairFamilyRef::FrontDoor(f) => f.hypothetical_regimes(&members),
+                        RepairFamilyRef::Instrument(f) => f.hypothetical_regimes(&members),
+                        RepairFamilyRef::Hedge(f) => f.hypothetical_regimes(&members),
+                        RepairFamilyRef::Sensitivity(f) => f.hypothetical_regimes(&members),
                     }
                     .map_err(|reasons| RepairArtifactError::invalid(reasons.join("; ")))?;
                     Some(regimes_wire(&regimes)?)
@@ -1045,6 +1229,7 @@ impl RepairReportArtifact {
                 transport,
                 backdoor,
                 z_transport,
+                identification,
                 candidates: declared.iter().map(|c| candidate_wire(c)).collect(),
                 limits: RepairLimitsWire {
                     operations: limits.search.operations,
@@ -1215,6 +1400,10 @@ enum Rebuilt {
     Transport(Box<TransportRepairFamily>),
     Backdoor(Box<BackdoorRepairFamily>),
     ZTransport(Box<ZTransportRepairFamily>),
+    FrontDoor(Box<FrontDoorRepairFamily>),
+    Instrument(Box<InstrumentRepairFamily>),
+    Hedge(Box<HedgeRepairFamily>),
+    Sensitivity(Box<SensitivityRepairFamily>),
 }
 
 impl Rebuilt {
@@ -1223,6 +1412,10 @@ impl Rebuilt {
             Self::Transport(family) => &**family,
             Self::Backdoor(family) => &**family,
             Self::ZTransport(family) => &**family,
+            Self::FrontDoor(family) => &**family,
+            Self::Instrument(family) => &**family,
+            Self::Hedge(family) => &**family,
+            Self::Sensitivity(family) => &**family,
         }
     }
 
@@ -1231,6 +1424,10 @@ impl Rebuilt {
             Self::Transport(family) => RepairFamilyRef::Transport(family),
             Self::Backdoor(family) => RepairFamilyRef::Backdoor(family),
             Self::ZTransport(family) => RepairFamilyRef::ZTransport(family),
+            Self::FrontDoor(family) => RepairFamilyRef::FrontDoor(family),
+            Self::Instrument(family) => RepairFamilyRef::Instrument(family),
+            Self::Hedge(family) => RepairFamilyRef::Hedge(family),
+            Self::Sensitivity(family) => RepairFamilyRef::Sensitivity(family),
         }
     }
 }
@@ -1264,6 +1461,75 @@ fn rebuild_z_transport(
     )))
 }
 
+/// Rebuild a front-door, instrument, hedge or sensitivity family from its stored
+/// premises and base law.
+fn rebuild_identification(
+    name: &str,
+    i: &IdentificationPremisesWire,
+    data: &RepairDataWire,
+) -> Result<Rebuilt, RepairArtifactError> {
+    if data.catalog.is_some() {
+        return Err(RepairArtifactError::invalid("a graph contract stores no catalog"));
+    }
+    let base_law = data
+        .base_law
+        .as_ref()
+        .ok_or_else(|| RepairArtifactError::invalid("a graph contract stores its base law"))?
+        .iter()
+        .copied()
+        .map(VariableId::from_raw);
+    let (treatment, outcome) = (VariableId::from_raw(i.treatment), VariableId::from_raw(i.outcome));
+    let population = i.population.as_str();
+    let dag = || {
+        i.graph
+            .as_ref()
+            .ok_or_else(|| RepairArtifactError::invalid("this contract stores a directed graph"))
+            .and_then(|g| {
+                antecedent_io_core::dag_from_wire(g)
+                    .map_err(|e| RepairArtifactError::invalid(e.to_string()))
+            })
+    };
+    let refused = |e: RepairError| repair_error_to_artifact(&e, true);
+    Ok(match (name, &i.admg, &i.finding) {
+        ("frontdoor", None, None) => Rebuilt::FrontDoor(Box::new(
+            FrontDoorRepairFamily::try_new(dag()?, treatment, outcome, population, base_law)
+                .map_err(refused)?,
+        )),
+        ("instrument", None, None) => Rebuilt::Instrument(Box::new(
+            InstrumentRepairFamily::try_new(dag()?, treatment, outcome, population, base_law)
+                .map_err(refused)?,
+        )),
+        ("sensitivity", None, Some(finding)) => Rebuilt::Sensitivity(Box::new(
+            SensitivityRepairFamily::try_new(
+                dag()?,
+                treatment,
+                outcome,
+                population,
+                base_law,
+                SensitivityFinding {
+                    method: finding.method.into(),
+                    strength: finding.strength,
+                    robust: finding.robust,
+                },
+            )
+            .map_err(refused)?,
+        )),
+        ("hedge", Some(admg), None) if i.graph.is_none() => {
+            let admg = antecedent_io_core::admg_from_wire(admg)
+                .map_err(|e| RepairArtifactError::invalid(e.to_string()))?;
+            Rebuilt::Hedge(Box::new(
+                HedgeRepairFamily::try_new(admg, treatment, outcome, population, base_law)
+                    .map_err(refused)?,
+            ))
+        }
+        _ => {
+            return Err(RepairArtifactError::invalid(
+                "the artifact names an unknown graph contract or an inconsistent premises layout",
+            ));
+        }
+    })
+}
+
 fn rebuild(
     artifact: &RepairReportArtifact,
     ctx: &ExecutionContext,
@@ -1274,8 +1540,16 @@ fn rebuild(
         &premises.transport,
         &premises.backdoor,
         &premises.z_transport,
+        &premises.identification,
     ) {
-        ("transport", Some(t), None, None) => {
+        (
+            name @ ("frontdoor" | "instrument" | "hedge" | "sensitivity"),
+            None,
+            None,
+            None,
+            Some(i),
+        ) => rebuild_identification(name, i, &artifact.data)?,
+        ("transport", Some(t), None, None, None) => {
             let catalog = artifact
                 .data
                 .catalog
@@ -1306,7 +1580,7 @@ fn rebuild(
                 .map_err(|e| repair_error_to_artifact(&e, true))?,
             ))
         }
-        ("backdoor", None, Some(b), None) => {
+        ("backdoor", None, Some(b), None, None) => {
             let dag = antecedent_io_core::dag_from_wire(&b.graph)
                 .map_err(|e| RepairArtifactError::invalid(e.to_string()))?;
             let base_law = artifact
@@ -1346,7 +1620,7 @@ fn rebuild(
                 .map_err(|e| repair_error_to_artifact(&e, true))?,
             ))
         }
-        ("z_transport", None, None, Some(z)) => rebuild_z_transport(z, &artifact.data, ctx)?,
+        ("z_transport", None, None, Some(z), None) => rebuild_z_transport(z, &artifact.data, ctx)?,
         _ => {
             return Err(RepairArtifactError::invalid(
                 "the artifact names an unknown repair family or an inconsistent premises layout",
@@ -1509,6 +1783,10 @@ impl RepairReportArtifact {
                 Rebuilt::Transport(family) => family.check_regimes(regimes, ctx),
                 Rebuilt::Backdoor(family) => family.check_regimes(&regimes, ctx),
                 Rebuilt::ZTransport(family) => family.check_regimes(regimes, ctx),
+                Rebuilt::FrontDoor(family) => family.check_regimes(&regimes, ctx),
+                Rebuilt::Instrument(family) => family.check_regimes(&regimes, ctx),
+                Rebuilt::Hedge(family) => family.check_regimes(&regimes, ctx),
+                Rebuilt::Sensitivity(family) => family.check_regimes(&regimes, ctx),
             }
             .map_err(|RepairCancelled| RepairArtifactError::budget("the replay was cancelled"))?;
             if classify_verdict(&verdict, blocked) != stored {

@@ -590,7 +590,64 @@ fn sensitivity_decide(
     }
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ConfounderPriorIn {
+    declared_by: String,
+    basis: String,
+    draws_per_coordinate: Vec<u32>,
+}
+
+/// The decision over the surface read as a value problem for learning the
+/// confounding coordinate, under the caller's declared prior: per-coordinate action
+/// utilities, the declared prior's draws and the identities to bind into a ranking.
+/// A surface with an assumption range, or an unevaluated point, is refused.
+#[pyfunction]
+fn sensitivity_confounder_value(
+    artifact: &PySensitivityArtifact,
+    prior_json: &str,
+) -> PyResult<(Option<String>, Option<String>)> {
+    check_size(prior_json)?;
+    let prior: ConfounderPriorIn = match serde_json::from_str(prior_json) {
+        Ok(prior) => prior,
+        Err(error) => return Ok((None, Some(declaration_refusal(&error.to_string())))),
+    };
+    let contract = match contract_from_artifact(&artifact.artifact, StructuralPolicy::ReportOnly) {
+        Ok(contract) => contract,
+        Err(error) => return Ok((None, Some(decision_refusal(&error)))),
+    };
+    let result = match decide(&contract, &artifact.artifact, &SensitivityDecisionSpec::default()) {
+        Ok(result) => result,
+        Err(error) => return Ok((None, Some(decision_refusal(&error)))),
+    };
+    let declaration = antecedent_design::ConfounderPriorDeclaration {
+        declared_by: prior.declared_by.into(),
+        basis: prior.basis.into(),
+        draws_per_coordinate: prior.draws_per_coordinate,
+    };
+    match antecedent_design::ConfounderValueFrame::from_sensitivity(&result, declaration) {
+        Ok(frame) => Ok((
+            Some(
+                json!({
+                    "coordinates": frame.coordinates,
+                    "action_ids": frame.action_ids,
+                    "utilities": frame.utilities,
+                    "prior_draws": frame.prior_draws(),
+                    "prior_identity": frame.prior.identity(),
+                    "artifact_identity": frame.artifact_identity,
+                    "source_digests": frame.source_digests(),
+                    "decision": decision_json(&result),
+                })
+                .to_string(),
+            ),
+            None,
+        )),
+        Err(error) => Ok((None, Some(refusal_json(error.code, error.detail, &error.message)))),
+    }
+}
+
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(sensitivity_confounder_value, m)?)?;
     m.add_class::<PySensitivityArtifact>()?;
     m.add_function(wrap_pyfunction!(sensitivity_artifact_from_surface, m)?)?;
     m.add_function(wrap_pyfunction!(sensitivity_artifact_from_z_joint, m)?)?;

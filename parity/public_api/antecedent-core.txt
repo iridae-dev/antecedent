@@ -111,6 +111,8 @@ impl antecedent_core::CanonicalEncode for antecedent_core::AllocationMethod
 impl antecedent_core::CanonicalEncode for antecedent_core::AnomalyAttributionQuery
 impl antecedent_core::CanonicalEncode for antecedent_core::AnomalyReference
 impl antecedent_core::CanonicalEncode for antecedent_core::AssignmentDesign
+impl antecedent_core::CanonicalEncode for antecedent_core::AssociationFunctional
+impl antecedent_core::CanonicalEncode for antecedent_core::AssociationQuery
 impl antecedent_core::CanonicalEncode for antecedent_core::Assumption
 impl antecedent_core::CanonicalEncode for antecedent_core::AssumptionScope
 impl antecedent_core::CanonicalEncode for antecedent_core::AttributeQuery
@@ -244,6 +246,10 @@ impl core::clone::Clone for antecedent_core::AnomalyAttributionQuery
 impl core::clone::Clone for antecedent_core::AnomalyReference
 impl core::clone::Clone for antecedent_core::ArithOp
 impl core::clone::Clone for antecedent_core::AssignmentDesign
+impl core::clone::Clone for antecedent_core::AssociationFunctional
+impl core::clone::Clone for antecedent_core::AssociationMeasure
+impl core::clone::Clone for antecedent_core::AssociationOutcome
+impl core::clone::Clone for antecedent_core::AssociationQuery
 impl core::clone::Clone for antecedent_core::Assumption
 impl core::clone::Clone for antecedent_core::AssumptionBranch
 impl core::clone::Clone for antecedent_core::AssumptionRecord
@@ -738,6 +744,9 @@ impl core::cmp::Eq for antecedent_core::AllowedRule
 impl core::cmp::Eq for antecedent_core::AnomalyAttributionQuery
 impl core::cmp::Eq for antecedent_core::AnomalyReference
 impl core::cmp::Eq for antecedent_core::ArithOp
+impl core::cmp::Eq for antecedent_core::AssociationFunctional
+impl core::cmp::Eq for antecedent_core::AssociationMeasure
+impl core::cmp::Eq for antecedent_core::AssociationOutcome
 impl core::cmp::Eq for antecedent_core::Assumption
 impl core::cmp::Eq for antecedent_core::AssumptionBranch
 impl core::cmp::Eq for antecedent_core::AssumptionRecord
@@ -1180,6 +1189,10 @@ impl core::cmp::PartialEq for antecedent_core::AnomalyAttributionQuery
 impl core::cmp::PartialEq for antecedent_core::AnomalyReference
 impl core::cmp::PartialEq for antecedent_core::ArithOp
 impl core::cmp::PartialEq for antecedent_core::AssignmentDesign
+impl core::cmp::PartialEq for antecedent_core::AssociationFunctional
+impl core::cmp::PartialEq for antecedent_core::AssociationMeasure
+impl core::cmp::PartialEq for antecedent_core::AssociationOutcome
+impl core::cmp::PartialEq for antecedent_core::AssociationQuery
 impl core::cmp::PartialEq for antecedent_core::Assumption
 impl core::cmp::PartialEq for antecedent_core::AssumptionBranch
 impl core::cmp::PartialEq for antecedent_core::AssumptionRecord
@@ -1688,6 +1701,7 @@ impl core::cmp::PartialOrd for antecedent_core::recalc::Revalidation
 impl core::cmp::PartialOrd for antecedent_core::recalc::Stage
 impl core::cmp::PartialOrd for antecedent_core::recalc::StageIdentity
 impl core::convert::From<antecedent_core::AnomalyAttributionQuery> for antecedent_core::CausalQuery
+impl core::convert::From<antecedent_core::AssociationQuery> for antecedent_core::CausalQuery
 impl core::convert::From<antecedent_core::AttributeQuery> for antecedent_core::CausalQuery
 impl core::convert::From<antecedent_core::AverageEffectQuery> for antecedent_core::CausalQuery
 impl core::convert::From<antecedent_core::ChangeAttributionQuery> for antecedent_core::CausalQuery
@@ -1721,6 +1735,8 @@ impl core::convert::From<antecedent_core::intervention::CapabilityRefusal> for a
 impl core::default::Default for antecedent_core::AdaptiveBootstrapBudget
 impl core::default::Default for antecedent_core::AdaptiveDrawBudget
 impl core::default::Default for antecedent_core::AnomalyReference
+impl core::default::Default for antecedent_core::AssociationFunctional
+impl core::default::Default for antecedent_core::AssociationOutcome
 impl core::default::Default for antecedent_core::AssumptionSet
 impl core::default::Default for antecedent_core::ByteEstimates
 impl core::default::Default for antecedent_core::CancellationPoints
@@ -1809,6 +1825,10 @@ impl core::fmt::Debug for antecedent_core::AnomalyAttributionQuery
 impl core::fmt::Debug for antecedent_core::AnomalyReference
 impl core::fmt::Debug for antecedent_core::ArithOp
 impl core::fmt::Debug for antecedent_core::AssignmentDesign
+impl core::fmt::Debug for antecedent_core::AssociationFunctional
+impl core::fmt::Debug for antecedent_core::AssociationMeasure
+impl core::fmt::Debug for antecedent_core::AssociationOutcome
+impl core::fmt::Debug for antecedent_core::AssociationQuery
 impl core::fmt::Debug for antecedent_core::Assumption
 impl core::fmt::Debug for antecedent_core::AssumptionBranch
 impl core::fmt::Debug for antecedent_core::AssumptionRecord
@@ -2420,6 +2440,9 @@ impl core::hash::Hash for antecedent_core::AllowedRule
 impl core::hash::Hash for antecedent_core::AnomalyAttributionQuery
 impl core::hash::Hash for antecedent_core::AnomalyReference
 impl core::hash::Hash for antecedent_core::ArithOp
+impl core::hash::Hash for antecedent_core::AssociationFunctional
+impl core::hash::Hash for antecedent_core::AssociationMeasure
+impl core::hash::Hash for antecedent_core::AssociationOutcome
 impl core::hash::Hash for antecedent_core::Assumption
 impl core::hash::Hash for antecedent_core::AssumptionBranch
 impl core::hash::Hash for antecedent_core::AssumptionRecord
@@ -2735,6 +2758,9 @@ impl core::marker::Copy for antecedent_core::AdmittedRouteMemory
 impl core::marker::Copy for antecedent_core::AllowedRule
 impl core::marker::Copy for antecedent_core::AnomalyReference
 impl core::marker::Copy for antecedent_core::ArithOp
+impl core::marker::Copy for antecedent_core::AssociationFunctional
+impl core::marker::Copy for antecedent_core::AssociationMeasure
+impl core::marker::Copy for antecedent_core::AssociationOutcome
 impl core::marker::Copy for antecedent_core::AssumptionStatus
 impl core::marker::Copy for antecedent_core::AttemptedRule
 impl core::marker::Copy for antecedent_core::AttributionComponents
@@ -3001,6 +3027,10 @@ impl core::marker::Freeze for antecedent_core::AnomalyAttributionQuery [auto]
 impl core::marker::Freeze for antecedent_core::AnomalyReference [auto]
 impl core::marker::Freeze for antecedent_core::ArithOp [auto]
 impl core::marker::Freeze for antecedent_core::AssignmentDesign [auto]
+impl core::marker::Freeze for antecedent_core::AssociationFunctional [auto]
+impl core::marker::Freeze for antecedent_core::AssociationMeasure [auto]
+impl core::marker::Freeze for antecedent_core::AssociationOutcome [auto]
+impl core::marker::Freeze for antecedent_core::AssociationQuery [auto]
 impl core::marker::Freeze for antecedent_core::Assumption [auto]
 impl core::marker::Freeze for antecedent_core::AssumptionBranch [auto]
 impl core::marker::Freeze for antecedent_core::AssumptionRecord [auto]
@@ -3498,6 +3528,10 @@ impl core::marker::Send for antecedent_core::AnomalyAttributionQuery [auto]
 impl core::marker::Send for antecedent_core::AnomalyReference [auto]
 impl core::marker::Send for antecedent_core::ArithOp [auto]
 impl core::marker::Send for antecedent_core::AssignmentDesign [auto]
+impl core::marker::Send for antecedent_core::AssociationFunctional [auto]
+impl core::marker::Send for antecedent_core::AssociationMeasure [auto]
+impl core::marker::Send for antecedent_core::AssociationOutcome [auto]
+impl core::marker::Send for antecedent_core::AssociationQuery [auto]
 impl core::marker::Send for antecedent_core::Assumption [auto]
 impl core::marker::Send for antecedent_core::AssumptionBranch [auto]
 impl core::marker::Send for antecedent_core::AssumptionRecord [auto]
@@ -4000,6 +4034,10 @@ impl core::marker::StructuralPartialEq for antecedent_core::AnomalyAttributionQu
 impl core::marker::StructuralPartialEq for antecedent_core::AnomalyReference
 impl core::marker::StructuralPartialEq for antecedent_core::ArithOp
 impl core::marker::StructuralPartialEq for antecedent_core::AssignmentDesign
+impl core::marker::StructuralPartialEq for antecedent_core::AssociationFunctional
+impl core::marker::StructuralPartialEq for antecedent_core::AssociationMeasure
+impl core::marker::StructuralPartialEq for antecedent_core::AssociationOutcome
+impl core::marker::StructuralPartialEq for antecedent_core::AssociationQuery
 impl core::marker::StructuralPartialEq for antecedent_core::Assumption
 impl core::marker::StructuralPartialEq for antecedent_core::AssumptionBranch
 impl core::marker::StructuralPartialEq for antecedent_core::AssumptionRecord
@@ -4478,6 +4516,10 @@ impl core::marker::Sync for antecedent_core::AnomalyAttributionQuery [auto]
 impl core::marker::Sync for antecedent_core::AnomalyReference [auto]
 impl core::marker::Sync for antecedent_core::ArithOp [auto]
 impl core::marker::Sync for antecedent_core::AssignmentDesign [auto]
+impl core::marker::Sync for antecedent_core::AssociationFunctional [auto]
+impl core::marker::Sync for antecedent_core::AssociationMeasure [auto]
+impl core::marker::Sync for antecedent_core::AssociationOutcome [auto]
+impl core::marker::Sync for antecedent_core::AssociationQuery [auto]
 impl core::marker::Sync for antecedent_core::Assumption [auto]
 impl core::marker::Sync for antecedent_core::AssumptionBranch [auto]
 impl core::marker::Sync for antecedent_core::AssumptionRecord [auto]
@@ -4980,6 +5022,10 @@ impl core::marker::Unpin for antecedent_core::AnomalyAttributionQuery [auto]
 impl core::marker::Unpin for antecedent_core::AnomalyReference [auto]
 impl core::marker::Unpin for antecedent_core::ArithOp [auto]
 impl core::marker::Unpin for antecedent_core::AssignmentDesign [auto]
+impl core::marker::Unpin for antecedent_core::AssociationFunctional [auto]
+impl core::marker::Unpin for antecedent_core::AssociationMeasure [auto]
+impl core::marker::Unpin for antecedent_core::AssociationOutcome [auto]
+impl core::marker::Unpin for antecedent_core::AssociationQuery [auto]
 impl core::marker::Unpin for antecedent_core::Assumption [auto]
 impl core::marker::Unpin for antecedent_core::AssumptionBranch [auto]
 impl core::marker::Unpin for antecedent_core::AssumptionRecord [auto]
@@ -5486,6 +5532,10 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AnomalyAttribu
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AnomalyReference [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ArithOp [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AssignmentDesign [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AssociationFunctional [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AssociationMeasure [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AssociationOutcome [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AssociationQuery [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::Assumption [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AssumptionBranch [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AssumptionRecord [auto]
@@ -5987,6 +6037,10 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::AnomalyAttributio
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::AnomalyReference [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ArithOp [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::AssignmentDesign [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::AssociationFunctional [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::AssociationMeasure [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::AssociationOutcome [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::AssociationQuery [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::Assumption [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::AssumptionBranch [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::AssumptionRecord [auto]
@@ -6603,12 +6657,16 @@ pub const antecedent_core::GOLDEN_GAMMA: u64
 pub const antecedent_core::IDENTIFICATION_ATTEMPTS: [antecedent_core::NextAttempt; 2]
 pub const antecedent_core::IDENTITY_FORMAT: u16
 pub const antecedent_core::IDENTITY_FORMAT_TAG: &str
+pub const antecedent_core::MAX_ASSOCIATION_COLUMNS: usize
 pub const antecedent_core::MAX_CROSS_WORLDS: usize
 pub const antecedent_core::MAX_EXPR_DEPTH: usize
 pub const antecedent_core::MAX_EXPR_NODES: usize
 pub const antecedent_core::MAX_NONPARAMETRIC_RESPONSE_DIM: usize
+pub const antecedent_core::MAX_PREDICTIVE_FOLDS: u32
+pub const antecedent_core::MAX_REFUSED_AFTER_BYTES: usize
 pub const antecedent_core::MAX_TEMPORAL_RESPONSE_CELLS: usize
 pub const antecedent_core::MAX_TEMPORAL_RESPONSE_HORIZONS: usize
+pub const antecedent_core::MIN_PREDICTIVE_FOLDS: u32
 pub const antecedent_core::ORDINARY_BAYESIAN_LIKELIHOOD_TAG: &str
 pub const antecedent_core::PARTIAL_IDENTIFICATION_ENVELOPE_TAG: &str
 pub const antecedent_core::POSTERIOR_MASS_TOLERANCE: f64
@@ -6649,6 +6707,9 @@ pub const fn antecedent_core::reason_code::is_runtime_refusal(code: &str) -> boo
 pub enum antecedent_core::AllowedRule
 pub enum antecedent_core::AnomalyReference
 pub enum antecedent_core::AssignmentDesign
+pub enum antecedent_core::AssociationFunctional
+pub enum antecedent_core::AssociationMeasure
+pub enum antecedent_core::AssociationOutcome
 pub enum antecedent_core::Assumption
 pub enum antecedent_core::AssumptionScope
 pub enum antecedent_core::AssumptionSource
@@ -6789,6 +6850,13 @@ pub field antecedent_core::AnomalyAttributionQuery::max_units: usize
 pub field antecedent_core::AnomalyAttributionQuery::reference: antecedent_core::AnomalyReference
 pub field antecedent_core::AnomalyAttributionQuery::targets: alloc::sync::Arc<[antecedent_core::VariableId]>
 pub field antecedent_core::AnomalyAttributionQuery::unit_rows: core::option::Option<alloc::sync::Arc<[usize]>>
+pub field antecedent_core::AssociationQuery::conditioning: alloc::sync::Arc<[antecedent_core::VariableId]>
+pub field antecedent_core::AssociationQuery::functional: antecedent_core::AssociationFunctional
+pub field antecedent_core::AssociationQuery::outcome: antecedent_core::VariableId
+pub field antecedent_core::AssociationQuery::outcome_scale: antecedent_core::AssociationOutcome
+pub field antecedent_core::AssociationQuery::predictors: alloc::sync::Arc<[antecedent_core::VariableId]>
+pub field antecedent_core::AssociationQuery::refused_after: core::option::Option<alloc::sync::Arc<str>>
+pub field antecedent_core::AssociationQuery::weight: core::option::Option<antecedent_core::VariableId>
 pub field antecedent_core::AssumptionRecord::assumption: antecedent_core::Assumption
 pub field antecedent_core::AssumptionRecord::scope: antecedent_core::AssumptionScope
 pub field antecedent_core::AssumptionRecord::source: antecedent_core::AssumptionSource
@@ -7422,6 +7490,19 @@ pub fn <antecedent_core::AnomalyAttributionQuery>::fn with_reference(self, refer
 pub fn <antecedent_core::AnomalyAttributionQuery>::fn with_unit_rows(self, rows: impl core::convert::Into<alloc::sync::Arc<[usize]>>) -> Self
 pub fn <antecedent_core::AnomalyReference>::fn fixed(center: f64, scale: f64) -> Self
 pub fn <antecedent_core::ArithOp>::fn apply(self, a: f64, b: f64) -> f64
+pub fn <antecedent_core::AssociationFunctional>::const fn as_str(self) -> &'static str
+pub fn <antecedent_core::AssociationMeasure>::const fn as_str(self) -> &'static str
+pub fn <antecedent_core::AssociationMeasure>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_core::AssociationOutcome>::const fn as_str(self) -> &'static str
+pub fn <antecedent_core::AssociationOutcome>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_core::AssociationQuery>::fn columns(&self) -> alloc::vec::Vec<antecedent_core::VariableId>
+pub fn <antecedent_core::AssociationQuery>::fn following_refusal(self, reason: impl core::convert::Into<alloc::sync::Arc<str>>) -> Self
+pub fn <antecedent_core::AssociationQuery>::fn new(outcome: antecedent_core::VariableId, predictors: impl core::convert::Into<alloc::sync::Arc<[antecedent_core::VariableId]>>) -> Self
+pub fn <antecedent_core::AssociationQuery>::fn validate(&self) -> core::result::Result<(), antecedent_core::QueryError>
+pub fn <antecedent_core::AssociationQuery>::fn with_conditioning(self, conditioning: impl core::convert::Into<alloc::sync::Arc<[antecedent_core::VariableId]>>) -> Self
+pub fn <antecedent_core::AssociationQuery>::fn with_functional(self, functional: antecedent_core::AssociationFunctional) -> Self
+pub fn <antecedent_core::AssociationQuery>::fn with_outcome_scale(self, scale: antecedent_core::AssociationOutcome) -> Self
+pub fn <antecedent_core::AssociationQuery>::fn with_weight(self, weight: antecedent_core::VariableId) -> Self
 pub fn <antecedent_core::AssumptionBranch>::const fn restriction(&self) -> &antecedent_core::IdentifyingRestriction
 pub fn <antecedent_core::AssumptionBranch>::fn identity(&self) -> antecedent_core::SemanticDigest
 pub fn <antecedent_core::AssumptionSet>::fn extend_unique<'a>(&mut self, records: impl core::iter::traits::collect::IntoIterator<Item = &'a antecedent_core::AssumptionRecord>)
@@ -7526,6 +7607,7 @@ pub fn <antecedent_core::CategoryDomainId>::const fn raw(self) -> u32
 pub fn <antecedent_core::CausalQuery>::const fn kind(&self) -> antecedent_core::CausalQueryKind
 pub fn <antecedent_core::CausalQuery>::const fn target_population(&self) -> core::option::Option<&antecedent_core::TargetPopulation>
 pub fn <antecedent_core::CausalQuery>::fn anomaly_attribution(query: antecedent_core::AnomalyAttributionQuery) -> Self
+pub fn <antecedent_core::CausalQuery>::fn association(query: antecedent_core::AssociationQuery) -> Self
 pub fn <antecedent_core::CausalQuery>::fn attribute(query: antecedent_core::AttributeQuery) -> Self
 pub fn <antecedent_core::CausalQuery>::fn average_effect(query: antecedent_core::AverageEffectQuery) -> Self
 pub fn <antecedent_core::CausalQuery>::fn change_attribution(query: antecedent_core::ChangeAttributionQuery) -> Self
@@ -8875,6 +8957,7 @@ pub struct antecedent_core::AdmittedBytes has private fields
 pub struct antecedent_core::AdmittedRouteMemory
 pub struct antecedent_core::AdmittedRouteMemory has private fields
 pub struct antecedent_core::AnomalyAttributionQuery
+pub struct antecedent_core::AssociationQuery
 pub struct antecedent_core::AssumptionBranch
 pub struct antecedent_core::AssumptionBranch has private fields
 pub struct antecedent_core::AssumptionRecord
@@ -9507,6 +9590,10 @@ pub use antecedent_core::query::AllocationMethod = antecedent_core::AllocationMe
 pub use antecedent_core::query::AnomalyAttributionQuery = antecedent_core::AnomalyAttributionQuery
 pub use antecedent_core::query::AnomalyReference = antecedent_core::AnomalyReference
 pub use antecedent_core::query::AssignmentDesign = antecedent_core::AssignmentDesign
+pub use antecedent_core::query::AssociationFunctional = antecedent_core::AssociationFunctional
+pub use antecedent_core::query::AssociationMeasure = antecedent_core::AssociationMeasure
+pub use antecedent_core::query::AssociationOutcome = antecedent_core::AssociationOutcome
+pub use antecedent_core::query::AssociationQuery = antecedent_core::AssociationQuery
 pub use antecedent_core::query::AttributeQuery = antecedent_core::AttributeQuery
 pub use antecedent_core::query::AttributeTarget = antecedent_core::AttributeTarget
 pub use antecedent_core::query::AttributionComponents = antecedent_core::AttributionComponents
@@ -9573,10 +9660,14 @@ pub use antecedent_core::query::LocalPolynomialRatioQuery = antecedent_core::Loc
 pub use antecedent_core::query::LocalRatioOptions = antecedent_core::LocalRatioOptions
 pub use antecedent_core::query::LongitudinalRegimeMethod = antecedent_core::LongitudinalRegimeMethod
 pub use antecedent_core::query::LongitudinalRegimeQuery = antecedent_core::LongitudinalRegimeQuery
+pub use antecedent_core::query::MAX_ASSOCIATION_COLUMNS = antecedent_core::MAX_ASSOCIATION_COLUMNS
 pub use antecedent_core::query::MAX_CROSS_WORLDS = antecedent_core::MAX_CROSS_WORLDS
 pub use antecedent_core::query::MAX_NONPARAMETRIC_RESPONSE_DIM = antecedent_core::MAX_NONPARAMETRIC_RESPONSE_DIM
+pub use antecedent_core::query::MAX_PREDICTIVE_FOLDS = antecedent_core::MAX_PREDICTIVE_FOLDS
+pub use antecedent_core::query::MAX_REFUSED_AFTER_BYTES = antecedent_core::MAX_REFUSED_AFTER_BYTES
 pub use antecedent_core::query::MAX_TEMPORAL_RESPONSE_CELLS = antecedent_core::MAX_TEMPORAL_RESPONSE_CELLS
 pub use antecedent_core::query::MAX_TEMPORAL_RESPONSE_HORIZONS = antecedent_core::MAX_TEMPORAL_RESPONSE_HORIZONS
+pub use antecedent_core::query::MIN_PREDICTIVE_FOLDS = antecedent_core::MIN_PREDICTIVE_FOLDS
 pub use antecedent_core::query::MechanismChangeQuery = antecedent_core::MechanismChangeQuery
 pub use antecedent_core::query::MechanismChangeTest = antecedent_core::MechanismChangeTest
 pub use antecedent_core::query::MediationContrast = antecedent_core::MediationContrast
@@ -9789,6 +9880,17 @@ pub variant antecedent_core::AssignmentDesign::ClusterRandomization { clusters: 
 pub variant antecedent_core::AssignmentDesign::CompleteRandomization { treated: usize }
 pub variant antecedent_core::AssignmentDesign::ObservedExposure { clusters: alloc::sync::Arc<[u32]>, propensity_from: alloc::sync::Arc<[f64]>, propensity_to: alloc::sync::Arc<[f64]>, provenance: antecedent_core::ExposurePropensityProvenance, assume_network_exchangeability: bool }
 pub variant antecedent_core::AssignmentDesign::TwoStageSaturation { clusters: alloc::sync::Arc<[u32]>, low_probability: f64, high_probability: f64, high_clusters: usize, realized_saturation: alloc::sync::Arc<[f64]> }
+pub variant antecedent_core::AssociationFunctional::Auto
+pub variant antecedent_core::AssociationFunctional::Coefficients
+pub variant antecedent_core::AssociationFunctional::Conditional
+pub variant antecedent_core::AssociationFunctional::Measure(antecedent_core::AssociationMeasure)
+pub variant antecedent_core::AssociationFunctional::Predictive { folds: u32 }
+pub variant antecedent_core::AssociationMeasure::Distance
+pub variant antecedent_core::AssociationMeasure::Pearson
+pub variant antecedent_core::AssociationOutcome::Binary
+pub variant antecedent_core::AssociationOutcome::Continuous
+pub variant antecedent_core::AssociationOutcome::Count
+pub variant antecedent_core::AssociationOutcome::Schema
 pub variant antecedent_core::Assumption::CausalMarkov
 pub variant antecedent_core::Assumption::CausalSufficiency
 pub variant antecedent_core::Assumption::Consistency
@@ -9854,6 +9956,7 @@ pub variant antecedent_core::CancellationPoint::Scan
 pub variant antecedent_core::CancellationPoint::Search
 pub variant antecedent_core::CancellationPoint::Solve
 pub variant antecedent_core::CausalQuery::AnomalyAttribution(antecedent_core::AnomalyAttributionQuery)
+pub variant antecedent_core::CausalQuery::Association(antecedent_core::AssociationQuery)
 pub variant antecedent_core::CausalQuery::Attribute(antecedent_core::AttributeQuery)
 pub variant antecedent_core::CausalQuery::AverageEffect(antecedent_core::AverageEffectQuery)
 pub variant antecedent_core::CausalQuery::ChangeAttribution(antecedent_core::ChangeAttributionQuery)
@@ -9884,6 +9987,7 @@ pub variant antecedent_core::CausalQuery::TemporalEffect(antecedent_core::Tempor
 pub variant antecedent_core::CausalQuery::Transport(antecedent_core::TransportQuery)
 pub variant antecedent_core::CausalQuery::UnitChange(antecedent_core::UnitChangeQuery)
 pub variant antecedent_core::CausalQueryKind::AnomalyAttribution
+pub variant antecedent_core::CausalQueryKind::Association
 pub variant antecedent_core::CausalQueryKind::Attribute
 pub variant antecedent_core::CausalQueryKind::AverageEffect
 pub variant antecedent_core::CausalQueryKind::ChangeAttribution
@@ -10252,6 +10356,7 @@ pub variant antecedent_core::QueryError::EmptyPopulationRows
 pub variant antecedent_core::QueryError::EmptyPredicateName
 pub variant antecedent_core::QueryError::InterventionVariableMismatch { expected: antecedent_core::VariableId, got: antecedent_core::VariableId }
 pub variant antecedent_core::QueryError::InvalidAnomalyReference
+pub variant antecedent_core::QueryError::InvalidAssociation(alloc::string::String)
 pub variant antecedent_core::QueryError::InvalidAttribute(alloc::string::String)
 pub variant antecedent_core::QueryError::InvalidDiscover(alloc::string::String)
 pub variant antecedent_core::QueryError::InvalidHistoryMatch(alloc::string::String)

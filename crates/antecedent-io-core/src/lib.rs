@@ -21,6 +21,7 @@ mod artifact_kinds;
 pub mod bayesian_prior_recalc_artifact;
 pub mod bound_identity;
 pub mod bridge_artifact;
+pub mod bridge_distribution;
 pub mod calibration;
 pub mod callback_result_artifact;
 pub mod canonical_json;
@@ -112,6 +113,12 @@ pub mod transport_proof;
 pub mod transport_query_wire;
 pub mod wire;
 pub use analysis_result_artifact::{
+    ASSOCIATION_ANALYSES, ASSOCIATION_ANALYTIC_UNCERTAINTY, ASSOCIATION_NO_UNCERTAINTY,
+    ASSOCIATION_POSTERIOR_UNCERTAINTY, ASSOCIATION_RESAMPLING_UNCERTAINTY,
+    AssociationPosteriorWire, AssociationPredictionWire, AssociationResamplingWire,
+    AssociationTermWire, AssociationWire,
+};
+pub use analysis_result_artifact::{
     AnalysisResultHeader, AnalysisResultWire, DistributionAtomWire, HistoryMatchWire,
     IV_BOUNDS_BAYESIAN_METHOD, IV_BOUNDS_FREQUENTIST_METHOD, IV_BOUNDS_POINT_UNCERTAINTY,
     IdentifiedSetIntervalMethodWire, IdentifiedSetIntervalWire, InterferenceInferenceWire,
@@ -155,10 +162,11 @@ pub use contract_section::{
     ClaimDomainsWire, ClaimHostProjection, ClaimSectionWire, ContractIdentitiesWire,
     ContractReason, IdentificationSlotWire, ObligationSectionWire, ReasoningSectionWire,
     SlotSectionWire, SupportSlotWire, UncertaintyComponentWire, UncertaintySlotWire, accept_claim,
-    checked_aipw_rows_digest, claim_domains, claim_kind_name, consume_analysis_result,
-    contract_seal, decode_analysis_result_contract, project_claim_host, project_lossy_scalar,
-    result_digest, support_empirical, validate_contract_section, validate_mixture_masses,
-    verify_contract_against_body, weight_basis_name,
+    checked_aipw_rows_digest, claim_domains, claim_domains_of_section, claim_kind_name,
+    claim_kind_name_of_section, consume_analysis_result, contract_seal,
+    decode_analysis_result_contract, identification_not_claimed, project_claim_host,
+    project_lossy_scalar, result_digest, support_empirical, validate_contract_section,
+    validate_mixture_masses, verify_contract_against_body, weight_basis_name,
 };
 pub use contrast_wire::{ContrastBundleWire, RecordedContrastWire};
 pub use convert::{
@@ -244,10 +252,11 @@ pub use migrate::{
 };
 pub use observation_query_artifact::{
     ConsumedObservationQuery, MeasuredSlotWire, OBSERVATION_QUERY_ARTIFACT_FEATURE,
-    OBSERVATION_QUERY_ARTIFACT_VERSION, ObservationQueryArtifactError,
-    ObservationQueryArtifactWire, ObservationQueryWire, ObservationResultWire,
-    evaluate_observation_query, inference_basis_of, observation_query_identity,
-    query_error_refusals,
+    OBSERVATION_QUERY_ARTIFACT_VERSION, OBSERVATION_QUERY_GENERAL_ARTIFACT_VERSION,
+    OBSERVATION_QUERY_GENERAL_FEATURE, ObservationQueryArtifactError, ObservationQueryArtifactWire,
+    ObservationQueryWire, ObservationResultWire, PARAMETER_DRAWS_READING, RedrawPriorWire,
+    RedrawTargetWire, RetainedMechanismWire, evaluate_observation_query, inference_basis_of,
+    observation_query_identity, query_error_refusals,
 };
 pub use plan_wire::{
     ExecutionPerformanceWire, LogicalAnalysisPlanWire, PhysicalExecutionPlanWire,
@@ -287,6 +296,10 @@ pub use query_wire::{
     interventional_distribution_from_wire, interventional_distribution_to_wire,
     path_specific_from_wire, path_specific_to_wire, transport_query_from_wire,
     transport_query_to_wire,
+};
+pub use query_wire::{
+    AssociationFunctionalWire, AssociationQueryWire, association_query_from_wire,
+    association_query_to_wire,
 };
 pub use reader::{
     ArtifactReader, MappedArtifactReader, MappedSection, SectionAccess, SectionIndexEntry,

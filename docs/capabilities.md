@@ -531,6 +531,14 @@ Implemented identification strategies:
   Imbens–Manski row-bootstrap interval (`bootstrap=`) or a Bayesian-bootstrap endpoint
   posterior. It is partially identified (claim kind `bounds`), executes unlicensed, and no
   coverage record measures its interval;
+* noncausal associations, run as the compiled `Association` study
+  (`analyze(data, query=descriptive.Association(...))`; see
+  [Noncausal associations](guides/associational-route.md)): a declared selection rule picks a
+  stratified mean or probability, linear, logistic or Poisson regression, a Pearson or distance
+  correlation, or a predictive model scored on held-out folds, over the rows of a table or the
+  points of one series. Identification is not claimed (claim kind `associational`); the
+  result is never an intervention effect, ranks no action, and executes unlicensed with its
+  uncertainty labelled `unmeasured`;
 * classical single-source sID (Bareinboim–Pearl Figure-5 recursion, access to
   all source experiments): an independently checked symbolic distribution, an
   independently verified s-hedge `ProvenNonTransportable` certificate, or

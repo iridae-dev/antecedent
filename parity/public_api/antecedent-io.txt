@@ -8538,6 +8538,7 @@ pub fn <antecedent_io::joint_panel_artifact::HistoricalPanelExecution>::fn point
 pub fn <antecedent_io::joint_panel_artifact::HistoricalPanelExecution>::fn program(&self) -> &antecedent_io::joint_panel_artifact::PanelExecutionProgram
 pub fn <antecedent_io::joint_panel_artifact::HistoricalPanelExecution>::fn retained_admitted_bytes(&self) -> u64
 pub fn <antecedent_io::joint_panel_artifact::HistoricalPanelExecution>::fn target(&self) -> &antecedent_core::scientific_target::identity::ScientificTarget
+pub fn <antecedent_io::joint_panel_artifact::PanelExecutionProgram>::fn decompose_reference(&self, request: &antecedent_estimate::joint_panel::decomposition::PanelDecompositionRequest, periods: &antecedent_estimate::joint_panel::decomposition::MechanismPeriodMap, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_panel::decomposition::PanelDecomposition, antecedent_io::joint_panel_artifact::PanelArtifactError>
 pub fn <antecedent_io::joint_panel_artifact::PanelExecutionProgram>::fn dependency_identity(&self) -> antecedent_core::identity::SemanticDigest
 pub fn <antecedent_io::joint_panel_artifact::PanelExecutionProgram>::fn from_source(source: antecedent_io::joint_panel_artifact::PanelExecutionSource<'_>) -> core::result::Result<Self, antecedent_io::joint_panel_artifact::PanelArtifactError>
 pub fn <antecedent_io::joint_panel_artifact::PanelExecutionProgram>::fn identity(&self) -> core::result::Result<[u8; 32], antecedent_io::joint_panel_artifact::PanelArtifactError>
@@ -8908,6 +8909,7 @@ pub fn antecedent_io::bayesian_posterior_row_artifact::dose_grid_row(kind: &str,
 pub fn antecedent_io::bayesian_posterior_row_artifact::policy_row(posterior: &antecedent_estimate::continuous_dose_posterior::DosePolicyPosterior) -> antecedent_io_core::analysis_result_artifact::PosteriorRowWire
 pub fn antecedent_io::bayesian_posterior_row_artifact::quantile_row(posterior: &antecedent_estimate::quantile_posterior::QuantilePosterior) -> antecedent_io_core::analysis_result_artifact::PosteriorRowWire
 pub fn antecedent_io::bayesian_posterior_row_artifact::survival_row(posterior: &antecedent_estimate::survival_posterior::PiecewiseSurvivalPosterior) -> antecedent_io_core::analysis_result_artifact::PosteriorRowWire
+pub fn antecedent_io::bridge_distribution_interval::bridged_distribution_interval(bridged: &antecedent_io_core::bridge_distribution::BridgedDistribution, level: f64) -> core::result::Result<antecedent_io::bridge_interval::BridgedClaimInterval, antecedent_contract::external_refusal::ExternalRefusal>
 pub fn antecedent_io::bridge_interval::bridged_claim_interval(bridged: &antecedent_contract::bridge::claim::BridgedClaim, source_standard_error: core::option::Option<f64>, level: f64) -> core::result::Result<antecedent_io::bridge_interval::BridgedClaimInterval, antecedent_contract::external_refusal::ExternalRefusal>
 pub fn antecedent_io::bridge_interval::construct_bridged_claim_interval(bridged: &antecedent_contract::bridge::claim::BridgedClaim, source_standard_error: core::option::Option<f64>, level: f64) -> core::result::Result<antecedent_io::bridge_interval::ConstructedBridgeInterval, antecedent_contract::external_refusal::ExternalRefusal>
 pub fn antecedent_io::counterfactual_transport_artifact::consume_counterfactual_transport_with_limits(bytes: &[u8], expected: &antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportExpectedIdentity, limits: antecedent_io::counterfactual_transport_artifact::CounterfactualTransportConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransport, antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportArtifactError>
@@ -8984,6 +8986,7 @@ pub mod antecedent_io::admg_conditional_transport_artifact
 pub mod antecedent_io::analysis_wire
 pub mod antecedent_io::array_fit_artifact
 pub mod antecedent_io::bayesian_posterior_row_artifact
+pub mod antecedent_io::bridge_distribution_interval
 pub mod antecedent_io::bridge_interval
 pub mod antecedent_io::categorical_treatment_artifact
 pub mod antecedent_io::counterfactual_transport_artifact
@@ -9775,6 +9778,7 @@ pub use antecedent_io::bayesian_posterior_row_artifact::POSTERIOR_ROW_UNCERTAINT
 pub use antecedent_io::bayesian_posterior_row_artifact::PosteriorRowResultWire = antecedent_io_core::PosteriorRowWire
 pub use antecedent_io::bayesian_prior_recalc_artifact = antecedent_io_core::bayesian_prior_recalc_artifact
 pub use antecedent_io::bridge_artifact = antecedent_io_core::bridge_artifact
+pub use antecedent_io::bridge_distribution = antecedent_io_core::bridge_distribution
 pub use antecedent_io::calibration = antecedent_io_core::calibration
 pub use antecedent_io::callback_result_artifact = antecedent_io_core::callback_result_artifact
 pub use antecedent_io::canonical_dag_wire = antecedent_io_core::canonical_dag_wire
@@ -9789,7 +9793,9 @@ pub use antecedent_io::causal_response_to_wire = antecedent_io_core::causal_resp
 pub use antecedent_io::checked_aipw_rows_digest = antecedent_io_core::checked_aipw_rows_digest
 pub use antecedent_io::claim_digest = antecedent_io_core::claim_digest
 pub use antecedent_io::claim_domains = antecedent_io_core::claim_domains
+pub use antecedent_io::claim_domains_of_section = antecedent_io_core::claim_domains_of_section
 pub use antecedent_io::claim_kind_name = antecedent_io_core::claim_kind_name
+pub use antecedent_io::claim_kind_name_of_section = antecedent_io_core::claim_kind_name_of_section
 pub use antecedent_io::cohort_decision = antecedent_io_core::cohort_decision
 pub use antecedent_io::compact_export = antecedent_io_core::compact_export
 pub use antecedent_io::compiled_identification_wire = antecedent_io_core::compiled_identification_wire

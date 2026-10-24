@@ -457,9 +457,10 @@ pub use cyclic::{
 
 pub(crate) use consume::validate_mixture_masses_within;
 pub use consume::{
-    ClaimDomainsWire, ClaimHostProjection, accept_claim, claim_domains, claim_kind_name,
-    consume_analysis_result, contract_seal, project_claim_host, project_lossy_scalar,
-    result_digest, support_empirical, validate_mixture_masses, weight_basis_name,
+    ClaimDomainsWire, ClaimHostProjection, accept_claim, claim_domains, claim_domains_of_section,
+    claim_kind_name, claim_kind_name_of_section, consume_analysis_result, contract_seal,
+    identification_not_claimed, project_claim_host, project_lossy_scalar, result_digest,
+    support_empirical, validate_mixture_masses, weight_basis_name,
 };
 pub use verify::verify_contract_against_body;
 pub(crate) use verify::verify_contract_for_encoding;

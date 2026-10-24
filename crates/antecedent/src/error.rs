@@ -21,6 +21,13 @@ use antecedent_stats::StatsError;
 use antecedent_validate::ValidationError;
 use thiserror::Error;
 
+/// Reason codes of the identification-class refusals: the declared structure does not identify
+/// the question. [`CausalError::is_identification_refusal`] reads this list, and the opt-in
+/// descriptive fallback converts exactly these refusals (never a budget, a cancellation or an
+/// invalid argument).
+pub const IDENTIFICATION_REFUSAL_CODES: [&str; 2] =
+    ["effect_not_identified", "cross_world_not_identified"];
+
 /// Which review artifact is blocking execution.
 ///
 /// The `kind` carried by [`CausalError::ReviewRequired`]. A closed enum so callers get
@@ -705,6 +712,23 @@ impl CausalError {
             _ => return None,
         };
         antecedent_core::reason_code::split_prefix(message).map(|(code, _)| code)
+    }
+
+    /// Whether this is an identification-class refusal: the question has no identified
+    /// estimand under the declared structure (`effect_not_identified`, or a cross-world query
+    /// the declared structure does not identify), and the search finished.
+    ///
+    /// A search that stopped at a budget, a cancellation, a resource limit, an invalid
+    /// argument and every data or estimation error are not identification-class: the opt-in
+    /// descriptive fallback never converts them.
+    #[must_use]
+    pub fn is_identification_refusal(&self) -> bool {
+        match self.peeled() {
+            Self::NotIdentified { search_capped, .. } => !*search_capped,
+            other => {
+                other.reason_code().is_some_and(|code| IDENTIFICATION_REFUSAL_CODES.contains(&code))
+            }
+        }
     }
 
     /// Refusal for an inference mode the route does not perform.

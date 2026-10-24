@@ -21,6 +21,9 @@ def temporal_response_spec() -> dict[str, Any]:
 def runtime_refusal_codes() -> list[str]:
     """Registered runtime-refusal reason codes (``parity/reason_codes.toml``)."""
 
+def identification_refusal_codes() -> list[str]:
+    """Reason codes of the identification-class refusals the descriptive fallback converts."""
+
 def host_schema_text() -> str:
     """The committed host-integration JSON Schema, exactly as generated."""
 
@@ -302,6 +305,7 @@ class AteAnalysisResult:
     history_match: HistoryMatchSection | None
     temporal_design: TemporalDesignSection | None
     iv_bounds: IvBoundsSection | None
+    association: AssociationSection | None
     quasi_rollout: QuasiRolloutSection | None
     policy_value: PolicyValueSection | None
     continuous_dose_response: ContinuousDoseResponseSection | None
@@ -693,6 +697,63 @@ class IvBoundsSection:
     rows_dropped: int
     interval: IvBoundsIntervalSection | None
     posterior: IvBoundsPosteriorSection | None
+
+class AssociationTermSection:
+    label: str
+    scale: str
+    estimate: float
+    standard_error: float | None
+    standard_error_method: str | None
+    spread_lower: float | None
+    spread_upper: float | None
+    posterior_mean: float | None
+    posterior_sd: float | None
+    posterior_lower: float | None
+    posterior_upper: float | None
+    rows: int
+
+class AssociationResamplingSection:
+    method: str
+    unit: str
+    replicates_requested: int
+    replicates_ok: int
+    block_length: int | None
+    spread_level: float
+
+class AssociationPosteriorSection:
+    method: str
+    draws: int
+    level: float
+
+class AssociationPredictionSection:
+    folds: int
+    fold_design: str
+    cases: int
+    score: str
+    mean_score: float
+    baseline_score: float
+    mean_crps: float | None
+    calibration: str
+
+class AssociationSection:
+    analysis: str
+    rule: str
+    requested: str
+    outcome_kind: str
+    modality: str
+    terms: list[AssociationTermSection]
+    rows: int
+    rows_dropped: int
+    resampling: AssociationResamplingSection | None
+    posterior: AssociationPosteriorSection | None
+    prediction: AssociationPredictionSection | None
+    assumptions: list[str]
+    refused_after: str | None
+    uncertainty: str
+    calibration: str
+    licensed: bool
+    ranks_actions: bool
+    is_intervention_effect: bool
 
 class TemporalDesignSection:
     design: str
@@ -1972,6 +2033,24 @@ class PreparedAnalysis:
         instrument: str,
         weight: str | None = None,
         *,
+        seed: int = 1,
+        threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_association(
+        names: list[str],
+        columns: Sequence[Any],
+        outcome: str,
+        predictors: list[str],
+        conditioning: list[str],
+        functional: str,
+        *,
+        folds: int | None = None,
+        outcome_scale: str | None = None,
+        weight: str | None = None,
+        refused_after: str | None = None,
+        series: bool = False,
         seed: int = 1,
         threads: int | None = None,
         options: dict[str, Any] | None = None,
@@ -5274,6 +5353,37 @@ def repair_backdoor_contract(
     observed: list[str],
     assumptions: list[tuple[str, str, str | None]],
 ) -> RepairContractStage: ...
+def repair_frontdoor_contract(
+    graph: Dag,
+    treatment: str,
+    outcome: str,
+    population: str,
+    observed: list[str],
+) -> RepairContractStage: ...
+def repair_instrument_contract(
+    graph: Dag,
+    treatment: str,
+    outcome: str,
+    population: str,
+    observed: list[str],
+) -> RepairContractStage: ...
+def repair_hedge_contract(
+    graph: Admg,
+    treatment: str,
+    outcome: str,
+    population: str,
+    observed: list[str],
+) -> RepairContractStage: ...
+def repair_sensitivity_contract(
+    graph: Dag,
+    treatment: str,
+    outcome: str,
+    population: str,
+    observed: list[str],
+    method: str,
+    strength: float,
+    robust: bool,
+) -> RepairContractStage: ...
 def consume_repair_artifact(
     artifact: bytes,
     *,
@@ -5282,6 +5392,71 @@ def consume_repair_artifact(
     memory_bytes: int | None = None,
     cancel: CancellationToken | None = None,
 ) -> RepairStage: ...
+class FailureStage:
+    @property
+    def family(self) -> str: ...
+    @property
+    def contract_id(self) -> str: ...
+    @property
+    def routes(self) -> list[str]: ...
+    @property
+    def variable_names(self) -> list[str]: ...
+    def obligations(self, quantities_json: str | None = None) -> list[dict[str, Any]]: ...
+    def templates(self) -> dict[str, Any]: ...
+    def next_actions(self) -> list[dict[str, Any]]: ...
+    def plan(
+        self,
+        candidates_json: str,
+        objective: str,
+        *,
+        max_operations: int,
+        max_depth: int,
+        memory_bytes: int | None = None,
+        value_json: str | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> EvidencePlanStage: ...
+
+class EvidencePlanStage:
+    @property
+    def outcome(self) -> str: ...
+    def report(self) -> dict[str, Any]: ...
+    def export(self) -> bytes: ...
+
+def evidence_failure_dag(
+    graph: Dag,
+    treatment: str,
+    outcome: str,
+    population: str,
+    observed: list[str],
+    sensitivity: tuple[str, float, bool] | None = None,
+) -> FailureStage: ...
+def evidence_failure_admg(
+    graph: Admg,
+    treatment: str,
+    outcome: str,
+    population: str,
+    observed: list[str],
+    sensitivity: tuple[str, float, bool] | None = None,
+) -> FailureStage: ...
+def consume_evidence_plan(
+    artifact: bytes,
+    *,
+    max_operations: int,
+    max_depth: int,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> EvidencePlanStage: ...
+def identify_structure_posterior(
+    graphs: list[Admg],
+    weights: list[float],
+    keys: list[int],
+    treatment: str,
+    outcome: str,
+    interventions: list[str] | None = None,
+) -> tuple[list[bool], list[bool] | None]: ...
+def sensitivity_confounder_value(
+    artifact: SensitivityArtifact, prior_json: str
+) -> tuple[str | None, str | None]: ...
 def classify_inverse_outcome_stage(
     query_kind: str,
     threshold: float,
@@ -7640,6 +7815,39 @@ def scientific_bridge_consume(
     artifact: bytes, expected_identity: str | None = None
 ) -> tuple[ConsumedBridgeHandle | None, str | None]: ...
 
+class PreparedDistributionBridgeHandle:
+    def contract_json(self) -> str: ...
+    def contract_identity(self) -> str: ...
+    def transported(self) -> bool: ...
+    def derive(
+        self,
+        distribution: JointDistributionArtifact,
+        seed: int,
+        claim_kind: str | None = None,
+    ) -> tuple[BridgedDistributionHandle | None, str | None]: ...
+    def with_contract(
+        self, contract_json: str
+    ) -> tuple[PreparedDistributionBridgeHandle | None, str | None]: ...
+
+class BridgedDistributionHandle:
+    def summary_json(self) -> str: ...
+    def distribution(self) -> JointDistributionArtifact: ...
+    def source_distribution(self) -> JointDistributionArtifact: ...
+    def require_value_kind(self, kind: str) -> str | None: ...
+    def interval(self) -> str: ...
+    def bridged_interval(self, level: float) -> tuple[str | None, str | None]: ...
+    def chain_stage_json(self, stage_id: str) -> tuple[str | None, str | None]: ...
+    def freshness_json(self, source_withdrawn: bool, source_superseded: bool) -> str: ...
+    def export(self, artifact_id: str) -> tuple[tuple[bytes, str] | None, str | None]: ...
+
+def scientific_bridge_distribution_prepare(
+    contract_json: str,
+) -> tuple[PreparedDistributionBridgeHandle | None, str | None]: ...
+def scientific_bridge_distribution_consume(
+    artifact: bytes, expected_identity: str | None = None
+) -> tuple[BridgedDistributionHandle | None, str | None]: ...
+def scientific_bridge_shape(artifact: bytes) -> tuple[str | None, str | None]: ...
+
 class CompositionVerificationHandle:
     def summary_json(self) -> str: ...
     def view_json(self, key: str) -> tuple[str | None, str | None]: ...
@@ -7815,6 +8023,21 @@ def observation_query_observe(
     *,
     cancel: CancellationToken | None = None,
 ) -> tuple[tuple[str, bytes] | None, str | None]: ...
+def observation_query_observe_with_uncertainty(
+    handle: PreparedCompositionHandle,
+    request_json: str,
+    uncertainty_json: str,
+    *,
+    cancel: CancellationToken | None = None,
+) -> tuple[tuple[str, bytes] | None, str | None]: ...
+def observation_query_parameter_interval(
+    artifact: bytes,
+    quantity: str,
+    construction: str,
+    evidence_rows: int,
+    *,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
 def observation_query_pair(
     handle: PreparedCompositionHandle,
     outcome: str,

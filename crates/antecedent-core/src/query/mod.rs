@@ -4,6 +4,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+mod association;
 mod attribute;
 mod attribution;
 mod average;
@@ -46,6 +47,10 @@ use crate::identity::CanonicalWriter;
 
 pub use crate::intervention::TemporalPolicy;
 
+pub use association::{
+    AssociationFunctional, AssociationMeasure, AssociationOutcome, AssociationQuery,
+    MAX_ASSOCIATION_COLUMNS, MAX_PREDICTIVE_FOLDS, MAX_REFUSED_AFTER_BYTES, MIN_PREDICTIVE_FOLDS,
+};
 pub use attribute::{
     AttributeQuery, AttributeTarget, ChangeEstimator, ChangeMeasure, InfluenceAllocation,
     IntrinsicInfluenceTarget, MechanismChangeTest, NoiseDeclaration,
@@ -196,6 +201,10 @@ pub enum CausalQuery {
     /// Sharp partial-identification bounds on the average effect of a binary treatment under a
     /// binary instrument.
     IvBounds(IvBoundsQuery),
+    /// Noncausal association of an outcome with predictors in the observed data: a conditional
+    /// law, regression coefficients, an association measure or a scored predictive model. It
+    /// states no intervention and never ranks actions.
+    Association(AssociationQuery),
 }
 
 /// The variant tag, then the payload's own canonical encoding.
@@ -326,6 +335,10 @@ impl CanonicalEncode for CausalQuery {
                 writer.word(30);
                 query.encode(writer);
             }
+            Self::Association(query) => {
+                writer.word(31);
+                query.encode(writer);
+            }
         }
     }
 }
@@ -399,6 +412,8 @@ pub enum CausalQueryKind {
     TemporalDesign,
     /// [`CausalQuery::IvBounds`].
     IvBounds,
+    /// [`CausalQuery::Association`].
+    Association,
 }
 
 impl CausalQuery {
@@ -436,6 +451,7 @@ impl CausalQuery {
             Self::Simulate(_) => CausalQueryKind::Simulate,
             Self::TemporalDesign(_) => CausalQueryKind::TemporalDesign,
             Self::IvBounds(_) => CausalQueryKind::IvBounds,
+            Self::Association(_) => CausalQueryKind::Association,
         }
     }
 }
@@ -614,6 +630,12 @@ impl CausalQuery {
     pub fn iv_bounds(query: IvBoundsQuery) -> Self {
         Self::IvBounds(query)
     }
+
+    /// Construct a noncausal association query.
+    #[must_use]
+    pub fn association(query: AssociationQuery) -> Self {
+        Self::Association(query)
+    }
 }
 
 impl From<AverageEffectQuery> for CausalQuery {
@@ -784,6 +806,12 @@ impl From<IvBoundsQuery> for CausalQuery {
     }
 }
 
+impl From<AssociationQuery> for CausalQuery {
+    fn from(query: AssociationQuery) -> Self {
+        Self::Association(query)
+    }
+}
+
 impl CausalQuery {
     /// Target population of a population-scoped query.
     ///
@@ -822,7 +850,8 @@ impl CausalQuery {
             | Self::Attribute(_)
             | Self::Simulate(_)
             | Self::TemporalDesign(_)
-            | Self::IvBounds(_) => None,
+            | Self::IvBounds(_)
+            | Self::Association(_) => None,
         }
     }
 
@@ -858,7 +887,8 @@ impl CausalQuery {
             | Self::Attribute(_)
             | Self::Simulate(_)
             | Self::TemporalDesign(_)
-            | Self::IvBounds(_) => None,
+            | Self::IvBounds(_)
+            | Self::Association(_) => None,
         }
     }
 
@@ -899,6 +929,7 @@ impl CausalQuery {
             Self::Simulate(q) => q.validate(),
             Self::TemporalDesign(q) => q.validate(),
             Self::IvBounds(q) => q.validate(),
+            Self::Association(q) => q.validate(),
         }
     }
 }

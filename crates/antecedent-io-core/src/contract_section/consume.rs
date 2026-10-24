@@ -6,7 +6,9 @@ use super::verify::verify_contract_against_body;
 
 use std::sync::Arc;
 
-use antecedent_contract::{AcceptanceReport, ConsumerProfile, HandoffReceipt};
+use antecedent_contract::{
+    AcceptanceReport, ConsumerProfile, HandoffReceipt, IDENTIFICATION_NOT_CLAIMED,
+};
 use antecedent_core::SemanticDigest;
 use serde::{Deserialize, Serialize};
 
@@ -153,6 +155,11 @@ pub fn claim_kind_name(
     if body.response.is_some() {
         return "response";
     }
+    // A description of the observed law is associational whatever its identification slot
+    // says: no slot turns an association section into a causal claim.
+    if body.association.is_some() {
+        return "associational";
+    }
     // An identified set is never a point, whatever status the identification slot carries.
     if body.iv_bounds.is_some() {
         return "bounds";
@@ -179,6 +186,33 @@ pub fn claim_kind_name(
         return "mixture";
     }
     "point"
+}
+
+/// Whether an identification section states that identification is not claimed.
+///
+/// A noncausal claim has nothing to identify, so its identification slot is
+/// unavailable for the stable reason [`IDENTIFICATION_NOT_CLAIMED`]. Any other
+/// unavailable reason, or a present slot, is an ordinary causal claim.
+#[must_use]
+pub fn identification_not_claimed(section: &SlotSectionWire<IdentificationSlotWire>) -> bool {
+    section.value.is_none() && section.unavailable.as_deref() == Some(IDENTIFICATION_NOT_CLAIMED)
+}
+
+/// [`claim_kind_name`] over the whole identification section.
+///
+/// A section that states identification is not claimed implies an
+/// `associational` claim whatever the body carries; every other section reads
+/// as [`claim_kind_name`] does. The producer and the independent consumer both
+/// call this one rule.
+#[must_use]
+pub fn claim_kind_name_of_section(
+    body: &AnalysisResultWire,
+    identification: &SlotSectionWire<IdentificationSlotWire>,
+) -> &'static str {
+    if identification_not_claimed(identification) {
+        return "associational";
+    }
+    claim_kind_name(body, identification.value.as_ref())
 }
 
 /// Refuter ids whose outcome speaks to empirical support (overlap / positivity).
@@ -247,6 +281,25 @@ pub fn claim_domains(
         support: support_domain.into(),
         evaluated: if identified { "evaluated" } else { "unknown" }.into(),
     }
+}
+
+/// [`claim_domains`] over the whole identification section.
+///
+/// A noncausal claim reports identification as `not_claimed`, never as a
+/// failed or unknown identification, and is evaluated: the association it
+/// states was computed from the data the result carries. Its support domain is
+/// read exactly as a causal claim's.
+#[must_use]
+pub fn claim_domains_of_section(
+    support: Option<&SupportSlotWire>,
+    identification: &SlotSectionWire<IdentificationSlotWire>,
+) -> ClaimDomainsWire {
+    let mut domains = claim_domains(support, identification.value.as_ref());
+    if identification_not_claimed(identification) {
+        domains.identification = "not_claimed".into();
+        domains.evaluated = "evaluated".into();
+    }
+    domains
 }
 
 /// Wire spelling of a structural weight basis.

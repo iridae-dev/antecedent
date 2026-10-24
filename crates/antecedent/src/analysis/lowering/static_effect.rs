@@ -214,7 +214,8 @@ pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalEr
         IdentificationLayer::Retained(retained) => retained.caches(),
         IdentificationLayer::Deferred { .. }
         | IdentificationLayer::PerExecution { .. }
-        | IdentificationLayer::NonGraphical(_) => &[],
+        | IdentificationLayer::NonGraphical(_)
+        | IdentificationLayer::NotClaimed { .. } => &[],
     };
     let static_cache = caches.iter().find_map(|cache| match cache {
         IdentificationCache::Static(cache) => Some(cache.as_ref()),

@@ -4355,6 +4355,19 @@ evidence_assertion = "transport_artifact_round_trips_and_stores_the_hypothetical
 notes = "Repair_search_receipt_v1 artifact consumer; claim none."
 
 [[routes]]
+route = "antecedent.design.evidence_plan"
+stage = "identify"
+status = "licensed"
+graph = "failed_average_effect_identification_on_directed_or_bidirected_graph_over_dense_static_variables"
+evidence = "declared_candidate_studies_and_optionally_a_declared_decision_prior_and_per_study_signal"
+functional = "options_that_close_the_gap_verified_by_each_theorem_route_ordered_by_gate_then_declared_value_net_of_declared_cost_map"
+guarantee = "verified_options_ordered_by_identification_gate_then_declared_value_net_of_declared_cost_map_point_only_calibration_unmeasured_no_claim"
+limits = "Each option is decided by its route's theorem checker, never by a variable-name match; a proposed study does not establish an assumption; a subset of studies has no value of its own; costs are compared in one unit; a budget stop is a budget, never an impossibility; the repeated-measurement alternative is unscored. No causal or interval claim."
+evidence_test = "crates/antecedent-design/tests/evidence_plan.rs"
+evidence_assertion = "verified_options_come_first_and_are_ordered_by_net_value_under_the_declared_cost_map"
+notes = "Evidence plan over the routes of a failed identification; claim none."
+
+[[routes]]
 route = "antecedent.dose.dose_grid_functional"
 stage = "evaluate"
 status = "licensed"

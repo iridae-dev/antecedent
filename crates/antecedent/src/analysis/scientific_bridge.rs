@@ -54,25 +54,53 @@
 //!   inapplicable ([`ScientificBridgeResult::freshness`]); the derived claim's
 //!   own history is preserved.
 //!
+//! # Bridges of distributions
+//!
+//! A bridge whose source is the aligned draws of a posterior or a predictive law
+//! ([`PreparedScientificBridgeDistribution`]) derives a claim whose value is the
+//! same draw table with the bridged column in place of the source column: row for
+//! row, with the table's alignment identity unchanged
+//! ([`ScientificBridgeDistributionResult`]). The mapping adds the spread it
+//! declares: a declared affine map with uncertain coefficients draws them jointly
+//! from its declared law and the declared dependence on the source; a trial-level
+//! line draws its coefficients from the Student-t law of its least-squares fit; a
+//! measurement correction draws its rates. The source's spread comes only from its
+//! draws and the mapping's only from the mapping, so neither is counted twice.
+//! The result is read as an uncalibrated spread; its interval is published only
+//! through the measured-coverage gate of a bridged mean, and a bridge expressed as
+//! a measurement-mapping stage of a propagation chain
+//! ([`ScientificBridgeDistributionResult::chain_stage`]) propagates its
+//! coefficients jointly with the stages that read it.
+//!
 //! # What is closed
 //!
 //! A model score offered as a probability, and a predictive importance offered
 //! as a causal effect, refuse under their own names whatever is declared: no
-//! calibration bridge for a score and no route from an importance to a
-//! mechanism is licensed. Values other than a point mean (a law, a posterior,
-//! an identified set, a joint law) have no executed bridge.
+//! calibration bridge for a score and no route from an importance to a mechanism
+//! is licensed. An associational claim is never a bridge source. An identified
+//! set and a joint outcome law have no executed bridge.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::bridge::{
-    BridgeContract, BridgeKind, BridgeRefusal, BridgeSource, BridgedClaim, Licensing, MappingKind,
-    TrialLevelFit, ValueKind, derive_bridged_claim,
+    BridgeContract, BridgeKind, BridgeRefusal, BridgeSource, BridgedClaim,
+    BridgedDistributionClaim, Licensing, MappingKind, TrialLevelFit, ValueKind,
+    derive_bridged_claim,
 };
-use antecedent_contract::{ClaimEnvelope, ClaimFreshness};
+use antecedent_contract::{ClaimEnvelope, ClaimFreshness, ClaimKind};
 use antecedent_core::identity::SemanticDigest;
 use antecedent_io::IoError;
-use antecedent_io::bridge_artifact::{ScientificBridgeArtifact, ScientificBridgeArtifactError};
+use antecedent_io::bridge_artifact::{
+    ScientificBridgeAny, ScientificBridgeArtifact, ScientificBridgeArtifactError,
+    ScientificBridgeDrawsArtifact,
+};
+use antecedent_io::bridge_distribution::bridge_draws;
+pub use antecedent_io::bridge_distribution::{
+    AffineColumns, BridgeChainStage, BridgedDistribution,
+};
+use antecedent_io::bridge_distribution_interval::bridged_distribution_interval;
 pub use antecedent_io::bridge_interval::BridgedClaimInterval;
+use antecedent_io::distribution_artifact::DistributionArtifact;
 
 /// One refusal as plain data: registered reason code, namespaced
 /// `scientific_bridge.*` detail and the explanation of what was refused and
@@ -504,3 +532,350 @@ pub fn consume_scientific_bridge_artifact(
         identity: artifact.identity().to_owned(),
     })
 }
+
+// ---------------------------------------------------------------------------
+// Bridges of distributions
+// ---------------------------------------------------------------------------
+
+/// A bridge of draws whose contract was checked once: the source is the aligned
+/// draws of a posterior or a predictive law, and the mapping declares what it
+/// adds to their spread.
+#[derive(Clone, Debug)]
+pub struct PreparedScientificBridgeDistribution {
+    contract: BridgeContract,
+    contract_identity: SemanticDigest,
+    licensing: Licensing,
+}
+
+impl PreparedScientificBridgeDistribution {
+    /// Check a contract that bridges a posterior or a predictive law.
+    ///
+    /// # Errors
+    /// The first defect of the contract: those of a bridged mean, a value kind
+    /// that is neither a posterior nor a predictive law (or that differs between
+    /// the source and the target), an uncertain map that declares no dependence
+    /// on its source, or a mapping that declares its uncertainty a second time.
+    pub fn prepare(contract: BridgeContract) -> Result<Self, ScientificBridgeRefusal> {
+        let licensing = contract
+            .check_draws_licensing()
+            .map_err(|refusal| ScientificBridgeRefusal::from_contract(&refusal))?;
+        let contract_identity = contract.identity();
+        Ok(Self { contract, contract_identity, licensing })
+    }
+
+    /// The contract.
+    #[must_use]
+    pub const fn contract(&self) -> &BridgeContract {
+        &self.contract
+    }
+
+    /// The identity of the contract.
+    #[must_use]
+    pub const fn contract_identity(&self) -> SemanticDigest {
+        self.contract_identity
+    }
+
+    /// Whether the bridge carries evidence established elsewhere than the claim's
+    /// population or regime, under a declared premise.
+    #[must_use]
+    pub const fn transported(&self) -> bool {
+        self.licensing.transported
+    }
+
+    /// Bridge the draws in `source`.
+    ///
+    /// `source` is the aligned table with a column about the contract's source
+    /// quantity; `claim_kind` is the kind of the claim the draws come from, when
+    /// they come from one (an associational claim is never a bridge source);
+    /// `seed` selects the random stream of the mapping's coefficients, so the
+    /// result is a function of the contract, the table and the seed.
+    ///
+    /// # Errors
+    /// Draws of another quantity, of a meaning that is neither a posterior nor a
+    /// predictive law or that is not the contract's value kind, independent
+    /// marginals, a source claim that is not about draws, draws outside the
+    /// range the mapping is licensed for, a dependence no joint law has, or a
+    /// mapped draw that is not finite.
+    pub fn derive(
+        &self,
+        source: &DistributionArtifact,
+        claim_kind: Option<ClaimKind>,
+        seed: u64,
+    ) -> Result<ScientificBridgeDistributionResult, ScientificBridgeRefusal> {
+        let bridged = bridge_draws(&self.contract, source, claim_kind, seed)
+            .map_err(|refusal| ScientificBridgeRefusal::from_contract(&refusal))?;
+        Ok(ScientificBridgeDistributionResult { bridged })
+    }
+
+    /// A prepared bridge for a replacement contract, re-checked in full.
+    ///
+    /// # Errors
+    /// The first defect of the replacement; `self` is unchanged.
+    pub fn with_contract(&self, contract: BridgeContract) -> Result<Self, ScientificBridgeRefusal> {
+        Self::prepare(contract)
+    }
+}
+
+/// What an inspection of a bridged distribution reports.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DistributionBridgeInspection {
+    /// The bridge kind.
+    pub kind: BridgeKind,
+    /// The mapping that carried the draws.
+    pub mapping: MappingKind,
+    /// The kind of object the bridged draws are.
+    pub value_kind: ValueKind,
+    /// Rows mapped.
+    pub n_draws: usize,
+    /// Mean of the source column.
+    pub source_mean: f64,
+    /// Variance of the source column.
+    pub source_variance: f64,
+    /// Mean of the bridged column.
+    pub mean: f64,
+    /// Variance of the bridged column.
+    pub variance: f64,
+    /// The random stream of the mapping's coefficients.
+    pub stream: u64,
+    /// The pairing identity both tables share.
+    pub alignment_identity: String,
+    /// Digest of the mapped draw table.
+    pub draws_digest: String,
+    /// Identity of the source draws.
+    pub source_claim_id: String,
+    /// Identity of the bridged claim.
+    pub claim_id: String,
+    /// Identity of the contract.
+    pub contract_identity: String,
+    /// Declared assumptions as `(identity, kind, evidence)`.
+    pub assumptions: Vec<(String, String, Option<String>)>,
+    /// Whether the bridge carries evidence from another scope.
+    pub transported: bool,
+    /// How the spread of the draws is read.
+    pub reading: &'static str,
+    /// Operations the derived claim refuses.
+    pub unavailable: Vec<String>,
+}
+
+/// The result of bridging draws: the derived claim and the aligned draw table.
+#[derive(Clone, Debug)]
+pub struct ScientificBridgeDistributionResult {
+    bridged: BridgedDistribution,
+}
+
+impl From<BridgedDistribution> for ScientificBridgeDistributionResult {
+    fn from(bridged: BridgedDistribution) -> Self {
+        Self { bridged }
+    }
+}
+
+impl ScientificBridgeDistributionResult {
+    /// The bridged distribution: claim, source table and bridged table.
+    #[must_use]
+    pub const fn bridged(&self) -> &BridgedDistribution {
+        &self.bridged
+    }
+
+    /// The derived claim and what the bridge retained of its derivation.
+    #[must_use]
+    pub const fn claim(&self) -> &BridgedDistributionClaim {
+        self.bridged.claim()
+    }
+
+    /// The derived claim envelope.
+    #[must_use]
+    pub const fn envelope(&self) -> &ClaimEnvelope {
+        self.bridged.envelope()
+    }
+
+    /// The bridged draw table: the source table with the bridged column in place
+    /// of the source column, row for row and with the same alignment identity.
+    #[must_use]
+    pub const fn distribution(&self) -> &DistributionArtifact {
+        self.bridged.distribution()
+    }
+
+    /// The source draw table, unchanged.
+    #[must_use]
+    pub const fn source(&self) -> &DistributionArtifact {
+        self.bridged.source()
+    }
+
+    /// Mean of the bridged draws.
+    #[must_use]
+    pub const fn mean(&self) -> f64 {
+        self.bridged.claim().mean
+    }
+
+    /// Variance of the bridged draws.
+    #[must_use]
+    pub const fn variance(&self) -> f64 {
+        self.bridged.claim().variance
+    }
+
+    /// How the spread of the bridged draws is read: an uncalibrated spread, never
+    /// an interval, unless [`Self::bridged_interval`] publishes one.
+    #[must_use]
+    pub const fn reading(&self) -> &'static str {
+        antecedent_contract::UNCALIBRATED_SPREAD_LABEL
+    }
+
+    /// A summary of the derivation.
+    #[must_use]
+    pub fn inspect(&self) -> DistributionBridgeInspection {
+        let claim = self.bridged.claim();
+        DistributionBridgeInspection {
+            kind: claim.kind(),
+            mapping: claim.mapping,
+            value_kind: claim.value_kind,
+            n_draws: claim.n_draws,
+            source_mean: self.bridged.source_mean(),
+            source_variance: self.bridged.source_variance(),
+            mean: claim.mean,
+            variance: claim.variance,
+            stream: claim.stream,
+            alignment_identity: claim.alignment_identity.clone(),
+            draws_digest: claim.draws_digest.to_hex(),
+            source_claim_id: claim.source_claim_id.to_hex(),
+            claim_id: claim.claim.claim_id.to_hex(),
+            contract_identity: claim.contract_identity.to_hex(),
+            assumptions: claim
+                .contract
+                .assumptions
+                .iter()
+                .map(|a| (a.id.clone(), a.kind.as_str().to_owned(), a.evidence.clone()))
+                .collect(),
+            transported: claim.transported,
+            reading: self.reading(),
+            unavailable: claim
+                .receipt
+                .unavailable_operations
+                .iter()
+                .map(ToString::to_string)
+                .collect(),
+        }
+    }
+
+    /// Require the kind of object a consumer needs.
+    ///
+    /// # Errors
+    /// `bridge_substitution_refused` when the consumer needs a mean, an identified
+    /// set, a joint outcome law or the other of a posterior and a predictive law.
+    pub fn require_value_kind(&self, requested: ValueKind) -> Result<(), ScientificBridgeRefusal> {
+        self.bridged
+            .claim()
+            .require_value_kind(requested)
+            .map_err(|refusal| ScientificBridgeRefusal::from_contract(&refusal))
+    }
+
+    /// An unscoped request for an interval of the bridged draws.
+    ///
+    /// # Errors
+    /// Always `cell_not_licensed` under `scientific_bridge.interval_not_licensed`:
+    /// name a level and ask [`Self::bridged_interval`].
+    pub fn interval(&self) -> Result<(), ScientificBridgeRefusal> {
+        self.bridged
+            .claim()
+            .request_interval()
+            .map_err(|refusal| ScientificBridgeRefusal::from_contract(&refusal))
+    }
+
+    /// The interval of the bridged value at `level`, through the measured-coverage
+    /// gate of a bridged mean: the standard deviation of the source draws carried
+    /// through the mapping with its own estimation uncertainty, at the source's
+    /// mean. Published only where a current attesting coverage record measured the
+    /// construction.
+    ///
+    /// # Errors
+    /// `cell_not_licensed` with `scientific_bridge.interval_scope_outside_measured`
+    /// for a mapping with uncertain coefficients, a declared source-mapping
+    /// covariance, a level or design no record measured.
+    pub fn bridged_interval(
+        &self,
+        level: f64,
+    ) -> Result<BridgedClaimInterval, ScientificBridgeRefusal> {
+        bridged_distribution_interval(&self.bridged, level)
+            .map_err(|refusal| ScientificBridgeRefusal::from_contract(&refusal))
+    }
+
+    /// The bridge as a measurement-mapping stage of a propagation chain: the
+    /// source draws, the drawn slope and the drawn intercept as columns of one
+    /// aligned table, read by an affine stage whose coefficients are inputs.
+    ///
+    /// # Errors
+    /// A bridge that is not an affine map of its inputs (a measurement
+    /// correction, or a predictive law through a trial-level line).
+    pub fn chain_stage(&self, stage_id: &str) -> Result<BridgeChainStage, ScientificBridgeRefusal> {
+        self.bridged
+            .chain_stage(stage_id)
+            .map_err(|refusal| ScientificBridgeRefusal::from_contract(&refusal))
+    }
+
+    /// Freshness of the derived claim given the freshness of its source.
+    #[must_use]
+    pub fn freshness(&self, source: &ClaimFreshness) -> ClaimFreshness {
+        self.bridged.claim().freshness(source)
+    }
+
+    /// Write the extended `scientific_bridge_v1` artifact: the contract, the
+    /// source draw table, the seed and the summary of the mapped table.
+    ///
+    /// # Errors
+    /// An encoding failure or a bridge that does not seal.
+    pub fn export(
+        &self,
+        artifact_id: &str,
+    ) -> Result<ScientificBridgeExport, ScientificBridgeRefusal> {
+        let (sealed, _, _) = ScientificBridgeDrawsArtifact::seal(&self.bridged)
+            .map_err(|e| ScientificBridgeRefusal::from_artifact(&e))?;
+        let bytes = ScientificBridgeDrawsArtifact::to_bytes(&self.bridged, artifact_id)
+            .map_err(|e| ScientificBridgeRefusal::from_artifact(&e))?;
+        Ok(ScientificBridgeExport { bytes, identity: sealed.identity().to_owned() })
+    }
+}
+
+/// A bridge of draws consumed from an artifact.
+#[derive(Clone, Debug)]
+pub struct ConsumedScientificBridgeDistribution {
+    /// The replayed mapping of the stored draws.
+    pub bridged: BridgedDistribution,
+    /// The artifact identity (hex).
+    pub identity: String,
+}
+
+/// Consume a bridge-of-draws artifact by mapping its stored draws again.
+///
+/// `expected_identity` is an artifact identity (hex) the consumer retained
+/// independently; when given, a consistently resealed artifact of another bridge
+/// is refused.
+///
+/// # Errors
+/// Corruption, another major version, a bound exceeded, a contract the library
+/// refuses on replay, a stored identity, summary or mapped table that does not
+/// replay bit for bit, or an identity that does not match.
+pub fn consume_scientific_bridge_distribution_artifact(
+    bytes: &[u8],
+    expected_identity: Option<&str>,
+) -> Result<ConsumedScientificBridgeDistribution, ScientificBridgeRefusal> {
+    let artifact = ScientificBridgeDrawsArtifact::from_bytes(bytes, expected_identity)
+        .map_err(|e| ScientificBridgeRefusal::from_artifact(&e))?;
+    Ok(ConsumedScientificBridgeDistribution {
+        bridged: artifact.bridged().clone(),
+        identity: artifact.identity().to_owned(),
+    })
+}
+
+/// Which shape a scientific bridge artifact has, `point` or `draws`, without
+/// replaying it.
+///
+/// # Errors
+/// Corruption, another major version or a container that is not a bridge.
+pub fn scientific_bridge_artifact_shape(
+    bytes: &[u8],
+) -> Result<&'static str, ScientificBridgeRefusal> {
+    ScientificBridgeAny::shape(bytes).map_err(|e| ScientificBridgeRefusal::from_artifact(&e))
+}
+
+#[cfg(test)]
+#[path = "scientific_bridge_distribution_tests.rs"]
+mod distribution_tests;

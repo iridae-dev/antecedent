@@ -32,15 +32,30 @@
 //! independent oracles are in the test suites). The artifact carries no
 //! interval, posterior or joint law.
 //!
+//! # Uncertain mappings and distributions
+//!
+//! A contract that declares mapping uncertainty, source dependence or an estimand
+//! bridge, and a bridge whose source is the aligned draws of a posterior or a
+//! predictive law, are carried in format version 2 under the feature marker
+//! `scientific_bridge_extended_v1`. The declaration is part of the contract on
+//! the wire, so a consumer rebuilds it, licenses it again and requires the
+//! contract identity (which binds it) to replay. A bridge of draws additionally
+//! embeds the source draw table, the seed of the mapping's random stream and the
+//! summary of the mapped table; the consumer maps the draws again and requires the
+//! mapped table's digest, mean and variance to equal the stored ones bit for bit.
+//! A version-1 artifact keeps its bytes and its identity, and a version-1 reader
+//! refuses a version-2 artifact before interpreting its payload.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
 use antecedent_contract::bridge::{
     AssumptionKind, BridgeAssumption, BridgeContract, BridgeEndpoint, BridgeKind, BridgeMapping,
-    BridgeScope, BridgeSource, BridgedClaim, MAX_BRIDGE_ASSUMPTIONS, MAX_VALIDATION_TRIALS,
-    QuantityClass, TransportabilityPremise, TrialEffectPair, TrialLevelFit, TrialLevelValidation,
-    ValueKind, derive_bridged_claim,
+    BridgeScope, BridgeSource, BridgedClaim, EstimandBridge, ExposureSetting,
+    MAX_BRIDGE_ASSUMPTIONS, MAX_VALIDATION_TRIALS, MappingUncertainty, QuantityClass,
+    SourceMappingDependence, TransportabilityPremise, TrialEffectPair, TrialLevelFit,
+    TrialLevelValidation, ValueKind, derive_bridged_claim,
 };
 use antecedent_contract::evidence_ledger::parse_digest_hex;
 use antecedent_contract::{
@@ -51,14 +66,23 @@ use antecedent_core::refusal::{changed_identity, replay_mismatch};
 use antecedent_core::{CanonicalWriter, ContractIdentities, SemanticDigest};
 use serde::{Deserialize, Serialize};
 
+use crate::bridge_distribution::{BridgedDistribution, bridge_draws};
 use crate::convert::to_cbor;
+use crate::distribution_artifact::{DistributionArtifact, DistributionIdentity};
 use crate::measurement_model_wire::{MeasurementModelWire, model_from_wire, model_to_wire};
 use crate::quantity_wire::ScientificQuantityWire;
 
-/// The artifact major version this reader writes and accepts.
+/// The artifact major version of a point bridge with no uncertain mapping.
 pub const SCIENTIFIC_BRIDGE_ARTIFACT_VERSION: u16 = 1;
-/// The feature marker of the accepted format.
+/// The feature marker of the version-1 format.
 pub const SCIENTIFIC_BRIDGE_ARTIFACT_FEATURE: &str = "scientific_bridge_v1";
+/// The artifact version that carries mapping uncertainty, source dependence, an
+/// estimand bridge and the bridge of a distribution. A reader of
+/// [`SCIENTIFIC_BRIDGE_ARTIFACT_VERSION`] alone refuses it before the payload is
+/// interpreted.
+pub const SCIENTIFIC_BRIDGE_EXTENDED_ARTIFACT_VERSION: u16 = 2;
+/// The feature marker of the extended format.
+pub const SCIENTIFIC_BRIDGE_EXTENDED_FEATURE: &str = "scientific_bridge_extended_v1";
 /// Most bytes a scientific bridge artifact may occupy.
 pub const MAX_SCIENTIFIC_BRIDGE_ARTIFACT_BYTES: usize = 64 * 1024 * 1024;
 /// Most evidence strings a stored source claim may carry.
@@ -66,6 +90,8 @@ pub const MAX_SOURCE_EVIDENCE_ITEMS: usize = 1024;
 
 const ARTIFACT_KIND: &str = crate::artifact_kinds::SCIENTIFIC_BRIDGE;
 const META_SECTION: &str = "scientific_bridge_meta";
+const DRAWS_SECTION: &str = "scientific_bridge_source_draws";
+const SOURCE_DRAWS_ARTIFACT_ID: &str = "scientific_bridge_source_draws";
 const TAG_ARTIFACT: &str = "antecedent.scientific_bridge.artifact";
 const TAG_BODY: &str = "antecedent.scientific_bridge.artifact_body";
 
@@ -251,6 +277,27 @@ pub struct ContractWire {
     pub assumptions: Vec<AssumptionWire>,
     /// Transportability premise.
     pub transport: Option<PremiseWire>,
+    /// Variance of a declared affine map; carried in the extended format only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mapping_uncertainty: Option<MappingUncertaintyWire>,
+    /// Dependence of the source estimate and the mapping; carried in the extended
+    /// format only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_dependence: Option<DependenceWire>,
+    /// Translation of an experiment into the target; carried in the extended
+    /// format only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub estimand_bridge: Option<EstimandWire>,
+}
+
+impl ContractWire {
+    /// Whether the contract declares anything only the extended format carries.
+    #[must_use]
+    pub const fn is_extended(&self) -> bool {
+        self.mapping_uncertainty.is_some()
+            || self.source_dependence.is_some()
+            || self.estimand_bridge.is_some()
+    }
 }
 
 /// The source claim as the bridge saw it.
@@ -323,8 +370,36 @@ pub struct ScientificBridgeMeta {
     pub transported: bool,
     /// The trial-level fit, when the mapping fitted one.
     pub fit: Option<FitWire>,
+    /// The source draws, the seed and the mapped summary, for a bridge of a
+    /// distribution; carried in the extended format only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub draws: Option<DrawsWire>,
     /// BLAKE3 identity (hex) of everything above.
     pub identity: String,
+}
+
+/// What a bridge of draws stores beside the contract: the source table's
+/// identity and digest (the table itself is a second section), the seed of the
+/// mapping's random stream and the summary of the mapped table.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DrawsWire {
+    /// Seed of the mapping's random stream.
+    pub seed: u64,
+    /// Scientific identity of the embedded source draw table.
+    pub source_identity: DistributionIdentity,
+    /// BLAKE3 digest (hex) of the embedded source table's bytes.
+    pub source_digest: String,
+    /// Rows of the table.
+    pub n_draws: u64,
+    /// Pairing identity both tables share.
+    pub alignment_identity: String,
+    /// Mean of the bridged column, as bits.
+    pub mean_bits: u64,
+    /// Variance of the bridged column, as bits.
+    pub variance_bits: u64,
+    /// Digest (hex) of the mapped draw table.
+    pub draws_digest: String,
 }
 
 // -- hex and conversion helpers ---------------------------------------------------------------
@@ -416,7 +491,9 @@ fn mapping_from_wire(wire: &MappingWire) -> Result<BridgeMapping, ScientificBrid
     })
 }
 
-fn contract_to_wire(
+/// The contract without the extended declarations: the shape the version-1
+/// format and the full contract request wrap.
+fn contract_to_wire_core(
     contract: &BridgeContract,
 ) -> Result<ContractWire, ScientificBridgeArtifactError> {
     Ok(ContractWire {
@@ -444,7 +521,21 @@ fn contract_to_wire(
             applies_to: scope_to_wire(&p.applies_to),
             evidence: p.evidence.clone(),
         }),
+        mapping_uncertainty: None,
+        source_dependence: None,
+        estimand_bridge: None,
     })
+}
+
+fn contract_to_wire(
+    contract: &BridgeContract,
+) -> Result<ContractWire, ScientificBridgeArtifactError> {
+    let mut wire = contract_to_wire_core(contract)?;
+    wire.mapping_uncertainty = contract.mapping_uncertainty.as_ref().map(uncertainty_to_wire);
+    wire.source_dependence =
+        contract.source_dependence.as_ref().map(dependence_to_wire).transpose()?;
+    wire.estimand_bridge = contract.estimand_bridge.as_ref().map(estimand_to_wire);
+    Ok(wire)
 }
 
 fn contract_from_wire(
@@ -480,10 +571,9 @@ fn contract_from_wire(
             applies_to: scope_from_wire(&p.applies_to),
             evidence: p.evidence.clone(),
         }),
-
-        mapping_uncertainty: None,
-        source_dependence: None,
-        estimand_bridge: None,
+        mapping_uncertainty: wire.mapping_uncertainty.as_ref().map(uncertainty_from_wire),
+        source_dependence: wire.source_dependence.as_ref().map(dependence_from_wire),
+        estimand_bridge: wire.estimand_bridge.as_ref().map(estimand_from_wire),
     })
 }
 
@@ -561,7 +651,114 @@ fn fit_to_wire(fit: &TrialLevelFit) -> FitWire {
     }
 }
 
+// -- extended declarations --------------------------------------------------------------------------
+
+fn uncertainty_to_wire(value: &MappingUncertainty) -> MappingUncertaintyWire {
+    MappingUncertaintyWire {
+        id: value.id.clone(),
+        intercept: value.intercept_variance.to_bits(),
+        slope: value.slope_variance.to_bits(),
+        covariance: value.intercept_slope_covariance.to_bits(),
+    }
+}
+
+fn uncertainty_from_wire(value: &MappingUncertaintyWire) -> MappingUncertainty {
+    MappingUncertainty {
+        id: value.id.clone(),
+        intercept_variance: f64::from_bits(value.intercept),
+        slope_variance: f64::from_bits(value.slope),
+        intercept_slope_covariance: f64::from_bits(value.covariance),
+    }
+}
+
+fn dependence_to_wire(
+    value: &SourceMappingDependence,
+) -> Result<DependenceWire, ScientificBridgeArtifactError> {
+    match value {
+        SourceMappingDependence::Independent { evidence } => {
+            Ok(DependenceWire::Independent { evidence: evidence.clone() })
+        }
+        SourceMappingDependence::SlopeCovariance { covariance, evidence } => {
+            Ok(DependenceWire::SlopeCovariance {
+                covariance: covariance.to_bits(),
+                evidence: evidence.clone(),
+            })
+        }
+        _ => Err(ScientificBridgeArtifactError::UnsupportedSemantics("source mapping dependence")),
+    }
+}
+
+fn dependence_from_wire(value: &DependenceWire) -> SourceMappingDependence {
+    match value {
+        DependenceWire::Independent { evidence } => {
+            SourceMappingDependence::Independent { evidence: evidence.clone() }
+        }
+        DependenceWire::SlopeCovariance { covariance, evidence } => {
+            SourceMappingDependence::SlopeCovariance {
+                covariance: f64::from_bits(*covariance),
+                evidence: evidence.clone(),
+            }
+        }
+    }
+}
+
+fn exposure_wire(value: &ExposureSetting) -> ExposureWire {
+    ExposureWire {
+        population: value.population_id.clone(),
+        start: value.time_start.clone(),
+        end: value.time_end.clone(),
+        dose: value.dose.to_bits(),
+        dose_units: value.dose_units.clone(),
+        duration: value.duration.to_bits(),
+        duration_units: value.duration_units.clone(),
+        regime: value.exposure_regime.clone(),
+    }
+}
+
+fn exposure_domain(value: &ExposureWire) -> ExposureSetting {
+    ExposureSetting {
+        population_id: value.population.clone(),
+        time_start: value.start.clone(),
+        time_end: value.end.clone(),
+        dose: f64::from_bits(value.dose),
+        dose_units: value.dose_units.clone(),
+        duration: f64::from_bits(value.duration),
+        duration_units: value.duration_units.clone(),
+        exposure_regime: value.regime.clone(),
+    }
+}
+
+fn estimand_to_wire(value: &EstimandBridge) -> EstimandWire {
+    EstimandWire {
+        id: value.id.clone(),
+        experiment_id: value.experiment_id.clone(),
+        experiment: exposure_wire(&value.experiment),
+        target: exposure_wire(&value.target),
+        recency: value.recency_delta.to_bits(),
+        recency_units: value.recency_units.clone(),
+        spend: value.spend_delta.to_bits(),
+        spend_units: value.spend_units.clone(),
+    }
+}
+
+fn estimand_from_wire(value: &EstimandWire) -> EstimandBridge {
+    EstimandBridge {
+        id: value.id.clone(),
+        experiment_id: value.experiment_id.clone(),
+        experiment: exposure_domain(&value.experiment),
+        target: exposure_domain(&value.target),
+        recency_delta: f64::from_bits(value.recency),
+        recency_units: value.recency_units.clone(),
+        spend_delta: f64::from_bits(value.spend),
+        spend_units: value.spend_units.clone(),
+    }
+}
+
 // -- identity -----------------------------------------------------------------------------------
+
+/// Section word that opens the identity suffix of a bridge of draws. Written only
+/// when the artifact stores draws, so a point bridge keeps its version-1 stream.
+const DRAWS_IDENTITY_SECTION: u64 = 0xD2A5;
 
 fn compute_identity(meta: &ScientificBridgeMeta) -> Result<String, ScientificBridgeArtifactError> {
     let encode = |error: crate::IoError| ScientificBridgeArtifactError::Encode(error.to_string());
@@ -594,20 +791,76 @@ fn compute_identity(meta: &ScientificBridgeMeta) -> Result<String, ScientificBri
                 .word(fit.surrogate_max_bits);
         }
     }
+    if let Some(draws) = &meta.draws {
+        let digest = CanonicalWriter::digest_bytes_hex(TAG_BODY, &to_cbor(draws).map_err(encode)?);
+        writer.word(DRAWS_IDENTITY_SECTION).text(&digest);
+    }
     Ok(writer.finish_hex())
 }
 
 // -- consumption ----------------------------------------------------------------------------------
 
+/// The format a stored version and feature marker name.
+///
+/// A version-1 artifact declares nothing the extended format carries; a
+/// version-2 artifact declares at least one thing (one encoding per bridge). A
+/// version-2 payload under the version-1 marker is another version, refused
+/// before it is interpreted.
+fn check_format(meta: &ScientificBridgeMeta) -> Result<(), ScientificBridgeArtifactError> {
+    let extended = meta.contract.is_extended() || meta.draws.is_some();
+    match meta.version {
+        SCIENTIFIC_BRIDGE_ARTIFACT_VERSION => {
+            if meta.feature != SCIENTIFIC_BRIDGE_ARTIFACT_FEATURE {
+                return Err(ScientificBridgeArtifactError::UnsupportedSemantics("feature marker"));
+            }
+            if extended {
+                return Err(ScientificBridgeArtifactError::UnsupportedSemantics(
+                    "extended declarations in a version-1 artifact",
+                ));
+            }
+            Ok(())
+        }
+        SCIENTIFIC_BRIDGE_EXTENDED_ARTIFACT_VERSION => {
+            if meta.feature == SCIENTIFIC_BRIDGE_ARTIFACT_FEATURE {
+                return Err(ScientificBridgeArtifactError::UnsupportedVersion {
+                    version: meta.version,
+                });
+            }
+            if meta.feature != SCIENTIFIC_BRIDGE_EXTENDED_FEATURE {
+                return Err(ScientificBridgeArtifactError::UnsupportedSemantics("feature marker"));
+            }
+            if !extended {
+                return Err(ScientificBridgeArtifactError::UnsupportedSemantics(
+                    "extended format without extended declarations",
+                ));
+            }
+            Ok(())
+        }
+        version => Err(ScientificBridgeArtifactError::UnsupportedVersion { version }),
+    }
+}
+
+/// The version and feature marker a point bridge is written under.
+fn point_format(contract: &BridgeContract) -> (u16, &'static str) {
+    if contract.mapping_uncertainty.is_some()
+        || contract.source_dependence.is_some()
+        || contract.estimand_bridge.is_some()
+    {
+        (SCIENTIFIC_BRIDGE_EXTENDED_ARTIFACT_VERSION, SCIENTIFIC_BRIDGE_EXTENDED_FEATURE)
+    } else {
+        (SCIENTIFIC_BRIDGE_ARTIFACT_VERSION, SCIENTIFIC_BRIDGE_ARTIFACT_FEATURE)
+    }
+}
+
 fn check(
     meta: &ScientificBridgeMeta,
     expected_identity: Option<&str>,
 ) -> Result<ScientificBridgeArtifact, ScientificBridgeArtifactError> {
-    if meta.version != SCIENTIFIC_BRIDGE_ARTIFACT_VERSION {
-        return Err(ScientificBridgeArtifactError::UnsupportedVersion { version: meta.version });
-    }
-    if meta.feature != SCIENTIFIC_BRIDGE_ARTIFACT_FEATURE {
-        return Err(ScientificBridgeArtifactError::UnsupportedSemantics("feature marker"));
+    check_format(meta)?;
+    if meta.draws.is_some() {
+        return Err(ScientificBridgeArtifactError::UnsupportedSemantics(
+            "a bridge of draws is consumed with its draws",
+        ));
     }
     let contract = contract_from_wire(&meta.contract)?;
     let source = source_from_wire(&meta.source)?;
@@ -644,6 +897,7 @@ fn check(
 
 fn encode_meta(
     meta: &ScientificBridgeMeta,
+    source_draws: Option<&[u8]>,
     artifact_id: &str,
 ) -> Result<Vec<u8>, ScientificBridgeArtifactError> {
     if artifact_id.trim().is_empty() {
@@ -651,6 +905,18 @@ fn encode_meta(
     }
     let meta_bytes =
         to_cbor(meta).map_err(|error| ScientificBridgeArtifactError::Encode(error.to_string()))?;
+    let mut sections = vec![crate::OutSection {
+        id: META_SECTION,
+        content_type: crate::CONTENT_CBOR,
+        bytes: &meta_bytes,
+    }];
+    if let Some(draws) = source_draws {
+        sections.push(crate::OutSection {
+            id: DRAWS_SECTION,
+            content_type: crate::CONTENT_BYTES,
+            bytes: draws,
+        });
+    }
     crate::encode_container(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
@@ -659,35 +925,60 @@ fn encode_meta(
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[crate::OutSection {
-            id: META_SECTION,
-            content_type: crate::CONTENT_CBOR,
-            bytes: &meta_bytes,
-        }],
+        &sections,
     )
     .map_err(|error| crate::map_artifact_check!(error, ScientificBridgeArtifactError))
 }
 
-fn decode_meta(bytes: &[u8]) -> Result<ScientificBridgeMeta, ScientificBridgeArtifactError> {
-    let parts = crate::decode_container(
+/// The stored metadata and, for a bridge of draws, the embedded source table.
+type Decoded = (ScientificBridgeMeta, Option<Vec<u8>>);
+
+fn decode_meta(bytes: &[u8]) -> Result<Decoded, ScientificBridgeArtifactError> {
+    // A bridge of draws is a second section; try the layout of a single section first so a
+    // version-1 artifact is read exactly as before.
+    let (meta_bytes, source_draws) = match crate::decode_container(
         ARTIFACT_KIND,
         MAX_SCIENTIFIC_BRIDGE_ARTIFACT_BYTES,
         &[META_SECTION],
         bytes,
-    )
-    .map_err(|error| crate::map_artifact_check!(error, ScientificBridgeArtifactError))?;
-    let Ok([meta_bytes]) = <[Vec<u8>; 1]>::try_from(parts) else {
-        return Err(ScientificBridgeArtifactError::Malformed(
-            "unsupported container layout".into(),
-        ));
+    ) {
+        Ok(parts) => {
+            let Ok([meta]) = <[Vec<u8>; 1]>::try_from(parts) else {
+                return Err(ScientificBridgeArtifactError::Malformed(
+                    "unsupported container layout".into(),
+                ));
+            };
+            (meta, None)
+        }
+        Err(first) => match crate::decode_container(
+            ARTIFACT_KIND,
+            MAX_SCIENTIFIC_BRIDGE_ARTIFACT_BYTES,
+            &[META_SECTION, DRAWS_SECTION],
+            bytes,
+        ) {
+            Ok(parts) => {
+                let Ok([meta, draws]) = <[Vec<u8>; 2]>::try_from(parts) else {
+                    return Err(ScientificBridgeArtifactError::Malformed(
+                        "unsupported container layout".into(),
+                    ));
+                };
+                (meta, Some(draws))
+            }
+            Err(_) => {
+                return Err(crate::map_artifact_check!(first, ScientificBridgeArtifactError));
+            }
+        },
     };
-    crate::decode_with_version(&meta_bytes, |version: u16| {
-        if version == SCIENTIFIC_BRIDGE_ARTIFACT_VERSION {
+    let meta = crate::decode_with_version(&meta_bytes, |version: u16| {
+        if version == SCIENTIFIC_BRIDGE_ARTIFACT_VERSION
+            || version == SCIENTIFIC_BRIDGE_EXTENDED_ARTIFACT_VERSION
+        {
             Ok(())
         } else {
             Err(ScientificBridgeArtifactError::UnsupportedVersion { version })
         }
-    })
+    })?;
+    Ok((meta, source_draws))
 }
 
 // -- public type ----------------------------------------------------------------------------------
@@ -706,6 +997,10 @@ impl ScientificBridgeArtifact {
     /// result passes the same checks a consumer applies: a bridged claim that
     /// was not derived from this source under its contract does not seal.
     ///
+    /// A contract that declares mapping uncertainty, source dependence or an
+    /// estimand bridge is sealed in the extended format; every other contract
+    /// keeps the version-1 bytes.
+    ///
     /// # Errors
     /// A source that is not a finite point value, a contract the library
     /// refuses, a stored value that does not replay, or an encoding failure.
@@ -713,9 +1008,10 @@ impl ScientificBridgeArtifact {
         bridged: &BridgedClaim,
         source: &BridgeSource<'_>,
     ) -> Result<(Self, ScientificBridgeMeta), ScientificBridgeArtifactError> {
+        let (version, feature) = point_format(&bridged.contract);
         let mut meta = ScientificBridgeMeta {
-            version: SCIENTIFIC_BRIDGE_ARTIFACT_VERSION,
-            feature: SCIENTIFIC_BRIDGE_ARTIFACT_FEATURE.to_owned(),
+            version,
+            feature: feature.to_owned(),
             contract: contract_to_wire(&bridged.contract)?,
             source: source_to_wire(source.claim)?,
             contract_identity: bridged.contract_identity.to_hex(),
@@ -723,6 +1019,7 @@ impl ScientificBridgeArtifact {
             value_bits: bridged.value.to_bits(),
             transported: bridged.transported,
             fit: bridged.fit.as_ref().map(fit_to_wire),
+            draws: None,
             identity: String::new(),
         };
         meta.identity = compute_identity(&meta)?;
@@ -740,7 +1037,7 @@ impl ScientificBridgeArtifact {
         artifact_id: &str,
     ) -> Result<Vec<u8>, ScientificBridgeArtifactError> {
         let (_, meta) = Self::seal(bridged, source)?;
-        encode_meta(&meta, artifact_id)
+        encode_meta(&meta, None, artifact_id)
     }
 
     /// Consume an artifact by replaying the derivation.
@@ -752,12 +1049,20 @@ impl ScientificBridgeArtifact {
     /// # Errors
     /// Corruption, another major version, a bound exceeded, a contract the
     /// library refuses on replay, a stored identity, value, fit or flag that
-    /// does not replay, or an identity that does not match.
+    /// does not replay, an artifact of a bridge of draws (consume it with
+    /// [`ScientificBridgeDrawsArtifact`] or [`ScientificBridgeAny`]), or an
+    /// identity that does not match.
     pub fn from_bytes(
         bytes: &[u8],
         expected_identity: Option<&str>,
     ) -> Result<Self, ScientificBridgeArtifactError> {
-        check(&decode_meta(bytes)?, expected_identity)
+        let (meta, source_draws) = decode_meta(bytes)?;
+        if source_draws.is_some() {
+            return Err(ScientificBridgeArtifactError::UnsupportedSemantics(
+                "a bridge of draws is consumed with its draws",
+            ));
+        }
+        check(&meta, expected_identity)
     }
 
     /// The replayed bridged claim.
@@ -799,6 +1104,236 @@ impl ScientificBridgeArtifact {
     }
 }
 
+/// A validated bridge of draws: the replayed mapping of the embedded source
+/// table, bit for bit, and the identity that binds the contract, the table, the
+/// seed and the mapped summary.
+#[derive(Clone, Debug)]
+pub struct ScientificBridgeDrawsArtifact {
+    bridged: BridgedDistribution,
+    identity: String,
+}
+
+fn check_draws(
+    meta: &ScientificBridgeMeta,
+    source_draws: &[u8],
+    expected_identity: Option<&str>,
+) -> Result<ScientificBridgeDrawsArtifact, ScientificBridgeArtifactError> {
+    check_format(meta)?;
+    let Some(draws) = &meta.draws else {
+        return Err(ScientificBridgeArtifactError::Malformed(
+            "a bridge of draws stores its draws".into(),
+        ));
+    };
+    let mismatch = ScientificBridgeArtifactError::ReplayMismatch;
+    if meta.fit.is_some() {
+        return Err(mismatch("trial-level fit"));
+    }
+    if source_draws.len() > crate::distribution_artifact::MAX_DISTRIBUTION_ARTIFACT_BYTES {
+        return Err(ScientificBridgeArtifactError::LimitsExceeded("source draws"));
+    }
+    if CanonicalWriter::digest_bytes_hex(TAG_BODY, source_draws) != draws.source_digest {
+        return Err(mismatch("source draws"));
+    }
+    let table = DistributionArtifact::from_bytes(source_draws, &draws.source_identity)
+        .map_err(|error| malformed(error.to_string()))?;
+    let contract = contract_from_wire(&meta.contract)?;
+    let bridged = bridge_draws(&contract, &table, None, draws.seed).map_err(refused)?;
+    let claim = bridged.claim();
+    if claim.contract_identity.to_hex() != meta.contract_identity {
+        return Err(mismatch("contract identity"));
+    }
+    if claim.claim.claim_id.to_hex() != meta.claim_id {
+        return Err(mismatch("claim identity"));
+    }
+    if claim.mean.to_bits() != meta.value_bits || claim.mean.to_bits() != draws.mean_bits {
+        return Err(mismatch("value"));
+    }
+    if claim.transported != meta.transported {
+        return Err(mismatch("transport flag"));
+    }
+    if claim.variance.to_bits() != draws.variance_bits {
+        return Err(mismatch("variance"));
+    }
+    if claim.n_draws as u64 != draws.n_draws {
+        return Err(mismatch("draw count"));
+    }
+    if claim.alignment_identity != draws.alignment_identity {
+        return Err(mismatch("alignment identity"));
+    }
+    if claim.draws_digest.to_hex() != draws.draws_digest {
+        return Err(mismatch("mapped draws"));
+    }
+    if source_to_wire(&bridged.source_envelope())? != meta.source {
+        return Err(mismatch("source draws summary"));
+    }
+    let identity = compute_identity(meta)?;
+    if meta.identity != identity {
+        return Err(ScientificBridgeArtifactError::IdentityMismatch { field: "identity" });
+    }
+    if expected_identity.is_some_and(|expected| expected != identity) {
+        return Err(ScientificBridgeArtifactError::IdentityMismatch { field: "retained_identity" });
+    }
+    Ok(ScientificBridgeDrawsArtifact { bridged, identity })
+}
+
+impl ScientificBridgeDrawsArtifact {
+    /// Seal a bridge of draws: the contract, the source table it mapped, the seed
+    /// of the mapping's random stream and the summary of the mapped table. The
+    /// result passes the checks a consumer applies, which map the stored draws
+    /// again.
+    ///
+    /// # Errors
+    /// A bridge that does not replay from its stored draws, or an encoding failure.
+    pub fn seal(
+        bridged: &BridgedDistribution,
+    ) -> Result<(Self, ScientificBridgeMeta, Vec<u8>), ScientificBridgeArtifactError> {
+        let encode =
+            |error: crate::IoError| ScientificBridgeArtifactError::Encode(error.to_string());
+        let claim = bridged.claim();
+        let source_bytes = bridged.source().to_bytes(SOURCE_DRAWS_ARTIFACT_ID).map_err(encode)?;
+        let mut meta = ScientificBridgeMeta {
+            version: SCIENTIFIC_BRIDGE_EXTENDED_ARTIFACT_VERSION,
+            feature: SCIENTIFIC_BRIDGE_EXTENDED_FEATURE.to_owned(),
+            contract: contract_to_wire(&claim.contract)?,
+            source: source_to_wire(&bridged.source_envelope())?,
+            contract_identity: claim.contract_identity.to_hex(),
+            claim_id: claim.claim.claim_id.to_hex(),
+            value_bits: claim.mean.to_bits(),
+            transported: claim.transported,
+            fit: None,
+            draws: Some(DrawsWire {
+                seed: claim.stream,
+                source_identity: bridged.source().metadata().identity.clone(),
+                source_digest: CanonicalWriter::digest_bytes_hex(TAG_BODY, &source_bytes),
+                n_draws: claim.n_draws as u64,
+                alignment_identity: claim.alignment_identity.clone(),
+                mean_bits: claim.mean.to_bits(),
+                variance_bits: claim.variance.to_bits(),
+                draws_digest: claim.draws_digest.to_hex(),
+            }),
+            identity: String::new(),
+        };
+        meta.identity = compute_identity(&meta)?;
+        let artifact = check_draws(&meta, &source_bytes, None)?;
+        Ok((artifact, meta, source_bytes))
+    }
+
+    /// Serialize a sealed bridge of draws through the checksummed container.
+    ///
+    /// # Errors
+    /// A bridge that does not seal, an encoding failure or an oversized payload.
+    pub fn to_bytes(
+        bridged: &BridgedDistribution,
+        artifact_id: &str,
+    ) -> Result<Vec<u8>, ScientificBridgeArtifactError> {
+        let (_, meta, source_bytes) = Self::seal(bridged)?;
+        encode_meta(&meta, Some(&source_bytes), artifact_id)
+    }
+
+    /// Consume an artifact by mapping its stored draws again.
+    ///
+    /// # Errors
+    /// Corruption, another major version, a bound exceeded, a contract the library
+    /// refuses on replay, a stored identity, summary or mapped table that does not
+    /// replay bit for bit, or an identity that does not match the one the
+    /// consumer retained.
+    pub fn from_bytes(
+        bytes: &[u8],
+        expected_identity: Option<&str>,
+    ) -> Result<Self, ScientificBridgeArtifactError> {
+        let (meta, source_draws) = decode_meta(bytes)?;
+        let Some(source_draws) = source_draws else {
+            return Err(ScientificBridgeArtifactError::Malformed(
+                "a bridge of draws stores its draws".into(),
+            ));
+        };
+        check_draws(&meta, &source_draws, expected_identity)
+    }
+
+    /// The replayed bridged distribution.
+    #[must_use]
+    pub const fn bridged(&self) -> &BridgedDistribution {
+        &self.bridged
+    }
+
+    /// BLAKE3 identity (hex).
+    #[must_use]
+    pub fn identity(&self) -> &str {
+        &self.identity
+    }
+
+    /// Validate metadata and the embedded source table as a consumer would, for
+    /// tests that reseal edits.
+    ///
+    /// # Errors
+    /// The same refusals as [`Self::from_bytes`].
+    #[doc(hidden)]
+    pub fn from_meta(
+        meta: &ScientificBridgeMeta,
+        source_draws: &[u8],
+        expected_identity: Option<&str>,
+    ) -> Result<Self, ScientificBridgeArtifactError> {
+        check_draws(meta, source_draws, expected_identity)
+    }
+
+    /// Recompute the identity of `meta` after an edit, for tests that reseal.
+    #[doc(hidden)]
+    pub fn reseal_identity(meta: &mut ScientificBridgeMeta) {
+        if let Ok(identity) = compute_identity(meta) {
+            meta.identity = identity;
+        }
+    }
+}
+
+/// A scientific bridge artifact of either shape, consumed by replaying its
+/// derivation.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub enum ScientificBridgeAny {
+    /// A bridge of one mean.
+    Point(ScientificBridgeArtifact),
+    /// A bridge of aligned draws.
+    Draws(ScientificBridgeDrawsArtifact),
+}
+
+impl ScientificBridgeAny {
+    /// Consume the artifact, whichever shape it has.
+    ///
+    /// # Errors
+    /// As [`ScientificBridgeArtifact::from_bytes`] and
+    /// [`ScientificBridgeDrawsArtifact::from_bytes`].
+    pub fn from_bytes(
+        bytes: &[u8],
+        expected_identity: Option<&str>,
+    ) -> Result<Self, ScientificBridgeArtifactError> {
+        let (meta, source_draws) = decode_meta(bytes)?;
+        match source_draws {
+            None => check(&meta, expected_identity).map(Self::Point),
+            Some(source_draws) => {
+                check_draws(&meta, &source_draws, expected_identity).map(Self::Draws)
+            }
+        }
+    }
+
+    /// Which shape the container has, `point` or `draws`, without replaying it.
+    ///
+    /// # Errors
+    /// Corruption, another major version or a layout that is not a bridge.
+    pub fn shape(bytes: &[u8]) -> Result<&'static str, ScientificBridgeArtifactError> {
+        let (_, source_draws) = decode_meta(bytes)?;
+        Ok(if source_draws.is_some() { "draws" } else { "point" })
+    }
+
+    /// BLAKE3 identity (hex) of the artifact.
+    #[must_use]
+    pub fn identity(&self) -> &str {
+        match self {
+            Self::Point(artifact) => artifact.identity(),
+            Self::Draws(artifact) => artifact.identity(),
+        }
+    }
+}
+
 /// Complete licensed bridge declaration, including uncertain estimand translation.
 /// This versioned request wire extends the existing point-claim artifact owner; it
 /// grants no posterior, interval or causal permission by serialization alone.
@@ -812,133 +1347,111 @@ pub struct FullBridgeContractWire {
     dependence: Option<DependenceWire>,
     estimand: Option<EstimandWire>,
 }
+
+/// The variance of a declared affine map on the wire, as bit patterns.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct MappingUncertaintyWire {
-    id: String,
-    intercept: u64,
-    slope: u64,
-    covariance: u64,
+pub struct MappingUncertaintyWire {
+    /// Identity of the declaration.
+    pub id: String,
+    /// Intercept variance bits.
+    pub intercept: u64,
+    /// Slope variance bits.
+    pub slope: u64,
+    /// Intercept-slope covariance bits.
+    pub covariance: u64,
 }
+
+/// How the source estimate and the mapping share information, on the wire.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
-enum DependenceWire {
-    Independent { evidence: String },
-    SlopeCovariance { covariance: u64, evidence: String },
+pub enum DependenceWire {
+    /// The source and the mapping evidence are declared disjoint.
+    Independent {
+        /// The study or ledger entry the disjointness rests on.
+        evidence: String,
+    },
+    /// Covariance of the slope estimator and the source estimator.
+    SlopeCovariance {
+        /// Covariance bits.
+        covariance: u64,
+        /// The study or ledger entry the covariance rests on.
+        evidence: String,
+    },
 }
+
+/// One side of an estimand bridge on the wire.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct ExposureWire {
-    population: String,
-    start: String,
-    end: String,
-    dose: u64,
-    dose_units: String,
-    duration: u64,
-    duration_units: String,
-    regime: String,
+pub struct ExposureWire {
+    /// Population.
+    pub population: String,
+    /// Start of the time window.
+    pub start: String,
+    /// End of the time window.
+    pub end: String,
+    /// Dose bits.
+    pub dose: u64,
+    /// Dose units.
+    pub dose_units: String,
+    /// Duration bits.
+    pub duration: u64,
+    /// Duration units.
+    pub duration_units: String,
+    /// Exposure regime.
+    pub regime: String,
 }
+
+/// The translation of an experiment into the bridge's target, on the wire.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct EstimandWire {
-    id: String,
-    experiment_id: String,
-    experiment: ExposureWire,
-    target: ExposureWire,
-    recency: u64,
-    recency_units: String,
-    spend: u64,
-    spend_units: String,
+pub struct EstimandWire {
+    /// Identity of the translation.
+    pub id: String,
+    /// The experiment translated.
+    pub experiment_id: String,
+    /// What the experiment estimated.
+    pub experiment: ExposureWire,
+    /// What the bridge answers.
+    pub target: ExposureWire,
+    /// Recency difference bits.
+    pub recency: u64,
+    /// Recency units.
+    pub recency_units: String,
+    /// Spend difference bits.
+    pub spend: u64,
+    /// Spend units.
+    pub spend_units: String,
 }
+
 impl FullBridgeContractWire {
     /// Encode all fields of an actually licensed contract, preserving IEEE values.
     /// # Errors
     /// Every native bridge licensing refusal and existing mapping conversion failure.
     pub fn from_domain(contract: &BridgeContract) -> Result<Self, ScientificBridgeArtifactError> {
-        use antecedent_contract::bridge::SourceMappingDependence;
         contract.check_licensing().map_err(refused)?;
         Ok(Self {
             version: 2,
             identity: *contract.identity().as_bytes(),
-            base: contract_to_wire(contract)?,
-            uncertainty: contract.mapping_uncertainty.as_ref().map(|value| {
-                MappingUncertaintyWire {
-                    id: value.id.clone(),
-                    intercept: value.intercept_variance.to_bits(),
-                    slope: value.slope_variance.to_bits(),
-                    covariance: value.intercept_slope_covariance.to_bits(),
-                }
-            }),
-            dependence: contract
-                .source_dependence
-                .as_ref()
-                .map(|value| match value {
-                    SourceMappingDependence::Independent { evidence } => {
-                        Ok(DependenceWire::Independent { evidence: evidence.clone() })
-                    }
-                    SourceMappingDependence::SlopeCovariance { covariance, evidence } => {
-                        Ok(DependenceWire::SlopeCovariance {
-                            covariance: covariance.to_bits(),
-                            evidence: evidence.clone(),
-                        })
-                    }
-                    _ => Err(ScientificBridgeArtifactError::UnsupportedSemantics(
-                        "source mapping dependence",
-                    )),
-                })
-                .transpose()?,
-            estimand: contract.estimand_bridge.as_ref().map(|value| EstimandWire {
-                id: value.id.clone(),
-                experiment_id: value.experiment_id.clone(),
-                experiment: exposure_wire(&value.experiment),
-                target: exposure_wire(&value.target),
-                recency: value.recency_delta.to_bits(),
-                recency_units: value.recency_units.clone(),
-                spend: value.spend_delta.to_bits(),
-                spend_units: value.spend_units.clone(),
-            }),
+            base: contract_to_wire_core(contract)?,
+            uncertainty: contract.mapping_uncertainty.as_ref().map(uncertainty_to_wire),
+            dependence: contract.source_dependence.as_ref().map(dependence_to_wire).transpose()?,
+            estimand: contract.estimand_bridge.as_ref().map(estimand_to_wire),
         })
     }
     /// Reconstruct the exact contract and repeat all licensing and identity checks.
     /// # Errors
     /// Unknown versions, malformed native declarations, unsupported mappings or mismatch.
     pub fn to_domain(&self) -> Result<BridgeContract, ScientificBridgeArtifactError> {
-        use antecedent_contract::bridge::{
-            EstimandBridge, MappingUncertainty, SourceMappingDependence,
-        };
         if self.version != 2 {
             return Err(ScientificBridgeArtifactError::UnsupportedSemantics(
                 "full bridge contract version",
             ));
         }
         let mut contract = contract_from_wire(&self.base)?;
-        contract.mapping_uncertainty = self.uncertainty.as_ref().map(|value| MappingUncertainty {
-            id: value.id.clone(),
-            intercept_variance: f64::from_bits(value.intercept),
-            slope_variance: f64::from_bits(value.slope),
-            intercept_slope_covariance: f64::from_bits(value.covariance),
-        });
-        contract.source_dependence = self.dependence.as_ref().map(|value| match value {
-            DependenceWire::Independent { evidence } => {
-                SourceMappingDependence::Independent { evidence: evidence.clone() }
-            }
-            DependenceWire::SlopeCovariance { covariance, evidence } => {
-                SourceMappingDependence::SlopeCovariance {
-                    covariance: f64::from_bits(*covariance),
-                    evidence: evidence.clone(),
-                }
-            }
-        });
-        contract.estimand_bridge = self.estimand.as_ref().map(|value| EstimandBridge {
-            id: value.id.clone(),
-            experiment_id: value.experiment_id.clone(),
-            experiment: exposure_domain(&value.experiment),
-            target: exposure_domain(&value.target),
-            recency_delta: f64::from_bits(value.recency),
-            recency_units: value.recency_units.clone(),
-            spend_delta: f64::from_bits(value.spend),
-            spend_units: value.spend_units.clone(),
-        });
+        contract.mapping_uncertainty = self.uncertainty.as_ref().map(uncertainty_from_wire);
+        contract.source_dependence = self.dependence.as_ref().map(dependence_from_wire);
+        contract.estimand_bridge = self.estimand.as_ref().map(estimand_from_wire);
         contract.check_licensing().map_err(refused)?;
         if self.identity != *contract.identity().as_bytes() {
             return Err(ScientificBridgeArtifactError::ReplayMismatch(
@@ -948,27 +1461,7 @@ impl FullBridgeContractWire {
         Ok(contract)
     }
 }
-fn exposure_wire(value: &antecedent_contract::bridge::ExposureSetting) -> ExposureWire {
-    ExposureWire {
-        population: value.population_id.clone(),
-        start: value.time_start.clone(),
-        end: value.time_end.clone(),
-        dose: value.dose.to_bits(),
-        dose_units: value.dose_units.clone(),
-        duration: value.duration.to_bits(),
-        duration_units: value.duration_units.clone(),
-        regime: value.exposure_regime.clone(),
-    }
-}
-fn exposure_domain(value: &ExposureWire) -> antecedent_contract::bridge::ExposureSetting {
-    antecedent_contract::bridge::ExposureSetting {
-        population_id: value.population.clone(),
-        time_start: value.start.clone(),
-        time_end: value.end.clone(),
-        dose: f64::from_bits(value.dose),
-        dose_units: value.dose_units.clone(),
-        duration: f64::from_bits(value.duration),
-        duration_units: value.duration_units.clone(),
-        exposure_regime: value.regime.clone(),
-    }
-}
+
+#[cfg(test)]
+#[path = "bridge_artifact_tests.rs"]
+mod tests;

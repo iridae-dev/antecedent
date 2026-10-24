@@ -11,8 +11,8 @@
 use antecedent_core::CausalQuery;
 
 use super::{
-    LoweringContext, design_based, discovery, graph_posterior, static_effect, static_response,
-    structural, temporal,
+    LoweringContext, associational, design_based, discovery, graph_posterior, static_effect,
+    static_response, structural, temporal,
 };
 use crate::Study;
 use crate::analysis::builder::DataInput;
@@ -267,4 +267,6 @@ route_lowerings! {
     DiscoverTemporal => discovery as Discovery,
     GcmAttributeDag => structural as Structural,
     GcmSimulateDag => structural as Structural,
+    AssociationStatic => associational as Associational,
+    AssociationTemporal => associational as Associational,
 }

@@ -32,6 +32,9 @@ pub enum ClaimKind {
     Refusal,
     /// Incomplete contract with explicit obligations.
     Incomplete,
+    /// Noncausal association, regression or prediction. Identification is not
+    /// claimed, so the claim never reads as an intervention effect.
+    Associational,
 }
 
 named_variants! {
@@ -43,6 +46,18 @@ named_variants! {
         PolicyValue => "policy_value",
         Refusal => "refusal",
         Incomplete => "incomplete",
+        Associational => "associational",
+    }
+}
+
+impl ClaimKind {
+    /// Whether the kind states something about an intervention.
+    ///
+    /// An associational claim describes the observed joint law and nothing
+    /// more; it ranks no action and is never counted as an effect.
+    #[must_use]
+    pub const fn is_causal(self) -> bool {
+        !matches!(self, Self::Associational)
     }
 }
 
@@ -62,6 +77,9 @@ pub enum DomainStatus {
     Contradicted,
     /// Unknown; not a failed support and not an executable guarantee.
     Unknown,
+    /// Identification is not claimed: the claim is noncausal by construction,
+    /// so there is nothing to identify. Not a failed or missing identification.
+    NotClaimed,
 }
 
 named_variants! {
@@ -72,6 +90,7 @@ named_variants! {
         OutsideScope => "outside_scope",
         Contradicted => "contradicted",
         Unknown => "unknown",
+        NotClaimed => "not_claimed",
     }
 }
 
@@ -1077,6 +1096,16 @@ fn derived_departs_from_parents(
     {
         return Some("retarget_changes_identification");
     }
+    // A derivation may weaken a causal claim to a noncausal one but never
+    // the reverse: no operation turns an association into a causal statement.
+    if parents.iter().any(|parent| parent.kind == ClaimKind::Associational)
+        && !matches!(
+            derived.kind,
+            ClaimKind::Associational | ClaimKind::Refusal | ClaimKind::Incomplete
+        )
+    {
+        return Some("associational_parent_derives_causal_claim");
+    }
     if let Some(restriction) = identification_strengthened(parents, derived) {
         return Some(restriction);
     }
@@ -1342,6 +1371,45 @@ mod tests {
             status, masses[0], masses[1], masses[2], masses[3], true, None, false,
         ));
         claim
+    }
+
+    fn associational_claim(byte: u8) -> ClaimEnvelope {
+        use crate::reasoning::SlotAvailability;
+        let mut claim = sample_claim(byte, 1.0);
+        claim.kind = ClaimKind::Associational;
+        claim.value = None;
+        claim.reasoning.identification =
+            SlotAvailability::unavailable(crate::reasoning::IDENTIFICATION_NOT_CLAIMED);
+        claim.domains = ClaimDomains::new(
+            DomainStatus::NotClaimed,
+            DomainStatus::Unknown,
+            DomainStatus::Evaluated,
+        );
+        claim
+    }
+
+    #[test]
+    fn associational_kind_and_domain_have_stable_appended_names() {
+        assert_eq!(ClaimKind::Associational.as_str(), "associational");
+        assert_eq!(ClaimKind::from_name("associational"), Some(ClaimKind::Associational));
+        assert_eq!(ClaimKind::ALL.last(), Some(&ClaimKind::Associational));
+        assert_eq!(DomainStatus::NotClaimed.as_str(), "not_claimed");
+        assert_eq!(DomainStatus::ALL.last(), Some(&DomainStatus::NotClaimed));
+        assert!(!DomainStatus::NotClaimed.is_positive());
+        assert!(!ClaimKind::Associational.is_causal());
+    }
+
+    #[test]
+    fn an_association_cannot_be_retargeted_into_a_causal_claim() {
+        let parent = associational_claim(1);
+        let mut causal = sample_claim(2, 1.0);
+        causal.reasoning.identification = parent.reasoning.identification.clone();
+        assert_eq!(
+            retarget_refusal(&parent, causal).as_deref(),
+            Some("associational_parent_derives_causal_claim")
+        );
+        // Another noncausal claim over the same association is a licensed derivation.
+        assert_eq!(retarget_refusal(&parent, associational_claim(3)), None);
     }
 
     fn retarget_refusal(parent: &ClaimEnvelope, child: ClaimEnvelope) -> Option<String> {

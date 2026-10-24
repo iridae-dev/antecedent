@@ -55,6 +55,8 @@ nav:
     - What the transport and uncertainty routes do not do: user-facing-limits.md
     - Matched case-control odds ratio: guides/matched-case-control.md
     - Descriptive raw-versus-adjusted comparison: guides/descriptive-comparison.md
+    - Noncausal associations: guides/associational-route.md
+    - Descriptive fallback beside a refusal: guides/fallback.md
     - Tier-aware overlap and E-value diagnostics: guides/tier-diagnostics.md
     - Penalized propensity for AIPW: guides/penalized-aipw.md
     - Treatment levels and multi-level treatments: guides/treatment-levels.md

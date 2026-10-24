@@ -172,7 +172,8 @@ pub use synthesis::{
     random_effects_dersimonian_laird, random_effects_reml,
 };
 pub use twosls::{
-    FirstStageDiagnostics, IvBlocks, TwoSlsFit, anderson_rubin_confidence_set,
-    anderson_rubin_kf_critical, anderson_rubin_statistic, f_critical, fit_2sls, fit_wls,
+    FirstStageDiagnostics, IvBlocks, JointTwoSlsFit, TwoSlsFit, anderson_rubin_confidence_set,
+    anderson_rubin_kf_critical, anderson_rubin_statistic, f_critical, fit_2sls, fit_joint_2sls,
+    fit_wls,
 };
 pub use welford::Welford;

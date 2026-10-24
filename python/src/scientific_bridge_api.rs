@@ -5,19 +5,26 @@
 //! Rust's. A refusal comes back as structured JSON for the Python layer to
 //! raise as a typed exception; a malformed declaration is an input error.
 //!
-//! Everything is point-only: no interval, posterior, predictive law or joint
-//! law is produced, and a request for one is refused by the library.
+//! A bridge of a mean is point-only: no interval, posterior, predictive law or
+//! joint law is produced, and a request for one is refused by the library. A
+//! bridge of the aligned draws of a posterior or a predictive law derives the same
+//! draw table with the bridged column in place of the source column, read as an
+//! uncalibrated spread; its interval is published only through the measured-coverage
+//! gate.
 
 use std::sync::Arc;
 
 use antecedent::{
-    ConsumedScientificBridge, PreparedScientificBridge, ScientificBridgeRefusal,
-    ScientificBridgeResult, consume_scientific_bridge_artifact,
+    ConsumedScientificBridge, PreparedScientificBridge, PreparedScientificBridgeDistribution,
+    ScientificBridgeDistributionResult, ScientificBridgeRefusal, ScientificBridgeResult,
+    consume_scientific_bridge_artifact, consume_scientific_bridge_distribution_artifact,
+    scientific_bridge_artifact_shape,
 };
 use antecedent_contract::bridge::{
     AssumptionKind, BridgeAssumption, BridgeContract, BridgeEndpoint, BridgeKind, BridgeMapping,
-    BridgeScope, BridgeSource, BridgedClaim, QuantityClass, TransportabilityPremise,
-    TrialEffectPair, TrialLevelValidation, ValueKind,
+    BridgeScope, BridgeSource, BridgedClaim, EstimandBridge, ExposureSetting, MappingUncertainty,
+    QuantityClass, SourceMappingDependence, TransportabilityPremise, TrialEffectPair,
+    TrialLevelValidation, ValueKind,
 };
 use antecedent_contract::evidence_ledger::parse_digest_hex;
 use antecedent_contract::{
@@ -30,6 +37,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde_json::{Map, Value as Json, json};
 
+use crate::distribution_api::PyJointDistributionArtifact;
 use crate::measurement_model_api::{
     list, member, model_json, object, opt_text, parse, parse_model, present, real, small, text,
     texts,
@@ -208,7 +216,7 @@ fn parse_assumption(value: &Json) -> PyResult<BridgeAssumption> {
     })
 }
 
-fn parse_contract(value: &Json) -> PyResult<BridgeContract> {
+pub(crate) fn parse_contract(value: &Json) -> PyResult<BridgeContract> {
     let map = object(value, "bridge contract")?;
     let name = text(map, "kind")?;
     let kind = BridgeKind::from_name(&name)
@@ -238,15 +246,83 @@ fn parse_contract(value: &Json) -> PyResult<BridgeContract> {
         mapping: parse_mapping(member(map, "mapping")?)?,
         assumptions,
         transport,
+        mapping_uncertainty: present(map, "mapping_uncertainty")
+            .map(parse_mapping_uncertainty)
+            .transpose()?,
+        source_dependence: present(map, "source_dependence")
+            .map(parse_source_dependence)
+            .transpose()?,
+        estimand_bridge: present(map, "estimand_bridge").map(parse_estimand_bridge).transpose()?,
+    })
+}
 
-        mapping_uncertainty: None,
-        source_dependence: None,
-        estimand_bridge: None,
+fn parse_mapping_uncertainty(value: &Json) -> PyResult<MappingUncertainty> {
+    let map = object(value, "mapping uncertainty")?;
+    Ok(MappingUncertainty {
+        id: text(map, "id")?,
+        intercept_variance: real(map, "intercept_variance")?,
+        slope_variance: real(map, "slope_variance")?,
+        intercept_slope_covariance: real(map, "intercept_slope_covariance")?,
+    })
+}
+
+fn parse_source_dependence(value: &Json) -> PyResult<SourceMappingDependence> {
+    let map = object(value, "source dependence")?;
+    Ok(match text(map, "kind")?.as_str() {
+        "independent" => SourceMappingDependence::Independent { evidence: text(map, "evidence")? },
+        "slope_covariance" => SourceMappingDependence::SlopeCovariance {
+            covariance: real(map, "covariance")?,
+            evidence: text(map, "evidence")?,
+        },
+        other => {
+            return Err(crate::value_err(format!("unknown source dependence `{other}`")));
+        }
+    })
+}
+
+fn parse_exposure(value: &Json, what: &str) -> PyResult<ExposureSetting> {
+    let map = object(value, what)?;
+    Ok(ExposureSetting {
+        population_id: text(map, "population_id")?,
+        time_start: text(map, "time_start")?,
+        time_end: text(map, "time_end")?,
+        dose: real(map, "dose")?,
+        dose_units: text(map, "dose_units")?,
+        duration: real(map, "duration")?,
+        duration_units: text(map, "duration_units")?,
+        exposure_regime: text(map, "exposure_regime")?,
+    })
+}
+
+fn parse_estimand_bridge(value: &Json) -> PyResult<EstimandBridge> {
+    let map = object(value, "estimand bridge")?;
+    Ok(EstimandBridge {
+        id: text(map, "id")?,
+        experiment_id: text(map, "experiment_id")?,
+        experiment: parse_exposure(member(map, "experiment")?, "experiment setting")?,
+        target: parse_exposure(member(map, "target")?, "target setting")?,
+        recency_delta: real(map, "recency_delta")?,
+        recency_units: text(map, "recency_units")?,
+        spend_delta: real(map, "spend_delta")?,
+        spend_units: text(map, "spend_units")?,
+    })
+}
+
+fn exposure_json(setting: &ExposureSetting) -> Json {
+    json!({
+        "population_id": setting.population_id,
+        "time_start": setting.time_start,
+        "time_end": setting.time_end,
+        "dose": setting.dose,
+        "dose_units": setting.dose_units,
+        "duration": setting.duration,
+        "duration_units": setting.duration_units,
+        "exposure_regime": setting.exposure_regime,
     })
 }
 
 fn contract_json(contract: &BridgeContract) -> Json {
-    json!({
+    let mut declared = json!({
         "kind": contract.kind.as_str(),
         "source": endpoint_json(&contract.source),
         "target": endpoint_json(&contract.target),
@@ -267,7 +343,43 @@ fn contract_json(contract: &BridgeContract) -> Json {
             "applies_to": scope_json(&p.applies_to),
             "evidence": p.evidence,
         })),
-    })
+    });
+    // The extended declarations are listed only where the contract makes them, so a
+    // contract that declares none reads exactly as before.
+    if let Some(uncertainty) = &contract.mapping_uncertainty {
+        declared["mapping_uncertainty"] = json!({
+            "id": uncertainty.id,
+            "intercept_variance": uncertainty.intercept_variance,
+            "slope_variance": uncertainty.slope_variance,
+            "intercept_slope_covariance": uncertainty.intercept_slope_covariance,
+        });
+    }
+    match &contract.source_dependence {
+        Some(SourceMappingDependence::Independent { evidence }) => {
+            declared["source_dependence"] = json!({"kind": "independent", "evidence": evidence});
+        }
+        Some(SourceMappingDependence::SlopeCovariance { covariance, evidence }) => {
+            declared["source_dependence"] = json!({
+                "kind": "slope_covariance",
+                "covariance": covariance,
+                "evidence": evidence,
+            });
+        }
+        _ => {}
+    }
+    if let Some(bridge) = &contract.estimand_bridge {
+        declared["estimand_bridge"] = json!({
+            "id": bridge.id,
+            "experiment_id": bridge.experiment_id,
+            "experiment": exposure_json(&bridge.experiment),
+            "target": exposure_json(&bridge.target),
+            "recency_delta": bridge.recency_delta,
+            "recency_units": bridge.recency_units,
+            "spend_delta": bridge.spend_delta,
+            "spend_units": bridge.spend_units,
+        });
+    }
+    declared
 }
 
 /// A declared source claim. The envelope carries only what a derivation
@@ -620,12 +732,287 @@ fn scientific_bridge_consume(
     }
 }
 
+// ---------------------------------------------------------------------------
+// Bridges of distributions.
+// ---------------------------------------------------------------------------
+
+/// A bridge of draws whose contract was checked once.
+#[pyclass(name = "PreparedDistributionBridgeHandle", skip_from_py_object)]
+pub(crate) struct PreparedDistributionBridgeHandle {
+    inner: PreparedScientificBridgeDistribution,
+}
+
+/// A bridged distribution: the derived claim and the aligned draw table.
+#[pyclass(name = "BridgedDistributionHandle", skip_from_py_object)]
+pub(crate) struct BridgedDistributionHandle {
+    inner: ScientificBridgeDistributionResult,
+    identity: Option<String>,
+}
+
+type DerivedDistribution = (Option<BridgedDistributionHandle>, Option<String>);
+type PreparedDistribution = (Option<PreparedDistributionBridgeHandle>, Option<String>);
+
+fn claim_kind_of(name: Option<&str>) -> PyResult<Option<ClaimKind>> {
+    name.map(|name| {
+        ClaimKind::from_name(name)
+            .ok_or_else(|| crate::value_err(format!("unknown claim kind `{name}`")))
+    })
+    .transpose()
+}
+
+fn distribution_summary(result: &ScientificBridgeDistributionResult) -> Json {
+    let inspection = result.inspect();
+    let claim = result.claim();
+    let envelope = result.envelope();
+    json!({
+        "kind": inspection.kind.as_str(),
+        "mapping": inspection.mapping.as_str(),
+        "value_kind": inspection.value_kind.as_str(),
+        "n_draws": inspection.n_draws,
+        "source_mean": inspection.source_mean,
+        "source_variance": inspection.source_variance,
+        "mean": inspection.mean,
+        "variance": inspection.variance,
+        "stream": inspection.stream,
+        "alignment_identity": inspection.alignment_identity,
+        "draws_digest": inspection.draws_digest,
+        "source_claim_id": inspection.source_claim_id,
+        "claim_id": inspection.claim_id,
+        "contract_identity": inspection.contract_identity,
+        "transported": inspection.transported,
+        "reading": inspection.reading,
+        "calibration": "unmeasured",
+        "units": envelope.outcome_units.as_deref(),
+        "domains": {
+            "identification": envelope.domains.identification.as_str(),
+            "support": envelope.domains.support.as_str(),
+            "evaluated": envelope.domains.evaluated.as_str(),
+        },
+        "uncertainty_available": envelope.reasoning.uncertainty.is_available(),
+        "evidence": envelope.evidence.iter().map(ToString::to_string).collect::<Vec<_>>(),
+        "unresolved": claim.receipt.unresolved.iter().map(ToString::to_string).collect::<Vec<_>>(),
+        "unavailable": inspection.unavailable,
+        "provenance": claim.provenance.nodes.iter().map(|node| json!({
+            "artifact_id": node.artifact_id.to_string(),
+            "operation": node.operation.to_string(),
+            "parents": node.parents.iter().map(ToString::to_string).collect::<Vec<_>>(),
+        })).collect::<Vec<_>>(),
+        "contract": contract_json(&claim.contract),
+        "bridged_column": result.bridged().column(),
+    })
+}
+
+fn distribution_freshness(
+    result: &ScientificBridgeDistributionResult,
+    withdrawn: bool,
+    superseded: bool,
+) -> String {
+    let source = result.bridged().source_envelope();
+    let snapshot = source.identities.data_snapshot;
+    let standing = source.freshness(
+        Some(snapshot),
+        Some(snapshot),
+        superseded.then_some(source.claim_id),
+        withdrawn,
+        true,
+    );
+    let derived = result.freshness(&standing);
+    json!({
+        "historically_valid": derived.historically_valid,
+        "currently_applicable": derived.currently_applicable,
+    })
+    .to_string()
+}
+
+#[pymethods]
+impl PreparedDistributionBridgeHandle {
+    /// The checked contract as a declaration.
+    fn contract_json(&self) -> String {
+        contract_json(self.inner.contract()).to_string()
+    }
+
+    /// The identity of the contract.
+    fn contract_identity(&self) -> String {
+        self.inner.contract_identity().to_hex()
+    }
+
+    /// Whether the bridge carries evidence from another scope under a premise.
+    fn transported(&self) -> bool {
+        self.inner.transported()
+    }
+
+    /// Bridge the draws of an aligned draw table, or the refusal.
+    #[pyo3(signature = (distribution, seed, claim_kind=None))]
+    fn derive(
+        &self,
+        distribution: PyRef<'_, PyJointDistributionArtifact>,
+        seed: u64,
+        claim_kind: Option<&str>,
+    ) -> PyResult<DerivedDistribution> {
+        let kind = claim_kind_of(claim_kind)?;
+        Ok(match self.inner.derive(distribution.inner(), kind, seed) {
+            Ok(inner) => (Some(BridgedDistributionHandle { inner, identity: None }), None),
+            Err(refusal) => (None, Some(refusal_json(&refusal))),
+        })
+    }
+
+    /// A prepared bridge for a replacement contract, re-checked in full.
+    fn with_contract(&self, contract_json: &str) -> PyResult<PreparedDistribution> {
+        let contract = parse_contract(&parse(contract_json, "bridge contract")?)?;
+        Ok(match self.inner.with_contract(contract) {
+            Ok(inner) => (Some(PreparedDistributionBridgeHandle { inner }), None),
+            Err(refusal) => (None, Some(refusal_json(&refusal))),
+        })
+    }
+}
+
+#[pymethods]
+impl BridgedDistributionHandle {
+    /// The derivation, its identities, assumptions and provenance, as JSON.
+    fn summary_json(&self) -> String {
+        let mut summary = distribution_summary(&self.inner);
+        if let Some(identity) = &self.identity {
+            summary["identity"] = json!(identity);
+        }
+        summary.to_string()
+    }
+
+    /// The bridged draw table: the source table with the bridged column in place
+    /// of the source column, with the source table's alignment identity.
+    fn distribution(&self) -> PyJointDistributionArtifact {
+        PyJointDistributionArtifact {
+            artifact: self.inner.distribution().clone(),
+            source_claim: None,
+        }
+    }
+
+    /// The source draw table, unchanged.
+    fn source_distribution(&self) -> PyJointDistributionArtifact {
+        PyJointDistributionArtifact { artifact: self.inner.source().clone(), source_claim: None }
+    }
+
+    /// The refusal when a consumer requires another kind of object.
+    fn require_value_kind(&self, kind: &str) -> PyResult<Option<String>> {
+        let kind = ValueKind::from_name(kind)
+            .ok_or_else(|| crate::value_err(format!("unknown value kind `{kind}`")))?;
+        Ok(self.inner.require_value_kind(kind).err().map(|r| refusal_json(&r)))
+    }
+
+    /// The typed refusal of an unscoped request for an interval.
+    fn interval(&self) -> String {
+        match self.inner.interval() {
+            Err(refusal) => refusal_json(&refusal),
+            Ok(()) => String::new(),
+        }
+    }
+
+    /// The interval of the bridged value at `level` as JSON, or the typed refusal.
+    fn bridged_interval(&self, level: f64) -> (Option<String>, Option<String>) {
+        match self.inner.bridged_interval(level) {
+            Ok(interval) => (
+                Some(
+                    json!({
+                        "lower": interval.lower,
+                        "upper": interval.upper,
+                        "level": interval.level,
+                        "source_value": interval.source_value,
+                        "value": interval.value,
+                        "source_standard_error": interval.source_standard_error,
+                        "standard_error": interval.standard_error,
+                        "degrees_of_freedom": interval.degrees_of_freedom,
+                        "mapping": interval.mapping.as_str(),
+                        "construction": interval.construction,
+                        "licensed_by": interval.licensed_by,
+                        "coverage_record": interval.coverage_record,
+                        "calibration_sha": interval.calibration_sha,
+                        "assumptions": interval.assumptions,
+                    })
+                    .to_string(),
+                ),
+                None,
+            ),
+            Err(refusal) => (None, Some(refusal_json(&refusal))),
+        }
+    }
+
+    /// The bridge as a propagation-chain measurement-mapping stage: the sources it
+    /// reads and the stage, as JSON in the chain record's wire shape.
+    fn chain_stage_json(&self, stage_id: &str) -> (Option<String>, Option<String>) {
+        match self.inner.chain_stage(stage_id) {
+            Ok(parts) => (
+                serde_json::to_string(&json!({"sources": parts.sources, "stage": parts.stage}))
+                    .ok(),
+                None,
+            ),
+            Err(refusal) => (None, Some(refusal_json(&refusal))),
+        }
+    }
+
+    /// Applicability of the derived claim given the source's standing.
+    fn freshness_json(&self, source_withdrawn: bool, source_superseded: bool) -> String {
+        distribution_freshness(&self.inner, source_withdrawn, source_superseded)
+    }
+
+    /// The artifact bytes and identity, or the refusal.
+    fn export(&self, py: Python<'_>, artifact_id: &str) -> Exported {
+        match self.inner.export(artifact_id) {
+            Ok(done) => (Some((PyBytes::new(py, &done.bytes).unbind(), done.identity)), None),
+            Err(refusal) => (None, Some(refusal_json(&refusal))),
+        }
+    }
+}
+
+/// Check a bridge contract whose source is the draws of a posterior or a
+/// predictive law.
+#[pyfunction]
+fn scientific_bridge_distribution_prepare(contract_json: &str) -> PyResult<PreparedDistribution> {
+    let contract = parse_contract(&parse(contract_json, "bridge contract")?)?;
+    Ok(match PreparedScientificBridgeDistribution::prepare(contract) {
+        Ok(inner) => (Some(PreparedDistributionBridgeHandle { inner }), None),
+        Err(refusal) => (None, Some(refusal_json(&refusal))),
+    })
+}
+
+/// Independently consume a bridge-of-draws artifact by mapping its stored draws
+/// again, against an artifact identity the consumer retained.
+#[pyfunction]
+#[pyo3(signature = (artifact, expected_identity=None))]
+fn scientific_bridge_distribution_consume(
+    artifact: &[u8],
+    expected_identity: Option<&str>,
+) -> DerivedDistribution {
+    match consume_scientific_bridge_distribution_artifact(artifact, expected_identity) {
+        Ok(consumed) => (
+            Some(BridgedDistributionHandle {
+                inner: consumed.bridged.into(),
+                identity: Some(consumed.identity),
+            }),
+            None,
+        ),
+        Err(refusal) => (None, Some(refusal_json(&refusal))),
+    }
+}
+
+/// Which shape a scientific bridge artifact has, `point` or `draws`.
+#[pyfunction]
+fn scientific_bridge_shape(artifact: &[u8]) -> (Option<String>, Option<String>) {
+    match scientific_bridge_artifact_shape(artifact) {
+        Ok(shape) => (Some(shape.to_owned()), None),
+        Err(refusal) => (None, Some(refusal_json(&refusal))),
+    }
+}
+
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PreparedBridgeHandle>()?;
     module.add_class::<BridgedClaimHandle>()?;
     module.add_class::<ConsumedBridgeHandle>()?;
+    module.add_class::<PreparedDistributionBridgeHandle>()?;
+    module.add_class::<BridgedDistributionHandle>()?;
     module.add_function(wrap_pyfunction!(scientific_bridge_prepare, module)?)?;
     module.add_function(wrap_pyfunction!(scientific_bridge_contract_identity, module)?)?;
     module.add_function(wrap_pyfunction!(scientific_bridge_consume, module)?)?;
+    module.add_function(wrap_pyfunction!(scientific_bridge_distribution_prepare, module)?)?;
+    module.add_function(wrap_pyfunction!(scientific_bridge_distribution_consume, module)?)?;
+    module.add_function(wrap_pyfunction!(scientific_bridge_shape, module)?)?;
     Ok(())
 }

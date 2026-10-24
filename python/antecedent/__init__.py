@@ -50,6 +50,9 @@ Lifecycle -- analyze, bind external evidence, inspect the claim, decide, rank a 
   ``inverse_query`` answer which enumerated interventions reach a target;
 * ``design`` (root-exported) ranks the study to run next, ``repair`` states evidence obligations
   and identification repair, and ``proposals`` links the two with a per-proposal receipt;
+* ``fallback`` is the opt-in beside a refusal: ``analyze(..., on_refusal="describe")`` returns the
+  unchanged identification refusal with a noncausal description of the observed data and the
+  evidence that would resolve it, never as a causal answer;
 * ``joint_distribution`` holds the aligned distribution artifacts decisions consume, and
   ``composition`` / ``composition_bundle`` define what may be combined and export the whole chain
   as one portable bundle an independent consumer checks against retained identities.
@@ -112,7 +115,10 @@ supplies no interval, native trust, joint law or identification licence.
 ``observation_query`` asks what an observation says: the outcome probability given a recorded
 signal kept distinct from the probability under an intervention on the same model, a measured
 signal inverted through its measurement model, posteriors after new evidence and the evidence
-required to reach a level (exact given a declared model, never an interval).
+required to reach a level (exact given a declared model, never an interval); continuous evidence
+on a linear-Gaussian model by Schur-complement conditioning, observation after an intervention,
+and parameter uncertainty as aligned posterior draws (a labelled spread, an interval only inside a
+measured coverage record).
 
 ``predictive_assessment`` scores predictive laws against realized observations under a declared
 validation design: proper scores, paired differences with declared dependence, labelled
@@ -397,6 +403,7 @@ _LAZY_MODULES: tuple[str, ...] = (
     "effect_constancy_review",
     "evidence_ledger",
     "execution_attempt",
+    "fallback",
     "functional_source",
     "graph_falsification",
     "interface_contract",
@@ -481,6 +488,7 @@ if _TYPE_CHECKING:
     from . import effect_constancy_review as effect_constancy_review
     from . import evidence_ledger as evidence_ledger
     from . import execution_attempt as execution_attempt
+    from . import fallback as fallback
     from . import functional_source as functional_source
     from . import graph_falsification as graph_falsification
     from . import interface_contract as interface_contract

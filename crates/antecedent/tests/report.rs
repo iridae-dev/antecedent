@@ -412,6 +412,35 @@ fn a_refusal_names_its_blockers_next_actions_and_no_value() {
 }
 
 #[test]
+fn a_noncausal_claim_says_so_and_never_reads_as_an_effect() {
+    use antecedent_contract::{ClaimDomains, ClaimKind, DomainStatus, IDENTIFICATION_NOT_CLAIMED};
+    let mut scenario = licensed_static_effect();
+    scenario.plan = None;
+    let claim = scenario.claim.as_mut().unwrap();
+    claim.kind = ClaimKind::Associational;
+    claim.value = None;
+    claim.reasoning.identification = SlotAvailability::unavailable(IDENTIFICATION_NOT_CLAIMED);
+    claim.domains =
+        ClaimDomains::new(DomainStatus::NotClaimed, DomainStatus::Unknown, DomainStatus::Evaluated);
+    for format in [ReportFormat::Markdown, ReportFormat::Html] {
+        let rendered = scenario.render(format);
+        assert!(rendered.contains("noncausal association"), "{rendered}");
+        assert!(rendered.contains("Identification is not claimed"), "{rendered}");
+        // Markdown escapes the underscore of a value it prints.
+        assert!(
+            rendered.contains("not_claimed") || rendered.contains("not\\_claimed"),
+            "{rendered}"
+        );
+        assert!(!rendered.contains("publishes a value of kind"), "{rendered}");
+        assert!(!rendered.contains("Identification status is"), "{rendered}");
+    }
+    let markdown = scenario.render(ReportFormat::Markdown);
+    assert_eq!(fact(&markdown, "Claim kind"), "associational");
+    assert_eq!(fact(&markdown, "Identification domain"), "not\\_claimed");
+    assert!(fact(&markdown, "Causal reading").starts_with("noncausal"), "{markdown}");
+}
+
+#[test]
 fn status_and_inference_are_stated_for_each_scenario() {
     for scenario in scenarios() {
         let markdown = scenario.render(ReportFormat::Markdown);

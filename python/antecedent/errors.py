@@ -241,6 +241,12 @@ class EffectNotIdentified(CausalUnsupportedError, CausalCompileError):
     at a budget (a capped search is not a proof of non-identification). It
     subclasses :class:`CausalCompileError`, which this refusal was raised as
     before it carried its outcome.
+
+    The refusal is the answer to the causal question and is never replaced. A caller who
+    also wants a noncausal description of the observed data and the evidence that would
+    resolve the refusal opts in with ``analyze(..., on_refusal="describe")``, which returns
+    the unchanged refusal beside both (:mod:`antecedent.fallback`); a capped search is not
+    converted.
     """
 
     identification_status: str = "not_identified"
@@ -405,9 +411,14 @@ def next_action(err: BaseException, edges: Sequence[PendingEdge] = ()) -> str:
         status = getattr(err, "identification_status", "not_identified")
         capped = getattr(err, "search_capped", False)
         search = "capped; not a proof of non-identification" if capped else "complete"
+        opt_in = (
+            " To keep this refusal and also get a noncausal description of the observed data "
+            "and the evidence that would resolve it, call analyze(..., on_refusal='describe'); "
+            "that description is not an answer to the causal question."
+        )
         return (
             f"Not identified ({status}; search {search}). "
-            "Change the query or supply a more informative graph."
+            "Change the query or supply a more informative graph." + ("" if capped else opt_in)
         )
     code = getattr(err, "reason_code", None) or type(err).__name__
     hint = getattr(err, "hint", None)

@@ -20,12 +20,15 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::{
-    ClaimDomains, ClaimEnvelope, ClaimKind, DomainStatus, OperationReadiness, OperationReport,
-    SemanticApplicability,
+    ClaimDomains, ClaimEnvelope, ClaimKind, DomainStatus, EvidenceObligation, LicensedNeighbor,
+    ObligationRecord, OperationReadiness, OperationReport, SemanticApplicability,
 };
 use antecedent_core::named_variants;
 use serde_json::{Value, json};
 
+use crate::analysis::fallback::{
+    AnalysisWithFallback, FallbackUnavailable, NONCAUSAL_NOTICE, RankedPlan,
+};
 use crate::error::CausalError;
 
 /// Version of the host contract. A consumer must change when it moves; new
@@ -70,6 +73,9 @@ impl HostStatus {
     ///
     /// A refusal, or a domain that is contradicted or outside the declared scope,
     /// is unsupported. A bounds or incomplete claim is partial by construction.
+    /// An associational claim is a noncausal claim: it is supported when it states
+    /// that identification is not claimed and the association was evaluated, and
+    /// partial otherwise; it is never read as an identified, causal claim.
     /// Every other kind is supported when the structure is identified and the
     /// claim was evaluated and nothing contradicts it; a support domain that is
     /// merely `unknown` (no empirical check ran) stays visible in the claim's
@@ -87,6 +93,15 @@ impl HostStatus {
         }
         if matches!(kind, ClaimKind::Incomplete | ClaimKind::Bounds) {
             return Self::Partial;
+        }
+        if matches!(kind, ClaimKind::Associational) {
+            return if matches!(domains.identification, DomainStatus::NotClaimed)
+                && matches!(domains.evaluated, DomainStatus::Evaluated)
+            {
+                Self::Supported
+            } else {
+                Self::Partial
+            };
         }
         if matches!(domains.identification, DomainStatus::Identified)
             && matches!(domains.evaluated, DomainStatus::Evaluated)
@@ -234,12 +249,109 @@ pub fn error_response(error: &CausalError) -> Value {
     json!({ "status": HostStatus::Unsupported.as_str(), "refusal": refusal_record(error) })
 }
 
+/// Host record of an unavailable part of a fallback, shaped as the schema's
+/// `fallback_unavailable`.
+#[must_use]
+pub fn fallback_unavailable_record(unavailable: &FallbackUnavailable) -> Value {
+    json!({
+        "available": false,
+        "part": unavailable.part.as_str(),
+        "reason_code": unavailable.code,
+        "detail": unavailable.detail,
+        "message": unavailable.message,
+    })
+}
+
+/// Host record of an obligation, shaped as the schema's `evidence_obligation`.
+#[must_use]
+pub fn evidence_obligation_record(obligation: &EvidenceObligation, names: &[String]) -> Value {
+    let named = |variables: &[antecedent_core::VariableId]| {
+        variables
+            .iter()
+            .map(|v| names.get(v.as_usize()).cloned().unwrap_or_else(|| format!("v{}", v.raw())))
+            .collect::<Vec<_>>()
+    };
+    json!({
+        "id": obligation.id.as_ref(),
+        "kind": obligation.kind.as_str(),
+        "scope": obligation.scope.as_str(),
+        "variables": named(&obligation.variables),
+        "reason": obligation.reason.as_ref(),
+        "family": obligation.provenance.family.as_ref(),
+        "proof_step": obligation.provenance.proof_step.as_deref(),
+        "satisfiable_by_study": obligation.satisfiable_by_study(),
+    })
+}
+
+/// Host record of a descriptive fallback, shaped as the schema's `fallback_response`.
+///
+/// The causal question stays refused: `status` is `unsupported` and `refusal` is the unchanged
+/// refusal record. Beside it the record shows both statuses: `causal_status` (always
+/// `unsupported`) and `associational_status` (the host status of the noncausal claim, or
+/// `unavailable` with its typed reason). The associational claim carries `causal: false` and
+/// never reads as an identified effect; it ranks no action.
+#[must_use]
+pub fn fallback_response(fallback: &AnalysisWithFallback) -> Value {
+    let (associational_status, associational) = match &fallback.associational {
+        Ok(part) => {
+            let record = claim_record(&part.claim);
+            (
+                record["status"].clone(),
+                json!({
+                    "available": true,
+                    "noncausal": true,
+                    "ranks_actions": false,
+                    "rule": part.roles.rule,
+                    "claim": record,
+                }),
+            )
+        }
+        Err(unavailable) => (json!("unavailable"), fallback_unavailable_record(unavailable)),
+    };
+    let evidence = match &fallback.evidence {
+        Ok(needs) => json!({
+            "available": true,
+            "obligations": needs
+                .obligations
+                .iter()
+                .map(|o| evidence_obligation_record(o, &needs.names))
+                .collect::<Vec<_>>(),
+            "next_actions": needs
+                .next_actions
+                .iter()
+                .map(|a| json!({ "id": a.id.as_ref(), "description": a.description.as_ref() }))
+                .collect::<Vec<_>>(),
+            "ranked_plan": match &needs.ranking {
+                RankedPlan::NotRequested => json!({ "available": false, "requested": false }),
+                RankedPlan::Ranked(plan) => json!({
+                    "available": true,
+                    "requested": true,
+                    "outcome": plan.plan.outcome.as_str(),
+                    "options": plan.plan.options.len(),
+                }),
+                RankedPlan::Unavailable(unavailable) => fallback_unavailable_record(unavailable),
+            },
+        }),
+        Err(unavailable) => fallback_unavailable_record(unavailable),
+    };
+    json!({
+        "status": HostStatus::Unsupported.as_str(),
+        "causal_status": HostStatus::Unsupported.as_str(),
+        "associational_status": associational_status,
+        "refusal": refusal_record(&fallback.refusal),
+        "associational": associational,
+        "evidence_plan": evidence,
+        "notice": NONCAUSAL_NOTICE,
+    })
+}
+
 /// Host record of a claim, shaped as the schema's `claim_envelope`.
 #[must_use]
 pub fn claim_record(claim: &ClaimEnvelope) -> Value {
     json!({
         "claim_id": claim.claim_id.to_hex(),
         "kind": claim.kind.as_str(),
+        "causal": claim.kind.is_causal(),
         "value": claim.value,
         "outcome_units": claim.outcome_units.as_deref(),
         "domains": {
@@ -279,6 +391,51 @@ pub fn operation_record(report: &OperationReport) -> Value {
             .iter()
             .map(|a| json!({ "id": a.id.as_ref(), "description": a.description.as_ref() }))
             .collect::<Vec<_>>(),
+        "neighbors": neighbor_records(&report.neighbors),
+        "unmet_obligations": unmet_obligation_records(&report.unmet_obligations),
         "status": HostStatus::of_operation(report).as_str(),
     })
+}
+
+/// Host records of licensed neighbors, shaped as the schema's `licensed_neighbor`.
+///
+/// A neighbor names the premises it changes; it is an explicit alternative the
+/// caller chooses, never an automatic fallback.
+#[must_use]
+pub fn neighbor_records(neighbors: &[LicensedNeighbor]) -> Vec<Value> {
+    neighbors
+        .iter()
+        .map(|n| {
+            json!({
+                "coordinate": n.coordinate.as_ref(),
+                "changed": n.changed
+                    .iter()
+                    .map(|c| json!({
+                        "axis": c.axis.as_ref(),
+                        "from": c.from.as_ref(),
+                        "to": c.to.as_ref(),
+                    }))
+                    .collect::<Vec<_>>(),
+                "required_action": n.required_action.as_ref(),
+            })
+        })
+        .collect()
+}
+
+/// Host records of unresolved obligations, shaped as the schema's `unmet_obligation`.
+#[must_use]
+pub fn unmet_obligation_records(obligations: &[ObligationRecord]) -> Vec<Value> {
+    obligations
+        .iter()
+        .map(|o| {
+            json!({
+                "id": o.id.as_ref(),
+                "scope": o.scope.as_str(),
+                "kind": o.kind.as_str(),
+                "status": o.status.as_str(),
+                "required_check": o.required_check.as_deref(),
+                "description": o.description.as_ref(),
+            })
+        })
+        .collect()
 }

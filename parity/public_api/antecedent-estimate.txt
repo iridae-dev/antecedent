@@ -88,12 +88,18 @@ impl core::clone::Clone for antecedent_estimate::AlignedRows
 impl core::clone::Clone for antecedent_estimate::AnalyticSe
 impl core::clone::Clone for antecedent_estimate::AnalyticSeKind
 impl core::clone::Clone for antecedent_estimate::ArmSummary
+impl core::clone::Clone for antecedent_estimate::AssociationAnalysis
+impl core::clone::Clone for antecedent_estimate::AssociationEstimate
+impl core::clone::Clone for antecedent_estimate::AssociationEstimator
+impl core::clone::Clone for antecedent_estimate::AssociationSelection
+impl core::clone::Clone for antecedent_estimate::AssociationTerm
 impl core::clone::Clone for antecedent_estimate::AtomUncertainty
 impl core::clone::Clone for antecedent_estimate::BalancedWeightingInterval
 impl core::clone::Clone for antecedent_estimate::BayesianBackendKind
 impl core::clone::Clone for antecedent_estimate::BayesianGCompWorkspace
 impl core::clone::Clone for antecedent_estimate::BayesianGComputationAte
 impl core::clone::Clone for antecedent_estimate::BayesianInterferenceEstimate
+impl core::clone::Clone for antecedent_estimate::BayesianSettings
 impl core::clone::Clone for antecedent_estimate::BayesianStatisticalTransportEstimate
 impl core::clone::Clone for antecedent_estimate::BayesianTemporalGcomp
 impl core::clone::Clone for antecedent_estimate::BayesianTransportLawProvider
@@ -187,6 +193,7 @@ impl core::clone::Clone for antecedent_estimate::GappedAlignedRows
 impl core::clone::Clone for antecedent_estimate::GlmAdjustmentAte
 impl core::clone::Clone for antecedent_estimate::GlmAdjustmentWorkspace
 impl core::clone::Clone for antecedent_estimate::GraphEffectDraws
+impl core::clone::Clone for antecedent_estimate::HeldOutCase
 impl core::clone::Clone for antecedent_estimate::HydrateMapping
 impl core::clone::Clone for antecedent_estimate::IndependenceUnit
 impl core::clone::Clone for antecedent_estimate::InterferenceEstimate
@@ -218,6 +225,7 @@ impl core::clone::Clone for antecedent_estimate::MeanPair
 impl core::clone::Clone for antecedent_estimate::MediationPosteriorSummary
 impl core::clone::Clone for antecedent_estimate::MenuContext
 impl core::clone::Clone for antecedent_estimate::MenuRefusal
+impl core::clone::Clone for antecedent_estimate::Modality
 impl core::clone::Clone for antecedent_estimate::MultiLevelAipw
 impl core::clone::Clone for antecedent_estimate::MultiLevelEstimate
 impl core::clone::Clone for antecedent_estimate::MultiLevelPopulation
@@ -235,13 +243,17 @@ impl core::clone::Clone for antecedent_estimate::ObservationRow
 impl core::clone::Clone for antecedent_estimate::ObservationalExposureEstimate
 impl core::clone::Clone for antecedent_estimate::OrderingSensitivity
 impl core::clone::Clone for antecedent_estimate::OtherLevels
+impl core::clone::Clone for antecedent_estimate::OutcomeKind
 impl core::clone::Clone for antecedent_estimate::OverlapPolicy
 impl core::clone::Clone for antecedent_estimate::OverlapReport
 impl core::clone::Clone for antecedent_estimate::PenalizedReport
 impl core::clone::Clone for antecedent_estimate::PenalizedVarianceReport
 impl core::clone::Clone for antecedent_estimate::PointwiseCateEstimate
 impl core::clone::Clone for antecedent_estimate::PopulationLinearVariance
+impl core::clone::Clone for antecedent_estimate::PosteriorRecord
+impl core::clone::Clone for antecedent_estimate::PredictionFit
 impl core::clone::Clone for antecedent_estimate::PreparationSummary
+impl core::clone::Clone for antecedent_estimate::PreparedAssociation
 impl core::clone::Clone for antecedent_estimate::PreparedBayesianProblem
 impl core::clone::Clone for antecedent_estimate::PreparedEstimationProblem
 impl core::clone::Clone for antecedent_estimate::PreparedFrontDoorProblem
@@ -272,6 +284,7 @@ impl core::clone::Clone for antecedent_estimate::ReplicatePolicy
 impl core::clone::Clone for antecedent_estimate::ReportingContrast
 impl core::clone::Clone for antecedent_estimate::ReportingScale
 impl core::clone::Clone for antecedent_estimate::ReportingTransform
+impl core::clone::Clone for antecedent_estimate::ResamplingRecord
 impl core::clone::Clone for antecedent_estimate::ResponseBlockLength
 impl core::clone::Clone for antecedent_estimate::ResponseInfluence
 impl core::clone::Clone for antecedent_estimate::RetainedSamplingWeights
@@ -325,6 +338,7 @@ impl core::clone::Clone for antecedent_estimate::TemporalMediationSlice
 impl core::clone::Clone for antecedent_estimate::TemporalMediationUncertainty
 impl core::clone::Clone for antecedent_estimate::TemporalResponseEstimator
 impl core::clone::Clone for antecedent_estimate::TemporalSlopeDesign
+impl core::clone::Clone for antecedent_estimate::TermPosterior
 impl core::clone::Clone for antecedent_estimate::TransportEffectEstimate
 impl core::clone::Clone for antecedent_estimate::TransportOverlapDiagnostic
 impl core::clone::Clone for antecedent_estimate::TransportOverlapReport
@@ -601,6 +615,13 @@ impl core::clone::Clone for antecedent_estimate::joint_panel::PanelProgram
 impl core::clone::Clone for antecedent_estimate::joint_panel::PanelResponse
 impl core::clone::Clone for antecedent_estimate::joint_panel::PanelSamplingOptions
 impl core::clone::Clone for antecedent_estimate::joint_panel::PanelScenario
+impl core::clone::Clone for antecedent_estimate::joint_panel::decomposition::ChangeComponent
+impl core::clone::Clone for antecedent_estimate::joint_panel::decomposition::DecompositionEndpoint
+impl core::clone::Clone for antecedent_estimate::joint_panel::decomposition::MechanismPeriodMap
+impl core::clone::Clone for antecedent_estimate::joint_panel::decomposition::PairedPanelPath
+impl core::clone::Clone for antecedent_estimate::joint_panel::decomposition::PanelDecomposition
+impl core::clone::Clone for antecedent_estimate::joint_panel::decomposition::PanelDecompositionRequest
+impl core::clone::Clone for antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition
 impl core::clone::Clone for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast
 impl core::clone::Clone for antecedent_estimate::joint_panel::time_varying::PanelExplanation
 impl core::clone::Clone for antecedent_estimate::joint_panel::time_varying::PanelMeanParameter
@@ -873,6 +894,8 @@ impl core::clone::Clone for antecedent_estimate::survival::SurvivalEndpoint
 impl core::clone::Clone for antecedent_estimate::survival_posterior::HazardGammaPrior
 impl core::clone::Clone for antecedent_estimate::survival_posterior::IntervalHazardPosterior
 impl core::clone::Clone for antecedent_estimate::survival_posterior::PiecewiseSurvivalPosterior
+impl core::clone::Clone for antecedent_estimate::switchback::HistoryAssignment
+impl core::clone::Clone for antecedent_estimate::switchback::HistorySwitchbackFit
 impl core::clone::Clone for antecedent_estimate::switchback::SwitchbackItt
 impl core::clone::Clone for antecedent_estimate::switchback_posterior::CarryoverDeclaration
 impl core::clone::Clone for antecedent_estimate::switchback_posterior::PeriodAdjustment
@@ -993,6 +1016,8 @@ impl core::clone::Clone for antecedent_estimate::white_innovation_posterior::Whi
 impl core::clone::Clone for antecedent_estimate::white_innovation_posterior::WhiteInnovationPosterior
 impl core::cmp::Eq for antecedent_estimate::AlignedRows
 impl core::cmp::Eq for antecedent_estimate::AnalyticSeKind
+impl core::cmp::Eq for antecedent_estimate::AssociationAnalysis
+impl core::cmp::Eq for antecedent_estimate::AssociationSelection
 impl core::cmp::Eq for antecedent_estimate::BayesianBackendKind
 impl core::cmp::Eq for antecedent_estimate::BayesianTransportLawProvider
 impl core::cmp::Eq for antecedent_estimate::BlockBootstrap
@@ -1026,12 +1051,14 @@ impl core::cmp::Eq for antecedent_estimate::JointContrast
 impl core::cmp::Eq for antecedent_estimate::JointFitPlan
 impl core::cmp::Eq for antecedent_estimate::MatchedSetCounts
 impl core::cmp::Eq for antecedent_estimate::MenuRefusal
+impl core::cmp::Eq for antecedent_estimate::Modality
 impl core::cmp::Eq for antecedent_estimate::MultiLevelPopulation
 impl core::cmp::Eq for antecedent_estimate::NuisanceFallback
 impl core::cmp::Eq for antecedent_estimate::NuisanceScopeUse
 impl core::cmp::Eq for antecedent_estimate::ObservationPattern
 impl core::cmp::Eq for antecedent_estimate::ObservationRow
 impl core::cmp::Eq for antecedent_estimate::OtherLevels
+impl core::cmp::Eq for antecedent_estimate::OutcomeKind
 impl core::cmp::Eq for antecedent_estimate::PreparationSummary
 impl core::cmp::Eq for antecedent_estimate::ProbabilityIntervalUnavailable
 impl core::cmp::Eq for antecedent_estimate::PropensityNuisance
@@ -1107,6 +1134,8 @@ impl core::cmp::Eq for antecedent_estimate::joint_bayesian_transport::VaryingBlo
 impl core::cmp::Eq for antecedent_estimate::joint_panel::PanelChannel
 impl core::cmp::Eq for antecedent_estimate::joint_panel::PanelError
 impl core::cmp::Eq for antecedent_estimate::joint_panel::PanelFeatureInputs
+impl core::cmp::Eq for antecedent_estimate::joint_panel::decomposition::ChangeComponent
+impl core::cmp::Eq for antecedent_estimate::joint_panel::decomposition::MechanismPeriodMap
 impl core::cmp::Eq for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast
 impl core::cmp::Eq for antecedent_estimate::joint_panel::time_varying::PanelExplanation
 impl core::cmp::Eq for antecedent_estimate::joint_panel::time_varying::PanelMeanParameter
@@ -1249,9 +1278,14 @@ impl core::cmp::PartialEq for antecedent_estimate::AlignedRows
 impl core::cmp::PartialEq for antecedent_estimate::AnalyticSe
 impl core::cmp::PartialEq for antecedent_estimate::AnalyticSeKind
 impl core::cmp::PartialEq for antecedent_estimate::ArmSummary
+impl core::cmp::PartialEq for antecedent_estimate::AssociationAnalysis
+impl core::cmp::PartialEq for antecedent_estimate::AssociationEstimate
+impl core::cmp::PartialEq for antecedent_estimate::AssociationSelection
+impl core::cmp::PartialEq for antecedent_estimate::AssociationTerm
 impl core::cmp::PartialEq for antecedent_estimate::AtomUncertainty
 impl core::cmp::PartialEq for antecedent_estimate::BayesianBackendKind
 impl core::cmp::PartialEq for antecedent_estimate::BayesianInterferenceEstimate
+impl core::cmp::PartialEq for antecedent_estimate::BayesianSettings
 impl core::cmp::PartialEq for antecedent_estimate::BayesianTransportLawProvider
 impl core::cmp::PartialEq for antecedent_estimate::BlockBootstrap
 impl core::cmp::PartialEq for antecedent_estimate::BlockResampling
@@ -1309,6 +1343,7 @@ impl core::cmp::PartialEq for antecedent_estimate::FoldSupport
 impl core::cmp::PartialEq for antecedent_estimate::FrontDoorOutcomeModel
 impl core::cmp::PartialEq for antecedent_estimate::GapSelection
 impl core::cmp::PartialEq for antecedent_estimate::GappedAlignedRows
+impl core::cmp::PartialEq for antecedent_estimate::HeldOutCase
 impl core::cmp::PartialEq for antecedent_estimate::HydrateMapping
 impl core::cmp::PartialEq for antecedent_estimate::IndependenceUnit
 impl core::cmp::PartialEq for antecedent_estimate::InterferenceEstimate
@@ -1334,6 +1369,7 @@ impl core::cmp::PartialEq for antecedent_estimate::MeanPair
 impl core::cmp::PartialEq for antecedent_estimate::MediationPosteriorSummary
 impl core::cmp::PartialEq for antecedent_estimate::MenuContext
 impl core::cmp::PartialEq for antecedent_estimate::MenuRefusal
+impl core::cmp::PartialEq for antecedent_estimate::Modality
 impl core::cmp::PartialEq for antecedent_estimate::MultiLevelPopulation
 impl core::cmp::PartialEq for antecedent_estimate::MultiLevelTarget
 impl core::cmp::PartialEq for antecedent_estimate::NestedDirectFitMoments
@@ -1348,11 +1384,14 @@ impl core::cmp::PartialEq for antecedent_estimate::ObservationRow
 impl core::cmp::PartialEq for antecedent_estimate::ObservationalExposureEstimate
 impl core::cmp::PartialEq for antecedent_estimate::OrderingSensitivity
 impl core::cmp::PartialEq for antecedent_estimate::OtherLevels
+impl core::cmp::PartialEq for antecedent_estimate::OutcomeKind
 impl core::cmp::PartialEq for antecedent_estimate::OverlapPolicy
 impl core::cmp::PartialEq for antecedent_estimate::OverlapReport
 impl core::cmp::PartialEq for antecedent_estimate::PenalizedReport
 impl core::cmp::PartialEq for antecedent_estimate::PenalizedVarianceReport
 impl core::cmp::PartialEq for antecedent_estimate::PointwiseCateEstimate
+impl core::cmp::PartialEq for antecedent_estimate::PosteriorRecord
+impl core::cmp::PartialEq for antecedent_estimate::PredictionFit
 impl core::cmp::PartialEq for antecedent_estimate::PreparationSummary
 impl core::cmp::PartialEq for antecedent_estimate::ProbabilityInterval
 impl core::cmp::PartialEq for antecedent_estimate::ProbabilityIntervalUnavailable
@@ -1366,6 +1405,7 @@ impl core::cmp::PartialEq for antecedent_estimate::ReplicatePolicy
 impl core::cmp::PartialEq for antecedent_estimate::ReportingContrast
 impl core::cmp::PartialEq for antecedent_estimate::ReportingScale
 impl core::cmp::PartialEq for antecedent_estimate::ReportingTransform
+impl core::cmp::PartialEq for antecedent_estimate::ResamplingRecord
 impl core::cmp::PartialEq for antecedent_estimate::ResponseBlockLength
 impl core::cmp::PartialEq for antecedent_estimate::ResponseInfluence
 impl core::cmp::PartialEq for antecedent_estimate::RetainedSamplingWeights
@@ -1401,6 +1441,7 @@ impl core::cmp::PartialEq for antecedent_estimate::TemporalInterventionPlan
 impl core::cmp::PartialEq for antecedent_estimate::TemporalMediationBlockSe
 impl core::cmp::PartialEq for antecedent_estimate::TemporalMediationIdentifiedSet
 impl core::cmp::PartialEq for antecedent_estimate::TemporalMediationUncertainty
+impl core::cmp::PartialEq for antecedent_estimate::TermPosterior
 impl core::cmp::PartialEq for antecedent_estimate::TransportEffectEstimate
 impl core::cmp::PartialEq for antecedent_estimate::TransportOverlapDiagnostic
 impl core::cmp::PartialEq for antecedent_estimate::TransportOverlapReport
@@ -1652,6 +1693,12 @@ impl core::cmp::PartialEq for antecedent_estimate::joint_panel::PanelProgram
 impl core::cmp::PartialEq for antecedent_estimate::joint_panel::PanelResponse
 impl core::cmp::PartialEq for antecedent_estimate::joint_panel::PanelSamplingOptions
 impl core::cmp::PartialEq for antecedent_estimate::joint_panel::PanelScenario
+impl core::cmp::PartialEq for antecedent_estimate::joint_panel::decomposition::ChangeComponent
+impl core::cmp::PartialEq for antecedent_estimate::joint_panel::decomposition::DecompositionEndpoint
+impl core::cmp::PartialEq for antecedent_estimate::joint_panel::decomposition::MechanismPeriodMap
+impl core::cmp::PartialEq for antecedent_estimate::joint_panel::decomposition::PairedPanelPath
+impl core::cmp::PartialEq for antecedent_estimate::joint_panel::decomposition::PanelDecompositionRequest
+impl core::cmp::PartialEq for antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition
 impl core::cmp::PartialEq for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast
 impl core::cmp::PartialEq for antecedent_estimate::joint_panel::time_varying::PanelExplanation
 impl core::cmp::PartialEq for antecedent_estimate::joint_panel::time_varying::PanelMeanParameter
@@ -1908,6 +1955,8 @@ impl core::cmp::PartialEq for antecedent_estimate::survival::SurvivalEndpoint
 impl core::cmp::PartialEq for antecedent_estimate::survival_posterior::HazardGammaPrior
 impl core::cmp::PartialEq for antecedent_estimate::survival_posterior::IntervalHazardPosterior
 impl core::cmp::PartialEq for antecedent_estimate::survival_posterior::PiecewiseSurvivalPosterior
+impl core::cmp::PartialEq for antecedent_estimate::switchback::HistoryAssignment
+impl core::cmp::PartialEq for antecedent_estimate::switchback::HistorySwitchbackFit
 impl core::cmp::PartialEq for antecedent_estimate::switchback::SwitchbackItt
 impl core::cmp::PartialEq for antecedent_estimate::switchback_posterior::CarryoverDeclaration
 impl core::cmp::PartialEq for antecedent_estimate::switchback_posterior::PeriodAdjustment
@@ -2174,12 +2223,18 @@ impl core::fmt::Debug for antecedent_estimate::AlignedRows
 impl core::fmt::Debug for antecedent_estimate::AnalyticSe
 impl core::fmt::Debug for antecedent_estimate::AnalyticSeKind
 impl core::fmt::Debug for antecedent_estimate::ArmSummary
+impl core::fmt::Debug for antecedent_estimate::AssociationAnalysis
+impl core::fmt::Debug for antecedent_estimate::AssociationEstimate
+impl core::fmt::Debug for antecedent_estimate::AssociationEstimator
+impl core::fmt::Debug for antecedent_estimate::AssociationSelection
+impl core::fmt::Debug for antecedent_estimate::AssociationTerm
 impl core::fmt::Debug for antecedent_estimate::AtomUncertainty
 impl core::fmt::Debug for antecedent_estimate::BalancedWeightingInterval
 impl core::fmt::Debug for antecedent_estimate::BayesianBackendKind
 impl core::fmt::Debug for antecedent_estimate::BayesianGCompWorkspace
 impl core::fmt::Debug for antecedent_estimate::BayesianGComputationAte
 impl core::fmt::Debug for antecedent_estimate::BayesianInterferenceEstimate
+impl core::fmt::Debug for antecedent_estimate::BayesianSettings
 impl core::fmt::Debug for antecedent_estimate::BayesianStatisticalTransportEstimate
 impl core::fmt::Debug for antecedent_estimate::BayesianTemporalGcomp
 impl core::fmt::Debug for antecedent_estimate::BayesianTransportLawProvider
@@ -2274,6 +2329,7 @@ impl core::fmt::Debug for antecedent_estimate::GappedAlignedRows
 impl core::fmt::Debug for antecedent_estimate::GlmAdjustmentAte
 impl core::fmt::Debug for antecedent_estimate::GlmAdjustmentWorkspace
 impl core::fmt::Debug for antecedent_estimate::GraphEffectDraws
+impl core::fmt::Debug for antecedent_estimate::HeldOutCase
 impl core::fmt::Debug for antecedent_estimate::HydrateMapping
 impl core::fmt::Debug for antecedent_estimate::IndependenceUnit
 impl core::fmt::Debug for antecedent_estimate::InterferenceEstimate
@@ -2305,6 +2361,7 @@ impl core::fmt::Debug for antecedent_estimate::MeanPair
 impl core::fmt::Debug for antecedent_estimate::MediationPosteriorSummary
 impl core::fmt::Debug for antecedent_estimate::MenuContext
 impl core::fmt::Debug for antecedent_estimate::MenuRefusal
+impl core::fmt::Debug for antecedent_estimate::Modality
 impl core::fmt::Debug for antecedent_estimate::MultiLevelAipw
 impl core::fmt::Debug for antecedent_estimate::MultiLevelEstimate
 impl core::fmt::Debug for antecedent_estimate::MultiLevelPopulation
@@ -2322,13 +2379,17 @@ impl core::fmt::Debug for antecedent_estimate::ObservationRow
 impl core::fmt::Debug for antecedent_estimate::ObservationalExposureEstimate
 impl core::fmt::Debug for antecedent_estimate::OrderingSensitivity
 impl core::fmt::Debug for antecedent_estimate::OtherLevels
+impl core::fmt::Debug for antecedent_estimate::OutcomeKind
 impl core::fmt::Debug for antecedent_estimate::OverlapPolicy
 impl core::fmt::Debug for antecedent_estimate::OverlapReport
 impl core::fmt::Debug for antecedent_estimate::PenalizedReport
 impl core::fmt::Debug for antecedent_estimate::PenalizedVarianceReport
 impl core::fmt::Debug for antecedent_estimate::PointwiseCateEstimate
 impl core::fmt::Debug for antecedent_estimate::PopulationLinearVariance
+impl core::fmt::Debug for antecedent_estimate::PosteriorRecord
+impl core::fmt::Debug for antecedent_estimate::PredictionFit
 impl core::fmt::Debug for antecedent_estimate::PreparationSummary
+impl core::fmt::Debug for antecedent_estimate::PreparedAssociation
 impl core::fmt::Debug for antecedent_estimate::PreparedBayesianProblem
 impl core::fmt::Debug for antecedent_estimate::PreparedEstimationProblem
 impl core::fmt::Debug for antecedent_estimate::PreparedFrontDoorProblem
@@ -2359,6 +2420,7 @@ impl core::fmt::Debug for antecedent_estimate::ReplicatePolicy
 impl core::fmt::Debug for antecedent_estimate::ReportingContrast
 impl core::fmt::Debug for antecedent_estimate::ReportingScale
 impl core::fmt::Debug for antecedent_estimate::ReportingTransform
+impl core::fmt::Debug for antecedent_estimate::ResamplingRecord
 impl core::fmt::Debug for antecedent_estimate::ResponseBlockLength
 impl core::fmt::Debug for antecedent_estimate::ResponseInfluence
 impl core::fmt::Debug for antecedent_estimate::RetainedSamplingWeights
@@ -2414,6 +2476,7 @@ impl core::fmt::Debug for antecedent_estimate::TemporalMediationSlice
 impl core::fmt::Debug for antecedent_estimate::TemporalMediationUncertainty
 impl core::fmt::Debug for antecedent_estimate::TemporalResponseEstimator
 impl core::fmt::Debug for antecedent_estimate::TemporalSlopeDesign
+impl core::fmt::Debug for antecedent_estimate::TermPosterior
 impl core::fmt::Debug for antecedent_estimate::TransportEffectEstimate
 impl core::fmt::Debug for antecedent_estimate::TransportOverlapDiagnostic
 impl core::fmt::Debug for antecedent_estimate::TransportOverlapReport
@@ -2693,6 +2756,13 @@ impl core::fmt::Debug for antecedent_estimate::joint_panel::PanelProgram
 impl core::fmt::Debug for antecedent_estimate::joint_panel::PanelResponse
 impl core::fmt::Debug for antecedent_estimate::joint_panel::PanelSamplingOptions
 impl core::fmt::Debug for antecedent_estimate::joint_panel::PanelScenario
+impl core::fmt::Debug for antecedent_estimate::joint_panel::decomposition::ChangeComponent
+impl core::fmt::Debug for antecedent_estimate::joint_panel::decomposition::DecompositionEndpoint
+impl core::fmt::Debug for antecedent_estimate::joint_panel::decomposition::MechanismPeriodMap
+impl core::fmt::Debug for antecedent_estimate::joint_panel::decomposition::PairedPanelPath
+impl core::fmt::Debug for antecedent_estimate::joint_panel::decomposition::PanelDecomposition
+impl core::fmt::Debug for antecedent_estimate::joint_panel::decomposition::PanelDecompositionRequest
+impl core::fmt::Debug for antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition
 impl core::fmt::Debug for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast
 impl core::fmt::Debug for antecedent_estimate::joint_panel::time_varying::PanelExplanation
 impl core::fmt::Debug for antecedent_estimate::joint_panel::time_varying::PanelMeanParameter
@@ -2973,6 +3043,8 @@ impl core::fmt::Debug for antecedent_estimate::survival::SurvivalEndpoint
 impl core::fmt::Debug for antecedent_estimate::survival_posterior::HazardGammaPrior
 impl core::fmt::Debug for antecedent_estimate::survival_posterior::IntervalHazardPosterior
 impl core::fmt::Debug for antecedent_estimate::survival_posterior::PiecewiseSurvivalPosterior
+impl core::fmt::Debug for antecedent_estimate::switchback::HistoryAssignment
+impl core::fmt::Debug for antecedent_estimate::switchback::HistorySwitchbackFit
 impl core::fmt::Debug for antecedent_estimate::switchback::SwitchbackItt
 impl core::fmt::Debug for antecedent_estimate::switchback_posterior::CarryoverDeclaration
 impl core::fmt::Debug for antecedent_estimate::switchback_posterior::PeriodAdjustment
@@ -3114,12 +3186,15 @@ impl core::fmt::Display for antecedent_estimate::sequential_crossfit::Sequential
 impl core::fmt::Display for antecedent_estimate::tiled_prediction::EvalAxis
 impl core::fmt::Display for antecedent_estimate::tiled_prediction::TileError
 impl core::hash::Hash for antecedent_estimate::AnalyticSeKind
+impl core::hash::Hash for antecedent_estimate::AssociationAnalysis
 impl core::hash::Hash for antecedent_estimate::BayesianBackendKind
 impl core::hash::Hash for antecedent_estimate::CircularBlockFamily
 impl core::hash::Hash for antecedent_estimate::ClusterDml
 impl core::hash::Hash for antecedent_estimate::HydrateMapping
 impl core::hash::Hash for antecedent_estimate::IndependenceUnit
+impl core::hash::Hash for antecedent_estimate::Modality
 impl core::hash::Hash for antecedent_estimate::ObservationPattern
+impl core::hash::Hash for antecedent_estimate::OutcomeKind
 impl core::hash::Hash for antecedent_estimate::PropensityNuisance
 impl core::hash::Hash for antecedent_estimate::SampledRecoveryDetail
 impl core::hash::Hash for antecedent_estimate::SelectedOutcomeCorrection
@@ -3164,8 +3239,10 @@ impl core::marker::Copy for antecedent_estimate::AlignedRows
 impl core::marker::Copy for antecedent_estimate::AnalyticSe
 impl core::marker::Copy for antecedent_estimate::AnalyticSeKind
 impl core::marker::Copy for antecedent_estimate::ArmSummary
+impl core::marker::Copy for antecedent_estimate::AssociationAnalysis
 impl core::marker::Copy for antecedent_estimate::AtomUncertainty
 impl core::marker::Copy for antecedent_estimate::BayesianBackendKind
+impl core::marker::Copy for antecedent_estimate::BayesianSettings
 impl core::marker::Copy for antecedent_estimate::BayesianTransportLawProvider
 impl core::marker::Copy for antecedent_estimate::BlockBootstrap
 impl core::marker::Copy for antecedent_estimate::BlockResampling
@@ -3192,6 +3269,7 @@ impl core::marker::Copy for antecedent_estimate::EnvelopeOptions
 impl core::marker::Copy for antecedent_estimate::EstimateUncertainty
 impl core::marker::Copy for antecedent_estimate::ExactF64
 impl core::marker::Copy for antecedent_estimate::FrontDoorOutcomeModel
+impl core::marker::Copy for antecedent_estimate::HeldOutCase
 impl core::marker::Copy for antecedent_estimate::IndependenceUnit
 impl core::marker::Copy for antecedent_estimate::IpwTarget
 impl core::marker::Copy for antecedent_estimate::IvBoundsInterval
@@ -3207,6 +3285,7 @@ impl core::marker::Copy for antecedent_estimate::LinearFitKind
 impl core::marker::Copy for antecedent_estimate::MatchedSetCounts
 impl core::marker::Copy for antecedent_estimate::MediationPosteriorSummary
 impl core::marker::Copy for antecedent_estimate::MenuContext
+impl core::marker::Copy for antecedent_estimate::Modality
 impl core::marker::Copy for antecedent_estimate::MultiLevelPopulation
 impl core::marker::Copy for antecedent_estimate::NestedDirectFitMoments
 impl core::marker::Copy for antecedent_estimate::ObservationEstimatorOptions
@@ -3214,7 +3293,9 @@ impl core::marker::Copy for antecedent_estimate::ObservationMechanismEstimator
 impl core::marker::Copy for antecedent_estimate::ObservationPattern
 impl core::marker::Copy for antecedent_estimate::ObservationRow
 impl core::marker::Copy for antecedent_estimate::OtherLevels
+impl core::marker::Copy for antecedent_estimate::OutcomeKind
 impl core::marker::Copy for antecedent_estimate::OverlapPolicy
+impl core::marker::Copy for antecedent_estimate::PosteriorRecord
 impl core::marker::Copy for antecedent_estimate::ProbabilityInterval
 impl core::marker::Copy for antecedent_estimate::ProbabilityIntervalUnavailable
 impl core::marker::Copy for antecedent_estimate::PropensityInterval
@@ -3222,6 +3303,7 @@ impl core::marker::Copy for antecedent_estimate::RawContrast
 impl core::marker::Copy for antecedent_estimate::ReplicatePolicy
 impl core::marker::Copy for antecedent_estimate::ReportingContrast
 impl core::marker::Copy for antecedent_estimate::ReportingScale
+impl core::marker::Copy for antecedent_estimate::ResamplingRecord
 impl core::marker::Copy for antecedent_estimate::ResponseBlockLength
 impl core::marker::Copy for antecedent_estimate::RetargetRefusal
 impl core::marker::Copy for antecedent_estimate::RowResampling
@@ -3236,6 +3318,7 @@ impl core::marker::Copy for antecedent_estimate::SlopePosteriorSpec
 impl core::marker::Copy for antecedent_estimate::TemporalDependenceSe
 impl core::marker::Copy for antecedent_estimate::TemporalMediationBlockSe
 impl core::marker::Copy for antecedent_estimate::TemporalMediationIdentifiedSet
+impl core::marker::Copy for antecedent_estimate::TermPosterior
 impl core::marker::Copy for antecedent_estimate::TransportEffectEstimate
 impl core::marker::Copy for antecedent_estimate::TransportOverlapDiagnostic
 impl core::marker::Copy for antecedent_estimate::TransportOverlapReport
@@ -3320,6 +3403,7 @@ impl core::marker::Copy for antecedent_estimate::joint_bayesian_transport::Varyi
 impl core::marker::Copy for antecedent_estimate::joint_panel::PanelFeatureInputs
 impl core::marker::Copy for antecedent_estimate::joint_panel::PanelOptimizerOptions
 impl core::marker::Copy for antecedent_estimate::joint_panel::PanelSamplingOptions
+impl core::marker::Copy for antecedent_estimate::joint_panel::decomposition::ChangeComponent
 impl core::marker::Copy for antecedent_estimate::joint_panel::time_varying::PanelExplanation
 impl core::marker::Copy for antecedent_estimate::latent_class_effects::LatentClassBootstrap
 impl core::marker::Copy for antecedent_estimate::latent_class_effects::LatentClassPremise
@@ -3490,12 +3574,18 @@ impl core::marker::Freeze for antecedent_estimate::AlignedRows [auto]
 impl core::marker::Freeze for antecedent_estimate::AnalyticSe [auto]
 impl core::marker::Freeze for antecedent_estimate::AnalyticSeKind [auto]
 impl core::marker::Freeze for antecedent_estimate::ArmSummary [auto]
+impl core::marker::Freeze for antecedent_estimate::AssociationAnalysis [auto]
+impl core::marker::Freeze for antecedent_estimate::AssociationEstimate [auto]
+impl core::marker::Freeze for antecedent_estimate::AssociationEstimator [auto]
+impl core::marker::Freeze for antecedent_estimate::AssociationSelection [auto]
+impl core::marker::Freeze for antecedent_estimate::AssociationTerm [auto]
 impl core::marker::Freeze for antecedent_estimate::AtomUncertainty [auto]
 impl core::marker::Freeze for antecedent_estimate::BalancedWeightingInterval [auto]
 impl core::marker::Freeze for antecedent_estimate::BayesianBackendKind [auto]
 impl core::marker::Freeze for antecedent_estimate::BayesianGCompWorkspace [auto]
 impl core::marker::Freeze for antecedent_estimate::BayesianGComputationAte [auto]
 impl core::marker::Freeze for antecedent_estimate::BayesianInterferenceEstimate [auto]
+impl core::marker::Freeze for antecedent_estimate::BayesianSettings [auto]
 impl core::marker::Freeze for antecedent_estimate::BayesianStatisticalTransportEstimate [auto]
 impl core::marker::Freeze for antecedent_estimate::BayesianTemporalGcomp [auto]
 impl core::marker::Freeze for antecedent_estimate::BayesianTransportLawProvider [auto]
@@ -3589,6 +3679,7 @@ impl core::marker::Freeze for antecedent_estimate::GappedAlignedRows [auto]
 impl core::marker::Freeze for antecedent_estimate::GlmAdjustmentAte [auto]
 impl core::marker::Freeze for antecedent_estimate::GlmAdjustmentWorkspace [auto]
 impl core::marker::Freeze for antecedent_estimate::GraphEffectDraws [auto]
+impl core::marker::Freeze for antecedent_estimate::HeldOutCase [auto]
 impl core::marker::Freeze for antecedent_estimate::HydrateMapping [auto]
 impl core::marker::Freeze for antecedent_estimate::IndependenceUnit [auto]
 impl core::marker::Freeze for antecedent_estimate::InterferenceEstimate [auto]
@@ -3620,6 +3711,7 @@ impl core::marker::Freeze for antecedent_estimate::MeanPair [auto]
 impl core::marker::Freeze for antecedent_estimate::MediationPosteriorSummary [auto]
 impl core::marker::Freeze for antecedent_estimate::MenuContext [auto]
 impl core::marker::Freeze for antecedent_estimate::MenuRefusal [auto]
+impl core::marker::Freeze for antecedent_estimate::Modality [auto]
 impl core::marker::Freeze for antecedent_estimate::MultiLevelAipw [auto]
 impl core::marker::Freeze for antecedent_estimate::MultiLevelEstimate [auto]
 impl core::marker::Freeze for antecedent_estimate::MultiLevelPopulation [auto]
@@ -3637,13 +3729,17 @@ impl core::marker::Freeze for antecedent_estimate::ObservationRow [auto]
 impl core::marker::Freeze for antecedent_estimate::ObservationalExposureEstimate [auto]
 impl core::marker::Freeze for antecedent_estimate::OrderingSensitivity [auto]
 impl core::marker::Freeze for antecedent_estimate::OtherLevels [auto]
+impl core::marker::Freeze for antecedent_estimate::OutcomeKind [auto]
 impl core::marker::Freeze for antecedent_estimate::OverlapPolicy [auto]
 impl core::marker::Freeze for antecedent_estimate::OverlapReport [auto]
 impl core::marker::Freeze for antecedent_estimate::PenalizedReport [auto]
 impl core::marker::Freeze for antecedent_estimate::PenalizedVarianceReport [auto]
 impl core::marker::Freeze for antecedent_estimate::PointwiseCateEstimate [auto]
 impl core::marker::Freeze for antecedent_estimate::PopulationLinearVariance [auto]
+impl core::marker::Freeze for antecedent_estimate::PosteriorRecord [auto]
+impl core::marker::Freeze for antecedent_estimate::PredictionFit [auto]
 impl core::marker::Freeze for antecedent_estimate::PreparationSummary [auto]
+impl core::marker::Freeze for antecedent_estimate::PreparedAssociation [auto]
 impl core::marker::Freeze for antecedent_estimate::PreparedBayesianProblem [auto]
 impl core::marker::Freeze for antecedent_estimate::PreparedEstimationProblem [auto]
 impl core::marker::Freeze for antecedent_estimate::PreparedFrontDoorProblem [auto]
@@ -3674,6 +3770,7 @@ impl core::marker::Freeze for antecedent_estimate::ReplicatePolicy [auto]
 impl core::marker::Freeze for antecedent_estimate::ReportingContrast [auto]
 impl core::marker::Freeze for antecedent_estimate::ReportingScale [auto]
 impl core::marker::Freeze for antecedent_estimate::ReportingTransform [auto]
+impl core::marker::Freeze for antecedent_estimate::ResamplingRecord [auto]
 impl core::marker::Freeze for antecedent_estimate::ResponseBlockLength [auto]
 impl core::marker::Freeze for antecedent_estimate::ResponseInfluence [auto]
 impl core::marker::Freeze for antecedent_estimate::RetainedSamplingWeights [auto]
@@ -3729,6 +3826,7 @@ impl core::marker::Freeze for antecedent_estimate::TemporalMediationSlice [auto]
 impl core::marker::Freeze for antecedent_estimate::TemporalMediationUncertainty [auto]
 impl core::marker::Freeze for antecedent_estimate::TemporalResponseEstimator [auto]
 impl core::marker::Freeze for antecedent_estimate::TemporalSlopeDesign [auto]
+impl core::marker::Freeze for antecedent_estimate::TermPosterior [auto]
 impl core::marker::Freeze for antecedent_estimate::TransportEffectEstimate [auto]
 impl core::marker::Freeze for antecedent_estimate::TransportOverlapDiagnostic [auto]
 impl core::marker::Freeze for antecedent_estimate::TransportOverlapReport [auto]
@@ -4007,6 +4105,13 @@ impl core::marker::Freeze for antecedent_estimate::joint_panel::PanelProgram [au
 impl core::marker::Freeze for antecedent_estimate::joint_panel::PanelResponse [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_panel::PanelSamplingOptions [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_panel::PanelScenario [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::decomposition::ChangeComponent [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::decomposition::DecompositionEndpoint [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::decomposition::MechanismPeriodMap [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::decomposition::PairedPanelPath [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::decomposition::PanelDecomposition [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::decomposition::PanelDecompositionRequest [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_panel::time_varying::PanelExplanation [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_panel::time_varying::PanelMeanParameter [auto]
@@ -4284,6 +4389,8 @@ impl core::marker::Freeze for antecedent_estimate::survival::SurvivalEndpoint [a
 impl core::marker::Freeze for antecedent_estimate::survival_posterior::HazardGammaPrior [auto]
 impl core::marker::Freeze for antecedent_estimate::survival_posterior::IntervalHazardPosterior [auto]
 impl core::marker::Freeze for antecedent_estimate::survival_posterior::PiecewiseSurvivalPosterior [auto]
+impl core::marker::Freeze for antecedent_estimate::switchback::HistoryAssignment [auto]
+impl core::marker::Freeze for antecedent_estimate::switchback::HistorySwitchbackFit [auto]
 impl core::marker::Freeze for antecedent_estimate::switchback::SwitchbackItt [auto]
 impl core::marker::Freeze for antecedent_estimate::switchback_posterior::CarryoverDeclaration [auto]
 impl core::marker::Freeze for antecedent_estimate::switchback_posterior::PeriodAdjustment [auto]
@@ -4411,12 +4518,18 @@ impl core::marker::Send for antecedent_estimate::AlignedRows [auto]
 impl core::marker::Send for antecedent_estimate::AnalyticSe [auto]
 impl core::marker::Send for antecedent_estimate::AnalyticSeKind [auto]
 impl core::marker::Send for antecedent_estimate::ArmSummary [auto]
+impl core::marker::Send for antecedent_estimate::AssociationAnalysis [auto]
+impl core::marker::Send for antecedent_estimate::AssociationEstimate [auto]
+impl core::marker::Send for antecedent_estimate::AssociationEstimator [auto]
+impl core::marker::Send for antecedent_estimate::AssociationSelection [auto]
+impl core::marker::Send for antecedent_estimate::AssociationTerm [auto]
 impl core::marker::Send for antecedent_estimate::AtomUncertainty [auto]
 impl core::marker::Send for antecedent_estimate::BalancedWeightingInterval [auto]
 impl core::marker::Send for antecedent_estimate::BayesianBackendKind [auto]
 impl core::marker::Send for antecedent_estimate::BayesianGCompWorkspace [auto]
 impl core::marker::Send for antecedent_estimate::BayesianGComputationAte [auto]
 impl core::marker::Send for antecedent_estimate::BayesianInterferenceEstimate [auto]
+impl core::marker::Send for antecedent_estimate::BayesianSettings [auto]
 impl core::marker::Send for antecedent_estimate::BayesianStatisticalTransportEstimate [auto]
 impl core::marker::Send for antecedent_estimate::BayesianTemporalGcomp [auto]
 impl core::marker::Send for antecedent_estimate::BayesianTransportLawProvider [auto]
@@ -4511,6 +4624,7 @@ impl core::marker::Send for antecedent_estimate::GappedAlignedRows [auto]
 impl core::marker::Send for antecedent_estimate::GlmAdjustmentAte [auto]
 impl core::marker::Send for antecedent_estimate::GlmAdjustmentWorkspace [auto]
 impl core::marker::Send for antecedent_estimate::GraphEffectDraws [auto]
+impl core::marker::Send for antecedent_estimate::HeldOutCase [auto]
 impl core::marker::Send for antecedent_estimate::HydrateMapping [auto]
 impl core::marker::Send for antecedent_estimate::IndependenceUnit [auto]
 impl core::marker::Send for antecedent_estimate::InterferenceEstimate [auto]
@@ -4542,6 +4656,7 @@ impl core::marker::Send for antecedent_estimate::MeanPair [auto]
 impl core::marker::Send for antecedent_estimate::MediationPosteriorSummary [auto]
 impl core::marker::Send for antecedent_estimate::MenuContext [auto]
 impl core::marker::Send for antecedent_estimate::MenuRefusal [auto]
+impl core::marker::Send for antecedent_estimate::Modality [auto]
 impl core::marker::Send for antecedent_estimate::MultiLevelAipw [auto]
 impl core::marker::Send for antecedent_estimate::MultiLevelEstimate [auto]
 impl core::marker::Send for antecedent_estimate::MultiLevelPopulation [auto]
@@ -4559,13 +4674,17 @@ impl core::marker::Send for antecedent_estimate::ObservationRow [auto]
 impl core::marker::Send for antecedent_estimate::ObservationalExposureEstimate [auto]
 impl core::marker::Send for antecedent_estimate::OrderingSensitivity [auto]
 impl core::marker::Send for antecedent_estimate::OtherLevels [auto]
+impl core::marker::Send for antecedent_estimate::OutcomeKind [auto]
 impl core::marker::Send for antecedent_estimate::OverlapPolicy [auto]
 impl core::marker::Send for antecedent_estimate::OverlapReport [auto]
 impl core::marker::Send for antecedent_estimate::PenalizedReport [auto]
 impl core::marker::Send for antecedent_estimate::PenalizedVarianceReport [auto]
 impl core::marker::Send for antecedent_estimate::PointwiseCateEstimate [auto]
 impl core::marker::Send for antecedent_estimate::PopulationLinearVariance [auto]
+impl core::marker::Send for antecedent_estimate::PosteriorRecord [auto]
+impl core::marker::Send for antecedent_estimate::PredictionFit [auto]
 impl core::marker::Send for antecedent_estimate::PreparationSummary [auto]
+impl core::marker::Send for antecedent_estimate::PreparedAssociation [auto]
 impl core::marker::Send for antecedent_estimate::PreparedBayesianProblem [auto]
 impl core::marker::Send for antecedent_estimate::PreparedEstimationProblem [auto]
 impl core::marker::Send for antecedent_estimate::PreparedFrontDoorProblem [auto]
@@ -4598,6 +4717,7 @@ impl core::marker::Send for antecedent_estimate::ReplicatePolicy [auto]
 impl core::marker::Send for antecedent_estimate::ReportingContrast [auto]
 impl core::marker::Send for antecedent_estimate::ReportingScale [auto]
 impl core::marker::Send for antecedent_estimate::ReportingTransform [auto]
+impl core::marker::Send for antecedent_estimate::ResamplingRecord [auto]
 impl core::marker::Send for antecedent_estimate::ResponseBlockLength [auto]
 impl core::marker::Send for antecedent_estimate::ResponseInfluence [auto]
 impl core::marker::Send for antecedent_estimate::RetainedSamplingWeights [auto]
@@ -4653,6 +4773,7 @@ impl core::marker::Send for antecedent_estimate::TemporalMediationSlice [auto]
 impl core::marker::Send for antecedent_estimate::TemporalMediationUncertainty [auto]
 impl core::marker::Send for antecedent_estimate::TemporalResponseEstimator [auto]
 impl core::marker::Send for antecedent_estimate::TemporalSlopeDesign [auto]
+impl core::marker::Send for antecedent_estimate::TermPosterior [auto]
 impl core::marker::Send for antecedent_estimate::TransportEffectEstimate [auto]
 impl core::marker::Send for antecedent_estimate::TransportOverlapDiagnostic [auto]
 impl core::marker::Send for antecedent_estimate::TransportOverlapReport [auto]
@@ -4932,6 +5053,13 @@ impl core::marker::Send for antecedent_estimate::joint_panel::PanelProgram [auto
 impl core::marker::Send for antecedent_estimate::joint_panel::PanelResponse [auto]
 impl core::marker::Send for antecedent_estimate::joint_panel::PanelSamplingOptions [auto]
 impl core::marker::Send for antecedent_estimate::joint_panel::PanelScenario [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::decomposition::ChangeComponent [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::decomposition::DecompositionEndpoint [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::decomposition::MechanismPeriodMap [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::decomposition::PairedPanelPath [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::decomposition::PanelDecomposition [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::decomposition::PanelDecompositionRequest [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition [auto]
 impl core::marker::Send for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast [auto]
 impl core::marker::Send for antecedent_estimate::joint_panel::time_varying::PanelExplanation [auto]
 impl core::marker::Send for antecedent_estimate::joint_panel::time_varying::PanelMeanParameter [auto]
@@ -5211,6 +5339,8 @@ impl core::marker::Send for antecedent_estimate::survival::SurvivalEndpoint [aut
 impl core::marker::Send for antecedent_estimate::survival_posterior::HazardGammaPrior [auto]
 impl core::marker::Send for antecedent_estimate::survival_posterior::IntervalHazardPosterior [auto]
 impl core::marker::Send for antecedent_estimate::survival_posterior::PiecewiseSurvivalPosterior [auto]
+impl core::marker::Send for antecedent_estimate::switchback::HistoryAssignment [auto]
+impl core::marker::Send for antecedent_estimate::switchback::HistorySwitchbackFit [auto]
 impl core::marker::Send for antecedent_estimate::switchback::SwitchbackItt [auto]
 impl core::marker::Send for antecedent_estimate::switchback_posterior::CarryoverDeclaration [auto]
 impl core::marker::Send for antecedent_estimate::switchback_posterior::PeriodAdjustment [auto]
@@ -5335,9 +5465,14 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::AlignedRows
 impl core::marker::StructuralPartialEq for antecedent_estimate::AnalyticSe
 impl core::marker::StructuralPartialEq for antecedent_estimate::AnalyticSeKind
 impl core::marker::StructuralPartialEq for antecedent_estimate::ArmSummary
+impl core::marker::StructuralPartialEq for antecedent_estimate::AssociationAnalysis
+impl core::marker::StructuralPartialEq for antecedent_estimate::AssociationEstimate
+impl core::marker::StructuralPartialEq for antecedent_estimate::AssociationSelection
+impl core::marker::StructuralPartialEq for antecedent_estimate::AssociationTerm
 impl core::marker::StructuralPartialEq for antecedent_estimate::AtomUncertainty
 impl core::marker::StructuralPartialEq for antecedent_estimate::BayesianBackendKind
 impl core::marker::StructuralPartialEq for antecedent_estimate::BayesianInterferenceEstimate
+impl core::marker::StructuralPartialEq for antecedent_estimate::BayesianSettings
 impl core::marker::StructuralPartialEq for antecedent_estimate::BayesianTransportLawProvider
 impl core::marker::StructuralPartialEq for antecedent_estimate::BlockBootstrap
 impl core::marker::StructuralPartialEq for antecedent_estimate::BlockResampling
@@ -5394,6 +5529,7 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::FoldSupport
 impl core::marker::StructuralPartialEq for antecedent_estimate::FrontDoorOutcomeModel
 impl core::marker::StructuralPartialEq for antecedent_estimate::GapSelection
 impl core::marker::StructuralPartialEq for antecedent_estimate::GappedAlignedRows
+impl core::marker::StructuralPartialEq for antecedent_estimate::HeldOutCase
 impl core::marker::StructuralPartialEq for antecedent_estimate::HydrateMapping
 impl core::marker::StructuralPartialEq for antecedent_estimate::IndependenceUnit
 impl core::marker::StructuralPartialEq for antecedent_estimate::InterferenceEstimate
@@ -5419,6 +5555,7 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::MeanPair
 impl core::marker::StructuralPartialEq for antecedent_estimate::MediationPosteriorSummary
 impl core::marker::StructuralPartialEq for antecedent_estimate::MenuContext
 impl core::marker::StructuralPartialEq for antecedent_estimate::MenuRefusal
+impl core::marker::StructuralPartialEq for antecedent_estimate::Modality
 impl core::marker::StructuralPartialEq for antecedent_estimate::MultiLevelPopulation
 impl core::marker::StructuralPartialEq for antecedent_estimate::MultiLevelTarget
 impl core::marker::StructuralPartialEq for antecedent_estimate::NestedDirectFitMoments
@@ -5433,11 +5570,14 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::ObservationRow
 impl core::marker::StructuralPartialEq for antecedent_estimate::ObservationalExposureEstimate
 impl core::marker::StructuralPartialEq for antecedent_estimate::OrderingSensitivity
 impl core::marker::StructuralPartialEq for antecedent_estimate::OtherLevels
+impl core::marker::StructuralPartialEq for antecedent_estimate::OutcomeKind
 impl core::marker::StructuralPartialEq for antecedent_estimate::OverlapPolicy
 impl core::marker::StructuralPartialEq for antecedent_estimate::OverlapReport
 impl core::marker::StructuralPartialEq for antecedent_estimate::PenalizedReport
 impl core::marker::StructuralPartialEq for antecedent_estimate::PenalizedVarianceReport
 impl core::marker::StructuralPartialEq for antecedent_estimate::PointwiseCateEstimate
+impl core::marker::StructuralPartialEq for antecedent_estimate::PosteriorRecord
+impl core::marker::StructuralPartialEq for antecedent_estimate::PredictionFit
 impl core::marker::StructuralPartialEq for antecedent_estimate::PreparationSummary
 impl core::marker::StructuralPartialEq for antecedent_estimate::ProbabilityInterval
 impl core::marker::StructuralPartialEq for antecedent_estimate::ProbabilityIntervalUnavailable
@@ -5451,6 +5591,7 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::ReplicatePolicy
 impl core::marker::StructuralPartialEq for antecedent_estimate::ReportingContrast
 impl core::marker::StructuralPartialEq for antecedent_estimate::ReportingScale
 impl core::marker::StructuralPartialEq for antecedent_estimate::ReportingTransform
+impl core::marker::StructuralPartialEq for antecedent_estimate::ResamplingRecord
 impl core::marker::StructuralPartialEq for antecedent_estimate::ResponseBlockLength
 impl core::marker::StructuralPartialEq for antecedent_estimate::ResponseInfluence
 impl core::marker::StructuralPartialEq for antecedent_estimate::RetainedSamplingWeights
@@ -5485,6 +5626,7 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::TemporalInterven
 impl core::marker::StructuralPartialEq for antecedent_estimate::TemporalMediationBlockSe
 impl core::marker::StructuralPartialEq for antecedent_estimate::TemporalMediationIdentifiedSet
 impl core::marker::StructuralPartialEq for antecedent_estimate::TemporalMediationUncertainty
+impl core::marker::StructuralPartialEq for antecedent_estimate::TermPosterior
 impl core::marker::StructuralPartialEq for antecedent_estimate::TransportEffectEstimate
 impl core::marker::StructuralPartialEq for antecedent_estimate::TransportOverlapDiagnostic
 impl core::marker::StructuralPartialEq for antecedent_estimate::TransportOverlapReport
@@ -5736,6 +5878,12 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::Pan
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::PanelResponse
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::PanelSamplingOptions
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::PanelScenario
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::decomposition::ChangeComponent
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::decomposition::DecompositionEndpoint
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::decomposition::MechanismPeriodMap
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::decomposition::PairedPanelPath
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::decomposition::PanelDecompositionRequest
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::time_varying::PanelExplanation
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::time_varying::PanelMeanParameter
@@ -5992,6 +6140,8 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::survival::Surviv
 impl core::marker::StructuralPartialEq for antecedent_estimate::survival_posterior::HazardGammaPrior
 impl core::marker::StructuralPartialEq for antecedent_estimate::survival_posterior::IntervalHazardPosterior
 impl core::marker::StructuralPartialEq for antecedent_estimate::survival_posterior::PiecewiseSurvivalPosterior
+impl core::marker::StructuralPartialEq for antecedent_estimate::switchback::HistoryAssignment
+impl core::marker::StructuralPartialEq for antecedent_estimate::switchback::HistorySwitchbackFit
 impl core::marker::StructuralPartialEq for antecedent_estimate::switchback::SwitchbackItt
 impl core::marker::StructuralPartialEq for antecedent_estimate::switchback_posterior::CarryoverDeclaration
 impl core::marker::StructuralPartialEq for antecedent_estimate::switchback_posterior::PeriodAdjustment
@@ -6097,12 +6247,18 @@ impl core::marker::Sync for antecedent_estimate::AlignedRows [auto]
 impl core::marker::Sync for antecedent_estimate::AnalyticSe [auto]
 impl core::marker::Sync for antecedent_estimate::AnalyticSeKind [auto]
 impl core::marker::Sync for antecedent_estimate::ArmSummary [auto]
+impl core::marker::Sync for antecedent_estimate::AssociationAnalysis [auto]
+impl core::marker::Sync for antecedent_estimate::AssociationEstimate [auto]
+impl core::marker::Sync for antecedent_estimate::AssociationEstimator [auto]
+impl core::marker::Sync for antecedent_estimate::AssociationSelection [auto]
+impl core::marker::Sync for antecedent_estimate::AssociationTerm [auto]
 impl core::marker::Sync for antecedent_estimate::AtomUncertainty [auto]
 impl core::marker::Sync for antecedent_estimate::BalancedWeightingInterval [auto]
 impl core::marker::Sync for antecedent_estimate::BayesianBackendKind [auto]
 impl core::marker::Sync for antecedent_estimate::BayesianGCompWorkspace [auto]
 impl core::marker::Sync for antecedent_estimate::BayesianGComputationAte [auto]
 impl core::marker::Sync for antecedent_estimate::BayesianInterferenceEstimate [auto]
+impl core::marker::Sync for antecedent_estimate::BayesianSettings [auto]
 impl core::marker::Sync for antecedent_estimate::BayesianStatisticalTransportEstimate [auto]
 impl core::marker::Sync for antecedent_estimate::BayesianTemporalGcomp [auto]
 impl core::marker::Sync for antecedent_estimate::BayesianTransportLawProvider [auto]
@@ -6197,6 +6353,7 @@ impl core::marker::Sync for antecedent_estimate::GappedAlignedRows [auto]
 impl core::marker::Sync for antecedent_estimate::GlmAdjustmentAte [auto]
 impl core::marker::Sync for antecedent_estimate::GlmAdjustmentWorkspace [auto]
 impl core::marker::Sync for antecedent_estimate::GraphEffectDraws [auto]
+impl core::marker::Sync for antecedent_estimate::HeldOutCase [auto]
 impl core::marker::Sync for antecedent_estimate::HydrateMapping [auto]
 impl core::marker::Sync for antecedent_estimate::IndependenceUnit [auto]
 impl core::marker::Sync for antecedent_estimate::InterferenceEstimate [auto]
@@ -6228,6 +6385,7 @@ impl core::marker::Sync for antecedent_estimate::MeanPair [auto]
 impl core::marker::Sync for antecedent_estimate::MediationPosteriorSummary [auto]
 impl core::marker::Sync for antecedent_estimate::MenuContext [auto]
 impl core::marker::Sync for antecedent_estimate::MenuRefusal [auto]
+impl core::marker::Sync for antecedent_estimate::Modality [auto]
 impl core::marker::Sync for antecedent_estimate::MultiLevelAipw [auto]
 impl core::marker::Sync for antecedent_estimate::MultiLevelEstimate [auto]
 impl core::marker::Sync for antecedent_estimate::MultiLevelPopulation [auto]
@@ -6245,13 +6403,17 @@ impl core::marker::Sync for antecedent_estimate::ObservationRow [auto]
 impl core::marker::Sync for antecedent_estimate::ObservationalExposureEstimate [auto]
 impl core::marker::Sync for antecedent_estimate::OrderingSensitivity [auto]
 impl core::marker::Sync for antecedent_estimate::OtherLevels [auto]
+impl core::marker::Sync for antecedent_estimate::OutcomeKind [auto]
 impl core::marker::Sync for antecedent_estimate::OverlapPolicy [auto]
 impl core::marker::Sync for antecedent_estimate::OverlapReport [auto]
 impl core::marker::Sync for antecedent_estimate::PenalizedReport [auto]
 impl core::marker::Sync for antecedent_estimate::PenalizedVarianceReport [auto]
 impl core::marker::Sync for antecedent_estimate::PointwiseCateEstimate [auto]
 impl core::marker::Sync for antecedent_estimate::PopulationLinearVariance [auto]
+impl core::marker::Sync for antecedent_estimate::PosteriorRecord [auto]
+impl core::marker::Sync for antecedent_estimate::PredictionFit [auto]
 impl core::marker::Sync for antecedent_estimate::PreparationSummary [auto]
+impl core::marker::Sync for antecedent_estimate::PreparedAssociation [auto]
 impl core::marker::Sync for antecedent_estimate::PreparedBayesianProblem [auto]
 impl core::marker::Sync for antecedent_estimate::PreparedEstimationProblem [auto]
 impl core::marker::Sync for antecedent_estimate::PreparedFrontDoorProblem [auto]
@@ -6284,6 +6446,7 @@ impl core::marker::Sync for antecedent_estimate::ReplicatePolicy [auto]
 impl core::marker::Sync for antecedent_estimate::ReportingContrast [auto]
 impl core::marker::Sync for antecedent_estimate::ReportingScale [auto]
 impl core::marker::Sync for antecedent_estimate::ReportingTransform [auto]
+impl core::marker::Sync for antecedent_estimate::ResamplingRecord [auto]
 impl core::marker::Sync for antecedent_estimate::ResponseBlockLength [auto]
 impl core::marker::Sync for antecedent_estimate::ResponseInfluence [auto]
 impl core::marker::Sync for antecedent_estimate::RetainedSamplingWeights [auto]
@@ -6339,6 +6502,7 @@ impl core::marker::Sync for antecedent_estimate::TemporalMediationSlice [auto]
 impl core::marker::Sync for antecedent_estimate::TemporalMediationUncertainty [auto]
 impl core::marker::Sync for antecedent_estimate::TemporalResponseEstimator [auto]
 impl core::marker::Sync for antecedent_estimate::TemporalSlopeDesign [auto]
+impl core::marker::Sync for antecedent_estimate::TermPosterior [auto]
 impl core::marker::Sync for antecedent_estimate::TransportEffectEstimate [auto]
 impl core::marker::Sync for antecedent_estimate::TransportOverlapDiagnostic [auto]
 impl core::marker::Sync for antecedent_estimate::TransportOverlapReport [auto]
@@ -6618,6 +6782,13 @@ impl core::marker::Sync for antecedent_estimate::joint_panel::PanelProgram [auto
 impl core::marker::Sync for antecedent_estimate::joint_panel::PanelResponse [auto]
 impl core::marker::Sync for antecedent_estimate::joint_panel::PanelSamplingOptions [auto]
 impl core::marker::Sync for antecedent_estimate::joint_panel::PanelScenario [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::decomposition::ChangeComponent [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::decomposition::DecompositionEndpoint [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::decomposition::MechanismPeriodMap [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::decomposition::PairedPanelPath [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::decomposition::PanelDecomposition [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::decomposition::PanelDecompositionRequest [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition [auto]
 impl core::marker::Sync for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast [auto]
 impl core::marker::Sync for antecedent_estimate::joint_panel::time_varying::PanelExplanation [auto]
 impl core::marker::Sync for antecedent_estimate::joint_panel::time_varying::PanelMeanParameter [auto]
@@ -6897,6 +7068,8 @@ impl core::marker::Sync for antecedent_estimate::survival::SurvivalEndpoint [aut
 impl core::marker::Sync for antecedent_estimate::survival_posterior::HazardGammaPrior [auto]
 impl core::marker::Sync for antecedent_estimate::survival_posterior::IntervalHazardPosterior [auto]
 impl core::marker::Sync for antecedent_estimate::survival_posterior::PiecewiseSurvivalPosterior [auto]
+impl core::marker::Sync for antecedent_estimate::switchback::HistoryAssignment [auto]
+impl core::marker::Sync for antecedent_estimate::switchback::HistorySwitchbackFit [auto]
 impl core::marker::Sync for antecedent_estimate::switchback::SwitchbackItt [auto]
 impl core::marker::Sync for antecedent_estimate::switchback_posterior::CarryoverDeclaration [auto]
 impl core::marker::Sync for antecedent_estimate::switchback_posterior::PeriodAdjustment [auto]
@@ -7024,12 +7197,18 @@ impl core::marker::Unpin for antecedent_estimate::AlignedRows [auto]
 impl core::marker::Unpin for antecedent_estimate::AnalyticSe [auto]
 impl core::marker::Unpin for antecedent_estimate::AnalyticSeKind [auto]
 impl core::marker::Unpin for antecedent_estimate::ArmSummary [auto]
+impl core::marker::Unpin for antecedent_estimate::AssociationAnalysis [auto]
+impl core::marker::Unpin for antecedent_estimate::AssociationEstimate [auto]
+impl core::marker::Unpin for antecedent_estimate::AssociationEstimator [auto]
+impl core::marker::Unpin for antecedent_estimate::AssociationSelection [auto]
+impl core::marker::Unpin for antecedent_estimate::AssociationTerm [auto]
 impl core::marker::Unpin for antecedent_estimate::AtomUncertainty [auto]
 impl core::marker::Unpin for antecedent_estimate::BalancedWeightingInterval [auto]
 impl core::marker::Unpin for antecedent_estimate::BayesianBackendKind [auto]
 impl core::marker::Unpin for antecedent_estimate::BayesianGCompWorkspace [auto]
 impl core::marker::Unpin for antecedent_estimate::BayesianGComputationAte [auto]
 impl core::marker::Unpin for antecedent_estimate::BayesianInterferenceEstimate [auto]
+impl core::marker::Unpin for antecedent_estimate::BayesianSettings [auto]
 impl core::marker::Unpin for antecedent_estimate::BayesianStatisticalTransportEstimate [auto]
 impl core::marker::Unpin for antecedent_estimate::BayesianTemporalGcomp [auto]
 impl core::marker::Unpin for antecedent_estimate::BayesianTransportLawProvider [auto]
@@ -7124,6 +7303,7 @@ impl core::marker::Unpin for antecedent_estimate::GappedAlignedRows [auto]
 impl core::marker::Unpin for antecedent_estimate::GlmAdjustmentAte [auto]
 impl core::marker::Unpin for antecedent_estimate::GlmAdjustmentWorkspace [auto]
 impl core::marker::Unpin for antecedent_estimate::GraphEffectDraws [auto]
+impl core::marker::Unpin for antecedent_estimate::HeldOutCase [auto]
 impl core::marker::Unpin for antecedent_estimate::HydrateMapping [auto]
 impl core::marker::Unpin for antecedent_estimate::IndependenceUnit [auto]
 impl core::marker::Unpin for antecedent_estimate::InterferenceEstimate [auto]
@@ -7155,6 +7335,7 @@ impl core::marker::Unpin for antecedent_estimate::MeanPair [auto]
 impl core::marker::Unpin for antecedent_estimate::MediationPosteriorSummary [auto]
 impl core::marker::Unpin for antecedent_estimate::MenuContext [auto]
 impl core::marker::Unpin for antecedent_estimate::MenuRefusal [auto]
+impl core::marker::Unpin for antecedent_estimate::Modality [auto]
 impl core::marker::Unpin for antecedent_estimate::MultiLevelAipw [auto]
 impl core::marker::Unpin for antecedent_estimate::MultiLevelEstimate [auto]
 impl core::marker::Unpin for antecedent_estimate::MultiLevelPopulation [auto]
@@ -7172,13 +7353,17 @@ impl core::marker::Unpin for antecedent_estimate::ObservationRow [auto]
 impl core::marker::Unpin for antecedent_estimate::ObservationalExposureEstimate [auto]
 impl core::marker::Unpin for antecedent_estimate::OrderingSensitivity [auto]
 impl core::marker::Unpin for antecedent_estimate::OtherLevels [auto]
+impl core::marker::Unpin for antecedent_estimate::OutcomeKind [auto]
 impl core::marker::Unpin for antecedent_estimate::OverlapPolicy [auto]
 impl core::marker::Unpin for antecedent_estimate::OverlapReport [auto]
 impl core::marker::Unpin for antecedent_estimate::PenalizedReport [auto]
 impl core::marker::Unpin for antecedent_estimate::PenalizedVarianceReport [auto]
 impl core::marker::Unpin for antecedent_estimate::PointwiseCateEstimate [auto]
 impl core::marker::Unpin for antecedent_estimate::PopulationLinearVariance [auto]
+impl core::marker::Unpin for antecedent_estimate::PosteriorRecord [auto]
+impl core::marker::Unpin for antecedent_estimate::PredictionFit [auto]
 impl core::marker::Unpin for antecedent_estimate::PreparationSummary [auto]
+impl core::marker::Unpin for antecedent_estimate::PreparedAssociation [auto]
 impl core::marker::Unpin for antecedent_estimate::PreparedBayesianProblem [auto]
 impl core::marker::Unpin for antecedent_estimate::PreparedEstimationProblem [auto]
 impl core::marker::Unpin for antecedent_estimate::PreparedFrontDoorProblem [auto]
@@ -7211,6 +7396,7 @@ impl core::marker::Unpin for antecedent_estimate::ReplicatePolicy [auto]
 impl core::marker::Unpin for antecedent_estimate::ReportingContrast [auto]
 impl core::marker::Unpin for antecedent_estimate::ReportingScale [auto]
 impl core::marker::Unpin for antecedent_estimate::ReportingTransform [auto]
+impl core::marker::Unpin for antecedent_estimate::ResamplingRecord [auto]
 impl core::marker::Unpin for antecedent_estimate::ResponseBlockLength [auto]
 impl core::marker::Unpin for antecedent_estimate::ResponseInfluence [auto]
 impl core::marker::Unpin for antecedent_estimate::RetainedSamplingWeights [auto]
@@ -7266,6 +7452,7 @@ impl core::marker::Unpin for antecedent_estimate::TemporalMediationSlice [auto]
 impl core::marker::Unpin for antecedent_estimate::TemporalMediationUncertainty [auto]
 impl core::marker::Unpin for antecedent_estimate::TemporalResponseEstimator [auto]
 impl core::marker::Unpin for antecedent_estimate::TemporalSlopeDesign [auto]
+impl core::marker::Unpin for antecedent_estimate::TermPosterior [auto]
 impl core::marker::Unpin for antecedent_estimate::TransportEffectEstimate [auto]
 impl core::marker::Unpin for antecedent_estimate::TransportOverlapDiagnostic [auto]
 impl core::marker::Unpin for antecedent_estimate::TransportOverlapReport [auto]
@@ -7545,6 +7732,13 @@ impl core::marker::Unpin for antecedent_estimate::joint_panel::PanelProgram [aut
 impl core::marker::Unpin for antecedent_estimate::joint_panel::PanelResponse [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_panel::PanelSamplingOptions [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_panel::PanelScenario [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::decomposition::ChangeComponent [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::decomposition::DecompositionEndpoint [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::decomposition::MechanismPeriodMap [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::decomposition::PairedPanelPath [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::decomposition::PanelDecomposition [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::decomposition::PanelDecompositionRequest [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_panel::time_varying::PanelExplanation [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_panel::time_varying::PanelMeanParameter [auto]
@@ -7824,6 +8018,8 @@ impl core::marker::Unpin for antecedent_estimate::survival::SurvivalEndpoint [au
 impl core::marker::Unpin for antecedent_estimate::survival_posterior::HazardGammaPrior [auto]
 impl core::marker::Unpin for antecedent_estimate::survival_posterior::IntervalHazardPosterior [auto]
 impl core::marker::Unpin for antecedent_estimate::survival_posterior::PiecewiseSurvivalPosterior [auto]
+impl core::marker::Unpin for antecedent_estimate::switchback::HistoryAssignment [auto]
+impl core::marker::Unpin for antecedent_estimate::switchback::HistorySwitchbackFit [auto]
 impl core::marker::Unpin for antecedent_estimate::switchback::SwitchbackItt [auto]
 impl core::marker::Unpin for antecedent_estimate::switchback_posterior::CarryoverDeclaration [auto]
 impl core::marker::Unpin for antecedent_estimate::switchback_posterior::PeriodAdjustment [auto]
@@ -7951,12 +8147,18 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::AlignedRow
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::AnalyticSe [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::AnalyticSeKind [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ArmSummary [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::AssociationAnalysis [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::AssociationEstimate [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::AssociationEstimator [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::AssociationSelection [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::AssociationTerm [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::AtomUncertainty [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::BalancedWeightingInterval [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::BayesianBackendKind [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::BayesianGCompWorkspace [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::BayesianGComputationAte [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::BayesianInterferenceEstimate [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::BayesianSettings [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::BayesianStatisticalTransportEstimate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::BayesianTemporalGcomp [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::BayesianTransportLawProvider [auto]
@@ -8051,6 +8253,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::GappedAlig
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::GlmAdjustmentAte [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::GlmAdjustmentWorkspace [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::GraphEffectDraws [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::HeldOutCase [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::HydrateMapping [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::IndependenceUnit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::InterferenceEstimate [auto]
@@ -8082,6 +8285,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::MeanPair [
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::MediationPosteriorSummary [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::MenuContext [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::MenuRefusal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::Modality [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::MultiLevelAipw [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::MultiLevelEstimate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::MultiLevelPopulation [auto]
@@ -8099,13 +8303,17 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::Observatio
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ObservationalExposureEstimate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::OrderingSensitivity [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::OtherLevels [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::OutcomeKind [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::OverlapPolicy [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::OverlapReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::PenalizedReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::PenalizedVarianceReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::PointwiseCateEstimate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::PopulationLinearVariance [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::PosteriorRecord [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::PredictionFit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::PreparationSummary [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::PreparedAssociation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::PreparedBayesianProblem [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::PreparedEstimationProblem [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::PreparedFrontDoorProblem [auto]
@@ -8138,6 +8346,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ReplicateP
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ReportingContrast [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ReportingScale [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ReportingTransform [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ResamplingRecord [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ResponseBlockLength [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ResponseInfluence [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::RetainedSamplingWeights [auto]
@@ -8193,6 +8402,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::TemporalMe
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::TemporalMediationUncertainty [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::TemporalResponseEstimator [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::TemporalSlopeDesign [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::TermPosterior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::TransportEffectEstimate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::TransportOverlapDiagnostic [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::TransportOverlapReport [auto]
@@ -8472,6 +8682,13 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_pane
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::PanelResponse [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::PanelSamplingOptions [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::PanelScenario [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::decomposition::ChangeComponent [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::decomposition::DecompositionEndpoint [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::decomposition::MechanismPeriodMap [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::decomposition::PairedPanelPath [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::decomposition::PanelDecomposition [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::decomposition::PanelDecompositionRequest [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::time_varying::PanelExplanation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::time_varying::PanelMeanParameter [auto]
@@ -8750,6 +8967,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::survival::
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::survival_posterior::HazardGammaPrior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::survival_posterior::IntervalHazardPosterior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::survival_posterior::PiecewiseSurvivalPosterior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::switchback::HistoryAssignment [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::switchback::HistorySwitchbackFit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::switchback::SwitchbackItt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::switchback_posterior::CarryoverDeclaration [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::switchback_posterior::PeriodAdjustment [auto]
@@ -8877,12 +9096,18 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::AlignedRows [
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::AnalyticSe [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::AnalyticSeKind [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ArmSummary [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::AssociationAnalysis [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::AssociationEstimate [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::AssociationEstimator [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::AssociationSelection [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::AssociationTerm [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::AtomUncertainty [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::BalancedWeightingInterval [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::BayesianBackendKind [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::BayesianGCompWorkspace [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::BayesianGComputationAte [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::BayesianInterferenceEstimate [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::BayesianSettings [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::BayesianStatisticalTransportEstimate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::BayesianTemporalGcomp [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::BayesianTransportLawProvider [auto]
@@ -8977,6 +9202,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::GappedAligned
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::GlmAdjustmentAte [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::GlmAdjustmentWorkspace [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::GraphEffectDraws [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::HeldOutCase [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::HydrateMapping [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::IndependenceUnit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::InterferenceEstimate [auto]
@@ -9008,6 +9234,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::MeanPair [aut
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::MediationPosteriorSummary [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::MenuContext [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::MenuRefusal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::Modality [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::MultiLevelAipw [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::MultiLevelEstimate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::MultiLevelPopulation [auto]
@@ -9025,13 +9252,17 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ObservationRo
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ObservationalExposureEstimate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::OrderingSensitivity [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::OtherLevels [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::OutcomeKind [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::OverlapPolicy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::OverlapReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::PenalizedReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::PenalizedVarianceReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::PointwiseCateEstimate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::PopulationLinearVariance [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::PosteriorRecord [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::PredictionFit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::PreparationSummary [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::PreparedAssociation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::PreparedBayesianProblem [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::PreparedEstimationProblem [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::PreparedFrontDoorProblem [auto]
@@ -9064,6 +9295,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ReplicatePoli
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ReportingContrast [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ReportingScale [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ReportingTransform [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ResamplingRecord [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ResponseBlockLength [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ResponseInfluence [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::RetainedSamplingWeights [auto]
@@ -9119,6 +9351,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::TemporalMedia
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::TemporalMediationUncertainty [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::TemporalResponseEstimator [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::TemporalSlopeDesign [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::TermPosterior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::TransportEffectEstimate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::TransportOverlapDiagnostic [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::TransportOverlapReport [auto]
@@ -9398,6 +9631,13 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::PanelResponse [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::PanelSamplingOptions [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::PanelScenario [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::decomposition::ChangeComponent [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::decomposition::DecompositionEndpoint [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::decomposition::MechanismPeriodMap [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::decomposition::PairedPanelPath [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::decomposition::PanelDecomposition [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::decomposition::PanelDecompositionRequest [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::time_varying::PanelExplanation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::time_varying::PanelMeanParameter [auto]
@@ -9676,6 +9916,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::survival::Sur
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::survival_posterior::HazardGammaPrior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::survival_posterior::IntervalHazardPosterior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::survival_posterior::PiecewiseSurvivalPosterior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::switchback::HistoryAssignment [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::switchback::HistorySwitchbackFit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::switchback::SwitchbackItt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::switchback_posterior::CarryoverDeclaration [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::switchback_posterior::PeriodAdjustment [auto]
@@ -9875,6 +10117,12 @@ impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::PanelProgr
 impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::PanelResponse
 impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::PanelSamplingOptions
 impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::PanelScenario
+impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::decomposition::ChangeComponent
+impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::decomposition::DecompositionEndpoint
+impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::decomposition::MechanismPeriodMap
+impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::decomposition::PairedPanelPath
+impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::decomposition::PanelDecompositionRequest
+impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition
 impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast
 impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::time_varying::PanelExplanation
 impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::time_varying::PanelMeanParameter
@@ -9911,6 +10159,8 @@ impl serde_core::ser::Serialize for antecedent_estimate::smoothed_dose::Smoothed
 impl serde_core::ser::Serialize for antecedent_estimate::smoothed_dose::SmoothedDoseGridPoint
 impl serde_core::ser::Serialize for antecedent_estimate::smoothed_dose::SmoothedDoseModels
 impl serde_core::ser::Serialize for antecedent_estimate::smoothed_dose::SmoothingBiasDiagnostic
+impl serde_core::ser::Serialize for antecedent_estimate::switchback::HistoryAssignment
+impl serde_core::ser::Serialize for antecedent_estimate::switchback::HistorySwitchbackFit
 impl<'a, O: core::clone::Clone> core::clone::Clone for antecedent_estimate::SequenceTarget<'a, O>
 impl<'a, O: core::marker::Copy> core::marker::Copy for antecedent_estimate::SequenceTarget<'a, O>
 impl<'a, O> core::marker::Freeze for antecedent_estimate::SequenceTarget<'a, O> [auto]
@@ -10571,6 +10821,12 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel:
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::PanelResponse
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::PanelSamplingOptions
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::PanelScenario
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::decomposition::ChangeComponent
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::decomposition::DecompositionEndpoint
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::decomposition::MechanismPeriodMap
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::decomposition::PairedPanelPath
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::decomposition::PanelDecompositionRequest
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::time_varying::PanelExplanation
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::time_varying::PanelMeanParameter
@@ -10607,6 +10863,8 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::smoothed_dos
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::smoothed_dose::SmoothedDoseGridPoint
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::smoothed_dose::SmoothedDoseModels
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::smoothed_dose::SmoothingBiasDiagnostic
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::switchback::HistoryAssignment
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::switchback::HistorySwitchbackFit
 impl<E: core::clone::Clone> core::clone::Clone for antecedent_estimate::multiple_imputation::MultipleImputationFailure<E>
 impl<E: core::fmt::Debug> core::fmt::Debug for antecedent_estimate::multiple_imputation::MultipleImputationFailure<E>
 impl<E> core::marker::Freeze for antecedent_estimate::multiple_imputation::MultipleImputationFailure<E> where E: core::marker::Freeze [auto]
@@ -10674,9 +10932,12 @@ pub const antecedent_estimate::MATCHED_SAMPLING: &str
 pub const antecedent_estimate::MAX_FACTORIZED_COMPONENTS: usize
 pub const antecedent_estimate::MAX_JOINT_BINARY: usize
 pub const antecedent_estimate::MAX_ORDERINGS: usize
+pub const antecedent_estimate::MAX_STRATA: usize
+pub const antecedent_estimate::MAX_STRATUM_LEVELS: usize
 pub const antecedent_estimate::MIN_CLUSTERS_FLOOR: usize
 pub const antecedent_estimate::MIN_COMPONENTS_PER_FOLD_FLOOR: usize
 pub const antecedent_estimate::MIN_CONTROLLED_DRAWS: usize
+pub const antecedent_estimate::MIN_REPLICATES: usize
 pub const antecedent_estimate::PERCENTILE_BOOTSTRAP: &str
 pub const antecedent_estimate::POINT_CDE_UNLICENSED: &str
 pub const antecedent_estimate::POSTERIOR_EQUAL_TAIL: &str
@@ -10688,11 +10949,13 @@ pub const antecedent_estimate::SAMPLED_RECOVERY_MAX_BINARY_VARIABLES: usize
 pub const antecedent_estimate::SAMPLED_RECOVERY_MAX_REPLICATES: usize
 pub const antecedent_estimate::SAMPLED_RECOVERY_MAX_ROWS: usize
 pub const antecedent_estimate::SAMPLED_RECOVERY_MIN_REPLICATES: usize
+pub const antecedent_estimate::SELECTION_RULE: &str
 pub const antecedent_estimate::SIMULTANEOUS_BAND_CRITICAL: &str
 pub const antecedent_estimate::SIMULTANEOUS_BAND_LOWER: &str
 pub const antecedent_estimate::SIMULTANEOUS_BAND_MIN_REPLICATES: usize
 pub const antecedent_estimate::SIMULTANEOUS_BAND_UPPER: &str
 pub const antecedent_estimate::SMOOTHED_DOSE_BOUNDS: antecedent_estimate::smoothed_dose::SmoothedDoseBounds
+pub const antecedent_estimate::SPREAD_LEVEL: f64
 pub const antecedent_estimate::STATE_SPACE_DIRICHLET: &str
 pub const antecedent_estimate::TEMPORAL_BAYESIAN_TEMPERING_DIAGNOSTIC: &str
 pub const antecedent_estimate::TEMPORAL_RESPONSE_BAND_WITHHELD: &str
@@ -10942,6 +11205,7 @@ pub const fn antecedent_estimate::nested_markov_binary::cell_index(x1: usize, x2
 pub const fn antecedent_estimate::temporal_curve_posterior_meaning::temporal_curve_posterior_meaning(serial: antecedent_estimate::temporal_curve_posterior_meaning::SerialErrorModel) -> antecedent_estimate::temporal_curve_posterior_meaning::TemporalCurvePosteriorMeaning
 pub const fn antecedent_estimate::transport::transport_outcome_kind(error: &antecedent_expr::provider::EvalError) -> antecedent_core::query::transport_contract::TransportOutcomeKind
 pub enum antecedent_estimate::AnalyticSeKind
+pub enum antecedent_estimate::AssociationAnalysis
 pub enum antecedent_estimate::Availability<T>
 pub enum antecedent_estimate::BayesianBackendKind
 pub enum antecedent_estimate::BayesianTransportLawProvider
@@ -10959,10 +11223,12 @@ pub enum antecedent_estimate::IndependenceUnit
 pub enum antecedent_estimate::IpwTarget
 pub enum antecedent_estimate::JointContrast
 pub enum antecedent_estimate::LinearFitKind
+pub enum antecedent_estimate::Modality
 pub enum antecedent_estimate::MultiLevelPopulation
 pub enum antecedent_estimate::MultiLevelTarget
 pub enum antecedent_estimate::NuisanceFallback
 pub enum antecedent_estimate::OtherLevels
+pub enum antecedent_estimate::OutcomeKind
 pub enum antecedent_estimate::OverlapPolicy
 pub enum antecedent_estimate::ProbabilityInterval
 pub enum antecedent_estimate::ProbabilityIntervalUnavailable
@@ -11027,6 +11293,7 @@ pub enum antecedent_estimate::joint_bayesian_transport::VaryingBlock
 pub enum antecedent_estimate::joint_panel::PanelError
 pub enum antecedent_estimate::joint_panel::PanelFeatureInputs
 pub enum antecedent_estimate::joint_panel::PanelInference
+pub enum antecedent_estimate::joint_panel::decomposition::ChangeComponent
 pub enum antecedent_estimate::joint_panel::time_varying::PanelExplanation
 pub enum antecedent_estimate::joint_panel::time_varying::PanelMeanParameter
 pub enum antecedent_estimate::joint_panel::time_varying::TemporalModelChoice
@@ -11137,6 +11404,34 @@ pub field antecedent_estimate::AnalyticSe::se: f64
 pub field antecedent_estimate::ArmSummary::m2: f64
 pub field antecedent_estimate::ArmSummary::mean: f64
 pub field antecedent_estimate::ArmSummary::n: usize
+pub field antecedent_estimate::AssociationEstimate::assumptions: alloc::vec::Vec<&'static str>
+pub field antecedent_estimate::AssociationEstimate::posterior: core::option::Option<antecedent_estimate::PosteriorRecord>
+pub field antecedent_estimate::AssociationEstimate::prediction: core::option::Option<antecedent_estimate::PredictionFit>
+pub field antecedent_estimate::AssociationEstimate::resampling: core::option::Option<antecedent_estimate::ResamplingRecord>
+pub field antecedent_estimate::AssociationEstimate::rows: usize
+pub field antecedent_estimate::AssociationEstimate::rows_dropped: usize
+pub field antecedent_estimate::AssociationEstimate::selection: antecedent_estimate::AssociationSelection
+pub field antecedent_estimate::AssociationEstimate::terms: alloc::vec::Vec<antecedent_estimate::AssociationTerm>
+pub field antecedent_estimate::AssociationEstimator::bayesian: core::option::Option<antecedent_estimate::BayesianSettings>
+pub field antecedent_estimate::AssociationEstimator::bootstrap_replicates: u32
+pub field antecedent_estimate::AssociationEstimator::modality: antecedent_estimate::Modality
+pub field antecedent_estimate::AssociationEstimator::sampling_design: antecedent_estimate::util::SamplingDeclaration
+pub field antecedent_estimate::AssociationSelection::analysis: antecedent_estimate::AssociationAnalysis
+pub field antecedent_estimate::AssociationSelection::folds: core::option::Option<u32>
+pub field antecedent_estimate::AssociationSelection::modality: antecedent_estimate::Modality
+pub field antecedent_estimate::AssociationSelection::outcome_kind: antecedent_estimate::OutcomeKind
+pub field antecedent_estimate::AssociationSelection::outcome_source: &'static str
+pub field antecedent_estimate::AssociationSelection::reason: &'static str
+pub field antecedent_estimate::AssociationSelection::requested: &'static str
+pub field antecedent_estimate::AssociationSelection::rule: &'static str
+pub field antecedent_estimate::AssociationTerm::estimate: f64
+pub field antecedent_estimate::AssociationTerm::label: alloc::string::String
+pub field antecedent_estimate::AssociationTerm::posterior: core::option::Option<antecedent_estimate::TermPosterior>
+pub field antecedent_estimate::AssociationTerm::rows: usize
+pub field antecedent_estimate::AssociationTerm::scale: &'static str
+pub field antecedent_estimate::AssociationTerm::spread: core::option::Option<(f64, f64)>
+pub field antecedent_estimate::AssociationTerm::standard_error: core::option::Option<f64>
+pub field antecedent_estimate::AssociationTerm::standard_error_method: core::option::Option<&'static str>
 pub field antecedent_estimate::AtomUncertainty::interval: antecedent_estimate::ProbabilityInterval
 pub field antecedent_estimate::AtomUncertainty::replicates_ok: u32
 pub field antecedent_estimate::AtomUncertainty::se_bootstrap: core::option::Option<f64>
@@ -11159,6 +11454,8 @@ pub field antecedent_estimate::BayesianGComputationAte::prior_scale: f64
 pub field antecedent_estimate::BayesianGComputationAte::seed: u64
 pub field antecedent_estimate::BayesianInterferenceEstimate::contrast_draws: alloc::vec::Vec<f64>
 pub field antecedent_estimate::BayesianInterferenceEstimate::mean: f64
+pub field antecedent_estimate::BayesianSettings::draws: usize
+pub field antecedent_estimate::BayesianSettings::prior_scale: f64
 pub field antecedent_estimate::BayesianStatisticalTransportEstimate::atom_intervals: alloc::sync::Arc<[(f64, f64)]>
 pub field antecedent_estimate::BayesianStatisticalTransportEstimate::distributions: alloc::sync::Arc<[antecedent_expr::exact_plan::ExactDistribution]>
 pub field antecedent_estimate::BayesianStatisticalTransportEstimate::draws_failed: u32
@@ -11536,6 +11833,12 @@ pub field antecedent_estimate::GlmAdjustmentAte::source_cluster_ids: core::optio
 pub field antecedent_estimate::GlmAdjustmentWorkspace::ols: antecedent_stats::linalg::LeastSquaresWorkspace
 pub field antecedent_estimate::GraphEffectDraws::effect_draws: alloc::sync::Arc<[f64]>
 pub field antecedent_estimate::GraphEffectDraws::graph_key: u64
+pub field antecedent_estimate::HeldOutCase::baseline: f64
+pub field antecedent_estimate::HeldOutCase::baseline_sd: f64
+pub field antecedent_estimate::HeldOutCase::outcome: f64
+pub field antecedent_estimate::HeldOutCase::predicted: f64
+pub field antecedent_estimate::HeldOutCase::predicted_sd: f64
+pub field antecedent_estimate::HeldOutCase::weight: f64
 pub field antecedent_estimate::HydrateSource::coefficient_covariance: core::option::Option<&'a [f64]>
 pub field antecedent_estimate::HydrateSource::mean: &'a [f64]
 pub field antecedent_estimate::HydrateSource::quantities: &'a [antecedent_prob::posterior::PosteriorQuantityKind]
@@ -11782,6 +12085,11 @@ pub field antecedent_estimate::PopulationLinearVariance::noise_degrees_of_freedo
 pub field antecedent_estimate::PopulationLinearVariance::noise_scale: f64
 pub field antecedent_estimate::PopulationLinearVariance::outcome_model: &'static str
 pub field antecedent_estimate::PopulationLinearVariance::target: f64
+pub field antecedent_estimate::PosteriorRecord::draws: usize
+pub field antecedent_estimate::PosteriorRecord::method: &'static str
+pub field antecedent_estimate::PredictionFit::cases: alloc::vec::Vec<antecedent_estimate::HeldOutCase>
+pub field antecedent_estimate::PredictionFit::fold_design: &'static str
+pub field antecedent_estimate::PredictionFit::folds: u32
 pub field antecedent_estimate::PreparationSummary::backend: alloc::string::String
 pub field antecedent_estimate::PreparationSummary::receipt_digest: alloc::string::String
 pub field antecedent_estimate::PreparationSummary::route_bound: alloc::string::String
@@ -11970,6 +12278,11 @@ pub field antecedent_estimate::ReportingContrast::scale: antecedent_estimate::Re
 pub field antecedent_estimate::ReportingContrast::value: f64
 pub field antecedent_estimate::ReportingTransform::contrasts: alloc::vec::Vec<antecedent_estimate::ReportingContrast>
 pub field antecedent_estimate::ReportingTransform::covariance: antecedent_estimate::Availability<alloc::vec::Vec<f64>>
+pub field antecedent_estimate::ResamplingRecord::block_length: core::option::Option<usize>
+pub field antecedent_estimate::ResamplingRecord::method: &'static str
+pub field antecedent_estimate::ResamplingRecord::replicates_ok: u32
+pub field antecedent_estimate::ResamplingRecord::replicates_requested: u32
+pub field antecedent_estimate::ResamplingRecord::unit: &'static str
 pub field antecedent_estimate::ResponseBlockLength::length: usize
 pub field antecedent_estimate::ResponseBlockLength::rows: usize
 pub field antecedent_estimate::ResponseBlockLength::rule: usize
@@ -12236,6 +12549,10 @@ pub field antecedent_estimate::TemporalSlopeSpec::outcome: antecedent_core::ids:
 pub field antecedent_estimate::TemporalSlopeSpec::outcome_offset: i32
 pub field antecedent_estimate::TemporalSlopeSpec::treatment_offset: i32
 pub field antecedent_estimate::TemporalSlopeSpec::treatments: &'a [antecedent_core::ids::VariableId]
+pub field antecedent_estimate::TermPosterior::lower: f64
+pub field antecedent_estimate::TermPosterior::mean: f64
+pub field antecedent_estimate::TermPosterior::sd: f64
+pub field antecedent_estimate::TermPosterior::upper: f64
 pub field antecedent_estimate::TransportEffectEstimate::aipw: core::option::Option<f64>
 pub field antecedent_estimate::TransportEffectEstimate::ipw: f64
 pub field antecedent_estimate::TransportEffectEstimate::overlap: antecedent_estimate::TransportOverlapReport
@@ -13424,6 +13741,24 @@ pub field antecedent_estimate::joint_panel::PanelScenario::confounder: alloc::ve
 pub field antecedent_estimate::joint_panel::PanelScenario::group: alloc::string::String
 pub field antecedent_estimate::joint_panel::PanelScenario::history: alloc::vec::Vec<antecedent_estimate::joint_panel::PanelChannelHistory>
 pub field antecedent_estimate::joint_panel::PanelScenario::season: alloc::vec::Vec<usize>
+pub field antecedent_estimate::joint_panel::decomposition::DecompositionEndpoint::population_weights: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_panel::decomposition::DecompositionEndpoint::program: antecedent_estimate::joint_panel::PanelProgram
+pub field antecedent_estimate::joint_panel::decomposition::MechanismPeriodMap::after: alloc::vec::Vec<usize>
+pub field antecedent_estimate::joint_panel::decomposition::MechanismPeriodMap::before: alloc::vec::Vec<usize>
+pub field antecedent_estimate::joint_panel::decomposition::PairedPanelPath::after: alloc::vec::Vec<antecedent_estimate::joint_panel::PanelDraw>
+pub field antecedent_estimate::joint_panel::decomposition::PairedPanelPath::before: alloc::vec::Vec<antecedent_estimate::joint_panel::PanelDraw>
+pub field antecedent_estimate::joint_panel::decomposition::PanelDecomposition::draws: alloc::vec::Vec<core::option::Option<antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition>>
+pub field antecedent_estimate::joint_panel::decomposition::PanelDecomposition::point: antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition
+pub field antecedent_estimate::joint_panel::decomposition::PanelDecompositionRequest::after: antecedent_estimate::joint_panel::decomposition::DecompositionEndpoint
+pub field antecedent_estimate::joint_panel::decomposition::PanelDecompositionRequest::before: antecedent_estimate::joint_panel::decomposition::DecompositionEndpoint
+pub field antecedent_estimate::joint_panel::decomposition::PanelDecompositionRequest::order: [antecedent_estimate::joint_panel::decomposition::ChangeComponent; 4]
+pub field antecedent_estimate::joint_panel::decomposition::PanelDecompositionRequest::time_weights: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition::by_order: alloc::vec::Vec<[f64; 4]>
+pub field antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition::hybrids: [f64; 16]
+pub field antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition::order_range: [[f64; 2]; 4]
+pub field antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition::sequential: [f64; 4]
+pub field antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition::shapley: [f64; 4]
+pub field antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition::total: f64
 pub field antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast::explanation: antecedent_estimate::joint_panel::time_varying::PanelExplanation
 pub field antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast::next_attempt: alloc::string::String
 pub field antecedent_estimate::joint_panel::time_varying::TemporalPanelAttempt::choice: antecedent_estimate::joint_panel::time_varying::TemporalModelChoice
@@ -14553,6 +14888,15 @@ pub field antecedent_estimate::survival_posterior::PiecewiseSurvivalPosterior::s
 pub field antecedent_estimate::survival_posterior::PiecewiseSurvivalPosterior::treated: alloc::vec::Vec<antecedent_estimate::survival_posterior::IntervalHazardPosterior>
 pub field antecedent_estimate::survival_posterior::PiecewiseSurvivalPosterior::treated_rmst_mean: f64
 pub field antecedent_estimate::survival_posterior::PiecewiseSurvivalPosterior::treated_survival_mean: f64
+pub field antecedent_estimate::switchback::HistoryAssignment::outcomes: alloc::vec::Vec<f64>
+pub field antecedent_estimate::switchback::HistoryAssignment::probabilities: alloc::vec::Vec<f64>
+pub field antecedent_estimate::switchback::HistoryAssignment::realized: usize
+pub field antecedent_estimate::switchback::HistoryAssignment::schedules: alloc::vec::Vec<alloc::vec::Vec<usize>>
+pub field antecedent_estimate::switchback::HistorySwitchbackFit::covariance: alloc::vec::Vec<f64>
+pub field antecedent_estimate::switchback::HistorySwitchbackFit::eligible_periods: usize
+pub field antecedent_estimate::switchback::HistorySwitchbackFit::means: alloc::vec::Vec<f64>
+pub field antecedent_estimate::switchback::HistorySwitchbackFit::observed_support: alloc::vec::Vec<usize>
+pub field antecedent_estimate::switchback::HistorySwitchbackFit::sequence_scores: alloc::vec::Vec<alloc::vec::Vec<f64>>
 pub field antecedent_estimate::switchback::SwitchbackItt::effect: f64
 pub field antecedent_estimate::switchback::SwitchbackItt::interval_95: core::option::Option<[f64; 2]>
 pub field antecedent_estimate::switchback::SwitchbackItt::sequences: usize
@@ -14989,6 +15333,17 @@ pub fn <antecedent_estimate::AipwAte>::fn with_second_cluster_ids(self, cluster_
 pub fn <antecedent_estimate::AipwAte>::fn with_source_cluster_ids(self, cluster_ids: alloc::vec::Vec<u32>) -> Self
 pub fn <antecedent_estimate::AipwAte>::fn with_source_second_cluster_ids(self, cluster_ids: alloc::vec::Vec<u32>) -> Self
 pub fn <antecedent_estimate::AnalyticSeKind>::const fn as_str(self) -> &'static str
+pub fn <antecedent_estimate::AssociationAnalysis>::const fn as_str(self) -> &'static str
+pub fn <antecedent_estimate::AssociationAnalysis>::const fn fits_model(self) -> bool
+pub fn <antecedent_estimate::AssociationAnalysis>::const fn is_predictive(self) -> bool
+pub fn <antecedent_estimate::AssociationAnalysis>::const fn is_stratified(self) -> bool
+pub fn <antecedent_estimate::AssociationEstimator>::const fn new(modality: antecedent_estimate::Modality) -> Self
+pub fn <antecedent_estimate::AssociationEstimator>::const fn with_bayesian(self, settings: antecedent_estimate::BayesianSettings) -> Self
+pub fn <antecedent_estimate::AssociationEstimator>::const fn with_bootstrap_replicates(self, replicates: u32) -> Self
+pub fn <antecedent_estimate::AssociationEstimator>::const fn with_sampling_design(self, design: antecedent_estimate::util::SamplingDeclaration) -> Self
+pub fn <antecedent_estimate::AssociationEstimator>::fn check_design(&self) -> core::result::Result<(), antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::AssociationEstimator>::fn estimate(&self, prepared: &antecedent_estimate::PreparedAssociation, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::AssociationEstimate, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::AssociationEstimator>::fn prepare(&self, storage: &antecedent_data::storage::OwnedColumnarStorage, query: &antecedent_core::query::association::AssociationQuery) -> core::result::Result<antecedent_estimate::PreparedAssociation, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::Availability<T>>::const fn available(&self) -> core::option::Option<&T>
 pub fn <antecedent_estimate::Availability<T>>::const fn unavailable(&self) -> core::option::Option<&antecedent_estimate::Unavailable>
 pub fn <antecedent_estimate::BayesianGComputationAte>::const fn effective_likelihood(&self) -> antecedent_prob::backend::BayesLikelihood
@@ -15327,6 +15682,7 @@ pub fn <antecedent_estimate::LinearAdjustmentAte>::fn with_sampling_weights(self
 pub fn <antecedent_estimate::LinearAdjustmentAte>::fn with_source_cluster_ids(self, cluster_ids: alloc::vec::Vec<u32>) -> Self
 pub fn <antecedent_estimate::MeanPair>::fn from_joint_covariance(active: f64, control: f64, joint: &antecedent_estimate::JointCovariance, i_active: usize, i_control: usize) -> core::result::Result<Self, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::MeanPair>::fn new(active: f64, control: f64, covariance: core::option::Option<[f64; 3]>) -> Self
+pub fn <antecedent_estimate::Modality>::const fn as_str(self) -> &'static str
 pub fn <antecedent_estimate::MultiLevelAipw>::const fn with_folds(self, folds: usize) -> Self
 pub fn <antecedent_estimate::MultiLevelAipw>::const fn with_overlap(self, overlap: antecedent_estimate::OverlapPolicy) -> Self
 pub fn <antecedent_estimate::MultiLevelAipw>::fn fit(&self, data: &antecedent_data::dataset::TabularData, estimand: &antecedent_expr::estimand::IdentifiedEstimand, query: &antecedent_core::query::average::AverageEffectQuery, ctx: &antecedent_core::execution::ExecutionContext, assumptions: antecedent_core::assumption::AssumptionSet) -> core::result::Result<antecedent_estimate::MultiLevelEstimate, antecedent_estimate::EstimationError>
@@ -15342,12 +15698,16 @@ pub fn <antecedent_estimate::ObservationMechanismEstimator>::fn adjusted_outcome
 pub fn <antecedent_estimate::ObservationMechanismEstimator>::fn estimate_mean_curve(&self, response_estimator: &antecedent_estimate::ContinuousResponseEstimator, data: &antecedent_data::dataset::TabularData, query: &antecedent_core::query::response::ResponseQuery, delayed_entry: core::option::Option<antecedent_core::ids::VariableId>, identification_status: antecedent_core::identification::IdentificationStatus, assumptions: antecedent_core::assumption::AssumptionSet) -> core::result::Result<antecedent_core::response::CausalResponse, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::ObservationMechanismEstimator>::fn gaussian_log_likelihood(&self, data: &antecedent_data::dataset::TabularData, query: &antecedent_core::query::response::ResponseQuery, means: &[f64], sigma: f64) -> core::result::Result<f64, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::ObservationMechanismEstimator>::fn observation_row_lag(&self, query: &antecedent_core::query::response::ResponseQuery, outcome_regressors: &[antecedent_core::temporal::TemporalNodeKey]) -> core::result::Result<usize, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::OutcomeKind>::const fn as_str(self) -> &'static str
 pub fn <antecedent_estimate::OverlapPolicy>::const fn require_diagnostics() -> Self
 pub fn <antecedent_estimate::OverlapPolicy>::fn validate(self) -> core::result::Result<(), antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::OverlapReport>::fn from_propensities(propensities: &[f64], weights: core::option::Option<&[f64]>, policy: antecedent_estimate::OverlapPolicy, treatment: core::option::Option<&[f64]>, target: core::option::Option<antecedent_estimate::IpwTarget>, observation_weights: core::option::Option<&[f64]>) -> Self
 pub fn <antecedent_estimate::PenalizedReport>::fn is_empty(&self) -> bool
 pub fn <antecedent_estimate::PreparationSummary>::fn from_parts(backend: alloc::string::String, route_bound: alloc::string::String, rows_admitted: core::option::Option<u64>, receipt_digest: alloc::string::String) -> Self
 pub fn <antecedent_estimate::PreparationSummary>::fn from_receipt(receipt: &antecedent_data::materialize::PreparationReceipt) -> Self
+pub fn <antecedent_estimate::PreparedAssociation>::const fn rows(&self) -> usize
+pub fn <antecedent_estimate::PreparedAssociation>::const fn rows_dropped(&self) -> usize
+pub fn <antecedent_estimate::PreparedAssociation>::const fn selection(&self) -> &antecedent_estimate::AssociationSelection
 pub fn <antecedent_estimate::PreparedBayesianProblem>::fn with_preparation(self, preparation: core::option::Option<alloc::sync::Arc<antecedent_estimate::PreparationSummary>>) -> Self
 pub fn <antecedent_estimate::PreparedBayesianProblem>::fn with_serial_dependence(self, dependence: antecedent_estimate::SerialDependence) -> Self
 pub fn <antecedent_estimate::PreparedFunctionalDistribution>::fn factor_snapshot(&self) -> core::result::Result<antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot, antecedent_estimate::EstimationError>
@@ -15743,6 +16103,9 @@ pub fn <antecedent_estimate::joint_panel::PanelLawResponses>::fn into_parts(self
 pub fn <antecedent_estimate::joint_panel::PanelLawResponses>::fn point(&self) -> &[antecedent_estimate::joint_panel::PanelResponse]
 pub fn <antecedent_estimate::joint_panel::PanelLawResponses>::fn retained_bytes(&self) -> u64
 pub fn <antecedent_estimate::joint_panel::PanelProgram>::fn horizon(&self) -> usize
+pub fn <antecedent_estimate::joint_panel::decomposition::MechanismPeriodMap>::fn from_invariant(&self, draw: &antecedent_estimate::joint_panel::PanelDraw) -> core::result::Result<antecedent_estimate::joint_panel::decomposition::PairedPanelPath, antecedent_estimate::joint_panel::PanelError>
+pub fn <antecedent_estimate::joint_panel::decomposition::MechanismPeriodMap>::fn from_temporal(&self, draw: &antecedent_estimate::joint_panel::time_varying::TemporalPanelDraw) -> core::result::Result<antecedent_estimate::joint_panel::decomposition::PairedPanelPath, antecedent_estimate::joint_panel::PanelError>
+pub fn <antecedent_estimate::joint_panel::decomposition::PanelDecomposition>::fn admitted_bytes(&self) -> u64
 pub fn <antecedent_estimate::joint_panel::time_varying::TemporalPanelFit>::fn observe_current(&self)
 pub fn <antecedent_estimate::joint_panel::time_varying::TemporalPanelFit>::fn retained_bytes(&self) -> u64
 pub fn <antecedent_estimate::joint_panel::time_varying::TemporalPanelSpec>::fn identity(&self, data: &antecedent_estimate::joint_panel::PanelData) -> core::result::Result<antecedent_core::identity::SemanticDigest, antecedent_estimate::joint_panel::PanelError>
@@ -16063,6 +16426,9 @@ pub fn antecedent_estimate::ancova::fit_ancova(outcome: &[f64], assignment: &[bo
 pub fn antecedent_estimate::ancova::small_arm_interval_95(outcome: &[f64], assignment: &[bool], covariates: &[&[f64]]) -> core::option::Option<antecedent_estimate::ancova::SmallArmInterval>
 pub fn antecedent_estimate::ar_kernel::kernel_bias_factor(influence: &[f64], block: usize) -> f64
 pub fn antecedent_estimate::assemble_point_laws(input: &antecedent_estimate::StatisticalTransportInput, functional: &antecedent_identify::sid::BoundTransportFunctional, options: &antecedent_estimate::EmpiricalTableOptions, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_expr::exact::ExactTransportData, antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::association::bayesian_method(selection: &antecedent_estimate::AssociationSelection, weighted: bool) -> &'static str
+pub fn antecedent_estimate::association::descriptive_assumptions(selection: &antecedent_estimate::AssociationSelection) -> alloc::vec::Vec<&'static str>
+pub fn antecedent_estimate::association::select_analysis(storage: &antecedent_data::storage::OwnedColumnarStorage, query: &antecedent_core::query::association::AssociationQuery, modality: antecedent_estimate::Modality) -> core::result::Result<antecedent_estimate::AssociationSelection, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::augmented_panel_did::estimate(pre: &[f64], post: &[f64], treated: &[bool], propensity: &[f64], prediction: &[f64]) -> core::result::Result<antecedent_estimate::augmented_panel_did::AugmentedPanelDidFit, &'static str>
 pub fn antecedent_estimate::augmented_panel_did::resample_augmented_panel(pre: &[f64], post: &[f64], treated: &[bool], propensity: &[f64], prediction: &[f64], clusters: &[alloc::sync::Arc<str>], weighting: antecedent_estimate::rollout_resampling::UnitWeighting, replicates: u32, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(antecedent_estimate::augmented_panel_did::AugmentedPanelDidFit, antecedent_estimate::rollout_resampling::ReplicateSummary), antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::bayesian::coefficient_covariance_from_draws(quantities: &[antecedent_prob::posterior::PosteriorQuantityKind], draws_colmajor: &[f64], n_draws: usize) -> core::result::Result<core::option::Option<alloc::vec::Vec<f64>>, antecedent_estimate::EstimationError>
@@ -16262,6 +16628,10 @@ pub fn antecedent_estimate::joint_if::max_t_critical_polled(cov: &antecedent_est
 pub fn antecedent_estimate::joint_if::max_t_critical_with_df_polled(cov: &antecedent_estimate::JointCovariance, level: f64, replicates: u32, df: core::option::Option<f64>, rng: &mut antecedent_core::execution::CausalRng, cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<core::option::Option<f64>, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::joint_if::monotone_increasing(values: &[f64]) -> alloc::vec::Vec<f64>
 pub fn antecedent_estimate::joint_if::weighted_mean(scores: &[f64], weights: core::option::Option<&[f64]>) -> core::result::Result<f64, antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::joint_panel::decomposition::decompose_invariant_law(data: &antecedent_estimate::joint_panel::PanelData, request: &antecedent_estimate::joint_panel::decomposition::PanelDecompositionRequest, periods: &antecedent_estimate::joint_panel::decomposition::MechanismPeriodMap, point: &antecedent_estimate::joint_panel::PanelDraw, draws: &[core::option::Option<antecedent_estimate::joint_panel::PanelDraw>], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_panel::decomposition::PanelDecomposition, antecedent_estimate::joint_panel::PanelError>
+pub fn antecedent_estimate::joint_panel::decomposition::decompose_panel_law(data: &antecedent_estimate::joint_panel::PanelData, request: &antecedent_estimate::joint_panel::decomposition::PanelDecompositionRequest, point: &antecedent_estimate::joint_panel::decomposition::PairedPanelPath, draws: &[core::option::Option<antecedent_estimate::joint_panel::decomposition::PairedPanelPath>], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_panel::decomposition::PanelDecomposition, antecedent_estimate::joint_panel::PanelError>
+pub fn antecedent_estimate::joint_panel::decomposition::decompose_temporal_law(data: &antecedent_estimate::joint_panel::PanelData, request: &antecedent_estimate::joint_panel::decomposition::PanelDecompositionRequest, periods: &antecedent_estimate::joint_panel::decomposition::MechanismPeriodMap, point: &antecedent_estimate::joint_panel::time_varying::TemporalPanelDraw, draws: &[core::option::Option<antecedent_estimate::joint_panel::time_varying::TemporalPanelDraw>], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_panel::decomposition::PanelDecomposition, antecedent_estimate::joint_panel::PanelError>
+pub fn antecedent_estimate::joint_panel::decomposition::decompose_values(hybrids: [f64; 16], order: [antecedent_estimate::joint_panel::decomposition::ChangeComponent; 4]) -> core::result::Result<antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition, antecedent_estimate::joint_panel::PanelError>
 pub fn antecedent_estimate::joint_panel::evaluate_panel_law(data: &antecedent_estimate::joint_panel::PanelData, point: &antecedent_estimate::joint_panel::PanelDraw, draws: &[core::option::Option<antecedent_estimate::joint_panel::PanelDraw>], programs: &[antecedent_estimate::joint_panel::PanelProgram], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_panel::PanelLawResponses, antecedent_estimate::joint_panel::PanelError>
 pub fn antecedent_estimate::joint_panel::evaluate_panel_programs(data: &antecedent_estimate::joint_panel::PanelData, draw: &antecedent_estimate::joint_panel::PanelDraw, programs: &[antecedent_estimate::joint_panel::PanelProgram], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_estimate::joint_panel::PanelResponse>, antecedent_estimate::joint_panel::PanelError>
 pub fn antecedent_estimate::joint_panel::fit_panel(data: &antecedent_estimate::joint_panel::PanelData, options: &antecedent_estimate::joint_panel::PanelFitOptions, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_panel::PanelFit, antecedent_estimate::joint_panel::PanelError>
@@ -16466,6 +16836,7 @@ pub fn antecedent_estimate::survival::randomized_survival_bootstrap_intervals(ro
 pub fn antecedent_estimate::survival::randomized_survival_ipcw_summary(rows: &antecedent_estimate::survival::SurvivalRows<'_>, censoring: &antecedent_estimate::survival::KnownCensoring<'_>, tau: f64, endpoint: antecedent_estimate::survival::SurvivalEndpoint) -> core::result::Result<(antecedent_estimate::survival::RandomizedSurvivalSummary, f64), &'static str>
 pub fn antecedent_estimate::survival::randomized_survival_summary(rows: &antecedent_estimate::survival::SurvivalRows<'_>, tau: f64, endpoint: antecedent_estimate::survival::SurvivalEndpoint) -> core::result::Result<antecedent_estimate::survival::RandomizedSurvivalSummary, &'static str>
 pub fn antecedent_estimate::survival_posterior::randomized_piecewise_survival_posterior(rows: &antecedent_estimate::survival::SurvivalRows<'_>, cuts: &[f64], prior: antecedent_estimate::survival_posterior::HazardGammaPrior, draws: usize, seed: u64) -> core::result::Result<antecedent_estimate::survival_posterior::PiecewiseSurvivalPosterior, antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::switchback::switchback_history_means(sequences: &[antecedent_estimate::switchback::HistoryAssignment], histories: &[alloc::vec::Vec<usize>]) -> core::result::Result<antecedent_estimate::switchback::HistorySwitchbackFit, &'static str>
 pub fn antecedent_estimate::switchback::switchback_itt(outcomes: &[f64], assignment: &[bool], probabilities: &[f64], sequence_ids: &[&str]) -> core::option::Option<antecedent_estimate::switchback::SwitchbackItt>
 pub fn antecedent_estimate::switchback_posterior::posterior_switchback(rows: &antecedent_estimate::switchback_posterior::SwitchbackRows<'_>, model: &antecedent_estimate::switchback_posterior::SwitchbackModel, credible_level: f64) -> core::result::Result<antecedent_estimate::switchback_posterior::SwitchbackPosterior, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::synthetic_control::exact_augmented_synthetic_unit_randomization_test(outcome: &[f64], units: &[alloc::string::String], periods: &[i64], treated_unit: &str, intervention_period: i64, ridge_penalty: f64) -> core::result::Result<antecedent_estimate::synthetic_control::SyntheticUnitRandomizationTest, alloc::string::String>
@@ -16551,6 +16922,7 @@ pub mod antecedent_estimate::admg_conditional_transport
 pub mod antecedent_estimate::aipw
 pub mod antecedent_estimate::ancova
 pub mod antecedent_estimate::ar_kernel
+pub mod antecedent_estimate::association
 pub mod antecedent_estimate::augmented_panel_did
 pub mod antecedent_estimate::bayesian
 pub mod antecedent_estimate::bayesian_iv
@@ -16622,6 +16994,7 @@ pub mod antecedent_estimate::joint_bayesian_transport
 pub mod antecedent_estimate::joint_cell_factorized
 pub mod antecedent_estimate::joint_if
 pub mod antecedent_estimate::joint_panel
+pub mod antecedent_estimate::joint_panel::decomposition
 pub mod antecedent_estimate::joint_panel::time_varying
 pub mod antecedent_estimate::lagged_instrument
 pub mod antecedent_estimate::latent_class_effects
@@ -16735,11 +17108,16 @@ pub struct antecedent_estimate::AipwWorkspace
 pub struct antecedent_estimate::AipwWorkspace has private fields
 pub struct antecedent_estimate::AlignedRows
 pub struct antecedent_estimate::ArmSummary
+pub struct antecedent_estimate::AssociationEstimate
+pub struct antecedent_estimate::AssociationEstimator
+pub struct antecedent_estimate::AssociationSelection
+pub struct antecedent_estimate::AssociationTerm
 pub struct antecedent_estimate::AtomUncertainty
 pub struct antecedent_estimate::BalancedWeightingInterval
 pub struct antecedent_estimate::BayesianGCompWorkspace
 pub struct antecedent_estimate::BayesianGComputationAte
 pub struct antecedent_estimate::BayesianInterferenceEstimate
+pub struct antecedent_estimate::BayesianSettings
 pub struct antecedent_estimate::BayesianStatisticalTransportEstimate
 pub struct antecedent_estimate::BayesianTemporalGcomp
 pub struct antecedent_estimate::BlockBootstrap
@@ -16822,6 +17200,7 @@ pub struct antecedent_estimate::GappedAlignedRows
 pub struct antecedent_estimate::GlmAdjustmentAte
 pub struct antecedent_estimate::GlmAdjustmentWorkspace
 pub struct antecedent_estimate::GraphEffectDraws
+pub struct antecedent_estimate::HeldOutCase
 pub struct antecedent_estimate::HydrateSource<'a>
 pub struct antecedent_estimate::HydrateTarget<'a>
 pub struct antecedent_estimate::InterferenceEstimate
@@ -16867,6 +17246,10 @@ pub struct antecedent_estimate::OrderingSensitivity
 pub struct antecedent_estimate::OverlapReport
 pub struct antecedent_estimate::PointwiseCateEstimate
 pub struct antecedent_estimate::PopulationLinearVariance
+pub struct antecedent_estimate::PosteriorRecord
+pub struct antecedent_estimate::PredictionFit
+pub struct antecedent_estimate::PreparedAssociation
+pub struct antecedent_estimate::PreparedAssociation has private fields
 pub struct antecedent_estimate::PreparedBayesianProblem
 pub struct antecedent_estimate::PreparedEstimationProblem
 pub struct antecedent_estimate::PreparedFrontDoorProblem
@@ -16904,6 +17287,7 @@ pub struct antecedent_estimate::RegimeSample
 pub struct antecedent_estimate::ReplicatePolicy
 pub struct antecedent_estimate::ReportingContrast
 pub struct antecedent_estimate::ReportingTransform
+pub struct antecedent_estimate::ResamplingRecord
 pub struct antecedent_estimate::ResponseBlockLength
 pub struct antecedent_estimate::ResponseGridInputs<'a>
 pub struct antecedent_estimate::ResponseInfluence
@@ -16966,6 +17350,7 @@ pub struct antecedent_estimate::TemporalResponseEstimator
 pub struct antecedent_estimate::TemporalSlopeDesign
 pub struct antecedent_estimate::TemporalSlopeDesign has private fields
 pub struct antecedent_estimate::TemporalSlopeSpec<'a>
+pub struct antecedent_estimate::TermPosterior
 pub struct antecedent_estimate::TransportEffectEstimate
 pub struct antecedent_estimate::TransportOverlapDiagnostic
 pub struct antecedent_estimate::TransportOverlapReport
@@ -17228,6 +17613,13 @@ pub struct antecedent_estimate::joint_panel::PanelProgram
 pub struct antecedent_estimate::joint_panel::PanelResponse
 pub struct antecedent_estimate::joint_panel::PanelSamplingOptions
 pub struct antecedent_estimate::joint_panel::PanelScenario
+pub struct antecedent_estimate::joint_panel::decomposition::DecompositionEndpoint
+pub struct antecedent_estimate::joint_panel::decomposition::MechanismPeriodMap
+pub struct antecedent_estimate::joint_panel::decomposition::PairedPanelPath
+pub struct antecedent_estimate::joint_panel::decomposition::PanelDecomposition
+pub struct antecedent_estimate::joint_panel::decomposition::PanelDecomposition has private fields
+pub struct antecedent_estimate::joint_panel::decomposition::PanelDecompositionRequest
+pub struct antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition
 pub struct antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast
 pub struct antecedent_estimate::joint_panel::time_varying::TemporalPanelAttempt
 pub struct antecedent_estimate::joint_panel::time_varying::TemporalPanelDraw
@@ -17499,6 +17891,8 @@ pub struct antecedent_estimate::survival::SurvivalRows<'a>
 pub struct antecedent_estimate::survival_posterior::HazardGammaPrior
 pub struct antecedent_estimate::survival_posterior::IntervalHazardPosterior
 pub struct antecedent_estimate::survival_posterior::PiecewiseSurvivalPosterior
+pub struct antecedent_estimate::switchback::HistoryAssignment
+pub struct antecedent_estimate::switchback::HistorySwitchbackFit
 pub struct antecedent_estimate::switchback::SwitchbackItt
 pub struct antecedent_estimate::switchback_posterior::SwitchbackEvidence
 pub struct antecedent_estimate::switchback_posterior::SwitchbackMarginals
@@ -17688,6 +18082,25 @@ pub use antecedent_estimate::aipw::AipwWorkspace = antecedent_estimate::AipwWork
 pub use antecedent_estimate::aipw::CheckedAipwLowering = antecedent_estimate::CheckedAipwLowering
 pub use antecedent_estimate::aipw::CheckedAipwPreparation = antecedent_estimate::CheckedAipwPreparation
 pub use antecedent_estimate::aipw::CheckedAipwProcedure = antecedent_estimate::CheckedAipwProcedure
+pub use antecedent_estimate::association::AssociationAnalysis = antecedent_estimate::AssociationAnalysis
+pub use antecedent_estimate::association::AssociationEstimate = antecedent_estimate::AssociationEstimate
+pub use antecedent_estimate::association::AssociationEstimator = antecedent_estimate::AssociationEstimator
+pub use antecedent_estimate::association::AssociationSelection = antecedent_estimate::AssociationSelection
+pub use antecedent_estimate::association::AssociationTerm = antecedent_estimate::AssociationTerm
+pub use antecedent_estimate::association::BayesianSettings = antecedent_estimate::BayesianSettings
+pub use antecedent_estimate::association::HeldOutCase = antecedent_estimate::HeldOutCase
+pub use antecedent_estimate::association::MAX_STRATA = antecedent_estimate::MAX_STRATA
+pub use antecedent_estimate::association::MAX_STRATUM_LEVELS = antecedent_estimate::MAX_STRATUM_LEVELS
+pub use antecedent_estimate::association::MIN_REPLICATES = antecedent_estimate::MIN_REPLICATES
+pub use antecedent_estimate::association::Modality = antecedent_estimate::Modality
+pub use antecedent_estimate::association::OutcomeKind = antecedent_estimate::OutcomeKind
+pub use antecedent_estimate::association::PosteriorRecord = antecedent_estimate::PosteriorRecord
+pub use antecedent_estimate::association::PredictionFit = antecedent_estimate::PredictionFit
+pub use antecedent_estimate::association::PreparedAssociation = antecedent_estimate::PreparedAssociation
+pub use antecedent_estimate::association::ResamplingRecord = antecedent_estimate::ResamplingRecord
+pub use antecedent_estimate::association::SELECTION_RULE = antecedent_estimate::SELECTION_RULE
+pub use antecedent_estimate::association::SPREAD_LEVEL = antecedent_estimate::SPREAD_LEVEL
+pub use antecedent_estimate::association::TermPosterior = antecedent_estimate::TermPosterior
 pub use antecedent_estimate::bayesian::BayesianBackendKind = antecedent_estimate::BayesianBackendKind
 pub use antecedent_estimate::bayesian::BayesianGCompWorkspace = antecedent_estimate::BayesianGCompWorkspace
 pub use antecedent_estimate::bayesian::BayesianGComputationAte = antecedent_estimate::BayesianGComputationAte
@@ -17704,6 +18117,7 @@ pub use antecedent_estimate::bayesian::LAPLACE_RANK_INTERVAL_BELOW_DRAWS = antec
 pub use antecedent_estimate::bayesian::MIN_CONTROLLED_DRAWS = antecedent_estimate::MIN_CONTROLLED_DRAWS
 pub use antecedent_estimate::bayesian::PosteriorFunctionalEvaluator = antecedent_estimate::PosteriorFunctionalEvaluator
 pub use antecedent_estimate::bayesian::PreparedBayesianProblem = antecedent_estimate::PreparedBayesianProblem
+pub use antecedent_estimate::bayesian_method = antecedent_estimate::association::bayesian_method
 pub use antecedent_estimate::causal_forest::CausalForest = antecedent_estimate::CausalForest
 pub use antecedent_estimate::cell_aipw::CellSaturatedAipw = antecedent_estimate::CellSaturatedAipw
 pub use antecedent_estimate::cell_aipw::CellScoreSpec = antecedent_estimate::CellScoreSpec
@@ -17735,6 +18149,7 @@ pub use antecedent_estimate::crossfit_binary_scores = antecedent_estimate::cross
 pub use antecedent_estimate::crossfit_cache::CrossfitCacheStats = antecedent_estimate::CrossfitCacheStats
 pub use antecedent_estimate::crossfit_cache::CrossfitNuisanceCache = antecedent_estimate::CrossfitNuisanceCache
 pub use antecedent_estimate::crossfit_cache::NuisanceScopeUse = antecedent_estimate::NuisanceScopeUse
+pub use antecedent_estimate::descriptive_assumptions = antecedent_estimate::association::descriptive_assumptions
 pub use antecedent_estimate::descriptive_comparison::AdjustedEstimate = antecedent_estimate::AdjustedEstimate
 pub use antecedent_estimate::descriptive_comparison::ArmSummary = antecedent_estimate::ArmSummary
 pub use antecedent_estimate::descriptive_comparison::Availability = antecedent_estimate::Availability
@@ -18051,6 +18466,7 @@ pub use antecedent_estimate::scores::ScoreTableWire = antecedent_io_core::score_
 pub use antecedent_estimate::scores::inference_from_influence_columns = antecedent_estimate::inference_from_influence_columns
 pub use antecedent_estimate::se::AnalyticSeKind = antecedent_estimate::AnalyticSeKind
 pub use antecedent_estimate::se::DEFAULT_RIDGE_ON_SEPARATION = antecedent_stats::DEFAULT_RIDGE_ON_SEPARATION
+pub use antecedent_estimate::select_analysis = antecedent_estimate::association::select_analysis
 pub use antecedent_estimate::serial_dependence::DEPENDENCE_ASSUMPTION_ID = antecedent_estimate::DEPENDENCE_ASSUMPTION_ID
 pub use antecedent_estimate::serial_dependence::DependenceScope = antecedent_estimate::DependenceScope
 pub use antecedent_estimate::serial_dependence::SerialDependence = antecedent_estimate::SerialDependence
@@ -18217,6 +18633,16 @@ pub variant antecedent_estimate::AnalyticSeKind::Homoskedastic
 pub variant antecedent_estimate::AnalyticSeKind::Multiway
 pub variant antecedent_estimate::AnalyticSeKind::NeweyWest { lag: usize }
 pub variant antecedent_estimate::AnalyticSeKind::PanelClusterHac { lag: usize }
+pub variant antecedent_estimate::AssociationAnalysis::DistanceCorrelation
+pub variant antecedent_estimate::AssociationAnalysis::LinearRegression
+pub variant antecedent_estimate::AssociationAnalysis::LogisticRegression
+pub variant antecedent_estimate::AssociationAnalysis::PearsonCorrelation
+pub variant antecedent_estimate::AssociationAnalysis::PoissonRegression
+pub variant antecedent_estimate::AssociationAnalysis::PredictiveLinear
+pub variant antecedent_estimate::AssociationAnalysis::PredictiveLogistic
+pub variant antecedent_estimate::AssociationAnalysis::PredictivePoisson
+pub variant antecedent_estimate::AssociationAnalysis::StratifiedMean
+pub variant antecedent_estimate::AssociationAnalysis::StratifiedProbability
 pub variant antecedent_estimate::Availability::Available(T)
 pub variant antecedent_estimate::Availability::Unavailable(antecedent_estimate::Unavailable)
 pub variant antecedent_estimate::BayesianBackendKind::ConjugateGaussian
@@ -18285,6 +18711,8 @@ pub variant antecedent_estimate::LinearFitKind::Huber { c: f64 }
 pub variant antecedent_estimate::LinearFitKind::Lasso { lambda: f64 }
 pub variant antecedent_estimate::LinearFitKind::Ols
 pub variant antecedent_estimate::LinearFitKind::Ridge { lambda: f64 }
+pub variant antecedent_estimate::Modality::CrossSection
+pub variant antecedent_estimate::Modality::Series
 pub variant antecedent_estimate::MultiLevelPopulation::AllCompleteCaseRows
 pub variant antecedent_estimate::MultiLevelPopulation::RowsAtTheTwoDeclaredLevels
 pub variant antecedent_estimate::MultiLevelTarget::FullPopulation { levels: alloc::sync::Arc<[f64]> }
@@ -18295,6 +18723,9 @@ pub variant antecedent_estimate::NuisanceFallback::None
 pub variant antecedent_estimate::NuisanceFallback::RidgeLogistic(antecedent_estimate::RidgeTuning)
 pub variant antecedent_estimate::OtherLevels::ExcludeUndeclared
 pub variant antecedent_estimate::OtherLevels::Refuse
+pub variant antecedent_estimate::OutcomeKind::Binary
+pub variant antecedent_estimate::OutcomeKind::Continuous
+pub variant antecedent_estimate::OutcomeKind::Count
 pub variant antecedent_estimate::OverlapPolicy::ExplicitOverride
 pub variant antecedent_estimate::OverlapPolicy::RequireDiagnostics { clip: core::option::Option<f64>, trim: core::option::Option<f64> }
 pub variant antecedent_estimate::ProbabilityInterval::Bounded { level: f64, lower: f64, upper: f64 }
@@ -18496,6 +18927,10 @@ pub variant antecedent_estimate::joint_panel::PanelError::Resource(alloc::string
 pub variant antecedent_estimate::joint_panel::PanelFeatureInputs::LaggedSaturatedChannels
 pub variant antecedent_estimate::joint_panel::PanelInference::Bayesian { prior: antecedent_estimate::joint_panel::PanelPrior, sampler: antecedent_estimate::joint_panel::PanelSamplingOptions }
 pub variant antecedent_estimate::joint_panel::PanelInference::Frequentist { draws: usize }
+pub variant antecedent_estimate::joint_panel::decomposition::ChangeComponent::Exposure
+pub variant antecedent_estimate::joint_panel::decomposition::ChangeComponent::Mechanism
+pub variant antecedent_estimate::joint_panel::decomposition::ChangeComponent::Population
+pub variant antecedent_estimate::joint_panel::decomposition::ChangeComponent::Saturation
 pub variant antecedent_estimate::joint_panel::time_varying::PanelExplanation::Composition
 pub variant antecedent_estimate::joint_panel::time_varying::PanelExplanation::Exposure
 pub variant antecedent_estimate::joint_panel::time_varying::PanelExplanation::Mechanism

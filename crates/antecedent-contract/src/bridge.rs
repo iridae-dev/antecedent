@@ -58,13 +58,14 @@ pub use claim::{
     derive_bridged_claim,
 };
 pub use contract::{
-    AnalyticLaw, BRIDGE_IDENTITY_VERSION, BRIDGE_SOURCE_PORT, BRIDGE_TARGET_PORT, BridgeAssumption,
-    BridgeContract, BridgeEndpoint, BridgeInterfaceBasis, BridgeScope, EstimandBridge,
-    ExperimentalPrior, ExposureSetting, ImportedExperimentalPrior, Licensing,
-    MAX_BRIDGE_ASSUMPTIONS, MAX_BRIDGE_TEXT_BYTES, MappingUncertainty, NonlinearMap,
-    NonlinearMoment, PreservedSupport, PropagatedUncertainty, SourceMappingDependence, SupportMap,
-    TransportabilityPremise, ValueInterval, nonlinear_expectation, preserved_support,
-    support_image,
+    AffineDrawLaw, AffineInnovation, AnalyticLaw, BRIDGE_IDENTITY_VERSION, BRIDGE_SOURCE_PORT,
+    BRIDGE_TARGET_PORT, BridgeAssumption, BridgeContract, BridgeDrawsSource, BridgeEndpoint,
+    BridgeInterfaceBasis, BridgeScope, BridgedDistributionClaim, CorrectionDrawLaw, DrawMapping,
+    DrawsPlan, EstimandBridge, ExperimentalPrior, ExposureSetting, ImportedExperimentalPrior,
+    Licensing, MAX_BRIDGE_ASSUMPTIONS, MAX_BRIDGE_TEXT_BYTES, MappedDrawsSummary,
+    MappingUncertainty, NonlinearMap, NonlinearMoment, PreservedSupport, PropagatedUncertainty,
+    SourceMappingDependence, SupportMap, TransportabilityPremise, ValueInterval,
+    bridged_distribution_claim_id, nonlinear_expectation, preserved_support, support_image,
 };
 pub use kind::{AssumptionKind, BridgeKind, QuantityClass, ValueKind};
 pub use mapping::{
@@ -72,4 +73,7 @@ pub use mapping::{
     MeasurementDirection, TrialEffectPair, TrialLevelFit, TrialLevelValidation,
     fit_trial_level_linear,
 };
-pub use refusal::{BridgeRefusal, interval_not_licensed, wrong_value_kind};
+pub use refusal::{
+    BridgeRefusal, chain_stage_not_affine, draws_outside_domain, draws_unusable,
+    interval_not_licensed, wrong_value_kind,
+};

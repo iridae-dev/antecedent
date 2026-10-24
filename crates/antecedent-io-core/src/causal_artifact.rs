@@ -1019,6 +1019,16 @@ pub(crate) fn validate_query_ids(
             .validate()
             .map_err(|e| IoError::Convert(e.to_string()))
         }
+        Q::Association(wire) => {
+            validate_ids(
+                std::iter::once(wire.outcome)
+                    .chain(wire.predictors.iter().copied())
+                    .chain(wire.conditioning.iter().copied())
+                    .chain(wire.weight),
+                variable_count,
+            )?;
+            crate::association_query_from_wire(wire).map(|_| ())
+        }
         Q::SequentialContrast(wire) => {
             validate_ids(
                 [wire.outcome, wire.first_treatment, wire.second_treatment]

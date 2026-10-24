@@ -1230,6 +1230,10 @@ pub struct AnalysisResultWire {
     /// every other result, so their bodies and digests are unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub iv_bounds: Option<IvBoundsWire>,
+    /// Noncausal association of the observed data, unlicensed. Absent on every other result,
+    /// so their bodies and digests are unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub association: Option<AssociationWire>,
     /// Rollout design effects with whole-procedure uncertainty, unlicensed. Absent on every
     /// other result, so their bodies and digests are unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1448,12 +1452,19 @@ pub fn decode_analysis_result_artifact(
     Ok((artifact, decoded_header, decoded_body))
 }
 
+mod association;
 mod graphless;
 mod iv_bounds;
 mod quasi_rollout;
 mod temporal_design;
 mod validate;
 
+pub use association::{
+    ASSOCIATION_ANALYSES, ASSOCIATION_ANALYTIC_UNCERTAINTY, ASSOCIATION_NO_UNCERTAINTY,
+    ASSOCIATION_POSTERIOR_UNCERTAINTY, ASSOCIATION_RESAMPLING_UNCERTAINTY,
+    AssociationPosteriorWire, AssociationPredictionWire, AssociationResamplingWire,
+    AssociationTermWire, AssociationWire,
+};
 pub use iv_bounds::{
     IV_BOUNDS_BAYESIAN_METHOD, IV_BOUNDS_FREQUENTIST_METHOD, IV_BOUNDS_POINT_UNCERTAINTY,
     IvBoundsIntervalWire, IvBoundsPosteriorWire, IvBoundsWire,

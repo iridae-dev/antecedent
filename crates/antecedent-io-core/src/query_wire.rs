@@ -1421,6 +1421,55 @@ pub enum CausalQueryWire {
     TemporalDesign(crate::temporal_design_query_wire::TemporalDesignQueryWire),
     /// Sharp bounds on the average effect of a binary treatment under a binary instrument.
     IvBounds(IvBoundsQueryWire),
+    /// Noncausal association of an outcome with predictors in the observed data.
+    Association(AssociationQueryWire),
+}
+
+/// Descriptive quantity of a noncausal association query.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+#[serde(rename_all = "snake_case")]
+pub enum AssociationFunctionalWire {
+    /// The declared selection rule picks the analysis.
+    Auto,
+    /// Conditional mean or probability in each stratum.
+    Conditional,
+    /// Regression coefficients of the predictors.
+    Coefficients,
+    /// A symmetric association measure, by its stable name.
+    Measure {
+        /// `pearson_correlation` or `distance_correlation`.
+        measure: String,
+    },
+    /// A predictive model scored on held-out folds.
+    Predictive {
+        /// Held-out folds.
+        folds: u32,
+    },
+}
+
+/// Declared columns and descriptive quantity of a noncausal association query.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct AssociationQueryWire {
+    /// Outcome column.
+    pub outcome: u32,
+    /// Predictor columns, in report order.
+    pub predictors: Vec<u32>,
+    /// Conditioning columns.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub conditioning: Vec<u32>,
+    /// Descriptive quantity.
+    pub functional: AssociationFunctionalWire,
+    /// Declared outcome scale; absent reads the schema's.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub outcome_scale: Option<String>,
+    /// Sampling-weight column.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub weight: Option<u32>,
+    /// Reason code of the refused causal query this one follows.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub refused_after: Option<String>,
 }
 
 /// Declared columns of a binary-instrument bounds query.
@@ -1999,7 +2048,8 @@ impl CausalQueryWire {
             | Self::Attribute(_)
             | Self::Simulate(_)
             | Self::TemporalDesign(_)
-            | Self::IvBounds(_) => None,
+            | Self::IvBounds(_)
+            | Self::Association(_) => None,
         }
     }
 
@@ -2041,7 +2091,8 @@ impl CausalQueryWire {
             | Self::Attribute(_)
             | Self::Simulate(_)
             | Self::TemporalDesign(_)
-            | Self::IvBounds(_) => None,
+            | Self::IvBounds(_)
+            | Self::Association(_) => None,
         }
     }
 }
@@ -2887,6 +2938,7 @@ pub fn causal_query_to_wire_with_registry(
             instrument: q.instrument.raw(),
             weight: q.weight.map(antecedent_core::VariableId::raw),
         }),
+        CausalQuery::Association(q) => CausalQueryWire::Association(association_query_to_wire(q)),
         _ => return Err(IoError::Convert("unsupported CausalQuery variant".into())),
     })
 }
@@ -3607,7 +3659,85 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
             q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
             CausalQuery::IvBounds(q)
         }
+        CausalQueryWire::Association(w) => {
+            CausalQuery::Association(association_query_from_wire(w)?)
+        }
     })
+}
+
+/// Encode a noncausal association query.
+#[must_use]
+pub fn association_query_to_wire(q: &antecedent_core::AssociationQuery) -> AssociationQueryWire {
+    use antecedent_core::{AssociationFunctional, AssociationOutcome};
+    AssociationQueryWire {
+        outcome: q.outcome.raw(),
+        predictors: q.predictors.iter().map(|id| id.raw()).collect(),
+        conditioning: q.conditioning.iter().map(|id| id.raw()).collect(),
+        functional: match q.functional {
+            AssociationFunctional::Auto => AssociationFunctionalWire::Auto,
+            AssociationFunctional::Conditional => AssociationFunctionalWire::Conditional,
+            AssociationFunctional::Coefficients => AssociationFunctionalWire::Coefficients,
+            AssociationFunctional::Measure(measure) => {
+                AssociationFunctionalWire::Measure { measure: measure.as_str().to_owned() }
+            }
+            AssociationFunctional::Predictive { folds } => {
+                AssociationFunctionalWire::Predictive { folds }
+            }
+        },
+        outcome_scale: (q.outcome_scale != AssociationOutcome::Schema)
+            .then(|| q.outcome_scale.as_str().to_owned()),
+        weight: q.weight.map(antecedent_core::VariableId::raw),
+        refused_after: q.refused_after.as_deref().map(str::to_owned),
+    }
+}
+
+/// Decode and validate a noncausal association query.
+///
+/// # Errors
+///
+/// An unknown measure or outcome scale, or a declaration the query refuses.
+pub fn association_query_from_wire(
+    w: &AssociationQueryWire,
+) -> Result<antecedent_core::AssociationQuery, IoError> {
+    use antecedent_core::{
+        AssociationFunctional, AssociationMeasure, AssociationOutcome, AssociationQuery,
+    };
+    let functional = match &w.functional {
+        AssociationFunctionalWire::Auto => AssociationFunctional::Auto,
+        AssociationFunctionalWire::Conditional => AssociationFunctional::Conditional,
+        AssociationFunctionalWire::Coefficients => AssociationFunctional::Coefficients,
+        AssociationFunctionalWire::Measure { measure } => {
+            AssociationFunctional::Measure(AssociationMeasure::from_name(measure).ok_or_else(
+                || IoError::Convert(format!("unknown association measure `{measure}`")),
+            )?)
+        }
+        AssociationFunctionalWire::Predictive { folds } => {
+            AssociationFunctional::Predictive { folds: *folds }
+        }
+    };
+    let outcome_scale = match w.outcome_scale.as_deref() {
+        None => AssociationOutcome::Schema,
+        Some(name) => AssociationOutcome::from_name(name).ok_or_else(|| {
+            IoError::Convert(format!("unknown association outcome scale `{name}`"))
+        })?,
+    };
+    let mut q = AssociationQuery::new(
+        VariableId::from_raw(w.outcome),
+        w.predictors.iter().map(|id| VariableId::from_raw(*id)).collect::<Vec<_>>(),
+    )
+    .with_conditioning(
+        w.conditioning.iter().map(|id| VariableId::from_raw(*id)).collect::<Vec<_>>(),
+    )
+    .with_functional(functional)
+    .with_outcome_scale(outcome_scale);
+    if let Some(weight) = w.weight {
+        q = q.with_weight(VariableId::from_raw(weight));
+    }
+    if let Some(reason) = &w.refused_after {
+        q = q.following_refusal(reason.as_str());
+    }
+    q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
+    Ok(q)
 }
 
 /// Encode a structural transport query.
@@ -3895,6 +4025,54 @@ mod tests {
     use super::*;
     use crate::convert::{from_cbor, to_cbor};
     use antecedent_core::{ComponentId, PopulationRegistry};
+
+    #[test]
+    fn association_queries_round_trip_every_field_and_refuse_unknown_codes() {
+        use antecedent_core::{
+            AssociationFunctional, AssociationMeasure, AssociationOutcome, AssociationQuery,
+        };
+        let functionals = [
+            AssociationFunctional::Auto,
+            AssociationFunctional::Conditional,
+            AssociationFunctional::Coefficients,
+            AssociationFunctional::Measure(AssociationMeasure::Distance),
+            AssociationFunctional::Predictive { folds: 5 },
+        ];
+        for functional in functionals {
+            let mut query = AssociationQuery::new(
+                VariableId::from_raw(3),
+                vec![VariableId::from_raw(0), VariableId::from_raw(1)],
+            )
+            .with_conditioning(vec![VariableId::from_raw(2)])
+            .with_outcome_scale(AssociationOutcome::Count)
+            .with_weight(VariableId::from_raw(4))
+            .following_refusal("effect_not_identified")
+            .with_functional(functional);
+            if matches!(functional, AssociationFunctional::Measure(_)) {
+                query =
+                    AssociationQuery::new(VariableId::from_raw(3), vec![VariableId::from_raw(0)])
+                        .with_functional(functional);
+            }
+            let causal = CausalQuery::Association(query);
+            let wire = causal_query_to_wire(&causal).unwrap();
+            assert!(matches!(wire, CausalQueryWire::Association(_)));
+            assert_eq!(causal_query_from_wire(&wire).unwrap(), causal);
+            let bytes = to_cbor(&wire).unwrap();
+            assert_eq!(from_cbor::<CausalQueryWire>(&bytes).unwrap(), wire);
+        }
+        let mut wire = association_query_to_wire(&AssociationQuery::new(
+            VariableId::from_raw(1),
+            vec![VariableId::from_raw(0)],
+        ));
+        wire.functional = AssociationFunctionalWire::Measure { measure: "spearman".into() };
+        assert!(association_query_from_wire(&wire).is_err());
+        wire.functional = AssociationFunctionalWire::Auto;
+        wire.outcome_scale = Some("ordinal".into());
+        assert!(association_query_from_wire(&wire).is_err());
+        wire.outcome_scale = None;
+        wire.predictors = vec![1];
+        assert!(association_query_from_wire(&wire).is_err(), "a repeated column is refused");
+    }
 
     #[test]
     fn path_limits_encode_as_the_exact_count() {

@@ -210,7 +210,7 @@ impl RepairError {
         Self { code, detail, message: message.into(), receipt: None }
     }
 
-    fn invalid_request(message: impl Into<String>) -> Self {
+    pub(crate) fn invalid_request(message: impl Into<String>) -> Self {
         Self::new(
             reason_code!("invalid_argument"),
             "identification_repair.invalid_request",
@@ -226,7 +226,7 @@ impl RepairError {
         )
     }
 
-    fn not_a_failure(message: impl Into<String>) -> Self {
+    pub(crate) fn not_a_failure(message: impl Into<String>) -> Self {
         Self::new(reason_code!("invalid_argument"), "identification_repair.not_a_failure", message)
     }
 
@@ -239,7 +239,7 @@ impl RepairError {
         }
     }
 
-    fn from_identification(error: &IdentificationError) -> Self {
+    pub(crate) fn from_identification(error: &IdentificationError) -> Self {
         if error.is_budget_or_cancel() {
             Self::budget(format!("the base identification stopped: {error}"), None)
         } else {
@@ -1033,14 +1033,14 @@ pub struct BackdoorRepairFamily {
     obligations: Vec<EvidenceObligation>,
 }
 
-fn dense_of(dag: &Dag, variable: VariableId) -> Option<DenseNodeId> {
+pub(crate) fn dense_of(dag: &Dag, variable: VariableId) -> Option<DenseNodeId> {
     dag.nodes()
         .iter()
         .position(|node| *node == NodeRef::Static(variable))
         .and_then(|i| DenseNodeId::try_from_usize(i).ok())
 }
 
-fn graph_variables(dag: &Dag) -> Vec<VariableId> {
+pub(crate) fn graph_variables(dag: &Dag) -> Vec<VariableId> {
     dag.nodes()
         .iter()
         .filter_map(|node| match node {

@@ -16,8 +16,13 @@
 //!     uncertainty by the first-order delta method for functionals of
 //!     interventional means;
 //!   - finite-discrete conditional tables, executed by exact enumeration and
-//!     truncated factorization; parameter uncertainty is not propagated (the
-//!     route is point-only).
+//!     truncated factorization; parameter uncertainty is not propagated by this
+//!     module (the executor is point-only; the retained-data redraw in
+//!     `observation_uncertainty` re-executes it under posterior draws).
+//!
+//!   Conditioning on observed real values of a linear-Gaussian composition is
+//!   the Schur complement of the observed block of its (possibly intervened)
+//!   joint law ([`JointGaussian::condition`]).
 //! - **Declared, not discovered**: a mechanism enters a composition only
 //!   through [`MechanismDescriptor`]. Nothing is inferred about units,
 //!   populations, shared causes or dependence from names or fits.
@@ -55,8 +60,8 @@ pub use descriptor::{
     SelectionNodeDeclaration, TabularRow, UncertaintyMeaning,
 };
 pub use gaussian::{
-    ComposedLinearGaussian, ContrastArm, FunctionalUncertainty, JointGaussian, MeanContrast,
-    SampleTable,
+    ComposedLinearGaussian, ConditionedGaussian, ContrastArm, FunctionalUncertainty,
+    GaussianConditioningError, JointGaussian, MeanContrast, SampleTable,
 };
 pub use tabular::{ComposedFinite, FiniteLaw};
 

@@ -111,6 +111,36 @@ def test_identified_banner_and_repr(identified):
     assert repr(identified).startswith("<AnalysisResult identified effect=")
 
 
+def test_a_noncausal_status_is_neither_identified_nor_a_failed_identification():
+    from antecedent._claim import identification_statement, result_claim
+    from antecedent._verdict import verdict_for, verdict_tone
+
+    assert verdict_for("NotClaimed") == "not claimed"
+    assert describe_status("NotClaimed") == "not claimed"
+    assert verdict_tone("NotClaimed") == "noncausal"
+    statement = identification_statement("effect", "NotClaimed", "regression", ["z"])
+    assert "noncausal association" in statement
+    assert "identification is not claimed" in statement
+    assert "adjusting" not in statement
+    sentence = result_claim(
+        query="effect",
+        status="NotClaimed",
+        method=None,
+        adjustment_set=(),
+        answer=Answer("associational", detail="noncausal_association"),
+        calibration=None,
+    )
+    assert "not an effect of any intervention" in sentence
+
+
+def test_an_associational_claim_has_its_own_answer_kind_and_no_value():
+    assert CLAIM_KIND_ANSWERS["associational"] == "associational"
+    assert "associational" in ANSWER_KINDS
+    answer = Answer("associational", detail="noncausal_association")
+    assert answer.value is None
+    assert answer.bounds is None
+
+
 def test_parametric_identification_keeps_its_qualifier():
     rng = np.random.default_rng(1)
     z = rng.normal(size=300)

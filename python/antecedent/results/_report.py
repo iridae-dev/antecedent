@@ -67,6 +67,16 @@ class InspectionReport(BaseModel):
     answer: Any = None
     calibration: Any = None
     diagnostics: tuple[str, ...] | list[str] = ()
+    #: What the capability report suggests next (``id``, ``description``); never executed.
+    #: A not-identified contract adds ``measure_variable:<name>``, ``run_experiment:<target>``,
+    #: ``find_instrument`` and ``collect_panel``.
+    next_actions: tuple[Mapping[str, Any], ...] = ()
+    #: Licensed alternatives that change named premises; an explicit choice, never a fallback.
+    neighbors: tuple[Mapping[str, Any], ...] = ()
+    #: Unresolved obligations of the contract.
+    unmet_obligations: tuple[Mapping[str, Any], ...] = ()
+    #: Verified evidence obligations of a not-identified product, each with its proof step.
+    evidence_obligations: tuple[Mapping[str, Any], ...] = ()
     target: Mapping[str, Any] | None = None
     inference_binding: Any = None
     stage: InspectionStage = "prepared"
@@ -75,13 +85,33 @@ class InspectionReport(BaseModel):
     operations: tuple[str, ...] = ()
 
     @field_validator(
-        "contract", "target", "details", "diagnostics", "inference_binding", "answer", "calibration"
+        "contract",
+        "target",
+        "details",
+        "diagnostics",
+        "inference_binding",
+        "answer",
+        "calibration",
+        "next_actions",
+        "neighbors",
+        "unmet_obligations",
+        "evidence_obligations",
     )
     @classmethod
     def _freeze_details(cls, value: Any) -> Any:
         return freeze(value)
 
-    @field_serializer("contract", "target", "details", "inference_binding", when_used="json")
+    @field_serializer(
+        "contract",
+        "target",
+        "details",
+        "inference_binding",
+        "next_actions",
+        "neighbors",
+        "unmet_obligations",
+        "evidence_obligations",
+        when_used="json",
+    )
     def _json_details(self, value: Any) -> Any:
         return thaw(value)
 
@@ -95,6 +125,10 @@ class InspectionReport(BaseModel):
             "inference_binding",
             "answer",
             "calibration",
+            "next_actions",
+            "neighbors",
+            "unmet_obligations",
+            "evidence_obligations",
         ):
             object.__setattr__(result, name, freeze(getattr(result, name)))
         return result
@@ -352,6 +386,10 @@ def as_inspection(slots: Any) -> InspectionReport:
             answer=slots.answer,
             calibration=slots.calibration,
             diagnostics=slots.diagnostics,
+            next_actions=getattr(slots, "next_actions", ()),
+            neighbors=getattr(slots, "neighbors", ()),
+            unmet_obligations=getattr(slots, "unmet_obligations", ()),
+            evidence_obligations=getattr(slots, "evidence_obligations", ()),
             target=dumped.get("target"),
             inference_binding=dumped.get("inference_binding"),
         )

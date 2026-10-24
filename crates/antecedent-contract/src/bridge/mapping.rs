@@ -240,7 +240,7 @@ fn check_validation_declaration(validation: &TrialLevelValidation) -> Result<(),
 }
 
 /// The shared rates of a non-differential binary measurement model.
-fn binary_rates(model: &MeasurementModel) -> Result<(f64, f64, f64), BridgeRefusal> {
+pub(super) fn binary_rates(model: &MeasurementModel) -> Result<(f64, f64, f64), BridgeRefusal> {
     model.validate().map_err(|error| crate::measurement::model_refusal(&error))?;
     if model.route != MeasurementRoute::BinaryMisclassification {
         return Err(measurement_route_not_supported(
@@ -394,7 +394,7 @@ impl BridgeMapping {
 }
 
 /// Youden's index of the declared rates, when it exceeds the declared minimum.
-fn identified_youden(
+pub(super) fn identified_youden(
     sensitivity: f64,
     specificity: f64,
     min_youden: f64,

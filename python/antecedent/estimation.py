@@ -95,6 +95,7 @@ from .policy import (
     MultiActionPolicyValue,
     PolicyValue,
 )
+from .descriptive import Association
 from .population import coerce_target_population
 from .quasi import (
     AugmentedPanelDiD,
@@ -601,6 +602,7 @@ _PreparedQuery = (
     | SequentialContrast
     | PeriodHistoryMatch
     | IvBounds
+    | Association
     | PolicyProgramValue
     | TemporalDesignQuery
 )
@@ -856,6 +858,15 @@ def _iv_bounds_payload(data: Any, query: IvBounds) -> tuple[list[str], list[Any]
     if query.weight is not None:
         required.append(query.weight)
     raw = read_columns(data, tuple(required), what="IV bounds")
+    return ingest_columns({name: raw[name] for name in required})
+
+
+def _association_payload(data: Any, query: Association) -> tuple[list[str], list[Any]]:
+    """The columns of the noncausal association, in the order the query declares them."""
+    required = [query.outcome, *query.predictors, *query.conditioning]
+    if query.weight is not None:
+        required.append(query.weight)
+    raw = read_columns(data, tuple(required), what="association")
     return ingest_columns({name: raw[name] for name in required})
 
 
@@ -1715,6 +1726,9 @@ class PreparedAnalysis(Generic[ResultT]):
         elif isinstance(query, IvBounds):
             names, columns = _iv_bounds_payload(data, query)
             frame = None
+        elif isinstance(query, Association):
+            names, columns = _association_payload(data, query)
+            frame = None
         else:
             names, columns, frame = _frame_payload(
                 data, analysis_columns(query, graph, estimator_config)
@@ -2295,6 +2309,9 @@ class PreparedAnalysis(Generic[ResultT]):
             return names, columns, None
         if isinstance(query, IvBounds):
             names, columns = _iv_bounds_payload(data, query)
+            return names, columns, None
+        if isinstance(query, Association):
+            names, columns = _association_payload(data, query)
             return names, columns, None
         if isinstance(query, ResponseCurve) and query.observation is not None:
             from .observation import Complete, _ensure_latent_schema_column

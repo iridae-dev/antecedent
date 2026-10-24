@@ -12,12 +12,12 @@ use super::{
 };
 use crate::graph::{Admg, Cpdag, Dag, Pag, TemporalDag};
 use antecedent_core::{
-    AverageEffectQuery, ConditionalEffectQuery, ContinuousDoseResponseQuery, DiscoverQuery,
-    HistoryMatchQuery, InterferenceQuery, InterventionalDistributionQuery, IvBoundsQuery,
-    LocalPolynomialRatioQuery, LongitudinalRegimeQuery, MediationQuery, NestedCounterfactualQuery,
-    PanelDidQuery, PathSpecificEffectQuery, PolicyValueQuery, RandomizedEffectQuery, ResponseQuery,
-    SequentialContrastQuery, SurvivalQuery, SyntheticControlQuery, TemporalDesignQuery,
-    TemporalEffectQuery, TransportQuery,
+    AssociationQuery, AverageEffectQuery, ConditionalEffectQuery, ContinuousDoseResponseQuery,
+    DiscoverQuery, HistoryMatchQuery, InterferenceQuery, InterventionalDistributionQuery,
+    IvBoundsQuery, LocalPolynomialRatioQuery, LongitudinalRegimeQuery, MediationQuery,
+    NestedCounterfactualQuery, PanelDidQuery, PathSpecificEffectQuery, PolicyValueQuery,
+    RandomizedEffectQuery, ResponseQuery, SequentialContrastQuery, SurvivalQuery,
+    SyntheticControlQuery, TemporalDesignQuery, TemporalEffectQuery, TransportQuery,
 };
 use antecedent_data::{MultiEnvironmentData, PanelData, TabularData, TimeSeriesData};
 use antecedent_graph::TemporalAdmg;
@@ -230,6 +230,16 @@ pub(crate) enum RouteInput<'a> {
     IvBounds {
         data: &'a TabularData,
         query: &'a IvBoundsQuery,
+    },
+    /// A noncausal association over the rows of a table.
+    AssociationStatic {
+        data: &'a TabularData,
+        query: &'a AssociationQuery,
+    },
+    /// A noncausal association over the points of one series.
+    AssociationTemporal {
+        data: &'a TimeSeriesData,
+        query: &'a AssociationQuery,
     },
     GcmDag {
         data: &'a TabularData,
@@ -585,6 +595,15 @@ fn design_route_input<'a>(
         (AnalysisRoute::IvBounds, GraphRef::RandomizedTrial) => {
             RouteInput::IvBounds { data: tabular(study), query: iv_bounds(study) }
         }
+        (AnalysisRoute::Association, GraphRef::RandomizedTrial) => match &study.data {
+            DataInput::Tabular(data) => {
+                RouteInput::AssociationStatic { data, query: association(study) }
+            }
+            DataInput::Temporal(data) | DataInput::Event(data) => {
+                RouteInput::AssociationTemporal { data, query: association(study) }
+            }
+            DataInput::Panel(_) | DataInput::MultiEnv(_) => return None,
+        },
         _ => return None,
     })
 }
@@ -734,6 +753,11 @@ fn history_match(study: &Study) -> &HistoryMatchQuery {
 
 fn sequential_contrast(study: &Study) -> &SequentialContrastQuery {
     let CausalQuery::SequentialContrast(query) = &study.query else { unreachable!() };
+    query
+}
+
+fn association(study: &Study) -> &AssociationQuery {
+    let CausalQuery::Association(query) = &study.query else { unreachable!() };
     query
 }
 

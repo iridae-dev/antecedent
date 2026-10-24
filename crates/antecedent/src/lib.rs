@@ -102,7 +102,9 @@ pub use analysis::{max_t_critical_value, simultaneous_band_unpublished};
 pub use antecedent_estimate::{IvBoundsEstimate, IvBoundsInterval, IvBoundsPosterior};
 pub use class_prior::ClassPrior;
 pub use design_posterior_model::DesignPosteriorModel;
-pub use error::{CausalError, CompileCause, CompileFailure, ReviewKind};
+pub use error::{
+    CausalError, CompileCause, CompileFailure, IDENTIFICATION_REFUSAL_CODES, ReviewKind,
+};
 pub use estimate::{CausalPosterior, EffectEstimate, EstimatorId, IdentifierId};
 pub use estimator_spec::EstimatorSpec;
 pub use graph::{Dag, DenseNodeId, TemporalDag};
@@ -122,6 +124,7 @@ pub use query::{
     SyntheticPanelMethod, TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec,
     TransportQuery, UnitChangeQuery,
 };
+pub use query::{AssociationFunctional, AssociationMeasure, AssociationOutcome, AssociationQuery};
 pub use query::{AttributeQuery, DiscoverQuery, SimulateQuery};
 pub use query::{
     OutcomeMisclassification, TemporalAssignment, TemporalDesignFunctional, TemporalDesignQuery,

@@ -76,6 +76,9 @@ pub enum RouteFamily {
     /// A chain of transformations carrying uncertainty from declared sources to a
     /// reading.
     PropagationChain,
+    /// A noncausal association of the observed data: a conditional law, regression
+    /// coefficients, an association measure or a scored predictive model.
+    Associational,
 }
 
 impl RouteFamily {
@@ -93,6 +96,7 @@ impl RouteFamily {
             Self::Cyclic => "cyclic",
             Self::Planning => "planning",
             Self::PropagationChain => "propagation_chain",
+            Self::Associational => "associational",
         }
     }
 }
@@ -550,6 +554,9 @@ impl RetainedProductView {
     }
 }
 
+/// Why a program that claims no identification carries a refusal.
+const REFUSED_CAUSAL_QUERY: &str = "follows a refused causal query";
+
 /// How layer two carries identification.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum IdentificationKind {
@@ -561,6 +568,8 @@ pub enum IdentificationKind {
     PerExecution,
     /// A feedback model's identification, which is not a graphical product.
     NonGraphical,
+    /// The program claims no identification: it describes the observed law.
+    NotClaimed,
 }
 
 impl IdentificationKind {
@@ -572,6 +581,7 @@ impl IdentificationKind {
             Self::Deferred => "deferred",
             Self::PerExecution => "per_execution",
             Self::NonGraphical => "non_graphical",
+            Self::NotClaimed => "not_claimed",
         }
     }
 }
@@ -587,6 +597,7 @@ pub struct IdentificationView {
     retained: Vec<RetainedProductView>,
     installed_at_prepare: bool,
     retention_key: Option<[u8; 32]>,
+    refusal: Option<Arc<str>>,
 }
 
 impl IdentificationView {
@@ -600,6 +611,7 @@ impl IdentificationView {
             retained: Vec::new(),
             installed_at_prepare: false,
             retention_key: None,
+            refusal: None,
         };
         match layer {
             IdentificationLayer::Retained(retained) => {
@@ -615,6 +627,11 @@ impl IdentificationView {
             IdentificationLayer::PerExecution { reason } => {
                 view.kind = IdentificationKind::PerExecution;
                 view.reason = Some(*reason);
+            }
+            IdentificationLayer::NotClaimed { refusal } => {
+                view.kind = IdentificationKind::NotClaimed;
+                view.reason = refusal.as_deref().map(|_| REFUSED_CAUSAL_QUERY);
+                view.refusal = refusal.clone();
             }
             IdentificationLayer::NonGraphical(identification) => {
                 view.kind = IdentificationKind::NonGraphical;
@@ -646,6 +663,13 @@ impl IdentificationView {
     #[must_use]
     pub const fn reason(&self) -> Option<&'static str> {
         self.reason
+    }
+
+    /// Reason code of the refused causal query a program that claims no identification
+    /// follows.
+    #[must_use]
+    pub fn refusal(&self) -> Option<&str> {
+        self.refusal.as_deref()
     }
 
     /// The non-graphical identification a feedback program carries
@@ -719,6 +743,7 @@ impl IdentificationView {
             "kind": self.kind.as_str(),
             "status": self.status().map(IdentificationStatus::as_str),
             "reason": self.reason,
+            "refusal": self.refusal.as_deref(),
             "non_graphical": self.non_graphical,
             "unresolved_directions": self.unresolved_directions,
             "product": self.product.as_ref().map(ProductView::to_json),
@@ -1331,7 +1356,8 @@ impl PlanView {
             | RouteFamily::Discovery
             | RouteFamily::Cyclic
             | RouteFamily::Planning
-            | RouteFamily::PropagationChain => None,
+            | RouteFamily::PropagationChain
+            | RouteFamily::Associational => None,
         };
         let scientific = program.scientific();
         let support = SupportView {
@@ -1872,6 +1898,7 @@ pub(crate) mod checks {
             IdentificationLayer::Deferred { .. } => IdentificationKind::Deferred,
             IdentificationLayer::PerExecution { .. } => IdentificationKind::PerExecution,
             IdentificationLayer::NonGraphical(_) => IdentificationKind::NonGraphical,
+            IdentificationLayer::NotClaimed { .. } => IdentificationKind::NotClaimed,
         };
         assert_eq!(view.identification().kind(), expected, "{name}: identification kind");
         assert_eq!(

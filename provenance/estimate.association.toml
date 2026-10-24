@@ -1,0 +1,35 @@
+feature_id = "estimate.association"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "A Heteroskedasticity-Consistent Covariance Matrix Estimator and a Direct Test for Heteroskedasticity", doi = "10.2307/1912934", sections = ["the heteroskedasticity-consistent sandwich covariance of a regression coefficient"] },
+ { title = "A Simple, Positive Semi-Definite, Heteroskedasticity and Autocorrelation Consistent Covariance Matrix", doi = "10.2307/1913610", sections = ["the Bartlett-kernel long-run covariance of the estimating scores"] },
+ { title = "The Jackknife and the Bootstrap for General Stationary Observations", doi = "10.1214/aos/1176347265", sections = ["the moving and circular block bootstrap of a stationary series"] },
+ { title = "Measuring and testing dependence by correlation of distances", doi = "10.1214/009053607000000505", sections = ["distance covariance and distance correlation of two samples"] },
+ { title = "The Bayesian Bootstrap", doi = "10.1214/aos/1176345338", sections = ["Dirichlet weights on the observed rows as a posterior over the sampling distribution"] },
+ { title = "Strictly Proper Scoring Rules, Prediction, and Estimation", doi = "10.1198/016214506000001437", sections = ["the logarithmic, Brier and continuous ranked probability scores"] },
+]
+
+# Derived from the cited constructions applied to a descriptive association, NOT an exact
+# estimator analysed in any one paper. Nothing here estimates a causal quantity; the guarantees
+# of the cited procedures do not transfer to an intervention effect.
+implementation_deviations = [
+ "The declared selection rule (association_selection_rule) is this project's own: it reads the outcome scale and the functional and picks a stratified mean or probability, linear, logistic or Poisson regression, a Pearson or distance correlation, or a predictive model. It is a deterministic dispatch, not an estimator from any paper.",
+ "Regression standard errors are the HC1 sandwich with Fisher-weight bread for rows and the Newey-West sandwich for a series; the truncation lag floor(4 (n / 100)^(2/9)) is the common rule of thumb, not an optimal bandwidth.",
+ "The circular-block bootstrap takes its block length from the outcome's own persistence (the shared dependence rule), not from the persistence of every estimating score, and scales the replicate standard deviation by the circular fixed-b factor. Replicate standard errors and percentile spreads are uncalibrated: no coverage record measures them.",
+ "The Gaussian Bayesian reading is the conjugate Normal-Inverse-Gamma marginals with an independent weakly informative prior scaled to the outcome and per-stratum models for conditional means; every other Bayesian reading, a weighted study and a dependent series use the Bayesian bootstrap (Dirichlet weights on rows, or on contiguous blocks of a series), which has no prior and no likelihood.",
+ "Predictive models are scored on held-out folds with plug-in predictive laws (the fitted mean and the training residual standard deviation for a real outcome, the fitted probability for a 0/1 outcome, the fitted rate for a count) against the training-mean baseline. A series is split into consecutive blocks with no embargo. Scores are point values.",
+ "The Pearson correlation standard error for rows is the normal-theory delta approximation on the Kish effective row count; the distance correlation reports no analytic standard error and has no weighted form.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/association.rs (closed-form least-squares slope and HC1 variance of a simple regression, group means with the sample standard error, a two-by-two table's conditional probabilities and log-odds ratio, a symmetric quadratic's zero Pearson correlation)",
+ "crates/antecedent/tests/association_route.rs (the same closed forms through the compiled route, selection determinism, circular-block resampling under the declared design, conjugate and bootstrap posteriors)",
+ "python/tests/test_association_compiled.py (the same closed forms through analyze, portable export and load)",
+]

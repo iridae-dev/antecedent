@@ -191,6 +191,164 @@ pub struct IvBlocks<'a> {
     pub x_ncols: usize,
 }
 
+/// Joint structural-feature IV fit. Every endogenous feature is projected on
+/// the complete instrument space; interactions must be actual feature columns,
+/// never products of separately projected treatment columns.
+#[derive(Clone, Debug)]
+pub struct JointTwoSlsFit {
+    /// One first-stage fit per actual endogenous structural feature.
+    pub first_stages: Vec<LeastSquaresFit>,
+    /// Joint coefficient fit, endogenous features first, included exogenous last.
+    pub second_stage: LeastSquaresFit,
+    /// Column-major projected endogenous structural features.
+    pub fitted_endogenous: Vec<f64>,
+    /// Residuals at actual structural features, rather than first-stage predictions.
+    pub structural_residuals: Vec<f64>,
+    /// Sum of squared structural residuals.
+    pub structural_rss: f64,
+    /// Per-feature excluded-instrument first-stage diagnostics. These marginal
+    /// diagnostics do not replace the joint projected-design rank requirement.
+    pub first_stage_diagnostics: Vec<FirstStageDiagnostics>,
+}
+
+/// Estimate a joint linear structural response from explicit instrument moments.
+/// Requires full rank of both the complete instrument design and the projected
+/// joint structural design. The identified target is the coefficient vector of
+/// the declared structural moment model. This routine makes no generic LATE or
+/// population-ATE claim under heterogeneous effects.
+///
+/// # Errors
+/// Invalid/nonfinite shapes, insufficient instrument rank, insufficient joint
+/// structural rank, or numerical backend failure.
+pub fn fit_joint_2sls(
+    blocks: &IvBlocks<'_>,
+    endogenous_colmajor: &[f64],
+    endogenous_columns: usize,
+    y: &[f64],
+    backend: &impl DenseLinearAlgebra,
+    workspace: &mut LeastSquaresWorkspace,
+) -> Result<JointTwoSlsFit, StatsError> {
+    let n = blocks.nrows;
+    let q = blocks
+        .z_ncols
+        .checked_add(blocks.x_ncols)
+        .ok_or(StatsError::Shape { message: "joint IV dimension overflow" })?;
+    let p = endogenous_columns
+        .checked_add(blocks.x_ncols)
+        .ok_or(StatsError::Shape { message: "joint IV dimension overflow" })?;
+    if n == 0
+        || endogenous_columns == 0
+        || q < p
+        || n <= q
+        || endogenous_colmajor.len() != n.saturating_mul(endogenous_columns)
+        || y.len() != n
+        || blocks.instruments_colmajor.len() != n.saturating_mul(blocks.z_ncols)
+        || blocks.exogenous_colmajor.len() != n.saturating_mul(blocks.x_ncols)
+        || endogenous_colmajor
+            .iter()
+            .chain(y)
+            .chain(blocks.instruments_colmajor)
+            .chain(blocks.exogenous_colmajor)
+            .any(|v| !v.is_finite())
+    {
+        return Err(StatsError::Shape {
+            message: "invalid joint IV dimensions, finite data or instrument count",
+        });
+    }
+    let mut instruments = Vec::with_capacity(n * q);
+    instruments.extend_from_slice(blocks.instruments_colmajor);
+    instruments.extend_from_slice(blocks.exogenous_colmajor);
+    let mut projected = Vec::with_capacity(n * endogenous_columns);
+    let mut first_stages = Vec::with_capacity(endogenous_columns);
+    let mut diagnostics = Vec::with_capacity(endogenous_columns);
+    for feature in endogenous_colmajor.chunks_exact(n) {
+        let fit = backend.least_squares(&instruments, n, q, feature, workspace)?;
+        if fit.rank != q {
+            return Err(StatsError::RankDeficient { rank: fit.rank, ncols: q });
+        }
+        diagnostics.push(first_stage_f_test(blocks, feature, fit.rss, backend, workspace)?);
+        for row in 0..n {
+            projected.push((0..q).map(|c| instruments[c * n + row] * fit.coefficients[c]).sum());
+        }
+        first_stages.push(fit);
+    }
+    let mut structural_projection = projected.clone();
+    structural_projection.extend_from_slice(blocks.exogenous_colmajor);
+    let second_stage = backend.least_squares(&structural_projection, n, p, y, workspace)?;
+    if second_stage.rank != p {
+        return Err(StatsError::RankDeficient { rank: second_stage.rank, ncols: p });
+    }
+    let mut actual = Vec::with_capacity(n * p);
+    actual.extend_from_slice(endogenous_colmajor);
+    actual.extend_from_slice(blocks.exogenous_colmajor);
+    let structural_residuals = (0..n)
+        .map(|row| {
+            y[row] - (0..p).map(|c| actual[c * n + row] * second_stage.coefficients[c]).sum::<f64>()
+        })
+        .collect::<Vec<_>>();
+    let structural_rss = structural_residuals.iter().map(|e| e * e).sum();
+    Ok(JointTwoSlsFit {
+        first_stages,
+        second_stage,
+        fitted_endogenous: projected,
+        structural_residuals,
+        structural_rss,
+        first_stage_diagnostics: diagnostics,
+    })
+}
+
+#[cfg(test)]
+mod joint_iv_tests {
+    use super::*;
+    use crate::FaerBackend;
+    #[test]
+    fn endogenous_joint_features_require_their_own_instrument_rank() {
+        let mut features = vec![Vec::new(); 3];
+        let mut instruments = vec![Vec::new(); 3];
+        let mut y = Vec::new();
+        for a in [-1.0, 1.0] {
+            for b in [-1.0, 1.0] {
+                for u in [-1.0, 1.0] {
+                    let d1 = a + u;
+                    let d2 = b + 0.5 * u;
+                    for (column, v) in features.iter_mut().zip([d1, d2, d1 * d2]) {
+                        column.push(v);
+                    }
+                    for (column, v) in instruments.iter_mut().zip([a, b, a * b]) {
+                        column.push(v);
+                    }
+                    y.push(1.0 + 2.0 * d1 + 3.0 * d2 + 4.0 * d1 * d2 + u);
+                }
+            }
+        }
+        let features = features.concat();
+        let z = instruments.concat();
+        let exogenous = vec![1.0; 8];
+        let blocks = IvBlocks {
+            nrows: 8,
+            instruments_colmajor: &z,
+            z_ncols: 3,
+            exogenous_colmajor: &exogenous,
+            x_ncols: 1,
+        };
+        let mut workspace = LeastSquaresWorkspace::default();
+        let fit = fit_joint_2sls(&blocks, &features, 3, &y, &FaerBackend, &mut workspace).unwrap();
+        for (actual, truth) in fit.second_stage.coefficients.iter().zip([2.0, 3.0, 4.0, 1.0]) {
+            assert!((actual - truth).abs() < 1e-11);
+        }
+        // The independent reference is the population moment equation E[Zu]=0
+        // on this complete balanced enumeration. OLS is confounded by u.
+        assert!((fit.structural_rss - 8.0).abs() < 1e-10);
+        let weaker = IvBlocks { instruments_colmajor: &z[..16], z_ncols: 2, ..blocks };
+        assert!(fit_joint_2sls(&weaker, &features, 3, &y, &FaerBackend, &mut workspace).is_err());
+        // Full instrument rank alone is insufficient: these actual structural
+        // feature columns have the same instrument projection.
+        let mut duplicate = features.clone();
+        duplicate[8..16].copy_from_slice(&features[..8]);
+        assert!(fit_joint_2sls(&blocks, &duplicate, 3, &y, &FaerBackend, &mut workspace).is_err());
+    }
+}
+
 /// Partial F-test for the excluded-instrument block of a first-stage regression:
 /// compares the unrestricted fit `[instruments | exogenous]` (`full_rss`, already
 /// computed by the caller) against a restricted fit on `exogenous` alone (or the

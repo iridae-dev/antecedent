@@ -13,7 +13,9 @@ prose:
   status of a claim or an operation, decided by the one Rust rule;
 - :func:`refusal_codes`, :func:`refusal_code`, :func:`error_family`, :func:`refusal_record`,
   :func:`error_response` and :func:`claim_response` -- the stable registered refusal codes,
-  exception families and response records, shared with Rust.
+  exception families and response records, shared with Rust;
+- :func:`fallback_response` -- the record of an opt-in descriptive fallback: the unchanged
+  refusal beside the status of the noncausal claim.
 
 A status is advice about use, never a verdict about the world: ``supported`` means the
 route is licensed, identified under the declared structure and executed, with nothing
@@ -40,6 +42,7 @@ __all__ = [
     "error_families",
     "error_family",
     "error_response",
+    "fallback_response",
     "inspection_status",
     "operation_status",
     "reason_codes",
@@ -211,6 +214,7 @@ def claim_record(claim: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "claim_id": _wire_digest(claim.get("claim_id")),
         "kind": kind,
+        "causal": kind != "associational",
         "domains": {
             "identification": identification,
             "support": support,
@@ -229,6 +233,29 @@ def claim_response(claim: Mapping[str, Any]) -> dict[str, Any]:
     """
     record = claim_record(claim)
     return {"status": record["status"], "claim": record}
+
+
+def fallback_response(fallback: Any) -> dict[str, Any]:
+    """Host record of a descriptive fallback, shaped as the schema's ``fallback_response``.
+
+    ``fallback`` is the :class:`antecedent.fallback.AnalysisWithFallback` that
+    ``analyze(..., on_refusal="describe")`` returned. The causal question stays refused:
+    ``status`` and ``causal_status`` are ``"unsupported"`` and ``refusal`` is the unchanged
+    refusal record. Beside them ``associational_status`` is the host status of the noncausal
+    claim (or ``"unavailable"`` with its typed reason), and the associational claim carries
+    ``causal: false`` and ranks no action.
+    """
+    associational_status, associational = fallback._associational_record()
+    evidence = fallback.evidence_plan
+    return {
+        "status": "unsupported",
+        "causal_status": "unsupported",
+        "associational_status": associational_status,
+        "refusal": refusal_record(fallback.refusal),
+        "associational": associational,
+        "evidence_plan": evidence.to_dict(),
+        "notice": fallback.notice,
+    }
 
 
 def refusal_code(error: BaseException) -> str | None:

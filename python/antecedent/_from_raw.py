@@ -14,6 +14,7 @@ from typing import Any, cast
 from ._native import AnalysisResult as TemporalAnalysisResult
 from ._native import AteAnalysisResult
 from ._unset_license import unset_dose_license, unset_panel_license, unset_policy_license
+from .descriptive import association_from_raw as _association_from_raw
 from .errors import CausalValueError
 from .experiment import RandomizedExperimentEstimate
 from .interference import (
@@ -1545,6 +1546,7 @@ def _wrap_ate(
         sequential_contrast=_sequential_contrast_from_raw(raw),
         history_match=_history_match_from_raw(raw),
         iv_bounds=_iv_bounds_from_raw(raw),
+        association=_association_from_raw(raw),
         quasi_rollout=_quasi_rollout_from_raw(raw),
         temporal_design=_temporal_design_from_raw(raw),
         anomaly=getattr(raw, "anomaly", None),

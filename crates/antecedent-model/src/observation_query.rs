@@ -48,7 +48,9 @@ use std::collections::BTreeSet;
 
 use antecedent_core::ExecutionContext;
 
-use crate::compose::{ComposedFinite, CompositionError, FiniteLaw};
+use crate::compose::{
+    ComposedFinite, ComposedLinearGaussian, CompositionError, FiniteLaw, GaussianConditioningError,
+};
 use antecedent_core::named_variants;
 
 /// Largest observation count an evidence-requirement solve may search or return.
@@ -146,6 +148,15 @@ pub enum ObservationQueryError {
         /// Why the level is out of reach.
         bound: UnreachableBound,
     },
+    /// A variable is both observed and intervened on; the observation of a
+    /// variable whose mechanism was removed carries no information about the
+    /// rest of the model.
+    #[error("variable `{0}` is both observed and intervened on")]
+    ObservedAndIntervened(String),
+    /// The observed real values have a singular joint covariance under the
+    /// model, so no conditional law is defined for them.
+    #[error("the observed values have a singular covariance under the model")]
+    EvidenceSingular,
     /// Cancellation was observed at a work boundary.
     #[error("observation query cancelled")]
     Cancelled,
@@ -357,6 +368,135 @@ pub fn conditioning_and_intervention(
         .map(|((_, a), (_, b))| (a - b).abs())
         .fold(0.0_f64, f64::max);
     Ok(ConditioningInterventionPair { conditioning, intervention, max_abs_difference })
+}
+
+// ------------------------------------------- observation after intervention
+
+/// The exact joint law under `do(interventions)`, for conditioning on values
+/// observed afterwards.
+///
+/// The composition of the truncated factorization with [`condition`] is the
+/// law `P(y | do(s), z)`: the mechanism of every intervened variable is removed
+/// and the remaining model is then conditioned on the recorded values `z`. It
+/// is sound when no recorded variable is itself intervened on (a variable whose
+/// mechanism was cut is set, not observed). Recorded descendants of the
+/// intervention are informative about the unobserved causes of the outcome;
+/// recorded ancestors are not changed by the intervention.
+///
+/// # Errors
+/// An unknown variable or level, a variable intervened on twice, a variable
+/// that is both recorded and intervened on
+/// ([`ObservationQueryError::ObservedAndIntervened`]), or cancellation.
+pub fn intervened_law(
+    model: &ComposedFinite,
+    interventions: &[(&str, &str)],
+    observed: &[(&str, &str)],
+    ctx: &ExecutionContext,
+) -> Result<FiniteLaw, ObservationQueryError> {
+    let observational = model.law(&[], ctx).map_err(composition)?;
+    resolve_assignments(&observational, interventions)?;
+    resolve_assignments(&observational, observed)?;
+    if let Some(&(variable, _)) =
+        observed.iter().find(|(v, _)| interventions.iter().any(|(i, _)| i == v))
+    {
+        return Err(ObservationQueryError::ObservedAndIntervened(variable.to_owned()));
+    }
+    model.law(interventions, ctx).map_err(composition)
+}
+
+/// `P(outcome | do(interventions), observed values)` on a composed finite
+/// model: the interventional law, conditioned on the recorded values.
+///
+/// # Errors
+/// As [`intervened_law`] and [`condition`].
+pub fn condition_after_intervention(
+    model: &ComposedFinite,
+    outcome: &str,
+    interventions: &[(&str, &str)],
+    observed: &[(&str, &str)],
+    ctx: &ExecutionContext,
+) -> Result<ConditionalDistribution, ObservationQueryError> {
+    let law = intervened_law(model, interventions, observed, ctx)?;
+    condition(&law, outcome, observed, ctx)
+}
+
+// ------------------------------------------------- continuous (Gaussian)
+
+/// The Gaussian conditional law of one outcome given observed real values.
+#[derive(Clone, Debug, PartialEq)]
+pub struct GaussianConditional {
+    /// The outcome variable.
+    pub outcome: String,
+    /// Conditional mean of the outcome.
+    pub mean: f64,
+    /// Conditional variance of the outcome.
+    pub variance: f64,
+    /// Log density of the observed values under their marginal law; `None`
+    /// when nothing was observed.
+    pub evidence_log_density: Option<f64>,
+}
+
+/// `P(outcome | do(interventions), observed values)` on a composed
+/// linear-Gaussian model: the interventional joint Gaussian conditioned on the
+/// observed real values by the Schur complement of the observed block.
+///
+/// An empty `interventions` is plain conditioning and an empty `observed` is
+/// the interventional law; both may be empty. A recorded variable must not be
+/// intervened on.
+///
+/// # Errors
+/// An unknown variable, a repeated variable, the outcome among the observed or
+/// intervened variables, a variable both observed and intervened on, a value
+/// that is not finite or outside the domain a consumer was fitted on (for an
+/// intervention), observed values of singular covariance, or cancellation.
+pub fn condition_gaussian(
+    model: &ComposedLinearGaussian,
+    outcome: &str,
+    interventions: &[(&str, f64)],
+    observed: &[(&str, f64)],
+    ctx: &ExecutionContext,
+) -> Result<GaussianConditional, ObservationQueryError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(ObservationQueryError::Cancelled);
+    }
+    if !model.variables().iter().any(|v| v == outcome) {
+        return Err(ObservationQueryError::UnknownVariable(outcome.to_owned()));
+    }
+    if observed.iter().chain(interventions).any(|&(v, _)| v == outcome) {
+        return Err(ObservationQueryError::OutcomeObserved(outcome.to_owned()));
+    }
+    for &(variable, _) in observed {
+        if !model.variables().iter().any(|v| v == variable) {
+            return Err(ObservationQueryError::UnknownVariable(variable.to_owned()));
+        }
+        if interventions.iter().any(|&(i, _)| i == variable) {
+            return Err(ObservationQueryError::ObservedAndIntervened(variable.to_owned()));
+        }
+    }
+    let law = model.law(interventions).map_err(composition)?;
+    let conditioned = law.condition(observed).map_err(|error| match error {
+        GaussianConditioningError::UnknownVariable(name) => {
+            ObservationQueryError::UnknownVariable(name)
+        }
+        GaussianConditioningError::RepeatedVariable(name) => {
+            ObservationQueryError::RepeatedVariable(name)
+        }
+        GaussianConditioningError::NotFinite(_) => {
+            ObservationQueryError::Invalid("an observed value must be finite")
+        }
+        GaussianConditioningError::SingularEvidence => ObservationQueryError::EvidenceSingular,
+    })?;
+    let (Some(mean), Some(variance)) =
+        (conditioned.mean_of(outcome), conditioned.variance_of(outcome))
+    else {
+        return Err(ObservationQueryError::UnknownVariable(outcome.to_owned()));
+    };
+    Ok(GaussianConditional {
+        outcome: outcome.to_owned(),
+        mean,
+        variance: variance.max(0.0),
+        evidence_log_density: (!observed.is_empty()).then(|| conditioned.evidence_log_density()),
+    })
 }
 
 // ------------------------------------------------------- measured signals

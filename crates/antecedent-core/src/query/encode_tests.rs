@@ -1795,3 +1795,51 @@ fn the_iv_bounds_kind_appends_its_tag_and_every_field_reaches_the_bytes() {
     weighted_as_outcome.weight = Some(v(2));
     assert!(weighted_as_outcome.validate().is_err());
 }
+
+fn association() -> AssociationQuery {
+    AssociationQuery::new(v(3), [v(0), v(1)])
+        .with_conditioning([v(2)])
+        .with_functional(AssociationFunctional::Coefficients)
+        .with_weight(v(4))
+        .following_refusal("effect_not_identified")
+}
+
+#[test]
+fn the_association_kind_appends_its_tag_and_every_field_reaches_the_bytes() {
+    assert_eq!(digest(&CausalQuery::Association(association())), tagged(31, &association()));
+    assert_eq!(CausalQuery::Association(association()).kind(), CausalQueryKind::Association);
+    assert!(association().validate().is_ok());
+    check(
+        CausalQuery::Association,
+        &association(),
+        &[
+            &|q| q.outcome = v(5),
+            &|q| q.predictors = Arc::from([v(1), v(0)]),
+            &|q| q.predictors = Arc::from([v(0)]),
+            &|q| q.conditioning = Arc::from([]),
+            &|q| q.functional = AssociationFunctional::Conditional,
+            &|q| q.functional = AssociationFunctional::Measure(AssociationMeasure::Pearson),
+            &|q| q.functional = AssociationFunctional::Measure(AssociationMeasure::Distance),
+            &|q| q.functional = AssociationFunctional::Predictive { folds: 5 },
+            &|q| q.functional = AssociationFunctional::Predictive { folds: 6 },
+            &|q| q.outcome_scale = AssociationOutcome::Binary,
+            &|q| q.weight = None,
+            &|q| q.refused_after = None,
+            &|q| q.refused_after = Some(Arc::from("cell_not_licensed")),
+        ],
+    );
+    assert_distinct(&[CausalQuery::IvBounds(iv_bounds()), CausalQuery::Association(association())]);
+    let mut repeated = association();
+    repeated.conditioning = Arc::from([v(0)]);
+    assert!(repeated.validate().is_err());
+    let measure_with_adjustment =
+        association().with_functional(AssociationFunctional::Measure(AssociationMeasure::Pearson));
+    assert!(measure_with_adjustment.validate().is_err());
+    let few_folds = association().with_functional(AssociationFunctional::Predictive { folds: 1 });
+    assert!(few_folds.validate().is_err());
+    let no_predictor = AssociationQuery::new(v(1), Vec::<VariableId>::new())
+        .with_functional(AssociationFunctional::Coefficients);
+    assert!(no_predictor.validate().is_err());
+    let marginal = AssociationQuery::new(v(1), Vec::<VariableId>::new());
+    assert!(marginal.validate().is_ok());
+}

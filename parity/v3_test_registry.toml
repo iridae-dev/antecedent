@@ -13,6 +13,111 @@
 schema = 1
 
 [[test]]
+id = "joint-experiment-advertised-acceptance-matrix"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/joint_panel/experiment/matrix.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "joint-history-switchback"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/switchback.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "joint-scientific-component-law"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/joint_panel/explanation/scientific.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "joint-scientific-reference-decomposition"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/joint_panel/tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "joint-reference-decomposition"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/joint_panel/decomposition.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "joint-certified-program-search"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/program_search/certified.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "joint-selected-program-intervals"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/program_search/selection.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "joint-compiled-control-expression"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/joint_panel/expression.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "joint-full-procedure-static-bootstrap"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/joint_panel/inference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "joint-certified-shape-proofs"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/program_search/certified/shape.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "joint-certified-separable-factors"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/program_search/certified/separable.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "joint-certified-artifact-replay"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/program_search/certified/artifact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "joint-whole-selection-procedure"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/program_search/selection/procedure.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "joint-randomized-heldout-selection"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/joint_panel/selection.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "joint-instrumented-structural-features"
+crate = "antecedent-stats"
+cargo_target = "lib"
+path = "crates/antecedent-stats/src/twosls.rs"
+gates = ["inventory", "named"]
+
+[[test]]
 id = "v3-registry-sentinel"
 crate = "scripts"
 cargo_target = "script"
@@ -231,6 +336,13 @@ cargo_target = "script"
 gates = ["inventory"]
 
 [[test]]
+id = "joint-panel-independent-experiment-reference"
+crate = "scripts"
+path = "scripts/test_joint_panel_experiment_reference.py"
+cargo_target = "script"
+gates = ["inventory"]
+
+[[test]]
 id = "joint-panel-independent-reference"
 crate = "scripts"
 cargo_target = "script"
@@ -303,6 +415,15 @@ cargo_target = "suite_01"
 suite_map_line = "suite_01: adaptive_inference_facade, adaptive_participant_acceptance, adaptive_participant_facade, adaptive_procedure_facade, adaptive_repeated_measures_consumer, adaptive_repeated_measures_facade, admg_conditional_transport_lifecycle, admg_functional_effect_route_evidence, admg_intervention_response_route_evidence, admg_posterior_ate, admg_posterior_response, admg_response_curve_route_evidence, arrow_null_ingest, artifact_compat_earlier_release, artifact_migrate, attribution, augmented_panel_did_route, batch_analysis, batch_analyze_many, batch_retarget, batch_retarget_known_truth, bayesian, bayesian_design_posterior_routes, bayesian_functional_routes, bayesian_design_routes, bayesian_iv_rd_staged, bayesian_likelihood, bayesian_prior_in_force, bayesian_randomized_routes, bayesian_robust_ate, bayesian_trial_transport, calibration_binding, calibration_grid_binding, callback_nested_overlap_facade, cancellation_expansion_cells, categorical_treatment_posterior_facade, joint_panel_workflow"
 path = "crates/antecedent/tests/joint_panel_workflow.rs"
 evidence_path = "crates/antecedent/tests/joint_panel_experiment_chain.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "joint-native-experiment-reference-matrix"
+crate = "antecedent"
+cargo_target = "suite_01"
+suite_map_line = "suite_01: adaptive_inference_facade, adaptive_participant_acceptance, adaptive_participant_facade, adaptive_procedure_facade, adaptive_repeated_measures_consumer, adaptive_repeated_measures_facade, admg_conditional_transport_lifecycle, admg_functional_effect_route_evidence, admg_intervention_response_route_evidence, admg_posterior_ate, admg_posterior_response, admg_response_curve_route_evidence, arrow_null_ingest, artifact_compat_earlier_release, artifact_migrate, attribution, augmented_panel_did_route, batch_analysis, batch_analyze_many, batch_retarget, batch_retarget_known_truth, bayesian, bayesian_design_posterior_routes, bayesian_functional_routes, bayesian_design_routes, bayesian_iv_rd_staged, bayesian_likelihood, bayesian_prior_in_force, bayesian_randomized_routes, bayesian_robust_ate, bayesian_trial_transport, calibration_binding, calibration_grid_binding, callback_nested_overlap_facade, cancellation_expansion_cells, categorical_treatment_posterior_facade, joint_panel_workflow"
+path = "crates/antecedent/tests/joint_panel_workflow.rs"
+evidence_path = "crates/antecedent/tests/joint_panel_experiment_chain/matrix.rs"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -1025,4 +1146,167 @@ id = "release-scope-reconciliation-check"
 crate = "scripts"
 cargo_target = "script"
 path = "scripts/reconcile_release_scope.py"
+gates = ["inventory"]
+
+[[test]]
+id = "identification-failure-repair-families"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/identification_repair.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "identification-failure-evidence-actions"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/contract/evidence_needs.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "evidence-plan-candidate-generation"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/candidate_generation.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "evidence-plan-failure-routes"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/failure_routes.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "evidence-plan-structure-identification"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/structure_identification.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "evidence-plan-confounder-value"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/confounder_value.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "evidence-plan-ordering-and-artifact"
+crate = "antecedent-design"
+cargo_target = "suite_02"
+path = "crates/antecedent-design/tests/evidence_plan.rs"
+gates = ["inventory", "named"]
+suite_map_line = "suite_02: evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+
+[[test]]
+id = "evidence-plan-facade"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/evidence_plan.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "evidence-plan-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_evidence_plan.py"
+gates = ["inventory"]
+
+[[test]]
+id = "association-estimator"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/association.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "association-scores"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/association.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "association-lowering"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/lowering/associational_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "association-route"
+crate = "antecedent"
+cargo_target = "association_route"
+path = "crates/antecedent/tests/association_route.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "association-query-wire"
+crate = "antecedent-io-core"
+cargo_target = "lib"
+path = "crates/antecedent-io-core/src/query_wire.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "association-compiled-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_association_compiled.py"
+gates = ["inventory"]
+
+[[test]]
+id = "descriptive-fallback"
+crate = "antecedent"
+cargo_target = "descriptive_fallback"
+path = "crates/antecedent/tests/descriptive_fallback.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "descriptive-fallback-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_descriptive_fallback.py"
+gates = ["inventory"]
+
+[[test]]
+id = "bridge-draws-contract-rules"
+crate = "antecedent-contract"
+cargo_target = "lib"
+path = "crates/antecedent-contract/src/bridge/draws_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "bridge-draws-sampling-oracles"
+crate = "antecedent-io-core"
+cargo_target = "lib"
+path = "crates/antecedent-io-core/src/bridge_distribution_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "bridge-extended-artifact-replay"
+crate = "antecedent-io-core"
+cargo_target = "lib"
+path = "crates/antecedent-io-core/src/bridge_artifact_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "bridge-draws-bundle-nodes"
+crate = "antecedent-design"
+cargo_target = "suite_01"
+path = "crates/antecedent-design/tests/composition_bridge_nodes.rs"
+gates = ["inventory", "named"]
+suite_map_line = "suite_01: artifact_compat_inherited, artifact_compat_sequential_reliability_golden, cohort_decision_input, composition_boundary, composition_bridge_nodes, composition_bundle, composition_verifiers, coordinate_parity, cross_surface_bundle, cross_surface_decision, decision_acceptance, decision_adapters, decision_artifact, decision_contract_eval, decision_mean_source, decision_reliability, decision_reliability_candidate_counts, decision_reliability_intervals, decision_reliability_producers, decision_robust_artifact, decision_robustness, decision_structural, decision_structural_artifact, decision_transported_source, design_oracle, design_ranking, design_ranking_artifact, evsi, identity_properties_decision_contract, inverse_forward_source, inverse_observational_scenarios, inverse_query"
+
+[[test]]
+id = "bridge-draws-facade"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/scientific_bridge_distribution_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "bridge-draws-compiled-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_scientific_bridge_draws.py"
 gates = ["inventory"]

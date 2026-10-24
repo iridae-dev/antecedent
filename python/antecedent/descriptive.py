@@ -21,6 +21,18 @@ decompose a causal effect.
   independent-groups covariance it can form itself. No interval is reported on a transformed
   scale: ``level=...`` is refused with ``cell_not_licensed``.
 
+* :class:`Association` is the compiled noncausal route: an outcome against predictors, stated as a
+  query to :func:`antecedent.analyze`. A declared selection rule picks a stratified mean or
+  probability, linear, logistic or Poisson regression, a Pearson or distance correlation, or a
+  predictive model scored on held-out folds, from the outcome scale and the functional. The
+  answer (``result.answer.kind == "associational"``, ``result.association``) describes the
+  observed law: identification is not claimed, it is never the effect of an intervention, it ranks
+  no action, and every uncertainty it reports is unlicensed with calibration ``unmeasured``.
+  Rows are independent units (``temporal=False``) or the consecutive points of one series
+  (``temporal=True``, resampled in circular blocks under the declared dependent-series design).
+  After a causal query was refused, ``refused_after=`` keeps the refusal's reason code beside the
+  description; the description answers none of what the refusal declined to claim.
+
 ``DescriptiveComparison.export()`` writes a JSON artifact carrying the arm sufficient
 statistics and a digest; :func:`replay_descriptive_comparison` recomputes the raw contrast, its
 Welch standard error and the gap from them in pure Python and compares them with the stored
@@ -32,7 +44,7 @@ from __future__ import annotations
 import json
 import math
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, NoReturn
 
 from ._digest import canonical_digest
@@ -42,13 +54,19 @@ from ._native import raw_vs_adjusted as _raw_vs_adjusted
 from ._native import transform_mean_pair as _transform_mean_pair
 from ._native import transform_raw_arms as _transform_raw_arms
 from ._scientific import ScientificResult
-from .errors import CausalSerializationError, CausalTypeError
+from .errors import CausalSerializationError, CausalTypeError, CausalValueError
 
 if TYPE_CHECKING:
     from ._artifact_protocol import ExportedArtifact
 
 __all__ = [
     "ArmSummary",
+    "Association",
+    "AssociationEstimate",
+    "AssociationPosterior",
+    "AssociationPrediction",
+    "AssociationResampling",
+    "AssociationTerm",
     "DescriptiveComparison",
     "ReportingTransform",
     "attribute_gap_to_columns",
@@ -475,4 +493,294 @@ def replay_descriptive_comparison(
         adjusted_estimate=float(adjusted),
         adjusted_standard_error=None if adjusted_se is None else float(adjusted_se),
         gap=difference - float(adjusted),
+    )
+
+
+# --- the compiled associational route ---------------------------------------------------------
+
+_ASSOCIATION_FUNCTIONALS = (
+    "auto",
+    "conditional",
+    "coefficients",
+    "pearson_correlation",
+    "distance_correlation",
+    "predictive",
+)
+_ASSOCIATION_SCALES = ("schema", "continuous", "binary", "count")
+
+
+def _names(value: str | Iterable[str], what: str) -> tuple[str, ...]:
+    names = (value,) if isinstance(value, str) else tuple(value)
+    if any(not isinstance(name, str) or not name.strip() for name in names):
+        raise CausalValueError(f"declare non-empty {what} names")
+    return names
+
+
+@dataclass(frozen=True, slots=True)
+class Association:
+    """A noncausal association of an outcome with predictors in the observed data.
+
+    ``outcome`` and ``predictors`` name table columns (or the columns of one series when
+    ``temporal=True``); ``conditioning`` names columns held fixed arithmetically (adjusted for in
+    a regression, crossed into the strata of a conditional law). ``functional`` is ``"auto"`` (the
+    declared selection rule picks from the outcome scale and the predictor scales),
+    ``"conditional"`` (the mean of a real or count outcome, or the probability of a 0/1 outcome,
+    in each stratum), ``"coefficients"`` (linear, logistic or Poisson regression by the outcome
+    scale), ``"pearson_correlation"`` or ``"distance_correlation"`` (one predictor, nothing held
+    fixed), or ``"predictive"`` (a model scored on ``folds`` held-out folds). ``outcome_scale``
+    declares the scale the schema does not (``"binary"`` for a 0/1 float column, ``"count"``).
+
+    The answer describes the observed law: ``result.answer.kind == "associational"``, identification
+    is not claimed, and it is never the effect of an intervention or a ranking of actions. Pass
+    ``refused_after=`` the reason code (or the error) of a refused causal query to keep the
+    refusal beside the description. The route is unlicensed and its calibration is unmeasured.
+    """
+
+    outcome: str
+    predictors: tuple[str, ...] = ()
+    conditioning: tuple[str, ...] = ()
+    functional: Literal[
+        "auto",
+        "conditional",
+        "coefficients",
+        "pearson_correlation",
+        "distance_correlation",
+        "predictive",
+    ] = "auto"
+    folds: int = 5
+    outcome_scale: Literal["schema", "continuous", "binary", "count"] = "schema"
+    weight: str | None = None
+    temporal: bool = False
+    refused_after: str | None = None
+    kind: Literal["association"] = field(default="association", init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.outcome, str) or not self.outcome.strip():
+            raise CausalValueError("declare a non-empty outcome name")
+        predictors = _names(self.predictors, "predictor")
+        conditioning = _names(self.conditioning, "conditioning")
+        object.__setattr__(self, "predictors", predictors)
+        object.__setattr__(self, "conditioning", conditioning)
+        columns = [self.outcome, *predictors, *conditioning]
+        if self.weight is not None:
+            columns.append(self.weight)
+        if len(set(columns)) != len(columns):
+            raise CausalValueError(
+                "outcome, predictors, conditioning and weight must be distinct columns"
+            )
+        if self.functional not in _ASSOCIATION_FUNCTIONALS:
+            raise CausalValueError(
+                f"unknown association functional {self.functional!r}; use one of "
+                f"{', '.join(_ASSOCIATION_FUNCTIONALS)}"
+            )
+        if self.outcome_scale not in _ASSOCIATION_SCALES:
+            raise CausalValueError(
+                f"unknown outcome scale {self.outcome_scale!r}; use one of "
+                f"{', '.join(_ASSOCIATION_SCALES)}"
+            )
+        if self.functional in ("coefficients", "predictive") and not predictors:
+            raise CausalValueError(f"{self.functional} needs at least one predictor")
+        if self.functional in ("pearson_correlation", "distance_correlation") and (
+            len(predictors) != 1 or conditioning
+        ):
+            raise CausalValueError(
+                "a correlation relates the outcome to exactly one predictor and holds nothing "
+                "fixed; use functional='coefficients' to adjust for conditioning columns"
+            )
+        if self.functional == "predictive" and not 2 <= self.folds <= 20:
+            raise CausalValueError("a predictive model is scored over 2 to 20 folds")
+        refused = self.refused_after
+        if refused is not None and not isinstance(refused, str):
+            code = getattr(refused, "reason_code", None)
+            if not isinstance(code, str) or not code:
+                raise CausalValueError(
+                    "refused_after is the reason code of the refused causal query, or the error"
+                )
+            object.__setattr__(self, "refused_after", code)
+        if self.refused_after is not None and not 1 <= len(self.refused_after) <= 256:
+            raise CausalValueError("refused_after must be 1 to 256 characters")
+
+
+@dataclass(frozen=True, slots=True)
+class AssociationTerm:
+    """One reported quantity: a stratum value, a coefficient, a correlation.
+
+    ``standard_error`` is the construction named by ``standard_error_method``;
+    ``spread_lower`` / ``spread_upper`` are the uncalibrated percentile spread of the resampling
+    replicates and the ``posterior_*`` fields the summary of a posterior. None is a coverage claim.
+    """
+
+    label: str
+    scale: str
+    estimate: float
+    rows: int
+    standard_error: float | None = None
+    standard_error_method: str | None = None
+    spread_lower: float | None = None
+    spread_upper: float | None = None
+    posterior_mean: float | None = None
+    posterior_sd: float | None = None
+    posterior_lower: float | None = None
+    posterior_upper: float | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class AssociationResampling:
+    """Resampling behind the standard errors and spreads of a frequentist association."""
+
+    method: str
+    unit: str
+    replicates_requested: int
+    replicates_ok: int
+    spread_level: float
+    block_length: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class AssociationPosterior:
+    """Posterior behind the summaries of a Bayesian association."""
+
+    method: str
+    draws: int
+    level: float
+
+
+@dataclass(frozen=True, slots=True)
+class AssociationPrediction:
+    """Held-out proper scores of a predictive model beside the training-mean baseline."""
+
+    folds: int
+    fold_design: str
+    cases: int
+    score: str
+    mean_score: float
+    baseline_score: float
+    calibration: str = "unmeasured"
+    mean_crps: float | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class AssociationEstimate:
+    """A noncausal association and the evidence behind it. Unlicensed, calibration unmeasured.
+
+    ``analysis`` is what the declared selection rule (``rule``) picked for the ``outcome_kind``
+    and ``modality``; ``requested`` is the functional the query asked for. The result is never an
+    intervention effect (``is_intervention_effect`` is ``False``) and ranks no action
+    (``ranks_actions`` is ``False``); ``assumptions`` states what the description rests on.
+    """
+
+    analysis: str
+    rule: str
+    requested: str
+    outcome_kind: str
+    modality: str
+    terms: tuple[AssociationTerm, ...]
+    rows: int
+    rows_dropped: int
+    assumptions: tuple[str, ...]
+    uncertainty: str
+    resampling: AssociationResampling | None = None
+    posterior: AssociationPosterior | None = None
+    prediction: AssociationPrediction | None = None
+    refused_after: str | None = None
+    calibration: str = "unmeasured"
+    licensed: bool = False
+    ranks_actions: bool = False
+    is_intervention_effect: bool = False
+
+
+def association_from_raw(raw: Any) -> AssociationEstimate | None:
+    """The :class:`AssociationEstimate` of a native result, or ``None`` for another route."""
+    section = getattr(raw, "association", None)
+    if section is None:
+        return None
+    resampling = section.resampling
+    posterior = section.posterior
+    prediction = section.prediction
+    return AssociationEstimate(
+        analysis=section.analysis,
+        rule=section.rule,
+        requested=section.requested,
+        outcome_kind=section.outcome_kind,
+        modality=section.modality,
+        terms=tuple(
+            AssociationTerm(
+                label=term.label,
+                scale=term.scale,
+                estimate=term.estimate,
+                rows=term.rows,
+                standard_error=term.standard_error,
+                standard_error_method=term.standard_error_method,
+                spread_lower=term.spread_lower,
+                spread_upper=term.spread_upper,
+                posterior_mean=term.posterior_mean,
+                posterior_sd=term.posterior_sd,
+                posterior_lower=term.posterior_lower,
+                posterior_upper=term.posterior_upper,
+            )
+            for term in section.terms
+        ),
+        rows=section.rows,
+        rows_dropped=section.rows_dropped,
+        assumptions=tuple(section.assumptions),
+        uncertainty=section.uncertainty,
+        resampling=None
+        if resampling is None
+        else AssociationResampling(
+            method=resampling.method,
+            unit=resampling.unit,
+            replicates_requested=resampling.replicates_requested,
+            replicates_ok=resampling.replicates_ok,
+            spread_level=resampling.spread_level,
+            block_length=resampling.block_length,
+        ),
+        posterior=None
+        if posterior is None
+        else AssociationPosterior(
+            method=posterior.method, draws=posterior.draws, level=posterior.level
+        ),
+        prediction=None
+        if prediction is None
+        else AssociationPrediction(
+            folds=prediction.folds,
+            fold_design=prediction.fold_design,
+            cases=prediction.cases,
+            score=prediction.score,
+            mean_score=prediction.mean_score,
+            baseline_score=prediction.baseline_score,
+            calibration=prediction.calibration,
+            mean_crps=prediction.mean_crps,
+        ),
+        refused_after=section.refused_after,
+        calibration=section.calibration,
+        licensed=section.licensed,
+        ranks_actions=section.ranks_actions,
+        is_intervention_effect=section.is_intervention_effect,
+    )
+
+
+def describe_association(association: AssociationEstimate) -> str:
+    """One sentence stating what an association says, and what it does not."""
+    first = association.terms[0]
+    head = (
+        f"Noncausal {association.analysis.replace('_', ' ')} of the observed data "
+        f"({association.rows} rows, {association.modality.replace('_', ' ')}): "
+        f"{first.label} = {first.estimate:g}"
+    )
+    if len(association.terms) > 1:
+        head += f" and {len(association.terms) - 1} more quantit"
+        head += "ies" if len(association.terms) > 2 else "y"
+    spread = {
+        "posterior": " with a posterior",
+        "resampling_standard_error": " with resampling standard errors",
+        "analytic_standard_error": " with analytic standard errors",
+    }.get(association.uncertainty, " with no uncertainty")
+    follows = (
+        f" It follows a causal query refused with {association.refused_after}."
+        if association.refused_after
+        else ""
+    )
+    return (
+        f"{head}{spread}. Identification is not claimed: this is not the effect of changing any "
+        f"variable and ranks no action.{follows} Unlicensed, calibration unmeasured."
     )

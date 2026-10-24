@@ -39,6 +39,8 @@ def identification_statement(
     verdict = verdict_for(status)
     if verdict == "not identified":
         return f"{query_text} is not identified."
+    if verdict == "not claimed":
+        return f"{query_text} is a noncausal association; identification is not claimed."
     if verdict == "graph-dependent":
         phrase = f"{query_text} is graph-dependent, not a single identified effect"
     else:
@@ -70,6 +72,8 @@ def result_claim(
     elif kind == "bounds" and getattr(answer, "bounds", None) is not None:
         lo, hi = answer.bounds
         bits.append(f"answer is the identified set [{lo:g}, {hi:g}]")
+    elif kind == "associational":
+        bits.append("answer is a noncausal association, not an effect of any intervention")
     elif kind == "response":
         bits.append("answer is a function-valued response")
     elif kind == "structured":

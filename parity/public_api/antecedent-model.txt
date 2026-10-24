@@ -6,6 +6,7 @@
 #[non_exhaustive] pub enum antecedent_model::LinearSolutionError
 #[non_exhaustive] pub enum antecedent_model::ModelError
 #[non_exhaustive] pub enum antecedent_model::compose::CompositionError
+#[non_exhaustive] pub enum antecedent_model::compose::GaussianConditioningError
 #[non_exhaustive] pub enum antecedent_model::cyclic_world::CertificateBasis
 #[non_exhaustive] pub enum antecedent_model::cyclic_world::CertificateGap
 #[non_exhaustive] pub enum antecedent_model::cyclic_world::CyclicAction
@@ -121,6 +122,7 @@ impl core::clone::Clone for antecedent_model::compose::ComposedFinite
 impl core::clone::Clone for antecedent_model::compose::ComposedLinearGaussian
 impl core::clone::Clone for antecedent_model::compose::ComposedModelSpec
 impl core::clone::Clone for antecedent_model::compose::CompositionError
+impl core::clone::Clone for antecedent_model::compose::ConditionedGaussian
 impl core::clone::Clone for antecedent_model::compose::Containment
 impl core::clone::Clone for antecedent_model::compose::ContextCoordinate
 impl core::clone::Clone for antecedent_model::compose::ContrastArm
@@ -128,6 +130,7 @@ impl core::clone::Clone for antecedent_model::compose::CrossCovarianceBlock
 impl core::clone::Clone for antecedent_model::compose::Domain
 impl core::clone::Clone for antecedent_model::compose::FiniteLaw
 impl core::clone::Clone for antecedent_model::compose::FunctionalUncertainty
+impl core::clone::Clone for antecedent_model::compose::GaussianConditioningError
 impl core::clone::Clone for antecedent_model::compose::InvarianceDeclaration
 impl core::clone::Clone for antecedent_model::compose::JointGaussian
 impl core::clone::Clone for antecedent_model::compose::LatentDependence
@@ -271,12 +274,20 @@ impl core::clone::Clone for antecedent_model::observation_query::ConditioningInt
 impl core::clone::Clone for antecedent_model::observation_query::Direction
 impl core::clone::Clone for antecedent_model::observation_query::EvidenceRequirement
 impl core::clone::Clone for antecedent_model::observation_query::FiniteBayesModel
+impl core::clone::Clone for antecedent_model::observation_query::GaussianConditional
 impl core::clone::Clone for antecedent_model::observation_query::MeasuredConditional
 impl core::clone::Clone for antecedent_model::observation_query::ObservationQueryError
 impl core::clone::Clone for antecedent_model::observation_query::RequiredBayesFactor
 impl core::clone::Clone for antecedent_model::observation_query::SignalLevelOutcome
 impl core::clone::Clone for antecedent_model::observation_query::ThresholdCrossing
 impl core::clone::Clone for antecedent_model::observation_query::UnreachableBound
+impl core::clone::Clone for antecedent_model::observation_uncertainty::GaussianSufficient
+impl core::clone::Clone for antecedent_model::observation_uncertainty::ParameterDraws
+impl core::clone::Clone for antecedent_model::observation_uncertainty::RedrawPrior
+impl core::clone::Clone for antecedent_model::observation_uncertainty::RedrawTarget
+impl core::clone::Clone for antecedent_model::observation_uncertainty::RetainedMechanism
+impl core::clone::Clone for antecedent_model::observation_uncertainty::TableCountRow
+impl core::clone::Clone for antecedent_model::observation_uncertainty::TableCounts
 impl core::clone::Clone for antecedent_model::scc_compile::AdmissionCost
 impl core::clone::Clone for antecedent_model::scc_compile::BlockDiagnostic
 impl core::clone::Clone for antecedent_model::scc_compile::CompileBudget
@@ -451,6 +462,7 @@ impl core::cmp::PartialEq for antecedent_model::compose::CoherenceFinding
 impl core::cmp::PartialEq for antecedent_model::compose::CoherenceKind
 impl core::cmp::PartialEq for antecedent_model::compose::ComposedModelSpec
 impl core::cmp::PartialEq for antecedent_model::compose::CompositionError
+impl core::cmp::PartialEq for antecedent_model::compose::ConditionedGaussian
 impl core::cmp::PartialEq for antecedent_model::compose::Containment
 impl core::cmp::PartialEq for antecedent_model::compose::ContextCoordinate
 impl core::cmp::PartialEq for antecedent_model::compose::ContrastArm
@@ -458,6 +470,7 @@ impl core::cmp::PartialEq for antecedent_model::compose::CrossCovarianceBlock
 impl core::cmp::PartialEq for antecedent_model::compose::Domain
 impl core::cmp::PartialEq for antecedent_model::compose::FiniteLaw
 impl core::cmp::PartialEq for antecedent_model::compose::FunctionalUncertainty
+impl core::cmp::PartialEq for antecedent_model::compose::GaussianConditioningError
 impl core::cmp::PartialEq for antecedent_model::compose::InvarianceDeclaration
 impl core::cmp::PartialEq for antecedent_model::compose::JointGaussian
 impl core::cmp::PartialEq for antecedent_model::compose::LatentDependence
@@ -594,12 +607,20 @@ impl core::cmp::PartialEq for antecedent_model::observation_query::ConditioningI
 impl core::cmp::PartialEq for antecedent_model::observation_query::Direction
 impl core::cmp::PartialEq for antecedent_model::observation_query::EvidenceRequirement
 impl core::cmp::PartialEq for antecedent_model::observation_query::FiniteBayesModel
+impl core::cmp::PartialEq for antecedent_model::observation_query::GaussianConditional
 impl core::cmp::PartialEq for antecedent_model::observation_query::MeasuredConditional
 impl core::cmp::PartialEq for antecedent_model::observation_query::ObservationQueryError
 impl core::cmp::PartialEq for antecedent_model::observation_query::RequiredBayesFactor
 impl core::cmp::PartialEq for antecedent_model::observation_query::SignalLevelOutcome
 impl core::cmp::PartialEq for antecedent_model::observation_query::ThresholdCrossing
 impl core::cmp::PartialEq for antecedent_model::observation_query::UnreachableBound
+impl core::cmp::PartialEq for antecedent_model::observation_uncertainty::GaussianSufficient
+impl core::cmp::PartialEq for antecedent_model::observation_uncertainty::ParameterDraws
+impl core::cmp::PartialEq for antecedent_model::observation_uncertainty::RedrawPrior
+impl core::cmp::PartialEq for antecedent_model::observation_uncertainty::RedrawTarget
+impl core::cmp::PartialEq for antecedent_model::observation_uncertainty::RetainedMechanism
+impl core::cmp::PartialEq for antecedent_model::observation_uncertainty::TableCountRow
+impl core::cmp::PartialEq for antecedent_model::observation_uncertainty::TableCounts
 impl core::cmp::PartialEq for antecedent_model::scc_compile::AdmissionCost
 impl core::cmp::PartialEq for antecedent_model::scc_compile::BlockDiagnostic
 impl core::cmp::PartialEq for antecedent_model::scc_compile::CompileBudget
@@ -642,11 +663,13 @@ impl core::default::Default for antecedent_model::cyclic_world::CyclicWorldResul
 impl core::default::Default for antecedent_model::equation_system::IsolationPolicy
 impl core::default::Default for antecedent_model::local_cyclic::LocalCyclicPolicy
 impl core::default::Default for antecedent_model::nonlinear_equilibrium::SolvePolicy
+impl core::default::Default for antecedent_model::observation_uncertainty::RedrawPrior
 impl core::error::Error for antecedent_model::CycleGateError
 impl core::error::Error for antecedent_model::CyclicComponentError
 impl core::error::Error for antecedent_model::LinearSolutionError
 impl core::error::Error for antecedent_model::ModelError
 impl core::error::Error for antecedent_model::compose::CompositionError
+impl core::error::Error for antecedent_model::compose::GaussianConditioningError
 impl core::error::Error for antecedent_model::cyclic_world::CyclicInterventionRefusal
 impl core::error::Error for antecedent_model::discretized_scm_artifact::ArtifactRefusal
 impl core::error::Error for antecedent_model::history_operators::HistoryOperatorError
@@ -739,6 +762,7 @@ impl core::fmt::Debug for antecedent_model::compose::ComposedFinite
 impl core::fmt::Debug for antecedent_model::compose::ComposedLinearGaussian
 impl core::fmt::Debug for antecedent_model::compose::ComposedModelSpec
 impl core::fmt::Debug for antecedent_model::compose::CompositionError
+impl core::fmt::Debug for antecedent_model::compose::ConditionedGaussian
 impl core::fmt::Debug for antecedent_model::compose::Containment
 impl core::fmt::Debug for antecedent_model::compose::ContextCoordinate
 impl core::fmt::Debug for antecedent_model::compose::ContrastArm
@@ -746,6 +770,7 @@ impl core::fmt::Debug for antecedent_model::compose::CrossCovarianceBlock
 impl core::fmt::Debug for antecedent_model::compose::Domain
 impl core::fmt::Debug for antecedent_model::compose::FiniteLaw
 impl core::fmt::Debug for antecedent_model::compose::FunctionalUncertainty
+impl core::fmt::Debug for antecedent_model::compose::GaussianConditioningError
 impl core::fmt::Debug for antecedent_model::compose::InvarianceDeclaration
 impl core::fmt::Debug for antecedent_model::compose::JointGaussian
 impl core::fmt::Debug for antecedent_model::compose::LatentDependence
@@ -889,12 +914,20 @@ impl core::fmt::Debug for antecedent_model::observation_query::ConditioningInter
 impl core::fmt::Debug for antecedent_model::observation_query::Direction
 impl core::fmt::Debug for antecedent_model::observation_query::EvidenceRequirement
 impl core::fmt::Debug for antecedent_model::observation_query::FiniteBayesModel
+impl core::fmt::Debug for antecedent_model::observation_query::GaussianConditional
 impl core::fmt::Debug for antecedent_model::observation_query::MeasuredConditional
 impl core::fmt::Debug for antecedent_model::observation_query::ObservationQueryError
 impl core::fmt::Debug for antecedent_model::observation_query::RequiredBayesFactor
 impl core::fmt::Debug for antecedent_model::observation_query::SignalLevelOutcome
 impl core::fmt::Debug for antecedent_model::observation_query::ThresholdCrossing
 impl core::fmt::Debug for antecedent_model::observation_query::UnreachableBound
+impl core::fmt::Debug for antecedent_model::observation_uncertainty::GaussianSufficient
+impl core::fmt::Debug for antecedent_model::observation_uncertainty::ParameterDraws
+impl core::fmt::Debug for antecedent_model::observation_uncertainty::RedrawPrior
+impl core::fmt::Debug for antecedent_model::observation_uncertainty::RedrawTarget
+impl core::fmt::Debug for antecedent_model::observation_uncertainty::RetainedMechanism
+impl core::fmt::Debug for antecedent_model::observation_uncertainty::TableCountRow
+impl core::fmt::Debug for antecedent_model::observation_uncertainty::TableCounts
 impl core::fmt::Debug for antecedent_model::scc_compile::AdmissionCost
 impl core::fmt::Debug for antecedent_model::scc_compile::BlockDiagnostic
 impl core::fmt::Debug for antecedent_model::scc_compile::CompileBudget
@@ -908,6 +941,7 @@ impl core::fmt::Display for antecedent_model::CyclicComponentError
 impl core::fmt::Display for antecedent_model::LinearSolutionError
 impl core::fmt::Display for antecedent_model::ModelError
 impl core::fmt::Display for antecedent_model::compose::CompositionError
+impl core::fmt::Display for antecedent_model::compose::GaussianConditioningError
 impl core::fmt::Display for antecedent_model::cyclic_world::CyclicInterventionRefusal
 impl core::fmt::Display for antecedent_model::cyclic_world::CyclicRefusalKind
 impl core::fmt::Display for antecedent_model::discretized_scm_artifact::ArtifactRefusal
@@ -1025,6 +1059,7 @@ impl core::marker::Copy for antecedent_model::observation_query::Direction
 impl core::marker::Copy for antecedent_model::observation_query::EvidenceRequirement
 impl core::marker::Copy for antecedent_model::observation_query::RequiredBayesFactor
 impl core::marker::Copy for antecedent_model::observation_query::UnreachableBound
+impl core::marker::Copy for antecedent_model::observation_uncertainty::RedrawPrior
 impl core::marker::Copy for antecedent_model::scc_compile::AdmissionCost
 impl core::marker::Copy for antecedent_model::scc_compile::CompileBudget
 impl core::marker::Freeze for antecedent_model::BasisTerm [auto]
@@ -1111,6 +1146,7 @@ impl core::marker::Freeze for antecedent_model::compose::ComposedFinite [auto]
 impl core::marker::Freeze for antecedent_model::compose::ComposedLinearGaussian [auto]
 impl core::marker::Freeze for antecedent_model::compose::ComposedModelSpec [auto]
 impl core::marker::Freeze for antecedent_model::compose::CompositionError [auto]
+impl core::marker::Freeze for antecedent_model::compose::ConditionedGaussian [auto]
 impl core::marker::Freeze for antecedent_model::compose::Containment [auto]
 impl core::marker::Freeze for antecedent_model::compose::ContextCoordinate [auto]
 impl core::marker::Freeze for antecedent_model::compose::ContrastArm [auto]
@@ -1118,6 +1154,7 @@ impl core::marker::Freeze for antecedent_model::compose::CrossCovarianceBlock [a
 impl core::marker::Freeze for antecedent_model::compose::Domain [auto]
 impl core::marker::Freeze for antecedent_model::compose::FiniteLaw [auto]
 impl core::marker::Freeze for antecedent_model::compose::FunctionalUncertainty [auto]
+impl core::marker::Freeze for antecedent_model::compose::GaussianConditioningError [auto]
 impl core::marker::Freeze for antecedent_model::compose::InvarianceDeclaration [auto]
 impl core::marker::Freeze for antecedent_model::compose::JointGaussian [auto]
 impl core::marker::Freeze for antecedent_model::compose::LatentDependence [auto]
@@ -1262,12 +1299,20 @@ impl core::marker::Freeze for antecedent_model::observation_query::ConditioningI
 impl core::marker::Freeze for antecedent_model::observation_query::Direction [auto]
 impl core::marker::Freeze for antecedent_model::observation_query::EvidenceRequirement [auto]
 impl core::marker::Freeze for antecedent_model::observation_query::FiniteBayesModel [auto]
+impl core::marker::Freeze for antecedent_model::observation_query::GaussianConditional [auto]
 impl core::marker::Freeze for antecedent_model::observation_query::MeasuredConditional [auto]
 impl core::marker::Freeze for antecedent_model::observation_query::ObservationQueryError [auto]
 impl core::marker::Freeze for antecedent_model::observation_query::RequiredBayesFactor [auto]
 impl core::marker::Freeze for antecedent_model::observation_query::SignalLevelOutcome [auto]
 impl core::marker::Freeze for antecedent_model::observation_query::ThresholdCrossing [auto]
 impl core::marker::Freeze for antecedent_model::observation_query::UnreachableBound [auto]
+impl core::marker::Freeze for antecedent_model::observation_uncertainty::GaussianSufficient [auto]
+impl core::marker::Freeze for antecedent_model::observation_uncertainty::ParameterDraws [auto]
+impl core::marker::Freeze for antecedent_model::observation_uncertainty::RedrawPrior [auto]
+impl core::marker::Freeze for antecedent_model::observation_uncertainty::RedrawTarget [auto]
+impl core::marker::Freeze for antecedent_model::observation_uncertainty::RetainedMechanism [auto]
+impl core::marker::Freeze for antecedent_model::observation_uncertainty::TableCountRow [auto]
+impl core::marker::Freeze for antecedent_model::observation_uncertainty::TableCounts [auto]
 impl core::marker::Freeze for antecedent_model::scc_compile::AdmissionCost [auto]
 impl core::marker::Freeze for antecedent_model::scc_compile::BlockDiagnostic [auto]
 impl core::marker::Freeze for antecedent_model::scc_compile::CompileBudget [auto]
@@ -1360,6 +1405,7 @@ impl core::marker::Send for antecedent_model::compose::ComposedFinite [auto]
 impl core::marker::Send for antecedent_model::compose::ComposedLinearGaussian [auto]
 impl core::marker::Send for antecedent_model::compose::ComposedModelSpec [auto]
 impl core::marker::Send for antecedent_model::compose::CompositionError [auto]
+impl core::marker::Send for antecedent_model::compose::ConditionedGaussian [auto]
 impl core::marker::Send for antecedent_model::compose::Containment [auto]
 impl core::marker::Send for antecedent_model::compose::ContextCoordinate [auto]
 impl core::marker::Send for antecedent_model::compose::ContrastArm [auto]
@@ -1367,6 +1413,7 @@ impl core::marker::Send for antecedent_model::compose::CrossCovarianceBlock [aut
 impl core::marker::Send for antecedent_model::compose::Domain [auto]
 impl core::marker::Send for antecedent_model::compose::FiniteLaw [auto]
 impl core::marker::Send for antecedent_model::compose::FunctionalUncertainty [auto]
+impl core::marker::Send for antecedent_model::compose::GaussianConditioningError [auto]
 impl core::marker::Send for antecedent_model::compose::InvarianceDeclaration [auto]
 impl core::marker::Send for antecedent_model::compose::JointGaussian [auto]
 impl core::marker::Send for antecedent_model::compose::LatentDependence [auto]
@@ -1511,12 +1558,20 @@ impl core::marker::Send for antecedent_model::observation_query::ConditioningInt
 impl core::marker::Send for antecedent_model::observation_query::Direction [auto]
 impl core::marker::Send for antecedent_model::observation_query::EvidenceRequirement [auto]
 impl core::marker::Send for antecedent_model::observation_query::FiniteBayesModel [auto]
+impl core::marker::Send for antecedent_model::observation_query::GaussianConditional [auto]
 impl core::marker::Send for antecedent_model::observation_query::MeasuredConditional [auto]
 impl core::marker::Send for antecedent_model::observation_query::ObservationQueryError [auto]
 impl core::marker::Send for antecedent_model::observation_query::RequiredBayesFactor [auto]
 impl core::marker::Send for antecedent_model::observation_query::SignalLevelOutcome [auto]
 impl core::marker::Send for antecedent_model::observation_query::ThresholdCrossing [auto]
 impl core::marker::Send for antecedent_model::observation_query::UnreachableBound [auto]
+impl core::marker::Send for antecedent_model::observation_uncertainty::GaussianSufficient [auto]
+impl core::marker::Send for antecedent_model::observation_uncertainty::ParameterDraws [auto]
+impl core::marker::Send for antecedent_model::observation_uncertainty::RedrawPrior [auto]
+impl core::marker::Send for antecedent_model::observation_uncertainty::RedrawTarget [auto]
+impl core::marker::Send for antecedent_model::observation_uncertainty::RetainedMechanism [auto]
+impl core::marker::Send for antecedent_model::observation_uncertainty::TableCountRow [auto]
+impl core::marker::Send for antecedent_model::observation_uncertainty::TableCounts [auto]
 impl core::marker::Send for antecedent_model::scc_compile::AdmissionCost [auto]
 impl core::marker::Send for antecedent_model::scc_compile::BlockDiagnostic [auto]
 impl core::marker::Send for antecedent_model::scc_compile::CompileBudget [auto]
@@ -1577,6 +1632,7 @@ impl core::marker::StructuralPartialEq for antecedent_model::compose::CoherenceF
 impl core::marker::StructuralPartialEq for antecedent_model::compose::CoherenceKind
 impl core::marker::StructuralPartialEq for antecedent_model::compose::ComposedModelSpec
 impl core::marker::StructuralPartialEq for antecedent_model::compose::CompositionError
+impl core::marker::StructuralPartialEq for antecedent_model::compose::ConditionedGaussian
 impl core::marker::StructuralPartialEq for antecedent_model::compose::Containment
 impl core::marker::StructuralPartialEq for antecedent_model::compose::ContextCoordinate
 impl core::marker::StructuralPartialEq for antecedent_model::compose::ContrastArm
@@ -1584,6 +1640,7 @@ impl core::marker::StructuralPartialEq for antecedent_model::compose::CrossCovar
 impl core::marker::StructuralPartialEq for antecedent_model::compose::Domain
 impl core::marker::StructuralPartialEq for antecedent_model::compose::FiniteLaw
 impl core::marker::StructuralPartialEq for antecedent_model::compose::FunctionalUncertainty
+impl core::marker::StructuralPartialEq for antecedent_model::compose::GaussianConditioningError
 impl core::marker::StructuralPartialEq for antecedent_model::compose::InvarianceDeclaration
 impl core::marker::StructuralPartialEq for antecedent_model::compose::JointGaussian
 impl core::marker::StructuralPartialEq for antecedent_model::compose::LatentDependence
@@ -1720,12 +1777,20 @@ impl core::marker::StructuralPartialEq for antecedent_model::observation_query::
 impl core::marker::StructuralPartialEq for antecedent_model::observation_query::Direction
 impl core::marker::StructuralPartialEq for antecedent_model::observation_query::EvidenceRequirement
 impl core::marker::StructuralPartialEq for antecedent_model::observation_query::FiniteBayesModel
+impl core::marker::StructuralPartialEq for antecedent_model::observation_query::GaussianConditional
 impl core::marker::StructuralPartialEq for antecedent_model::observation_query::MeasuredConditional
 impl core::marker::StructuralPartialEq for antecedent_model::observation_query::ObservationQueryError
 impl core::marker::StructuralPartialEq for antecedent_model::observation_query::RequiredBayesFactor
 impl core::marker::StructuralPartialEq for antecedent_model::observation_query::SignalLevelOutcome
 impl core::marker::StructuralPartialEq for antecedent_model::observation_query::ThresholdCrossing
 impl core::marker::StructuralPartialEq for antecedent_model::observation_query::UnreachableBound
+impl core::marker::StructuralPartialEq for antecedent_model::observation_uncertainty::GaussianSufficient
+impl core::marker::StructuralPartialEq for antecedent_model::observation_uncertainty::ParameterDraws
+impl core::marker::StructuralPartialEq for antecedent_model::observation_uncertainty::RedrawPrior
+impl core::marker::StructuralPartialEq for antecedent_model::observation_uncertainty::RedrawTarget
+impl core::marker::StructuralPartialEq for antecedent_model::observation_uncertainty::RetainedMechanism
+impl core::marker::StructuralPartialEq for antecedent_model::observation_uncertainty::TableCountRow
+impl core::marker::StructuralPartialEq for antecedent_model::observation_uncertainty::TableCounts
 impl core::marker::StructuralPartialEq for antecedent_model::scc_compile::AdmissionCost
 impl core::marker::StructuralPartialEq for antecedent_model::scc_compile::BlockDiagnostic
 impl core::marker::StructuralPartialEq for antecedent_model::scc_compile::CompileBudget
@@ -1818,6 +1883,7 @@ impl core::marker::Sync for antecedent_model::compose::ComposedFinite [auto]
 impl core::marker::Sync for antecedent_model::compose::ComposedLinearGaussian [auto]
 impl core::marker::Sync for antecedent_model::compose::ComposedModelSpec [auto]
 impl core::marker::Sync for antecedent_model::compose::CompositionError [auto]
+impl core::marker::Sync for antecedent_model::compose::ConditionedGaussian [auto]
 impl core::marker::Sync for antecedent_model::compose::Containment [auto]
 impl core::marker::Sync for antecedent_model::compose::ContextCoordinate [auto]
 impl core::marker::Sync for antecedent_model::compose::ContrastArm [auto]
@@ -1825,6 +1891,7 @@ impl core::marker::Sync for antecedent_model::compose::CrossCovarianceBlock [aut
 impl core::marker::Sync for antecedent_model::compose::Domain [auto]
 impl core::marker::Sync for antecedent_model::compose::FiniteLaw [auto]
 impl core::marker::Sync for antecedent_model::compose::FunctionalUncertainty [auto]
+impl core::marker::Sync for antecedent_model::compose::GaussianConditioningError [auto]
 impl core::marker::Sync for antecedent_model::compose::InvarianceDeclaration [auto]
 impl core::marker::Sync for antecedent_model::compose::JointGaussian [auto]
 impl core::marker::Sync for antecedent_model::compose::LatentDependence [auto]
@@ -1969,12 +2036,20 @@ impl core::marker::Sync for antecedent_model::observation_query::ConditioningInt
 impl core::marker::Sync for antecedent_model::observation_query::Direction [auto]
 impl core::marker::Sync for antecedent_model::observation_query::EvidenceRequirement [auto]
 impl core::marker::Sync for antecedent_model::observation_query::FiniteBayesModel [auto]
+impl core::marker::Sync for antecedent_model::observation_query::GaussianConditional [auto]
 impl core::marker::Sync for antecedent_model::observation_query::MeasuredConditional [auto]
 impl core::marker::Sync for antecedent_model::observation_query::ObservationQueryError [auto]
 impl core::marker::Sync for antecedent_model::observation_query::RequiredBayesFactor [auto]
 impl core::marker::Sync for antecedent_model::observation_query::SignalLevelOutcome [auto]
 impl core::marker::Sync for antecedent_model::observation_query::ThresholdCrossing [auto]
 impl core::marker::Sync for antecedent_model::observation_query::UnreachableBound [auto]
+impl core::marker::Sync for antecedent_model::observation_uncertainty::GaussianSufficient [auto]
+impl core::marker::Sync for antecedent_model::observation_uncertainty::ParameterDraws [auto]
+impl core::marker::Sync for antecedent_model::observation_uncertainty::RedrawPrior [auto]
+impl core::marker::Sync for antecedent_model::observation_uncertainty::RedrawTarget [auto]
+impl core::marker::Sync for antecedent_model::observation_uncertainty::RetainedMechanism [auto]
+impl core::marker::Sync for antecedent_model::observation_uncertainty::TableCountRow [auto]
+impl core::marker::Sync for antecedent_model::observation_uncertainty::TableCounts [auto]
 impl core::marker::Sync for antecedent_model::scc_compile::AdmissionCost [auto]
 impl core::marker::Sync for antecedent_model::scc_compile::BlockDiagnostic [auto]
 impl core::marker::Sync for antecedent_model::scc_compile::CompileBudget [auto]
@@ -2067,6 +2142,7 @@ impl core::marker::Unpin for antecedent_model::compose::ComposedFinite [auto]
 impl core::marker::Unpin for antecedent_model::compose::ComposedLinearGaussian [auto]
 impl core::marker::Unpin for antecedent_model::compose::ComposedModelSpec [auto]
 impl core::marker::Unpin for antecedent_model::compose::CompositionError [auto]
+impl core::marker::Unpin for antecedent_model::compose::ConditionedGaussian [auto]
 impl core::marker::Unpin for antecedent_model::compose::Containment [auto]
 impl core::marker::Unpin for antecedent_model::compose::ContextCoordinate [auto]
 impl core::marker::Unpin for antecedent_model::compose::ContrastArm [auto]
@@ -2074,6 +2150,7 @@ impl core::marker::Unpin for antecedent_model::compose::CrossCovarianceBlock [au
 impl core::marker::Unpin for antecedent_model::compose::Domain [auto]
 impl core::marker::Unpin for antecedent_model::compose::FiniteLaw [auto]
 impl core::marker::Unpin for antecedent_model::compose::FunctionalUncertainty [auto]
+impl core::marker::Unpin for antecedent_model::compose::GaussianConditioningError [auto]
 impl core::marker::Unpin for antecedent_model::compose::InvarianceDeclaration [auto]
 impl core::marker::Unpin for antecedent_model::compose::JointGaussian [auto]
 impl core::marker::Unpin for antecedent_model::compose::LatentDependence [auto]
@@ -2218,12 +2295,20 @@ impl core::marker::Unpin for antecedent_model::observation_query::ConditioningIn
 impl core::marker::Unpin for antecedent_model::observation_query::Direction [auto]
 impl core::marker::Unpin for antecedent_model::observation_query::EvidenceRequirement [auto]
 impl core::marker::Unpin for antecedent_model::observation_query::FiniteBayesModel [auto]
+impl core::marker::Unpin for antecedent_model::observation_query::GaussianConditional [auto]
 impl core::marker::Unpin for antecedent_model::observation_query::MeasuredConditional [auto]
 impl core::marker::Unpin for antecedent_model::observation_query::ObservationQueryError [auto]
 impl core::marker::Unpin for antecedent_model::observation_query::RequiredBayesFactor [auto]
 impl core::marker::Unpin for antecedent_model::observation_query::SignalLevelOutcome [auto]
 impl core::marker::Unpin for antecedent_model::observation_query::ThresholdCrossing [auto]
 impl core::marker::Unpin for antecedent_model::observation_query::UnreachableBound [auto]
+impl core::marker::Unpin for antecedent_model::observation_uncertainty::GaussianSufficient [auto]
+impl core::marker::Unpin for antecedent_model::observation_uncertainty::ParameterDraws [auto]
+impl core::marker::Unpin for antecedent_model::observation_uncertainty::RedrawPrior [auto]
+impl core::marker::Unpin for antecedent_model::observation_uncertainty::RedrawTarget [auto]
+impl core::marker::Unpin for antecedent_model::observation_uncertainty::RetainedMechanism [auto]
+impl core::marker::Unpin for antecedent_model::observation_uncertainty::TableCountRow [auto]
+impl core::marker::Unpin for antecedent_model::observation_uncertainty::TableCounts [auto]
 impl core::marker::Unpin for antecedent_model::scc_compile::AdmissionCost [auto]
 impl core::marker::Unpin for antecedent_model::scc_compile::BlockDiagnostic [auto]
 impl core::marker::Unpin for antecedent_model::scc_compile::CompileBudget [auto]
@@ -2308,6 +2393,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::Comp
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::ComposedLinearGaussian [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::ComposedModelSpec [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::CompositionError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::ConditionedGaussian [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::Containment [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::ContextCoordinate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::ContrastArm [auto]
@@ -2315,6 +2401,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::Cros
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::Domain [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::FiniteLaw [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::FunctionalUncertainty [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::GaussianConditioningError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::InvarianceDeclaration [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::JointGaussian [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::LatentDependence [auto]
@@ -2458,12 +2545,20 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::observation_q
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::observation_query::Direction [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::observation_query::EvidenceRequirement [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::observation_query::FiniteBayesModel [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::observation_query::GaussianConditional [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::observation_query::MeasuredConditional [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::observation_query::ObservationQueryError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::observation_query::RequiredBayesFactor [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::observation_query::SignalLevelOutcome [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::observation_query::ThresholdCrossing [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::observation_query::UnreachableBound [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::observation_uncertainty::GaussianSufficient [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::observation_uncertainty::ParameterDraws [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::observation_uncertainty::RedrawPrior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::observation_uncertainty::RedrawTarget [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::observation_uncertainty::RetainedMechanism [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::observation_uncertainty::TableCountRow [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::observation_uncertainty::TableCounts [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::scc_compile::AdmissionCost [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::scc_compile::BlockDiagnostic [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::scc_compile::CompileBudget [auto]
@@ -2548,6 +2643,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::Compose
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::ComposedLinearGaussian [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::ComposedModelSpec [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::CompositionError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::ConditionedGaussian [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::Containment [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::ContextCoordinate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::ContrastArm [auto]
@@ -2555,6 +2651,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::CrossCo
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::Domain [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::FiniteLaw [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::FunctionalUncertainty [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::GaussianConditioningError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::InvarianceDeclaration [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::JointGaussian [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::LatentDependence [auto]
@@ -2698,12 +2795,20 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_model::observation_quer
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::observation_query::Direction [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::observation_query::EvidenceRequirement [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::observation_query::FiniteBayesModel [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::observation_query::GaussianConditional [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::observation_query::MeasuredConditional [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::observation_query::ObservationQueryError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::observation_query::RequiredBayesFactor [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::observation_query::SignalLevelOutcome [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::observation_query::ThresholdCrossing [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::observation_query::UnreachableBound [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::observation_uncertainty::GaussianSufficient [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::observation_uncertainty::ParameterDraws [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::observation_uncertainty::RedrawPrior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::observation_uncertainty::RedrawTarget [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::observation_uncertainty::RetainedMechanism [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::observation_uncertainty::TableCountRow [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::observation_uncertainty::TableCounts [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::scc_compile::AdmissionCost [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::scc_compile::BlockDiagnostic [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::scc_compile::CompileBudget [auto]
@@ -2968,6 +3073,12 @@ pub const antecedent_model::observation_query::MAX_BAYES_OBSERVATION_LEVELS: usi
 pub const antecedent_model::observation_query::MAX_BAYES_SEQUENCE: usize
 pub const antecedent_model::observation_query::MAX_REQUIRED_OBSERVATIONS: u64
 pub const antecedent_model::observation_query::SIMPLEX_TOLERANCE: f64
+pub const antecedent_model::observation_uncertainty::CONDITIONAL_MEAN: &str
+pub const antecedent_model::observation_uncertainty::CONDITIONAL_VARIANCE: &str
+pub const antecedent_model::observation_uncertainty::MAX_REDRAWS: u32
+pub const antecedent_model::observation_uncertainty::MAX_REDRAW_QUANTITIES: usize
+pub const antecedent_model::observation_uncertainty::MAX_RETAINED_REGRESSORS: usize
+pub const antecedent_model::observation_uncertainty::MIN_REDRAWS: u32
 pub const fn antecedent_model::mechanism::reference_noise(slot: &antecedent_model::MechanismSlot) -> f64
 pub enum antecedent_model::BasisTerm
 pub enum antecedent_model::Conditioning
@@ -3031,6 +3142,8 @@ pub enum antecedent_model::nonlinear_equilibrium::Activation
 pub enum antecedent_model::nonlinear_equilibrium::EquilibriumError
 pub enum antecedent_model::nonlinear_equilibrium::EquilibriumOutcome
 pub enum antecedent_model::observation_query::Direction
+pub enum antecedent_model::observation_uncertainty::RedrawTarget
+pub enum antecedent_model::observation_uncertainty::RetainedMechanism
 pub enum antecedent_model::scc_compile::LinearSupportRoute
 pub field antecedent_model::CompiledCausalModel::graph: alloc::sync::Arc<antecedent_graph::dag::Dag>
 pub field antecedent_model::CompiledCausalModel::mechanisms: antecedent_model::CompiledMechanismStore
@@ -3474,6 +3587,10 @@ pub field antecedent_model::observation_query::EvidenceRequirement::bayes_factor
 pub field antecedent_model::observation_query::EvidenceRequirement::direction: antecedent_model::observation_query::Direction
 pub field antecedent_model::observation_query::EvidenceRequirement::observations: u64
 pub field antecedent_model::observation_query::EvidenceRequirement::value_at_requirement: f64
+pub field antecedent_model::observation_query::GaussianConditional::evidence_log_density: core::option::Option<f64>
+pub field antecedent_model::observation_query::GaussianConditional::mean: f64
+pub field antecedent_model::observation_query::GaussianConditional::outcome: alloc::string::String
+pub field antecedent_model::observation_query::GaussianConditional::variance: f64
 pub field antecedent_model::observation_query::MeasuredConditional::construct_posterior: alloc::vec::Vec<(alloc::string::String, f64)>
 pub field antecedent_model::observation_query::MeasuredConditional::evidence_probability: f64
 pub field antecedent_model::observation_query::MeasuredConditional::outcome: alloc::vec::Vec<(alloc::string::String, f64)>
@@ -3489,6 +3606,24 @@ pub field antecedent_model::observation_query::ThresholdCrossing::direction: ant
 pub field antecedent_model::observation_query::ThresholdCrossing::levels: alloc::vec::Vec<antecedent_model::observation_query::SignalLevelOutcome>
 pub field antecedent_model::observation_query::ThresholdCrossing::outcome_level: alloc::string::String
 pub field antecedent_model::observation_query::ThresholdCrossing::threshold: f64
+pub field antecedent_model::observation_uncertainty::GaussianSufficient::gram: alloc::vec::Vec<f64>
+pub field antecedent_model::observation_uncertainty::GaussianSufficient::parents: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_model::observation_uncertainty::GaussianSufficient::rows: u64
+pub field antecedent_model::observation_uncertainty::GaussianSufficient::variable: alloc::string::String
+pub field antecedent_model::observation_uncertainty::GaussianSufficient::xty: alloc::vec::Vec<f64>
+pub field antecedent_model::observation_uncertainty::GaussianSufficient::yty: f64
+pub field antecedent_model::observation_uncertainty::ParameterDraws::draws: usize
+pub field antecedent_model::observation_uncertainty::ParameterDraws::point: alloc::vec::Vec<f64>
+pub field antecedent_model::observation_uncertainty::ParameterDraws::quantities: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_model::observation_uncertainty::ParameterDraws::values: alloc::vec::Vec<f64>
+pub field antecedent_model::observation_uncertainty::RedrawPrior::coefficient_precision: f64
+pub field antecedent_model::observation_uncertainty::RedrawPrior::dirichlet_alpha: f64
+pub field antecedent_model::observation_uncertainty::RedrawPrior::variance_scale: f64
+pub field antecedent_model::observation_uncertainty::RedrawPrior::variance_shape: f64
+pub field antecedent_model::observation_uncertainty::TableCountRow::counts: alloc::vec::Vec<(alloc::string::String, u64)>
+pub field antecedent_model::observation_uncertainty::TableCountRow::parent_levels: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
+pub field antecedent_model::observation_uncertainty::TableCounts::rows: alloc::vec::Vec<antecedent_model::observation_uncertainty::TableCountRow>
+pub field antecedent_model::observation_uncertainty::TableCounts::variable: alloc::string::String
 pub field antecedent_model::scc_compile::BlockDiagnostic::exact: bool
 pub field antecedent_model::scc_compile::BlockDiagnostic::kappa_inf: f64
 pub field antecedent_model::scc_compile::BlockDiagnostic::members: alloc::vec::Vec<usize>
@@ -3674,6 +3809,13 @@ pub fn <antecedent_model::compose::ComposedLinearGaussian>::fn topological_order
 pub fn <antecedent_model::compose::ComposedLinearGaussian>::fn variables(&self) -> &[alloc::string::String]
 pub fn <antecedent_model::compose::ComposedModelSpec>::fn canonical(&self) -> Self
 pub fn <antecedent_model::compose::CompositionError>::fn findings(&self) -> &[antecedent_model::compose::CoherenceFinding]
+pub fn <antecedent_model::compose::ConditionedGaussian>::fn covariance_matrix(&self) -> &[f64]
+pub fn <antecedent_model::compose::ConditionedGaussian>::fn evidence_log_density(&self) -> f64
+pub fn <antecedent_model::compose::ConditionedGaussian>::fn mean(&self) -> &[f64]
+pub fn <antecedent_model::compose::ConditionedGaussian>::fn mean_of(&self, variable: &str) -> core::option::Option<f64>
+pub fn <antecedent_model::compose::ConditionedGaussian>::fn observed(&self) -> &[(alloc::string::String, f64)]
+pub fn <antecedent_model::compose::ConditionedGaussian>::fn variables(&self) -> &[alloc::string::String]
+pub fn <antecedent_model::compose::ConditionedGaussian>::fn variance_of(&self, variable: &str) -> core::option::Option<f64>
 pub fn <antecedent_model::compose::Domain>::fn contained_in(&self, outer: &Self) -> antecedent_model::compose::Containment
 pub fn <antecedent_model::compose::Domain>::fn contains_value(&self, value: f64) -> bool
 pub fn <antecedent_model::compose::Domain>::fn describe(&self) -> alloc::string::String
@@ -3683,6 +3825,7 @@ pub fn <antecedent_model::compose::FiniteLaw>::fn marginal(&self, variable: &str
 pub fn <antecedent_model::compose::FiniteLaw>::fn probabilities(&self) -> &[f64]
 pub fn <antecedent_model::compose::FiniteLaw>::fn probability(&self, event: &[(&str, &str)]) -> core::result::Result<f64, antecedent_model::compose::CompositionError>
 pub fn <antecedent_model::compose::FiniteLaw>::fn variables(&self) -> &[alloc::string::String]
+pub fn <antecedent_model::compose::JointGaussian>::fn condition(&self, observed: &[(&str, f64)]) -> core::result::Result<antecedent_model::compose::ConditionedGaussian, antecedent_model::compose::GaussianConditioningError>
 pub fn <antecedent_model::compose::JointGaussian>::fn covariance_matrix(&self) -> &[f64]
 pub fn <antecedent_model::compose::JointGaussian>::fn covariance_of(&self, a: &str, b: &str) -> core::option::Option<f64>
 pub fn <antecedent_model::compose::JointGaussian>::fn mean(&self) -> &[f64]
@@ -3921,6 +4064,12 @@ pub fn <antecedent_model::observation_query::FiniteBayesModel>::fn new(hypothese
 pub fn <antecedent_model::observation_query::FiniteBayesModel>::fn observation_levels(&self) -> &[alloc::string::String]
 pub fn <antecedent_model::observation_query::FiniteBayesModel>::fn posterior(&self, observations: &[&str]) -> core::result::Result<antecedent_model::observation_query::BayesPosterior, antecedent_model::observation_query::ObservationQueryError>
 pub fn <antecedent_model::observation_query::FiniteBayesModel>::fn prior(&self) -> &[f64]
+pub fn <antecedent_model::observation_uncertainty::GaussianSufficient>::fn from_columns(variable: &str, parents: &[(&str, &[f64])], y: &[f64]) -> core::result::Result<Self, antecedent_model::observation_query::ObservationQueryError>
+pub fn <antecedent_model::observation_uncertainty::ParameterDraws>::fn column(&self, quantity: usize) -> alloc::vec::Vec<f64>
+pub fn <antecedent_model::observation_uncertainty::ParameterDraws>::fn mean(&self, quantity: usize) -> f64
+pub fn <antecedent_model::observation_uncertainty::ParameterDraws>::fn standard_deviation(&self, quantity: usize) -> f64
+pub fn <antecedent_model::observation_uncertainty::ParameterDraws>::fn width(&self) -> usize
+pub fn <antecedent_model::observation_uncertainty::RetainedMechanism>::fn variable(&self) -> &str
 pub fn <antecedent_model::scc_compile::AdmissionCost>::const fn bytes(self) -> u64
 pub fn <antecedent_model::scc_compile::AdmissionCost>::const fn work(self) -> u64
 pub fn <antecedent_model::scc_compile::CompileBudget>::const fn unlimited() -> Self
@@ -4000,13 +4149,18 @@ pub fn antecedent_model::mechanism_transport::refusal_code(detail: &str) -> core
 pub fn antecedent_model::mechanism_transport::selection_targets(diagram: &antecedent_model::compose::SelectionDiagramDeclaration) -> alloc::vec::Vec<alloc::string::String>
 pub fn antecedent_model::mechanism_transport::transport_linear_gaussian(request: &antecedent_model::mechanism_transport::MechanismTransportRequest) -> core::result::Result<antecedent_model::mechanism_transport::TransportedLinearGaussian, antecedent_model::compose::CompositionError>
 pub fn antecedent_model::observation_query::condition(law: &antecedent_model::compose::FiniteLaw, outcome: &str, observed: &[(&str, &str)], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::observation_query::ConditionalDistribution, antecedent_model::observation_query::ObservationQueryError>
+pub fn antecedent_model::observation_query::condition_after_intervention(model: &antecedent_model::compose::ComposedFinite, outcome: &str, interventions: &[(&str, &str)], observed: &[(&str, &str)], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::observation_query::ConditionalDistribution, antecedent_model::observation_query::ObservationQueryError>
+pub fn antecedent_model::observation_query::condition_gaussian(model: &antecedent_model::compose::ComposedLinearGaussian, outcome: &str, interventions: &[(&str, f64)], observed: &[(&str, f64)], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::observation_query::GaussianConditional, antecedent_model::observation_query::ObservationQueryError>
 pub fn antecedent_model::observation_query::condition_on_measured(law: &antecedent_model::compose::FiniteLaw, outcome: &str, construct: &str, observed: &[(&str, &str)], likelihood: &[f64], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::observation_query::MeasuredConditional, antecedent_model::observation_query::ObservationQueryError>
 pub fn antecedent_model::observation_query::conditioning_and_intervention(model: &antecedent_model::compose::ComposedFinite, outcome: &str, assignment: &[(&str, &str)], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::observation_query::ConditioningInterventionPair, antecedent_model::observation_query::ObservationQueryError>
 pub fn antecedent_model::observation_query::intervene(model: &antecedent_model::compose::ComposedFinite, outcome: &str, interventions: &[(&str, &str)], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<(alloc::string::String, f64)>, antecedent_model::observation_query::ObservationQueryError>
+pub fn antecedent_model::observation_query::intervened_law(model: &antecedent_model::compose::ComposedFinite, interventions: &[(&str, &str)], observed: &[(&str, &str)], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::compose::FiniteLaw, antecedent_model::observation_query::ObservationQueryError>
 pub fn antecedent_model::observation_query::observations_required_binary_signal(prior: f64, level: f64, direction: antecedent_model::observation_query::Direction, rate_given_hypothesis: f64, rate_given_complement: f64, max_observations: u64) -> core::result::Result<antecedent_model::observation_query::EvidenceRequirement, antecedent_model::observation_query::ObservationQueryError>
 pub fn antecedent_model::observation_query::observations_required_conjugate(prior: &antecedent_model::observation_query::BetaBernoulli, level: f64, direction: antecedent_model::observation_query::Direction, max_observations: u64) -> core::result::Result<antecedent_model::observation_query::EvidenceRequirement, antecedent_model::observation_query::ObservationQueryError>
 pub fn antecedent_model::observation_query::required_bayes_factor(prior: f64, level: f64, direction: antecedent_model::observation_query::Direction) -> core::result::Result<antecedent_model::observation_query::RequiredBayesFactor, antecedent_model::observation_query::ObservationQueryError>
 pub fn antecedent_model::observation_query::threshold_crossing_observations(law: &antecedent_model::compose::FiniteLaw, outcome: &str, outcome_level: &str, signal: &str, background: &[(&str, &str)], threshold: f64, direction: antecedent_model::observation_query::Direction, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::observation_query::ThresholdCrossing, antecedent_model::observation_query::ObservationQueryError>
+pub fn antecedent_model::observation_uncertainty::redraw_conditional(spec: &antecedent_model::compose::ComposedModelSpec, target: &antecedent_model::observation_uncertainty::RedrawTarget, retained: &[antecedent_model::observation_uncertainty::RetainedMechanism], prior: &antecedent_model::observation_uncertainty::RedrawPrior, draws: u32, seed: u64, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::observation_uncertainty::ParameterDraws, antecedent_model::observation_query::ObservationQueryError>
+pub fn antecedent_model::observation_uncertainty::target_quantities(spec: &antecedent_model::compose::ComposedModelSpec, target: &antecedent_model::observation_uncertainty::RedrawTarget) -> core::result::Result<alloc::vec::Vec<alloc::string::String>, antecedent_model::observation_query::ObservationQueryError>
 pub fn antecedent_model::policy_support(model: &antecedent_model::CompiledCausalModel, interventions: &[antecedent_core::intervention::Intervention]) -> antecedent_model::PolicySupport
 pub fn antecedent_model::refuse_cross_family_soft(existing: &antecedent_model::MechanismSlot, soft: &antecedent_core::intervention::MechanismOverride) -> core::result::Result<(), antecedent_model::ModelError>
 pub fn antecedent_model::rollout_temporal(model: &antecedent_model::CompiledCausalModel, plan: &antecedent_model::TemporalPlan<'_>, noise: antecedent_model::TemporalNoise<'_>, ws: &mut antecedent_model::MechanismWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::TemporalPath, antecedent_model::ModelError>
@@ -4059,6 +4213,7 @@ pub mod antecedent_model::model_collection
 pub mod antecedent_model::noise_replay
 pub mod antecedent_model::nonlinear_equilibrium
 pub mod antecedent_model::observation_query
+pub mod antecedent_model::observation_uncertainty
 pub mod antecedent_model::overlay
 pub mod antecedent_model::program
 pub mod antecedent_model::registry
@@ -4142,6 +4297,8 @@ pub struct antecedent_model::compose::ComposedFinite has private fields
 pub struct antecedent_model::compose::ComposedLinearGaussian
 pub struct antecedent_model::compose::ComposedLinearGaussian has private fields
 pub struct antecedent_model::compose::ComposedModelSpec
+pub struct antecedent_model::compose::ConditionedGaussian
+pub struct antecedent_model::compose::ConditionedGaussian has private fields
 pub struct antecedent_model::compose::ContrastArm
 pub struct antecedent_model::compose::CrossCovarianceBlock
 pub struct antecedent_model::compose::FiniteLaw
@@ -4290,10 +4447,16 @@ pub struct antecedent_model::observation_query::ConditioningInterventionPair
 pub struct antecedent_model::observation_query::EvidenceRequirement
 pub struct antecedent_model::observation_query::FiniteBayesModel
 pub struct antecedent_model::observation_query::FiniteBayesModel has private fields
+pub struct antecedent_model::observation_query::GaussianConditional
 pub struct antecedent_model::observation_query::MeasuredConditional
 pub struct antecedent_model::observation_query::RequiredBayesFactor
 pub struct antecedent_model::observation_query::SignalLevelOutcome
 pub struct antecedent_model::observation_query::ThresholdCrossing
+pub struct antecedent_model::observation_uncertainty::GaussianSufficient
+pub struct antecedent_model::observation_uncertainty::ParameterDraws
+pub struct antecedent_model::observation_uncertainty::RedrawPrior
+pub struct antecedent_model::observation_uncertainty::TableCountRow
+pub struct antecedent_model::observation_uncertainty::TableCounts
 pub struct antecedent_model::scc_compile::AdmissionCost
 pub struct antecedent_model::scc_compile::AdmissionCost has private fields
 pub struct antecedent_model::scc_compile::BlockDiagnostic
@@ -4365,8 +4528,10 @@ pub use antecedent_model::compose::descriptor::SelectionNodeDeclaration = antece
 pub use antecedent_model::compose::descriptor::TabularRow = antecedent_model::compose::TabularRow
 pub use antecedent_model::compose::descriptor::UncertaintyMeaning = antecedent_model::compose::UncertaintyMeaning
 pub use antecedent_model::compose::gaussian::ComposedLinearGaussian = antecedent_model::compose::ComposedLinearGaussian
+pub use antecedent_model::compose::gaussian::ConditionedGaussian = antecedent_model::compose::ConditionedGaussian
 pub use antecedent_model::compose::gaussian::ContrastArm = antecedent_model::compose::ContrastArm
 pub use antecedent_model::compose::gaussian::FunctionalUncertainty = antecedent_model::compose::FunctionalUncertainty
+pub use antecedent_model::compose::gaussian::GaussianConditioningError = antecedent_model::compose::GaussianConditioningError
 pub use antecedent_model::compose::gaussian::JointGaussian = antecedent_model::compose::JointGaussian
 pub use antecedent_model::compose::gaussian::MeanContrast = antecedent_model::compose::MeanContrast
 pub use antecedent_model::compose::gaussian::SampleTable = antecedent_model::compose::SampleTable
@@ -4655,6 +4820,10 @@ pub variant antecedent_model::compose::ContextCoordinate::Regime
 pub variant antecedent_model::compose::Domain::Interval { lo: f64, hi: f64 }
 pub variant antecedent_model::compose::Domain::Levels(alloc::vec::Vec<alloc::string::String>)
 pub variant antecedent_model::compose::Domain::Real
+pub variant antecedent_model::compose::GaussianConditioningError::NotFinite(alloc::string::String)
+pub variant antecedent_model::compose::GaussianConditioningError::RepeatedVariable(alloc::string::String)
+pub variant antecedent_model::compose::GaussianConditioningError::SingularEvidence
+pub variant antecedent_model::compose::GaussianConditioningError::UnknownVariable(alloc::string::String)
 pub variant antecedent_model::compose::MechanismFamily::LinearGaussian
 pub variant antecedent_model::compose::MechanismFamily::Tabular
 pub variant antecedent_model::compose::MechanismForm::LinearGaussian { intercept: f64, sigma: f64, coefficients: alloc::vec::Vec<(alloc::string::String, f64)> }
@@ -4837,8 +5006,10 @@ pub variant antecedent_model::observation_query::Direction::Raise
 pub variant antecedent_model::observation_query::ObservationQueryError::Cancelled
 pub variant antecedent_model::observation_query::ObservationQueryError::Composition(antecedent_model::compose::CompositionError)
 pub variant antecedent_model::observation_query::ObservationQueryError::ConstructObserved(alloc::string::String)
+pub variant antecedent_model::observation_query::ObservationQueryError::EvidenceSingular
 pub variant antecedent_model::observation_query::ObservationQueryError::Invalid(&'static str)
 pub variant antecedent_model::observation_query::ObservationQueryError::LevelUnreachable { level: f64, extremum: f64, direction: antecedent_model::observation_query::Direction, bound: antecedent_model::observation_query::UnreachableBound }
+pub variant antecedent_model::observation_query::ObservationQueryError::ObservedAndIntervened(alloc::string::String)
 pub variant antecedent_model::observation_query::ObservationQueryError::OutcomeObserved(alloc::string::String)
 pub variant antecedent_model::observation_query::ObservationQueryError::RepeatedVariable(alloc::string::String)
 pub variant antecedent_model::observation_query::ObservationQueryError::UnknownLevel { variable: alloc::string::String, level: alloc::string::String }
@@ -4847,6 +5018,10 @@ pub variant antecedent_model::observation_query::ObservationQueryError::ZeroProb
 pub variant antecedent_model::observation_query::UnreachableBound::NoObservationCrosses
 pub variant antecedent_model::observation_query::UnreachableBound::ObservationBudget { max_observations: u64 }
 pub variant antecedent_model::observation_query::UnreachableBound::SignalDoesNotMove
+pub variant antecedent_model::observation_uncertainty::RedrawTarget::Finite { outcome: alloc::string::String, interventions: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>, observed: alloc::vec::Vec<(alloc::string::String, alloc::string::String)> }
+pub variant antecedent_model::observation_uncertainty::RedrawTarget::Gaussian { outcome: alloc::string::String, interventions: alloc::vec::Vec<(alloc::string::String, f64)>, observed: alloc::vec::Vec<(alloc::string::String, f64)> }
+pub variant antecedent_model::observation_uncertainty::RetainedMechanism::Gaussian(antecedent_model::observation_uncertainty::GaussianSufficient)
+pub variant antecedent_model::observation_uncertainty::RetainedMechanism::Table(antecedent_model::observation_uncertainty::TableCounts)
 pub variant antecedent_model::scc_compile::LinearSupportRoute::Acyclic { order: alloc::vec::Vec<usize> }
 pub variant antecedent_model::scc_compile::LinearSupportRoute::Cyclic { next_attempt: alloc::string::String, blocks: alloc::vec::Vec<alloc::vec::Vec<usize>> }
 pub variant antecedent_model::scc_compile::SccCompileError::AsymmetricCovariance { row: usize, column: usize }

@@ -412,6 +412,61 @@ def test_on_stage_reaches_plan():
     assert stages[:2] == ["identify", "estimate_point"]
 
 
+def _bow_fixture():
+    bow = ant.Admg.from_edges(["t", "y"], [("t", "y")], [("t", "y")])
+    rng = np.random.default_rng(2003140)
+    return {"t": rng.normal(size=300), "y": rng.normal(size=300)}, bow
+
+
+def test_on_refusal_reaches_workflow():
+    from antecedent.errors import EffectNotIdentified
+    from antecedent.fallback import AnalysisWithFallback
+
+    data, bow = _bow_fixture()
+    with pytest.raises(EffectNotIdentified):
+        ant.analyze(data, graph=bow, query=ant.AverageEffect("t", "y"))
+    with pytest.raises(EffectNotIdentified):
+        ant.analyze(data, graph=bow, query=ant.AverageEffect("t", "y"), on_refusal="raise")
+    outcome = ant.analyze(data, graph=bow, query=ant.AverageEffect("t", "y"), on_refusal="describe")
+    assert isinstance(outcome, AnalysisWithFallback)
+    assert isinstance(outcome.refusal, EffectNotIdentified)
+    with pytest.raises(ValueError, match="on_refusal"):
+        ant.analyze(data, graph=bow, query=ant.AverageEffect("t", "y"), on_refusal="substitute")
+
+
+def test_evidence_candidates_reach_the_plan():
+    from antecedent import repair
+    from antecedent.errors import CausalUnsupportedError
+
+    data, bow = _bow_fixture()
+    trial = repair.StudyCandidate.experiment(
+        "randomized trial",
+        population="study",
+        interventions=["t"],
+        measured=["y"],
+        cost=9,
+        sample_size=100,
+        recruitment="consecutive recruitment",
+        timing="baseline",
+        unit="patient",
+        cost_unit="usd",
+        sample_budget=100,
+        feasible=True,
+    )
+    outcome = ant.analyze(
+        data,
+        graph=bow,
+        query=ant.AverageEffect("t", "y"),
+        on_refusal="describe",
+        evidence_candidates=[trial],
+    )
+    plan = outcome.evidence_plan.plan
+    assert plan is not None and plan.best is not None
+    assert plan.best.labels == ("randomized trial",)
+    with pytest.raises(CausalUnsupportedError):
+        ant.analyze(data, graph=bow, query=ant.AverageEffect("t", "y"), evidence_candidates=[trial])
+
+
 def _transport_query():
     from antecedent import transport
 

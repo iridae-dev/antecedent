@@ -74,6 +74,7 @@ reduced claim, the failed attempt and the next attempt are recorded beside it. A
 | Method | static / frequentist | static / bayesian | temporal / frequentist | temporal / bayesian |
 | --- | --- | --- | --- | --- |
 | `AnomalyAttribution` | licensed | licensed | licensed | licensed |
+| `Association` | executing | executing | executing | executing |
 | `Attribute` | executing | executing | executing | executing |
 | `AverageDerivative` | licensed | licensed | licensed | licensed |
 | `AverageEffect` | licensed | licensed | licensed | licensed |

@@ -995,6 +995,9 @@ pub enum ResultPayload {
     /// Sharp bounds on the average effect under a binary instrument: an identified set, never a
     /// point.
     IvBounds(Box<antecedent_estimate::IvBoundsEstimate>),
+    /// Noncausal association of the observed data: never an intervention effect, never a
+    /// ranking of actions.
+    Association(Box<crate::analysis::association::AssociationPayload>),
     /// Rollout design effects with whole-procedure uncertainty.
     QuasiRollout(Box<QuasiRolloutEstimate>),
     /// Structure, structure class or structure posterior a compiled search returned.
@@ -1546,6 +1549,24 @@ impl ResultPayload {
         }
     }
 
+    /// The noncausal association a compiled association route returned.
+    #[must_use]
+    pub fn association(&self) -> Option<&crate::analysis::association::AssociationPayload> {
+        match self {
+            Self::Association(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// The noncausal association a compiled association route returned, consuming the payload.
+    #[must_use]
+    pub fn into_association(self) -> Option<crate::analysis::association::AssociationPayload> {
+        match self {
+            Self::Association(value) => Some(*value),
+            _ => None,
+        }
+    }
+
     /// Rollout design effects with whole-procedure uncertainty.
     #[must_use]
     pub fn quasi_rollout(&self) -> Option<&QuasiRolloutEstimate> {
@@ -1583,6 +1604,7 @@ impl ResultPayload {
                 | Self::HistoryMatch(_)
                 | Self::TemporalDesign(_)
                 | Self::IvBounds(_)
+                | Self::Association(_)
                 | Self::QuasiRollout(_)
         )
     }
@@ -1726,6 +1748,12 @@ payload_accessors! {
 }
 
 impl StudyResult {
+    /// The noncausal association when the query was an association.
+    #[must_use]
+    pub fn association(&self) -> Option<&crate::analysis::association::AssociationPayload> {
+        self.payload.association()
+    }
+
     /// Anomaly scores when the query was anomaly attribution.
     #[must_use]
     pub fn anomaly(&self) -> Option<&[AnomalyScores]> {

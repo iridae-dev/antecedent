@@ -260,7 +260,7 @@ def enumerated_confounded_truth():
     return association, standardized[1] - standardized[0]
 
 
-def predictive_contract(assumptions=()):
+def predictive_contract(assumptions=(), source_class="predictive_quantity"):
     return sb.BridgeContract(
         kind="predictive_causal_quantity",
         source=outcome(
@@ -270,7 +270,7 @@ def predictive_contract(assumptions=()):
             regime="observational",
             functional="contrast",
         ),
-        source_class="predictive_quantity",
+        source_class=source_class,
         target=outcome(
             "cohort:y",
             units="probability",
@@ -283,6 +283,18 @@ def predictive_contract(assumptions=()):
         mapping=sb.IdentityMapping(),
         assumptions=tuple(assumptions),
     )
+
+
+def test_an_associational_quantity_is_never_a_causal_quantity_without_an_identification():
+    assert "associational_quantity" in sb.QUANTITY_CLASSES
+    error = refused(
+        lambda: sb.prepare_scientific_bridge(
+            predictive_contract(source_class="associational_quantity")
+        ),
+        "bridge_substitution_refused",
+        "scientific_bridge.association_as_intervention",
+    )
+    assert "associational_quantity" in error.message
 
 
 def test_an_association_is_a_causal_quantity_only_under_a_named_identification():

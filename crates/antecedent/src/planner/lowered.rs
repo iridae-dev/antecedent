@@ -110,6 +110,10 @@ pub enum FunctionalKind {
     /// mapping, a transport, a pool, a derived quantity, a decision utility and a
     /// preposterior update.
     PropagatedChain,
+    /// A noncausal association of an outcome with predictors in the observed law: a
+    /// conditional law, regression coefficients, an association measure or a scored
+    /// predictive model. It states no intervention.
+    Association,
 }
 
 impl FunctionalKind {
@@ -138,6 +142,7 @@ impl FunctionalKind {
             Self::Attribution => "attribution",
             Self::Simulation => "simulation",
             Self::PropagatedChain => "propagated_chain",
+            Self::Association => "association",
         }
     }
 }
@@ -279,6 +284,13 @@ pub(crate) enum IdentificationLayer {
     /// Identification of a feedback model that is not a graphical identification
     /// product of an acyclic model.
     NonGraphical(Arc<NonGraphicalIdentification>),
+    /// The program claims no identification: it describes the observed law and states no
+    /// causal contrast. When it follows a causal query that was refused, the refusal's
+    /// reason code is retained.
+    NotClaimed {
+        /// Reason code of the refused causal query this program follows.
+        refusal: Option<Arc<str>>,
+    },
 }
 
 /// Identification a feedback program carries in place of a graphical product.
@@ -395,6 +407,9 @@ impl IdentificationLayer {
             Self::NonGraphical(identification) => {
                 writer.text("non_graphical");
                 identification.write(writer);
+            }
+            Self::NotClaimed { refusal } => {
+                writer.text("not_claimed").opt_text(refusal.as_deref());
             }
         }
     }
@@ -846,6 +861,7 @@ impl LoweredProgram {
             IdentificationLayer::Retained(retained) => Some(retained),
             IdentificationLayer::Deferred { .. }
             | IdentificationLayer::PerExecution { .. }
+            | IdentificationLayer::NotClaimed { .. }
             | IdentificationLayer::NonGraphical(_) => None,
         }
     }
@@ -861,6 +877,7 @@ impl LoweredProgram {
             IdentificationLayer::NonGraphical(identification) => Some(identification),
             IdentificationLayer::Deferred { .. }
             | IdentificationLayer::PerExecution { .. }
+            | IdentificationLayer::NotClaimed { .. }
             | IdentificationLayer::Retained(_) => None,
         }
     }

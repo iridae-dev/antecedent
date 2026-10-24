@@ -738,6 +738,91 @@ fn an_association_is_a_causal_quantity_only_under_a_named_identification() {
     );
 }
 
+fn associational_contract(assumptions: Vec<BridgeAssumption>) -> BridgeContract {
+    let mut associational = predictive_contract(assumptions);
+    associational.source.class = QuantityClass::AssociationalQuantity;
+    associational
+}
+
+#[test]
+fn an_associational_quantity_is_refused_as_a_causal_quantity_until_identified() {
+    assert_eq!(QuantityClass::AssociationalQuantity.as_str(), "associational_quantity");
+    assert_eq!(
+        QuantityClass::from_name("associational_quantity"),
+        Some(QuantityClass::AssociationalQuantity)
+    );
+    let (association, effect) = confounded_model_truth();
+    let observational = quantity(
+        "cohort:y",
+        QuantityRole::Outcome,
+        "probability",
+        "contrast",
+        "registry",
+        "observational",
+    );
+
+    // The association offered where a causal quantity is required is the named substitution.
+    let unadjusted = claim(4, association, "probability");
+    let source = BridgeSource { claim: &unadjusted, quantity: &observational };
+    let refusal = assert_refused(
+        derive_bridged_claim(&associational_contract(Vec::new()), &source),
+        "bridge_substitution_refused",
+        "scientific_bridge.association_as_intervention",
+    );
+    assert_eq!(refusal.supplied.as_deref(), Some("associational_quantity"));
+    assert_eq!(refusal.expected.as_deref(), Some("causal_quantity"));
+
+    // An assumption of another kind does not stand in for the identification.
+    let linkage = vec![assumption("linkage", AssumptionKind::BehavioralLinkage, Some("study"))];
+    assert_refused(
+        derive_bridged_claim(&associational_contract(linkage), &source),
+        "bridge_substitution_refused",
+        "scientific_bridge.association_as_intervention",
+    );
+
+    // Only a named identification licenses the same pair, and it carries the identified value.
+    let identified = vec![assumption(
+        "backdoor",
+        AssumptionKind::Identification,
+        Some("identification:backdoor-z"),
+    )];
+    let adjusted = claim(5, effect, "probability");
+    let source = BridgeSource { claim: &adjusted, quantity: &observational };
+    let bridged = derive_bridged_claim(&associational_contract(identified), &source).unwrap();
+    assert!(close(bridged.value, effect, 1e-12));
+}
+
+#[test]
+fn an_associational_claim_is_never_a_bridge_source() {
+    let observational = quantity(
+        "cohort:y",
+        QuantityRole::Outcome,
+        "probability",
+        "contrast",
+        "registry",
+        "observational",
+    );
+    let identified = vec![assumption(
+        "backdoor",
+        AssumptionKind::Identification,
+        Some("identification:backdoor-z"),
+    )];
+    let mut association = claim(6, 0.54, "probability");
+    association.kind = ClaimKind::Associational;
+    association.domains = ClaimDomains::new(
+        DomainStatus::NotClaimed,
+        DomainStatus::Supported,
+        DomainStatus::Evaluated,
+    );
+    let source = BridgeSource { claim: &association, quantity: &observational };
+    let refusal = assert_refused(
+        derive_bridged_claim(&associational_contract(identified), &source),
+        "cell_not_licensed",
+        "scientific_bridge.source_not_point",
+    );
+    assert_eq!(refusal.supplied.as_deref(), Some("associational"));
+}
+
 #[test]
 fn predictive_importance_and_model_scores_are_closed_whatever_is_declared() {
     let everything = vec![

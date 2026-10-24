@@ -5,7 +5,12 @@
 //! evidence ([`TransportRepairFamily`]) or a fixed-graph back-door contract
 //! whose adjustment covariates were never measured jointly
 //! ([`BackdoorRepairFamily`]), or a checked z-transport proof whose required
-//! factors are missing ([`ZTransportRepairFamily`]). The family exposes its unresolved
+//! factors are missing ([`ZTransportRepairFamily`]). A failed identification
+//! also yields one family per identifier: front-door ([`FrontDoorRepairFamily`]),
+//! instrument ([`InstrumentRepairFamily`]), hedge ([`HedgeRepairFamily`]) and
+//! sensitivity ([`SensitivityRepairFamily`]), and
+//! [`identification_failure_obligations`] reads all of them from one failed
+//! identification result. The family exposes its unresolved
 //! [`EvidenceObligation`]s, each retaining its source proof step, and
 //! [`repair_contract`] applies the hypothetical evidence of
 //! [`DurableStudyCandidate`]s (one study, or a bounded subset) and re-runs the
@@ -24,12 +29,15 @@ pub use antecedent_contract::{
     EvidenceObligation, EvidenceObligationKind, ObligationProvenance, ObligationRegime,
 };
 use antecedent_core::ExecutionContext;
+pub use antecedent_design::obligation_adapters::identification_failure_obligations;
 pub use antecedent_design::{
     BackdoorRepairFamily, DurableStudyCandidate, ExpectedEvidence, FamilyVerdict,
+    FrontDoorRepairFamily, HedgeRepairFamily, InstrumentRepairFamily, LatentCause,
     RepairArtifactError, RepairClassification, RepairConsumeLimits, RepairError, RepairFamily,
     RepairFamilyRef, RepairLimits, RepairObjective, RepairOutcome, RepairReceipt, RepairReport,
-    RepairReportArtifact, StudyCandidateError, StudyCostDeclaration, StudyKind,
-    TransportRepairFamily, UnitRules, ZTransportRepairFamily,
+    RepairReportArtifact, SensitivityFinding, SensitivityMethod, SensitivityRepairFamily,
+    StudyCandidateError, StudyCostDeclaration, StudyKind, TransportRepairFamily, UnitRules,
+    ZTransportRepairFamily, latent_expansion,
 };
 
 /// A refused repair or artifact operation: the registered reason code and the
@@ -105,6 +113,10 @@ pub fn repair_with_artifact(
         RepairFamilyRef::Transport(f) => f,
         RepairFamilyRef::Backdoor(f) => f,
         RepairFamilyRef::ZTransport(f) => f,
+        RepairFamilyRef::FrontDoor(f) => f,
+        RepairFamilyRef::Instrument(f) => f,
+        RepairFamilyRef::Hedge(f) => f,
+        RepairFamilyRef::Sensitivity(f) => f,
     };
     let report = repair_contract(owner, candidates, objective, limits, ctx)?;
     let artifact = RepairReportArtifact::build(family, candidates, &report)?;

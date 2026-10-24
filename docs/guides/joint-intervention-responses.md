@@ -93,10 +93,92 @@ alternative while retaining selection uncertainty. Unique attribution to exposur
 saturation, composition or mechanism is refused without a separating design;
 explicit reference-world response changes remain available under their own scope.
 
+`JointPanelResult::decompose_reference` (Python: `PanelResult.decompose_reference`)
+now evaluates a complete four-component reference decomposition. Supply before/after
+programs, population weights, explicit time weights, a replacement order, and
+before/after parameter-period maps into the **same** retained fitted law. Stationary
+fits use parameter index zero; temporal maps preserve their joint model/path and
+selection realizations. Independently fitted marginal draws are never paired by index.
+
+The exposure block changes schedules and initial histories; saturation changes the
+half-saturation parameter; population changes scenario covariates, seasons and group
+weights; mechanism changes the remaining parameters, lag weights and group effects.
+The result retains all 16 hybrid responses, contributions from all 24 replacement
+orders, exact Shapley averages and the caller's sequential decomposition on every
+retained draw. `order_range` describes variation across orderings, separately from
+statistical uncertainty. Failed parent draw slots remain failed. Frozen execution
+programs can replay the same projection through `decompose_reference` without fitting.
+`joint_uncertainty()` returns the joint four-component covariance and total-change
+variance from complete aligned realizations, alongside requested/complete slot counts.
+It does not combine ordering sensitivity with statistical uncertainty or conceal failures.
+Use `PanelInference::FrequentistBootstrap` when the requested frequentist law must repeat
+the entire original fit. The local Gaussian option has its own approximation meaning.
+Temporal laws retain their original change/smoothing selection; Bayesian realizations
+retain the actual joint parameter/path draws.
+
+`decompose_reference_checked` additionally checks every hybrid against the retained
+identification product. Exact interventions with the same empirical population,
+parameter path and identified final response inherit their original world proof.
+Changed contexts, population laws and parameter interventions require their own transport
+premises; equal dose ranges or a fitted change curve do not establish those premises.
+The conditional calculation still executes when these finer causal obligations remain.
+`attempt_identified_reference_decomposition` accepts an explicit coarser request and
+actually evaluates it if finer identification fails, preserving the per-hybrid reasons.
+Identified reference responses do not establish unique causal attribution among factors.
+
+For broader scientific sources, `decompose_scientific_reference` consumes one actual
+`ScientificDecisionSource` with all required world responses and joint uncertainty.
+`ReferenceComponentBindings` assigns acted-on variables to three disjoint exposure,
+saturation and mechanism blocks, while population follows each world's population and
+conditioning bindings. The adapter checks every binary hybrid against the two endpoints:
+static interventions, temporal schedules and structural mechanism replacements retain
+separate semantics. The original compiler must supply any identification and transport
+proofs; an array of caller-asserted support flags cannot replace them. The result retains
+the complete scientific source and its question identity. The panel convenience method
+`decompose_compiled_components` derives that source from actual retained terminal means
+or the aligned law. This permits supported reference decomposition under the chosen
+scope without asserting uniquely determined causal attribution.
+
+The design-native `JointDesignResult.decompose_reference_components` preserves the
+whole response covariance in frequentist runs: exact linear maps propagate it into
+Shapley, sequential and all 24 ordering-specific covariance matrices. Posterior sources
+retain aligned draws and any finite-law importance weights. Versioned reference artifacts
+retain the original design, explicit component recipe, requested scope and numerical
+replay digest. `replay_reference_decomposition` returns historical numbers without a
+current-authorizing source; current consumption also compares the independently retained
+design and caller-specified bindings/scope. Changing an ordering cannot silently reuse an
+artifact for a different scientific question.
+
+
+
 Finite search certifies only the supplied feasible candidate set under its retained
-law. Continuous search reports a best-found feasible point and its stopping
-reason, without inventing a global optimality gap. Comparative or robust criteria
+law. General continuous search reports a best-found feasible point and its stopping
+reason. `JointPanelResult::compile_certified_search` (Python:
+`PanelResult.certify_program`) instead derives an arithmetic objective from the
+actual retained point response, including histories, lags, saturation, interactions,
+population and time weights. Declare every scheduled control explicitly, using equal
+bounds for a fixed coordinate. Supported arithmetic receives outward interval bounds,
+deterministic branch-and-bound and retained pruning counts/frontier. Compiler-derived
+derivative signs and additive factorization permit reductions; structurally proven
+concavity permits supporting-plane dual bounds with nonnegative multipliers. A resource
+stop retains a valid partial bound; only a gap meeting the requested tolerance certifies
+optimality. Unsupported expressions remain available to the general search route.
+
+Certificates preserve the incumbent's actual response source and original fitted
+dependency. Their versioned artifacts replay both the frozen panel evaluator and the
+numerical proof. Current consumption additionally compares current fit and domain
+identities. The certificate concerns the fitted scalar objective. Selected-value
+reliability remains separate. Comparative or robust criteria
 that need a finite set or identified set retain those requirements.
+
+The selection owner provides fixed-set joint bootstrap max-t intervals and a complete
+held-out procedure executor. The executor separates actual original observational
+units/time spans, repeats generation, fitting, feasibility, search and selection, then
+evaluates that fixed action on reserved observations. Whole-procedure cluster resampling
+retains failures, ties, instability and training-minus-heldout optimism. Bootstrap
+diagnostics do not assert coverage at ties. The evaluation owner's justified sampling
+law supplies fixed-action uncertainty; independent RNG seeds cannot replace reserved
+observational data.
 
 Experimental updates require a licensed estimand bridge, declared mapping
 uncertainty/dependence and evidence origins. The supported modular update
@@ -120,3 +202,44 @@ Frozen artifacts preserve the numerical law, dependencies, uncertainty meaning a
 failed slots. Independent historical replay grants no current authorization and
 does not attest that stored fit numbers were generated honestly. Current consumers
 supply the expected compiled program, frozen law and relevant evidence authority.
+
+A retained Bayesian result can be updated directly with
+`JointPanelResult::condition_experiment`, using the same frozen modular likelihood
+as the prepared experiment workflow. The update reweights complete source and
+mapping slots; it does not fit the panel again. Terminal means, window averages
+and explicit weighted time sums retain their exact projected quantity. A changed
+population, dose, duration or historical window requires the explicit estimand
+translation and transport premise in the bridge. The numeric affine map is an
+input model, rather than an assumed dose or duration scaling law.
+
+`JointLawExperimentResult::condition` also accepts an authenticated native design
+posterior with one checked world-mean coordinate per target world. It derives the
+assembled contrast from the scientific target and sparse projection, then uses
+the same paired likelihood, current evidence checks, decision owner and
+next-study integration. A frequentist sampling law cannot enter this Bayesian
+adapter. Its modular update carries conditional scope even when the original
+design identifies its original estimand. Export retains the original numerical
+law, bridge, likelihood and historical origins; replay returns historical numbers,
+and `consume_current` additionally binds the caller's original scientific source
+and current evidence ledger.
+
+The public experiment-chain fixture executes terminal, window and weighted
+projections across deterministic and dependent uncertain mappings, including
+changed population, dose, duration and time settings. Each row checks posterior
+weights and expectations against independent likelihood-ratio arithmetic, terminal
+utilities and operational exclusions against exhaustive enumeration, and
+next-study values against a separate predictive-mixture quadrature with a stated
+integration error bound. The standard-library reference in
+`conformance/response/joint_panel/experiment_reference.py` separately computes
+known-truth population/time/dose estimands and retained finite-law update,
+constrained-decision and future-study reference values. These checks do not grant
+a release calibration license.
+
+`joint_experiment_acceptance_matrix()` generates the required machine-readable
+protocol from `JOINT_DESIGN_CAPABILITIES`, rather than a hand-selected list of
+passing designs. It crosses every design with inference meaning, mapping
+uncertainty, population/time/dose/duration translation and decision/feasibility
+cases, and includes the panel's three advertised time projections. An outstanding
+implementation stays in its row as an implementation gap. A frequentist sampling
+law being offered as a Bayesian prior is recorded separately as a scientific
+refusal. Matrix rows state what must execute; they are not test results.

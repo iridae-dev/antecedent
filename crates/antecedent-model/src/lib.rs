@@ -40,6 +40,7 @@ pub mod model_collection;
 pub mod noise_replay;
 pub mod nonlinear_equilibrium;
 pub mod observation_query;
+pub mod observation_uncertainty;
 pub mod overlay;
 pub mod program;
 pub mod registry;

@@ -11,6 +11,8 @@ mod artifact_compat_sequential_reliability_golden;
 mod cohort_decision_input;
 #[path = "composition_boundary.rs"]
 mod composition_boundary;
+#[path = "composition_bridge_nodes.rs"]
+mod composition_bridge_nodes;
 #[path = "composition_bundle.rs"]
 mod composition_bundle;
 #[path = "composition_verifiers.rs"]

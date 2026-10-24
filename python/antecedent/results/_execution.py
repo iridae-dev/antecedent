@@ -137,7 +137,14 @@ class CalibrationInfo:
 
 
 AnswerKind = Literal[
-    "point", "bounds", "partial", "response", "structured", "policy_value", "unavailable"
+    "point",
+    "bounds",
+    "partial",
+    "response",
+    "structured",
+    "policy_value",
+    "associational",
+    "unavailable",
 ]
 
 #: The closed :attr:`Answer.kind` vocabulary, shared by live and loaded results.
@@ -151,6 +158,7 @@ CLAIM_KIND_ANSWERS: dict[str, AnswerKind] = {
     "mixture": "partial",
     "response": "response",
     "policy_value": "policy_value",
+    "associational": "associational",
     "incomplete": "unavailable",
     "refusal": "unavailable",
 }
@@ -174,6 +182,9 @@ class Answer:
     - ``structured``: an executed claim with no single scalar, such as a
       multi-horizon temporal mediation grid; read its structured fields
       (``result.mediation_grid``).
+    - ``associational``: a noncausal association of the observed data. Identification is
+      not claimed, so it is never an effect of an intervention and carries no ``value``
+      that reads as one; ``detail`` is ``noncausal_association``.
     - ``unavailable``: no claim (not identified, refused, not executed,
       non-finite, or not semantically accepted); ``detail`` names why.
 
@@ -224,6 +235,17 @@ def answer_from_artifact(contract: Mapping[str, Any], payload: Mapping[str, Any]
         )
     if kind is None:
         return Answer("unavailable", detail=f"unrecognized_claim_kind:{claim_kind}")
+    if kind == "associational":
+        section = payload.get("association")
+        return Answer(
+            "associational",
+            detail="noncausal_association",
+            structured=(
+                canonical_from_wire("association", section)
+                if isinstance(section, Mapping)
+                else None
+            ),
+        )
     limitation = ReasoningSlots.from_result_section(contract, payload).rendering_limitation()
     if kind == "policy_value":
         policy = payload.get("policy_value")
@@ -538,6 +560,13 @@ class ResultAPI:
                 detail="unlicensed_sequential_contrast_" + contrast.uncertainty,
                 structured=canonical_from_live("sequential_contrast", contrast),
             )
+        association = getattr(self, "association", None)
+        if association is not None:
+            return Answer(
+                "associational",
+                detail="noncausal_association",
+                structured=canonical_from_live("association", association),
+            )
         iv_bounds = getattr(self, "iv_bounds", None)
         if iv_bounds is not None:
             return Answer(
@@ -714,6 +743,11 @@ class ResultAPI:
                 f"{rollout.design} ({rollout.method}) summary {overall.estimate:g}: {spread} "
                 f"({rollout.uncertainty}). Unlicensed; calibration is unmeasured."
             )
+        association = getattr(self, "association", None)
+        if association is not None:
+            from ..descriptive import describe_association
+
+            return describe_association(association)
         iv_bounds = getattr(self, "iv_bounds", None)
         if iv_bounds is not None:
             spread = (

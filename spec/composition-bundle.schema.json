@@ -75,7 +75,10 @@
             "inverse_query",
             "repair_report",
             "recalculation_receipt",
-            "frozen_scores"
+            "frozen_scores",
+            "observation_query",
+            "scientific_bridge",
+            "propagation_chain"
           ]
         },
         "identity": {

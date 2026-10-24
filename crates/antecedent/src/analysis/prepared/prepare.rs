@@ -340,6 +340,10 @@ impl Study {
                 // observational law it reads and the premises it is correct under.
                 push(static_cache(self.prepare_static_identification(plan)?));
             }
+            (_, CausalQuery::Association(_)) => {
+                // An association claims no identification: there is no product to cache, and
+                // the lowered program records that the layer is not claimed.
+            }
             (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::Mediation(_)) => {
                 push(temporal(self.prepare_temporal_mediation_identification()?));
                 push(temporal_class(self.prepare_temporal_class_identification()?));

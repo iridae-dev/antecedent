@@ -157,6 +157,7 @@ def coerce_query(value: Any) -> Any:
     discriminator; anything without one is not a supported query type.
     """
     from ._temporal_design import TEMPORAL_DESIGN_QUERIES
+    from .descriptive import Association
     from .experiment import ComplierEffect, RandomizedEffect, SwitchbackEffect, TreatmentOnTreated
     from .interference import InterferenceQuery
     from .policy import ConditionalDoseResponse, MultiActionPolicyValue, PolicyValue
@@ -250,6 +251,7 @@ def coerce_query(value: Any) -> Any:
         SequentialContrast,
         PeriodHistoryMatch,
         IvBounds,
+        Association,
         SurvivalOutcome,
         CompetingRisksOutcome,
         *TEMPORAL_DESIGN_QUERIES,

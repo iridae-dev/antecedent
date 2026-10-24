@@ -16,6 +16,9 @@ pub use antecedent_core::{
     TransportQuery, UnitChangeQuery,
 };
 pub use antecedent_core::{
+    AssociationFunctional, AssociationMeasure, AssociationOutcome, AssociationQuery,
+};
+pub use antecedent_core::{
     AttributeQuery, AttributeTarget, ChangeEstimator, ChangeMeasure, DiscoverQuery,
     DiscoveredClass, DiscoveryInference, DiscoveryMethod, InfluenceAllocation,
     IntrinsicInfluenceTarget, MechanismChangeTest, NoiseDeclaration, ScreenWeight, SearchBounds,

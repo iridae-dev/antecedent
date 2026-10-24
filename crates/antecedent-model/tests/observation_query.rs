@@ -640,3 +640,362 @@ fn queries_observe_cancellation_on_a_large_law() {
         ObservationQueryError::Cancelled
     );
 }
+
+// ------------------------------------------------ continuous (Gaussian) evidence
+
+use antecedent_model::compose::{ComposedLinearGaussian, GaussianConditioningError};
+use antecedent_model::observation_query::{condition_after_intervention, condition_gaussian};
+use antecedent_model::observation_uncertainty::{
+    GaussianSufficient, RedrawPrior, RedrawTarget, RetainedMechanism, TableCountRow, TableCounts,
+    redraw_conditional,
+};
+
+fn real_binding(var: &str) -> ParentBinding {
+    ParentBinding {
+        variable: var.into(),
+        units: "u".into(),
+        transform: "identity".into(),
+        domain: Domain::Real,
+    }
+}
+
+fn lg(var: &str, intercept: f64, sigma: f64, parents: &[(&str, f64)]) -> MechanismDescriptor {
+    MechanismDescriptor {
+        variable: var.into(),
+        form: MechanismForm::LinearGaussian {
+            intercept,
+            sigma,
+            coefficients: parents.iter().map(|(p, c)| ((*p).to_owned(), *c)).collect(),
+        },
+        parents: parents.iter().map(|(p, _)| real_binding(p)).collect(),
+        conditioning_set: parents.iter().map(|(p, _)| (*p).to_owned()).collect(),
+        output_units: "u".into(),
+        output_transform: "identity".into(),
+        output_support: Domain::Real,
+        context: MechanismContext { population: "pop".into(), regime: "observational".into() },
+        provenance: MechanismProvenance {
+            origin: MechanismOrigin::Fitted,
+            artifact_id: format!("fit:{var}"),
+            evidence_id: format!("data:{var}"),
+        },
+        latents: Vec::new(),
+        uncertainty: None,
+    }
+}
+
+/// X ~ N(1, 4); M = 0.5 + 2 X + e (sd 1); Y = -1 + 0.5 X + 3 M + 0.5 e.
+/// Joint: mean (1, 2.5, 7); var X 4, M 17, Y 178.25; cov XM 8, XY 26, MY 55.
+fn gaussian_chain() -> ComposedLinearGaussian {
+    ComposedLinearGaussian::compile(&spec_of(vec![
+        lg("X", 1.0, 2.0, &[]),
+        lg("M", 0.5, 1.0, &[("X", 2.0)]),
+        lg("Y", -1.0, 0.5, &[("X", 0.5), ("M", 3.0)]),
+    ]))
+    .unwrap()
+}
+
+#[test]
+fn schur_complement_conditioning_matches_closed_forms() {
+    let ctx = ExecutionContext::for_tests(1);
+    let model = gaussian_chain();
+
+    // One observed coordinate: Y | M = 3 has mean 7 + (55 / 17)(3 - 2.5) and variance
+    // 178.25 - 55^2 / 17.
+    let one = condition_gaussian(&model, "Y", &[], &[("M", 3.0)], &ctx).unwrap();
+    near(one.mean, 7.0 + 55.0 / 17.0 * 0.5);
+    near(one.variance, 178.25 - 3025.0 / 17.0);
+    // The density of the evidence is the marginal N(2.5, 17) at 3.
+    let expected_density = -0.5 * ((2.0 * std::f64::consts::PI).ln() + 17.0_f64.ln() + 0.25 / 17.0);
+    near(one.evidence_log_density.unwrap(), expected_density);
+
+    // Conditioning on both parents of Y returns the structural equation: N(9, 0.25).
+    let parents = condition_gaussian(&model, "Y", &[], &[("X", 2.0), ("M", 3.0)], &ctx).unwrap();
+    near(parents.mean, -1.0 + 1.0 + 9.0);
+    near(parents.variance, 0.25);
+
+    // Two observed coordinates, M given (X = 2, Y = 10), by the explicit 2x2 inverse:
+    // det = 37, S_oo^-1 r = (100.25, -14) / 37, mean = 2.5 + 32 / 37, variance = 1 / 37.
+    let two = condition_gaussian(&model, "M", &[], &[("X", 2.0), ("Y", 10.0)], &ctx).unwrap();
+    near(two.mean, 2.5 + 32.0 / 37.0);
+    near(two.variance, 1.0 / 37.0);
+
+    // The order in which observed values are listed is not part of the answer.
+    let reversed = condition_gaussian(&model, "M", &[], &[("Y", 10.0), ("X", 2.0)], &ctx).unwrap();
+    assert_eq!(two, reversed);
+
+    // Nothing observed is the marginal law, with no evidence density.
+    let none = condition_gaussian(&model, "Y", &[], &[], &ctx).unwrap();
+    near(none.mean, 7.0);
+    near(none.variance, 178.25);
+    assert!(none.evidence_log_density.is_none());
+}
+
+#[test]
+fn observing_after_an_intervention_conditions_the_cut_graph() {
+    let ctx = ExecutionContext::for_tests(1);
+    let model = gaussian_chain();
+    // do(X = 2): M ~ N(4.5, 1), Y ~ N(13.5, 9.25), cov(M, Y) = 3. Observing M = 5 gives
+    // Y | ... of mean 13.5 + 3 (0.5) = 15 and variance 9.25 - 9 = 0.25, which is the
+    // structural equation at X = 2, M = 5: -1 + 1 + 15 and 0.5^2.
+    let mixed = condition_gaussian(&model, "Y", &[("X", 2.0)], &[("M", 5.0)], &ctx).unwrap();
+    near(mixed.mean, 15.0);
+    near(mixed.variance, 0.25);
+    // The observational conditional on the same M is 7 + (55/17)(2.5) = 15.088...; at X = 2 the
+    // two nearly agree (X = 2 is close to what M = 5 implies), so cut the graph elsewhere:
+    // do(X = -3), M = 5 is the structural equation -1 - 1.5 + 15 = 12.5 with variance 0.25.
+    let seen = condition_gaussian(&model, "Y", &[], &[("M", 5.0)], &ctx).unwrap();
+    near(seen.mean, 7.0 + 55.0 / 17.0 * 2.5);
+    let cut = condition_gaussian(&model, "Y", &[("X", -3.0)], &[("M", 5.0)], &ctx).unwrap();
+    near(cut.mean, 12.5);
+    near(cut.variance, 0.25);
+    assert!((seen.mean - cut.mean).abs() > 2.0);
+    // Intervention alone is the interventional law.
+    let alone = condition_gaussian(&model, "Y", &[("X", 2.0)], &[], &ctx).unwrap();
+    near(alone.mean, 13.5);
+    near(alone.variance, 9.25);
+}
+
+#[test]
+fn gaussian_conditioning_refusals_are_typed() {
+    let ctx = ExecutionContext::for_tests(1);
+    let model = gaussian_chain();
+    assert_eq!(
+        condition_gaussian(&model, "Y", &[("X", 2.0)], &[("X", 2.0)], &ctx).unwrap_err(),
+        ObservationQueryError::ObservedAndIntervened("X".into())
+    );
+    assert_eq!(
+        condition_gaussian(&model, "Y", &[], &[("Y", 1.0)], &ctx).unwrap_err(),
+        ObservationQueryError::OutcomeObserved("Y".into())
+    );
+    assert_eq!(
+        condition_gaussian(&model, "Y", &[], &[("Q", 1.0)], &ctx).unwrap_err(),
+        ObservationQueryError::UnknownVariable("Q".into())
+    );
+    assert_eq!(
+        condition_gaussian(&model, "Y", &[], &[("M", 1.0), ("M", 2.0)], &ctx).unwrap_err(),
+        ObservationQueryError::RepeatedVariable("M".into())
+    );
+    assert_eq!(
+        condition_gaussian(&model, "Y", &[], &[("M", f64::NAN)], &ctx).unwrap_err(),
+        ObservationQueryError::Invalid("an observed value must be finite")
+    );
+    // An intervened coordinate has zero variance: conditioning on it is singular.
+    let law = model.law(&[("X", 2.0)]).unwrap();
+    assert_eq!(
+        law.condition(&[("X", 2.0)]).unwrap_err(),
+        GaussianConditioningError::SingularEvidence
+    );
+    ctx.cancellation.cancel();
+    assert_eq!(
+        condition_gaussian(&model, "Y", &[], &[("M", 1.0)], &ctx).unwrap_err(),
+        ObservationQueryError::Cancelled
+    );
+}
+
+// ------------------------------------------ observation after intervention (finite)
+
+#[test]
+fn observation_after_an_intervention_matches_hand_enumeration() {
+    let ctx = ExecutionContext::for_tests(1);
+    let model = confounded([0.2, 0.8]);
+    // P(Y=1 | do(S=1), Z=1) = 0.9: the cut graph leaves Z at its prior and reads the cell.
+    let seen_z =
+        condition_after_intervention(&model, "Y", &[("S", "1")], &[("Z", "1")], &ctx).unwrap();
+    near(level(&seen_z.levels, "1"), 0.9);
+    near(seen_z.evidence_probability, 0.5);
+    // P(Z=1 | do(S=1), Y=1): a descendant of the intervention is informative about the cause
+    // that was left alone. By enumeration over z with S fixed at 1:
+    //   weight(z) = P(z) P(Y=1 | S=1, z) -> 0.5*0.3 = 0.15 and 0.5*0.9 = 0.45, so 0.75.
+    let weights: Vec<f64> = [0.3_f64, 0.9].iter().map(|p| 0.5 * p).collect();
+    let after =
+        condition_after_intervention(&model, "Z", &[("S", "1")], &[("Y", "1")], &ctx).unwrap();
+    near(level(&after.levels, "1"), weights[1] / weights.iter().sum::<f64>());
+    near(after.evidence_probability, 0.6);
+    // The observational conditional on the same recorded values keeps the S-Z association:
+    // P(Z=1 | S=1, Y=1) = (0.5*0.8*0.9) / (0.5*0.8*0.9 + 0.5*0.2*0.3) = 0.36 / 0.39.
+    let law = model.law(&[], &ctx).unwrap();
+    let observed = condition(&law, "Z", &[("S", "1"), ("Y", "1")], &ctx).unwrap();
+    near(level(&observed.levels, "1"), 0.36 / 0.39);
+    assert!((level(&observed.levels, "1") - level(&after.levels, "1")).abs() > 0.1);
+    // No recorded values is the interventional law.
+    let none = condition_after_intervention(&model, "Y", &[("S", "1")], &[], &ctx).unwrap();
+    near(level(&none.levels, "1"), 0.6);
+    // A variable that is both recorded and set is refused.
+    assert_eq!(
+        condition_after_intervention(&model, "Y", &[("S", "1")], &[("S", "1")], &ctx).unwrap_err(),
+        ObservationQueryError::ObservedAndIntervened("S".into())
+    );
+}
+
+// ------------------------------------------------ parameter uncertainty by redraw
+
+/// `y_i = 1 + 2 x_i + 0.5 sin(7 i)` at `x_i = i / 10`, `i < 50`.
+fn regression_data() -> (Vec<f64>, Vec<f64>) {
+    let x: Vec<f64> = (0..50_u32).map(|i| f64::from(i) / 10.0).collect();
+    let y: Vec<f64> =
+        x.iter().enumerate().map(|(i, xi)| 1.0 + 2.0 * xi + 0.5 * (7.0 * i as f64).sin()).collect();
+    (x, y)
+}
+
+fn regression_spec() -> ComposedModelSpec {
+    spec_of(vec![lg("X", 0.0, 1.0, &[]), lg("Y", 1.0, 0.5, &[("X", 2.0)])])
+}
+
+#[test]
+fn normal_inverse_gamma_redraw_matches_the_student_t_posterior() {
+    let ctx = ExecutionContext::for_tests(3);
+    let (x, y) = regression_data();
+    let stats = GaussianSufficient::from_columns("Y", &[("X", &x)], &y).unwrap();
+    let prior = RedrawPrior::default();
+    let target = RedrawTarget::Gaussian {
+        outcome: "Y".into(),
+        interventions: vec![("X".into(), 3.0)],
+        observed: vec![],
+    };
+    let draws = redraw_conditional(
+        &regression_spec(),
+        &target,
+        &[RetainedMechanism::Gaussian(stats)],
+        &prior,
+        20_000,
+        7,
+        &ctx,
+    )
+    .unwrap();
+    assert_eq!(draws.quantities, ["conditional_mean", "conditional_variance"]);
+    assert_eq!(draws.draws, 20_000);
+    // The point value is the composition's own numbers: 1 + 2 * 3.
+    near(draws.point[0], 7.0);
+
+    // Independent closed form: normal equations of the 2x2 regression with the ridge, then
+    // the Student-t law of w'beta for w = (1, 3) with 2 a_n degrees of freedom.
+    let n = 50.0;
+    let sx: f64 = x.iter().sum();
+    let sxx: f64 = x.iter().map(|v| v * v).sum();
+    let sy: f64 = y.iter().sum();
+    let sxy: f64 = x.iter().zip(&y).map(|(a, b)| a * b).sum();
+    let syy: f64 = y.iter().map(|v| v * v).sum();
+    let (a11, a12, a22) = (n + prior.coefficient_precision, sx, sxx + prior.coefficient_precision);
+    let det = a11 * a22 - a12 * a12;
+    let m0 = (a22 * sy - a12 * sxy) / det;
+    let m1 = (-a12 * sy + a11 * sxy) / det;
+    let shape = prior.variance_shape + n / 2.0;
+    let scale = prior.variance_scale + 0.5 * (syy - m0 * sy - m1 * sxy);
+    let w = [1.0, 3.0];
+    let quad = (a22 * w[0] * w[0] - 2.0 * a12 * w[0] * w[1] + a11 * w[1] * w[1]) / det;
+    let location = m0 + 3.0 * m1;
+    let df = 2.0 * shape;
+    let t_sd = (scale / shape * quad).sqrt() * (df / (df - 2.0)).sqrt();
+
+    let mean = draws.mean(0);
+    let sd = draws.standard_deviation(0);
+    assert!((mean - location).abs() < 5.0 * t_sd / (20_000.0_f64).sqrt(), "{mean} vs {location}");
+    assert!((sd / t_sd - 1.0).abs() < 0.05, "{sd} vs {t_sd}");
+    // The conditional variance of Y under do(X) is sigma^2 ~ InvGamma(a_n, b_n): mean b / (a - 1).
+    let variance_mean = draws.mean(1);
+    let expected = scale / (shape - 1.0);
+    assert!((variance_mean / expected - 1.0).abs() < 0.03, "{variance_mean} vs {expected}");
+}
+
+#[test]
+fn redraw_is_deterministic_and_the_rows_are_one_joint_realization() {
+    let ctx = ExecutionContext::for_tests(3);
+    let (x, y) = regression_data();
+    let stats = GaussianSufficient::from_columns("Y", &[("X", &x)], &y).unwrap();
+    let target = RedrawTarget::Gaussian {
+        outcome: "Y".into(),
+        interventions: vec![],
+        observed: vec![("X".into(), 1.0)],
+    };
+    let run = |seed: u64, draws: u32| {
+        redraw_conditional(
+            &regression_spec(),
+            &target,
+            &[RetainedMechanism::Gaussian(stats.clone())],
+            &RedrawPrior::default(),
+            draws,
+            seed,
+            &ctx,
+        )
+        .unwrap()
+    };
+    let a = run(11, 400);
+    let b = run(11, 400);
+    assert_eq!(a, b);
+    assert_ne!(a.values, run(12, 400).values);
+    // Draw i of a longer run begins with the same rows: a draw depends on the seed and its
+    // index only.
+    let longer = run(11, 800);
+    assert_eq!(a.values[..], longer.values[..a.values.len()]);
+    assert_eq!(a.values.len(), 400 * 2);
+}
+
+#[test]
+fn dirichlet_redraw_of_one_table_matches_the_beta_posterior() {
+    let ctx = ExecutionContext::for_tests(3);
+    let spec = spec_of(vec![table("Y", &[], B, &[(&[], &[0.3, 0.7])])]);
+    let counts = TableCounts {
+        variable: "Y".into(),
+        rows: vec![TableCountRow {
+            parent_levels: vec![],
+            counts: vec![("0".into(), 30), ("1".into(), 70)],
+        }],
+    };
+    let target =
+        RedrawTarget::Finite { outcome: "Y".into(), interventions: vec![], observed: vec![] };
+    let draws = redraw_conditional(
+        &spec,
+        &target,
+        &[RetainedMechanism::Table(counts)],
+        &RedrawPrior::default(),
+        20_000,
+        5,
+        &ctx,
+    )
+    .unwrap();
+    assert_eq!(draws.quantities, ["probability:0", "probability:1"]);
+    near(draws.point[1], 0.7);
+    // P(Y=1) ~ Beta(71, 31): mean 71/102, variance 71 * 31 / (102^2 * 103).
+    let mean = 71.0 / 102.0;
+    let sd = (71.0_f64 * 31.0 / (102.0 * 102.0 * 103.0)).sqrt();
+    assert!((draws.mean(1) - mean).abs() < 5.0 * sd / (20_000.0_f64).sqrt());
+    assert!((draws.standard_deviation(1) / sd - 1.0).abs() < 0.04);
+    // The two levels of one draw are one distribution: every row sums to one.
+    for row in draws.values.chunks(2) {
+        assert!((row[0] + row[1] - 1.0).abs() < 1e-12);
+    }
+}
+
+#[test]
+fn redraw_refuses_mismatched_retained_data_and_bad_counts() {
+    let ctx = ExecutionContext::for_tests(3);
+    let (x, y) = regression_data();
+    let target =
+        RedrawTarget::Gaussian { outcome: "Y".into(), interventions: vec![], observed: vec![] };
+    let draw = |retained: RetainedMechanism, draws: u32, prior: RedrawPrior| {
+        redraw_conditional(&regression_spec(), &target, &[retained], &prior, draws, 1, &ctx)
+    };
+    let good = GaussianSufficient::from_columns("Y", &[("X", &x)], &y).unwrap();
+    // Regressors that are not the declared parents.
+    let wrong = GaussianSufficient::from_columns("Y", &[], &y).unwrap();
+    assert!(matches!(
+        draw(RetainedMechanism::Gaussian(wrong), 10, RedrawPrior::default()),
+        Err(ObservationQueryError::Invalid(_))
+    ));
+    // Data of another family than the mechanism.
+    let counts = TableCounts { variable: "Y".into(), rows: vec![] };
+    assert!(matches!(
+        draw(RetainedMechanism::Table(counts), 10, RedrawPrior::default()),
+        Err(ObservationQueryError::Invalid(_))
+    ));
+    // A draw count outside the supported range and a prior outside its range.
+    assert!(draw(RetainedMechanism::Gaussian(good.clone()), 1, RedrawPrior::default()).is_err());
+    let bad_prior = RedrawPrior { variance_scale: 0.0, ..RedrawPrior::default() };
+    assert!(draw(RetainedMechanism::Gaussian(good), 10, bad_prior).is_err());
+    // Retained data of a variable the composition does not have.
+    let stranger = GaussianSufficient::from_columns("Q", &[], &y).unwrap();
+    assert_eq!(
+        draw(RetainedMechanism::Gaussian(stranger), 10, RedrawPrior::default()).unwrap_err(),
+        ObservationQueryError::UnknownVariable("Q".into())
+    );
+}

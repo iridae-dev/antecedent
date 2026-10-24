@@ -87,6 +87,9 @@ NodeKind = Literal[
     "repair_report",
     "recalculation_receipt",
     "frozen_scores",
+    "observation_query",
+    "scientific_bridge",
+    "propagation_chain",
 ]
 """The kind of a bundle node, named for the part of a composed decision it carries (a
 distribution, a decision contract or result, a sensitivity artifact, a study ranking, ...).
@@ -119,6 +122,9 @@ NODE_KINDS: tuple[str, ...] = (
     "repair_report",
     "recalculation_receipt",
     "frozen_scores",
+    "observation_query",
+    "scientific_bridge",
+    "propagation_chain",
 )
 #: Kinds whose artifacts can be embedded (the rest are carried as references).
 EMBEDDABLE_KINDS: tuple[str, ...] = (
@@ -138,6 +144,9 @@ EMBEDDABLE_KINDS: tuple[str, ...] = (
     "repair_report",
     "recalculation_receipt",
     "frozen_scores",
+    "observation_query",
+    "scientific_bridge",
+    "propagation_chain",
 )
 RELATIONSHIPS: tuple[str, ...] = (
     "shared_data",

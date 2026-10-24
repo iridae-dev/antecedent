@@ -4,7 +4,7 @@ source_translation = false
 copied_code = false
 copied_comments = false
 copied_tests = false
-papers = []
+papers = ["https://stanford.edu/~boyd/cvxbook/bv_cvxslides.pdf"]
 implementation_deviations = [
   "Independent deterministic exhaustive finite-set comparison and bounded coordinate pattern search; the existing decision functional engine evaluates every mean/law objective and hard risk constraint.",
   "Operational bounds, scheduled control costs, budget and linear restrictions remain hard feasibility conditions. No objective penalty stands in for feasibility.",
@@ -12,10 +12,21 @@ implementation_deviations = [
   "Continuous coordinate polling uses a declared finite work/stopping policy, shared frozen-fit response adapter and the original aligned uncertainty realizations. No derivative is estimated or advertised. An absent valid global bound is reported as no gap and no global certificate.",
   "Comparative optimality/regret requires an explicit competing set; robust structure requires its actual set law. Unsupported continuous objectives refuse rather than silently substitute expected utility.",
   "ScientificDecisionSource carries native target/proof/dependency identities through decision and search; a model-conditional product refuses identified-causal consumption. Numerical mean/law components alone issue no scientific permission.",
+  "The certified-expression owner performs deterministic best-bound subdivision with outward-rounded arithmetic and operational constraint bounds. The panel compiler derives the objective from its actual fitted lag/saturation/interaction response and explicit scheduled controls. Derivative enclosures prove monotone reductions, additive expression and constraint structure prove independent coordinate reductions, and concave supporting-plane Lagrangian bounds retain nonnegative feasible dual multipliers. Exhausted subdivisions retain the global bound and unresolved frontier. These numerical proofs grant no statistical reliability.",
+  "Versioned certificate artifacts reconstruct the expression and repeat region, shape, separability and dual calculations. Full panel certificates independently derive the objective from the stored frozen response; current consumption also checks current fitted evidence and objective/domain identities. Stored bounds are never accepted as assertions.",
+  "Fixed-set max-t intervals consume complete aligned bootstrap estimate/standard-error rows, refuse missing slots or changed candidate sets, and preserve cross-candidate dependence. Their statistical validity still requires a valid complete-procedure bootstrap. Observational holdout checks use original unit/time spans and declared dependence gaps, never distinct random seeds as data separation.",
+  "The whole-procedure selection executor supplies observationally separated training and evaluation views and repeats generation, fitting, feasibility, search, selection and held-out evaluation on resampled original unit clusters. It retains failed stages, selected program instability, near ties and training-minus-heldout optimism. Repetitions are diagnostics, with no ordinary-bootstrap coverage assertion at ties; selected-value coverage depends on the evaluation owner's justified fixed-action sampling law. The independent normal-response implementation scenario tests continuous search, optimism and held-out selected-value coverage across 400 seeds without granting release calibration.",
 ]
 upstream_implementations_observed = []
 test_sources = [
   "crates/antecedent-design/src/program_search.rs",
   "crates/antecedent-design/src/program_search/continuous.rs",
+  "crates/antecedent-design/src/program_search/certified.rs",
+  "crates/antecedent-design/src/program_search/selection.rs",
+  "crates/antecedent-design/src/program_search/certified/shape.rs",
+  "crates/antecedent-design/src/program_search/certified/separable.rs",
+  "crates/antecedent-design/src/program_search/certified/artifact.rs",
+  "crates/antecedent-design/src/program_search/selection/procedure.rs",
+  "crates/antecedent-estimate/src/joint_panel/expression.rs",
   "crates/antecedent/tests/joint_panel_workflow.rs",
 ]

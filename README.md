@@ -91,6 +91,8 @@ print("Artifact acceptance:", loaded.acceptance.status)
 
 Expect an estimate near two; the update adds one. The bootstrap budget is small: check calibration before relying on coverage. Execution checks assumption compatibility, not truth. Loading restores the result and acceptance report, not a live study or dataset.
 
+When the declared structure does not identify a question, `analyze` raises a typed refusal. Opt in with `on_refusal="describe"` to keep that refusal unchanged and get, beside it, a labelled noncausal description of the observed data and the evidence that would resolve it; the description is not an answer to the causal question. See [the fallback guide](docs/guides/fallback.md).
+
 Continue with the [Python workflow](docs/python-workflow.md), [Rust quickstart](docs/rust-quickstart.md) or [examples](examples/README.md). 
 
 ### Antecedent capabilities

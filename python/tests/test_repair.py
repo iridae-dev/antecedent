@@ -504,3 +504,140 @@ def test_scientific_obligation_descriptors_refuse_wrong_population_and_duplicate
 def test_obligation_quantities_refuse_untyped_inputs(quantities):
     with pytest.raises(CausalTypeError, match="quantities must"):
         repair.obligations(backdoor(), quantities=quantities)
+
+
+# ------------------------------------------- one contract per identifier
+
+
+def frontdoor_contract(observed=("t", "y")):
+    # t -> m -> y with an unmeasured u confounding t and y: the mediator m identifies.
+    return repair.FrontDoorContract(
+        graph=Dag.from_edges(
+            ["t", "m", "y", "u"], [("t", "m"), ("m", "y"), ("u", "t"), ("u", "y")]
+        ),
+        treatment="t",
+        outcome="y",
+        population="clinic",
+        observed=list(observed),
+    )
+
+
+def test_front_door_contract_owes_the_mediator_set_as_one_joint_law():
+    (obligation,) = repair.obligations(frontdoor_contract())
+    assert obligation.kind == "provide_joint_law"
+    assert set(obligation.variables) == {"t", "m", "y"}
+    assert obligation.family == "frontdoor"
+    assert obligation.proof_step == "frontdoor.mediator_set:1"
+    result = repair.repair(
+        frontdoor_contract(),
+        [
+            observation("cohort_ty", ["t", "y"], 4),
+            observation("mediator_survey", ["t", "m", "y"], 9),
+        ],
+    )
+    assert result.outcome == "repaired"
+    assert result.best is not None and result.best.labels == ("mediator_survey",)
+    assert result.best.derivation is not None
+    assert result.best.derivation.checker == "frontdoor.adjustment"
+    assert repair.consume(result.export()).best == result.best
+
+
+def test_front_door_contract_that_already_identifies_refuses():
+    with pytest.raises(repair.RepairRefusal) as caught:
+        frontdoor_contract(observed=("t", "m", "y"))
+    assert caught.value.detail == "identification_repair.not_a_failure"
+    assert_registered_refusal(caught.value)
+
+
+def test_instrument_validity_is_an_assumption_no_study_satisfies():
+    contract = repair.InstrumentContract(
+        graph=Dag.from_edges(
+            ["z", "t", "y", "u"], [("z", "t"), ("t", "y"), ("u", "t"), ("u", "y")]
+        ),
+        treatment="t",
+        outcome="y",
+        population="clinic",
+        observed=["t", "y"],
+    )
+    found = repair.obligations(contract)
+    assert [o.proof_step for o in found] == [
+        "iv.instrument:0",
+        "iv.exclusion:0",
+        "iv.relevance:0",
+        "iv.effect_restriction",
+    ]
+    assumptions = [o for o in found if o.kind == "establish_assumption"]
+    assert len(assumptions) == 3
+    assert all(not o.satisfiable_by_study for o in assumptions)
+    result = repair.repair(contract, [observation("instrumented", ["z", "t", "y"], 8)])
+    assert result.outcome == "none_certified"
+    assert result.classification("instrumented") == "not_certified"
+    assert result.reason_code == "transport_missing_evidence"
+    assert result.detail == "evidence_obligations.wrong_contract"
+
+
+def hedge_contract():
+    # t -> w -> y with t <-> y and w <-> y: observation cannot identify do(t).
+    return repair.HedgeContract(
+        graph=Admg.from_edges(
+            ["t", "w", "y"], [("t", "w"), ("w", "y")], [("t", "y"), ("w", "y")]
+        ),
+        treatment="t",
+        outcome="y",
+        population="clinic",
+        observed=["t", "w", "y"],
+    )
+
+
+def test_hedge_contract_owes_experiments_and_only_experiments_repair_it():
+    found = repair.obligations(hedge_contract())
+    assert [o.kind for o in found] == ["intervene", "intervene"]
+    assert [o.interventions for o in found] == [("t",), ("w",)]
+    assert found[0].proof_step.startswith("hedge:f=[")
+    assert found[1].proof_step == "hedge.surrogate:1"
+    result = repair.repair(
+        hedge_contract(),
+        [
+            trial("randomize_t", "clinic", 10, interventions=("t",)),
+            trial("randomize_w", "clinic", 6, interventions=("w",)),
+            observation("registry", ["t", "w", "y"], 2),
+        ],
+    )
+    assert result.outcome == "repaired"
+    assert result.classification("randomize_t") == "verified_sufficient"
+    assert result.classification("randomize_w") == "verified_sufficient"
+    assert result.classification("registry") == "insufficient"
+    assert result.best is not None and result.best.labels == ("randomize_w",)
+
+
+def sensitivity_contract(*, robust=False):
+    return repair.SensitivityContract(
+        graph=Dag.from_edges(["t", "y", "z"], [("z", "t"), ("z", "y"), ("t", "y")]),
+        treatment="t",
+        outcome="y",
+        population="clinic",
+        observed=["t", "y", "z"],
+        method="e_value",
+        strength=1.4,
+        robust=robust,
+    )
+
+
+def test_sensitivity_finding_owes_the_confounder_it_names():
+    (obligation,) = repair.obligations(sensitivity_contract())
+    assert obligation.family == "sensitivity"
+    assert obligation.proof_step == "sensitivity.e_value:strength=1.4"
+    assert "unmeasured_confounder" in obligation.variables
+    result = repair.repair(
+        sensitivity_contract(),
+        [
+            observation("more_rows", ["t", "y", "z"], 3),
+            observation("assay", ["t", "y", "z", "unmeasured_confounder"], 12),
+        ],
+    )
+    assert result.outcome == "repaired"
+    assert result.best is not None and result.best.labels == ("assay",)
+    assert repair.consume(result.export()).best == result.best
+    with pytest.raises(repair.RepairRefusal) as caught:
+        sensitivity_contract(robust=True)
+    assert caught.value.detail == "identification_repair.not_a_failure"

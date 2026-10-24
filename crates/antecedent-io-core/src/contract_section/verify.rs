@@ -3,9 +3,10 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::consume::{
-    claim_domains, claim_id_matches, claim_kind_name, claim_value_matches_body, contract_seal_of,
-    identification_product_matches_body, require_nested_digest, require_payload_digest,
-    require_present, require_slot, support_empirical, validate_mixture_masses, weight_basis_name,
+    claim_domains_of_section, claim_id_matches, claim_kind_name_of_section,
+    claim_value_matches_body, contract_seal_of, identification_product_matches_body,
+    require_nested_digest, require_payload_digest, require_present, require_slot,
+    support_empirical, validate_mixture_masses, weight_basis_name,
 };
 use super::replay::{
     contract_uses_estimator, is_aipw_contract, is_functional_distribution_contract,
@@ -926,8 +927,7 @@ pub(in crate::contract_section) fn note_published_claim(
         if claim.kind != "point" && claim.value_bits.is_some() {
             unresolved.push(ContractReason::ClaimValue);
         }
-        let identification = contract.reasoning.identification.value.as_ref();
-        if claim.kind != claim_kind_name(body, identification) {
+        if claim.kind != claim_kind_name_of_section(body, &contract.reasoning.identification) {
             unresolved.push(ContractReason::ClaimKind);
         }
         let support = contract.reasoning.support.value.as_ref();
@@ -938,7 +938,7 @@ pub(in crate::contract_section) fn note_published_claim(
                 unresolved.push(ContractReason::ReasoningSupportEmpirical);
             }
         }
-        let domains = claim_domains(support, identification);
+        let domains = claim_domains_of_section(support, &contract.reasoning.identification);
         if claim.identification_domain != domains.identification
             || claim.support_domain != domains.support
             || claim.evaluated_domain != domains.evaluated

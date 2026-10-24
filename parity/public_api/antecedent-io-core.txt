@@ -6,6 +6,8 @@
 #[doc(hidden)] pub fn <antecedent_io_core::adaptive_monitoring_contract_artifact::AdaptiveMonitoringContractArtifact>::fn reseal_identity(meta: &mut antecedent_io_core::adaptive_monitoring_contract_artifact::MonitoringContractMeta)
 #[doc(hidden)] pub fn <antecedent_io_core::bridge_artifact::ScientificBridgeArtifact>::fn from_meta(meta: &antecedent_io_core::bridge_artifact::ScientificBridgeMeta, expected_identity: core::option::Option<&str>) -> core::result::Result<Self, antecedent_io_core::bridge_artifact::ScientificBridgeArtifactError>
 #[doc(hidden)] pub fn <antecedent_io_core::bridge_artifact::ScientificBridgeArtifact>::fn reseal_identity(meta: &mut antecedent_io_core::bridge_artifact::ScientificBridgeMeta)
+#[doc(hidden)] pub fn <antecedent_io_core::bridge_artifact::ScientificBridgeDrawsArtifact>::fn from_meta(meta: &antecedent_io_core::bridge_artifact::ScientificBridgeMeta, source_draws: &[u8], expected_identity: core::option::Option<&str>) -> core::result::Result<Self, antecedent_io_core::bridge_artifact::ScientificBridgeArtifactError>
+#[doc(hidden)] pub fn <antecedent_io_core::bridge_artifact::ScientificBridgeDrawsArtifact>::fn reseal_identity(meta: &mut antecedent_io_core::bridge_artifact::ScientificBridgeMeta)
 #[doc(hidden)] pub fn <antecedent_io_core::callback_result_artifact::CallbackResultArtifact>::fn from_meta(meta: &antecedent_io_core::callback_result_artifact::CallbackResultMeta, values: &[f64], expected_identity: core::option::Option<&str>) -> core::result::Result<Self, antecedent_io_core::callback_result_artifact::CallbackResultArtifactError>
 #[doc(hidden)] pub fn <antecedent_io_core::callback_result_artifact::CallbackResultArtifact>::fn meta_to_bytes(meta: &antecedent_io_core::callback_result_artifact::CallbackResultMeta, values: &[f64], artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::callback_result_artifact::CallbackResultArtifactError>
 #[doc(hidden)] pub fn <antecedent_io_core::callback_result_artifact::CallbackResultArtifact>::fn reseal_identity(meta: &mut antecedent_io_core::callback_result_artifact::CallbackResultMeta)
@@ -44,6 +46,7 @@
 #[non_exhaustive] pub enum antecedent_io_core::PropagationChainError
 #[non_exhaustive] pub enum antecedent_io_core::adaptive_monitoring_contract_artifact::AdaptiveMonitoringContractError
 #[non_exhaustive] pub enum antecedent_io_core::bound_identity::BoundRefusal
+#[non_exhaustive] pub enum antecedent_io_core::bridge_artifact::ScientificBridgeAny
 #[non_exhaustive] pub enum antecedent_io_core::bridge_artifact::ScientificBridgeArtifactError
 #[non_exhaustive] pub enum antecedent_io_core::callback_result_artifact::CallbackResultArtifactError
 #[non_exhaustive] pub enum antecedent_io_core::capacity_account::CapacityError
@@ -105,6 +108,13 @@ impl core::clone::Clone for antecedent_io_core::ArtifactCheckError
 impl core::clone::Clone for antecedent_io_core::ArtifactKind
 impl core::clone::Clone for antecedent_io_core::ArtifactManifest
 impl core::clone::Clone for antecedent_io_core::AssignmentDesignWire
+impl core::clone::Clone for antecedent_io_core::AssociationFunctionalWire
+impl core::clone::Clone for antecedent_io_core::AssociationPosteriorWire
+impl core::clone::Clone for antecedent_io_core::AssociationPredictionWire
+impl core::clone::Clone for antecedent_io_core::AssociationQueryWire
+impl core::clone::Clone for antecedent_io_core::AssociationResamplingWire
+impl core::clone::Clone for antecedent_io_core::AssociationTermWire
+impl core::clone::Clone for antecedent_io_core::AssociationWire
 impl core::clone::Clone for antecedent_io_core::AssumptionRecordWire
 impl core::clone::Clone for antecedent_io_core::AssumptionSlotWire
 impl core::clone::Clone for antecedent_io_core::AssumptionTagWire
@@ -305,6 +315,8 @@ impl core::clone::Clone for antecedent_io_core::RdConfigWire
 impl core::clone::Clone for antecedent_io_core::RdDesignWire
 impl core::clone::Clone for antecedent_io_core::ReasoningSectionWire
 impl core::clone::Clone for antecedent_io_core::RecordedContrastWire
+impl core::clone::Clone for antecedent_io_core::RedrawPriorWire
+impl core::clone::Clone for antecedent_io_core::RedrawTargetWire
 impl core::clone::Clone for antecedent_io_core::RefutationReportWire
 impl core::clone::Clone for antecedent_io_core::ResponseEnvelopeWire
 impl core::clone::Clone for antecedent_io_core::ResponseFunctionalWire
@@ -313,6 +325,7 @@ impl core::clone::Clone for antecedent_io_core::ResponseOptionsWire
 impl core::clone::Clone for antecedent_io_core::ResponseQueryWire
 impl core::clone::Clone for antecedent_io_core::ResponseUncertaintyWire
 impl core::clone::Clone for antecedent_io_core::ResponseValueWire
+impl core::clone::Clone for antecedent_io_core::RetainedMechanismWire
 impl core::clone::Clone for antecedent_io_core::SchemaWire
 impl core::clone::Clone for antecedent_io_core::SchemaWireV01
 impl core::clone::Clone for antecedent_io_core::ScoreReuseIdentityWire
@@ -412,17 +425,27 @@ impl core::clone::Clone for antecedent_io_core::bound_identity::IdentitySlot
 impl core::clone::Clone for antecedent_io_core::bound_identity::SelfDescribedDigest
 impl core::clone::Clone for antecedent_io_core::bridge_artifact::AssumptionWire
 impl core::clone::Clone for antecedent_io_core::bridge_artifact::ContractWire
+impl core::clone::Clone for antecedent_io_core::bridge_artifact::DependenceWire
+impl core::clone::Clone for antecedent_io_core::bridge_artifact::DrawsWire
 impl core::clone::Clone for antecedent_io_core::bridge_artifact::EndpointWire
+impl core::clone::Clone for antecedent_io_core::bridge_artifact::EstimandWire
+impl core::clone::Clone for antecedent_io_core::bridge_artifact::ExposureWire
 impl core::clone::Clone for antecedent_io_core::bridge_artifact::FitWire
 impl core::clone::Clone for antecedent_io_core::bridge_artifact::FullBridgeContractWire
+impl core::clone::Clone for antecedent_io_core::bridge_artifact::MappingUncertaintyWire
 impl core::clone::Clone for antecedent_io_core::bridge_artifact::MappingWire
 impl core::clone::Clone for antecedent_io_core::bridge_artifact::PremiseWire
+impl core::clone::Clone for antecedent_io_core::bridge_artifact::ScientificBridgeAny
 impl core::clone::Clone for antecedent_io_core::bridge_artifact::ScientificBridgeArtifact
 impl core::clone::Clone for antecedent_io_core::bridge_artifact::ScientificBridgeArtifactError
+impl core::clone::Clone for antecedent_io_core::bridge_artifact::ScientificBridgeDrawsArtifact
 impl core::clone::Clone for antecedent_io_core::bridge_artifact::ScientificBridgeMeta
 impl core::clone::Clone for antecedent_io_core::bridge_artifact::ScopeWire
 impl core::clone::Clone for antecedent_io_core::bridge_artifact::SourceWire
 impl core::clone::Clone for antecedent_io_core::bridge_artifact::TrialWire
+impl core::clone::Clone for antecedent_io_core::bridge_distribution::AffineColumns
+impl core::clone::Clone for antecedent_io_core::bridge_distribution::BridgeChainStage
+impl core::clone::Clone for antecedent_io_core::bridge_distribution::BridgedDistribution
 impl core::clone::Clone for antecedent_io_core::calibration::CalibrationBasisWire
 impl core::clone::Clone for antecedent_io_core::calibration::CalibrationKeyWire
 impl core::clone::Clone for antecedent_io_core::calibration::CalibrationScopeWire
@@ -972,7 +995,10 @@ impl core::cmp::Eq for antecedent_io_core::ProvenanceNodeWire
 impl core::cmp::Eq for antecedent_io_core::ProvenanceWire
 impl core::cmp::Eq for antecedent_io_core::RandomizationDesignWire
 impl core::cmp::Eq for antecedent_io_core::RandomizedEstimandWire
+impl core::cmp::Eq for antecedent_io_core::RedrawPriorWire
+impl core::cmp::Eq for antecedent_io_core::RedrawTargetWire
 impl core::cmp::Eq for antecedent_io_core::ResponseOptionsWire
+impl core::cmp::Eq for antecedent_io_core::RetainedMechanismWire
 impl core::cmp::Eq for antecedent_io_core::SchemaWire
 impl core::cmp::Eq for antecedent_io_core::SchemaWireV01
 impl core::cmp::Eq for antecedent_io_core::SectionAccess
@@ -1027,9 +1053,14 @@ impl core::cmp::Eq for antecedent_io_core::bound_identity::IdentitySlot
 impl core::cmp::Eq for antecedent_io_core::bound_identity::SelfDescribedDigest
 impl core::cmp::Eq for antecedent_io_core::bridge_artifact::AssumptionWire
 impl core::cmp::Eq for antecedent_io_core::bridge_artifact::ContractWire
+impl core::cmp::Eq for antecedent_io_core::bridge_artifact::DependenceWire
+impl core::cmp::Eq for antecedent_io_core::bridge_artifact::DrawsWire
 impl core::cmp::Eq for antecedent_io_core::bridge_artifact::EndpointWire
+impl core::cmp::Eq for antecedent_io_core::bridge_artifact::EstimandWire
+impl core::cmp::Eq for antecedent_io_core::bridge_artifact::ExposureWire
 impl core::cmp::Eq for antecedent_io_core::bridge_artifact::FitWire
 impl core::cmp::Eq for antecedent_io_core::bridge_artifact::FullBridgeContractWire
+impl core::cmp::Eq for antecedent_io_core::bridge_artifact::MappingUncertaintyWire
 impl core::cmp::Eq for antecedent_io_core::bridge_artifact::MappingWire
 impl core::cmp::Eq for antecedent_io_core::bridge_artifact::PremiseWire
 impl core::cmp::Eq for antecedent_io_core::bridge_artifact::ScientificBridgeArtifactError
@@ -1284,6 +1315,13 @@ impl core::cmp::PartialEq for antecedent_io_core::ArtifactCheckError
 impl core::cmp::PartialEq for antecedent_io_core::ArtifactKind
 impl core::cmp::PartialEq for antecedent_io_core::ArtifactManifest
 impl core::cmp::PartialEq for antecedent_io_core::AssignmentDesignWire
+impl core::cmp::PartialEq for antecedent_io_core::AssociationFunctionalWire
+impl core::cmp::PartialEq for antecedent_io_core::AssociationPosteriorWire
+impl core::cmp::PartialEq for antecedent_io_core::AssociationPredictionWire
+impl core::cmp::PartialEq for antecedent_io_core::AssociationQueryWire
+impl core::cmp::PartialEq for antecedent_io_core::AssociationResamplingWire
+impl core::cmp::PartialEq for antecedent_io_core::AssociationTermWire
+impl core::cmp::PartialEq for antecedent_io_core::AssociationWire
 impl core::cmp::PartialEq for antecedent_io_core::AssumptionRecordWire
 impl core::cmp::PartialEq for antecedent_io_core::AssumptionSlotWire
 impl core::cmp::PartialEq for antecedent_io_core::AssumptionTagWire
@@ -1482,6 +1520,8 @@ impl core::cmp::PartialEq for antecedent_io_core::RdConfigWire
 impl core::cmp::PartialEq for antecedent_io_core::RdDesignWire
 impl core::cmp::PartialEq for antecedent_io_core::ReasoningSectionWire
 impl core::cmp::PartialEq for antecedent_io_core::RecordedContrastWire
+impl core::cmp::PartialEq for antecedent_io_core::RedrawPriorWire
+impl core::cmp::PartialEq for antecedent_io_core::RedrawTargetWire
 impl core::cmp::PartialEq for antecedent_io_core::RefutationReportWire
 impl core::cmp::PartialEq for antecedent_io_core::ResponseEnvelopeWire
 impl core::cmp::PartialEq for antecedent_io_core::ResponseFunctionalWire
@@ -1490,6 +1530,7 @@ impl core::cmp::PartialEq for antecedent_io_core::ResponseOptionsWire
 impl core::cmp::PartialEq for antecedent_io_core::ResponseQueryWire
 impl core::cmp::PartialEq for antecedent_io_core::ResponseUncertaintyWire
 impl core::cmp::PartialEq for antecedent_io_core::ResponseValueWire
+impl core::cmp::PartialEq for antecedent_io_core::RetainedMechanismWire
 impl core::cmp::PartialEq for antecedent_io_core::SchemaWire
 impl core::cmp::PartialEq for antecedent_io_core::SchemaWireV01
 impl core::cmp::PartialEq for antecedent_io_core::ScoreReuseIdentityWire
@@ -1585,9 +1626,14 @@ impl core::cmp::PartialEq for antecedent_io_core::bound_identity::IdentitySlot
 impl core::cmp::PartialEq for antecedent_io_core::bound_identity::SelfDescribedDigest
 impl core::cmp::PartialEq for antecedent_io_core::bridge_artifact::AssumptionWire
 impl core::cmp::PartialEq for antecedent_io_core::bridge_artifact::ContractWire
+impl core::cmp::PartialEq for antecedent_io_core::bridge_artifact::DependenceWire
+impl core::cmp::PartialEq for antecedent_io_core::bridge_artifact::DrawsWire
 impl core::cmp::PartialEq for antecedent_io_core::bridge_artifact::EndpointWire
+impl core::cmp::PartialEq for antecedent_io_core::bridge_artifact::EstimandWire
+impl core::cmp::PartialEq for antecedent_io_core::bridge_artifact::ExposureWire
 impl core::cmp::PartialEq for antecedent_io_core::bridge_artifact::FitWire
 impl core::cmp::PartialEq for antecedent_io_core::bridge_artifact::FullBridgeContractWire
+impl core::cmp::PartialEq for antecedent_io_core::bridge_artifact::MappingUncertaintyWire
 impl core::cmp::PartialEq for antecedent_io_core::bridge_artifact::MappingWire
 impl core::cmp::PartialEq for antecedent_io_core::bridge_artifact::PremiseWire
 impl core::cmp::PartialEq for antecedent_io_core::bridge_artifact::ScientificBridgeArtifactError
@@ -1595,6 +1641,7 @@ impl core::cmp::PartialEq for antecedent_io_core::bridge_artifact::ScientificBri
 impl core::cmp::PartialEq for antecedent_io_core::bridge_artifact::ScopeWire
 impl core::cmp::PartialEq for antecedent_io_core::bridge_artifact::SourceWire
 impl core::cmp::PartialEq for antecedent_io_core::bridge_artifact::TrialWire
+impl core::cmp::PartialEq for antecedent_io_core::bridge_distribution::AffineColumns
 impl core::cmp::PartialEq for antecedent_io_core::calibration::CalibrationBasisWire
 impl core::cmp::PartialEq for antecedent_io_core::calibration::CalibrationKeyWire
 impl core::cmp::PartialEq for antecedent_io_core::calibration::CalibrationScopeWire
@@ -2011,6 +2058,7 @@ impl core::convert::From<&antecedent_contract::quantity::ScientificQuantity> for
 impl core::convert::From<&antecedent_core::query::policy_value::MultiActionPolicyInputs> for antecedent_io_core::query_wire::MultiActionPolicyInputsWire
 impl core::convert::From<&antecedent_io_core::DagWire> for antecedent_io_core::DagJson
 impl core::convert::From<&antecedent_io_core::sensitivity_artifact::JointSensitivityView> for antecedent_io_core::sensitivity_artifact::JointSensitivityView
+impl core::convert::From<&antecedent_model::observation_uncertainty::RedrawPrior> for antecedent_io_core::RedrawPriorWire
 impl core::convert::From<&str> for antecedent_io_core::CalibrationStatus
 impl core::convert::From<antecedent_contract::adaptive_design::declaration::AdaptiveContractError> for antecedent_io_core::adaptive_monitoring_contract_artifact::AdaptiveMonitoringContractError
 impl core::convert::From<antecedent_contract::evidence_ledger::refusal::LedgerError> for antecedent_io_core::evidence_ledger_artifact::EvidenceLedgerArtifactError
@@ -2142,6 +2190,13 @@ impl core::fmt::Debug for antecedent_io_core::ArtifactCheckError
 impl core::fmt::Debug for antecedent_io_core::ArtifactKind
 impl core::fmt::Debug for antecedent_io_core::ArtifactManifest
 impl core::fmt::Debug for antecedent_io_core::AssignmentDesignWire
+impl core::fmt::Debug for antecedent_io_core::AssociationFunctionalWire
+impl core::fmt::Debug for antecedent_io_core::AssociationPosteriorWire
+impl core::fmt::Debug for antecedent_io_core::AssociationPredictionWire
+impl core::fmt::Debug for antecedent_io_core::AssociationQueryWire
+impl core::fmt::Debug for antecedent_io_core::AssociationResamplingWire
+impl core::fmt::Debug for antecedent_io_core::AssociationTermWire
+impl core::fmt::Debug for antecedent_io_core::AssociationWire
 impl core::fmt::Debug for antecedent_io_core::AssumptionRecordWire
 impl core::fmt::Debug for antecedent_io_core::AssumptionSlotWire
 impl core::fmt::Debug for antecedent_io_core::AssumptionTagWire
@@ -2343,6 +2398,8 @@ impl core::fmt::Debug for antecedent_io_core::RdConfigWire
 impl core::fmt::Debug for antecedent_io_core::RdDesignWire
 impl core::fmt::Debug for antecedent_io_core::ReasoningSectionWire
 impl core::fmt::Debug for antecedent_io_core::RecordedContrastWire
+impl core::fmt::Debug for antecedent_io_core::RedrawPriorWire
+impl core::fmt::Debug for antecedent_io_core::RedrawTargetWire
 impl core::fmt::Debug for antecedent_io_core::RefutationReportWire
 impl core::fmt::Debug for antecedent_io_core::ResponseEnvelopeWire
 impl core::fmt::Debug for antecedent_io_core::ResponseFunctionalWire
@@ -2351,6 +2408,7 @@ impl core::fmt::Debug for antecedent_io_core::ResponseOptionsWire
 impl core::fmt::Debug for antecedent_io_core::ResponseQueryWire
 impl core::fmt::Debug for antecedent_io_core::ResponseUncertaintyWire
 impl core::fmt::Debug for antecedent_io_core::ResponseValueWire
+impl core::fmt::Debug for antecedent_io_core::RetainedMechanismWire
 impl core::fmt::Debug for antecedent_io_core::SchemaWire
 impl core::fmt::Debug for antecedent_io_core::SchemaWireV01
 impl core::fmt::Debug for antecedent_io_core::ScoreReuseIdentityWire
@@ -2450,17 +2508,27 @@ impl core::fmt::Debug for antecedent_io_core::bound_identity::IdentitySlot
 impl core::fmt::Debug for antecedent_io_core::bound_identity::SelfDescribedDigest
 impl core::fmt::Debug for antecedent_io_core::bridge_artifact::AssumptionWire
 impl core::fmt::Debug for antecedent_io_core::bridge_artifact::ContractWire
+impl core::fmt::Debug for antecedent_io_core::bridge_artifact::DependenceWire
+impl core::fmt::Debug for antecedent_io_core::bridge_artifact::DrawsWire
 impl core::fmt::Debug for antecedent_io_core::bridge_artifact::EndpointWire
+impl core::fmt::Debug for antecedent_io_core::bridge_artifact::EstimandWire
+impl core::fmt::Debug for antecedent_io_core::bridge_artifact::ExposureWire
 impl core::fmt::Debug for antecedent_io_core::bridge_artifact::FitWire
 impl core::fmt::Debug for antecedent_io_core::bridge_artifact::FullBridgeContractWire
+impl core::fmt::Debug for antecedent_io_core::bridge_artifact::MappingUncertaintyWire
 impl core::fmt::Debug for antecedent_io_core::bridge_artifact::MappingWire
 impl core::fmt::Debug for antecedent_io_core::bridge_artifact::PremiseWire
+impl core::fmt::Debug for antecedent_io_core::bridge_artifact::ScientificBridgeAny
 impl core::fmt::Debug for antecedent_io_core::bridge_artifact::ScientificBridgeArtifact
 impl core::fmt::Debug for antecedent_io_core::bridge_artifact::ScientificBridgeArtifactError
+impl core::fmt::Debug for antecedent_io_core::bridge_artifact::ScientificBridgeDrawsArtifact
 impl core::fmt::Debug for antecedent_io_core::bridge_artifact::ScientificBridgeMeta
 impl core::fmt::Debug for antecedent_io_core::bridge_artifact::ScopeWire
 impl core::fmt::Debug for antecedent_io_core::bridge_artifact::SourceWire
 impl core::fmt::Debug for antecedent_io_core::bridge_artifact::TrialWire
+impl core::fmt::Debug for antecedent_io_core::bridge_distribution::AffineColumns
+impl core::fmt::Debug for antecedent_io_core::bridge_distribution::BridgeChainStage
+impl core::fmt::Debug for antecedent_io_core::bridge_distribution::BridgedDistribution
 impl core::fmt::Debug for antecedent_io_core::calibration::CalibrationBasisWire
 impl core::fmt::Debug for antecedent_io_core::calibration::CalibrationKeyWire
 impl core::fmt::Debug for antecedent_io_core::calibration::CalibrationScopeWire
@@ -3079,6 +3147,13 @@ impl core::marker::Freeze for antecedent_io_core::ArtifactCheckError [auto]
 impl core::marker::Freeze for antecedent_io_core::ArtifactKind [auto]
 impl core::marker::Freeze for antecedent_io_core::ArtifactManifest [auto]
 impl core::marker::Freeze for antecedent_io_core::AssignmentDesignWire [auto]
+impl core::marker::Freeze for antecedent_io_core::AssociationFunctionalWire [auto]
+impl core::marker::Freeze for antecedent_io_core::AssociationPosteriorWire [auto]
+impl core::marker::Freeze for antecedent_io_core::AssociationPredictionWire [auto]
+impl core::marker::Freeze for antecedent_io_core::AssociationQueryWire [auto]
+impl core::marker::Freeze for antecedent_io_core::AssociationResamplingWire [auto]
+impl core::marker::Freeze for antecedent_io_core::AssociationTermWire [auto]
+impl core::marker::Freeze for antecedent_io_core::AssociationWire [auto]
 impl core::marker::Freeze for antecedent_io_core::AssumptionRecordWire [auto]
 impl core::marker::Freeze for antecedent_io_core::AssumptionSlotWire [auto]
 impl core::marker::Freeze for antecedent_io_core::AssumptionTagWire [auto]
@@ -3281,6 +3356,8 @@ impl core::marker::Freeze for antecedent_io_core::RdConfigWire [auto]
 impl core::marker::Freeze for antecedent_io_core::RdDesignWire [auto]
 impl core::marker::Freeze for antecedent_io_core::ReasoningSectionWire [auto]
 impl core::marker::Freeze for antecedent_io_core::RecordedContrastWire [auto]
+impl core::marker::Freeze for antecedent_io_core::RedrawPriorWire [auto]
+impl core::marker::Freeze for antecedent_io_core::RedrawTargetWire [auto]
 impl core::marker::Freeze for antecedent_io_core::RefutationReportWire [auto]
 impl core::marker::Freeze for antecedent_io_core::ResponseEnvelopeWire [auto]
 impl core::marker::Freeze for antecedent_io_core::ResponseFunctionalWire [auto]
@@ -3289,6 +3366,7 @@ impl core::marker::Freeze for antecedent_io_core::ResponseOptionsWire [auto]
 impl core::marker::Freeze for antecedent_io_core::ResponseQueryWire [auto]
 impl core::marker::Freeze for antecedent_io_core::ResponseUncertaintyWire [auto]
 impl core::marker::Freeze for antecedent_io_core::ResponseValueWire [auto]
+impl core::marker::Freeze for antecedent_io_core::RetainedMechanismWire [auto]
 impl core::marker::Freeze for antecedent_io_core::SchemaWire [auto]
 impl core::marker::Freeze for antecedent_io_core::SchemaWireV01 [auto]
 impl core::marker::Freeze for antecedent_io_core::ScoreReuseIdentityWire [auto]
@@ -3388,17 +3466,27 @@ impl core::marker::Freeze for antecedent_io_core::bound_identity::IdentitySlot [
 impl core::marker::Freeze for antecedent_io_core::bound_identity::SelfDescribedDigest [auto]
 impl core::marker::Freeze for antecedent_io_core::bridge_artifact::AssumptionWire [auto]
 impl core::marker::Freeze for antecedent_io_core::bridge_artifact::ContractWire [auto]
+impl core::marker::Freeze for antecedent_io_core::bridge_artifact::DependenceWire [auto]
+impl core::marker::Freeze for antecedent_io_core::bridge_artifact::DrawsWire [auto]
 impl core::marker::Freeze for antecedent_io_core::bridge_artifact::EndpointWire [auto]
+impl core::marker::Freeze for antecedent_io_core::bridge_artifact::EstimandWire [auto]
+impl core::marker::Freeze for antecedent_io_core::bridge_artifact::ExposureWire [auto]
 impl core::marker::Freeze for antecedent_io_core::bridge_artifact::FitWire [auto]
 impl core::marker::Freeze for antecedent_io_core::bridge_artifact::FullBridgeContractWire [auto]
+impl core::marker::Freeze for antecedent_io_core::bridge_artifact::MappingUncertaintyWire [auto]
 impl core::marker::Freeze for antecedent_io_core::bridge_artifact::MappingWire [auto]
 impl core::marker::Freeze for antecedent_io_core::bridge_artifact::PremiseWire [auto]
+impl core::marker::Freeze for antecedent_io_core::bridge_artifact::ScientificBridgeAny [auto]
 impl core::marker::Freeze for antecedent_io_core::bridge_artifact::ScientificBridgeArtifact [auto]
 impl core::marker::Freeze for antecedent_io_core::bridge_artifact::ScientificBridgeArtifactError [auto]
+impl core::marker::Freeze for antecedent_io_core::bridge_artifact::ScientificBridgeDrawsArtifact [auto]
 impl core::marker::Freeze for antecedent_io_core::bridge_artifact::ScientificBridgeMeta [auto]
 impl core::marker::Freeze for antecedent_io_core::bridge_artifact::ScopeWire [auto]
 impl core::marker::Freeze for antecedent_io_core::bridge_artifact::SourceWire [auto]
 impl core::marker::Freeze for antecedent_io_core::bridge_artifact::TrialWire [auto]
+impl core::marker::Freeze for antecedent_io_core::bridge_distribution::AffineColumns [auto]
+impl core::marker::Freeze for antecedent_io_core::bridge_distribution::BridgeChainStage [auto]
+impl core::marker::Freeze for antecedent_io_core::bridge_distribution::BridgedDistribution [auto]
 impl core::marker::Freeze for antecedent_io_core::calibration::CalibrationBasisWire [auto]
 impl core::marker::Freeze for antecedent_io_core::calibration::CalibrationKeyWire [auto]
 impl core::marker::Freeze for antecedent_io_core::calibration::CalibrationScopeWire [auto]
@@ -3848,6 +3936,13 @@ impl core::marker::Send for antecedent_io_core::ArtifactCheckError [auto]
 impl core::marker::Send for antecedent_io_core::ArtifactKind [auto]
 impl core::marker::Send for antecedent_io_core::ArtifactManifest [auto]
 impl core::marker::Send for antecedent_io_core::AssignmentDesignWire [auto]
+impl core::marker::Send for antecedent_io_core::AssociationFunctionalWire [auto]
+impl core::marker::Send for antecedent_io_core::AssociationPosteriorWire [auto]
+impl core::marker::Send for antecedent_io_core::AssociationPredictionWire [auto]
+impl core::marker::Send for antecedent_io_core::AssociationQueryWire [auto]
+impl core::marker::Send for antecedent_io_core::AssociationResamplingWire [auto]
+impl core::marker::Send for antecedent_io_core::AssociationTermWire [auto]
+impl core::marker::Send for antecedent_io_core::AssociationWire [auto]
 impl core::marker::Send for antecedent_io_core::AssumptionRecordWire [auto]
 impl core::marker::Send for antecedent_io_core::AssumptionSlotWire [auto]
 impl core::marker::Send for antecedent_io_core::AssumptionTagWire [auto]
@@ -4050,6 +4145,8 @@ impl core::marker::Send for antecedent_io_core::RdConfigWire [auto]
 impl core::marker::Send for antecedent_io_core::RdDesignWire [auto]
 impl core::marker::Send for antecedent_io_core::ReasoningSectionWire [auto]
 impl core::marker::Send for antecedent_io_core::RecordedContrastWire [auto]
+impl core::marker::Send for antecedent_io_core::RedrawPriorWire [auto]
+impl core::marker::Send for antecedent_io_core::RedrawTargetWire [auto]
 impl core::marker::Send for antecedent_io_core::RefutationReportWire [auto]
 impl core::marker::Send for antecedent_io_core::ResponseEnvelopeWire [auto]
 impl core::marker::Send for antecedent_io_core::ResponseFunctionalWire [auto]
@@ -4058,6 +4155,7 @@ impl core::marker::Send for antecedent_io_core::ResponseOptionsWire [auto]
 impl core::marker::Send for antecedent_io_core::ResponseQueryWire [auto]
 impl core::marker::Send for antecedent_io_core::ResponseUncertaintyWire [auto]
 impl core::marker::Send for antecedent_io_core::ResponseValueWire [auto]
+impl core::marker::Send for antecedent_io_core::RetainedMechanismWire [auto]
 impl core::marker::Send for antecedent_io_core::SchemaWire [auto]
 impl core::marker::Send for antecedent_io_core::SchemaWireV01 [auto]
 impl core::marker::Send for antecedent_io_core::ScoreReuseIdentityWire [auto]
@@ -4157,17 +4255,27 @@ impl core::marker::Send for antecedent_io_core::bound_identity::IdentitySlot [au
 impl core::marker::Send for antecedent_io_core::bound_identity::SelfDescribedDigest [auto]
 impl core::marker::Send for antecedent_io_core::bridge_artifact::AssumptionWire [auto]
 impl core::marker::Send for antecedent_io_core::bridge_artifact::ContractWire [auto]
+impl core::marker::Send for antecedent_io_core::bridge_artifact::DependenceWire [auto]
+impl core::marker::Send for antecedent_io_core::bridge_artifact::DrawsWire [auto]
 impl core::marker::Send for antecedent_io_core::bridge_artifact::EndpointWire [auto]
+impl core::marker::Send for antecedent_io_core::bridge_artifact::EstimandWire [auto]
+impl core::marker::Send for antecedent_io_core::bridge_artifact::ExposureWire [auto]
 impl core::marker::Send for antecedent_io_core::bridge_artifact::FitWire [auto]
 impl core::marker::Send for antecedent_io_core::bridge_artifact::FullBridgeContractWire [auto]
+impl core::marker::Send for antecedent_io_core::bridge_artifact::MappingUncertaintyWire [auto]
 impl core::marker::Send for antecedent_io_core::bridge_artifact::MappingWire [auto]
 impl core::marker::Send for antecedent_io_core::bridge_artifact::PremiseWire [auto]
+impl core::marker::Send for antecedent_io_core::bridge_artifact::ScientificBridgeAny [auto]
 impl core::marker::Send for antecedent_io_core::bridge_artifact::ScientificBridgeArtifact [auto]
 impl core::marker::Send for antecedent_io_core::bridge_artifact::ScientificBridgeArtifactError [auto]
+impl core::marker::Send for antecedent_io_core::bridge_artifact::ScientificBridgeDrawsArtifact [auto]
 impl core::marker::Send for antecedent_io_core::bridge_artifact::ScientificBridgeMeta [auto]
 impl core::marker::Send for antecedent_io_core::bridge_artifact::ScopeWire [auto]
 impl core::marker::Send for antecedent_io_core::bridge_artifact::SourceWire [auto]
 impl core::marker::Send for antecedent_io_core::bridge_artifact::TrialWire [auto]
+impl core::marker::Send for antecedent_io_core::bridge_distribution::AffineColumns [auto]
+impl core::marker::Send for antecedent_io_core::bridge_distribution::BridgeChainStage [auto]
+impl core::marker::Send for antecedent_io_core::bridge_distribution::BridgedDistribution [auto]
 impl core::marker::Send for antecedent_io_core::calibration::CalibrationBasisWire [auto]
 impl core::marker::Send for antecedent_io_core::calibration::CalibrationKeyWire [auto]
 impl core::marker::Send for antecedent_io_core::calibration::CalibrationScopeWire [auto]
@@ -4620,6 +4728,13 @@ impl core::marker::StructuralPartialEq for antecedent_io_core::ArtifactCheckErro
 impl core::marker::StructuralPartialEq for antecedent_io_core::ArtifactKind
 impl core::marker::StructuralPartialEq for antecedent_io_core::ArtifactManifest
 impl core::marker::StructuralPartialEq for antecedent_io_core::AssignmentDesignWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::AssociationFunctionalWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::AssociationPosteriorWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::AssociationPredictionWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::AssociationQueryWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::AssociationResamplingWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::AssociationTermWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::AssociationWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::AssumptionRecordWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::AssumptionSlotWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::AssumptionTagWire
@@ -4817,6 +4932,8 @@ impl core::marker::StructuralPartialEq for antecedent_io_core::RdConfigWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::RdDesignWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::ReasoningSectionWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::RecordedContrastWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::RedrawPriorWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::RedrawTargetWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::RefutationReportWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::ResponseEnvelopeWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::ResponseFunctionalWire
@@ -4825,6 +4942,7 @@ impl core::marker::StructuralPartialEq for antecedent_io_core::ResponseOptionsWi
 impl core::marker::StructuralPartialEq for antecedent_io_core::ResponseQueryWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::ResponseUncertaintyWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::ResponseValueWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::RetainedMechanismWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::SchemaWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::SchemaWireV01
 impl core::marker::StructuralPartialEq for antecedent_io_core::ScoreReuseIdentityWire
@@ -4919,9 +5037,14 @@ impl core::marker::StructuralPartialEq for antecedent_io_core::bound_identity::I
 impl core::marker::StructuralPartialEq for antecedent_io_core::bound_identity::SelfDescribedDigest
 impl core::marker::StructuralPartialEq for antecedent_io_core::bridge_artifact::AssumptionWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::bridge_artifact::ContractWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::bridge_artifact::DependenceWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::bridge_artifact::DrawsWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::bridge_artifact::EndpointWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::bridge_artifact::EstimandWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::bridge_artifact::ExposureWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::bridge_artifact::FitWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::bridge_artifact::FullBridgeContractWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::bridge_artifact::MappingUncertaintyWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::bridge_artifact::MappingWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::bridge_artifact::PremiseWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::bridge_artifact::ScientificBridgeArtifactError
@@ -4929,6 +5052,7 @@ impl core::marker::StructuralPartialEq for antecedent_io_core::bridge_artifact::
 impl core::marker::StructuralPartialEq for antecedent_io_core::bridge_artifact::ScopeWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::bridge_artifact::SourceWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::bridge_artifact::TrialWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::bridge_distribution::AffineColumns
 impl core::marker::StructuralPartialEq for antecedent_io_core::calibration::CalibrationBasisWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::calibration::CalibrationKeyWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::calibration::CalibrationScopeWire
@@ -5340,6 +5464,13 @@ impl core::marker::Sync for antecedent_io_core::ArtifactCheckError [auto]
 impl core::marker::Sync for antecedent_io_core::ArtifactKind [auto]
 impl core::marker::Sync for antecedent_io_core::ArtifactManifest [auto]
 impl core::marker::Sync for antecedent_io_core::AssignmentDesignWire [auto]
+impl core::marker::Sync for antecedent_io_core::AssociationFunctionalWire [auto]
+impl core::marker::Sync for antecedent_io_core::AssociationPosteriorWire [auto]
+impl core::marker::Sync for antecedent_io_core::AssociationPredictionWire [auto]
+impl core::marker::Sync for antecedent_io_core::AssociationQueryWire [auto]
+impl core::marker::Sync for antecedent_io_core::AssociationResamplingWire [auto]
+impl core::marker::Sync for antecedent_io_core::AssociationTermWire [auto]
+impl core::marker::Sync for antecedent_io_core::AssociationWire [auto]
 impl core::marker::Sync for antecedent_io_core::AssumptionRecordWire [auto]
 impl core::marker::Sync for antecedent_io_core::AssumptionSlotWire [auto]
 impl core::marker::Sync for antecedent_io_core::AssumptionTagWire [auto]
@@ -5542,6 +5673,8 @@ impl core::marker::Sync for antecedent_io_core::RdConfigWire [auto]
 impl core::marker::Sync for antecedent_io_core::RdDesignWire [auto]
 impl core::marker::Sync for antecedent_io_core::ReasoningSectionWire [auto]
 impl core::marker::Sync for antecedent_io_core::RecordedContrastWire [auto]
+impl core::marker::Sync for antecedent_io_core::RedrawPriorWire [auto]
+impl core::marker::Sync for antecedent_io_core::RedrawTargetWire [auto]
 impl core::marker::Sync for antecedent_io_core::RefutationReportWire [auto]
 impl core::marker::Sync for antecedent_io_core::ResponseEnvelopeWire [auto]
 impl core::marker::Sync for antecedent_io_core::ResponseFunctionalWire [auto]
@@ -5550,6 +5683,7 @@ impl core::marker::Sync for antecedent_io_core::ResponseOptionsWire [auto]
 impl core::marker::Sync for antecedent_io_core::ResponseQueryWire [auto]
 impl core::marker::Sync for antecedent_io_core::ResponseUncertaintyWire [auto]
 impl core::marker::Sync for antecedent_io_core::ResponseValueWire [auto]
+impl core::marker::Sync for antecedent_io_core::RetainedMechanismWire [auto]
 impl core::marker::Sync for antecedent_io_core::SchemaWire [auto]
 impl core::marker::Sync for antecedent_io_core::SchemaWireV01 [auto]
 impl core::marker::Sync for antecedent_io_core::ScoreReuseIdentityWire [auto]
@@ -5649,17 +5783,27 @@ impl core::marker::Sync for antecedent_io_core::bound_identity::IdentitySlot [au
 impl core::marker::Sync for antecedent_io_core::bound_identity::SelfDescribedDigest [auto]
 impl core::marker::Sync for antecedent_io_core::bridge_artifact::AssumptionWire [auto]
 impl core::marker::Sync for antecedent_io_core::bridge_artifact::ContractWire [auto]
+impl core::marker::Sync for antecedent_io_core::bridge_artifact::DependenceWire [auto]
+impl core::marker::Sync for antecedent_io_core::bridge_artifact::DrawsWire [auto]
 impl core::marker::Sync for antecedent_io_core::bridge_artifact::EndpointWire [auto]
+impl core::marker::Sync for antecedent_io_core::bridge_artifact::EstimandWire [auto]
+impl core::marker::Sync for antecedent_io_core::bridge_artifact::ExposureWire [auto]
 impl core::marker::Sync for antecedent_io_core::bridge_artifact::FitWire [auto]
 impl core::marker::Sync for antecedent_io_core::bridge_artifact::FullBridgeContractWire [auto]
+impl core::marker::Sync for antecedent_io_core::bridge_artifact::MappingUncertaintyWire [auto]
 impl core::marker::Sync for antecedent_io_core::bridge_artifact::MappingWire [auto]
 impl core::marker::Sync for antecedent_io_core::bridge_artifact::PremiseWire [auto]
+impl core::marker::Sync for antecedent_io_core::bridge_artifact::ScientificBridgeAny [auto]
 impl core::marker::Sync for antecedent_io_core::bridge_artifact::ScientificBridgeArtifact [auto]
 impl core::marker::Sync for antecedent_io_core::bridge_artifact::ScientificBridgeArtifactError [auto]
+impl core::marker::Sync for antecedent_io_core::bridge_artifact::ScientificBridgeDrawsArtifact [auto]
 impl core::marker::Sync for antecedent_io_core::bridge_artifact::ScientificBridgeMeta [auto]
 impl core::marker::Sync for antecedent_io_core::bridge_artifact::ScopeWire [auto]
 impl core::marker::Sync for antecedent_io_core::bridge_artifact::SourceWire [auto]
 impl core::marker::Sync for antecedent_io_core::bridge_artifact::TrialWire [auto]
+impl core::marker::Sync for antecedent_io_core::bridge_distribution::AffineColumns [auto]
+impl core::marker::Sync for antecedent_io_core::bridge_distribution::BridgeChainStage [auto]
+impl core::marker::Sync for antecedent_io_core::bridge_distribution::BridgedDistribution [auto]
 impl core::marker::Sync for antecedent_io_core::calibration::CalibrationBasisWire [auto]
 impl core::marker::Sync for antecedent_io_core::calibration::CalibrationKeyWire [auto]
 impl core::marker::Sync for antecedent_io_core::calibration::CalibrationScopeWire [auto]
@@ -6112,6 +6256,13 @@ impl core::marker::Unpin for antecedent_io_core::ArtifactCheckError [auto]
 impl core::marker::Unpin for antecedent_io_core::ArtifactKind [auto]
 impl core::marker::Unpin for antecedent_io_core::ArtifactManifest [auto]
 impl core::marker::Unpin for antecedent_io_core::AssignmentDesignWire [auto]
+impl core::marker::Unpin for antecedent_io_core::AssociationFunctionalWire [auto]
+impl core::marker::Unpin for antecedent_io_core::AssociationPosteriorWire [auto]
+impl core::marker::Unpin for antecedent_io_core::AssociationPredictionWire [auto]
+impl core::marker::Unpin for antecedent_io_core::AssociationQueryWire [auto]
+impl core::marker::Unpin for antecedent_io_core::AssociationResamplingWire [auto]
+impl core::marker::Unpin for antecedent_io_core::AssociationTermWire [auto]
+impl core::marker::Unpin for antecedent_io_core::AssociationWire [auto]
 impl core::marker::Unpin for antecedent_io_core::AssumptionRecordWire [auto]
 impl core::marker::Unpin for antecedent_io_core::AssumptionSlotWire [auto]
 impl core::marker::Unpin for antecedent_io_core::AssumptionTagWire [auto]
@@ -6314,6 +6465,8 @@ impl core::marker::Unpin for antecedent_io_core::RdConfigWire [auto]
 impl core::marker::Unpin for antecedent_io_core::RdDesignWire [auto]
 impl core::marker::Unpin for antecedent_io_core::ReasoningSectionWire [auto]
 impl core::marker::Unpin for antecedent_io_core::RecordedContrastWire [auto]
+impl core::marker::Unpin for antecedent_io_core::RedrawPriorWire [auto]
+impl core::marker::Unpin for antecedent_io_core::RedrawTargetWire [auto]
 impl core::marker::Unpin for antecedent_io_core::RefutationReportWire [auto]
 impl core::marker::Unpin for antecedent_io_core::ResponseEnvelopeWire [auto]
 impl core::marker::Unpin for antecedent_io_core::ResponseFunctionalWire [auto]
@@ -6322,6 +6475,7 @@ impl core::marker::Unpin for antecedent_io_core::ResponseOptionsWire [auto]
 impl core::marker::Unpin for antecedent_io_core::ResponseQueryWire [auto]
 impl core::marker::Unpin for antecedent_io_core::ResponseUncertaintyWire [auto]
 impl core::marker::Unpin for antecedent_io_core::ResponseValueWire [auto]
+impl core::marker::Unpin for antecedent_io_core::RetainedMechanismWire [auto]
 impl core::marker::Unpin for antecedent_io_core::SchemaWire [auto]
 impl core::marker::Unpin for antecedent_io_core::SchemaWireV01 [auto]
 impl core::marker::Unpin for antecedent_io_core::ScoreReuseIdentityWire [auto]
@@ -6421,17 +6575,27 @@ impl core::marker::Unpin for antecedent_io_core::bound_identity::IdentitySlot [a
 impl core::marker::Unpin for antecedent_io_core::bound_identity::SelfDescribedDigest [auto]
 impl core::marker::Unpin for antecedent_io_core::bridge_artifact::AssumptionWire [auto]
 impl core::marker::Unpin for antecedent_io_core::bridge_artifact::ContractWire [auto]
+impl core::marker::Unpin for antecedent_io_core::bridge_artifact::DependenceWire [auto]
+impl core::marker::Unpin for antecedent_io_core::bridge_artifact::DrawsWire [auto]
 impl core::marker::Unpin for antecedent_io_core::bridge_artifact::EndpointWire [auto]
+impl core::marker::Unpin for antecedent_io_core::bridge_artifact::EstimandWire [auto]
+impl core::marker::Unpin for antecedent_io_core::bridge_artifact::ExposureWire [auto]
 impl core::marker::Unpin for antecedent_io_core::bridge_artifact::FitWire [auto]
 impl core::marker::Unpin for antecedent_io_core::bridge_artifact::FullBridgeContractWire [auto]
+impl core::marker::Unpin for antecedent_io_core::bridge_artifact::MappingUncertaintyWire [auto]
 impl core::marker::Unpin for antecedent_io_core::bridge_artifact::MappingWire [auto]
 impl core::marker::Unpin for antecedent_io_core::bridge_artifact::PremiseWire [auto]
+impl core::marker::Unpin for antecedent_io_core::bridge_artifact::ScientificBridgeAny [auto]
 impl core::marker::Unpin for antecedent_io_core::bridge_artifact::ScientificBridgeArtifact [auto]
 impl core::marker::Unpin for antecedent_io_core::bridge_artifact::ScientificBridgeArtifactError [auto]
+impl core::marker::Unpin for antecedent_io_core::bridge_artifact::ScientificBridgeDrawsArtifact [auto]
 impl core::marker::Unpin for antecedent_io_core::bridge_artifact::ScientificBridgeMeta [auto]
 impl core::marker::Unpin for antecedent_io_core::bridge_artifact::ScopeWire [auto]
 impl core::marker::Unpin for antecedent_io_core::bridge_artifact::SourceWire [auto]
 impl core::marker::Unpin for antecedent_io_core::bridge_artifact::TrialWire [auto]
+impl core::marker::Unpin for antecedent_io_core::bridge_distribution::AffineColumns [auto]
+impl core::marker::Unpin for antecedent_io_core::bridge_distribution::BridgeChainStage [auto]
+impl core::marker::Unpin for antecedent_io_core::bridge_distribution::BridgedDistribution [auto]
 impl core::marker::Unpin for antecedent_io_core::calibration::CalibrationBasisWire [auto]
 impl core::marker::Unpin for antecedent_io_core::calibration::CalibrationKeyWire [auto]
 impl core::marker::Unpin for antecedent_io_core::calibration::CalibrationScopeWire [auto]
@@ -6884,6 +7048,13 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::ArtifactChe
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::ArtifactKind [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::ArtifactManifest [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::AssignmentDesignWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::AssociationFunctionalWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::AssociationPosteriorWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::AssociationPredictionWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::AssociationQueryWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::AssociationResamplingWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::AssociationTermWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::AssociationWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::AssumptionRecordWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::AssumptionSlotWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::AssumptionTagWire [auto]
@@ -7086,6 +7257,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::RdConfigWir
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::RdDesignWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::ReasoningSectionWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::RecordedContrastWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::RedrawPriorWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::RedrawTargetWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::RefutationReportWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::ResponseEnvelopeWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::ResponseFunctionalWire [auto]
@@ -7094,6 +7267,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::ResponseOpt
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::ResponseQueryWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::ResponseUncertaintyWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::ResponseValueWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::RetainedMechanismWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::SchemaWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::SchemaWireV01 [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::ScoreReuseIdentityWire [auto]
@@ -7193,17 +7367,27 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::bound_ident
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::bound_identity::SelfDescribedDigest [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::bridge_artifact::AssumptionWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::bridge_artifact::ContractWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::bridge_artifact::DependenceWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::bridge_artifact::DrawsWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::bridge_artifact::EndpointWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::bridge_artifact::EstimandWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::bridge_artifact::ExposureWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::bridge_artifact::FitWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::bridge_artifact::FullBridgeContractWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::bridge_artifact::MappingUncertaintyWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::bridge_artifact::MappingWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::bridge_artifact::PremiseWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::bridge_artifact::ScientificBridgeAny [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::bridge_artifact::ScientificBridgeArtifact [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::bridge_artifact::ScientificBridgeArtifactError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::bridge_artifact::ScientificBridgeDrawsArtifact [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::bridge_artifact::ScientificBridgeMeta [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::bridge_artifact::ScopeWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::bridge_artifact::SourceWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::bridge_artifact::TrialWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::bridge_distribution::AffineColumns [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::bridge_distribution::BridgeChainStage [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::bridge_distribution::BridgedDistribution [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::calibration::CalibrationBasisWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::calibration::CalibrationKeyWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::calibration::CalibrationScopeWire [auto]
@@ -7655,6 +7839,13 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::ArtifactCheckE
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::ArtifactKind [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::ArtifactManifest [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::AssignmentDesignWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::AssociationFunctionalWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::AssociationPosteriorWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::AssociationPredictionWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::AssociationQueryWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::AssociationResamplingWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::AssociationTermWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::AssociationWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::AssumptionRecordWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::AssumptionSlotWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::AssumptionTagWire [auto]
@@ -7857,6 +8048,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::RdConfigWire [
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::RdDesignWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::ReasoningSectionWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::RecordedContrastWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::RedrawPriorWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::RedrawTargetWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::RefutationReportWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::ResponseEnvelopeWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::ResponseFunctionalWire [auto]
@@ -7865,6 +8058,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::ResponseOption
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::ResponseQueryWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::ResponseUncertaintyWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::ResponseValueWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::RetainedMechanismWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::SchemaWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::SchemaWireV01 [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::ScoreReuseIdentityWire [auto]
@@ -7964,17 +8158,27 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::bound_identity
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::bound_identity::SelfDescribedDigest [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::bridge_artifact::AssumptionWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::bridge_artifact::ContractWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::bridge_artifact::DependenceWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::bridge_artifact::DrawsWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::bridge_artifact::EndpointWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::bridge_artifact::EstimandWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::bridge_artifact::ExposureWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::bridge_artifact::FitWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::bridge_artifact::FullBridgeContractWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::bridge_artifact::MappingUncertaintyWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::bridge_artifact::MappingWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::bridge_artifact::PremiseWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::bridge_artifact::ScientificBridgeAny [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::bridge_artifact::ScientificBridgeArtifact [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::bridge_artifact::ScientificBridgeArtifactError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::bridge_artifact::ScientificBridgeDrawsArtifact [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::bridge_artifact::ScientificBridgeMeta [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::bridge_artifact::ScopeWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::bridge_artifact::SourceWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::bridge_artifact::TrialWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::bridge_distribution::AffineColumns [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::bridge_distribution::BridgeChainStage [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::bridge_distribution::BridgedDistribution [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::calibration::CalibrationBasisWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::calibration::CalibrationKeyWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::calibration::CalibrationScopeWire [auto]
@@ -8424,6 +8628,13 @@ impl serde_core::ser::Serialize for antecedent_io_core::AnalysisTraceWire
 impl serde_core::ser::Serialize for antecedent_io_core::ArtifactKind
 impl serde_core::ser::Serialize for antecedent_io_core::ArtifactManifest
 impl serde_core::ser::Serialize for antecedent_io_core::AssignmentDesignWire
+impl serde_core::ser::Serialize for antecedent_io_core::AssociationFunctionalWire
+impl serde_core::ser::Serialize for antecedent_io_core::AssociationPosteriorWire
+impl serde_core::ser::Serialize for antecedent_io_core::AssociationPredictionWire
+impl serde_core::ser::Serialize for antecedent_io_core::AssociationQueryWire
+impl serde_core::ser::Serialize for antecedent_io_core::AssociationResamplingWire
+impl serde_core::ser::Serialize for antecedent_io_core::AssociationTermWire
+impl serde_core::ser::Serialize for antecedent_io_core::AssociationWire
 impl serde_core::ser::Serialize for antecedent_io_core::AssumptionRecordWire
 impl serde_core::ser::Serialize for antecedent_io_core::AssumptionSlotWire
 impl serde_core::ser::Serialize for antecedent_io_core::AssumptionTagWire
@@ -8603,6 +8814,8 @@ impl serde_core::ser::Serialize for antecedent_io_core::RdConfigWire
 impl serde_core::ser::Serialize for antecedent_io_core::RdDesignWire
 impl serde_core::ser::Serialize for antecedent_io_core::ReasoningSectionWire
 impl serde_core::ser::Serialize for antecedent_io_core::RecordedContrastWire
+impl serde_core::ser::Serialize for antecedent_io_core::RedrawPriorWire
+impl serde_core::ser::Serialize for antecedent_io_core::RedrawTargetWire
 impl serde_core::ser::Serialize for antecedent_io_core::RefutationReportWire
 impl serde_core::ser::Serialize for antecedent_io_core::ResponseEnvelopeWire
 impl serde_core::ser::Serialize for antecedent_io_core::ResponseFunctionalWire
@@ -8611,6 +8824,7 @@ impl serde_core::ser::Serialize for antecedent_io_core::ResponseOptionsWire
 impl serde_core::ser::Serialize for antecedent_io_core::ResponseQueryWire
 impl serde_core::ser::Serialize for antecedent_io_core::ResponseUncertaintyWire
 impl serde_core::ser::Serialize for antecedent_io_core::ResponseValueWire
+impl serde_core::ser::Serialize for antecedent_io_core::RetainedMechanismWire
 impl serde_core::ser::Serialize for antecedent_io_core::SchemaWire
 impl serde_core::ser::Serialize for antecedent_io_core::SchemaWireV01
 impl serde_core::ser::Serialize for antecedent_io_core::ScoreReuseIdentityWire
@@ -8690,9 +8904,14 @@ impl serde_core::ser::Serialize for antecedent_io_core::bayesian_prior_recalc_ar
 impl serde_core::ser::Serialize for antecedent_io_core::bayesian_prior_recalc_artifact::BoundPriorSpecWire
 impl serde_core::ser::Serialize for antecedent_io_core::bridge_artifact::AssumptionWire
 impl serde_core::ser::Serialize for antecedent_io_core::bridge_artifact::ContractWire
+impl serde_core::ser::Serialize for antecedent_io_core::bridge_artifact::DependenceWire
+impl serde_core::ser::Serialize for antecedent_io_core::bridge_artifact::DrawsWire
 impl serde_core::ser::Serialize for antecedent_io_core::bridge_artifact::EndpointWire
+impl serde_core::ser::Serialize for antecedent_io_core::bridge_artifact::EstimandWire
+impl serde_core::ser::Serialize for antecedent_io_core::bridge_artifact::ExposureWire
 impl serde_core::ser::Serialize for antecedent_io_core::bridge_artifact::FitWire
 impl serde_core::ser::Serialize for antecedent_io_core::bridge_artifact::FullBridgeContractWire
+impl serde_core::ser::Serialize for antecedent_io_core::bridge_artifact::MappingUncertaintyWire
 impl serde_core::ser::Serialize for antecedent_io_core::bridge_artifact::MappingWire
 impl serde_core::ser::Serialize for antecedent_io_core::bridge_artifact::PremiseWire
 impl serde_core::ser::Serialize for antecedent_io_core::bridge_artifact::ScientificBridgeMeta
@@ -9061,6 +9280,13 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::AnalysisTrace
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::ArtifactKind
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::ArtifactManifest
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::AssignmentDesignWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::AssociationFunctionalWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::AssociationPosteriorWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::AssociationPredictionWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::AssociationQueryWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::AssociationResamplingWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::AssociationTermWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::AssociationWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::AssumptionRecordWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::AssumptionSlotWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::AssumptionTagWire
@@ -9240,6 +9466,8 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::RdConfigWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::RdDesignWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::ReasoningSectionWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::RecordedContrastWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::RedrawPriorWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::RedrawTargetWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::RefutationReportWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::ResponseEnvelopeWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::ResponseFunctionalWire
@@ -9248,6 +9476,7 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::ResponseOptio
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::ResponseQueryWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::ResponseUncertaintyWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::ResponseValueWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::RetainedMechanismWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::SchemaWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::SchemaWireV01
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::ScoreReuseIdentityWire
@@ -9327,9 +9556,14 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::bayesian_prio
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::bayesian_prior_recalc_artifact::BoundPriorSpecWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::bridge_artifact::AssumptionWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::bridge_artifact::ContractWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::bridge_artifact::DependenceWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::bridge_artifact::DrawsWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::bridge_artifact::EndpointWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::bridge_artifact::EstimandWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::bridge_artifact::ExposureWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::bridge_artifact::FitWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::bridge_artifact::FullBridgeContractWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::bridge_artifact::MappingUncertaintyWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::bridge_artifact::MappingWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::bridge_artifact::PremiseWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::bridge_artifact::ScientificBridgeMeta
@@ -9678,6 +9912,11 @@ pub const <antecedent_io_core::bound_identity::IdentitySlot>::ALL: [Self; 5]
 pub const <antecedent_io_core::capacity_account::AccountedOperation>::ALL: [Self; 14]
 pub const <antecedent_io_core::dependency_key::DependencyClass>::ALL: [Self; 8]
 pub const <antecedent_io_core::dependency_key::ReusableProduct>::ALL: [Self; 14]
+pub const antecedent_io_core::ASSOCIATION_ANALYSES: [&str; 10]
+pub const antecedent_io_core::ASSOCIATION_ANALYTIC_UNCERTAINTY: &str
+pub const antecedent_io_core::ASSOCIATION_NO_UNCERTAINTY: &str
+pub const antecedent_io_core::ASSOCIATION_POSTERIOR_UNCERTAINTY: &str
+pub const antecedent_io_core::ASSOCIATION_RESAMPLING_UNCERTAINTY: &str
 pub const antecedent_io_core::AUTO_COMPRESS_MAX_RATIO: f64
 pub const antecedent_io_core::AUTO_COMPRESS_MIN_BYTES: usize
 pub const antecedent_io_core::COMPRESSION_ZSTD: &str
@@ -9697,6 +9936,9 @@ pub const antecedent_io_core::MECHANISM_COMPOSITION_ARTIFACT_FEATURE: &str
 pub const antecedent_io_core::MECHANISM_COMPOSITION_ARTIFACT_VERSION: u32
 pub const antecedent_io_core::OBSERVATION_QUERY_ARTIFACT_FEATURE: &str
 pub const antecedent_io_core::OBSERVATION_QUERY_ARTIFACT_VERSION: u32
+pub const antecedent_io_core::OBSERVATION_QUERY_GENERAL_ARTIFACT_VERSION: u32
+pub const antecedent_io_core::OBSERVATION_QUERY_GENERAL_FEATURE: &str
+pub const antecedent_io_core::PARAMETER_DRAWS_READING: &str
 pub const antecedent_io_core::POSTERIOR_ROW_CALIBRATION: &str
 pub const antecedent_io_core::POSTERIOR_ROW_UNCERTAINTY: &str
 pub const antecedent_io_core::PRIOR_SOURCE_META_SECTION: &str
@@ -9718,6 +9960,9 @@ pub const antecedent_io_core::bridge_artifact::MAX_SCIENTIFIC_BRIDGE_ARTIFACT_BY
 pub const antecedent_io_core::bridge_artifact::MAX_SOURCE_EVIDENCE_ITEMS: usize
 pub const antecedent_io_core::bridge_artifact::SCIENTIFIC_BRIDGE_ARTIFACT_FEATURE: &str
 pub const antecedent_io_core::bridge_artifact::SCIENTIFIC_BRIDGE_ARTIFACT_VERSION: u16
+pub const antecedent_io_core::bridge_artifact::SCIENTIFIC_BRIDGE_EXTENDED_ARTIFACT_VERSION: u16
+pub const antecedent_io_core::bridge_artifact::SCIENTIFIC_BRIDGE_EXTENDED_FEATURE: &str
+pub const antecedent_io_core::bridge_distribution::BRIDGE_DRAWS_STREAM: u64
 pub const antecedent_io_core::calibration::BASIS_MISSING: &str
 pub const antecedent_io_core::calibration::BOUNDARY_RECORD: &str
 pub const antecedent_io_core::calibration::CONSTRUCTION_NOT_MEASURED: &str
@@ -9830,6 +10075,7 @@ pub const antecedent_io_core::measurement_model_wire::MEASUREMENT_MODEL_ARTIFACT
 pub const antecedent_io_core::mechanism_composition_artifact::MECHANISM_COMPOSITION_MAX_ARMS: usize
 pub const antecedent_io_core::mechanism_composition_artifact::MECHANISM_COMPOSITION_MAX_INTERVENTIONS: usize
 pub const antecedent_io_core::observation_query_artifact::OBSERVATION_QUERY_MAX_ASSIGNMENTS: usize
+pub const antecedent_io_core::observation_query_artifact::OBSERVATION_QUERY_MAX_RETAINED_ROWS: usize
 pub const antecedent_io_core::policy_program_artifact::POLICY_PROGRAM_MAGIC: &[u8]
 pub const antecedent_io_core::policy_program_artifact::POLICY_PROGRAM_MAX_BYTES: usize
 pub const antecedent_io_core::policy_program_artifact::POLICY_PROGRAM_MAX_INTERVENTIONS: usize
@@ -9903,6 +10149,7 @@ pub const fn antecedent_io_core::artifact_codec::stored_law_bounds(stored_suppor
 pub const fn antecedent_io_core::contract_section::weight_basis_name(basis: antecedent_io_core::StructuralWeightBasisWire) -> &'static str
 pub enum antecedent_io_core::ArtifactKind
 pub enum antecedent_io_core::AssignmentDesignWire
+pub enum antecedent_io_core::AssociationFunctionalWire
 pub enum antecedent_io_core::AssumptionTagWire
 pub enum antecedent_io_core::AttributeTargetWire
 pub enum antecedent_io_core::CalibrationStatus
@@ -9956,10 +10203,12 @@ pub enum antecedent_io_core::PriorSpecIdentityWire
 pub enum antecedent_io_core::PropagationRequestWire
 pub enum antecedent_io_core::RandomizationDesignWire
 pub enum antecedent_io_core::RandomizedEstimandWire
+pub enum antecedent_io_core::RedrawTargetWire
 pub enum antecedent_io_core::ResponseFunctionalWire
 pub enum antecedent_io_core::ResponseIdentificationWire
 pub enum antecedent_io_core::ResponseUncertaintyWire
 pub enum antecedent_io_core::ResponseValueWire
+pub enum antecedent_io_core::RetainedMechanismWire
 pub enum antecedent_io_core::SectionAccess
 pub enum antecedent_io_core::SimulationTargetWire
 pub enum antecedent_io_core::StructuralWeightBasisWire
@@ -9977,6 +10226,7 @@ pub enum antecedent_io_core::bayesian_prior_recalc_artifact::BoundPriorSpecWire
 pub enum antecedent_io_core::bound_identity::BoundMatch
 pub enum antecedent_io_core::bound_identity::CyclicSolution
 pub enum antecedent_io_core::bound_identity::IdentitySlot
+pub enum antecedent_io_core::bridge_artifact::DependenceWire
 pub enum antecedent_io_core::bridge_artifact::MappingWire
 pub enum antecedent_io_core::calibration::RangeResolution
 pub enum antecedent_io_core::callback_result_artifact::CallbackOutcome
@@ -10076,6 +10326,7 @@ pub field antecedent_io_core::AnalysisResultContractWire::structure_source: allo
 pub field antecedent_io_core::AnalysisResultContractWire::target: antecedent_io_core::TargetIdentityWire
 pub field antecedent_io_core::AnalysisResultContractWire::target_weights: core::option::Option<antecedent_io_core::TargetWeightsSectionWire>
 pub field antecedent_io_core::AnalysisResultHeader::variable_names: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io_core::AnalysisResultWire::association: core::option::Option<antecedent_io_core::AssociationWire>
 pub field antecedent_io_core::AnalysisResultWire::assumptions: alloc::vec::Vec<antecedent_io_core::AssumptionRecordWire>
 pub field antecedent_io_core::AnalysisResultWire::cate: core::option::Option<alloc::vec::Vec<f64>>
 pub field antecedent_io_core::AnalysisResultWire::cate_leaf_dispersion: core::option::Option<alloc::vec::Vec<f64>>
@@ -10138,6 +10389,60 @@ pub field antecedent_io_core::ArtifactManifest::library_version: antecedent_io_c
 pub field antecedent_io_core::ArtifactManifest::minimum_reader_version: antecedent_io_core::FormatVersion
 pub field antecedent_io_core::ArtifactManifest::provenance: antecedent_io_core::ProvenanceWire
 pub field antecedent_io_core::ArtifactManifest::sections: alloc::vec::Vec<antecedent_io_core::SectionDescriptor>
+pub field antecedent_io_core::AssociationPosteriorWire::draws: u64
+pub field antecedent_io_core::AssociationPosteriorWire::level: f64
+pub field antecedent_io_core::AssociationPosteriorWire::method: alloc::string::String
+pub field antecedent_io_core::AssociationPredictionWire::baseline_score: f64
+pub field antecedent_io_core::AssociationPredictionWire::calibration: alloc::string::String
+pub field antecedent_io_core::AssociationPredictionWire::cases: u64
+pub field antecedent_io_core::AssociationPredictionWire::fold_design: alloc::string::String
+pub field antecedent_io_core::AssociationPredictionWire::folds: u64
+pub field antecedent_io_core::AssociationPredictionWire::mean_crps: core::option::Option<f64>
+pub field antecedent_io_core::AssociationPredictionWire::mean_score: f64
+pub field antecedent_io_core::AssociationPredictionWire::score: alloc::string::String
+pub field antecedent_io_core::AssociationQueryWire::conditioning: alloc::vec::Vec<u32>
+pub field antecedent_io_core::AssociationQueryWire::functional: antecedent_io_core::AssociationFunctionalWire
+pub field antecedent_io_core::AssociationQueryWire::outcome: u32
+pub field antecedent_io_core::AssociationQueryWire::outcome_scale: core::option::Option<alloc::string::String>
+pub field antecedent_io_core::AssociationQueryWire::predictors: alloc::vec::Vec<u32>
+pub field antecedent_io_core::AssociationQueryWire::refused_after: core::option::Option<alloc::string::String>
+pub field antecedent_io_core::AssociationQueryWire::weight: core::option::Option<u32>
+pub field antecedent_io_core::AssociationResamplingWire::block_length: core::option::Option<u64>
+pub field antecedent_io_core::AssociationResamplingWire::method: alloc::string::String
+pub field antecedent_io_core::AssociationResamplingWire::replicates_ok: u64
+pub field antecedent_io_core::AssociationResamplingWire::replicates_requested: u64
+pub field antecedent_io_core::AssociationResamplingWire::spread_level: f64
+pub field antecedent_io_core::AssociationResamplingWire::unit: alloc::string::String
+pub field antecedent_io_core::AssociationTermWire::estimate: f64
+pub field antecedent_io_core::AssociationTermWire::label: alloc::string::String
+pub field antecedent_io_core::AssociationTermWire::posterior_lower: core::option::Option<f64>
+pub field antecedent_io_core::AssociationTermWire::posterior_mean: core::option::Option<f64>
+pub field antecedent_io_core::AssociationTermWire::posterior_sd: core::option::Option<f64>
+pub field antecedent_io_core::AssociationTermWire::posterior_upper: core::option::Option<f64>
+pub field antecedent_io_core::AssociationTermWire::rows: u64
+pub field antecedent_io_core::AssociationTermWire::scale: alloc::string::String
+pub field antecedent_io_core::AssociationTermWire::spread_lower: core::option::Option<f64>
+pub field antecedent_io_core::AssociationTermWire::spread_upper: core::option::Option<f64>
+pub field antecedent_io_core::AssociationTermWire::standard_error: core::option::Option<f64>
+pub field antecedent_io_core::AssociationTermWire::standard_error_method: core::option::Option<alloc::string::String>
+pub field antecedent_io_core::AssociationWire::analysis: alloc::string::String
+pub field antecedent_io_core::AssociationWire::assumptions: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io_core::AssociationWire::calibration: alloc::string::String
+pub field antecedent_io_core::AssociationWire::is_intervention_effect: bool
+pub field antecedent_io_core::AssociationWire::licensed: bool
+pub field antecedent_io_core::AssociationWire::modality: alloc::string::String
+pub field antecedent_io_core::AssociationWire::outcome_kind: alloc::string::String
+pub field antecedent_io_core::AssociationWire::posterior: core::option::Option<antecedent_io_core::AssociationPosteriorWire>
+pub field antecedent_io_core::AssociationWire::prediction: core::option::Option<antecedent_io_core::AssociationPredictionWire>
+pub field antecedent_io_core::AssociationWire::ranks_actions: bool
+pub field antecedent_io_core::AssociationWire::refused_after: core::option::Option<alloc::string::String>
+pub field antecedent_io_core::AssociationWire::requested: alloc::string::String
+pub field antecedent_io_core::AssociationWire::resampling: core::option::Option<antecedent_io_core::AssociationResamplingWire>
+pub field antecedent_io_core::AssociationWire::rows: u64
+pub field antecedent_io_core::AssociationWire::rows_dropped: u64
+pub field antecedent_io_core::AssociationWire::rule: alloc::string::String
+pub field antecedent_io_core::AssociationWire::terms: alloc::vec::Vec<antecedent_io_core::AssociationTermWire>
+pub field antecedent_io_core::AssociationWire::uncertainty: alloc::string::String
 pub field antecedent_io_core::AssumptionRecordWire::assumption: antecedent_io_core::AssumptionTagWire
 pub field antecedent_io_core::AssumptionRecordWire::scope: alloc::string::String
 pub field antecedent_io_core::AssumptionRecordWire::source: alloc::string::String
@@ -11079,6 +11384,10 @@ pub field antecedent_io_core::RecordedContrastWire::custom_matrix: core::option:
 pub field antecedent_io_core::RecordedContrastWire::custom_rows: core::option::Option<u32>
 pub field antecedent_io_core::RecordedContrastWire::reference: core::option::Option<u32>
 pub field antecedent_io_core::RecordedContrastWire::variable: u32
+pub field antecedent_io_core::RedrawPriorWire::coefficient_precision_bits: u64
+pub field antecedent_io_core::RedrawPriorWire::dirichlet_alpha_bits: u64
+pub field antecedent_io_core::RedrawPriorWire::variance_scale_bits: u64
+pub field antecedent_io_core::RedrawPriorWire::variance_shape_bits: u64
 pub field antecedent_io_core::RefutationReportWire::comparison: f64
 pub field antecedent_io_core::RefutationReportWire::failure_condition: core::option::Option<alloc::string::String>
 pub field antecedent_io_core::RefutationReportWire::informative: bool
@@ -11595,22 +11904,53 @@ pub field antecedent_io_core::bridge_artifact::AssumptionWire::id: alloc::string
 pub field antecedent_io_core::bridge_artifact::AssumptionWire::kind: alloc::string::String
 pub field antecedent_io_core::bridge_artifact::AssumptionWire::statement: alloc::string::String
 pub field antecedent_io_core::bridge_artifact::ContractWire::assumptions: alloc::vec::Vec<antecedent_io_core::bridge_artifact::AssumptionWire>
+pub field antecedent_io_core::bridge_artifact::ContractWire::estimand_bridge: core::option::Option<antecedent_io_core::bridge_artifact::EstimandWire>
 pub field antecedent_io_core::bridge_artifact::ContractWire::evidence_scope: antecedent_io_core::bridge_artifact::ScopeWire
 pub field antecedent_io_core::bridge_artifact::ContractWire::kind: alloc::string::String
 pub field antecedent_io_core::bridge_artifact::ContractWire::mapping: antecedent_io_core::bridge_artifact::MappingWire
+pub field antecedent_io_core::bridge_artifact::ContractWire::mapping_uncertainty: core::option::Option<antecedent_io_core::bridge_artifact::MappingUncertaintyWire>
 pub field antecedent_io_core::bridge_artifact::ContractWire::source: antecedent_io_core::bridge_artifact::EndpointWire
+pub field antecedent_io_core::bridge_artifact::ContractWire::source_dependence: core::option::Option<antecedent_io_core::bridge_artifact::DependenceWire>
 pub field antecedent_io_core::bridge_artifact::ContractWire::source_value: alloc::string::String
 pub field antecedent_io_core::bridge_artifact::ContractWire::target: antecedent_io_core::bridge_artifact::EndpointWire
 pub field antecedent_io_core::bridge_artifact::ContractWire::target_value: alloc::string::String
 pub field antecedent_io_core::bridge_artifact::ContractWire::transport: core::option::Option<antecedent_io_core::bridge_artifact::PremiseWire>
+pub field antecedent_io_core::bridge_artifact::DrawsWire::alignment_identity: alloc::string::String
+pub field antecedent_io_core::bridge_artifact::DrawsWire::draws_digest: alloc::string::String
+pub field antecedent_io_core::bridge_artifact::DrawsWire::mean_bits: u64
+pub field antecedent_io_core::bridge_artifact::DrawsWire::n_draws: u64
+pub field antecedent_io_core::bridge_artifact::DrawsWire::seed: u64
+pub field antecedent_io_core::bridge_artifact::DrawsWire::source_digest: alloc::string::String
+pub field antecedent_io_core::bridge_artifact::DrawsWire::source_identity: antecedent_io_core::distribution_artifact::DistributionIdentity
+pub field antecedent_io_core::bridge_artifact::DrawsWire::variance_bits: u64
 pub field antecedent_io_core::bridge_artifact::EndpointWire::class: alloc::string::String
 pub field antecedent_io_core::bridge_artifact::EndpointWire::quantity: antecedent_io_core::quantity_wire::ScientificQuantityWire
+pub field antecedent_io_core::bridge_artifact::EstimandWire::experiment: antecedent_io_core::bridge_artifact::ExposureWire
+pub field antecedent_io_core::bridge_artifact::EstimandWire::experiment_id: alloc::string::String
+pub field antecedent_io_core::bridge_artifact::EstimandWire::id: alloc::string::String
+pub field antecedent_io_core::bridge_artifact::EstimandWire::recency: u64
+pub field antecedent_io_core::bridge_artifact::EstimandWire::recency_units: alloc::string::String
+pub field antecedent_io_core::bridge_artifact::EstimandWire::spend: u64
+pub field antecedent_io_core::bridge_artifact::EstimandWire::spend_units: alloc::string::String
+pub field antecedent_io_core::bridge_artifact::EstimandWire::target: antecedent_io_core::bridge_artifact::ExposureWire
+pub field antecedent_io_core::bridge_artifact::ExposureWire::dose: u64
+pub field antecedent_io_core::bridge_artifact::ExposureWire::dose_units: alloc::string::String
+pub field antecedent_io_core::bridge_artifact::ExposureWire::duration: u64
+pub field antecedent_io_core::bridge_artifact::ExposureWire::duration_units: alloc::string::String
+pub field antecedent_io_core::bridge_artifact::ExposureWire::end: alloc::string::String
+pub field antecedent_io_core::bridge_artifact::ExposureWire::population: alloc::string::String
+pub field antecedent_io_core::bridge_artifact::ExposureWire::regime: alloc::string::String
+pub field antecedent_io_core::bridge_artifact::ExposureWire::start: alloc::string::String
 pub field antecedent_io_core::bridge_artifact::FitWire::intercept_bits: u64
 pub field antecedent_io_core::bridge_artifact::FitWire::r_squared_bits: u64
 pub field antecedent_io_core::bridge_artifact::FitWire::slope_bits: u64
 pub field antecedent_io_core::bridge_artifact::FitWire::surrogate_max_bits: u64
 pub field antecedent_io_core::bridge_artifact::FitWire::surrogate_min_bits: u64
 pub field antecedent_io_core::bridge_artifact::FitWire::trials: u32
+pub field antecedent_io_core::bridge_artifact::MappingUncertaintyWire::covariance: u64
+pub field antecedent_io_core::bridge_artifact::MappingUncertaintyWire::id: alloc::string::String
+pub field antecedent_io_core::bridge_artifact::MappingUncertaintyWire::intercept: u64
+pub field antecedent_io_core::bridge_artifact::MappingUncertaintyWire::slope: u64
 pub field antecedent_io_core::bridge_artifact::PremiseWire::applies_to: antecedent_io_core::bridge_artifact::ScopeWire
 pub field antecedent_io_core::bridge_artifact::PremiseWire::established_in: antecedent_io_core::bridge_artifact::ScopeWire
 pub field antecedent_io_core::bridge_artifact::PremiseWire::evidence: core::option::Option<alloc::string::String>
@@ -11619,6 +11959,7 @@ pub field antecedent_io_core::bridge_artifact::PremiseWire::statement: alloc::st
 pub field antecedent_io_core::bridge_artifact::ScientificBridgeMeta::claim_id: alloc::string::String
 pub field antecedent_io_core::bridge_artifact::ScientificBridgeMeta::contract: antecedent_io_core::bridge_artifact::ContractWire
 pub field antecedent_io_core::bridge_artifact::ScientificBridgeMeta::contract_identity: alloc::string::String
+pub field antecedent_io_core::bridge_artifact::ScientificBridgeMeta::draws: core::option::Option<antecedent_io_core::bridge_artifact::DrawsWire>
 pub field antecedent_io_core::bridge_artifact::ScientificBridgeMeta::feature: alloc::string::String
 pub field antecedent_io_core::bridge_artifact::ScientificBridgeMeta::fit: core::option::Option<antecedent_io_core::bridge_artifact::FitWire>
 pub field antecedent_io_core::bridge_artifact::ScientificBridgeMeta::identity: alloc::string::String
@@ -11642,6 +11983,10 @@ pub field antecedent_io_core::bridge_artifact::SourceWire::units: core::option::
 pub field antecedent_io_core::bridge_artifact::SourceWire::value_bits: u64
 pub field antecedent_io_core::bridge_artifact::TrialWire::surrogate_bits: u64
 pub field antecedent_io_core::bridge_artifact::TrialWire::terminal_bits: u64
+pub field antecedent_io_core::bridge_distribution::AffineColumns::intercepts: alloc::vec::Vec<f64>
+pub field antecedent_io_core::bridge_distribution::AffineColumns::slopes: alloc::vec::Vec<f64>
+pub field antecedent_io_core::bridge_distribution::BridgeChainStage::sources: alloc::vec::Vec<antecedent_io_core::ChainSourceWire>
+pub field antecedent_io_core::bridge_distribution::BridgeChainStage::stage: antecedent_io_core::ChainStageWire
 pub field antecedent_io_core::calibration::CalibrationBasisWire::key: antecedent_io_core::calibration::CalibrationKeyWire
 pub field antecedent_io_core::calibration::CalibrationBasisWire::scope: antecedent_io_core::calibration::CalibrationScopeWire
 pub field antecedent_io_core::calibration::CalibrationKeyWire::dependence: alloc::string::String
@@ -13504,11 +13849,13 @@ pub fn <antecedent_io_core::MechanismCompositionPremisesWire>::fn from_spec(spec
 pub fn <antecedent_io_core::MechanismCompositionPremisesWire>::fn to_spec(&self) -> core::result::Result<antecedent_model::compose::descriptor::ComposedModelSpec, antecedent_io_core::MechanismCompositionArtifactError>
 pub fn <antecedent_io_core::ObservationQueryArtifactWire>::fn consume(&self, expected_identity: core::option::Option<&str>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io_core::ConsumedObservationQuery, antecedent_io_core::ObservationQueryArtifactError>
 pub fn <antecedent_io_core::ObservationQueryArtifactWire>::fn decode(bytes: &[u8]) -> core::result::Result<Self, antecedent_io_core::ObservationQueryArtifactError>
+pub fn <antecedent_io_core::ObservationQueryArtifactWire>::fn distribution(&self) -> core::result::Result<antecedent_io_core::distribution_artifact::DistributionArtifact, antecedent_io_core::ObservationQueryArtifactError>
 pub fn <antecedent_io_core::ObservationQueryArtifactWire>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::ObservationQueryArtifactError>
 pub fn <antecedent_io_core::ObservationQueryArtifactWire>::fn seal(spec: core::option::Option<&antecedent_model::compose::descriptor::ComposedModelSpec>, query: antecedent_io_core::ObservationQueryWire, declared_basis: antecedent_contract::observation_query::InferenceBasis, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::ObservationQueryArtifactError>
+pub fn <antecedent_io_core::ObservationQueryWire>::const fn is_general(&self) -> bool
 pub fn <antecedent_io_core::ObservationQueryWire>::const fn needs_composed_model(&self) -> bool
-pub fn <antecedent_io_core::ObservationQueryWire>::const fn operation(&self) -> &'static str
 pub fn <antecedent_io_core::ObservationQueryWire>::fn canonical(self) -> Self
+pub fn <antecedent_io_core::ObservationQueryWire>::fn operation(&self) -> &'static str
 pub fn <antecedent_io_core::PayloadDigestWire>::fn bytes(kind: &str, bytes: &[u8]) -> Self
 pub fn <antecedent_io_core::PayloadDigestWire>::fn f64s(kind: &str, values: &[f64]) -> Self
 pub fn <antecedent_io_core::PayloadDigestWire>::fn i64s(kind: &str, values: &[i64]) -> Self
@@ -13596,8 +13943,12 @@ pub fn <antecedent_io_core::analysis_result_artifact::QuasiRolloutWire>::fn diag
 pub fn <antecedent_io_core::bayesian_prior_recalc_artifact::BoundBayesianPriorWire>::fn decode(bytes: &[u8]) -> core::result::Result<Self, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::bayesian_prior_recalc_artifact::BoundBayesianPriorWire>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::bound_identity::IdentitySlot>::const fn as_str(self) -> &'static str
+pub fn <antecedent_io_core::bridge_artifact::ContractWire>::const fn is_extended(&self) -> bool
 pub fn <antecedent_io_core::bridge_artifact::FullBridgeContractWire>::fn from_domain(contract: &antecedent_contract::bridge::contract::BridgeContract) -> core::result::Result<Self, antecedent_io_core::bridge_artifact::ScientificBridgeArtifactError>
 pub fn <antecedent_io_core::bridge_artifact::FullBridgeContractWire>::fn to_domain(&self) -> core::result::Result<antecedent_contract::bridge::contract::BridgeContract, antecedent_io_core::bridge_artifact::ScientificBridgeArtifactError>
+pub fn <antecedent_io_core::bridge_artifact::ScientificBridgeAny>::fn from_bytes(bytes: &[u8], expected_identity: core::option::Option<&str>) -> core::result::Result<Self, antecedent_io_core::bridge_artifact::ScientificBridgeArtifactError>
+pub fn <antecedent_io_core::bridge_artifact::ScientificBridgeAny>::fn identity(&self) -> &str
+pub fn <antecedent_io_core::bridge_artifact::ScientificBridgeAny>::fn shape(bytes: &[u8]) -> core::result::Result<&'static str, antecedent_io_core::bridge_artifact::ScientificBridgeArtifactError>
 pub fn <antecedent_io_core::bridge_artifact::ScientificBridgeArtifact>::const fn bridged(&self) -> &antecedent_contract::bridge::claim::BridgedClaim
 pub fn <antecedent_io_core::bridge_artifact::ScientificBridgeArtifact>::const fn source_claim(&self) -> &antecedent_contract::claim::ClaimEnvelope
 pub fn <antecedent_io_core::bridge_artifact::ScientificBridgeArtifact>::fn from_bytes(bytes: &[u8], expected_identity: core::option::Option<&str>) -> core::result::Result<Self, antecedent_io_core::bridge_artifact::ScientificBridgeArtifactError>
@@ -13605,6 +13956,24 @@ pub fn <antecedent_io_core::bridge_artifact::ScientificBridgeArtifact>::fn ident
 pub fn <antecedent_io_core::bridge_artifact::ScientificBridgeArtifact>::fn seal(bridged: &antecedent_contract::bridge::claim::BridgedClaim, source: &antecedent_contract::bridge::claim::BridgeSource<'_>) -> core::result::Result<(Self, antecedent_io_core::bridge_artifact::ScientificBridgeMeta), antecedent_io_core::bridge_artifact::ScientificBridgeArtifactError>
 pub fn <antecedent_io_core::bridge_artifact::ScientificBridgeArtifact>::fn to_bytes(bridged: &antecedent_contract::bridge::claim::BridgedClaim, source: &antecedent_contract::bridge::claim::BridgeSource<'_>, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::bridge_artifact::ScientificBridgeArtifactError>
 pub fn <antecedent_io_core::bridge_artifact::ScientificBridgeArtifactError>::fn refusal(&self) -> core::option::Option<(&'static str, alloc::string::String, alloc::string::String)>
+pub fn <antecedent_io_core::bridge_artifact::ScientificBridgeDrawsArtifact>::const fn bridged(&self) -> &antecedent_io_core::bridge_distribution::BridgedDistribution
+pub fn <antecedent_io_core::bridge_artifact::ScientificBridgeDrawsArtifact>::fn from_bytes(bytes: &[u8], expected_identity: core::option::Option<&str>) -> core::result::Result<Self, antecedent_io_core::bridge_artifact::ScientificBridgeArtifactError>
+pub fn <antecedent_io_core::bridge_artifact::ScientificBridgeDrawsArtifact>::fn identity(&self) -> &str
+pub fn <antecedent_io_core::bridge_artifact::ScientificBridgeDrawsArtifact>::fn seal(bridged: &antecedent_io_core::bridge_distribution::BridgedDistribution) -> core::result::Result<(Self, antecedent_io_core::bridge_artifact::ScientificBridgeMeta, alloc::vec::Vec<u8>), antecedent_io_core::bridge_artifact::ScientificBridgeArtifactError>
+pub fn <antecedent_io_core::bridge_artifact::ScientificBridgeDrawsArtifact>::fn to_bytes(bridged: &antecedent_io_core::bridge_distribution::BridgedDistribution, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::bridge_artifact::ScientificBridgeArtifactError>
+pub fn <antecedent_io_core::bridge_distribution::BridgedDistribution>::const fn affine_columns(&self) -> core::option::Option<&antecedent_io_core::bridge_distribution::AffineColumns>
+pub fn <antecedent_io_core::bridge_distribution::BridgedDistribution>::const fn claim(&self) -> &antecedent_contract::bridge::contract::draws::BridgedDistributionClaim
+pub fn <antecedent_io_core::bridge_distribution::BridgedDistribution>::const fn column(&self) -> usize
+pub fn <antecedent_io_core::bridge_distribution::BridgedDistribution>::const fn distribution(&self) -> &antecedent_io_core::distribution_artifact::DistributionArtifact
+pub fn <antecedent_io_core::bridge_distribution::BridgedDistribution>::const fn envelope(&self) -> &antecedent_contract::claim::ClaimEnvelope
+pub fn <antecedent_io_core::bridge_distribution::BridgedDistribution>::const fn source(&self) -> &antecedent_io_core::distribution_artifact::DistributionArtifact
+pub fn <antecedent_io_core::bridge_distribution::BridgedDistribution>::const fn source_mean(&self) -> f64
+pub fn <antecedent_io_core::bridge_distribution::BridgedDistribution>::const fn source_variance(&self) -> f64
+pub fn <antecedent_io_core::bridge_distribution::BridgedDistribution>::fn alignment_identity(&self) -> &str
+pub fn <antecedent_io_core::bridge_distribution::BridgedDistribution>::fn chain_stage(&self, stage_id: &str) -> core::result::Result<antecedent_io_core::bridge_distribution::BridgeChainStage, antecedent_contract::bridge::refusal::BridgeRefusal>
+pub fn <antecedent_io_core::bridge_distribution::BridgedDistribution>::fn mapped_column(&self) -> alloc::vec::Vec<f64>
+pub fn <antecedent_io_core::bridge_distribution::BridgedDistribution>::fn source_column(&self) -> alloc::vec::Vec<f64>
+pub fn <antecedent_io_core::bridge_distribution::BridgedDistribution>::fn source_envelope(&self) -> antecedent_contract::claim::ClaimEnvelope
 pub fn <antecedent_io_core::callback_result_artifact::CallbackResultArtifact>::const fn record(&self) -> &antecedent_io_core::callback_result_artifact::CallbackResultRecord
 pub fn <antecedent_io_core::callback_result_artifact::CallbackResultArtifact>::fn contract_operations(&self) -> alloc::collections::btree::set::BTreeSet<antecedent_contract::interface_contract::declaration::ContractOperation>
 pub fn <antecedent_io_core::callback_result_artifact::CallbackResultArtifact>::fn declaration_identity(&self) -> &str
@@ -14094,12 +14463,15 @@ pub fn antecedent_io_core::artifact_codec::digest_hex<T: serde_core::ser::Serial
 pub fn antecedent_io_core::artifact_codec::encode_container(header: &antecedent_io_core::ArtifactContainer<'_>, sections: &[antecedent_io_core::OutSection<'_>]) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::CodecError>
 pub fn antecedent_io_core::artifact_codec::peek_version<V: antecedent_io_core::artifact_codec::VersionWord>(bytes: &[u8]) -> core::result::Result<V, antecedent_io_core::IoError>
 pub fn antecedent_io_core::artifact_codec::require_digest<E>(stored: &str, expected: core::result::Result<alloc::string::String, antecedent_io_core::IoError>, on_encode: impl core::ops::function::FnOnce(antecedent_io_core::IoError) -> E, on_mismatch: impl core::ops::function::FnOnce() -> E) -> core::result::Result<(), E>
+pub fn antecedent_io_core::association_query_from_wire(w: &antecedent_io_core::AssociationQueryWire) -> core::result::Result<antecedent_core::query::association::AssociationQuery, antecedent_io_core::IoError>
+pub fn antecedent_io_core::association_query_to_wire(q: &antecedent_core::query::association::AssociationQuery) -> antecedent_io_core::AssociationQueryWire
 pub fn antecedent_io_core::assumptions_to_wire(set: &antecedent_core::assumption::AssumptionSet) -> alloc::vec::Vec<antecedent_io_core::AssumptionRecordWire>
 pub fn antecedent_io_core::attach_prior_source_meta(artifact: antecedent_io_core::EncodedArtifact, meta: &antecedent_io_core::PriorSourceMeta) -> core::result::Result<antecedent_io_core::EncodedArtifact, antecedent_io_core::IoError>
 pub fn antecedent_io_core::attested_external_estimate(attach: &antecedent_io_core::ExternalEstimateAttach) -> antecedent_io_core::AttestedEvidenceWire
 pub fn antecedent_io_core::bound_identity::bind(required: antecedent_io_core::bound_identity::IdentitySlot, bound: &antecedent_io_core::bound_identity::BoundIdentity, expected: core::option::Option<&antecedent_io_core::bound_identity::ExpectedIdentity>) -> core::result::Result<antecedent_io_core::bound_identity::BoundMatch, antecedent_io_core::bound_identity::BoundRefusal>
 pub fn antecedent_io_core::bound_identity::bind_all(bound: &antecedent_io_core::bound_identity::BoundIdentities, expected: &antecedent_io_core::bound_identity::ExpectedIdentities) -> core::result::Result<[antecedent_io_core::bound_identity::BoundMatch; 5], antecedent_io_core::bound_identity::BoundRefusal>
 pub fn antecedent_io_core::bound_identity::facet_digest(bound: &antecedent_io_core::bound_identity::BoundIdentity) -> antecedent_core::identity::SemanticDigest
+pub fn antecedent_io_core::bridge_distribution::bridge_draws(contract: &antecedent_contract::bridge::contract::BridgeContract, source: &antecedent_io_core::distribution_artifact::DistributionArtifact, claim_kind: core::option::Option<antecedent_contract::claim::ClaimKind>, seed: u64) -> core::result::Result<antecedent_io_core::bridge_distribution::BridgedDistribution, antecedent_contract::bridge::refusal::BridgeRefusal>
 pub fn antecedent_io_core::calibration::calibration_slot(basis: &antecedent_io_core::calibration::CalibrationBasisWire) -> antecedent_io_core::CalibrationSlotWire
 pub fn antecedent_io_core::calibration::calibration_slot_in(basis: &antecedent_io_core::calibration::CalibrationBasisWire, records: &[antecedent_io_core::coverage_records_data::CoverageRecord]) -> antecedent_io_core::CalibrationSlotWire
 pub fn antecedent_io_core::calibration::calibration_slot_with(basis: &antecedent_io_core::calibration::CalibrationBasisWire, records: &[antecedent_io_core::coverage_records_data::CoverageRecord], attests: impl core::ops::function::Fn(&antecedent_io_core::coverage_records_data::CoverageRecord) -> bool) -> antecedent_io_core::CalibrationSlotWire
@@ -14130,7 +14502,9 @@ pub fn antecedent_io_core::chain_float_bits(values: &[f64]) -> alloc::vec::Vec<u
 pub fn antecedent_io_core::checked_aipw_rows_digest(rows: &antecedent_io_core::CheckedAipwRowsWire) -> core::result::Result<[u8; 32], antecedent_io_core::IoError>
 pub fn antecedent_io_core::claim_digest(wire: &antecedent_io_core::ClaimIdentityWire) -> core::result::Result<antecedent_core::identity::SemanticDigest, antecedent_io_core::IoError>
 pub fn antecedent_io_core::claim_domains(support: core::option::Option<&antecedent_io_core::SupportSlotWire>, identification: core::option::Option<&antecedent_io_core::IdentificationSlotWire>) -> antecedent_io_core::ClaimDomainsWire
+pub fn antecedent_io_core::claim_domains_of_section(support: core::option::Option<&antecedent_io_core::SupportSlotWire>, identification: &antecedent_io_core::SlotSectionWire<antecedent_io_core::IdentificationSlotWire>) -> antecedent_io_core::ClaimDomainsWire
 pub fn antecedent_io_core::claim_kind_name(body: &antecedent_io_core::AnalysisResultWire, identification: core::option::Option<&antecedent_io_core::IdentificationSlotWire>) -> &'static str
+pub fn antecedent_io_core::claim_kind_name_of_section(body: &antecedent_io_core::AnalysisResultWire, identification: &antecedent_io_core::SlotSectionWire<antecedent_io_core::IdentificationSlotWire>) -> &'static str
 pub fn antecedent_io_core::consume_analysis_result(bytes: &[u8]) -> core::result::Result<antecedent_io_core::AnalysisResultConsumption, antecedent_io_core::IoError>
 pub fn antecedent_io_core::container::pack_section(id: impl core::convert::Into<alloc::string::String>, content_type: impl core::convert::Into<alloc::string::String>, logical: alloc::vec::Vec<u8>, policy: antecedent_io_core::CompressPolicy) -> (antecedent_io_core::SectionDescriptor, antecedent_io_core::SectionBytes)
 pub fn antecedent_io_core::container::pack_section_shared(id: impl core::convert::Into<alloc::string::String>, content_type: impl core::convert::Into<alloc::string::String>, logical: alloc::sync::Arc<[u8]>, policy: antecedent_io_core::CompressPolicy) -> (antecedent_io_core::SectionDescriptor, antecedent_io_core::SectionBytes)
@@ -14142,6 +14516,7 @@ pub fn antecedent_io_core::contract_section::cyclic::cyclic_request_identity(req
 pub fn antecedent_io_core::contract_section::cyclic::seal_cyclic_contract(payloads: antecedent_io_core::contract_section::CyclicContractPayloads, request_identity: &str) -> core::result::Result<antecedent_io_core::contract_section::CyclicContractWire, antecedent_io_core::IoError>
 pub fn antecedent_io_core::contract_section::cyclic::verify_cyclic_contract_against_body(contract: &antecedent_io_core::contract_section::CyclicContractWire, request_bytes: &[u8]) -> alloc::vec::Vec<alloc::sync::Arc<str>>
 pub fn antecedent_io_core::contract_section::decode_analysis_result_contract(artifact: &antecedent_io_core::EncodedArtifact) -> core::result::Result<core::option::Option<antecedent_io_core::AnalysisResultContractWire>, antecedent_io_core::IoError>
+pub fn antecedent_io_core::contract_section::identification_not_claimed(section: &antecedent_io_core::SlotSectionWire<antecedent_io_core::IdentificationSlotWire>) -> bool
 pub fn antecedent_io_core::contract_section::project_claim_host(consumed: &antecedent_io_core::AnalysisResultConsumption) -> antecedent_io_core::ClaimHostProjection
 pub fn antecedent_io_core::contract_section::project_lossy_scalar(consumed: &antecedent_io_core::AnalysisResultConsumption) -> (antecedent_io_core::ClaimHostProjection, antecedent_contract::claim::HandoffReceipt)
 pub fn antecedent_io_core::contract_section::result_digest(body: &antecedent_io_core::AnalysisResultWire) -> core::result::Result<[u8; 32], antecedent_io_core::IoError>
@@ -14364,6 +14739,7 @@ pub mod antecedent_io_core::artifact_codec
 pub mod antecedent_io_core::bayesian_prior_recalc_artifact
 pub mod antecedent_io_core::bound_identity
 pub mod antecedent_io_core::bridge_artifact
+pub mod antecedent_io_core::bridge_distribution
 pub mod antecedent_io_core::calibration
 pub mod antecedent_io_core::callback_result_artifact
 pub mod antecedent_io_core::canonical_json
@@ -14467,6 +14843,12 @@ pub struct antecedent_io_core::ArtifactContainer<'a>
 pub struct antecedent_io_core::ArtifactManifest
 pub struct antecedent_io_core::ArtifactReader has private fields
 pub struct antecedent_io_core::ArtifactReader<R>
+pub struct antecedent_io_core::AssociationPosteriorWire
+pub struct antecedent_io_core::AssociationPredictionWire
+pub struct antecedent_io_core::AssociationQueryWire
+pub struct antecedent_io_core::AssociationResamplingWire
+pub struct antecedent_io_core::AssociationTermWire
+pub struct antecedent_io_core::AssociationWire
 pub struct antecedent_io_core::AssumptionRecordWire
 pub struct antecedent_io_core::AssumptionSlotWire
 pub struct antecedent_io_core::AttestedEvidenceWire
@@ -14614,6 +14996,7 @@ pub struct antecedent_io_core::RdConfigWire
 pub struct antecedent_io_core::RdDesignWire
 pub struct antecedent_io_core::ReasoningSectionWire
 pub struct antecedent_io_core::RecordedContrastWire
+pub struct antecedent_io_core::RedrawPriorWire
 pub struct antecedent_io_core::RefutationReportWire
 pub struct antecedent_io_core::ResponseEnvelopeWire
 pub struct antecedent_io_core::ResponseOptionsWire
@@ -14703,17 +15086,27 @@ pub struct antecedent_io_core::bound_identity::ExpectedIdentity
 pub struct antecedent_io_core::bound_identity::SelfDescribedDigest
 pub struct antecedent_io_core::bridge_artifact::AssumptionWire
 pub struct antecedent_io_core::bridge_artifact::ContractWire
+pub struct antecedent_io_core::bridge_artifact::DrawsWire
 pub struct antecedent_io_core::bridge_artifact::EndpointWire
+pub struct antecedent_io_core::bridge_artifact::EstimandWire
+pub struct antecedent_io_core::bridge_artifact::ExposureWire
 pub struct antecedent_io_core::bridge_artifact::FitWire
 pub struct antecedent_io_core::bridge_artifact::FullBridgeContractWire
 pub struct antecedent_io_core::bridge_artifact::FullBridgeContractWire has private fields
+pub struct antecedent_io_core::bridge_artifact::MappingUncertaintyWire
 pub struct antecedent_io_core::bridge_artifact::PremiseWire
 pub struct antecedent_io_core::bridge_artifact::ScientificBridgeArtifact
 pub struct antecedent_io_core::bridge_artifact::ScientificBridgeArtifact has private fields
+pub struct antecedent_io_core::bridge_artifact::ScientificBridgeDrawsArtifact
+pub struct antecedent_io_core::bridge_artifact::ScientificBridgeDrawsArtifact has private fields
 pub struct antecedent_io_core::bridge_artifact::ScientificBridgeMeta
 pub struct antecedent_io_core::bridge_artifact::ScopeWire
 pub struct antecedent_io_core::bridge_artifact::SourceWire
 pub struct antecedent_io_core::bridge_artifact::TrialWire
+pub struct antecedent_io_core::bridge_distribution::AffineColumns
+pub struct antecedent_io_core::bridge_distribution::BridgeChainStage
+pub struct antecedent_io_core::bridge_distribution::BridgedDistribution
+pub struct antecedent_io_core::bridge_distribution::BridgedDistribution has private fields
 pub struct antecedent_io_core::calibration::CalibrationBasisWire
 pub struct antecedent_io_core::calibration::CalibrationKeyWire
 pub struct antecedent_io_core::calibration::CalibrationScopeWire
@@ -15124,8 +15517,18 @@ pub type antecedent_io_core::transport_certificate::TransportCertificateWire = a
 pub type antecedent_io_core::transport_interference_wire::TransportCertificateWire = antecedent_io_core::transport_interference_wire::InterferenceTransportCertificateWire
 pub type antecedent_io_core::transported_counterfactual_artifact::MechanismWire = antecedent_io_core::transported_counterfactual_artifact::TransportedCounterfactualMechanismWire
 pub type antecedent_io_core::transported_counterfactual_artifact::RefusalWire = antecedent_io_core::transported_counterfactual_artifact::TransportedCounterfactualRefusalWire
+pub use antecedent_io_core::analysis_result_artifact::ASSOCIATION_ANALYSES = antecedent_io_core::ASSOCIATION_ANALYSES
+pub use antecedent_io_core::analysis_result_artifact::ASSOCIATION_ANALYTIC_UNCERTAINTY = antecedent_io_core::ASSOCIATION_ANALYTIC_UNCERTAINTY
+pub use antecedent_io_core::analysis_result_artifact::ASSOCIATION_NO_UNCERTAINTY = antecedent_io_core::ASSOCIATION_NO_UNCERTAINTY
+pub use antecedent_io_core::analysis_result_artifact::ASSOCIATION_POSTERIOR_UNCERTAINTY = antecedent_io_core::ASSOCIATION_POSTERIOR_UNCERTAINTY
+pub use antecedent_io_core::analysis_result_artifact::ASSOCIATION_RESAMPLING_UNCERTAINTY = antecedent_io_core::ASSOCIATION_RESAMPLING_UNCERTAINTY
 pub use antecedent_io_core::analysis_result_artifact::AnalysisResultHeader = antecedent_io_core::AnalysisResultHeader
 pub use antecedent_io_core::analysis_result_artifact::AnalysisResultWire = antecedent_io_core::AnalysisResultWire
+pub use antecedent_io_core::analysis_result_artifact::AssociationPosteriorWire = antecedent_io_core::AssociationPosteriorWire
+pub use antecedent_io_core::analysis_result_artifact::AssociationPredictionWire = antecedent_io_core::AssociationPredictionWire
+pub use antecedent_io_core::analysis_result_artifact::AssociationResamplingWire = antecedent_io_core::AssociationResamplingWire
+pub use antecedent_io_core::analysis_result_artifact::AssociationTermWire = antecedent_io_core::AssociationTermWire
+pub use antecedent_io_core::analysis_result_artifact::AssociationWire = antecedent_io_core::AssociationWire
 pub use antecedent_io_core::analysis_result_artifact::DistributionAtomWire = antecedent_io_core::DistributionAtomWire
 pub use antecedent_io_core::analysis_result_artifact::HistoryMatchWire = antecedent_io_core::HistoryMatchWire
 pub use antecedent_io_core::analysis_result_artifact::IV_BOUNDS_BAYESIAN_METHOD = antecedent_io_core::IV_BOUNDS_BAYESIAN_METHOD
@@ -15217,7 +15620,9 @@ pub use antecedent_io_core::contract_section::UncertaintySlotWire = antecedent_i
 pub use antecedent_io_core::contract_section::accept_claim = antecedent_io_core::accept_claim
 pub use antecedent_io_core::contract_section::checked_aipw_rows_digest = antecedent_io_core::checked_aipw_rows_digest
 pub use antecedent_io_core::contract_section::claim_domains = antecedent_io_core::claim_domains
+pub use antecedent_io_core::contract_section::claim_domains_of_section = antecedent_io_core::claim_domains_of_section
 pub use antecedent_io_core::contract_section::claim_kind_name = antecedent_io_core::claim_kind_name
+pub use antecedent_io_core::contract_section::claim_kind_name_of_section = antecedent_io_core::claim_kind_name_of_section
 pub use antecedent_io_core::contract_section::consume_analysis_result = antecedent_io_core::consume_analysis_result
 pub use antecedent_io_core::contract_section::contract_seal = antecedent_io_core::contract_seal
 pub use antecedent_io_core::contract_section::cyclic::CYCLIC_CONTRACT_FORMAT = antecedent_io_core::contract_section::CYCLIC_CONTRACT_FORMAT
@@ -15326,6 +15731,7 @@ pub use antecedent_io_core::graph_networkx::dag_from_networkx_node_link = antece
 pub use antecedent_io_core::graph_networkx::dag_to_networkx_adjacency = antecedent_io_core::dag_to_networkx_adjacency
 pub use antecedent_io_core::graph_networkx::dag_to_networkx_node_link = antecedent_io_core::dag_to_networkx_node_link
 pub use antecedent_io_core::identification_from_wire = antecedent_io_core::analysis_wire::identification_from_wire
+pub use antecedent_io_core::identification_not_claimed = antecedent_io_core::contract_section::identification_not_claimed
 pub use antecedent_io_core::identification_to_wire = antecedent_io_core::analysis_wire::identification_to_wire
 pub use antecedent_io_core::identification_to_wire_with_registry = antecedent_io_core::analysis_wire::identification_to_wire_with_registry
 pub use antecedent_io_core::identified_set_interval_from_wire = antecedent_io_core::analysis_result_artifact::identified_set_interval_from_wire
@@ -15443,10 +15849,16 @@ pub use antecedent_io_core::observation_query_artifact::ConsumedObservationQuery
 pub use antecedent_io_core::observation_query_artifact::MeasuredSlotWire = antecedent_io_core::MeasuredSlotWire
 pub use antecedent_io_core::observation_query_artifact::OBSERVATION_QUERY_ARTIFACT_FEATURE = antecedent_io_core::OBSERVATION_QUERY_ARTIFACT_FEATURE
 pub use antecedent_io_core::observation_query_artifact::OBSERVATION_QUERY_ARTIFACT_VERSION = antecedent_io_core::OBSERVATION_QUERY_ARTIFACT_VERSION
+pub use antecedent_io_core::observation_query_artifact::OBSERVATION_QUERY_GENERAL_ARTIFACT_VERSION = antecedent_io_core::OBSERVATION_QUERY_GENERAL_ARTIFACT_VERSION
+pub use antecedent_io_core::observation_query_artifact::OBSERVATION_QUERY_GENERAL_FEATURE = antecedent_io_core::OBSERVATION_QUERY_GENERAL_FEATURE
 pub use antecedent_io_core::observation_query_artifact::ObservationQueryArtifactError = antecedent_io_core::ObservationQueryArtifactError
 pub use antecedent_io_core::observation_query_artifact::ObservationQueryArtifactWire = antecedent_io_core::ObservationQueryArtifactWire
 pub use antecedent_io_core::observation_query_artifact::ObservationQueryWire = antecedent_io_core::ObservationQueryWire
 pub use antecedent_io_core::observation_query_artifact::ObservationResultWire = antecedent_io_core::ObservationResultWire
+pub use antecedent_io_core::observation_query_artifact::PARAMETER_DRAWS_READING = antecedent_io_core::PARAMETER_DRAWS_READING
+pub use antecedent_io_core::observation_query_artifact::RedrawPriorWire = antecedent_io_core::RedrawPriorWire
+pub use antecedent_io_core::observation_query_artifact::RedrawTargetWire = antecedent_io_core::RedrawTargetWire
+pub use antecedent_io_core::observation_query_artifact::RetainedMechanismWire = antecedent_io_core::RetainedMechanismWire
 pub use antecedent_io_core::observation_query_artifact::evaluate_observation_query = antecedent_io_core::evaluate_observation_query
 pub use antecedent_io_core::observation_query_artifact::inference_basis_of = antecedent_io_core::inference_basis_of
 pub use antecedent_io_core::observation_query_identity = antecedent_io_core::observation_query_artifact::observation_query_identity
@@ -15527,6 +15939,8 @@ pub use antecedent_io_core::provenance_wire::provenance_from_wire = antecedent_i
 pub use antecedent_io_core::provenance_wire::provenance_to_wire = antecedent_io_core::provenance_to_wire
 pub use antecedent_io_core::query_error_refusals = antecedent_io_core::observation_query_artifact::query_error_refusals
 pub use antecedent_io_core::query_wire::AssignmentDesignWire = antecedent_io_core::AssignmentDesignWire
+pub use antecedent_io_core::query_wire::AssociationFunctionalWire = antecedent_io_core::AssociationFunctionalWire
+pub use antecedent_io_core::query_wire::AssociationQueryWire = antecedent_io_core::AssociationQueryWire
 pub use antecedent_io_core::query_wire::CausalQueryWire = antecedent_io_core::CausalQueryWire
 pub use antecedent_io_core::query_wire::ExposureLevelWire = antecedent_io_core::ExposureLevelWire
 pub use antecedent_io_core::query_wire::ExposureMappingWire = antecedent_io_core::ExposureMappingWire
@@ -15544,6 +15958,8 @@ pub use antecedent_io_core::query_wire::TargetPopulationWire = antecedent_io_cor
 pub use antecedent_io_core::query_wire::TemporalPolicyWire = antecedent_io_core::TemporalPolicyWire
 pub use antecedent_io_core::query_wire::TransportQueryWire = antecedent_io_core::TransportQueryWire
 pub use antecedent_io_core::query_wire::ValueWire = antecedent_io_core::ValueWire
+pub use antecedent_io_core::query_wire::association_query_from_wire = antecedent_io_core::association_query_from_wire
+pub use antecedent_io_core::query_wire::association_query_to_wire = antecedent_io_core::association_query_to_wire
 pub use antecedent_io_core::query_wire::causal_query_from_wire = antecedent_io_core::causal_query_from_wire
 pub use antecedent_io_core::query_wire::causal_query_to_wire = antecedent_io_core::causal_query_to_wire
 pub use antecedent_io_core::query_wire::causal_query_to_wire_with_registry = antecedent_io_core::causal_query_to_wire_with_registry
@@ -15676,6 +16092,11 @@ pub variant antecedent_io_core::AssignmentDesignWire::ClusterRandomization { clu
 pub variant antecedent_io_core::AssignmentDesignWire::CompleteRandomization { treated: u64 }
 pub variant antecedent_io_core::AssignmentDesignWire::ObservedExposure { clusters: alloc::vec::Vec<u32>, propensity_from: alloc::vec::Vec<f64>, propensity_to: alloc::vec::Vec<f64>, provenance: alloc::string::String, assume_network_exchangeability: bool }
 pub variant antecedent_io_core::AssignmentDesignWire::TwoStageSaturation { clusters: alloc::vec::Vec<u32>, low_probability: f64, high_probability: f64, high_clusters: u64, realized_saturation: alloc::vec::Vec<f64> }
+pub variant antecedent_io_core::AssociationFunctionalWire::Auto
+pub variant antecedent_io_core::AssociationFunctionalWire::Coefficients
+pub variant antecedent_io_core::AssociationFunctionalWire::Conditional
+pub variant antecedent_io_core::AssociationFunctionalWire::Measure { measure: alloc::string::String }
+pub variant antecedent_io_core::AssociationFunctionalWire::Predictive { folds: u32 }
 pub variant antecedent_io_core::AssumptionTagWire::CausalMarkov
 pub variant antecedent_io_core::AssumptionTagWire::CausalSufficiency
 pub variant antecedent_io_core::AssumptionTagWire::Consistency
@@ -15715,6 +16136,7 @@ pub variant antecedent_io_core::CausalPayloadWire::StaticResult(alloc::boxed::Bo
 pub variant antecedent_io_core::CausalPayloadWire::TransportEstimate(alloc::boxed::Box<antecedent_io_core::TransportEffectEstimateWire>)
 pub variant antecedent_io_core::CausalPayloadWire::TransportIdentification(alloc::boxed::Box<antecedent_io_core::TransportIdentificationWire>)
 pub variant antecedent_io_core::CausalQueryWire::AnomalyAttribution { targets: alloc::vec::Vec<u32>, unit_rows: core::option::Option<alloc::vec::Vec<u64>>, max_units: u64, reference: core::option::Option<core::option::Option<(f64, f64)>> }
+pub variant antecedent_io_core::CausalQueryWire::Association(antecedent_io_core::AssociationQueryWire)
 pub variant antecedent_io_core::CausalQueryWire::Attribute(antecedent_io_core::AttributeQueryWire)
 pub variant antecedent_io_core::CausalQueryWire::AverageEffect { treatment: u32, outcome: u32, effect_modifiers: alloc::vec::Vec<u32>, control: antecedent_io_core::InterventionWire, active: antecedent_io_core::InterventionWire, target_population: antecedent_io_core::TargetPopulationWire, outcome_functional: antecedent_io_core::query_wire::OutcomeFunctionalWire }
 pub variant antecedent_io_core::CausalQueryWire::ChangeAttribution { outcome: u32, baseline: antecedent_io_core::query_wire::PopulationSelectorWire, comparison: antecedent_io_core::query_wire::PopulationSelectorWire, components: antecedent_io_core::query_wire::AttributionComponentsWire, allocation: antecedent_io_core::query_wire::AllocationMethodWire, max_components: u64 }
@@ -16172,11 +16594,14 @@ pub variant antecedent_io_core::ObservationQueryArtifactError::Replay(alloc::str
 pub variant antecedent_io_core::ObservationQueryArtifactError::ResultMismatch
 pub variant antecedent_io_core::ObservationQueryArtifactError::UnsupportedSemantics(&'static str)
 pub variant antecedent_io_core::ObservationQueryArtifactError::UnsupportedVersion { version: u32 }
+pub variant antecedent_io_core::ObservationQueryWire::ConditionalInterventionalOutcome { outcome: alloc::string::String, interventions: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>, observed: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>, measured: core::option::Option<antecedent_io_core::MeasuredSlotWire> }
 pub variant antecedent_io_core::ObservationQueryWire::ConditionalOutcome { outcome: alloc::string::String, observed: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>, measured: core::option::Option<antecedent_io_core::MeasuredSlotWire> }
 pub variant antecedent_io_core::ObservationQueryWire::ConditioningVersusIntervention { outcome: alloc::string::String, assignment: alloc::vec::Vec<(alloc::string::String, alloc::string::String)> }
 pub variant antecedent_io_core::ObservationQueryWire::ConjugatePosterior { alpha_bits: u64, beta_bits: u64, successes: u64, failures: u64 }
 pub variant antecedent_io_core::ObservationQueryWire::FinitePosterior { hypotheses: alloc::vec::Vec<alloc::string::String>, prior_bits: alloc::vec::Vec<u64>, observation_levels: alloc::vec::Vec<alloc::string::String>, likelihood_bits: alloc::vec::Vec<u64>, observations: alloc::vec::Vec<alloc::string::String> }
+pub variant antecedent_io_core::ObservationQueryWire::GaussianOutcome { outcome: alloc::string::String, interventions: alloc::vec::Vec<(alloc::string::String, u64)>, observed: alloc::vec::Vec<(alloc::string::String, u64)> }
 pub variant antecedent_io_core::ObservationQueryWire::InterventionalOutcome { outcome: alloc::string::String, interventions: alloc::vec::Vec<(alloc::string::String, alloc::string::String)> }
+pub variant antecedent_io_core::ObservationQueryWire::ParameterRedraw { target: antecedent_io_core::RedrawTargetWire, retained: alloc::vec::Vec<antecedent_io_core::RetainedMechanismWire>, prior: antecedent_io_core::RedrawPriorWire, draws: u32, seed: u64 }
 pub variant antecedent_io_core::ObservationQueryWire::RequiredBayesFactor { prior_bits: u64, level_bits: u64, direction: alloc::string::String }
 pub variant antecedent_io_core::ObservationQueryWire::RequiredObservationsBinarySignal { prior_bits: u64, level_bits: u64, direction: alloc::string::String, rate_given_hypothesis_bits: u64, rate_given_complement_bits: u64, max_observations: u64 }
 pub variant antecedent_io_core::ObservationQueryWire::RequiredObservationsConjugate { alpha_bits: u64, beta_bits: u64, level_bits: u64, direction: alloc::string::String, max_observations: u64 }
@@ -16184,8 +16609,10 @@ pub variant antecedent_io_core::ObservationQueryWire::ThresholdCrossing { outcom
 pub variant antecedent_io_core::ObservationResultWire::Conditional { operation: alloc::string::String, evidence_probability_bits: u64, levels: alloc::vec::Vec<(alloc::string::String, u64)>, construct_posterior: core::option::Option<alloc::vec::Vec<(alloc::string::String, u64)>> }
 pub variant antecedent_io_core::ObservationResultWire::ConjugatePosterior { alpha_bits: u64, beta_bits: u64, predictive_success_bits: u64 }
 pub variant antecedent_io_core::ObservationResultWire::FinitePosterior { posterior: alloc::vec::Vec<(alloc::string::String, u64)>, log_evidence_bits: u64, evidence_probability_bits: u64, predictive: alloc::vec::Vec<(alloc::string::String, u64)> }
+pub variant antecedent_io_core::ObservationResultWire::GaussianConditional { operation: alloc::string::String, mean_bits: u64, variance_bits: u64, evidence_log_density_bits: core::option::Option<u64> }
 pub variant antecedent_io_core::ObservationResultWire::Interventional { operation: alloc::string::String, levels: alloc::vec::Vec<(alloc::string::String, u64)> }
 pub variant antecedent_io_core::ObservationResultWire::Paired { conditioning_evidence_bits: u64, conditioning: alloc::vec::Vec<(alloc::string::String, u64)>, intervention: alloc::vec::Vec<(alloc::string::String, u64)>, max_abs_difference_bits: u64 }
+pub variant antecedent_io_core::ObservationResultWire::ParameterDraws { quantities: alloc::vec::Vec<alloc::string::String>, draws: u32, point_bits: alloc::vec::Vec<u64>, values_bits: alloc::vec::Vec<u64>, alignment_identity: alloc::string::String, reading: alloc::string::String }
 pub variant antecedent_io_core::ObservationResultWire::RequiredBayesFactor { factor_bits: u64, already_satisfied: bool }
 pub variant antecedent_io_core::ObservationResultWire::RequiredObservations { observations: u64, value_bits: u64, already_satisfied: bool, bayes_factor_bits: core::option::Option<u64> }
 pub variant antecedent_io_core::ObservationResultWire::ThresholdCrossing { crossing_probability_bits: u64, rows: alloc::vec::Vec<(alloc::string::String, u64, u64, bool)> }
@@ -16251,6 +16678,8 @@ pub variant antecedent_io_core::RandomizationDesignWire::Switchback
 pub variant antecedent_io_core::RandomizedEstimandWire::CaceLate
 pub variant antecedent_io_core::RandomizedEstimandWire::Itt
 pub variant antecedent_io_core::RandomizedEstimandWire::TreatmentOnTreated
+pub variant antecedent_io_core::RedrawTargetWire::Finite { outcome: alloc::string::String, interventions: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>, observed: alloc::vec::Vec<(alloc::string::String, alloc::string::String)> }
+pub variant antecedent_io_core::RedrawTargetWire::Gaussian { outcome: alloc::string::String, interventions: alloc::vec::Vec<(alloc::string::String, u64)>, observed: alloc::vec::Vec<(alloc::string::String, u64)> }
 pub variant antecedent_io_core::ResponseFunctionalWire::AverageDerivative { outcome: u32, treatment: u32, weighting: antecedent_io_core::DerivativeWeightingWire }
 pub variant antecedent_io_core::ResponseFunctionalWire::DirectionalDerivative { outcomes: alloc::vec::Vec<u32>, treatments: alloc::vec::Vec<u32>, at: alloc::vec::Vec<f64>, direction: alloc::vec::Vec<f64> }
 pub variant antecedent_io_core::ResponseFunctionalWire::InterventionResponse { outcome: u32, interventions: alloc::vec::Vec<antecedent_io_core::InterventionWire> }
@@ -16272,6 +16701,8 @@ pub variant antecedent_io_core::ResponseValueWire::Jacobian { outcomes: u64, tre
 pub variant antecedent_io_core::ResponseValueWire::Scalar(f64)
 pub variant antecedent_io_core::ResponseValueWire::Surface { grid: alloc::vec::Vec<f64>, dimension: u64, mean: alloc::vec::Vec<f64> }
 pub variant antecedent_io_core::ResponseValueWire::Vector(alloc::vec::Vec<f64>)
+pub variant antecedent_io_core::RetainedMechanismWire::Gaussian { variable: alloc::string::String, parents: alloc::vec::Vec<alloc::string::String>, gram_bits: alloc::vec::Vec<u64>, xty_bits: alloc::vec::Vec<u64>, yty_bits: u64, rows: u64 }
+pub variant antecedent_io_core::RetainedMechanismWire::Table { variable: alloc::string::String, rows: alloc::vec::Vec<(alloc::vec::Vec<(alloc::string::String, alloc::string::String)>, alloc::vec::Vec<(alloc::string::String, u64)>)> }
 pub variant antecedent_io_core::SectionAccess::Mapped(antecedent_io_core::MappedSection)
 pub variant antecedent_io_core::SectionAccess::Shared(alloc::sync::Arc<[u8]>)
 pub variant antecedent_io_core::SimulationTargetWire::Counterfactual { interventions: alloc::vec::Vec<antecedent_io_core::InterventionWire>, outcomes: alloc::vec::Vec<u32> }
@@ -16362,10 +16793,14 @@ pub variant antecedent_io_core::bound_identity::IdentitySlot::Inference
 pub variant antecedent_io_core::bound_identity::IdentitySlot::Program
 pub variant antecedent_io_core::bound_identity::IdentitySlot::Source
 pub variant antecedent_io_core::bound_identity::IdentitySlot::Target
+pub variant antecedent_io_core::bridge_artifact::DependenceWire::Independent { evidence: alloc::string::String }
+pub variant antecedent_io_core::bridge_artifact::DependenceWire::SlopeCovariance { covariance: u64, evidence: alloc::string::String }
 pub variant antecedent_io_core::bridge_artifact::MappingWire::Affine { intercept_bits: u64, slope_bits: u64 }
 pub variant antecedent_io_core::bridge_artifact::MappingWire::Identity
 pub variant antecedent_io_core::bridge_artifact::MappingWire::MeasurementCorrection { model: antecedent_io_core::measurement_model_wire::MeasurementModelWire }
 pub variant antecedent_io_core::bridge_artifact::MappingWire::TrialLevelLinear { trials: alloc::vec::Vec<antecedent_io_core::bridge_artifact::TrialWire>, min_trials: u32, min_r_squared_bits: u64 }
+pub variant antecedent_io_core::bridge_artifact::ScientificBridgeAny::Draws(antecedent_io_core::bridge_artifact::ScientificBridgeDrawsArtifact)
+pub variant antecedent_io_core::bridge_artifact::ScientificBridgeAny::Point(antecedent_io_core::bridge_artifact::ScientificBridgeArtifact)
 pub variant antecedent_io_core::bridge_artifact::ScientificBridgeArtifactError::Decode(alloc::string::String)
 pub variant antecedent_io_core::bridge_artifact::ScientificBridgeArtifactError::Encode(alloc::string::String)
 pub variant antecedent_io_core::bridge_artifact::ScientificBridgeArtifactError::IdentityMismatch { field: &'static str }

@@ -11,6 +11,13 @@ use std::sync::Arc;
 use crate::obligation::ObligationRecord;
 use antecedent_core::identification::IdentificationStatus;
 
+/// Stable reason an identification slot is unavailable on a noncausal claim.
+///
+/// An associational claim has nothing to identify. Its identification slot is
+/// unavailable for this reason, which the consumer reads as "identification is
+/// not claimed" and never as a missing or failed identification.
+pub const IDENTIFICATION_NOT_CLAIMED: &str = "not_claimed";
+
 /// Whether a semantic field is present.
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[non_exhaustive]

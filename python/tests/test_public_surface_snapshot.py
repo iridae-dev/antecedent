@@ -379,6 +379,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "joint_law_propagation",
         "evidence_ledger",
         "execution_attempt",
+        "fallback",
         "functional_source",
         "proposal_arrival",
         "recalc_bayesian",
@@ -449,6 +450,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "intrinsic_influence",
     },
     "AnalysisResult": {
+        "association",
         "iv_bounds",
         "artifact",
         "history_match",

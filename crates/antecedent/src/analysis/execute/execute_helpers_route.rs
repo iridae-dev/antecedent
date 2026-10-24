@@ -97,6 +97,7 @@ pub(crate) enum AnalysisRoute {
     Simulate,
     TemporalDesign,
     IvBounds,
+    Association,
 }
 
 #[derive(Clone, Copy)]
@@ -219,6 +220,9 @@ pub(super) fn classify_route(modality: DataModality, query: &CausalQuery) -> Opt
         }
         (DataModality::Tabular, CausalQuery::TemporalDesign(_)) => AnalysisRoute::TemporalDesign,
         (DataModality::Tabular, CausalQuery::IvBounds(_)) => AnalysisRoute::IvBounds,
+        (DataModality::Tabular | DataModality::TemporalOrEvent, CausalQuery::Association(_)) => {
+            AnalysisRoute::Association
+        }
         _ => return None,
     })
 }

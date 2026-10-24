@@ -114,6 +114,11 @@ pub(crate) enum PlanId {
     IvBoundsSharp,
     /// Bayesian-bootstrap posterior of the same bounds' endpoints.
     BayesianIvBounds,
+    /// Frequentist noncausal association: a stratified law, regression, correlation or
+    /// scored predictive model picked by the declared selection rule.
+    Association,
+    /// Bayesian reading of the same association.
+    BayesianAssociation,
 }
 
 impl PlanId {
@@ -174,6 +179,8 @@ impl PlanId {
             Self::BayesianTemporalRegimeSurvival => "bayesian.temporal_design.regime_survival",
             Self::IvBoundsSharp => "iv_bounds.balke_pearl",
             Self::BayesianIvBounds => "bayesian.iv_bounds.endpoint_bootstrap",
+            Self::Association => "association.descriptive",
+            Self::BayesianAssociation => "bayesian.association.descriptive",
         }
     }
 }

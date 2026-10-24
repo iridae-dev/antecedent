@@ -628,6 +628,12 @@ def _reasoning_from_specialist(specialist: Any) -> ReasoningSlots | None:
         contract=dict(report.contract)
         if isinstance(getattr(report, "contract", None), Mapping)
         else None,
+        next_actions=tuple(dict(item) for item in getattr(report, "next_actions", ())),
+        neighbors=tuple(dict(item) for item in getattr(report, "neighbors", ())),
+        unmet_obligations=tuple(dict(item) for item in getattr(report, "unmet_obligations", ())),
+        evidence_obligations=tuple(
+            dict(item) for item in getattr(report, "evidence_obligations", ())
+        ),
     )
 
 

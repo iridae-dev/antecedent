@@ -15,7 +15,7 @@ use antecedent::analysis::observation_posterior::{
     FiniteBayesInput, conjugate_posterior, finite_posterior,
 };
 use antecedent::analysis::observation_query::{
-    Direction, ObservationRequest, consume_observation_query_artifact,
+    ContinuousAssignments, Direction, ObservationRequest, consume_observation_query_artifact,
 };
 use antecedent::{
     DependenceInput, MechanismCompositionRequest, MechanismInput, MechanismSource,
@@ -167,6 +167,7 @@ fn observe_dispatches_a_conditioning_or_an_intervention_request() {
         outcome: "Y".into(),
         conditioning: vec![direct("Z", "1")],
         interventions: vec![],
+        continuous: ContinuousAssignments::default(),
     };
     let claim = prepared.observe(&conditioning, &ctx()).unwrap();
     assert_eq!(claim.operation(), "conditioning");
@@ -177,19 +178,31 @@ fn observe_dispatches_a_conditioning_or_an_intervention_request() {
         outcome: "Y".into(),
         conditioning: vec![],
         interventions: vec![pair("S", "0")],
+        continuous: ContinuousAssignments::default(),
     };
     let claim = prepared.observe(&intervention, &ctx()).unwrap();
     assert_eq!(claim.operation(), "intervention");
     near(level(&claim.interventional_levels().unwrap(), "1"), 0.3);
-    // Recorded values and an intervention in one request have no bounded
-    // route and are refused, not answered as either kind.
+    // Recorded values of another variable after an intervention are the interventional
+    // law conditioned on them; a variable that is both recorded and set is refused.
     let mixed = ObservationRequest {
         operation: ObservationOperation::Intervention,
         outcome: "Y".into(),
         conditioning: vec![direct("Z", "1")],
         interventions: vec![pair("S", "1")],
+        continuous: ContinuousAssignments::default(),
     };
-    let refusal = prepared.observe(&mixed, &ctx()).unwrap_err();
+    let claim = prepared.observe(&mixed, &ctx()).unwrap();
+    assert_eq!(claim.operation(), "conditional_intervention");
+    near(level(&claim.conditional_levels().unwrap(), "1"), 0.9);
+    let set_and_seen = ObservationRequest {
+        operation: ObservationOperation::Intervention,
+        outcome: "Y".into(),
+        conditioning: vec![direct("S", "1")],
+        interventions: vec![pair("S", "1")],
+        continuous: ContinuousAssignments::default(),
+    };
+    let refusal = prepared.observe(&set_and_seen, &ctx()).unwrap_err();
     assert_eq!(refusal.code(), "route_not_supported");
     assert_eq!(refusal.details(), ["observation_query.mixed_conditioning_and_intervention"]);
 }

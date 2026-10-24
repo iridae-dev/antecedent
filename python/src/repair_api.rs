@@ -14,9 +14,11 @@ use crate::transport_interference_api::parse_catalog;
 use crate::transport_z_api::{intervention_assignments, to_py_json};
 use antecedent::analysis::repair::{
     BackdoorRepairFamily, DurableStudyCandidate, EvidenceObligation, ExpectedEvidence,
-    RepairArtifactError, RepairConsumeLimits, RepairError, RepairFamily, RepairFamilyRef,
-    RepairLimits, RepairObjective, RepairReport, RepairReportArtifact, StudyCostDeclaration,
-    StudyKind, TransportRepairFamily, UnitRules, ZTransportRepairFamily, repair_contract,
+    FrontDoorRepairFamily, HedgeRepairFamily, InstrumentRepairFamily, RepairArtifactError,
+    RepairConsumeLimits, RepairError, RepairFamily, RepairFamilyRef, RepairLimits, RepairObjective,
+    RepairReport, RepairReportArtifact, SensitivityFinding, SensitivityMethod,
+    SensitivityRepairFamily, StudyCostDeclaration, StudyKind, TransportRepairFamily, UnitRules,
+    ZTransportRepairFamily, repair_contract,
 };
 use antecedent_contract::{ObligationKind, ObligationRecord, ObligationScope};
 use antecedent_core::assumption::{AssumptionSource, AssumptionStatus};
@@ -53,12 +55,16 @@ fn names_of(names: &[String], variables: &[VariableId]) -> Vec<String> {
     variables.iter().map(|v| name_of(names, *v)).collect()
 }
 
-/// A failed contract of either family.
+/// A failed contract of any family.
 #[derive(Clone)]
 enum Contract {
     Transport(Box<TransportRepairFamily>),
     Backdoor(Box<BackdoorRepairFamily>),
     ZTransport(Box<ZTransportRepairFamily>),
+    FrontDoor(Box<FrontDoorRepairFamily>),
+    Instrument(Box<InstrumentRepairFamily>),
+    Hedge(Box<HedgeRepairFamily>),
+    Sensitivity(Box<SensitivityRepairFamily>),
 }
 
 impl Contract {
@@ -67,6 +73,10 @@ impl Contract {
             Self::Transport(family) => &**family,
             Self::Backdoor(family) => &**family,
             Self::ZTransport(family) => &**family,
+            Self::FrontDoor(family) => &**family,
+            Self::Instrument(family) => &**family,
+            Self::Hedge(family) => &**family,
+            Self::Sensitivity(family) => &**family,
         }
     }
 
@@ -75,11 +85,18 @@ impl Contract {
             Self::Transport(family) => RepairFamilyRef::Transport(family),
             Self::Backdoor(family) => RepairFamilyRef::Backdoor(family),
             Self::ZTransport(family) => RepairFamilyRef::ZTransport(family),
+            Self::FrontDoor(family) => RepairFamilyRef::FrontDoor(family),
+            Self::Instrument(family) => RepairFamilyRef::Instrument(family),
+            Self::Hedge(family) => RepairFamilyRef::Hedge(family),
+            Self::Sensitivity(family) => RepairFamilyRef::Sensitivity(family),
         }
     }
 }
 
-fn obligation_json(obligation: &EvidenceObligation, names: &[String]) -> serde_json::Value {
+pub(crate) fn obligation_json(
+    obligation: &EvidenceObligation,
+    names: &[String],
+) -> serde_json::Value {
     serde_json::json!({
         "quantities": obligation.quantities.iter().map(|(variable, quantity)| {
             (names[variable.raw() as usize].clone(), antecedent_io::quantity_wire::ScientificQuantityWire::from(quantity))
@@ -214,16 +231,13 @@ fn coordinates(names: &[String], variables: &[String]) -> PyResult<Arc<[Variable
 }
 
 fn candidate_from_decl(names: &[String], decl: CandidateDecl) -> PyResult<DurableStudyCandidate> {
-    let kind = match decl.kind.as_str() {
-        "experiment" => StudyKind::Experiment,
-        "observation" => StudyKind::Observation,
-        "sample_increase" => StudyKind::SampleIncrease,
-        other => {
-            return Err(crate::value_err(format!(
-                "unknown study kind {other:?}; use experiment, observation or sample_increase"
-            )));
-        }
-    };
+    let kind = StudyKind::from_name(decl.kind.as_str()).ok_or_else(|| {
+        crate::value_err(format!(
+            "unknown study kind {:?}; use experiment, observation, sample_increase, instrument, \
+             natural_experiment or panel",
+            decl.kind
+        ))
+    })?;
     let mut evidence = Vec::with_capacity(decl.evidence.len());
     for e in decl.evidence {
         let measured = coordinates(names, &e.measured)?;
@@ -302,7 +316,8 @@ impl RepairContractStage {
 
 #[pymethods]
 impl RepairContractStage {
-    /// `transport` or `backdoor`.
+    /// `transport`, `backdoor`, `z_transport`, `frontdoor`, `instrument`, `hedge` or
+    /// `sensitivity`.
     #[getter]
     fn family(&self) -> &'static str {
         self.contract.family().family_id()
@@ -547,6 +562,115 @@ fn repair_backdoor_contract(
     Ok(RepairContractStage { contract: Contract::Backdoor(Box::new(family)), names })
 }
 
+/// Freeze a failed front-door contract: `observed` are the variables currently
+/// measured jointly with treatment and outcome in `population`; the graph may
+/// hold variables nobody measures.
+#[pyfunction]
+#[pyo3(signature = (graph, treatment, outcome, population, observed))]
+fn repair_frontdoor_contract(
+    graph: PyRef<'_, Dag>,
+    treatment: &str,
+    outcome: &str,
+    population: String,
+    observed: Vec<String>,
+) -> PyResult<RepairContractStage> {
+    let names = graph.names.clone();
+    let family = FrontDoorRepairFamily::try_new(
+        graph.dag.clone(),
+        resolve(&names, treatment)?,
+        resolve(&names, outcome)?,
+        population,
+        coordinates(&names, &observed)?.iter().copied(),
+    )
+    .map_err(|e| repair_error(&e))?;
+    Ok(RepairContractStage { contract: Contract::FrontDoor(Box::new(family)), names })
+}
+
+/// Freeze a failed instrumental-variable contract; relevance, exclusion and the
+/// effect restriction stay `establish_assumption` obligations no study satisfies.
+#[pyfunction]
+#[pyo3(signature = (graph, treatment, outcome, population, observed))]
+fn repair_instrument_contract(
+    graph: PyRef<'_, Dag>,
+    treatment: &str,
+    outcome: &str,
+    population: String,
+    observed: Vec<String>,
+) -> PyResult<RepairContractStage> {
+    let names = graph.names.clone();
+    let family = InstrumentRepairFamily::try_new(
+        graph.dag.clone(),
+        resolve(&names, treatment)?,
+        resolve(&names, outcome)?,
+        population,
+        coordinates(&names, &observed)?.iter().copied(),
+    )
+    .map_err(|e| repair_error(&e))?;
+    Ok(RepairContractStage { contract: Contract::Instrument(Box::new(family)), names })
+}
+
+/// Freeze a hedge: a graph whose effect observation cannot identify, answered by
+/// experiments on the treatment or on a verified surrogate on the hedge.
+#[pyfunction]
+#[pyo3(signature = (graph, treatment, outcome, population, observed))]
+fn repair_hedge_contract(
+    graph: PyRef<'_, Admg>,
+    treatment: &str,
+    outcome: &str,
+    population: String,
+    observed: Vec<String>,
+) -> PyResult<RepairContractStage> {
+    let names = graph.names.clone();
+    let family = HedgeRepairFamily::try_new(
+        graph.aligned_to_names(&names)?,
+        resolve(&names, treatment)?,
+        resolve(&names, outcome)?,
+        population,
+        coordinates(&names, &observed)?.iter().copied(),
+    )
+    .map_err(|e| repair_error(&e))?;
+    Ok(RepairContractStage { contract: Contract::Hedge(Box::new(family)), names })
+}
+
+/// Freeze a non-robust sensitivity finding: the unmeasured confounder to measure.
+/// The confounder is one more variable past the graph's, named `unmeasured_confounder`
+/// (suffixed to stay distinct), so study candidates can measure it by name.
+#[pyfunction]
+#[pyo3(signature = (graph, treatment, outcome, population, observed, method, strength, robust))]
+#[allow(clippy::too_many_arguments)] // Mirrors the Python signature.
+fn repair_sensitivity_contract(
+    graph: PyRef<'_, Dag>,
+    treatment: &str,
+    outcome: &str,
+    population: String,
+    observed: Vec<String>,
+    method: &str,
+    strength: f64,
+    robust: bool,
+) -> PyResult<RepairContractStage> {
+    let mut names = graph.names.clone();
+    let mut label = "unmeasured_confounder".to_owned();
+    while names.contains(&label) {
+        label.push('_');
+    }
+    let method = SensitivityMethod::from_name(method).ok_or_else(|| {
+        crate::value_err(format!(
+            "unknown sensitivity method {method:?}; use e_value, omitted_variable_bias or tipping"
+        ))
+    })?;
+    let family = SensitivityRepairFamily::try_new(
+        graph.dag.clone(),
+        resolve(&names, treatment)?,
+        resolve(&names, outcome)?,
+        population,
+        coordinates(&names, &observed)?.iter().copied(),
+        SensitivityFinding { method, strength, robust },
+    )
+    .map_err(|e| repair_error(&e))?;
+    names.push(label);
+    Ok(RepairContractStage { contract: Contract::Sensitivity(Box::new(family)), names })
+}
+
 fn check_names(names: &[String], node_count: u32) -> PyResult<()> {
     if names.len() != node_count as usize
         || names.iter().collect::<BTreeSet<_>>().len() != names.len()
@@ -579,10 +703,17 @@ fn consume_repair_artifact(
             &stored.premises.transport,
             &stored.premises.backdoor,
             &stored.premises.z_transport,
+            &stored.premises.identification,
         ) {
-            (Some(t), None, None) => t.graph.node_count,
-            (None, Some(b), None) => b.graph.node_count,
-            (None, None, Some(z)) => z.snapshot.graph.node_count,
+            (Some(t), None, None, None) => t.graph.node_count,
+            (None, Some(b), None, None) => b.graph.node_count,
+            (None, None, Some(z), None) => z.snapshot.graph.node_count,
+            (None, None, None, Some(i)) => match (&i.graph, &i.admg) {
+                // A sensitivity contract names its modelled confounder past the graph's variables.
+                (Some(graph), None) => graph.node_count + u32::from(i.finding.is_some()),
+                (None, Some(graph)) => graph.node_count,
+                _ => return Err(serialization_error("invalid repair artifact premises")),
+            },
             _ => return Err(serialization_error("invalid repair artifact premises")),
         };
         check_names(&names, node_count)?;
@@ -600,6 +731,10 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(repair_transport_contract, module)?)?;
     module.add_function(wrap_pyfunction!(repair_backdoor_contract, module)?)?;
     module.add_function(wrap_pyfunction!(repair_z_transport_contract, module)?)?;
+    module.add_function(wrap_pyfunction!(repair_frontdoor_contract, module)?)?;
+    module.add_function(wrap_pyfunction!(repair_instrument_contract, module)?)?;
+    module.add_function(wrap_pyfunction!(repair_hedge_contract, module)?)?;
+    module.add_function(wrap_pyfunction!(repair_sensitivity_contract, module)?)?;
     module.add_function(wrap_pyfunction!(consume_repair_artifact, module)?)?;
     Ok(())
 }

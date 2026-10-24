@@ -80,16 +80,17 @@ pub use antecedent_io_core::{
     bayesian_prior_recalc_artifact, calibration, canonical_dag_wire, canonical_json,
     canonical_temporal_dag_wire, causal_artifact, causal_query_from_wire, causal_query_to_wire,
     causal_query_to_wire_with_registry, causal_response_from_wire, causal_response_to_wire,
-    checked_aipw_rows_digest, claim_digest, claim_domains, claim_kind_name, compact_export,
-    consume_analysis_result, container, container_kind, contract_seal, contract_section,
-    contract_wire, contrast_wire, convert, counterfactual_id_artifact,
-    counterfactual_transport_wire, coverage_records_data, cpdag_from_dot, cpdag_from_gml,
-    cpdag_from_json, cpdag_from_networkx_node_link, cpdag_from_wire, cpdag_identity, cpdag_to_dot,
-    cpdag_to_gml, cpdag_to_json, cpdag_to_networkx_node_link, cpdag_to_wire, cross_world_artifact,
-    dag_from_dot, dag_from_gml, dag_from_json, dag_from_networkx_adjacency,
-    dag_from_networkx_node_link, dag_from_wire, dag_identity, dag_json_from_str, dag_to_dot,
-    dag_to_gml, dag_to_json, dag_to_networkx_adjacency, dag_to_networkx_node_link, dag_to_wire,
-    dag_wire_from_dot, dag_wire_from_gml, dag_wire_to_dot, dag_wire_to_gml, data_snapshot_digest,
+    checked_aipw_rows_digest, claim_digest, claim_domains, claim_domains_of_section,
+    claim_kind_name, claim_kind_name_of_section, compact_export, consume_analysis_result,
+    container, container_kind, contract_seal, contract_section, contract_wire, contrast_wire,
+    convert, counterfactual_id_artifact, counterfactual_transport_wire, coverage_records_data,
+    cpdag_from_dot, cpdag_from_gml, cpdag_from_json, cpdag_from_networkx_node_link,
+    cpdag_from_wire, cpdag_identity, cpdag_to_dot, cpdag_to_gml, cpdag_to_json,
+    cpdag_to_networkx_node_link, cpdag_to_wire, cross_world_artifact, dag_from_dot, dag_from_gml,
+    dag_from_json, dag_from_networkx_adjacency, dag_from_networkx_node_link, dag_from_wire,
+    dag_identity, dag_json_from_str, dag_to_dot, dag_to_gml, dag_to_json,
+    dag_to_networkx_adjacency, dag_to_networkx_node_link, dag_to_wire, dag_wire_from_dot,
+    dag_wire_from_gml, dag_wire_to_dot, dag_wire_to_gml, data_snapshot_digest,
     decode_analysis_result_artifact, decode_analysis_result_contract,
     decode_causal_payload_artifact, decode_container, decode_external_estimate_claim,
     decode_posterior_artifact, decode_posterior_meta_from_path, decode_posterior_meta_from_seek,
@@ -153,6 +154,7 @@ pub use analysis_wire::{
 
 pub mod adaptive_inference_result_artifact;
 pub mod admg_conditional_transport_artifact;
+pub mod bridge_distribution_interval;
 pub mod bridge_interval;
 pub mod counterfactual_transport_artifact;
 pub mod cpdag_completion_artifact;
@@ -199,8 +201,8 @@ pub use antecedent_io_core::selective_discovery_artifact;
 pub use antecedent_io_core::transport_handoff_artifact;
 pub use antecedent_io_core::transport_revalidation_artifact;
 pub use antecedent_io_core::{
-    bridge_artifact, evidence_ledger_artifact, interface_contract_artifact, measurement_model_wire,
-    mechanism_composition_artifact,
+    bridge_artifact, bridge_distribution, evidence_ledger_artifact, interface_contract_artifact,
+    measurement_model_wire, mechanism_composition_artifact,
 };
 pub use model_bundle::{
     ModelBundle, ModelBundleEncode, ModelBundleHeaderWire, decode_model_bundle, encode_model_bundle,
