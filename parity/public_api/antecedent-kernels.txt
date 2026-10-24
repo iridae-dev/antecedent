@@ -2,6 +2,8 @@
 #   python3 scripts/gate_public_api.py --write
 # One line per public item; do not edit by hand.
 #[non_exhaustive] pub enum antecedent_kernels::ViewError
+impl antecedent_core::measurement_record::ResourceProbe for antecedent_kernels::native_probe::NativeProbe
+impl core::alloc::global::GlobalAlloc for antecedent_kernels::native_probe::CountingAllocator
 impl core::clone::Clone for antecedent_kernels::CholeskyError
 impl core::clone::Clone for antecedent_kernels::KernelImpl
 impl core::clone::Clone for antecedent_kernels::LogWeightError
@@ -12,6 +14,7 @@ impl core::clone::Clone for antecedent_kernels::PosteriorReduceOp
 impl core::clone::Clone for antecedent_kernels::ViewError
 impl core::clone::Clone for antecedent_kernels::Welford
 impl core::clone::Clone for antecedent_kernels::cholesky::CholeskyRefusal
+impl core::clone::Clone for antecedent_kernels::native_probe::NativeProbe
 impl core::clone::Clone for antecedent_kernels::numeric::CompensatedSum
 impl core::cmp::Eq for antecedent_kernels::CholeskyError
 impl core::cmp::Eq for antecedent_kernels::KernelImpl
@@ -32,6 +35,8 @@ impl core::cmp::PartialEq for antecedent_kernels::cholesky::CholeskyRefusal
 impl core::convert::From<bool> for antecedent_kernels::ParCorrMode
 impl core::default::Default for antecedent_kernels::ParCorrWorkspace
 impl core::default::Default for antecedent_kernels::Welford
+impl core::default::Default for antecedent_kernels::native_probe::CountingAllocator
+impl core::default::Default for antecedent_kernels::native_probe::NativeProbe
 impl core::default::Default for antecedent_kernels::numeric::CompensatedSum
 impl core::error::Error for antecedent_kernels::LogWeightError
 impl core::error::Error for antecedent_kernels::ViewError
@@ -45,6 +50,8 @@ impl core::fmt::Debug for antecedent_kernels::PosteriorReduceOp
 impl core::fmt::Debug for antecedent_kernels::ViewError
 impl core::fmt::Debug for antecedent_kernels::Welford
 impl core::fmt::Debug for antecedent_kernels::cholesky::CholeskyRefusal
+impl core::fmt::Debug for antecedent_kernels::native_probe::CountingAllocator
+impl core::fmt::Debug for antecedent_kernels::native_probe::NativeProbe
 impl core::fmt::Debug for antecedent_kernels::numeric::CompensatedSum
 impl core::fmt::Display for antecedent_kernels::LogWeightError
 impl core::fmt::Display for antecedent_kernels::ViewError
@@ -60,6 +67,7 @@ impl core::marker::Copy for antecedent_kernels::ParCorrQuery
 impl core::marker::Copy for antecedent_kernels::PosteriorReduceOp
 impl core::marker::Copy for antecedent_kernels::Welford
 impl core::marker::Copy for antecedent_kernels::cholesky::CholeskyRefusal
+impl core::marker::Copy for antecedent_kernels::native_probe::NativeProbe
 impl core::marker::Copy for antecedent_kernels::numeric::CompensatedSum
 impl core::marker::Freeze for antecedent_kernels::CholeskyError [auto]
 impl core::marker::Freeze for antecedent_kernels::KernelImpl [auto]
@@ -71,6 +79,8 @@ impl core::marker::Freeze for antecedent_kernels::PosteriorReduceOp [auto]
 impl core::marker::Freeze for antecedent_kernels::ViewError [auto]
 impl core::marker::Freeze for antecedent_kernels::Welford [auto]
 impl core::marker::Freeze for antecedent_kernels::cholesky::CholeskyRefusal [auto]
+impl core::marker::Freeze for antecedent_kernels::native_probe::CountingAllocator [auto]
+impl core::marker::Freeze for antecedent_kernels::native_probe::NativeProbe [auto]
 impl core::marker::Freeze for antecedent_kernels::numeric::CompensatedSum [auto]
 impl core::marker::Send for antecedent_kernels::CholeskyError [auto]
 impl core::marker::Send for antecedent_kernels::KernelImpl [auto]
@@ -82,6 +92,8 @@ impl core::marker::Send for antecedent_kernels::PosteriorReduceOp [auto]
 impl core::marker::Send for antecedent_kernels::ViewError [auto]
 impl core::marker::Send for antecedent_kernels::Welford [auto]
 impl core::marker::Send for antecedent_kernels::cholesky::CholeskyRefusal [auto]
+impl core::marker::Send for antecedent_kernels::native_probe::CountingAllocator [auto]
+impl core::marker::Send for antecedent_kernels::native_probe::NativeProbe [auto]
 impl core::marker::Send for antecedent_kernels::numeric::CompensatedSum [auto]
 impl core::marker::StructuralPartialEq for antecedent_kernels::CholeskyError
 impl core::marker::StructuralPartialEq for antecedent_kernels::KernelImpl
@@ -102,6 +114,8 @@ impl core::marker::Sync for antecedent_kernels::PosteriorReduceOp [auto]
 impl core::marker::Sync for antecedent_kernels::ViewError [auto]
 impl core::marker::Sync for antecedent_kernels::Welford [auto]
 impl core::marker::Sync for antecedent_kernels::cholesky::CholeskyRefusal [auto]
+impl core::marker::Sync for antecedent_kernels::native_probe::CountingAllocator [auto]
+impl core::marker::Sync for antecedent_kernels::native_probe::NativeProbe [auto]
 impl core::marker::Sync for antecedent_kernels::numeric::CompensatedSum [auto]
 impl core::marker::Unpin for antecedent_kernels::CholeskyError [auto]
 impl core::marker::Unpin for antecedent_kernels::KernelImpl [auto]
@@ -113,6 +127,8 @@ impl core::marker::Unpin for antecedent_kernels::PosteriorReduceOp [auto]
 impl core::marker::Unpin for antecedent_kernels::ViewError [auto]
 impl core::marker::Unpin for antecedent_kernels::Welford [auto]
 impl core::marker::Unpin for antecedent_kernels::cholesky::CholeskyRefusal [auto]
+impl core::marker::Unpin for antecedent_kernels::native_probe::CountingAllocator [auto]
+impl core::marker::Unpin for antecedent_kernels::native_probe::NativeProbe [auto]
 impl core::marker::Unpin for antecedent_kernels::numeric::CompensatedSum [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_kernels::CholeskyError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_kernels::KernelImpl [auto]
@@ -124,6 +140,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_kernels::PosteriorRe
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_kernels::ViewError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_kernels::Welford [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_kernels::cholesky::CholeskyRefusal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_kernels::native_probe::CountingAllocator [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_kernels::native_probe::NativeProbe [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_kernels::numeric::CompensatedSum [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_kernels::CholeskyError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_kernels::KernelImpl [auto]
@@ -135,6 +153,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_kernels::PosteriorReduc
 impl core::panic::unwind_safe::UnwindSafe for antecedent_kernels::ViewError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_kernels::Welford [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_kernels::cholesky::CholeskyRefusal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_kernels::native_probe::CountingAllocator [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_kernels::native_probe::NativeProbe [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_kernels::numeric::CompensatedSum [auto]
 impl<'a> core::clone::Clone for antecedent_kernels::BitMaskView<'a>
 impl<'a> core::clone::Clone for antecedent_kernels::F64MatrixView<'a>
@@ -165,6 +185,9 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_kernels::F64MatrixV
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_kernels::F64VectorView<'a> [auto]
 pub const antecedent_kernels::EQUILIBRATED_PIVOT_FLOOR: f64
 pub const antecedent_kernels::NORMAL_Q975: f64
+pub const antecedent_kernels::native_probe::MEASUREMENT_OUT_ENV: &str
+pub const antecedent_kernels::native_probe::PEAK_RSS_GETRUSAGE_FAILED: &str
+pub const antecedent_kernels::native_probe::PEAK_RSS_NO_GETRUSAGE: &str
 pub enum antecedent_kernels::CholeskyError
 pub enum antecedent_kernels::KernelImpl
 pub enum antecedent_kernels::LogWeightError
@@ -209,6 +232,7 @@ pub fn <antecedent_kernels::Welford>::fn push(&mut self, x: f64)
 pub fn <antecedent_kernels::Welford>::fn push_weighted(&mut self, weight: f64, x: f64)
 pub fn <antecedent_kernels::Welford>::fn sample_variance(&self) -> core::option::Option<f64>
 pub fn <antecedent_kernels::Welford>::fn stderr_of_mean(&self) -> f64
+pub fn <antecedent_kernels::native_probe::CountingAllocator>::const fn new() -> Self
 pub fn <antecedent_kernels::numeric::CompensatedSum>::const fn add(&mut self, value: f64)
 pub fn <antecedent_kernels::numeric::CompensatedSum>::const fn total(self) -> f64
 pub fn <antecedent_kernels::numeric::CompensatedSum>::fn of(values: impl core::iter::traits::collect::IntoIterator<Item = f64>) -> f64
@@ -243,6 +267,11 @@ pub fn antecedent_kernels::mean(values: &[f64]) -> f64
 pub fn antecedent_kernels::median_sorted(sorted: &[f64]) -> f64
 pub fn antecedent_kernels::midranks_into(values: &[f64], out: &mut [f64]) -> core::result::Result<(), antecedent_kernels::ViewError>
 pub fn antecedent_kernels::mills_left_tail(t: f64) -> (f64, f64)
+pub fn antecedent_kernels::native_probe::allocation_sample() -> core::option::Option<antecedent_core::measurement_record::AllocationSample>
+pub fn antecedent_kernels::native_probe::measured_pass<T, E: core::fmt::Debug>(name: &str, repeats: usize, ctx: &antecedent_core::execution::ExecutionContext, work: impl core::ops::function::FnMut() -> core::result::Result<T, E>) -> antecedent_core::measurement_record::MeasurementSummary
+pub fn antecedent_kernels::native_probe::peak_rss_bytes() -> antecedent_core::measurement_record::PeakRss
+pub fn antecedent_kernels::native_probe::set_counting(enabled: bool)
+pub fn antecedent_kernels::native_probe::write_measurement(root: &std::path::Path, bench: &str, json: &str) -> std::io::error::Result<std::path::PathBuf>
 pub fn antecedent_kernels::norm_cdf(x: f64) -> f64
 pub fn antecedent_kernels::norm_inv(p: f64) -> f64
 pub fn antecedent_kernels::norm_pdf(x: f64) -> f64
@@ -288,6 +317,7 @@ pub fn antecedent_kernels::update_scatter(mean: &mut [f64], m2: &mut [f64], n_be
 pub mod antecedent_kernels::cholesky
 pub mod antecedent_kernels::dispatch
 pub mod antecedent_kernels::gram
+pub mod antecedent_kernels::native_probe
 pub mod antecedent_kernels::numeric
 pub mod antecedent_kernels::parcorr
 pub mod antecedent_kernels::portable
@@ -309,6 +339,8 @@ pub struct antecedent_kernels::ParCorrWorkspace has private fields
 pub struct antecedent_kernels::Welford
 pub struct antecedent_kernels::Welford has private fields
 pub struct antecedent_kernels::cholesky::CholeskyRefusal
+pub struct antecedent_kernels::native_probe::CountingAllocator
+pub struct antecedent_kernels::native_probe::NativeProbe
 pub struct antecedent_kernels::numeric::CompensatedSum
 pub struct antecedent_kernels::numeric::CompensatedSum has private fields
 pub use antecedent_kernels::cholesky::CholeskyError = antecedent_kernels::CholeskyError

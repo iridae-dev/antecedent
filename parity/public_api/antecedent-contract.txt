@@ -49,6 +49,7 @@
 #[non_exhaustive] pub enum antecedent_contract::bridge::DrawMapping
 #[non_exhaustive] pub enum antecedent_contract::bridge::MappingKind
 #[non_exhaustive] pub enum antecedent_contract::bridge::NonlinearMap
+#[non_exhaustive] pub enum antecedent_contract::bridge::PropagationMethod
 #[non_exhaustive] pub enum antecedent_contract::bridge::QuantityClass
 #[non_exhaustive] pub enum antecedent_contract::bridge::SourceMappingDependence
 #[non_exhaustive] pub enum antecedent_contract::bridge::SupportMap
@@ -348,6 +349,7 @@ impl core::clone::Clone for antecedent_contract::bridge::BridgeMapping
 impl core::clone::Clone for antecedent_contract::bridge::BridgeScope
 impl core::clone::Clone for antecedent_contract::bridge::BridgedClaim
 impl core::clone::Clone for antecedent_contract::bridge::BridgedDistributionClaim
+impl core::clone::Clone for antecedent_contract::bridge::ContractNonlinearPropagation
 impl core::clone::Clone for antecedent_contract::bridge::CorrectionDrawLaw
 impl core::clone::Clone for antecedent_contract::bridge::DrawMapping
 impl core::clone::Clone for antecedent_contract::bridge::DrawsPlan
@@ -355,6 +357,8 @@ impl core::clone::Clone for antecedent_contract::bridge::EstimandBridge
 impl core::clone::Clone for antecedent_contract::bridge::ExperimentalPrior
 impl core::clone::Clone for antecedent_contract::bridge::ExposureSetting
 impl core::clone::Clone for antecedent_contract::bridge::ImportedExperimentalPrior
+impl core::clone::Clone for antecedent_contract::bridge::JointLaw
+impl core::clone::Clone for antecedent_contract::bridge::JointPropagation
 impl core::clone::Clone for antecedent_contract::bridge::Licensing
 impl core::clone::Clone for antecedent_contract::bridge::MappedDrawsSummary
 impl core::clone::Clone for antecedent_contract::bridge::MappingKind
@@ -362,8 +366,11 @@ impl core::clone::Clone for antecedent_contract::bridge::MappingUncertainty
 impl core::clone::Clone for antecedent_contract::bridge::MeasurementDirection
 impl core::clone::Clone for antecedent_contract::bridge::NonlinearMap
 impl core::clone::Clone for antecedent_contract::bridge::NonlinearMoment
+impl core::clone::Clone for antecedent_contract::bridge::NonlinearPropagation
+impl core::clone::Clone for antecedent_contract::bridge::PointPropagation
 impl core::clone::Clone for antecedent_contract::bridge::PreservedSupport
 impl core::clone::Clone for antecedent_contract::bridge::PropagatedUncertainty
+impl core::clone::Clone for antecedent_contract::bridge::PropagationMethod
 impl core::clone::Clone for antecedent_contract::bridge::QuantityClass
 impl core::clone::Clone for antecedent_contract::bridge::SourceMappingDependence
 impl core::clone::Clone for antecedent_contract::bridge::SupportMap
@@ -476,9 +483,14 @@ impl core::clone::Clone for antecedent_contract::measurement::MeasurementInterfa
 impl core::clone::Clone for antecedent_contract::measurement::MeasurementOperation
 impl core::clone::Clone for antecedent_contract::measurement::MeasurementRouteCard
 impl core::clone::Clone for antecedent_contract::mixed_module::CutFeedback
+impl core::clone::Clone for antecedent_contract::mixed_module::GaussianLaw
 impl core::clone::Clone for antecedent_contract::mixed_module::MixedModulePolicy
 impl core::clone::Clone for antecedent_contract::mixed_module::MixedModuleRefusal
+impl core::clone::Clone for antecedent_contract::mixed_module::ModularPosterior
+impl core::clone::Clone for antecedent_contract::mixed_module::PoolingEnvelope
 impl core::clone::Clone for antecedent_contract::mixed_module::ReconciliationRecord
+impl core::clone::Clone for antecedent_contract::mixed_module::SharedParameterModel
+impl core::clone::Clone for antecedent_contract::mixed_module::SummaryRange
 impl core::clone::Clone for antecedent_contract::propagation_chain::ChainSourceDecl
 impl core::clone::Clone for antecedent_contract::propagation_chain::ChainStageDecl
 impl core::clone::Clone for antecedent_contract::propagation_chain::FactorDecl
@@ -498,6 +510,7 @@ impl core::clone::Clone for antecedent_contract::provider_transport::Transported
 impl core::clone::Clone for antecedent_contract::provider_transport::TransportedInputPolicy
 impl core::clone::Clone for antecedent_contract::rewrite_legality::FrameContents
 impl core::clone::Clone for antecedent_contract::rewrite_legality::FrameFingerprint
+impl core::clone::Clone for antecedent_contract::rewrite_legality::FrameLedger
 impl core::clone::Clone for antecedent_contract::rewrite_legality::NuisanceEffect
 impl core::clone::Clone for antecedent_contract::rewrite_legality::PreparationEffect
 impl core::clone::Clone for antecedent_contract::rewrite_legality::PreservationAxis
@@ -698,6 +711,7 @@ impl core::cmp::Eq for antecedent_contract::bridge::Licensing
 impl core::cmp::Eq for antecedent_contract::bridge::MappingKind
 impl core::cmp::Eq for antecedent_contract::bridge::MeasurementDirection
 impl core::cmp::Eq for antecedent_contract::bridge::NonlinearMap
+impl core::cmp::Eq for antecedent_contract::bridge::PropagationMethod
 impl core::cmp::Eq for antecedent_contract::bridge::QuantityClass
 impl core::cmp::Eq for antecedent_contract::bridge::TransportabilityPremise
 impl core::cmp::Eq for antecedent_contract::bridge::ValueKind
@@ -801,6 +815,7 @@ impl core::cmp::Eq for antecedent_contract::provider_transport::TransportedHando
 impl core::cmp::Eq for antecedent_contract::provider_transport::TransportedInputPolicy
 impl core::cmp::Eq for antecedent_contract::rewrite_legality::FrameContents
 impl core::cmp::Eq for antecedent_contract::rewrite_legality::FrameFingerprint
+impl core::cmp::Eq for antecedent_contract::rewrite_legality::FrameLedger
 impl core::cmp::Eq for antecedent_contract::rewrite_legality::NuisanceEffect
 impl core::cmp::Eq for antecedent_contract::rewrite_legality::PreparationEffect
 impl core::cmp::Eq for antecedent_contract::rewrite_legality::PreservationAxis
@@ -1124,12 +1139,15 @@ impl core::cmp::PartialEq for antecedent_contract::bridge::BridgeMapping
 impl core::cmp::PartialEq for antecedent_contract::bridge::BridgeScope
 impl core::cmp::PartialEq for antecedent_contract::bridge::BridgedClaim
 impl core::cmp::PartialEq for antecedent_contract::bridge::BridgedDistributionClaim
+impl core::cmp::PartialEq for antecedent_contract::bridge::ContractNonlinearPropagation
 impl core::cmp::PartialEq for antecedent_contract::bridge::CorrectionDrawLaw
 impl core::cmp::PartialEq for antecedent_contract::bridge::DrawMapping
 impl core::cmp::PartialEq for antecedent_contract::bridge::EstimandBridge
 impl core::cmp::PartialEq for antecedent_contract::bridge::ExperimentalPrior
 impl core::cmp::PartialEq for antecedent_contract::bridge::ExposureSetting
 impl core::cmp::PartialEq for antecedent_contract::bridge::ImportedExperimentalPrior
+impl core::cmp::PartialEq for antecedent_contract::bridge::JointLaw
+impl core::cmp::PartialEq for antecedent_contract::bridge::JointPropagation
 impl core::cmp::PartialEq for antecedent_contract::bridge::Licensing
 impl core::cmp::PartialEq for antecedent_contract::bridge::MappedDrawsSummary
 impl core::cmp::PartialEq for antecedent_contract::bridge::MappingKind
@@ -1137,8 +1155,11 @@ impl core::cmp::PartialEq for antecedent_contract::bridge::MappingUncertainty
 impl core::cmp::PartialEq for antecedent_contract::bridge::MeasurementDirection
 impl core::cmp::PartialEq for antecedent_contract::bridge::NonlinearMap
 impl core::cmp::PartialEq for antecedent_contract::bridge::NonlinearMoment
+impl core::cmp::PartialEq for antecedent_contract::bridge::NonlinearPropagation
+impl core::cmp::PartialEq for antecedent_contract::bridge::PointPropagation
 impl core::cmp::PartialEq for antecedent_contract::bridge::PreservedSupport
 impl core::cmp::PartialEq for antecedent_contract::bridge::PropagatedUncertainty
+impl core::cmp::PartialEq for antecedent_contract::bridge::PropagationMethod
 impl core::cmp::PartialEq for antecedent_contract::bridge::QuantityClass
 impl core::cmp::PartialEq for antecedent_contract::bridge::SourceMappingDependence
 impl core::cmp::PartialEq for antecedent_contract::bridge::SupportMap
@@ -1250,9 +1271,14 @@ impl core::cmp::PartialEq for antecedent_contract::measurement::MeasurementInter
 impl core::cmp::PartialEq for antecedent_contract::measurement::MeasurementOperation
 impl core::cmp::PartialEq for antecedent_contract::measurement::MeasurementRouteCard
 impl core::cmp::PartialEq for antecedent_contract::mixed_module::CutFeedback
+impl core::cmp::PartialEq for antecedent_contract::mixed_module::GaussianLaw
 impl core::cmp::PartialEq for antecedent_contract::mixed_module::MixedModulePolicy
 impl core::cmp::PartialEq for antecedent_contract::mixed_module::MixedModuleRefusal
+impl core::cmp::PartialEq for antecedent_contract::mixed_module::ModularPosterior
+impl core::cmp::PartialEq for antecedent_contract::mixed_module::PoolingEnvelope
 impl core::cmp::PartialEq for antecedent_contract::mixed_module::ReconciliationRecord
+impl core::cmp::PartialEq for antecedent_contract::mixed_module::SharedParameterModel
+impl core::cmp::PartialEq for antecedent_contract::mixed_module::SummaryRange
 impl core::cmp::PartialEq for antecedent_contract::propagation_chain::ChainSourceDecl
 impl core::cmp::PartialEq for antecedent_contract::propagation_chain::ChainStageDecl
 impl core::cmp::PartialEq for antecedent_contract::propagation_chain::FactorDecl
@@ -1272,6 +1298,7 @@ impl core::cmp::PartialEq for antecedent_contract::provider_transport::Transport
 impl core::cmp::PartialEq for antecedent_contract::provider_transport::TransportedInputPolicy
 impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::FrameContents
 impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::FrameFingerprint
+impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::FrameLedger
 impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::NuisanceEffect
 impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::PreparationEffect
 impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::PreservationAxis
@@ -1622,6 +1649,7 @@ impl core::fmt::Debug for antecedent_contract::bridge::BridgeMapping
 impl core::fmt::Debug for antecedent_contract::bridge::BridgeScope
 impl core::fmt::Debug for antecedent_contract::bridge::BridgedClaim
 impl core::fmt::Debug for antecedent_contract::bridge::BridgedDistributionClaim
+impl core::fmt::Debug for antecedent_contract::bridge::ContractNonlinearPropagation
 impl core::fmt::Debug for antecedent_contract::bridge::CorrectionDrawLaw
 impl core::fmt::Debug for antecedent_contract::bridge::DrawMapping
 impl core::fmt::Debug for antecedent_contract::bridge::DrawsPlan
@@ -1629,6 +1657,8 @@ impl core::fmt::Debug for antecedent_contract::bridge::EstimandBridge
 impl core::fmt::Debug for antecedent_contract::bridge::ExperimentalPrior
 impl core::fmt::Debug for antecedent_contract::bridge::ExposureSetting
 impl core::fmt::Debug for antecedent_contract::bridge::ImportedExperimentalPrior
+impl core::fmt::Debug for antecedent_contract::bridge::JointLaw
+impl core::fmt::Debug for antecedent_contract::bridge::JointPropagation
 impl core::fmt::Debug for antecedent_contract::bridge::Licensing
 impl core::fmt::Debug for antecedent_contract::bridge::MappedDrawsSummary
 impl core::fmt::Debug for antecedent_contract::bridge::MappingKind
@@ -1636,8 +1666,11 @@ impl core::fmt::Debug for antecedent_contract::bridge::MappingUncertainty
 impl core::fmt::Debug for antecedent_contract::bridge::MeasurementDirection
 impl core::fmt::Debug for antecedent_contract::bridge::NonlinearMap
 impl core::fmt::Debug for antecedent_contract::bridge::NonlinearMoment
+impl core::fmt::Debug for antecedent_contract::bridge::NonlinearPropagation
+impl core::fmt::Debug for antecedent_contract::bridge::PointPropagation
 impl core::fmt::Debug for antecedent_contract::bridge::PreservedSupport
 impl core::fmt::Debug for antecedent_contract::bridge::PropagatedUncertainty
+impl core::fmt::Debug for antecedent_contract::bridge::PropagationMethod
 impl core::fmt::Debug for antecedent_contract::bridge::QuantityClass
 impl core::fmt::Debug for antecedent_contract::bridge::SourceMappingDependence
 impl core::fmt::Debug for antecedent_contract::bridge::SupportMap
@@ -1750,9 +1783,14 @@ impl core::fmt::Debug for antecedent_contract::measurement::MeasurementInterface
 impl core::fmt::Debug for antecedent_contract::measurement::MeasurementOperation
 impl core::fmt::Debug for antecedent_contract::measurement::MeasurementRouteCard
 impl core::fmt::Debug for antecedent_contract::mixed_module::CutFeedback
+impl core::fmt::Debug for antecedent_contract::mixed_module::GaussianLaw
 impl core::fmt::Debug for antecedent_contract::mixed_module::MixedModulePolicy
 impl core::fmt::Debug for antecedent_contract::mixed_module::MixedModuleRefusal
+impl core::fmt::Debug for antecedent_contract::mixed_module::ModularPosterior
+impl core::fmt::Debug for antecedent_contract::mixed_module::PoolingEnvelope
 impl core::fmt::Debug for antecedent_contract::mixed_module::ReconciliationRecord
+impl core::fmt::Debug for antecedent_contract::mixed_module::SharedParameterModel
+impl core::fmt::Debug for antecedent_contract::mixed_module::SummaryRange
 impl core::fmt::Debug for antecedent_contract::propagation_chain::ChainSourceDecl
 impl core::fmt::Debug for antecedent_contract::propagation_chain::ChainStageDecl
 impl core::fmt::Debug for antecedent_contract::propagation_chain::FactorDecl
@@ -1772,6 +1810,7 @@ impl core::fmt::Debug for antecedent_contract::provider_transport::TransportedHa
 impl core::fmt::Debug for antecedent_contract::provider_transport::TransportedInputPolicy
 impl core::fmt::Debug for antecedent_contract::rewrite_legality::FrameContents
 impl core::fmt::Debug for antecedent_contract::rewrite_legality::FrameFingerprint
+impl core::fmt::Debug for antecedent_contract::rewrite_legality::FrameLedger
 impl core::fmt::Debug for antecedent_contract::rewrite_legality::NuisanceEffect
 impl core::fmt::Debug for antecedent_contract::rewrite_legality::PreparationEffect
 impl core::fmt::Debug for antecedent_contract::rewrite_legality::PreservationAxis
@@ -2056,12 +2095,15 @@ impl core::marker::Copy for antecedent_contract::bridge::AppliedMapping
 impl core::marker::Copy for antecedent_contract::bridge::AssumptionKind
 impl core::marker::Copy for antecedent_contract::bridge::BridgeKind
 impl core::marker::Copy for antecedent_contract::bridge::CorrectionDrawLaw
+impl core::marker::Copy for antecedent_contract::bridge::JointPropagation
 impl core::marker::Copy for antecedent_contract::bridge::Licensing
 impl core::marker::Copy for antecedent_contract::bridge::MappedDrawsSummary
 impl core::marker::Copy for antecedent_contract::bridge::MappingKind
 impl core::marker::Copy for antecedent_contract::bridge::MeasurementDirection
 impl core::marker::Copy for antecedent_contract::bridge::NonlinearMap
 impl core::marker::Copy for antecedent_contract::bridge::NonlinearMoment
+impl core::marker::Copy for antecedent_contract::bridge::NonlinearPropagation
+impl core::marker::Copy for antecedent_contract::bridge::PropagationMethod
 impl core::marker::Copy for antecedent_contract::bridge::QuantityClass
 impl core::marker::Copy for antecedent_contract::bridge::SupportMap
 impl core::marker::Copy for antecedent_contract::bridge::TrialEffectPair
@@ -2104,7 +2146,12 @@ impl core::marker::Copy for antecedent_contract::measurement::LatentPosteriorTru
 impl core::marker::Copy for antecedent_contract::measurement::MeasurementOperation
 impl core::marker::Copy for antecedent_contract::measurement::MeasurementRouteCard
 impl core::marker::Copy for antecedent_contract::mixed_module::CutFeedback
+impl core::marker::Copy for antecedent_contract::mixed_module::GaussianLaw
 impl core::marker::Copy for antecedent_contract::mixed_module::MixedModuleRefusal
+impl core::marker::Copy for antecedent_contract::mixed_module::ModularPosterior
+impl core::marker::Copy for antecedent_contract::mixed_module::PoolingEnvelope
+impl core::marker::Copy for antecedent_contract::mixed_module::SharedParameterModel
+impl core::marker::Copy for antecedent_contract::mixed_module::SummaryRange
 impl core::marker::Copy for antecedent_contract::propagation_chain::LawMeaning
 impl core::marker::Copy for antecedent_contract::propagation_chain::NodeRepresentation
 impl core::marker::Copy for antecedent_contract::propagation_chain::OperatorClass
@@ -2349,6 +2396,7 @@ impl core::marker::Freeze for antecedent_contract::bridge::BridgeMapping [auto]
 impl core::marker::Freeze for antecedent_contract::bridge::BridgeScope [auto]
 impl core::marker::Freeze for antecedent_contract::bridge::BridgedClaim [auto]
 impl core::marker::Freeze for antecedent_contract::bridge::BridgedDistributionClaim [auto]
+impl core::marker::Freeze for antecedent_contract::bridge::ContractNonlinearPropagation [auto]
 impl core::marker::Freeze for antecedent_contract::bridge::CorrectionDrawLaw [auto]
 impl core::marker::Freeze for antecedent_contract::bridge::DrawMapping [auto]
 impl core::marker::Freeze for antecedent_contract::bridge::DrawsPlan [auto]
@@ -2356,6 +2404,8 @@ impl core::marker::Freeze for antecedent_contract::bridge::EstimandBridge [auto]
 impl core::marker::Freeze for antecedent_contract::bridge::ExperimentalPrior [auto]
 impl core::marker::Freeze for antecedent_contract::bridge::ExposureSetting [auto]
 impl core::marker::Freeze for antecedent_contract::bridge::ImportedExperimentalPrior [auto]
+impl core::marker::Freeze for antecedent_contract::bridge::JointLaw [auto]
+impl core::marker::Freeze for antecedent_contract::bridge::JointPropagation [auto]
 impl core::marker::Freeze for antecedent_contract::bridge::Licensing [auto]
 impl core::marker::Freeze for antecedent_contract::bridge::MappedDrawsSummary [auto]
 impl core::marker::Freeze for antecedent_contract::bridge::MappingKind [auto]
@@ -2363,8 +2413,11 @@ impl core::marker::Freeze for antecedent_contract::bridge::MappingUncertainty [a
 impl core::marker::Freeze for antecedent_contract::bridge::MeasurementDirection [auto]
 impl core::marker::Freeze for antecedent_contract::bridge::NonlinearMap [auto]
 impl core::marker::Freeze for antecedent_contract::bridge::NonlinearMoment [auto]
+impl core::marker::Freeze for antecedent_contract::bridge::NonlinearPropagation [auto]
+impl core::marker::Freeze for antecedent_contract::bridge::PointPropagation [auto]
 impl core::marker::Freeze for antecedent_contract::bridge::PreservedSupport [auto]
 impl core::marker::Freeze for antecedent_contract::bridge::PropagatedUncertainty [auto]
+impl core::marker::Freeze for antecedent_contract::bridge::PropagationMethod [auto]
 impl core::marker::Freeze for antecedent_contract::bridge::QuantityClass [auto]
 impl core::marker::Freeze for antecedent_contract::bridge::SourceMappingDependence [auto]
 impl core::marker::Freeze for antecedent_contract::bridge::SupportMap [auto]
@@ -2477,9 +2530,14 @@ impl core::marker::Freeze for antecedent_contract::measurement::MeasurementInter
 impl core::marker::Freeze for antecedent_contract::measurement::MeasurementOperation [auto]
 impl core::marker::Freeze for antecedent_contract::measurement::MeasurementRouteCard [auto]
 impl core::marker::Freeze for antecedent_contract::mixed_module::CutFeedback [auto]
+impl core::marker::Freeze for antecedent_contract::mixed_module::GaussianLaw [auto]
 impl core::marker::Freeze for antecedent_contract::mixed_module::MixedModulePolicy [auto]
 impl core::marker::Freeze for antecedent_contract::mixed_module::MixedModuleRefusal [auto]
+impl core::marker::Freeze for antecedent_contract::mixed_module::ModularPosterior [auto]
+impl core::marker::Freeze for antecedent_contract::mixed_module::PoolingEnvelope [auto]
 impl core::marker::Freeze for antecedent_contract::mixed_module::ReconciliationRecord [auto]
+impl core::marker::Freeze for antecedent_contract::mixed_module::SharedParameterModel [auto]
+impl core::marker::Freeze for antecedent_contract::mixed_module::SummaryRange [auto]
 impl core::marker::Freeze for antecedent_contract::propagation_chain::ChainSourceDecl [auto]
 impl core::marker::Freeze for antecedent_contract::propagation_chain::ChainStageDecl [auto]
 impl core::marker::Freeze for antecedent_contract::propagation_chain::FactorDecl [auto]
@@ -2499,6 +2557,7 @@ impl core::marker::Freeze for antecedent_contract::provider_transport::Transport
 impl core::marker::Freeze for antecedent_contract::provider_transport::TransportedInputPolicy [auto]
 impl core::marker::Freeze for antecedent_contract::rewrite_legality::FrameContents [auto]
 impl core::marker::Freeze for antecedent_contract::rewrite_legality::FrameFingerprint [auto]
+impl core::marker::Freeze for antecedent_contract::rewrite_legality::FrameLedger [auto]
 impl core::marker::Freeze for antecedent_contract::rewrite_legality::NuisanceEffect [auto]
 impl core::marker::Freeze for antecedent_contract::rewrite_legality::PreparationEffect [auto]
 impl core::marker::Freeze for antecedent_contract::rewrite_legality::PreservationAxis [auto]
@@ -2755,6 +2814,7 @@ impl core::marker::Send for antecedent_contract::bridge::BridgeMapping [auto]
 impl core::marker::Send for antecedent_contract::bridge::BridgeScope [auto]
 impl core::marker::Send for antecedent_contract::bridge::BridgedClaim [auto]
 impl core::marker::Send for antecedent_contract::bridge::BridgedDistributionClaim [auto]
+impl core::marker::Send for antecedent_contract::bridge::ContractNonlinearPropagation [auto]
 impl core::marker::Send for antecedent_contract::bridge::CorrectionDrawLaw [auto]
 impl core::marker::Send for antecedent_contract::bridge::DrawMapping [auto]
 impl core::marker::Send for antecedent_contract::bridge::DrawsPlan [auto]
@@ -2762,6 +2822,8 @@ impl core::marker::Send for antecedent_contract::bridge::EstimandBridge [auto]
 impl core::marker::Send for antecedent_contract::bridge::ExperimentalPrior [auto]
 impl core::marker::Send for antecedent_contract::bridge::ExposureSetting [auto]
 impl core::marker::Send for antecedent_contract::bridge::ImportedExperimentalPrior [auto]
+impl core::marker::Send for antecedent_contract::bridge::JointLaw [auto]
+impl core::marker::Send for antecedent_contract::bridge::JointPropagation [auto]
 impl core::marker::Send for antecedent_contract::bridge::Licensing [auto]
 impl core::marker::Send for antecedent_contract::bridge::MappedDrawsSummary [auto]
 impl core::marker::Send for antecedent_contract::bridge::MappingKind [auto]
@@ -2769,8 +2831,11 @@ impl core::marker::Send for antecedent_contract::bridge::MappingUncertainty [aut
 impl core::marker::Send for antecedent_contract::bridge::MeasurementDirection [auto]
 impl core::marker::Send for antecedent_contract::bridge::NonlinearMap [auto]
 impl core::marker::Send for antecedent_contract::bridge::NonlinearMoment [auto]
+impl core::marker::Send for antecedent_contract::bridge::NonlinearPropagation [auto]
+impl core::marker::Send for antecedent_contract::bridge::PointPropagation [auto]
 impl core::marker::Send for antecedent_contract::bridge::PreservedSupport [auto]
 impl core::marker::Send for antecedent_contract::bridge::PropagatedUncertainty [auto]
+impl core::marker::Send for antecedent_contract::bridge::PropagationMethod [auto]
 impl core::marker::Send for antecedent_contract::bridge::QuantityClass [auto]
 impl core::marker::Send for antecedent_contract::bridge::SourceMappingDependence [auto]
 impl core::marker::Send for antecedent_contract::bridge::SupportMap [auto]
@@ -2883,9 +2948,14 @@ impl core::marker::Send for antecedent_contract::measurement::MeasurementInterfa
 impl core::marker::Send for antecedent_contract::measurement::MeasurementOperation [auto]
 impl core::marker::Send for antecedent_contract::measurement::MeasurementRouteCard [auto]
 impl core::marker::Send for antecedent_contract::mixed_module::CutFeedback [auto]
+impl core::marker::Send for antecedent_contract::mixed_module::GaussianLaw [auto]
 impl core::marker::Send for antecedent_contract::mixed_module::MixedModulePolicy [auto]
 impl core::marker::Send for antecedent_contract::mixed_module::MixedModuleRefusal [auto]
+impl core::marker::Send for antecedent_contract::mixed_module::ModularPosterior [auto]
+impl core::marker::Send for antecedent_contract::mixed_module::PoolingEnvelope [auto]
 impl core::marker::Send for antecedent_contract::mixed_module::ReconciliationRecord [auto]
+impl core::marker::Send for antecedent_contract::mixed_module::SharedParameterModel [auto]
+impl core::marker::Send for antecedent_contract::mixed_module::SummaryRange [auto]
 impl core::marker::Send for antecedent_contract::propagation_chain::ChainSourceDecl [auto]
 impl core::marker::Send for antecedent_contract::propagation_chain::ChainStageDecl [auto]
 impl core::marker::Send for antecedent_contract::propagation_chain::FactorDecl [auto]
@@ -2905,6 +2975,7 @@ impl core::marker::Send for antecedent_contract::provider_transport::Transported
 impl core::marker::Send for antecedent_contract::provider_transport::TransportedInputPolicy [auto]
 impl core::marker::Send for antecedent_contract::rewrite_legality::FrameContents [auto]
 impl core::marker::Send for antecedent_contract::rewrite_legality::FrameFingerprint [auto]
+impl core::marker::Send for antecedent_contract::rewrite_legality::FrameLedger [auto]
 impl core::marker::Send for antecedent_contract::rewrite_legality::NuisanceEffect [auto]
 impl core::marker::Send for antecedent_contract::rewrite_legality::PreparationEffect [auto]
 impl core::marker::Send for antecedent_contract::rewrite_legality::PreservationAxis [auto]
@@ -3160,12 +3231,15 @@ impl core::marker::StructuralPartialEq for antecedent_contract::bridge::BridgeMa
 impl core::marker::StructuralPartialEq for antecedent_contract::bridge::BridgeScope
 impl core::marker::StructuralPartialEq for antecedent_contract::bridge::BridgedClaim
 impl core::marker::StructuralPartialEq for antecedent_contract::bridge::BridgedDistributionClaim
+impl core::marker::StructuralPartialEq for antecedent_contract::bridge::ContractNonlinearPropagation
 impl core::marker::StructuralPartialEq for antecedent_contract::bridge::CorrectionDrawLaw
 impl core::marker::StructuralPartialEq for antecedent_contract::bridge::DrawMapping
 impl core::marker::StructuralPartialEq for antecedent_contract::bridge::EstimandBridge
 impl core::marker::StructuralPartialEq for antecedent_contract::bridge::ExperimentalPrior
 impl core::marker::StructuralPartialEq for antecedent_contract::bridge::ExposureSetting
 impl core::marker::StructuralPartialEq for antecedent_contract::bridge::ImportedExperimentalPrior
+impl core::marker::StructuralPartialEq for antecedent_contract::bridge::JointLaw
+impl core::marker::StructuralPartialEq for antecedent_contract::bridge::JointPropagation
 impl core::marker::StructuralPartialEq for antecedent_contract::bridge::Licensing
 impl core::marker::StructuralPartialEq for antecedent_contract::bridge::MappedDrawsSummary
 impl core::marker::StructuralPartialEq for antecedent_contract::bridge::MappingKind
@@ -3173,8 +3247,11 @@ impl core::marker::StructuralPartialEq for antecedent_contract::bridge::MappingU
 impl core::marker::StructuralPartialEq for antecedent_contract::bridge::MeasurementDirection
 impl core::marker::StructuralPartialEq for antecedent_contract::bridge::NonlinearMap
 impl core::marker::StructuralPartialEq for antecedent_contract::bridge::NonlinearMoment
+impl core::marker::StructuralPartialEq for antecedent_contract::bridge::NonlinearPropagation
+impl core::marker::StructuralPartialEq for antecedent_contract::bridge::PointPropagation
 impl core::marker::StructuralPartialEq for antecedent_contract::bridge::PreservedSupport
 impl core::marker::StructuralPartialEq for antecedent_contract::bridge::PropagatedUncertainty
+impl core::marker::StructuralPartialEq for antecedent_contract::bridge::PropagationMethod
 impl core::marker::StructuralPartialEq for antecedent_contract::bridge::QuantityClass
 impl core::marker::StructuralPartialEq for antecedent_contract::bridge::SourceMappingDependence
 impl core::marker::StructuralPartialEq for antecedent_contract::bridge::SupportMap
@@ -3286,9 +3363,14 @@ impl core::marker::StructuralPartialEq for antecedent_contract::measurement::Mea
 impl core::marker::StructuralPartialEq for antecedent_contract::measurement::MeasurementOperation
 impl core::marker::StructuralPartialEq for antecedent_contract::measurement::MeasurementRouteCard
 impl core::marker::StructuralPartialEq for antecedent_contract::mixed_module::CutFeedback
+impl core::marker::StructuralPartialEq for antecedent_contract::mixed_module::GaussianLaw
 impl core::marker::StructuralPartialEq for antecedent_contract::mixed_module::MixedModulePolicy
 impl core::marker::StructuralPartialEq for antecedent_contract::mixed_module::MixedModuleRefusal
+impl core::marker::StructuralPartialEq for antecedent_contract::mixed_module::ModularPosterior
+impl core::marker::StructuralPartialEq for antecedent_contract::mixed_module::PoolingEnvelope
 impl core::marker::StructuralPartialEq for antecedent_contract::mixed_module::ReconciliationRecord
+impl core::marker::StructuralPartialEq for antecedent_contract::mixed_module::SharedParameterModel
+impl core::marker::StructuralPartialEq for antecedent_contract::mixed_module::SummaryRange
 impl core::marker::StructuralPartialEq for antecedent_contract::propagation_chain::ChainSourceDecl
 impl core::marker::StructuralPartialEq for antecedent_contract::propagation_chain::ChainStageDecl
 impl core::marker::StructuralPartialEq for antecedent_contract::propagation_chain::FactorDecl
@@ -3308,6 +3390,7 @@ impl core::marker::StructuralPartialEq for antecedent_contract::provider_transpo
 impl core::marker::StructuralPartialEq for antecedent_contract::provider_transport::TransportedInputPolicy
 impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::FrameContents
 impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::FrameFingerprint
+impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::FrameLedger
 impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::NuisanceEffect
 impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::PreparationEffect
 impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::PreservationAxis
@@ -3562,6 +3645,7 @@ impl core::marker::Sync for antecedent_contract::bridge::BridgeMapping [auto]
 impl core::marker::Sync for antecedent_contract::bridge::BridgeScope [auto]
 impl core::marker::Sync for antecedent_contract::bridge::BridgedClaim [auto]
 impl core::marker::Sync for antecedent_contract::bridge::BridgedDistributionClaim [auto]
+impl core::marker::Sync for antecedent_contract::bridge::ContractNonlinearPropagation [auto]
 impl core::marker::Sync for antecedent_contract::bridge::CorrectionDrawLaw [auto]
 impl core::marker::Sync for antecedent_contract::bridge::DrawMapping [auto]
 impl core::marker::Sync for antecedent_contract::bridge::DrawsPlan [auto]
@@ -3569,6 +3653,8 @@ impl core::marker::Sync for antecedent_contract::bridge::EstimandBridge [auto]
 impl core::marker::Sync for antecedent_contract::bridge::ExperimentalPrior [auto]
 impl core::marker::Sync for antecedent_contract::bridge::ExposureSetting [auto]
 impl core::marker::Sync for antecedent_contract::bridge::ImportedExperimentalPrior [auto]
+impl core::marker::Sync for antecedent_contract::bridge::JointLaw [auto]
+impl core::marker::Sync for antecedent_contract::bridge::JointPropagation [auto]
 impl core::marker::Sync for antecedent_contract::bridge::Licensing [auto]
 impl core::marker::Sync for antecedent_contract::bridge::MappedDrawsSummary [auto]
 impl core::marker::Sync for antecedent_contract::bridge::MappingKind [auto]
@@ -3576,8 +3662,11 @@ impl core::marker::Sync for antecedent_contract::bridge::MappingUncertainty [aut
 impl core::marker::Sync for antecedent_contract::bridge::MeasurementDirection [auto]
 impl core::marker::Sync for antecedent_contract::bridge::NonlinearMap [auto]
 impl core::marker::Sync for antecedent_contract::bridge::NonlinearMoment [auto]
+impl core::marker::Sync for antecedent_contract::bridge::NonlinearPropagation [auto]
+impl core::marker::Sync for antecedent_contract::bridge::PointPropagation [auto]
 impl core::marker::Sync for antecedent_contract::bridge::PreservedSupport [auto]
 impl core::marker::Sync for antecedent_contract::bridge::PropagatedUncertainty [auto]
+impl core::marker::Sync for antecedent_contract::bridge::PropagationMethod [auto]
 impl core::marker::Sync for antecedent_contract::bridge::QuantityClass [auto]
 impl core::marker::Sync for antecedent_contract::bridge::SourceMappingDependence [auto]
 impl core::marker::Sync for antecedent_contract::bridge::SupportMap [auto]
@@ -3690,9 +3779,14 @@ impl core::marker::Sync for antecedent_contract::measurement::MeasurementInterfa
 impl core::marker::Sync for antecedent_contract::measurement::MeasurementOperation [auto]
 impl core::marker::Sync for antecedent_contract::measurement::MeasurementRouteCard [auto]
 impl core::marker::Sync for antecedent_contract::mixed_module::CutFeedback [auto]
+impl core::marker::Sync for antecedent_contract::mixed_module::GaussianLaw [auto]
 impl core::marker::Sync for antecedent_contract::mixed_module::MixedModulePolicy [auto]
 impl core::marker::Sync for antecedent_contract::mixed_module::MixedModuleRefusal [auto]
+impl core::marker::Sync for antecedent_contract::mixed_module::ModularPosterior [auto]
+impl core::marker::Sync for antecedent_contract::mixed_module::PoolingEnvelope [auto]
 impl core::marker::Sync for antecedent_contract::mixed_module::ReconciliationRecord [auto]
+impl core::marker::Sync for antecedent_contract::mixed_module::SharedParameterModel [auto]
+impl core::marker::Sync for antecedent_contract::mixed_module::SummaryRange [auto]
 impl core::marker::Sync for antecedent_contract::propagation_chain::ChainSourceDecl [auto]
 impl core::marker::Sync for antecedent_contract::propagation_chain::ChainStageDecl [auto]
 impl core::marker::Sync for antecedent_contract::propagation_chain::FactorDecl [auto]
@@ -3712,6 +3806,7 @@ impl core::marker::Sync for antecedent_contract::provider_transport::Transported
 impl core::marker::Sync for antecedent_contract::provider_transport::TransportedInputPolicy [auto]
 impl core::marker::Sync for antecedent_contract::rewrite_legality::FrameContents [auto]
 impl core::marker::Sync for antecedent_contract::rewrite_legality::FrameFingerprint [auto]
+impl core::marker::Sync for antecedent_contract::rewrite_legality::FrameLedger [auto]
 impl core::marker::Sync for antecedent_contract::rewrite_legality::NuisanceEffect [auto]
 impl core::marker::Sync for antecedent_contract::rewrite_legality::PreparationEffect [auto]
 impl core::marker::Sync for antecedent_contract::rewrite_legality::PreservationAxis [auto]
@@ -3968,6 +4063,7 @@ impl core::marker::Unpin for antecedent_contract::bridge::BridgeMapping [auto]
 impl core::marker::Unpin for antecedent_contract::bridge::BridgeScope [auto]
 impl core::marker::Unpin for antecedent_contract::bridge::BridgedClaim [auto]
 impl core::marker::Unpin for antecedent_contract::bridge::BridgedDistributionClaim [auto]
+impl core::marker::Unpin for antecedent_contract::bridge::ContractNonlinearPropagation [auto]
 impl core::marker::Unpin for antecedent_contract::bridge::CorrectionDrawLaw [auto]
 impl core::marker::Unpin for antecedent_contract::bridge::DrawMapping [auto]
 impl core::marker::Unpin for antecedent_contract::bridge::DrawsPlan [auto]
@@ -3975,6 +4071,8 @@ impl core::marker::Unpin for antecedent_contract::bridge::EstimandBridge [auto]
 impl core::marker::Unpin for antecedent_contract::bridge::ExperimentalPrior [auto]
 impl core::marker::Unpin for antecedent_contract::bridge::ExposureSetting [auto]
 impl core::marker::Unpin for antecedent_contract::bridge::ImportedExperimentalPrior [auto]
+impl core::marker::Unpin for antecedent_contract::bridge::JointLaw [auto]
+impl core::marker::Unpin for antecedent_contract::bridge::JointPropagation [auto]
 impl core::marker::Unpin for antecedent_contract::bridge::Licensing [auto]
 impl core::marker::Unpin for antecedent_contract::bridge::MappedDrawsSummary [auto]
 impl core::marker::Unpin for antecedent_contract::bridge::MappingKind [auto]
@@ -3982,8 +4080,11 @@ impl core::marker::Unpin for antecedent_contract::bridge::MappingUncertainty [au
 impl core::marker::Unpin for antecedent_contract::bridge::MeasurementDirection [auto]
 impl core::marker::Unpin for antecedent_contract::bridge::NonlinearMap [auto]
 impl core::marker::Unpin for antecedent_contract::bridge::NonlinearMoment [auto]
+impl core::marker::Unpin for antecedent_contract::bridge::NonlinearPropagation [auto]
+impl core::marker::Unpin for antecedent_contract::bridge::PointPropagation [auto]
 impl core::marker::Unpin for antecedent_contract::bridge::PreservedSupport [auto]
 impl core::marker::Unpin for antecedent_contract::bridge::PropagatedUncertainty [auto]
+impl core::marker::Unpin for antecedent_contract::bridge::PropagationMethod [auto]
 impl core::marker::Unpin for antecedent_contract::bridge::QuantityClass [auto]
 impl core::marker::Unpin for antecedent_contract::bridge::SourceMappingDependence [auto]
 impl core::marker::Unpin for antecedent_contract::bridge::SupportMap [auto]
@@ -4096,9 +4197,14 @@ impl core::marker::Unpin for antecedent_contract::measurement::MeasurementInterf
 impl core::marker::Unpin for antecedent_contract::measurement::MeasurementOperation [auto]
 impl core::marker::Unpin for antecedent_contract::measurement::MeasurementRouteCard [auto]
 impl core::marker::Unpin for antecedent_contract::mixed_module::CutFeedback [auto]
+impl core::marker::Unpin for antecedent_contract::mixed_module::GaussianLaw [auto]
 impl core::marker::Unpin for antecedent_contract::mixed_module::MixedModulePolicy [auto]
 impl core::marker::Unpin for antecedent_contract::mixed_module::MixedModuleRefusal [auto]
+impl core::marker::Unpin for antecedent_contract::mixed_module::ModularPosterior [auto]
+impl core::marker::Unpin for antecedent_contract::mixed_module::PoolingEnvelope [auto]
 impl core::marker::Unpin for antecedent_contract::mixed_module::ReconciliationRecord [auto]
+impl core::marker::Unpin for antecedent_contract::mixed_module::SharedParameterModel [auto]
+impl core::marker::Unpin for antecedent_contract::mixed_module::SummaryRange [auto]
 impl core::marker::Unpin for antecedent_contract::propagation_chain::ChainSourceDecl [auto]
 impl core::marker::Unpin for antecedent_contract::propagation_chain::ChainStageDecl [auto]
 impl core::marker::Unpin for antecedent_contract::propagation_chain::FactorDecl [auto]
@@ -4118,6 +4224,7 @@ impl core::marker::Unpin for antecedent_contract::provider_transport::Transporte
 impl core::marker::Unpin for antecedent_contract::provider_transport::TransportedInputPolicy [auto]
 impl core::marker::Unpin for antecedent_contract::rewrite_legality::FrameContents [auto]
 impl core::marker::Unpin for antecedent_contract::rewrite_legality::FrameFingerprint [auto]
+impl core::marker::Unpin for antecedent_contract::rewrite_legality::FrameLedger [auto]
 impl core::marker::Unpin for antecedent_contract::rewrite_legality::NuisanceEffect [auto]
 impl core::marker::Unpin for antecedent_contract::rewrite_legality::PreparationEffect [auto]
 impl core::marker::Unpin for antecedent_contract::rewrite_legality::PreservationAxis [auto]
@@ -4374,6 +4481,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::Br
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::BridgeScope [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::BridgedClaim [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::BridgedDistributionClaim [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::ContractNonlinearPropagation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::CorrectionDrawLaw [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::DrawMapping [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::DrawsPlan [auto]
@@ -4381,6 +4489,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::Es
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::ExperimentalPrior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::ExposureSetting [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::ImportedExperimentalPrior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::JointLaw [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::JointPropagation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::Licensing [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::MappedDrawsSummary [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::MappingKind [auto]
@@ -4388,8 +4498,11 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::Ma
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::MeasurementDirection [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::NonlinearMap [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::NonlinearMoment [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::NonlinearPropagation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::PointPropagation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::PreservedSupport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::PropagatedUncertainty [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::PropagationMethod [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::QuantityClass [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::SourceMappingDependence [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::SupportMap [auto]
@@ -4502,9 +4615,14 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::measuremen
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::measurement::MeasurementOperation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::measurement::MeasurementRouteCard [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::mixed_module::CutFeedback [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::mixed_module::GaussianLaw [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::mixed_module::MixedModulePolicy [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::mixed_module::MixedModuleRefusal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::mixed_module::ModularPosterior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::mixed_module::PoolingEnvelope [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::mixed_module::ReconciliationRecord [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::mixed_module::SharedParameterModel [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::mixed_module::SummaryRange [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::propagation_chain::ChainSourceDecl [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::propagation_chain::ChainStageDecl [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::propagation_chain::FactorDecl [auto]
@@ -4524,6 +4642,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::provider_t
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::provider_transport::TransportedInputPolicy [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::FrameContents [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::FrameFingerprint [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::FrameLedger [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::NuisanceEffect [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::PreparationEffect [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::PreservationAxis [auto]
@@ -4780,6 +4899,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::Bridg
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::BridgeScope [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::BridgedClaim [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::BridgedDistributionClaim [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::ContractNonlinearPropagation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::CorrectionDrawLaw [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::DrawMapping [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::DrawsPlan [auto]
@@ -4787,6 +4907,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::Estim
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::ExperimentalPrior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::ExposureSetting [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::ImportedExperimentalPrior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::JointLaw [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::JointPropagation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::Licensing [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::MappedDrawsSummary [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::MappingKind [auto]
@@ -4794,8 +4916,11 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::Mappi
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::MeasurementDirection [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::NonlinearMap [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::NonlinearMoment [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::NonlinearPropagation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::PointPropagation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::PreservedSupport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::PropagatedUncertainty [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::PropagationMethod [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::QuantityClass [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::SourceMappingDependence [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::SupportMap [auto]
@@ -4908,9 +5033,14 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::measurement::
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::measurement::MeasurementOperation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::measurement::MeasurementRouteCard [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::mixed_module::CutFeedback [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::mixed_module::GaussianLaw [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::mixed_module::MixedModulePolicy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::mixed_module::MixedModuleRefusal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::mixed_module::ModularPosterior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::mixed_module::PoolingEnvelope [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::mixed_module::ReconciliationRecord [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::mixed_module::SharedParameterModel [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::mixed_module::SummaryRange [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::propagation_chain::ChainSourceDecl [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::propagation_chain::ChainStageDecl [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::propagation_chain::FactorDecl [auto]
@@ -4930,6 +5060,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::provider_tran
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::provider_transport::TransportedInputPolicy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::FrameContents [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::FrameFingerprint [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::FrameLedger [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::NuisanceEffect [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::PreparationEffect [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::PreservationAxis [auto]
@@ -4968,8 +5099,11 @@ impl<'a> core::clone::Clone for antecedent_contract::VerificationSubject<'a>
 impl<'a> core::clone::Clone for antecedent_contract::bridge::BridgeDrawsSource<'a>
 impl<'a> core::clone::Clone for antecedent_contract::bridge::BridgeSource<'a>
 impl<'a> core::clone::Clone for antecedent_contract::measurement::MeasurementRequest<'a>
+impl<'a> core::clone::Clone for antecedent_contract::rewrite_legality::FrameRow<'a>
 impl<'a> core::cmp::Eq for antecedent_contract::ResponseCoordinateLabels<'a>
+impl<'a> core::cmp::Eq for antecedent_contract::rewrite_legality::FrameRow<'a>
 impl<'a> core::cmp::PartialEq for antecedent_contract::ResponseCoordinateLabels<'a>
+impl<'a> core::cmp::PartialEq for antecedent_contract::rewrite_legality::FrameRow<'a>
 impl<'a> core::fmt::Debug for antecedent_contract::ContinuousSlotsRequest<'a>
 impl<'a> core::fmt::Debug for antecedent_contract::ObservationContext<'a>
 impl<'a> core::fmt::Debug for antecedent_contract::ObservationSlotsRequest<'a>
@@ -4978,11 +5112,13 @@ impl<'a> core::fmt::Debug for antecedent_contract::VerificationSubject<'a>
 impl<'a> core::fmt::Debug for antecedent_contract::bridge::BridgeDrawsSource<'a>
 impl<'a> core::fmt::Debug for antecedent_contract::bridge::BridgeSource<'a>
 impl<'a> core::fmt::Debug for antecedent_contract::measurement::MeasurementRequest<'a>
+impl<'a> core::fmt::Debug for antecedent_contract::rewrite_legality::FrameRow<'a>
 impl<'a> core::marker::Copy for antecedent_contract::ObservationContext<'a>
 impl<'a> core::marker::Copy for antecedent_contract::ResponseCoordinateLabels<'a>
 impl<'a> core::marker::Copy for antecedent_contract::VerificationSubject<'a>
 impl<'a> core::marker::Copy for antecedent_contract::bridge::BridgeDrawsSource<'a>
 impl<'a> core::marker::Copy for antecedent_contract::bridge::BridgeSource<'a>
+impl<'a> core::marker::Copy for antecedent_contract::rewrite_legality::FrameRow<'a>
 impl<'a> core::marker::Freeze for antecedent_contract::ContinuousSlotsRequest<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_contract::ObservationContext<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_contract::ObservationSlotsRequest<'a> [auto]
@@ -4991,6 +5127,7 @@ impl<'a> core::marker::Freeze for antecedent_contract::VerificationSubject<'a> [
 impl<'a> core::marker::Freeze for antecedent_contract::bridge::BridgeDrawsSource<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_contract::bridge::BridgeSource<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_contract::measurement::MeasurementRequest<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_contract::rewrite_legality::FrameRow<'a> [auto]
 impl<'a> core::marker::Send for antecedent_contract::ContinuousSlotsRequest<'a> [auto]
 impl<'a> core::marker::Send for antecedent_contract::ObservationContext<'a> [auto]
 impl<'a> core::marker::Send for antecedent_contract::ObservationSlotsRequest<'a> [auto]
@@ -4999,7 +5136,9 @@ impl<'a> core::marker::Send for antecedent_contract::VerificationSubject<'a> [au
 impl<'a> core::marker::Send for antecedent_contract::bridge::BridgeDrawsSource<'a> [auto]
 impl<'a> core::marker::Send for antecedent_contract::bridge::BridgeSource<'a> [auto]
 impl<'a> core::marker::Send for antecedent_contract::measurement::MeasurementRequest<'a> [auto]
+impl<'a> core::marker::Send for antecedent_contract::rewrite_legality::FrameRow<'a> [auto]
 impl<'a> core::marker::StructuralPartialEq for antecedent_contract::ResponseCoordinateLabels<'a>
+impl<'a> core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::FrameRow<'a>
 impl<'a> core::marker::Sync for antecedent_contract::ContinuousSlotsRequest<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_contract::ObservationContext<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_contract::ObservationSlotsRequest<'a> [auto]
@@ -5008,6 +5147,7 @@ impl<'a> core::marker::Sync for antecedent_contract::VerificationSubject<'a> [au
 impl<'a> core::marker::Sync for antecedent_contract::bridge::BridgeDrawsSource<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_contract::bridge::BridgeSource<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_contract::measurement::MeasurementRequest<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_contract::rewrite_legality::FrameRow<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_contract::ContinuousSlotsRequest<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_contract::ObservationContext<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_contract::ObservationSlotsRequest<'a> [auto]
@@ -5016,6 +5156,7 @@ impl<'a> core::marker::Unpin for antecedent_contract::VerificationSubject<'a> [a
 impl<'a> core::marker::Unpin for antecedent_contract::bridge::BridgeDrawsSource<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_contract::bridge::BridgeSource<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_contract::measurement::MeasurementRequest<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_contract::rewrite_legality::FrameRow<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::ContinuousSlotsRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::ObservationContext<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::ObservationSlotsRequest<'a> [auto]
@@ -5024,6 +5165,7 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::Verifi
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::BridgeDrawsSource<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::BridgeSource<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::measurement::MeasurementRequest<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::FrameRow<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_contract::ContinuousSlotsRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_contract::ObservationContext<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_contract::ObservationSlotsRequest<'a> [auto]
@@ -5032,6 +5174,7 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_contract::Verificat
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::BridgeDrawsSource<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::BridgeSource<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_contract::measurement::MeasurementRequest<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::FrameRow<'a> [auto]
 impl<T: core::clone::Clone> core::clone::Clone for antecedent_contract::SlotAvailability<T>
 impl<T: core::cmp::Eq> core::cmp::Eq for antecedent_contract::SlotAvailability<T>
 impl<T: core::cmp::PartialEq> core::cmp::PartialEq for antecedent_contract::SlotAvailability<T>
@@ -5149,6 +5292,8 @@ pub const antecedent_contract::bridge::MAX_BRIDGE_ASSUMPTIONS: usize
 pub const antecedent_contract::bridge::MAX_BRIDGE_TEXT_BYTES: usize
 pub const antecedent_contract::bridge::MAX_VALIDATION_TRIALS: usize
 pub const antecedent_contract::bridge::MIN_VALIDATION_TRIALS: u32
+pub const antecedent_contract::bridge::POINT_PROPAGATION_CALIBRATION: &str
+pub const antecedent_contract::bridge::POINT_PROPAGATION_LABEL: &str
 pub const antecedent_contract::callback_protocol::CALLBACK_OUTPUT_PORT: &str
 pub const antecedent_contract::callback_protocol::CALLBACK_PROTOCOL_VERSION: u64
 pub const antecedent_contract::callback_protocol::MAX_CALLBACK_DEPENDENCIES: usize
@@ -5221,6 +5366,9 @@ pub const antecedent_contract::rewrite_legality::RETAIN_HISTORY: antecedent_core
 pub const antecedent_contract::rewrite_legality::RETAIN_POPULATION: antecedent_core::refusal::NextAttempt
 pub const antecedent_contract::rewrite_legality::RETAIN_SAMPLE_SELECTION: antecedent_core::refusal::NextAttempt
 pub const antecedent_contract::rewrite_legality::RETAIN_UNCERTAINTY: antecedent_core::refusal::NextAttempt
+pub const antecedent_contract::rewrite_legality::UNDECLARED_DEPENDENCE: &str
+pub const antecedent_contract::rewrite_legality::UNDECLARED_SAMPLING_LAW: &str
+pub const antecedent_contract::rewrite_legality::UNDECLARED_UNCERTAINTY: &str
 pub const antecedent_contract::summary_observation::ADAPT_ESTIMATE_COVARIANCE: antecedent_core::refusal::NextAttempt
 pub const antecedent_contract::summary_observation::FREQUENTIST_SUMMARY_TAG: &str
 pub const antecedent_contract::summary_observation::MAX_COVARIANCE_DIMENSION: usize
@@ -5877,6 +6025,7 @@ pub field antecedent_contract::bridge::BridgedClaim::contract: antecedent_contra
 pub field antecedent_contract::bridge::BridgedClaim::contract_identity: antecedent_core::identity::SemanticDigest
 pub field antecedent_contract::bridge::BridgedClaim::fit: core::option::Option<antecedent_contract::bridge::TrialLevelFit>
 pub field antecedent_contract::bridge::BridgedClaim::mapping: antecedent_contract::bridge::MappingKind
+pub field antecedent_contract::bridge::BridgedClaim::propagation: core::option::Option<antecedent_contract::bridge::PointPropagation>
 pub field antecedent_contract::bridge::BridgedClaim::provenance: antecedent_contract::ProvenanceGraph
 pub field antecedent_contract::bridge::BridgedClaim::receipt: antecedent_contract::HandoffReceipt
 pub field antecedent_contract::bridge::BridgedClaim::source_claim_id: antecedent_core::identity::SemanticDigest
@@ -5899,6 +6048,11 @@ pub field antecedent_contract::bridge::BridgedDistributionClaim::stream: u64
 pub field antecedent_contract::bridge::BridgedDistributionClaim::transported: bool
 pub field antecedent_contract::bridge::BridgedDistributionClaim::value_kind: antecedent_contract::bridge::ValueKind
 pub field antecedent_contract::bridge::BridgedDistributionClaim::variance: f64
+pub field antecedent_contract::bridge::ContractNonlinearPropagation::assumptions: alloc::vec::Vec<antecedent_contract::bridge::BridgeAssumption>
+pub field antecedent_contract::bridge::ContractNonlinearPropagation::dependence: antecedent_contract::bridge::SourceMappingDependence
+pub field antecedent_contract::bridge::ContractNonlinearPropagation::joint_law: antecedent_contract::bridge::JointLaw
+pub field antecedent_contract::bridge::ContractNonlinearPropagation::mapping_uncertainty: antecedent_contract::bridge::MappingUncertainty
+pub field antecedent_contract::bridge::ContractNonlinearPropagation::propagation: antecedent_contract::bridge::JointPropagation
 pub field antecedent_contract::bridge::CorrectionDrawLaw::direction: antecedent_contract::bridge::MeasurementDirection
 pub field antecedent_contract::bridge::CorrectionDrawLaw::min_youden: f64
 pub field antecedent_contract::bridge::CorrectionDrawLaw::sensitivity: f64
@@ -5932,6 +6086,15 @@ pub field antecedent_contract::bridge::ImportedExperimentalPrior::experiment_id:
 pub field antecedent_contract::bridge::ImportedExperimentalPrior::mapping_uncertainty: core::option::Option<antecedent_contract::bridge::MappingUncertainty>
 pub field antecedent_contract::bridge::ImportedExperimentalPrior::prior_id: alloc::string::String
 pub field antecedent_contract::bridge::ImportedExperimentalPrior::source_dependence: core::option::Option<antecedent_contract::bridge::SourceMappingDependence>
+pub field antecedent_contract::bridge::JointPropagation::dimension: usize
+pub field antecedent_contract::bridge::JointPropagation::evaluations: usize
+pub field antecedent_contract::bridge::JointPropagation::linearized_variance: core::option::Option<f64>
+pub field antecedent_contract::bridge::JointPropagation::mean: f64
+pub field antecedent_contract::bridge::JointPropagation::mean_standard_error: core::option::Option<f64>
+pub field antecedent_contract::bridge::JointPropagation::method: antecedent_contract::bridge::PropagationMethod
+pub field antecedent_contract::bridge::JointPropagation::plug_in: f64
+pub field antecedent_contract::bridge::JointPropagation::variance: f64
+pub field antecedent_contract::bridge::JointPropagation::variance_standard_error: core::option::Option<f64>
 pub field antecedent_contract::bridge::Licensing::direction: antecedent_contract::bridge::MeasurementDirection
 pub field antecedent_contract::bridge::Licensing::transported: bool
 pub field antecedent_contract::bridge::MappedDrawsSummary::draws_digest: antecedent_core::identity::SemanticDigest
@@ -5945,6 +6108,18 @@ pub field antecedent_contract::bridge::MappingUncertainty::slope_variance: f64
 pub field antecedent_contract::bridge::NonlinearMoment::expectation: f64
 pub field antecedent_contract::bridge::NonlinearMoment::map: antecedent_contract::bridge::NonlinearMap
 pub field antecedent_contract::bridge::NonlinearMoment::map_of_mean: f64
+pub field antecedent_contract::bridge::NonlinearPropagation::expectation: f64
+pub field antecedent_contract::bridge::NonlinearPropagation::map: antecedent_contract::bridge::NonlinearMap
+pub field antecedent_contract::bridge::NonlinearPropagation::map_of_mean: f64
+pub field antecedent_contract::bridge::PointPropagation::construction: &'static str
+pub field antecedent_contract::bridge::PointPropagation::dependence: antecedent_contract::bridge::SourceMappingDependence
+pub field antecedent_contract::bridge::PointPropagation::mapping_uncertainty: core::option::Option<antecedent_contract::bridge::MappingUncertainty>
+pub field antecedent_contract::bridge::PointPropagation::mean: f64
+pub field antecedent_contract::bridge::PointPropagation::nonlinear: core::option::Option<antecedent_contract::bridge::NonlinearPropagation>
+pub field antecedent_contract::bridge::PointPropagation::plug_in_value: f64
+pub field antecedent_contract::bridge::PointPropagation::source_standard_error: f64
+pub field antecedent_contract::bridge::PointPropagation::source_value: f64
+pub field antecedent_contract::bridge::PointPropagation::variance: f64
 pub field antecedent_contract::bridge::PreservedSupport::assumptions: alloc::vec::Vec<antecedent_contract::bridge::BridgeAssumption>
 pub field antecedent_contract::bridge::PreservedSupport::high: f64
 pub field antecedent_contract::bridge::PreservedSupport::low: f64
@@ -6186,6 +6361,29 @@ pub field antecedent_contract::measurement::MeasurementRouteCard::allowed: &'sta
 pub field antecedent_contract::measurement::MeasurementRouteCard::assumptions: &'static [&'static str]
 pub field antecedent_contract::measurement::MeasurementRouteCard::refused: &'static [(antecedent_contract::measurement::MeasurementOperation, &'static str)]
 pub field antecedent_contract::measurement::MeasurementRouteCard::route: antecedent_core::measurement_model::MeasurementRoute
+pub field antecedent_contract::mixed_module::GaussianLaw::mean: f64
+pub field antecedent_contract::mixed_module::GaussianLaw::variance: f64
+pub field antecedent_contract::mixed_module::ModularPosterior::eta: f64
+pub field antecedent_contract::mixed_module::ModularPosterior::phi_mean: f64
+pub field antecedent_contract::mixed_module::ModularPosterior::phi_variance: f64
+pub field antecedent_contract::mixed_module::ModularPosterior::pooled_prior: antecedent_contract::mixed_module::GaussianLaw
+pub field antecedent_contract::mixed_module::ModularPosterior::prior_conflict: f64
+pub field antecedent_contract::mixed_module::ModularPosterior::theta_mean: f64
+pub field antecedent_contract::mixed_module::ModularPosterior::theta_phi_covariance: f64
+pub field antecedent_contract::mixed_module::ModularPosterior::theta_variance: f64
+pub field antecedent_contract::mixed_module::PoolingEnvelope::contrast_mean: antecedent_contract::mixed_module::SummaryRange
+pub field antecedent_contract::mixed_module::PoolingEnvelope::theta_mean: antecedent_contract::mixed_module::SummaryRange
+pub field antecedent_contract::mixed_module::PoolingEnvelope::theta_variance: antecedent_contract::mixed_module::SummaryRange
+pub field antecedent_contract::mixed_module::PoolingEnvelope::weights: usize
+pub field antecedent_contract::mixed_module::SharedParameterModel::cost_observation: antecedent_contract::mixed_module::GaussianLaw
+pub field antecedent_contract::mixed_module::SharedParameterModel::cost_prior: antecedent_contract::mixed_module::GaussianLaw
+pub field antecedent_contract::mixed_module::SharedParameterModel::feedback_weight: f64
+pub field antecedent_contract::mixed_module::SharedParameterModel::margin_observation: antecedent_contract::mixed_module::GaussianLaw
+pub field antecedent_contract::mixed_module::SharedParameterModel::margin_prior: antecedent_contract::mixed_module::GaussianLaw
+pub field antecedent_contract::mixed_module::SharedParameterModel::pooling_weight: f64
+pub field antecedent_contract::mixed_module::SharedParameterModel::specific_prior: antecedent_contract::mixed_module::GaussianLaw
+pub field antecedent_contract::mixed_module::SummaryRange::high: f64
+pub field antecedent_contract::mixed_module::SummaryRange::low: f64
 pub field antecedent_contract::propagation_chain::ChainSourceDecl::alignment: core::option::Option<alloc::string::String>
 pub field antecedent_contract::propagation_chain::ChainSourceDecl::complete_disclosure: bool
 pub field antecedent_contract::propagation_chain::ChainSourceDecl::factors: alloc::vec::Vec<antecedent_contract::propagation_chain::FactorDecl>
@@ -6226,6 +6424,10 @@ pub field antecedent_contract::provider_transport::TransportedClaimOffer::semant
 pub field antecedent_contract::provider_transport::TransportedClaimOffer::support: antecedent_contract::interface_contract::SupportDomain
 pub field antecedent_contract::provider_transport::TransportedClaimOffer::transport: antecedent_contract::evidence_ledger::TransportIdentity
 pub field antecedent_contract::provider_transport::TransportedClaimOffer::uncertainty: core::option::Option<antecedent_contract::DistributionMeaning>
+pub field antecedent_contract::rewrite_legality::FrameRow::dependence: &'a str
+pub field antecedent_contract::rewrite_legality::FrameRow::fold: &'a str
+pub field antecedent_contract::rewrite_legality::FrameRow::row: &'a str
+pub field antecedent_contract::rewrite_legality::FrameRow::uncertainty: &'a str
 pub field antecedent_contract::transport_revalidation::SceneClaim::calibration: antecedent_contract::transport_revalidation::SceneCalibration
 pub field antecedent_contract::transport_revalidation::SceneClaim::identity: antecedent_core::identity::SemanticDigest
 pub field antecedent_contract::transport_revalidation::SceneClaim::key: alloc::string::String
@@ -6723,9 +6925,22 @@ pub fn <antecedent_contract::bridge::DrawsPlan>::const fn source_claim_id(&self)
 pub fn <antecedent_contract::bridge::DrawsPlan>::const fn stream(&self) -> u64
 pub fn <antecedent_contract::bridge::DrawsPlan>::fn finish(self, summary: &antecedent_contract::bridge::MappedDrawsSummary) -> core::result::Result<antecedent_contract::bridge::BridgedDistributionClaim, antecedent_contract::bridge::BridgeRefusal>
 pub fn <antecedent_contract::bridge::DrawsPlan>::fn includes_residual(&self) -> bool
+pub fn <antecedent_contract::bridge::JointLaw>::fn covariance(&self) -> &[f64]
+pub fn <antecedent_contract::bridge::JointLaw>::fn dimension(&self) -> usize
+pub fn <antecedent_contract::bridge::JointLaw>::fn from_affine_declaration(intercept: f64, slope: f64, uncertainty: &antecedent_contract::bridge::MappingUncertainty, dependence: &antecedent_contract::bridge::SourceMappingDependence, source_mean: f64, source_variance: f64) -> core::result::Result<Self, antecedent_contract::bridge::BridgeRefusal>
+pub fn <antecedent_contract::bridge::JointLaw>::fn mean(&self) -> &[f64]
+pub fn <antecedent_contract::bridge::JointLaw>::fn names(&self) -> &[alloc::string::String]
+pub fn <antecedent_contract::bridge::JointLaw>::fn new(names: alloc::vec::Vec<alloc::string::String>, mean: alloc::vec::Vec<f64>, covariance: alloc::vec::Vec<f64>) -> core::result::Result<Self, antecedent_contract::bridge::BridgeRefusal>
+pub fn <antecedent_contract::bridge::JointPropagation>::fn bias(&self) -> f64
+pub fn <antecedent_contract::bridge::JointPropagation>::fn standard_deviation(&self) -> f64
 pub fn <antecedent_contract::bridge::MappingKind>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::bridge::MappingKind>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_contract::bridge::NonlinearMap>::const fn as_str(self) -> &'static str
+pub fn <antecedent_contract::bridge::PointPropagation>::const fn calibration(&self) -> &'static str
+pub fn <antecedent_contract::bridge::PointPropagation>::const fn reading(&self) -> &'static str
+pub fn <antecedent_contract::bridge::PointPropagation>::fn propagated_mean(&self) -> f64
+pub fn <antecedent_contract::bridge::PointPropagation>::fn standard_deviation(&self) -> f64
+pub fn <antecedent_contract::bridge::PropagationMethod>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::bridge::QuantityClass>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::bridge::QuantityClass>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_contract::bridge::ValueKind>::const fn as_str(self) -> &'static str
@@ -6962,10 +7177,17 @@ pub fn <antecedent_contract::mixed_module::MixedModulePolicy>::const fn coherent
 pub fn <antecedent_contract::mixed_module::MixedModulePolicy>::const fn cut_feedback(&self) -> core::option::Option<antecedent_contract::mixed_module::CutFeedback>
 pub fn <antecedent_contract::mixed_module::MixedModulePolicy>::const fn reconciliation(&self) -> core::option::Option<&antecedent_contract::mixed_module::ReconciliationRecord>
 pub fn <antecedent_contract::mixed_module::MixedModulePolicy>::fn declared_modular(reconciliation: &str, cut_feedback: antecedent_contract::mixed_module::CutFeedback) -> core::result::Result<Self, antecedent_contract::mixed_module::MixedModuleRefusal>
+pub fn <antecedent_contract::mixed_module::MixedModulePolicy>::fn posterior(&self, model: &antecedent_contract::mixed_module::SharedParameterModel) -> core::result::Result<antecedent_contract::mixed_module::ModularPosterior, antecedent_contract::mixed_module::MixedModuleRefusal>
 pub fn <antecedent_contract::mixed_module::MixedModuleRefusal>::const fn code(self) -> &'static str
 pub fn <antecedent_contract::mixed_module::MixedModuleRefusal>::const fn detail(self) -> &'static str
+pub fn <antecedent_contract::mixed_module::ModularPosterior>::fn contrast_mean(&self) -> f64
+pub fn <antecedent_contract::mixed_module::ModularPosterior>::fn contrast_variance(&self) -> f64
+pub fn <antecedent_contract::mixed_module::ModularPosterior>::fn theta_contrast_correlation(&self) -> f64
+pub fn <antecedent_contract::mixed_module::ModularPosterior>::fn theta_contrast_covariance(&self) -> f64
 pub fn <antecedent_contract::mixed_module::ReconciliationRecord>::fn as_str(&self) -> &str
 pub fn <antecedent_contract::mixed_module::ReconciliationRecord>::fn try_new(text: &str) -> core::result::Result<Self, antecedent_contract::mixed_module::MixedModuleRefusal>
+pub fn <antecedent_contract::mixed_module::SharedParameterModel>::fn pooling_envelope(&self, eta: f64, low: f64, high: f64, steps: usize) -> core::result::Result<antecedent_contract::mixed_module::PoolingEnvelope, antecedent_contract::mixed_module::MixedModuleRefusal>
+pub fn <antecedent_contract::mixed_module::SharedParameterModel>::fn posterior(&self, eta: f64) -> core::result::Result<antecedent_contract::mixed_module::ModularPosterior, antecedent_contract::mixed_module::MixedModuleRefusal>
 pub fn <antecedent_contract::propagation_chain::LawMeaning>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::propagation_chain::LawMeaning>::const fn tag(self) -> u64
 pub fn <antecedent_contract::propagation_chain::LawMeaning>::fn from_name(name: &str) -> core::option::Option<Self>
@@ -7009,16 +7231,27 @@ pub fn <antecedent_contract::provider_transport::TransportedHandoff>::const fn s
 pub fn <antecedent_contract::provider_transport::TransportedHandoff>::const fn transport(&self) -> &antecedent_contract::evidence_ledger::TransportIdentity
 pub fn <antecedent_contract::provider_transport::TransportedInputPolicy>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::provider_transport::TransportedInputPolicy>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_contract::rewrite_legality::FrameContents>::fn dependence_ids(&self) -> impl core::iter::traits::iterator::Iterator<Item = &str>
 pub fn <antecedent_contract::rewrite_legality::FrameContents>::fn fingerprint(&self) -> antecedent_contract::rewrite_legality::FrameFingerprint
 pub fn <antecedent_contract::rewrite_legality::FrameContents>::fn fold_ids(&self) -> impl core::iter::traits::iterator::Iterator<Item = &str>
 pub fn <antecedent_contract::rewrite_legality::FrameContents>::fn history(&self) -> &str
 pub fn <antecedent_contract::rewrite_legality::FrameContents>::fn population_id(&self) -> &str
 pub fn <antecedent_contract::rewrite_legality::FrameContents>::fn row_ids(&self) -> impl core::iter::traits::iterator::Iterator<Item = &str>
+pub fn <antecedent_contract::rewrite_legality::FrameContents>::fn sampling_law(&self) -> &str
 pub fn <antecedent_contract::rewrite_legality::FrameContents>::fn try_new(row_ids: &[&str], fold_ids: &[&str], population_id: &str, history: &str) -> core::result::Result<Self, antecedent_contract::rewrite_legality::RewriteRefusal>
+pub fn <antecedent_contract::rewrite_legality::FrameContents>::fn try_new_executed(rows: &[antecedent_contract::rewrite_legality::FrameRow<'_>], population_id: &str, history: &str, sampling_law: &str) -> core::result::Result<Self, antecedent_contract::rewrite_legality::RewriteRefusal>
+pub fn <antecedent_contract::rewrite_legality::FrameContents>::fn uncertainty_ids(&self) -> impl core::iter::traits::iterator::Iterator<Item = &str>
+pub fn <antecedent_contract::rewrite_legality::FrameFingerprint>::const fn dependence(&self) -> antecedent_core::identity::SemanticDigest
 pub fn <antecedent_contract::rewrite_legality::FrameFingerprint>::const fn folds(&self) -> antecedent_core::identity::SemanticDigest
 pub fn <antecedent_contract::rewrite_legality::FrameFingerprint>::const fn history(&self) -> antecedent_core::identity::SemanticDigest
 pub fn <antecedent_contract::rewrite_legality::FrameFingerprint>::const fn population(&self) -> antecedent_core::identity::SemanticDigest
 pub fn <antecedent_contract::rewrite_legality::FrameFingerprint>::const fn selected_rows(&self) -> antecedent_core::identity::SemanticDigest
+pub fn <antecedent_contract::rewrite_legality::FrameFingerprint>::const fn uncertainty(&self) -> antecedent_core::identity::SemanticDigest
+pub fn <antecedent_contract::rewrite_legality::FrameLedger>::const fn rows(&self) -> u64
+pub fn <antecedent_contract::rewrite_legality::FrameLedger>::fn fingerprint(&self) -> antecedent_contract::rewrite_legality::FrameFingerprint
+pub fn <antecedent_contract::rewrite_legality::FrameLedger>::fn record(&mut self, row: &str, fold: &str, dependence: &str, uncertainty: &str)
+pub fn <antecedent_contract::rewrite_legality::FrameLedger>::fn record_numeric(&mut self, row: u64, fold: u64, dependence: u64, uncertainty: u64)
+pub fn <antecedent_contract::rewrite_legality::FrameLedger>::fn try_new(population_id: &str, history: &str, sampling_law: &str) -> core::result::Result<Self, antecedent_contract::rewrite_legality::RewriteRefusal>
 pub fn <antecedent_contract::rewrite_legality::NuisanceEffect>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::rewrite_legality::NuisanceEffect>::const fn defect(self) -> core::option::Option<(antecedent_contract::rewrite_legality::PreservationAxis, &'static str)>
 pub fn <antecedent_contract::rewrite_legality::NuisanceEffect>::fn from_name(name: &str) -> core::option::Option<Self>
@@ -7128,15 +7361,20 @@ pub fn antecedent_contract::adaptive_design::procedure_status(cell: &antecedent_
 pub fn antecedent_contract::bind_external_result(contract: &antecedent_contract::CheckedCausalContract, result: &antecedent_contract::ExternalResult) -> core::result::Result<antecedent_contract::BoundExternalClaim, antecedent_contract::ExternalBindingError>
 pub fn antecedent_contract::bind_external_result_to_program(binding: &antecedent_contract::ProgramBinding, claim: &antecedent_contract::ExternalProgramClaim, contract: &antecedent_contract::CheckedCausalContract, result: &antecedent_contract::ExternalResult) -> core::result::Result<antecedent_contract::ProgramBoundClaim, antecedent_contract::ExternalRefusal>
 pub fn antecedent_contract::bridge::bridged_claim_id(contract: antecedent_core::identity::SemanticDigest, source_claim: antecedent_core::identity::SemanticDigest) -> antecedent_core::identity::SemanticDigest
+pub fn antecedent_contract::bridge::bridged_claim_id_with_propagation(contract: antecedent_core::identity::SemanticDigest, source_claim: antecedent_core::identity::SemanticDigest, propagation: &antecedent_contract::bridge::PointPropagation) -> antecedent_core::identity::SemanticDigest
 pub fn antecedent_contract::bridge::bridged_distribution_claim_id(contract: antecedent_core::identity::SemanticDigest, source: antecedent_core::identity::SemanticDigest, stream: u64, draws: antecedent_core::identity::SemanticDigest) -> antecedent_core::identity::SemanticDigest
 pub fn antecedent_contract::bridge::chain_stage_not_affine(supplied: &str) -> antecedent_contract::bridge::BridgeRefusal
 pub fn antecedent_contract::bridge::derive_bridged_claim(contract: &antecedent_contract::bridge::BridgeContract, source: &antecedent_contract::bridge::BridgeSource<'_>) -> core::result::Result<antecedent_contract::bridge::BridgedClaim, antecedent_contract::bridge::BridgeRefusal>
+pub fn antecedent_contract::bridge::derive_bridged_claim_propagating(contract: &antecedent_contract::bridge::BridgeContract, source: &antecedent_contract::bridge::BridgeSource<'_>, standard_error: core::option::Option<f64>, nonlinear: core::option::Option<antecedent_contract::bridge::NonlinearMap>) -> core::result::Result<antecedent_contract::bridge::BridgedClaim, antecedent_contract::bridge::BridgeRefusal>
 pub fn antecedent_contract::bridge::draws_outside_domain(count: usize, total: usize, first: f64) -> antecedent_contract::bridge::BridgeRefusal
 pub fn antecedent_contract::bridge::draws_unusable(field: &str, remedy: &'static str) -> antecedent_contract::bridge::BridgeRefusal
 pub fn antecedent_contract::bridge::fit_trial_level_linear(validation: &antecedent_contract::bridge::TrialLevelValidation) -> core::result::Result<antecedent_contract::bridge::TrialLevelFit, antecedent_contract::bridge::BridgeRefusal>
 pub fn antecedent_contract::bridge::interval_not_licensed() -> antecedent_contract::bridge::BridgeRefusal
 pub fn antecedent_contract::bridge::nonlinear_expectation(map: antecedent_contract::bridge::NonlinearMap, law: &antecedent_contract::bridge::AnalyticLaw) -> core::result::Result<antecedent_contract::bridge::NonlinearMoment, antecedent_contract::bridge::BridgeRefusal>
+pub fn antecedent_contract::bridge::point_propagation_unavailable(contract: &antecedent_contract::bridge::BridgeContract, standard_error_supplied: bool) -> antecedent_contract::bridge::BridgeRefusal
 pub fn antecedent_contract::bridge::preserved_support(contract: &antecedent_contract::bridge::BridgeContract, map: antecedent_contract::bridge::SupportMap, source: antecedent_contract::bridge::ValueInterval) -> core::result::Result<antecedent_contract::bridge::PreservedSupport, antecedent_contract::bridge::BridgeRefusal>
+pub fn antecedent_contract::bridge::propagate_joint(law: &antecedent_contract::bridge::JointLaw, g: &dyn core::ops::function::Fn(&[f64]) -> f64, method: antecedent_contract::bridge::PropagationMethod) -> core::result::Result<antecedent_contract::bridge::JointPropagation, antecedent_contract::bridge::BridgeRefusal>
+pub fn antecedent_contract::bridge::propagate_nonlinear(contract: &antecedent_contract::bridge::BridgeContract, source_mean: f64, source_variance: f64, g: &dyn core::ops::function::Fn(f64, f64, f64) -> f64, method: antecedent_contract::bridge::PropagationMethod) -> core::result::Result<antecedent_contract::bridge::ContractNonlinearPropagation, antecedent_contract::bridge::BridgeRefusal>
 pub fn antecedent_contract::bridge::support_image(map: antecedent_contract::bridge::SupportMap, source: antecedent_contract::bridge::ValueInterval) -> core::result::Result<antecedent_contract::bridge::ValueInterval, antecedent_contract::bridge::BridgeRefusal>
 pub fn antecedent_contract::bridge::wrong_value_kind(requested: antecedent_contract::bridge::ValueKind, held: antecedent_contract::bridge::ValueKind) -> antecedent_contract::bridge::BridgeRefusal
 pub fn antecedent_contract::calibration_refusal() -> antecedent_contract::ExternalRefusal
@@ -7237,6 +7475,7 @@ pub fn antecedent_contract::measurement::model_refusal(error: &antecedent_core::
 pub fn antecedent_contract::measurement::route_card(route: antecedent_core::measurement_model::MeasurementRoute) -> antecedent_contract::measurement::MeasurementRouteCard
 pub fn antecedent_contract::mechanism_composition::reason_code_for_kind(kind_tag: &str) -> &'static str
 pub fn antecedent_contract::mixed_conditioning_refusal(variable: &str) -> antecedent_contract::ExternalRefusal
+pub fn antecedent_contract::mixed_module::reconcile_priors(first: antecedent_contract::mixed_module::GaussianLaw, second: antecedent_contract::mixed_module::GaussianLaw, first_weight: f64) -> core::result::Result<antecedent_contract::mixed_module::GaussianLaw, antecedent_contract::mixed_module::MixedModuleRefusal>
 pub fn antecedent_contract::observation_query::zero_probability_evidence_refusal() -> antecedent_contract::ExternalRefusal
 pub fn antecedent_contract::provider_transport::connect_bound_provider_source(source: &antecedent_contract::provider_transport::AdmittedProviderSource, transport: &antecedent_contract::evidence_ledger::TransportIdentity, consumer: &antecedent_contract::interface_contract::InterfaceContract, consumed_port: &str) -> core::result::Result<antecedent_contract::interface_contract::Connection, alloc::vec::Vec<antecedent_contract::interface_contract::InterfaceRefusal>>
 pub fn antecedent_contract::provider_transport::connect_provider_source(source: &antecedent_contract::provider_transport::AdmittedProviderSource, consumer: &antecedent_contract::interface_contract::InterfaceContract, consumed_port: &str) -> core::result::Result<antecedent_contract::interface_contract::Connection, alloc::vec::Vec<antecedent_contract::interface_contract::InterfaceRefusal>>
@@ -7249,6 +7488,9 @@ pub fn antecedent_contract::provider_verification::verify_provider_requests(evid
 pub fn antecedent_contract::quantity::deduped_coordinate_positions(coordinates: &[antecedent_contract::ScientificQuantity]) -> alloc::vec::Vec<usize>
 pub fn antecedent_contract::response_coordinate_skeleton(response: &antecedent_core::response::CausalResponse, name_of: &dyn core::ops::function::Fn(antecedent_core::ids::VariableId) -> core::option::Option<alloc::string::String>) -> core::result::Result<alloc::vec::Vec<antecedent_contract::ResponseCoordinateSkeleton>, antecedent_contract::ExternalRefusal>
 pub fn antecedent_contract::response_coordinates(response: &antecedent_core::response::CausalResponse, name_of: &dyn core::ops::function::Fn(antecedent_core::ids::VariableId) -> core::option::Option<alloc::string::String>, labels: &antecedent_contract::ResponseCoordinateLabels<'_>) -> core::result::Result<alloc::vec::Vec<antecedent_contract::ScientificQuantity>, antecedent_contract::ExternalRefusal>
+pub fn antecedent_contract::rewrite_legality::check_executed(kind: &'static str, original: &antecedent_contract::rewrite_legality::FrameFingerprint, rewritten: &[antecedent_contract::rewrite_legality::FrameFingerprint]) -> core::result::Result<(), antecedent_contract::rewrite_legality::RewriteRefusal>
+pub fn antecedent_contract::rewrite_legality::combine_ids(parts: &[u64]) -> u64
+pub fn antecedent_contract::rewrite_legality::value_row_id(row: u64, values: impl core::iter::traits::collect::IntoIterator<Item = f64>) -> alloc::string::String
 pub fn antecedent_contract::transport_revalidation::revalidate_transport(previous: &antecedent_contract::transport_revalidation::TransportScene, current: &antecedent_contract::transport_revalidation::TransportScene, effects: &alloc::collections::btree::map::BTreeMap<alloc::string::String, antecedent_contract::composition_verification::ObservedEffect>) -> core::result::Result<antecedent_contract::transport_revalidation::TransportRevalidation, antecedent_contract::composition_verification::GraphError>
 pub fn antecedent_contract::transport_revalidation::transport_coordinate(target: antecedent_core::identity::SemanticDigest, quantity: antecedent_core::identity::SemanticDigest) -> antecedent_core::identity::SemanticDigest
 pub mod antecedent_contract::adaptive_design
@@ -7443,6 +7685,7 @@ pub struct antecedent_contract::bridge::BridgeEndpoint
 pub struct antecedent_contract::bridge::BridgeInterfaceBasis
 pub struct antecedent_contract::bridge::BridgeScope
 pub struct antecedent_contract::bridge::BridgeSource<'a>
+pub struct antecedent_contract::bridge::ContractNonlinearPropagation
 pub struct antecedent_contract::bridge::CorrectionDrawLaw
 pub struct antecedent_contract::bridge::DrawsPlan
 pub struct antecedent_contract::bridge::DrawsPlan has private fields
@@ -7450,10 +7693,15 @@ pub struct antecedent_contract::bridge::EstimandBridge
 pub struct antecedent_contract::bridge::ExperimentalPrior
 pub struct antecedent_contract::bridge::ExposureSetting
 pub struct antecedent_contract::bridge::ImportedExperimentalPrior
+pub struct antecedent_contract::bridge::JointLaw
+pub struct antecedent_contract::bridge::JointLaw has private fields
+pub struct antecedent_contract::bridge::JointPropagation
 pub struct antecedent_contract::bridge::Licensing
 pub struct antecedent_contract::bridge::MappedDrawsSummary
 pub struct antecedent_contract::bridge::MappingUncertainty
 pub struct antecedent_contract::bridge::NonlinearMoment
+pub struct antecedent_contract::bridge::NonlinearPropagation
+pub struct antecedent_contract::bridge::PointPropagation
 pub struct antecedent_contract::bridge::PreservedSupport
 pub struct antecedent_contract::bridge::PropagatedUncertainty
 pub struct antecedent_contract::bridge::TransportabilityPremise
@@ -7522,8 +7770,13 @@ pub struct antecedent_contract::interface_contract::UncertaintyMeaning
 pub struct antecedent_contract::measurement::MeasurementInterfaceBasis
 pub struct antecedent_contract::measurement::MeasurementRequest<'a>
 pub struct antecedent_contract::measurement::MeasurementRouteCard
+pub struct antecedent_contract::mixed_module::GaussianLaw
+pub struct antecedent_contract::mixed_module::ModularPosterior
+pub struct antecedent_contract::mixed_module::PoolingEnvelope
 pub struct antecedent_contract::mixed_module::ReconciliationRecord
 pub struct antecedent_contract::mixed_module::ReconciliationRecord has private fields
+pub struct antecedent_contract::mixed_module::SharedParameterModel
+pub struct antecedent_contract::mixed_module::SummaryRange
 pub struct antecedent_contract::propagation_chain::ChainSourceDecl
 pub struct antecedent_contract::propagation_chain::ChainStageDecl
 pub struct antecedent_contract::propagation_chain::FactorDecl
@@ -7539,6 +7792,9 @@ pub struct antecedent_contract::rewrite_legality::FrameContents
 pub struct antecedent_contract::rewrite_legality::FrameContents has private fields
 pub struct antecedent_contract::rewrite_legality::FrameFingerprint
 pub struct antecedent_contract::rewrite_legality::FrameFingerprint has private fields
+pub struct antecedent_contract::rewrite_legality::FrameLedger
+pub struct antecedent_contract::rewrite_legality::FrameLedger has private fields
+pub struct antecedent_contract::rewrite_legality::FrameRow<'a>
 pub struct antecedent_contract::rewrite_legality::PreservedIdentities
 pub struct antecedent_contract::rewrite_legality::PreservedIdentities has private fields
 pub struct antecedent_contract::rewrite_legality::Rewrite
@@ -8299,6 +8555,9 @@ pub variant antecedent_contract::bridge::MeasurementDirection::LatentToMeasured
 pub variant antecedent_contract::bridge::MeasurementDirection::MeasuredToLatent
 pub variant antecedent_contract::bridge::NonlinearMap::Exponential
 pub variant antecedent_contract::bridge::NonlinearMap::Square
+pub variant antecedent_contract::bridge::PropagationMethod::SecondOrderDelta
+pub variant antecedent_contract::bridge::PropagationMethod::Simulation { draws: usize, seed: u64 }
+pub variant antecedent_contract::bridge::PropagationMethod::Unscented
 pub variant antecedent_contract::bridge::QuantityClass::AssociationalQuantity
 pub variant antecedent_contract::bridge::QuantityClass::CausalQuantity
 pub variant antecedent_contract::bridge::QuantityClass::DecisionUtility
@@ -8560,6 +8819,7 @@ pub variant antecedent_contract::mixed_module::CutFeedback::Feedback
 pub variant antecedent_contract::mixed_module::MixedModulePolicy::CoherentJoint
 pub variant antecedent_contract::mixed_module::MixedModulePolicy::DeclaredModular { reconciliation: antecedent_contract::mixed_module::ReconciliationRecord, cut_feedback: antecedent_contract::mixed_module::CutFeedback }
 pub variant antecedent_contract::mixed_module::MixedModuleRefusal::BlankReconciliation
+pub variant antecedent_contract::mixed_module::MixedModuleRefusal::InvalidModel(&'static str)
 pub variant antecedent_contract::propagation_chain::LawMeaning::Posterior
 pub variant antecedent_contract::propagation_chain::LawMeaning::Sampling
 pub variant antecedent_contract::propagation_chain::NodeRepresentation::Draws

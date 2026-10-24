@@ -367,11 +367,17 @@ impl core::clone::Clone for antecedent_io::recovery_chain_artifact::ConsumedReco
 impl core::clone::Clone for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError
 impl core::clone::Clone for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire
 impl core::clone::Clone for antecedent_io::release_migration::AdoptedRelease
-impl core::clone::Clone for antecedent_io::release_migration::AxisStanding
+impl core::clone::Clone for antecedent_io::release_migration::BreakPath
+impl core::clone::Clone for antecedent_io::release_migration::CurrentMethod
+impl core::clone::Clone for antecedent_io::release_migration::IntentionalBreak
 impl core::clone::Clone for antecedent_io::release_migration::ManifestRouteStatus
+impl core::clone::Clone for antecedent_io::release_migration::MethodAssignment
 impl core::clone::Clone for antecedent_io::release_migration::MigrationError
 impl core::clone::Clone for antecedent_io::release_migration::PreviousReleaseError
 impl core::clone::Clone for antecedent_io::release_migration::RouteAxis
+impl core::clone::Clone for antecedent_io::release_migration::RouteRecordError
+impl core::clone::Clone for antecedent_io::release_migration::RouteRecordMigration
+impl core::clone::Clone for antecedent_io::release_migration::RouteRecordOutcome
 impl core::clone::Clone for antecedent_io::release_migration::TargetShape
 impl core::clone::Clone for antecedent_io::sampled_counterfactual_transport_artifact::SampledCountTableWire
 impl core::clone::Clone for antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError
@@ -415,6 +421,7 @@ impl core::clone::Clone for antecedent_io::smoothed_dose_artifact::SmoothedDoseQ
 impl core::clone::Clone for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactWire
 impl core::clone::Clone for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorModelWire
 impl core::clone::Clone for antecedent_io::stream_artifact::DevicePayload
+impl core::clone::Clone for antecedent_io::stream_artifact::PayloadCodec
 impl core::clone::Clone for antecedent_io::stream_artifact::Producer
 impl core::clone::Clone for antecedent_io::stream_artifact::StreamArtifactError
 impl core::clone::Clone for antecedent_io::stream_artifact::StreamBounds
@@ -569,11 +576,17 @@ impl core::cmp::Eq for antecedent_io::recovery_chain_artifact::ChainWitnessCheck
 impl core::cmp::Eq for antecedent_io::recovery_chain_artifact::ChainWitnessWire
 impl core::cmp::Eq for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError
 impl core::cmp::Eq for antecedent_io::release_migration::AdoptedRelease
-impl core::cmp::Eq for antecedent_io::release_migration::AxisStanding
+impl core::cmp::Eq for antecedent_io::release_migration::BreakPath
+impl core::cmp::Eq for antecedent_io::release_migration::CurrentMethod
+impl core::cmp::Eq for antecedent_io::release_migration::IntentionalBreak
 impl core::cmp::Eq for antecedent_io::release_migration::ManifestRouteStatus
+impl core::cmp::Eq for antecedent_io::release_migration::MethodAssignment
 impl core::cmp::Eq for antecedent_io::release_migration::MigrationError
 impl core::cmp::Eq for antecedent_io::release_migration::PreviousReleaseError
 impl core::cmp::Eq for antecedent_io::release_migration::RouteAxis
+impl core::cmp::Eq for antecedent_io::release_migration::RouteRecordError
+impl core::cmp::Eq for antecedent_io::release_migration::RouteRecordMigration
+impl core::cmp::Eq for antecedent_io::release_migration::RouteRecordOutcome
 impl core::cmp::Eq for antecedent_io::release_migration::TargetShape
 impl core::cmp::Eq for antecedent_io::sampled_counterfactual_transport_artifact::SampledCountTableWire
 impl core::cmp::Eq for antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError
@@ -592,6 +605,7 @@ impl core::cmp::Eq for antecedent_io::sampled_recovery_artifact::SampledRecovery
 impl core::cmp::Eq for antecedent_io::scenario_covariance_artifact::RowTableWire
 impl core::cmp::Eq for antecedent_io::scenario_covariance_artifact::ScenarioCovarianceArtifactError
 impl core::cmp::Eq for antecedent_io::stream_artifact::DevicePayload
+impl core::cmp::Eq for antecedent_io::stream_artifact::PayloadCodec
 impl core::cmp::Eq for antecedent_io::stream_artifact::Producer
 impl core::cmp::Eq for antecedent_io::stream_artifact::StreamArtifact<'_>
 impl core::cmp::Eq for antecedent_io::stream_artifact::StreamArtifactError
@@ -605,6 +619,7 @@ impl core::cmp::Eq for antecedent_io::temporal_transport_artifact::SliceEvidence
 impl core::cmp::Eq for antecedent_io::temporal_transport_artifact::TemporalSlotsWire
 impl core::cmp::Eq for antecedent_io::transport_scenario_artifact::ScenarioCoordinateWire
 impl core::cmp::Eq for antecedent_io::vector_treatment_artifact::VectorTreatmentIdentity
+impl core::cmp::Ord for antecedent_io::release_migration::RouteAxis
 impl core::cmp::PartialEq for antecedent_io::CandidateSelectionWire
 impl core::cmp::PartialEq for antecedent_io::ClipSensitivityWire
 impl core::cmp::PartialEq for antecedent_io::EffectEstimateWire
@@ -889,11 +904,17 @@ impl core::cmp::PartialEq for antecedent_io::recovery_chain_artifact::ChainWitne
 impl core::cmp::PartialEq for antecedent_io::recovery_chain_artifact::ChainWitnessWire
 impl core::cmp::PartialEq for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError
 impl core::cmp::PartialEq for antecedent_io::release_migration::AdoptedRelease
-impl core::cmp::PartialEq for antecedent_io::release_migration::AxisStanding
+impl core::cmp::PartialEq for antecedent_io::release_migration::BreakPath
+impl core::cmp::PartialEq for antecedent_io::release_migration::CurrentMethod
+impl core::cmp::PartialEq for antecedent_io::release_migration::IntentionalBreak
 impl core::cmp::PartialEq for antecedent_io::release_migration::ManifestRouteStatus
+impl core::cmp::PartialEq for antecedent_io::release_migration::MethodAssignment
 impl core::cmp::PartialEq for antecedent_io::release_migration::MigrationError
 impl core::cmp::PartialEq for antecedent_io::release_migration::PreviousReleaseError
 impl core::cmp::PartialEq for antecedent_io::release_migration::RouteAxis
+impl core::cmp::PartialEq for antecedent_io::release_migration::RouteRecordError
+impl core::cmp::PartialEq for antecedent_io::release_migration::RouteRecordMigration
+impl core::cmp::PartialEq for antecedent_io::release_migration::RouteRecordOutcome
 impl core::cmp::PartialEq for antecedent_io::release_migration::TargetShape
 impl core::cmp::PartialEq for antecedent_io::sampled_counterfactual_transport_artifact::SampledCountTableWire
 impl core::cmp::PartialEq for antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError
@@ -929,6 +950,7 @@ impl core::cmp::PartialEq for antecedent_io::scenario_covariance_artifact::Score
 impl core::cmp::PartialEq for antecedent_io::smoothed_dose_artifact::SmoothedDoseQueryWire
 impl core::cmp::PartialEq for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorModelWire
 impl core::cmp::PartialEq for antecedent_io::stream_artifact::DevicePayload
+impl core::cmp::PartialEq for antecedent_io::stream_artifact::PayloadCodec
 impl core::cmp::PartialEq for antecedent_io::stream_artifact::Producer
 impl core::cmp::PartialEq for antecedent_io::stream_artifact::StreamArtifact<'_>
 impl core::cmp::PartialEq for antecedent_io::stream_artifact::StreamArtifactError
@@ -987,6 +1009,7 @@ impl core::cmp::PartialEq for antecedent_io::vector_treatment_artifact::VectorTr
 impl core::cmp::PartialEq for antecedent_io::vector_treatment_artifact::VectorTreatmentRequest
 impl core::cmp::PartialEq for antecedent_io::vector_treatment_artifact::WaldWire
 impl core::cmp::PartialEq for antecedent_io::z_transport_artifact::ZTransportPointWire
+impl core::cmp::PartialOrd for antecedent_io::release_migration::RouteAxis
 impl core::convert::From<antecedent_estimate::adaptive_inference::AdaptiveInferenceError> for antecedent_io::adaptive_inference_result_artifact::AdaptiveResultError
 impl core::convert::From<antecedent_estimate::error::EstimationError> for antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifactError
 impl core::convert::From<antecedent_estimate::error::EstimationError> for antecedent_io::array_fit_artifact::ArrayFitError
@@ -1073,6 +1096,7 @@ impl core::error::Error for antecedent_io::recovery_artifact::RecoveryArtifactEr
 impl core::error::Error for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError
 impl core::error::Error for antecedent_io::release_migration::MigrationError
 impl core::error::Error for antecedent_io::release_migration::PreviousReleaseError
+impl core::error::Error for antecedent_io::release_migration::RouteRecordError
 impl core::error::Error for antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError
 impl core::error::Error for antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactError
 impl core::error::Error for antecedent_io::scenario_covariance_artifact::ScenarioCovarianceArtifactError
@@ -1412,11 +1436,17 @@ impl core::fmt::Debug for antecedent_io::recovery_chain_artifact::ConsumedRecove
 impl core::fmt::Debug for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError
 impl core::fmt::Debug for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire
 impl core::fmt::Debug for antecedent_io::release_migration::AdoptedRelease
-impl core::fmt::Debug for antecedent_io::release_migration::AxisStanding
+impl core::fmt::Debug for antecedent_io::release_migration::BreakPath
+impl core::fmt::Debug for antecedent_io::release_migration::CurrentMethod
+impl core::fmt::Debug for antecedent_io::release_migration::IntentionalBreak
 impl core::fmt::Debug for antecedent_io::release_migration::ManifestRouteStatus
+impl core::fmt::Debug for antecedent_io::release_migration::MethodAssignment
 impl core::fmt::Debug for antecedent_io::release_migration::MigrationError
 impl core::fmt::Debug for antecedent_io::release_migration::PreviousReleaseError
 impl core::fmt::Debug for antecedent_io::release_migration::RouteAxis
+impl core::fmt::Debug for antecedent_io::release_migration::RouteRecordError
+impl core::fmt::Debug for antecedent_io::release_migration::RouteRecordMigration
+impl core::fmt::Debug for antecedent_io::release_migration::RouteRecordOutcome
 impl core::fmt::Debug for antecedent_io::release_migration::TargetShape
 impl core::fmt::Debug for antecedent_io::sampled_counterfactual_transport_artifact::ConsumedSampledCounterfactualTransport
 impl core::fmt::Debug for antecedent_io::sampled_counterfactual_transport_artifact::SampledCountTableWire
@@ -1462,6 +1492,7 @@ impl core::fmt::Debug for antecedent_io::smoothed_dose_artifact::SmoothedDoseQue
 impl core::fmt::Debug for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactWire
 impl core::fmt::Debug for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorModelWire
 impl core::fmt::Debug for antecedent_io::stream_artifact::DevicePayload
+impl core::fmt::Debug for antecedent_io::stream_artifact::PayloadCodec
 impl core::fmt::Debug for antecedent_io::stream_artifact::Producer
 impl core::fmt::Debug for antecedent_io::stream_artifact::StreamArtifactError
 impl core::fmt::Debug for antecedent_io::stream_artifact::StreamBounds
@@ -1554,6 +1585,7 @@ impl core::fmt::Display for antecedent_io::recovery_chain_artifact::RecoveryChai
 impl core::fmt::Display for antecedent_io::release_migration::MigrationError
 impl core::fmt::Display for antecedent_io::release_migration::PreviousReleaseError
 impl core::fmt::Display for antecedent_io::release_migration::RouteAxis
+impl core::fmt::Display for antecedent_io::release_migration::RouteRecordError
 impl core::fmt::Display for antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError
 impl core::fmt::Display for antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactError
 impl core::fmt::Display for antecedent_io::scenario_covariance_artifact::ScenarioCovarianceArtifactError
@@ -1561,7 +1593,7 @@ impl core::fmt::Display for antecedent_io::stream_artifact::StreamArtifactError
 impl core::fmt::Display for antecedent_io::vector_treatment_artifact::VectorTreatmentArtifactError
 impl core::hash::Hash for antecedent_io::cyclic_family_artifact::CyclicRealization
 impl core::hash::Hash for antecedent_io::cyclic_family_artifact::CyclicUncertainty
-impl core::hash::Hash for antecedent_io::release_migration::AxisStanding
+impl core::hash::Hash for antecedent_io::release_migration::IntentionalBreak
 impl core::hash::Hash for antecedent_io::release_migration::ManifestRouteStatus
 impl core::hash::Hash for antecedent_io::release_migration::RouteAxis
 impl core::hash::Hash for antecedent_io::release_migration::TargetShape
@@ -1610,7 +1642,8 @@ impl core::marker::Copy for antecedent_io::predictive_assessment_artifact::Predi
 impl core::marker::Copy for antecedent_io::recovery_artifact::RecoveryConsumeLimits
 impl core::marker::Copy for antecedent_io::recovery_chain_artifact::ChainLawWire
 impl core::marker::Copy for antecedent_io::recovery_chain_artifact::ChainQueryWire
-impl core::marker::Copy for antecedent_io::release_migration::AxisStanding
+impl core::marker::Copy for antecedent_io::release_migration::BreakPath
+impl core::marker::Copy for antecedent_io::release_migration::IntentionalBreak
 impl core::marker::Copy for antecedent_io::release_migration::ManifestRouteStatus
 impl core::marker::Copy for antecedent_io::release_migration::MigrationError
 impl core::marker::Copy for antecedent_io::release_migration::RouteAxis
@@ -1620,6 +1653,7 @@ impl core::marker::Copy for antecedent_io::sampled_recovery_artifact::SampledRec
 impl core::marker::Copy for antecedent_io::scenario_covariance_artifact::ScenarioCovarianceConsumeLimits
 impl core::marker::Copy for antecedent_io::smoothed_dose_artifact::SmoothedDoseConsumeLimits
 impl core::marker::Copy for antecedent_io::stream_artifact::DevicePayload
+impl core::marker::Copy for antecedent_io::stream_artifact::PayloadCodec
 impl core::marker::Copy for antecedent_io::stream_artifact::Producer
 impl core::marker::Copy for antecedent_io::stream_artifact::StreamArtifactError
 impl core::marker::Copy for antecedent_io::stream_artifact::StreamBounds
@@ -1969,11 +2003,17 @@ impl core::marker::Freeze for antecedent_io::recovery_chain_artifact::ConsumedRe
 impl core::marker::Freeze for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError [auto]
 impl core::marker::Freeze for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire [auto]
 impl core::marker::Freeze for antecedent_io::release_migration::AdoptedRelease [auto]
-impl core::marker::Freeze for antecedent_io::release_migration::AxisStanding [auto]
+impl core::marker::Freeze for antecedent_io::release_migration::BreakPath [auto]
+impl core::marker::Freeze for antecedent_io::release_migration::CurrentMethod [auto]
+impl core::marker::Freeze for antecedent_io::release_migration::IntentionalBreak [auto]
 impl core::marker::Freeze for antecedent_io::release_migration::ManifestRouteStatus [auto]
+impl core::marker::Freeze for antecedent_io::release_migration::MethodAssignment [auto]
 impl core::marker::Freeze for antecedent_io::release_migration::MigrationError [auto]
 impl core::marker::Freeze for antecedent_io::release_migration::PreviousReleaseError [auto]
 impl core::marker::Freeze for antecedent_io::release_migration::RouteAxis [auto]
+impl core::marker::Freeze for antecedent_io::release_migration::RouteRecordError [auto]
+impl core::marker::Freeze for antecedent_io::release_migration::RouteRecordMigration [auto]
+impl core::marker::Freeze for antecedent_io::release_migration::RouteRecordOutcome [auto]
 impl core::marker::Freeze for antecedent_io::release_migration::TargetShape [auto]
 impl core::marker::Freeze for antecedent_io::sampled_counterfactual_transport_artifact::ConsumedSampledCounterfactualTransport [auto]
 impl core::marker::Freeze for antecedent_io::sampled_counterfactual_transport_artifact::SampledCountTableWire [auto]
@@ -2020,6 +2060,7 @@ impl core::marker::Freeze for antecedent_io::smoothed_dose_artifact::SmoothedDos
 impl core::marker::Freeze for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactWire [auto]
 impl core::marker::Freeze for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorModelWire [auto]
 impl core::marker::Freeze for antecedent_io::stream_artifact::DevicePayload [auto]
+impl core::marker::Freeze for antecedent_io::stream_artifact::PayloadCodec [auto]
 impl core::marker::Freeze for antecedent_io::stream_artifact::Producer [auto]
 impl core::marker::Freeze for antecedent_io::stream_artifact::StreamArtifactError [auto]
 impl core::marker::Freeze for antecedent_io::stream_artifact::StreamBounds [auto]
@@ -2432,11 +2473,17 @@ impl core::marker::Send for antecedent_io::recovery_chain_artifact::ConsumedReco
 impl core::marker::Send for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError [auto]
 impl core::marker::Send for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire [auto]
 impl core::marker::Send for antecedent_io::release_migration::AdoptedRelease [auto]
-impl core::marker::Send for antecedent_io::release_migration::AxisStanding [auto]
+impl core::marker::Send for antecedent_io::release_migration::BreakPath [auto]
+impl core::marker::Send for antecedent_io::release_migration::CurrentMethod [auto]
+impl core::marker::Send for antecedent_io::release_migration::IntentionalBreak [auto]
 impl core::marker::Send for antecedent_io::release_migration::ManifestRouteStatus [auto]
+impl core::marker::Send for antecedent_io::release_migration::MethodAssignment [auto]
 impl core::marker::Send for antecedent_io::release_migration::MigrationError [auto]
 impl core::marker::Send for antecedent_io::release_migration::PreviousReleaseError [auto]
 impl core::marker::Send for antecedent_io::release_migration::RouteAxis [auto]
+impl core::marker::Send for antecedent_io::release_migration::RouteRecordError [auto]
+impl core::marker::Send for antecedent_io::release_migration::RouteRecordMigration [auto]
+impl core::marker::Send for antecedent_io::release_migration::RouteRecordOutcome [auto]
 impl core::marker::Send for antecedent_io::release_migration::TargetShape [auto]
 impl core::marker::Send for antecedent_io::sampled_counterfactual_transport_artifact::ConsumedSampledCounterfactualTransport [auto]
 impl core::marker::Send for antecedent_io::sampled_counterfactual_transport_artifact::SampledCountTableWire [auto]
@@ -2483,6 +2530,7 @@ impl core::marker::Send for antecedent_io::smoothed_dose_artifact::SmoothedDoseQ
 impl core::marker::Send for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactWire [auto]
 impl core::marker::Send for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorModelWire [auto]
 impl core::marker::Send for antecedent_io::stream_artifact::DevicePayload [auto]
+impl core::marker::Send for antecedent_io::stream_artifact::PayloadCodec [auto]
 impl core::marker::Send for antecedent_io::stream_artifact::Producer [auto]
 impl core::marker::Send for antecedent_io::stream_artifact::StreamArtifactError [auto]
 impl core::marker::Send for antecedent_io::stream_artifact::StreamBounds [auto]
@@ -2836,11 +2884,17 @@ impl core::marker::StructuralPartialEq for antecedent_io::recovery_chain_artifac
 impl core::marker::StructuralPartialEq for antecedent_io::recovery_chain_artifact::ChainWitnessWire
 impl core::marker::StructuralPartialEq for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError
 impl core::marker::StructuralPartialEq for antecedent_io::release_migration::AdoptedRelease
-impl core::marker::StructuralPartialEq for antecedent_io::release_migration::AxisStanding
+impl core::marker::StructuralPartialEq for antecedent_io::release_migration::BreakPath
+impl core::marker::StructuralPartialEq for antecedent_io::release_migration::CurrentMethod
+impl core::marker::StructuralPartialEq for antecedent_io::release_migration::IntentionalBreak
 impl core::marker::StructuralPartialEq for antecedent_io::release_migration::ManifestRouteStatus
+impl core::marker::StructuralPartialEq for antecedent_io::release_migration::MethodAssignment
 impl core::marker::StructuralPartialEq for antecedent_io::release_migration::MigrationError
 impl core::marker::StructuralPartialEq for antecedent_io::release_migration::PreviousReleaseError
 impl core::marker::StructuralPartialEq for antecedent_io::release_migration::RouteAxis
+impl core::marker::StructuralPartialEq for antecedent_io::release_migration::RouteRecordError
+impl core::marker::StructuralPartialEq for antecedent_io::release_migration::RouteRecordMigration
+impl core::marker::StructuralPartialEq for antecedent_io::release_migration::RouteRecordOutcome
 impl core::marker::StructuralPartialEq for antecedent_io::release_migration::TargetShape
 impl core::marker::StructuralPartialEq for antecedent_io::sampled_counterfactual_transport_artifact::SampledCountTableWire
 impl core::marker::StructuralPartialEq for antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError
@@ -2876,6 +2930,7 @@ impl core::marker::StructuralPartialEq for antecedent_io::scenario_covariance_ar
 impl core::marker::StructuralPartialEq for antecedent_io::smoothed_dose_artifact::SmoothedDoseQueryWire
 impl core::marker::StructuralPartialEq for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorModelWire
 impl core::marker::StructuralPartialEq for antecedent_io::stream_artifact::DevicePayload
+impl core::marker::StructuralPartialEq for antecedent_io::stream_artifact::PayloadCodec
 impl core::marker::StructuralPartialEq for antecedent_io::stream_artifact::Producer
 impl core::marker::StructuralPartialEq for antecedent_io::stream_artifact::StreamArtifactError
 impl core::marker::StructuralPartialEq for antecedent_io::stream_artifact::StreamBounds
@@ -3275,11 +3330,17 @@ impl core::marker::Sync for antecedent_io::recovery_chain_artifact::ConsumedReco
 impl core::marker::Sync for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError [auto]
 impl core::marker::Sync for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire [auto]
 impl core::marker::Sync for antecedent_io::release_migration::AdoptedRelease [auto]
-impl core::marker::Sync for antecedent_io::release_migration::AxisStanding [auto]
+impl core::marker::Sync for antecedent_io::release_migration::BreakPath [auto]
+impl core::marker::Sync for antecedent_io::release_migration::CurrentMethod [auto]
+impl core::marker::Sync for antecedent_io::release_migration::IntentionalBreak [auto]
 impl core::marker::Sync for antecedent_io::release_migration::ManifestRouteStatus [auto]
+impl core::marker::Sync for antecedent_io::release_migration::MethodAssignment [auto]
 impl core::marker::Sync for antecedent_io::release_migration::MigrationError [auto]
 impl core::marker::Sync for antecedent_io::release_migration::PreviousReleaseError [auto]
 impl core::marker::Sync for antecedent_io::release_migration::RouteAxis [auto]
+impl core::marker::Sync for antecedent_io::release_migration::RouteRecordError [auto]
+impl core::marker::Sync for antecedent_io::release_migration::RouteRecordMigration [auto]
+impl core::marker::Sync for antecedent_io::release_migration::RouteRecordOutcome [auto]
 impl core::marker::Sync for antecedent_io::release_migration::TargetShape [auto]
 impl core::marker::Sync for antecedent_io::sampled_counterfactual_transport_artifact::ConsumedSampledCounterfactualTransport [auto]
 impl core::marker::Sync for antecedent_io::sampled_counterfactual_transport_artifact::SampledCountTableWire [auto]
@@ -3326,6 +3387,7 @@ impl core::marker::Sync for antecedent_io::smoothed_dose_artifact::SmoothedDoseQ
 impl core::marker::Sync for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactWire [auto]
 impl core::marker::Sync for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorModelWire [auto]
 impl core::marker::Sync for antecedent_io::stream_artifact::DevicePayload [auto]
+impl core::marker::Sync for antecedent_io::stream_artifact::PayloadCodec [auto]
 impl core::marker::Sync for antecedent_io::stream_artifact::Producer [auto]
 impl core::marker::Sync for antecedent_io::stream_artifact::StreamArtifactError [auto]
 impl core::marker::Sync for antecedent_io::stream_artifact::StreamBounds [auto]
@@ -3738,11 +3800,17 @@ impl core::marker::Unpin for antecedent_io::recovery_chain_artifact::ConsumedRec
 impl core::marker::Unpin for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError [auto]
 impl core::marker::Unpin for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire [auto]
 impl core::marker::Unpin for antecedent_io::release_migration::AdoptedRelease [auto]
-impl core::marker::Unpin for antecedent_io::release_migration::AxisStanding [auto]
+impl core::marker::Unpin for antecedent_io::release_migration::BreakPath [auto]
+impl core::marker::Unpin for antecedent_io::release_migration::CurrentMethod [auto]
+impl core::marker::Unpin for antecedent_io::release_migration::IntentionalBreak [auto]
 impl core::marker::Unpin for antecedent_io::release_migration::ManifestRouteStatus [auto]
+impl core::marker::Unpin for antecedent_io::release_migration::MethodAssignment [auto]
 impl core::marker::Unpin for antecedent_io::release_migration::MigrationError [auto]
 impl core::marker::Unpin for antecedent_io::release_migration::PreviousReleaseError [auto]
 impl core::marker::Unpin for antecedent_io::release_migration::RouteAxis [auto]
+impl core::marker::Unpin for antecedent_io::release_migration::RouteRecordError [auto]
+impl core::marker::Unpin for antecedent_io::release_migration::RouteRecordMigration [auto]
+impl core::marker::Unpin for antecedent_io::release_migration::RouteRecordOutcome [auto]
 impl core::marker::Unpin for antecedent_io::release_migration::TargetShape [auto]
 impl core::marker::Unpin for antecedent_io::sampled_counterfactual_transport_artifact::ConsumedSampledCounterfactualTransport [auto]
 impl core::marker::Unpin for antecedent_io::sampled_counterfactual_transport_artifact::SampledCountTableWire [auto]
@@ -3789,6 +3857,7 @@ impl core::marker::Unpin for antecedent_io::smoothed_dose_artifact::SmoothedDose
 impl core::marker::Unpin for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactWire [auto]
 impl core::marker::Unpin for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorModelWire [auto]
 impl core::marker::Unpin for antecedent_io::stream_artifact::DevicePayload [auto]
+impl core::marker::Unpin for antecedent_io::stream_artifact::PayloadCodec [auto]
 impl core::marker::Unpin for antecedent_io::stream_artifact::Producer [auto]
 impl core::marker::Unpin for antecedent_io::stream_artifact::StreamArtifactError [auto]
 impl core::marker::Unpin for antecedent_io::stream_artifact::StreamBounds [auto]
@@ -4199,11 +4268,17 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::recovery_chain_a
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::release_migration::AdoptedRelease [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::release_migration::AxisStanding [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::release_migration::BreakPath [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::release_migration::CurrentMethod [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::release_migration::IntentionalBreak [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::release_migration::ManifestRouteStatus [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::release_migration::MethodAssignment [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::release_migration::MigrationError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::release_migration::PreviousReleaseError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::release_migration::RouteAxis [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::release_migration::RouteRecordError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::release_migration::RouteRecordMigration [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::release_migration::RouteRecordOutcome [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::release_migration::TargetShape [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::sampled_counterfactual_transport_artifact::ConsumedSampledCounterfactualTransport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::sampled_counterfactual_transport_artifact::SampledCountTableWire [auto]
@@ -4250,6 +4325,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::smoothed_dose_ar
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorModelWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::stream_artifact::DevicePayload [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::stream_artifact::PayloadCodec [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::stream_artifact::Producer [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::stream_artifact::StreamArtifactError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::stream_artifact::StreamBounds [auto]
@@ -4660,11 +4736,17 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io::recovery_chain_arti
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::release_migration::AdoptedRelease [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_io::release_migration::AxisStanding [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::release_migration::BreakPath [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::release_migration::CurrentMethod [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::release_migration::IntentionalBreak [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::release_migration::ManifestRouteStatus [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::release_migration::MethodAssignment [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::release_migration::MigrationError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::release_migration::PreviousReleaseError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::release_migration::RouteAxis [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::release_migration::RouteRecordError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::release_migration::RouteRecordMigration [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::release_migration::RouteRecordOutcome [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::release_migration::TargetShape [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::sampled_counterfactual_transport_artifact::ConsumedSampledCounterfactualTransport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::sampled_counterfactual_transport_artifact::SampledCountTableWire [auto]
@@ -4711,6 +4793,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io::smoothed_dose_artif
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorModelWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::stream_artifact::DevicePayload [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::stream_artifact::PayloadCodec [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::stream_artifact::Producer [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::stream_artifact::StreamArtifactError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::stream_artifact::StreamBounds [auto]
@@ -5133,20 +5216,25 @@ impl<'a> !core::panic::unwind_safe::UnwindSafe for antecedent_io::smoothed_dose_
 impl<'a> core::clone::Clone for antecedent_io::ModelBundleEncode<'a>
 impl<'a> core::clone::Clone for antecedent_io::joint_response_artifact::JointResponseArtifactSource<'a>
 impl<'a> core::clone::Clone for antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence<'a>
+impl<'a> core::clone::Clone for antecedent_io::release_migration::ManifestRouteRecord<'a>
 impl<'a> core::clone::Clone for antecedent_io::stream_artifact::CpuPayload<'a>
 impl<'a> core::clone::Clone for antecedent_io::stream_artifact::PayloadSource<'a>
 impl<'a> core::clone::Clone for antecedent_io::stream_artifact::StreamArtifact<'a>
 impl<'a> core::clone::Clone for antecedent_io::temporal_refresh_artifact::RefreshInputs<'a>
+impl<'a> core::cmp::Eq for antecedent_io::release_migration::ManifestRouteRecord<'a>
 impl<'a> core::cmp::Eq for antecedent_io::stream_artifact::CpuPayload<'a>
+impl<'a> core::cmp::PartialEq for antecedent_io::release_migration::ManifestRouteRecord<'a>
 impl<'a> core::cmp::PartialEq for antecedent_io::stream_artifact::CpuPayload<'a>
 impl<'a> core::fmt::Debug for antecedent_io::ModelBundleEncode<'a>
 impl<'a> core::fmt::Debug for antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence<'a>
+impl<'a> core::fmt::Debug for antecedent_io::release_migration::ManifestRouteRecord<'a>
 impl<'a> core::fmt::Debug for antecedent_io::stream_artifact::CpuPayload<'a>
 impl<'a> core::fmt::Debug for antecedent_io::stream_artifact::PayloadSource<'a>
 impl<'a> core::fmt::Debug for antecedent_io::stream_artifact::StreamArtifact<'a>
 impl<'a> core::fmt::Debug for antecedent_io::temporal_refresh_artifact::RefreshInputs<'a>
 impl<'a> core::marker::Copy for antecedent_io::joint_response_artifact::JointResponseArtifactSource<'a>
 impl<'a> core::marker::Copy for antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence<'a>
+impl<'a> core::marker::Copy for antecedent_io::release_migration::ManifestRouteRecord<'a>
 impl<'a> core::marker::Copy for antecedent_io::stream_artifact::CpuPayload<'a>
 impl<'a> core::marker::Copy for antecedent_io::stream_artifact::PayloadSource<'a>
 impl<'a> core::marker::Copy for antecedent_io::temporal_refresh_artifact::RefreshInputs<'a>
@@ -5160,6 +5248,7 @@ impl<'a> core::marker::Freeze for antecedent_io::measured_inference::split_paren
 impl<'a> core::marker::Freeze for antecedent_io::mixed_source_artifact::MixedSourceArtifactInput<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io::mz_transport_artifact::MzTransportArtifactInput<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io::recovery_artifact::RecoveryArtifactInput<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_io::release_migration::ManifestRouteRecord<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactInput<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactInput<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactInput<'a> [auto]
@@ -5177,6 +5266,7 @@ impl<'a> core::marker::Send for antecedent_io::measured_inference::split_parent_
 impl<'a> core::marker::Send for antecedent_io::mixed_source_artifact::MixedSourceArtifactInput<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io::mz_transport_artifact::MzTransportArtifactInput<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io::recovery_artifact::RecoveryArtifactInput<'a> [auto]
+impl<'a> core::marker::Send for antecedent_io::release_migration::ManifestRouteRecord<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactInput<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactInput<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactInput<'a> [auto]
@@ -5184,6 +5274,7 @@ impl<'a> core::marker::Send for antecedent_io::stream_artifact::CpuPayload<'a> [
 impl<'a> core::marker::Send for antecedent_io::stream_artifact::PayloadSource<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io::stream_artifact::StreamArtifact<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io::temporal_refresh_artifact::RefreshInputs<'a> [auto]
+impl<'a> core::marker::StructuralPartialEq for antecedent_io::release_migration::ManifestRouteRecord<'a>
 impl<'a> core::marker::StructuralPartialEq for antecedent_io::stream_artifact::CpuPayload<'a>
 impl<'a> core::marker::Sync for antecedent_io::ModelBundleEncode<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalArtifactInput<'a> [auto]
@@ -5195,6 +5286,7 @@ impl<'a> core::marker::Sync for antecedent_io::measured_inference::split_parent_
 impl<'a> core::marker::Sync for antecedent_io::mixed_source_artifact::MixedSourceArtifactInput<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io::mz_transport_artifact::MzTransportArtifactInput<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io::recovery_artifact::RecoveryArtifactInput<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_io::release_migration::ManifestRouteRecord<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactInput<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactInput<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactInput<'a> [auto]
@@ -5212,6 +5304,7 @@ impl<'a> core::marker::Unpin for antecedent_io::measured_inference::split_parent
 impl<'a> core::marker::Unpin for antecedent_io::mixed_source_artifact::MixedSourceArtifactInput<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io::mz_transport_artifact::MzTransportArtifactInput<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io::recovery_artifact::RecoveryArtifactInput<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_io::release_migration::ManifestRouteRecord<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactInput<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactInput<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactInput<'a> [auto]
@@ -5227,6 +5320,7 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inf
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::mixed_source_artifact::MixedSourceArtifactInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::mz_transport_artifact::MzTransportArtifactInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::recovery_artifact::RecoveryArtifactInput<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::release_migration::ManifestRouteRecord<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::stream_artifact::CpuPayload<'a> [auto]
@@ -5241,6 +5335,7 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_infere
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io::mixed_source_artifact::MixedSourceArtifactInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io::mz_transport_artifact::MzTransportArtifactInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io::recovery_artifact::RecoveryArtifactInput<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io::release_migration::ManifestRouteRecord<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io::stream_artifact::CpuPayload<'a> [auto]
@@ -5590,6 +5685,7 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::vector_treatment_a
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::vector_treatment_artifact::WaldWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::z_transport_artifact::ZTransportArtifactWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::z_transport_artifact::ZTransportPointWire
+pub const <antecedent_io::release_migration::IntentionalBreak>::ALL: [Self; 7]
 pub const <antecedent_io::release_migration::ManifestRouteStatus>::ALL: [Self; 5]
 pub const <antecedent_io::release_migration::RouteAxis>::ALL: [Self; 4]
 pub const <antecedent_io::stream_artifact::StreamBounds>::DEFAULT_MAX_RETAINED_BYTES: u64
@@ -5651,6 +5747,7 @@ pub const antecedent_io::joint_bayesian_transport_artifact::JOINT_BAYESIAN_ARTIF
 pub const antecedent_io::joint_bayesian_transport_artifact::JOINT_BAYESIAN_ARTIFACT_VERSION: u32
 pub const antecedent_io::joint_bayesian_transport_artifact::JOINT_BAYESIAN_CALIBRATION: &str
 pub const antecedent_io::joint_panel_artifact::JOINT_PANEL_ARTIFACT_VERSION: u16
+pub const antecedent_io::joint_panel_artifact::JOINT_PANEL_FAMILY_ARTIFACT_VERSION: u16
 pub const antecedent_io::joint_panel_artifact::MAX_JOINT_PANEL_ARTIFACT_BYTES: usize
 pub const antecedent_io::joint_response_artifact::JOINT_RESPONSE_ARTIFACT_VERSION: u16
 pub const antecedent_io::joint_response_artifact::MAX_JOINT_RESPONSE_ARTIFACT_BYTES: usize
@@ -5802,11 +5899,9 @@ pub const antecedent_io::z_transport_artifact::Z_TRANSPORT_NO_INTERVAL: &str
 pub const fn antecedent_io::period_refresh_artifact::product_label(product: antecedent_estimate::temporal_refresh::WindowProduct) -> &'static str
 pub const fn antecedent_io::period_refresh_artifact::standing_label(standing: antecedent_estimate::temporal_refresh::MechanismStanding) -> &'static str
 pub const fn antecedent_io::recovery_chain_artifact::nonrecoverable_detail() -> (&'static str, &'static str)
-pub const fn antecedent_io::release_migration::axis_standing(axis: antecedent_io::release_migration::RouteAxis) -> antecedent_io::release_migration::AxisStanding
+pub const fn antecedent_io::release_migration::break_path(change: antecedent_io::release_migration::IntentionalBreak) -> antecedent_io::release_migration::BreakPath
 pub const fn antecedent_io::release_migration::caller_world_id_and_reference_flag_enter_identity(shape: antecedent_io::release_migration::TargetShape) -> bool
 pub const fn antecedent_io::release_migration::keep_refusal_reason(reason: &str) -> &str
-pub const fn antecedent_io::release_migration::migrate_axis(axis: antecedent_io::release_migration::RouteAxis) -> core::result::Result<(), antecedent_io::release_migration::MigrationError>
-pub const fn antecedent_io::release_migration::route_contract_standing(status: antecedent_io::release_migration::ManifestRouteStatus) -> antecedent_io::release_migration::AxisStanding
 pub enum antecedent_io::PosteriorPayload
 pub enum antecedent_io::array_fit_artifact::ArrayFitRequestWire
 pub enum antecedent_io::bayesian_posterior_row_artifact::PosteriorRowRequestWire
@@ -5849,16 +5944,20 @@ pub enum antecedent_io::model_codes::SourceDependenceCode
 pub enum antecedent_io::model_codes::SourceSharingCode
 pub enum antecedent_io::model_codes::VaryingBlockCode
 pub enum antecedent_io::nested_markov_bayesian_artifact::BayesianFunctional
-pub enum antecedent_io::release_migration::AxisStanding
+pub enum antecedent_io::release_migration::BreakPath
+pub enum antecedent_io::release_migration::IntentionalBreak
 pub enum antecedent_io::release_migration::ManifestRouteStatus
 pub enum antecedent_io::release_migration::MigrationError
 pub enum antecedent_io::release_migration::PreviousReleaseError
 pub enum antecedent_io::release_migration::RouteAxis
+pub enum antecedent_io::release_migration::RouteRecordError
+pub enum antecedent_io::release_migration::RouteRecordOutcome
 pub enum antecedent_io::release_migration::TargetShape
 pub enum antecedent_io::scenario_covariance_artifact::CovarianceMethodWire
 pub enum antecedent_io::scenario_covariance_artifact::FunctionalWire
 pub enum antecedent_io::stream_artifact::CpuPayload<'a>
 pub enum antecedent_io::stream_artifact::DevicePayload
+pub enum antecedent_io::stream_artifact::PayloadCodec
 pub enum antecedent_io::stream_artifact::PayloadSource<'a>
 pub enum antecedent_io::stream_artifact::Producer
 pub enum antecedent_io::transport_grid_wire::GridPointWire
@@ -5973,7 +6072,10 @@ pub field antecedent_io::OverlapReportWire::propensity_min: f64
 pub field antecedent_io::OverlapReportWire::retained_fraction: f64
 pub field antecedent_io::OverlapReportWire::target_population_support: f64
 pub field antecedent_io::OverlapReportWire::trim: core::option::Option<f64>
+pub field antecedent_io::PreparationWire::admitted_bytes: core::option::Option<u64>
 pub field antecedent_io::PreparationWire::backend: alloc::string::String
+pub field antecedent_io::PreparationWire::budget_bytes: core::option::Option<u64>
+pub field antecedent_io::PreparationWire::delivery: core::option::Option<alloc::string::String>
 pub field antecedent_io::PreparationWire::receipt_digest: alloc::string::String
 pub field antecedent_io::PreparationWire::route_bound: alloc::string::String
 pub field antecedent_io::PreparationWire::rows_admitted: core::option::Option<u64>
@@ -7639,6 +7741,23 @@ pub field antecedent_io::release_migration::AdoptedRelease::boundary_name: alloc
 pub field antecedent_io::release_migration::AdoptedRelease::score_row_digest: [u8; 32]
 pub field antecedent_io::release_migration::AdoptedRelease::stage_status: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
 pub field antecedent_io::release_migration::AdoptedRelease::target_digest: [u8; 32]
+pub field antecedent_io::release_migration::CurrentMethod::design: alloc::string::String
+pub field antecedent_io::release_migration::CurrentMethod::estimator: alloc::string::String
+pub field antecedent_io::release_migration::CurrentMethod::id: alloc::string::String
+pub field antecedent_io::release_migration::CurrentMethod::inference: alloc::string::String
+pub field antecedent_io::release_migration::CurrentMethod::route: alloc::string::String
+pub field antecedent_io::release_migration::CurrentMethod::status: alloc::string::String
+pub field antecedent_io::release_migration::ManifestRouteRecord::design_time_model: &'a str
+pub field antecedent_io::release_migration::ManifestRouteRecord::id: &'a str
+pub field antecedent_io::release_migration::ManifestRouteRecord::inference: &'a str
+pub field antecedent_io::release_migration::ManifestRouteRecord::status: &'a str
+pub field antecedent_io::release_migration::MethodAssignment::axes: alloc::vec::Vec<antecedent_io::release_migration::RouteAxis>
+pub field antecedent_io::release_migration::MethodAssignment::estimator: alloc::string::String
+pub field antecedent_io::release_migration::MethodAssignment::method: alloc::string::String
+pub field antecedent_io::release_migration::MethodAssignment::narrowed: bool
+pub field antecedent_io::release_migration::MethodAssignment::status: alloc::string::String
+pub field antecedent_io::release_migration::RouteRecordMigration::id: alloc::string::String
+pub field antecedent_io::release_migration::RouteRecordMigration::result: core::result::Result<antecedent_io::release_migration::RouteRecordOutcome, antecedent_io::release_migration::RouteRecordError>
 pub field antecedent_io::sampled_counterfactual_transport_artifact::ConsumedSampledCounterfactualTransport::derivation: antecedent_identify::sid::counterfactual_transport::CounterfactualTransportDerivation
 pub field antecedent_io::sampled_counterfactual_transport_artifact::ConsumedSampledCounterfactualTransport::estimate: antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate
 pub field antecedent_io::sampled_counterfactual_transport_artifact::ConsumedSampledCounterfactualTransport::request: antecedent_estimate::counterfactual_transport_sampled::SampledTransportRequest
@@ -8754,6 +8873,8 @@ pub fn <antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire>::fn e
 pub fn <antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire>::fn from_nonrecoverable(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::recovery_chain::ChainRecoveryQuery, variable_names: &[alloc::string::String], witness: &antecedent_identify::recovery_chain::ChainRecoveryWitness, check: &antecedent_identify::recovery_chain::ChainWitnessCheck) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire>::fn from_recovered(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::recovery_chain::ChainRecoveryQuery, variable_names: &[alloc::string::String], plan: &antecedent_identify::recovery_chain::ChainRecoveryPlan, observed: &antecedent_estimate::recovery_chain::ChainPatternLaw, recovered: &antecedent_estimate::recovery_chain::ChainRecoveredLaw) -> core::result::Result<Self, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::release_migration::CurrentMethod>::fn axes(&self) -> alloc::vec::Vec<antecedent_io::release_migration::RouteAxis>
+pub fn <antecedent_io::release_migration::ManifestRouteStatus>::fn from_manifest_word(word: &str) -> core::option::Option<Self>
 pub fn <antecedent_io::release_migration::RouteAxis>::const fn as_str(self) -> &'static str
 pub fn <antecedent_io::sampled_counterfactual_transport_artifact::SampledCountTableWire>::fn from_table(table: &antecedent_estimate::counterfactual_transport_sampled::counts::SampledRegimeCounts) -> Self
 pub fn <antecedent_io::sampled_counterfactual_transport_artifact::SampledCountTableWire>::fn to_table(&self) -> core::result::Result<antecedent_estimate::counterfactual_transport_sampled::counts::SampledRegimeCounts, antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError>
@@ -8811,6 +8932,8 @@ pub fn <antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorAr
 pub fn <antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactWire>::fn expected_data_digest(&self) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactWire>::fn expected_premises_digest(&self) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactWire>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::stream_artifact::StreamArtifact<'_>>::fn encode_to<W: std::io::Write>(metadata: &antecedent_io::stream_artifact::StreamMetadata, payload: core::option::Option<(&dyn antecedent_io_core::container::LogicalSource, antecedent_io::stream_artifact::PayloadCodec)>, bounds: &antecedent_io::stream_artifact::StreamBounds, work: &antecedent_io_core::container::StreamWork<'_>, w: W) -> core::result::Result<antecedent_io_core::container::StreamReceipt, antecedent_io::stream_artifact::StreamArtifactError>
+pub fn <antecedent_io::stream_artifact::StreamArtifact<'_>>::fn read_to<R: std::io::Read + std::io::Seek>(r: R, bounds: &antecedent_io::stream_artifact::StreamBounds, work: &antecedent_io_core::container::StreamWork<'_>, sink: impl core::ops::function::FnMut(&[u8]) -> core::result::Result<(), antecedent_io::stream_artifact::StreamArtifactError>) -> core::result::Result<(antecedent_io::stream_artifact::StreamMetadata, antecedent_io_core::container::StreamReceipt), antecedent_io::stream_artifact::StreamArtifactError>
 pub fn <antecedent_io::stream_artifact::StreamArtifact<'a>>::fn borrowed_payload(&self) -> core::option::Option<&'a [u8]>
 pub fn <antecedent_io::stream_artifact::StreamArtifact<'a>>::fn consume_on_cpu(&self) -> core::result::Result<antecedent_io::stream_artifact::CpuPayload<'_>, antecedent_io::stream_artifact::StreamArtifactError>
 pub fn <antecedent_io::stream_artifact::StreamArtifact<'a>>::fn encode(metadata: &antecedent_io::stream_artifact::StreamMetadata, payload: antecedent_io::stream_artifact::PayloadSource<'_>, bounds: &antecedent_io::stream_artifact::StreamBounds) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io::stream_artifact::StreamArtifactError>
@@ -8965,11 +9088,15 @@ pub fn antecedent_io::measured_inference::split_parent_set_effect::run(source: &
 pub fn antecedent_io::measured_inference::split_parent_set_effect::treatment_parent_set(structure: &antecedent_discovery::selective::structure::DiscoveredStructure, names: &[alloc::string::String], treatment: u32, outcome: u32) -> core::result::Result<antecedent_io::measured_inference::split_parent_set_effect::TreatmentNeighbourhood, antecedent_io_core::error::IoError>
 pub fn antecedent_io::measured_inference::split_parent_set_effect::treatment_parent_set_under_conflicts(structure: &antecedent_discovery::selective::structure::DiscoveredStructure, evidence: &antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence<'_>, names: &[alloc::string::String], treatment: u32, outcome: u32, max_colliders: usize) -> core::result::Result<antecedent_io::measured_inference::split_parent_set_effect::TreatmentNeighbourhood, antecedent_io_core::error::IoError>
 pub fn antecedent_io::msm_sensitivity_adapter::msm_sensitivity_artifact(result: &antecedent_validate::msm_sensitivity::MsmSensitivityResult, effect: &antecedent_contract::quantity::ScientificQuantity, point_quantities: &[(antecedent_contract::quantity::ScientificQuantity, alloc::vec::Vec<f64>)], actions: alloc::vec::Vec<antecedent_io_core::sensitivity_artifact::ActionUtility>, causal_contract_id: &str) -> core::result::Result<antecedent_io_core::sensitivity_artifact::SensitivityArtifact, antecedent_io_core::error::IoError>
+pub fn antecedent_io::release_migration::added_methods<'a>(current: &'a [antecedent_io::release_migration::CurrentMethod], previous_route_ids: &[&str]) -> alloc::vec::Vec<&'a antecedent_io::release_migration::CurrentMethod>
 pub fn antecedent_io::release_migration::adopt_carried_target_digest(retained: &[u8; 32], current: &[u8; 32]) -> core::result::Result<[u8; 32], antecedent_io::release_migration::MigrationError>
 pub fn antecedent_io::release_migration::adopt_retained_score_row_digest(retained: &[u8; 32], row_ids: &[u64]) -> core::result::Result<[u8; 32], antecedent_io::release_migration::MigrationError>
 pub fn antecedent_io::release_migration::consume_previous_release_artifact(bytes: &[u8], target: &antecedent_core::scientific_target::identity::ScientificTarget) -> core::result::Result<antecedent_io::release_migration::AdoptedRelease, antecedent_io::release_migration::PreviousReleaseError>
+pub fn antecedent_io::release_migration::consume_previous_route_records(bytes: &[u8], current: &[antecedent_io::release_migration::CurrentMethod]) -> core::result::Result<alloc::vec::Vec<antecedent_io::release_migration::RouteRecordMigration>, antecedent_io::release_migration::PreviousReleaseError>
 pub fn antecedent_io::release_migration::current_score_row_digest(row_ids: &[u64]) -> [u8; 32]
+pub fn antecedent_io::release_migration::migrate_route_record(record: &antecedent_io::release_migration::ManifestRouteRecord<'_>, current: &[antecedent_io::release_migration::CurrentMethod]) -> core::result::Result<antecedent_io::release_migration::RouteRecordOutcome, antecedent_io::release_migration::RouteRecordError>
 pub fn antecedent_io::release_migration::narrow_score_row_digest(row_ids: &[u32]) -> [u8; 32]
+pub fn antecedent_io::release_migration::route_record_axes(design_time_model: &str, inference: &str) -> alloc::vec::Vec<antecedent_io::release_migration::RouteAxis>
 pub fn antecedent_io::sampled_counterfactual_transport_artifact::consume_sampled_counterfactual_transport(bytes: &[u8], expected: &antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportExpectedIdentity, limits: antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::sampled_counterfactual_transport_artifact::ConsumedSampledCounterfactualTransport, antecedent_io_core::error::IoError>
 pub fn antecedent_io::sampled_counterfactual_transport_artifact::consume_sampled_counterfactual_transport_with_limits(bytes: &[u8], expected: &antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportExpectedIdentity, limits: antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::sampled_counterfactual_transport_artifact::ConsumedSampledCounterfactualTransport, antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError>
 pub fn antecedent_io::sampled_counterfactual_transport_artifact::overlap_declaration_from_ledger(ledger: &antecedent_contract::evidence_ledger::ledger::EvidenceLedger, bindings: &[(antecedent_estimate::counterfactual_transport_sampled::counts::SampledTableKey, antecedent_contract::evidence_ledger::ids::SourceId)]) -> core::result::Result<antecedent_estimate::counterfactual_transport_sampled::overlap::OverlapDeclaration, antecedent_io_core::error::IoError>
@@ -9357,6 +9484,10 @@ pub struct antecedent_io::recovery_chain_artifact::ChainWitnessWire
 pub struct antecedent_io::recovery_chain_artifact::ConsumedRecoveryChain
 pub struct antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire
 pub struct antecedent_io::release_migration::AdoptedRelease
+pub struct antecedent_io::release_migration::CurrentMethod
+pub struct antecedent_io::release_migration::ManifestRouteRecord<'a>
+pub struct antecedent_io::release_migration::MethodAssignment
+pub struct antecedent_io::release_migration::RouteRecordMigration
 pub struct antecedent_io::sampled_counterfactual_transport_artifact::ConsumedSampledCounterfactualTransport
 pub struct antecedent_io::sampled_counterfactual_transport_artifact::SampledCountTableWire
 pub struct antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactWire
@@ -10077,6 +10208,9 @@ pub use antecedent_io::sensitivity_artifact::UtilityTerm = antecedent_io_core::s
 pub use antecedent_io::sensitivity_artifact::classify_decision_points = antecedent_io_core::sensitivity_artifact::classify_decision_points
 pub use antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactError = antecedent_io_core::transport_errors::SmoothedDoseArtifactError
 pub use antecedent_io::stored_law_bounds = antecedent_io_core::stored_law_bounds
+pub use antecedent_io::stream_artifact::LogicalSource = antecedent_io_core::container::LogicalSource
+pub use antecedent_io::stream_artifact::StreamReceipt = antecedent_io_core::container::StreamReceipt
+pub use antecedent_io::stream_artifact::StreamWork = antecedent_io_core::container::StreamWork
 pub use antecedent_io::support_empirical = antecedent_io_core::support_empirical
 pub use antecedent_io::target_weights_digest = antecedent_io_core::target_weights_digest
 pub use antecedent_io::temporal_admg_identity = antecedent_io_core::temporal_admg_identity
@@ -10435,14 +10569,21 @@ pub variant antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError::
 pub variant antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError::Route(antecedent_identify::recovery_chain::ChainRecoveryError)
 pub variant antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError::Undecodable(alloc::string::String)
 pub variant antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError::UnsupportedSemantics(&'static str)
-pub variant antecedent_io::release_migration::AxisStanding::Migrated
-pub variant antecedent_io::release_migration::AxisStanding::StillUnmigrated
+pub variant antecedent_io::release_migration::BreakPath::RecomputeFromSource { error: &'static str, source: &'static str }
+pub variant antecedent_io::release_migration::BreakPath::Refused { error: &'static str, next_attempt: &'static str }
+pub variant antecedent_io::release_migration::BreakPath::Unchanged { reason: &'static str }
+pub variant antecedent_io::release_migration::IntentionalBreak::ContentBasedWorldIdentity
+pub variant antecedent_io::release_migration::IntentionalBreak::LicenseNotCarried
+pub variant antecedent_io::release_migration::IntentionalBreak::ReducedRetentionOperation
+pub variant antecedent_io::release_migration::IntentionalBreak::RefusalReason
+pub variant antecedent_io::release_migration::IntentionalBreak::RouteWithoutCurrentMethod
+pub variant antecedent_io::release_migration::IntentionalBreak::ScientificTargetDigest
+pub variant antecedent_io::release_migration::IntentionalBreak::ScoreRowIdWidth
 pub variant antecedent_io::release_migration::ManifestRouteStatus::Closed
 pub variant antecedent_io::release_migration::ManifestRouteStatus::ExecutionOnly
 pub variant antecedent_io::release_migration::ManifestRouteStatus::FittingGap
 pub variant antecedent_io::release_migration::ManifestRouteStatus::Graphless
 pub variant antecedent_io::release_migration::ManifestRouteStatus::Licensed
-pub variant antecedent_io::release_migration::MigrationError::AxisStillUnmigrated { axis: antecedent_io::release_migration::RouteAxis }
 pub variant antecedent_io::release_migration::MigrationError::CarriedTargetDigestNotTranslated
 pub variant antecedent_io::release_migration::MigrationError::ScoreRowDigestNotTranslated
 pub variant antecedent_io::release_migration::PreviousReleaseError::ArtifactNotDecoded
@@ -10453,6 +10594,13 @@ pub variant antecedent_io::release_migration::RouteAxis::StaticBayesian
 pub variant antecedent_io::release_migration::RouteAxis::StaticFrequentist
 pub variant antecedent_io::release_migration::RouteAxis::TemporalBayesian
 pub variant antecedent_io::release_migration::RouteAxis::TemporalFrequentist
+pub variant antecedent_io::release_migration::RouteRecordError::LicenseNotCarried { id: alloc::string::String, methods: alloc::vec::Vec<alloc::string::String> }
+pub variant antecedent_io::release_migration::RouteRecordError::RouteWithoutCurrentMethod { id: alloc::string::String }
+pub variant antecedent_io::release_migration::RouteRecordError::UnknownStatus { id: alloc::string::String, status: alloc::string::String }
+pub variant antecedent_io::release_migration::RouteRecordOutcome::OneToOne { method: antecedent_io::release_migration::MethodAssignment, unserved_axes: alloc::vec::Vec<antecedent_io::release_migration::RouteAxis> }
+pub variant antecedent_io::release_migration::RouteRecordOutcome::RefusalKept
+pub variant antecedent_io::release_migration::RouteRecordOutcome::Retired
+pub variant antecedent_io::release_migration::RouteRecordOutcome::Split { methods: alloc::vec::Vec<antecedent_io::release_migration::MethodAssignment>, unserved_axes: alloc::vec::Vec<antecedent_io::release_migration::RouteAxis> }
 pub variant antecedent_io::release_migration::TargetShape::Contrast
 pub variant antecedent_io::release_migration::TargetShape::DoseTimeSurface
 pub variant antecedent_io::release_migration::TargetShape::SingleWorld
@@ -10491,13 +10639,18 @@ pub variant antecedent_io::stream_artifact::CpuPayload::Bytes(&'a [u8])
 pub variant antecedent_io::stream_artifact::DevicePayload::Absent
 pub variant antecedent_io::stream_artifact::DevicePayload::LivePointer { device_id: u32, address: u64, bytes: u64 }
 pub variant antecedent_io::stream_artifact::DevicePayload::Materialized
+pub variant antecedent_io::stream_artifact::PayloadCodec::Stored
+pub variant antecedent_io::stream_artifact::PayloadCodec::Zstd
 pub variant antecedent_io::stream_artifact::PayloadSource::Absent
 pub variant antecedent_io::stream_artifact::PayloadSource::Shared(&'a alloc::sync::Arc<[u8]>)
 pub variant antecedent_io::stream_artifact::PayloadSource::Stored(&'a [u8])
 pub variant antecedent_io::stream_artifact::Producer::Accelerator
 pub variant antecedent_io::stream_artifact::Producer::Cpu
+pub variant antecedent_io::stream_artifact::StreamArtifactError::BudgetRefused
 pub variant antecedent_io::stream_artifact::StreamArtifactError::Cancelled
 pub variant antecedent_io::stream_artifact::StreamArtifactError::ChecksumMismatch { section: &'static str }
+pub variant antecedent_io::stream_artifact::StreamArtifactError::Decompress
+pub variant antecedent_io::stream_artifact::StreamArtifactError::Io { kind: std::io::error::ErrorKind }
 pub variant antecedent_io::stream_artifact::StreamArtifactError::LiveDevicePointer
 pub variant antecedent_io::stream_artifact::StreamArtifactError::Malformed(&'static str)
 pub variant antecedent_io::stream_artifact::StreamArtifactError::NewerFormat { version: u16 }

@@ -266,3 +266,30 @@ fn over_a_graph_posterior_the_alias_is_the_explicit_pulse_over_the_posterior() {
         );
     }
 }
+
+#[test]
+fn every_lag_zero_average_effect_publishes_an_artifact_a_consumer_reads() {
+    let ctx = ExecutionContext::for_tests(15);
+    for (name, graph) in graphs() {
+        for inference in [InferenceMode::Frequentist, bayesian()] {
+            let label = format!("{name} {inference:?}");
+            let prepared = build(graph.clone(), CausalQuery::AverageEffect(average()), inference)
+                .prepare(&ctx)
+                .unwrap();
+            let result = prepared.estimate_series(&series(), &ctx).unwrap();
+            assert_eq!(result.support_status, Some(CellStatus::Refused), "{label}");
+            let artifact = prepared
+                .encode_contracted_result(&result, "lag-zero-average-effect", &ctx)
+                .unwrap_or_else(|error| panic!("{label}: {error}"));
+            let consumed = antecedent_io::consume_analysis_result(&artifact)
+                .unwrap_or_else(|error| panic!("{label}: {error}"));
+            assert!(consumed.contract.is_some(), "{label}: the artifact carries the contract");
+            // A scalar the artifact carries is the one the route published; a graph that
+            // identifies a set of effects publishes the set, not a scalar.
+            if let Some(scalar) = consumed.body.estimate {
+                let published = result.estimate.as_effect().map(|effect| effect.ate);
+                assert_eq!(Some(scalar), published, "{label}: the artifact's scalar");
+            }
+        }
+    }
+}

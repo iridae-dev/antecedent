@@ -65,14 +65,19 @@
 #[non_exhaustive] pub enum antecedent_core::TransportSupportCoordinate
 #[non_exhaustive] pub enum antecedent_core::ValueExpr
 #[non_exhaustive] pub enum antecedent_core::cancellation_boundary::BoundaryError
+#[non_exhaustive] pub enum antecedent_core::cancellation_boundary::IsolatedCallError
+#[non_exhaustive] pub enum antecedent_core::cancellation_boundary::IsolatedOutcome<T>
 #[non_exhaustive] pub enum antecedent_core::device_reservation::CpuAdmissionError
 #[non_exhaustive] pub enum antecedent_core::device_reservation::DeviceReservationError
 #[non_exhaustive] pub enum antecedent_core::device_reservation::PredictionOrderError
 #[non_exhaustive] pub enum antecedent_core::diagnostic::RouteKind
 #[non_exhaustive] pub enum antecedent_core::diagnostic::RouteNativeDiagnostic
 #[non_exhaustive] pub enum antecedent_core::execution::AdmissionError
+#[non_exhaustive] pub enum antecedent_core::execution_facts::AccountingBasis
 #[non_exhaustive] pub enum antecedent_core::execution_facts::ExecutionFactError
 #[non_exhaustive] pub enum antecedent_core::execution_facts::ExecutionFactStatus
+#[non_exhaustive] pub enum antecedent_core::identity::DependencyAxis
+#[non_exhaustive] pub enum antecedent_core::identity::ReusableProduct
 #[non_exhaustive] pub enum antecedent_core::inspect::InspectionRefusal
 #[non_exhaustive] pub enum antecedent_core::intervention::AdmitError
 #[non_exhaustive] pub enum antecedent_core::intervention::CyclicFamily
@@ -87,6 +92,7 @@
 #[non_exhaustive] pub enum antecedent_core::measurement_model::ParameterEvidence
 #[non_exhaustive] pub enum antecedent_core::measurement_model::ParameterUncertainty
 #[non_exhaustive] pub enum antecedent_core::physical_choice::RejectionReason
+#[non_exhaustive] pub enum antecedent_core::physical_choice::RouteChoiceError
 #[non_exhaustive] pub enum antecedent_core::query::ExperimentFamily
 #[non_exhaustive] pub enum antecedent_core::query::GraphAssumptionSet
 #[non_exhaustive] pub enum antecedent_core::query::TransportDistributionFamily
@@ -236,6 +242,7 @@ impl antecedent_core::CanonicalEncode for antecedent_core::WorldAction
 impl antecedent_core::CanonicalEncode for antecedent_core::WorldBinding
 impl antecedent_core::CanonicalEncode for antecedent_core::WorldCollection
 impl antecedent_core::CanonicalEncode for antecedent_core::scientific_target::HistoryIndexedTargetLaw
+impl antecedent_core::measurement_record::ResourceProbe for antecedent_core::measurement_record::HostProbe
 impl core::clone::Clone for antecedent_core::AdaptiveBootstrapBudget
 impl core::clone::Clone for antecedent_core::AdaptiveDrawBudget
 impl core::clone::Clone for antecedent_core::AdmittedBytes
@@ -633,11 +640,16 @@ impl core::clone::Clone for antecedent_core::execution::AdmissionError
 impl core::clone::Clone for antecedent_core::execution::AdmissionPool
 impl core::clone::Clone for antecedent_core::execution::AdmissionRemainder
 impl core::clone::Clone for antecedent_core::execution::AdmissionRequest
+impl core::clone::Clone for antecedent_core::execution::PipelineReceipt
+impl core::clone::Clone for antecedent_core::execution::PipelineStep
 impl core::clone::Clone for antecedent_core::execution_attempt::AttemptReport
 impl core::clone::Clone for antecedent_core::execution_attempt::ObservationToken
 impl core::clone::Clone for antecedent_core::execution_attempt::Operation
 impl core::clone::Clone for antecedent_core::execution_attempt::OperationCounts
 impl core::clone::Clone for antecedent_core::execution_attempt::PhysicalEvent
+impl core::clone::Clone for antecedent_core::execution_facts::AccountedQuantity
+impl core::clone::Clone for antecedent_core::execution_facts::AccountingBasis
+impl core::clone::Clone for antecedent_core::execution_facts::ExecutionAccounting
 impl core::clone::Clone for antecedent_core::execution_facts::ExecutionBackend
 impl core::clone::Clone for antecedent_core::execution_facts::ExecutionCounts
 impl core::clone::Clone for antecedent_core::execution_facts::ExecutionFactError
@@ -647,6 +659,9 @@ impl core::clone::Clone for antecedent_core::execution_facts::ExecutionResources
 impl core::clone::Clone for antecedent_core::execution_facts::MeasuredExecution
 impl core::clone::Clone for antecedent_core::execution_facts::OutputRetention
 impl core::clone::Clone for antecedent_core::execution_facts::PhysicalExecutionIdentity
+impl core::clone::Clone for antecedent_core::execution_facts::PlannedResources
+impl core::clone::Clone for antecedent_core::identity::DependencyAxis
+impl core::clone::Clone for antecedent_core::identity::ReusableProduct
 impl core::clone::Clone for antecedent_core::inspect::EstimatedResources
 impl core::clone::Clone for antecedent_core::inspect::EvidenceTransformation
 impl core::clone::Clone for antecedent_core::inspect::EvidenceTransformations
@@ -682,9 +697,20 @@ impl core::clone::Clone for antecedent_core::measurement_model::PosteriorReferen
 impl core::clone::Clone for antecedent_core::measurement_model::RepresentationMapping
 impl core::clone::Clone for antecedent_core::measurement_model::RepresentationVersion
 impl core::clone::Clone for antecedent_core::measurement_model::VarianceComponent
+impl core::clone::Clone for antecedent_core::measurement_record::AllocationSample
+impl core::clone::Clone for antecedent_core::measurement_record::CountVariability
+impl core::clone::Clone for antecedent_core::measurement_record::HostProbe
+impl core::clone::Clone for antecedent_core::measurement_record::MeasurementRecord
+impl core::clone::Clone for antecedent_core::measurement_record::MeasurementSummary
+impl core::clone::Clone for antecedent_core::measurement_record::PeakRss
+impl core::clone::Clone for antecedent_core::measurement_record::PeakRssSummary
+impl core::clone::Clone for antecedent_core::measurement_record::StageTime
+impl core::clone::Clone for antecedent_core::measurement_record::StageVariability
 impl core::clone::Clone for antecedent_core::numerical_admission::NumericalAdmissionToken
 impl core::clone::Clone for antecedent_core::parallel_axis::ParallelAxis
+impl core::clone::Clone for antecedent_core::physical_choice::AlternativeQuote
 impl core::clone::Clone for antecedent_core::physical_choice::AvailableCapabilities
+impl core::clone::Clone for antecedent_core::physical_choice::BackendSupport
 impl core::clone::Clone for antecedent_core::physical_choice::CostQuotes
 impl core::clone::Clone for antecedent_core::physical_choice::DeclaredCost
 impl core::clone::Clone for antecedent_core::physical_choice::OperatorCapability
@@ -694,6 +720,9 @@ impl core::clone::Clone for antecedent_core::physical_choice::PhysicalChoiceRefu
 impl core::clone::Clone for antecedent_core::physical_choice::RejectedAlternative
 impl core::clone::Clone for antecedent_core::physical_choice::RejectionReason
 impl core::clone::Clone for antecedent_core::physical_choice::ResourceCapability
+impl core::clone::Clone for antecedent_core::physical_choice::RouteChoice
+impl core::clone::Clone for antecedent_core::physical_choice::RouteChoiceError
+impl core::clone::Clone for antecedent_core::physical_choice::RouteWork
 impl core::clone::Clone for antecedent_core::query::ComputationLimits
 impl core::clone::Clone for antecedent_core::query::ExperimentFamily
 impl core::clone::Clone for antecedent_core::query::GraphAssumptionSet
@@ -722,6 +751,7 @@ impl core::clone::Clone for antecedent_core::recalc::StageEntry
 impl core::clone::Clone for antecedent_core::recalc::StageIdentities
 impl core::clone::Clone for antecedent_core::recalc::StageIdentity
 impl core::clone::Clone for antecedent_core::recalc::StageStatus
+impl core::clone::Clone for antecedent_core::route_memory::RouteMemoryProfile
 impl core::clone::Clone for antecedent_core::scientific_target::HistoryIndexedExperiment
 impl core::clone::Clone for antecedent_core::scientific_target::HistoryIndexedTargetLaw
 impl core::clone::Clone for antecedent_core::search_budget::AdmittedExactSearch
@@ -1050,9 +1080,14 @@ impl core::cmp::Eq for antecedent_core::diagnostic::RouteNativeDiagnostic
 impl core::cmp::Eq for antecedent_core::execution::AdmissionError
 impl core::cmp::Eq for antecedent_core::execution::AdmissionRemainder
 impl core::cmp::Eq for antecedent_core::execution::AdmissionRequest
+impl core::cmp::Eq for antecedent_core::execution::PipelineReceipt
+impl core::cmp::Eq for antecedent_core::execution::PipelineStep
 impl core::cmp::Eq for antecedent_core::execution_attempt::AttemptReport
 impl core::cmp::Eq for antecedent_core::execution_attempt::Operation
 impl core::cmp::Eq for antecedent_core::execution_attempt::OperationCounts
+impl core::cmp::Eq for antecedent_core::execution_facts::AccountedQuantity
+impl core::cmp::Eq for antecedent_core::execution_facts::AccountingBasis
+impl core::cmp::Eq for antecedent_core::execution_facts::ExecutionAccounting
 impl core::cmp::Eq for antecedent_core::execution_facts::ExecutionBackend
 impl core::cmp::Eq for antecedent_core::execution_facts::ExecutionCounts
 impl core::cmp::Eq for antecedent_core::execution_facts::ExecutionFactError
@@ -1062,6 +1097,9 @@ impl core::cmp::Eq for antecedent_core::execution_facts::ExecutionResources
 impl core::cmp::Eq for antecedent_core::execution_facts::MeasuredExecution
 impl core::cmp::Eq for antecedent_core::execution_facts::OutputRetention
 impl core::cmp::Eq for antecedent_core::execution_facts::PhysicalExecutionIdentity
+impl core::cmp::Eq for antecedent_core::execution_facts::PlannedResources
+impl core::cmp::Eq for antecedent_core::identity::DependencyAxis
+impl core::cmp::Eq for antecedent_core::identity::ReusableProduct
 impl core::cmp::Eq for antecedent_core::inspect::EstimatedResources
 impl core::cmp::Eq for antecedent_core::inspect::EvidenceTransformation
 impl core::cmp::Eq for antecedent_core::inspect::EvidenceTransformations
@@ -1092,8 +1130,18 @@ impl core::cmp::Eq for antecedent_core::measurement_model::ParameterUncertainty
 impl core::cmp::Eq for antecedent_core::measurement_model::PosteriorReference
 impl core::cmp::Eq for antecedent_core::measurement_model::RepresentationMapping
 impl core::cmp::Eq for antecedent_core::measurement_model::RepresentationVersion
+impl core::cmp::Eq for antecedent_core::measurement_record::AllocationSample
+impl core::cmp::Eq for antecedent_core::measurement_record::CountVariability
+impl core::cmp::Eq for antecedent_core::measurement_record::MeasurementRecord
+impl core::cmp::Eq for antecedent_core::measurement_record::MeasurementSummary
+impl core::cmp::Eq for antecedent_core::measurement_record::PeakRss
+impl core::cmp::Eq for antecedent_core::measurement_record::PeakRssSummary
+impl core::cmp::Eq for antecedent_core::measurement_record::StageTime
+impl core::cmp::Eq for antecedent_core::measurement_record::StageVariability
 impl core::cmp::Eq for antecedent_core::parallel_axis::ParallelAxis
+impl core::cmp::Eq for antecedent_core::physical_choice::AlternativeQuote
 impl core::cmp::Eq for antecedent_core::physical_choice::AvailableCapabilities
+impl core::cmp::Eq for antecedent_core::physical_choice::BackendSupport
 impl core::cmp::Eq for antecedent_core::physical_choice::CostQuotes
 impl core::cmp::Eq for antecedent_core::physical_choice::DeclaredCost
 impl core::cmp::Eq for antecedent_core::physical_choice::OperatorCapability
@@ -1103,6 +1151,9 @@ impl core::cmp::Eq for antecedent_core::physical_choice::PhysicalChoiceRefusal
 impl core::cmp::Eq for antecedent_core::physical_choice::RejectedAlternative
 impl core::cmp::Eq for antecedent_core::physical_choice::RejectionReason
 impl core::cmp::Eq for antecedent_core::physical_choice::ResourceCapability
+impl core::cmp::Eq for antecedent_core::physical_choice::RouteChoice
+impl core::cmp::Eq for antecedent_core::physical_choice::RouteChoiceError
+impl core::cmp::Eq for antecedent_core::physical_choice::RouteWork
 impl core::cmp::Eq for antecedent_core::query::ComputationLimits
 impl core::cmp::Eq for antecedent_core::query::ExperimentFamily
 impl core::cmp::Eq for antecedent_core::query::GraphAssumptionSet
@@ -1131,6 +1182,7 @@ impl core::cmp::Eq for antecedent_core::recalc::StageEntry
 impl core::cmp::Eq for antecedent_core::recalc::StageIdentities
 impl core::cmp::Eq for antecedent_core::recalc::StageIdentity
 impl core::cmp::Eq for antecedent_core::recalc::StageStatus
+impl core::cmp::Eq for antecedent_core::route_memory::RouteMemoryProfile
 impl core::cmp::Eq for antecedent_core::scientific_target::HistoryIndexedExperiment
 impl core::cmp::Eq for antecedent_core::scientific_target::HistoryIndexedTargetLaw
 impl core::cmp::Eq for antecedent_core::search_budget::AdmittedExactSearch
@@ -1172,6 +1224,8 @@ impl core::cmp::Ord for antecedent_core::TemporalNodeKey
 impl core::cmp::Ord for antecedent_core::VariableId
 impl core::cmp::Ord for antecedent_core::WorldId
 impl core::cmp::Ord for antecedent_core::WorldObservation
+impl core::cmp::Ord for antecedent_core::identity::DependencyAxis
+impl core::cmp::Ord for antecedent_core::identity::ReusableProduct
 impl core::cmp::Ord for antecedent_core::measurement_model::MeasurementKind
 impl core::cmp::Ord for antecedent_core::measurement_model::MeasurementRoute
 impl core::cmp::Ord for antecedent_core::physical_choice::DeclaredCost
@@ -1566,9 +1620,14 @@ impl core::cmp::PartialEq for antecedent_core::diagnostic::RouteNativeDiagnostic
 impl core::cmp::PartialEq for antecedent_core::execution::AdmissionError
 impl core::cmp::PartialEq for antecedent_core::execution::AdmissionRemainder
 impl core::cmp::PartialEq for antecedent_core::execution::AdmissionRequest
+impl core::cmp::PartialEq for antecedent_core::execution::PipelineReceipt
+impl core::cmp::PartialEq for antecedent_core::execution::PipelineStep
 impl core::cmp::PartialEq for antecedent_core::execution_attempt::AttemptReport
 impl core::cmp::PartialEq for antecedent_core::execution_attempt::Operation
 impl core::cmp::PartialEq for antecedent_core::execution_attempt::OperationCounts
+impl core::cmp::PartialEq for antecedent_core::execution_facts::AccountedQuantity
+impl core::cmp::PartialEq for antecedent_core::execution_facts::AccountingBasis
+impl core::cmp::PartialEq for antecedent_core::execution_facts::ExecutionAccounting
 impl core::cmp::PartialEq for antecedent_core::execution_facts::ExecutionBackend
 impl core::cmp::PartialEq for antecedent_core::execution_facts::ExecutionCounts
 impl core::cmp::PartialEq for antecedent_core::execution_facts::ExecutionFactError
@@ -1578,6 +1637,9 @@ impl core::cmp::PartialEq for antecedent_core::execution_facts::ExecutionResourc
 impl core::cmp::PartialEq for antecedent_core::execution_facts::MeasuredExecution
 impl core::cmp::PartialEq for antecedent_core::execution_facts::OutputRetention
 impl core::cmp::PartialEq for antecedent_core::execution_facts::PhysicalExecutionIdentity
+impl core::cmp::PartialEq for antecedent_core::execution_facts::PlannedResources
+impl core::cmp::PartialEq for antecedent_core::identity::DependencyAxis
+impl core::cmp::PartialEq for antecedent_core::identity::ReusableProduct
 impl core::cmp::PartialEq for antecedent_core::inspect::EstimatedResources
 impl core::cmp::PartialEq for antecedent_core::inspect::EvidenceTransformation
 impl core::cmp::PartialEq for antecedent_core::inspect::EvidenceTransformations
@@ -1613,8 +1675,18 @@ impl core::cmp::PartialEq for antecedent_core::measurement_model::PosteriorRefer
 impl core::cmp::PartialEq for antecedent_core::measurement_model::RepresentationMapping
 impl core::cmp::PartialEq for antecedent_core::measurement_model::RepresentationVersion
 impl core::cmp::PartialEq for antecedent_core::measurement_model::VarianceComponent
+impl core::cmp::PartialEq for antecedent_core::measurement_record::AllocationSample
+impl core::cmp::PartialEq for antecedent_core::measurement_record::CountVariability
+impl core::cmp::PartialEq for antecedent_core::measurement_record::MeasurementRecord
+impl core::cmp::PartialEq for antecedent_core::measurement_record::MeasurementSummary
+impl core::cmp::PartialEq for antecedent_core::measurement_record::PeakRss
+impl core::cmp::PartialEq for antecedent_core::measurement_record::PeakRssSummary
+impl core::cmp::PartialEq for antecedent_core::measurement_record::StageTime
+impl core::cmp::PartialEq for antecedent_core::measurement_record::StageVariability
 impl core::cmp::PartialEq for antecedent_core::parallel_axis::ParallelAxis
+impl core::cmp::PartialEq for antecedent_core::physical_choice::AlternativeQuote
 impl core::cmp::PartialEq for antecedent_core::physical_choice::AvailableCapabilities
+impl core::cmp::PartialEq for antecedent_core::physical_choice::BackendSupport
 impl core::cmp::PartialEq for antecedent_core::physical_choice::CostQuotes
 impl core::cmp::PartialEq for antecedent_core::physical_choice::DeclaredCost
 impl core::cmp::PartialEq for antecedent_core::physical_choice::OperatorCapability
@@ -1624,6 +1696,9 @@ impl core::cmp::PartialEq for antecedent_core::physical_choice::PhysicalChoiceRe
 impl core::cmp::PartialEq for antecedent_core::physical_choice::RejectedAlternative
 impl core::cmp::PartialEq for antecedent_core::physical_choice::RejectionReason
 impl core::cmp::PartialEq for antecedent_core::physical_choice::ResourceCapability
+impl core::cmp::PartialEq for antecedent_core::physical_choice::RouteChoice
+impl core::cmp::PartialEq for antecedent_core::physical_choice::RouteChoiceError
+impl core::cmp::PartialEq for antecedent_core::physical_choice::RouteWork
 impl core::cmp::PartialEq for antecedent_core::query::ComputationLimits
 impl core::cmp::PartialEq for antecedent_core::query::ExperimentFamily
 impl core::cmp::PartialEq for antecedent_core::query::GraphAssumptionSet
@@ -1652,6 +1727,7 @@ impl core::cmp::PartialEq for antecedent_core::recalc::StageEntry
 impl core::cmp::PartialEq for antecedent_core::recalc::StageIdentities
 impl core::cmp::PartialEq for antecedent_core::recalc::StageIdentity
 impl core::cmp::PartialEq for antecedent_core::recalc::StageStatus
+impl core::cmp::PartialEq for antecedent_core::route_memory::RouteMemoryProfile
 impl core::cmp::PartialEq for antecedent_core::scientific_target::HistoryIndexedExperiment
 impl core::cmp::PartialEq for antecedent_core::scientific_target::HistoryIndexedTargetLaw
 impl core::cmp::PartialEq for antecedent_core::search_budget::AdmittedExactSearch
@@ -1693,6 +1769,8 @@ impl core::cmp::PartialOrd for antecedent_core::TemporalNodeKey
 impl core::cmp::PartialOrd for antecedent_core::VariableId
 impl core::cmp::PartialOrd for antecedent_core::WorldId
 impl core::cmp::PartialOrd for antecedent_core::WorldObservation
+impl core::cmp::PartialOrd for antecedent_core::identity::DependencyAxis
+impl core::cmp::PartialOrd for antecedent_core::identity::ReusableProduct
 impl core::cmp::PartialOrd for antecedent_core::measurement_model::MeasurementKind
 impl core::cmp::PartialOrd for antecedent_core::measurement_model::MeasurementRoute
 impl core::cmp::PartialOrd for antecedent_core::physical_choice::DeclaredCost
@@ -1731,6 +1809,7 @@ impl core::convert::From<antecedent_core::TemporalEffectQuery> for antecedent_co
 impl core::convert::From<antecedent_core::TransportQuery> for antecedent_core::CausalQuery
 impl core::convert::From<antecedent_core::UnitChangeQuery> for antecedent_core::CausalQuery
 impl core::convert::From<antecedent_core::VariableId> for antecedent_core::ComponentId
+impl core::convert::From<antecedent_core::cancellation_boundary::BoundaryError> for antecedent_core::cancellation_boundary::IsolatedCallError
 impl core::convert::From<antecedent_core::intervention::CapabilityRefusal> for antecedent_core::intervention::AdmitError
 impl core::default::Default for antecedent_core::AdaptiveBootstrapBudget
 impl core::default::Default for antecedent_core::AdaptiveDrawBudget
@@ -1774,7 +1853,12 @@ impl core::default::Default for antecedent_core::execution_attempt::OperationCou
 impl core::default::Default for antecedent_core::execution_facts::ExecutionCounts
 impl core::default::Default for antecedent_core::execution_facts::ExecutionResources
 impl core::default::Default for antecedent_core::execution_facts::OutputRetention
+impl core::default::Default for antecedent_core::execution_facts::PlannedResources
 impl core::default::Default for antecedent_core::inspect::InspectionInputs
+impl core::default::Default for antecedent_core::measurement_record::AllocationSample
+impl core::default::Default for antecedent_core::measurement_record::HostProbe
+impl core::default::Default for antecedent_core::measurement_record::MeasurementRecord
+impl core::default::Default for antecedent_core::measurement_record::PeakRss
 impl core::default::Default for antecedent_core::numerical_admission::NumericalAdmissionToken
 impl core::default::Default for antecedent_core::recalc::ResumeContext
 impl core::default::Default for antecedent_core::recalc::StageIdentities
@@ -1803,6 +1887,7 @@ impl core::error::Error for antecedent_core::TemporalIndexError
 impl core::error::Error for antecedent_core::ToleranceError
 impl core::error::Error for antecedent_core::UnansweredCapability
 impl core::error::Error for antecedent_core::cancellation_boundary::BoundaryError
+impl core::error::Error for antecedent_core::cancellation_boundary::IsolatedCallError
 impl core::error::Error for antecedent_core::device_reservation::CpuAdmissionError
 impl core::error::Error for antecedent_core::device_reservation::DeviceReservationError
 impl core::error::Error for antecedent_core::device_reservation::PredictionOrderError
@@ -1813,6 +1898,7 @@ impl core::error::Error for antecedent_core::inspect::InspectionRefusal
 impl core::error::Error for antecedent_core::intervention::AdmitError
 impl core::error::Error for antecedent_core::intervention::CapabilityRefusal
 impl core::error::Error for antecedent_core::physical_choice::PhysicalChoiceRefusal
+impl core::error::Error for antecedent_core::physical_choice::RouteChoiceError
 impl core::error::Error for antecedent_core::search_budget::SearchBudgetError
 impl core::error::Error for antecedent_core::value::InterventionValueError
 impl core::fmt::Debug for antecedent_core::AdaptiveBootstrapBudget
@@ -2191,6 +2277,7 @@ impl core::fmt::Debug for antecedent_core::cancellation_boundary::BoundaryError
 impl core::fmt::Debug for antecedent_core::cancellation_boundary::BoundaryReport
 impl core::fmt::Debug for antecedent_core::cancellation_boundary::BoundarySession
 impl core::fmt::Debug for antecedent_core::cancellation_boundary::CancelSite
+impl core::fmt::Debug for antecedent_core::cancellation_boundary::IsolatedCallError
 impl core::fmt::Debug for antecedent_core::cancellation_boundary::PartialResult
 impl core::fmt::Debug for antecedent_core::cancellation_boundary::ProviderDisposition
 impl core::fmt::Debug for antecedent_core::cancellation_boundary::StopReceipt
@@ -2219,11 +2306,16 @@ impl core::fmt::Debug for antecedent_core::execution::AdmissionLease
 impl core::fmt::Debug for antecedent_core::execution::AdmissionPool
 impl core::fmt::Debug for antecedent_core::execution::AdmissionRemainder
 impl core::fmt::Debug for antecedent_core::execution::AdmissionRequest
+impl core::fmt::Debug for antecedent_core::execution::PipelineReceipt
+impl core::fmt::Debug for antecedent_core::execution::PipelineStep
 impl core::fmt::Debug for antecedent_core::execution_attempt::AttemptReport
 impl core::fmt::Debug for antecedent_core::execution_attempt::ObservedAdmission
 impl core::fmt::Debug for antecedent_core::execution_attempt::Operation
 impl core::fmt::Debug for antecedent_core::execution_attempt::OperationCounts
 impl core::fmt::Debug for antecedent_core::execution_attempt::PhysicalEvent
+impl core::fmt::Debug for antecedent_core::execution_facts::AccountedQuantity
+impl core::fmt::Debug for antecedent_core::execution_facts::AccountingBasis
+impl core::fmt::Debug for antecedent_core::execution_facts::ExecutionAccounting
 impl core::fmt::Debug for antecedent_core::execution_facts::ExecutionBackend
 impl core::fmt::Debug for antecedent_core::execution_facts::ExecutionCounts
 impl core::fmt::Debug for antecedent_core::execution_facts::ExecutionFactError
@@ -2233,6 +2325,9 @@ impl core::fmt::Debug for antecedent_core::execution_facts::ExecutionResources
 impl core::fmt::Debug for antecedent_core::execution_facts::MeasuredExecution
 impl core::fmt::Debug for antecedent_core::execution_facts::OutputRetention
 impl core::fmt::Debug for antecedent_core::execution_facts::PhysicalExecutionIdentity
+impl core::fmt::Debug for antecedent_core::execution_facts::PlannedResources
+impl core::fmt::Debug for antecedent_core::identity::DependencyAxis
+impl core::fmt::Debug for antecedent_core::identity::ReusableProduct
 impl core::fmt::Debug for antecedent_core::inspect::EstimatedResources
 impl core::fmt::Debug for antecedent_core::inspect::EvidenceTransformation
 impl core::fmt::Debug for antecedent_core::inspect::EvidenceTransformations
@@ -2268,8 +2363,19 @@ impl core::fmt::Debug for antecedent_core::measurement_model::PosteriorReference
 impl core::fmt::Debug for antecedent_core::measurement_model::RepresentationMapping
 impl core::fmt::Debug for antecedent_core::measurement_model::RepresentationVersion
 impl core::fmt::Debug for antecedent_core::measurement_model::VarianceComponent
+impl core::fmt::Debug for antecedent_core::measurement_record::AllocationSample
+impl core::fmt::Debug for antecedent_core::measurement_record::CountVariability
+impl core::fmt::Debug for antecedent_core::measurement_record::HostProbe
+impl core::fmt::Debug for antecedent_core::measurement_record::MeasurementRecord
+impl core::fmt::Debug for antecedent_core::measurement_record::MeasurementSummary
+impl core::fmt::Debug for antecedent_core::measurement_record::PeakRss
+impl core::fmt::Debug for antecedent_core::measurement_record::PeakRssSummary
+impl core::fmt::Debug for antecedent_core::measurement_record::StageTime
+impl core::fmt::Debug for antecedent_core::measurement_record::StageVariability
 impl core::fmt::Debug for antecedent_core::parallel_axis::ParallelAxis
+impl core::fmt::Debug for antecedent_core::physical_choice::AlternativeQuote
 impl core::fmt::Debug for antecedent_core::physical_choice::AvailableCapabilities
+impl core::fmt::Debug for antecedent_core::physical_choice::BackendSupport
 impl core::fmt::Debug for antecedent_core::physical_choice::CostQuotes
 impl core::fmt::Debug for antecedent_core::physical_choice::DeclaredCost
 impl core::fmt::Debug for antecedent_core::physical_choice::OperatorCapability
@@ -2279,6 +2385,9 @@ impl core::fmt::Debug for antecedent_core::physical_choice::PhysicalChoiceRefusa
 impl core::fmt::Debug for antecedent_core::physical_choice::RejectedAlternative
 impl core::fmt::Debug for antecedent_core::physical_choice::RejectionReason
 impl core::fmt::Debug for antecedent_core::physical_choice::ResourceCapability
+impl core::fmt::Debug for antecedent_core::physical_choice::RouteChoice
+impl core::fmt::Debug for antecedent_core::physical_choice::RouteChoiceError
+impl core::fmt::Debug for antecedent_core::physical_choice::RouteWork
 impl core::fmt::Debug for antecedent_core::query::ComputationLimits
 impl core::fmt::Debug for antecedent_core::query::ExperimentFamily
 impl core::fmt::Debug for antecedent_core::query::GraphAssumptionSet
@@ -2307,6 +2416,7 @@ impl core::fmt::Debug for antecedent_core::recalc::StageEntry
 impl core::fmt::Debug for antecedent_core::recalc::StageIdentities
 impl core::fmt::Debug for antecedent_core::recalc::StageIdentity
 impl core::fmt::Debug for antecedent_core::recalc::StageStatus
+impl core::fmt::Debug for antecedent_core::route_memory::RouteMemoryProfile
 impl core::fmt::Debug for antecedent_core::scientific_target::HistoryIndexedExperiment
 impl core::fmt::Debug for antecedent_core::scientific_target::HistoryIndexedTargetLaw
 impl core::fmt::Debug for antecedent_core::search_budget::AdmittedExactSearch
@@ -2397,6 +2507,7 @@ impl core::fmt::Display for antecedent_core::VarianceRule
 impl core::fmt::Display for antecedent_core::cancellation_boundary::BoundaryError
 impl core::fmt::Display for antecedent_core::cancellation_boundary::BoundaryReport
 impl core::fmt::Display for antecedent_core::cancellation_boundary::CancelSite
+impl core::fmt::Display for antecedent_core::cancellation_boundary::IsolatedCallError
 impl core::fmt::Display for antecedent_core::cancellation_boundary::ProviderDisposition
 impl core::fmt::Display for antecedent_core::cancellation_boundary::UninterruptibleAdmission
 impl core::fmt::Display for antecedent_core::device_reservation::ArithmeticPath
@@ -2407,6 +2518,7 @@ impl core::fmt::Display for antecedent_core::diagnostic::RouteMass
 impl core::fmt::Display for antecedent_core::diagnostic::RouteMassError
 impl core::fmt::Display for antecedent_core::diagnostic::RouteNativeDiagnostic
 impl core::fmt::Display for antecedent_core::execution::AdmissionError
+impl core::fmt::Display for antecedent_core::execution_facts::AccountingBasis
 impl core::fmt::Display for antecedent_core::execution_facts::ExecutionFactError
 impl core::fmt::Display for antecedent_core::execution_facts::ExecutionFactStatus
 impl core::fmt::Display for antecedent_core::execution_facts::OutputRetention
@@ -2424,6 +2536,7 @@ impl core::fmt::Display for antecedent_core::physical_choice::PhysicalChoiceRefu
 impl core::fmt::Display for antecedent_core::physical_choice::RejectedAlternative
 impl core::fmt::Display for antecedent_core::physical_choice::RejectionReason
 impl core::fmt::Display for antecedent_core::physical_choice::ResourceCapability
+impl core::fmt::Display for antecedent_core::physical_choice::RouteChoiceError
 impl core::fmt::Display for antecedent_core::recalc::ChangedDependency
 impl core::fmt::Display for antecedent_core::recalc::RefusalReason
 impl core::fmt::Display for antecedent_core::recalc::Stage
@@ -2685,6 +2798,10 @@ impl core::hash::Hash for antecedent_core::diagnostic::RouteKind
 impl core::hash::Hash for antecedent_core::execution::AdmissionError
 impl core::hash::Hash for antecedent_core::execution::AdmissionRemainder
 impl core::hash::Hash for antecedent_core::execution::AdmissionRequest
+impl core::hash::Hash for antecedent_core::execution::PipelineStep
+impl core::hash::Hash for antecedent_core::execution_facts::AccountedQuantity
+impl core::hash::Hash for antecedent_core::execution_facts::AccountingBasis
+impl core::hash::Hash for antecedent_core::execution_facts::ExecutionAccounting
 impl core::hash::Hash for antecedent_core::execution_facts::ExecutionBackend
 impl core::hash::Hash for antecedent_core::execution_facts::ExecutionCounts
 impl core::hash::Hash for antecedent_core::execution_facts::ExecutionFactStatus
@@ -2693,6 +2810,9 @@ impl core::hash::Hash for antecedent_core::execution_facts::ExecutionResources
 impl core::hash::Hash for antecedent_core::execution_facts::MeasuredExecution
 impl core::hash::Hash for antecedent_core::execution_facts::OutputRetention
 impl core::hash::Hash for antecedent_core::execution_facts::PhysicalExecutionIdentity
+impl core::hash::Hash for antecedent_core::execution_facts::PlannedResources
+impl core::hash::Hash for antecedent_core::identity::DependencyAxis
+impl core::hash::Hash for antecedent_core::identity::ReusableProduct
 impl core::hash::Hash for antecedent_core::inspect::EstimatedResources
 impl core::hash::Hash for antecedent_core::inspect::EvidenceTransformation
 impl core::hash::Hash for antecedent_core::inspect::EvidenceTransformations
@@ -2718,7 +2838,9 @@ impl core::hash::Hash for antecedent_core::measurement_model::PosteriorReference
 impl core::hash::Hash for antecedent_core::measurement_model::RepresentationMapping
 impl core::hash::Hash for antecedent_core::measurement_model::RepresentationVersion
 impl core::hash::Hash for antecedent_core::parallel_axis::ParallelAxis
+impl core::hash::Hash for antecedent_core::physical_choice::AlternativeQuote
 impl core::hash::Hash for antecedent_core::physical_choice::AvailableCapabilities
+impl core::hash::Hash for antecedent_core::physical_choice::BackendSupport
 impl core::hash::Hash for antecedent_core::physical_choice::CostQuotes
 impl core::hash::Hash for antecedent_core::physical_choice::DeclaredCost
 impl core::hash::Hash for antecedent_core::physical_choice::OperatorCapability
@@ -2728,6 +2850,9 @@ impl core::hash::Hash for antecedent_core::physical_choice::PhysicalChoiceRefusa
 impl core::hash::Hash for antecedent_core::physical_choice::RejectedAlternative
 impl core::hash::Hash for antecedent_core::physical_choice::RejectionReason
 impl core::hash::Hash for antecedent_core::physical_choice::ResourceCapability
+impl core::hash::Hash for antecedent_core::physical_choice::RouteChoice
+impl core::hash::Hash for antecedent_core::physical_choice::RouteChoiceError
+impl core::hash::Hash for antecedent_core::physical_choice::RouteWork
 impl core::hash::Hash for antecedent_core::query::ComputationLimits
 impl core::hash::Hash for antecedent_core::query::ExperimentFamily
 impl core::hash::Hash for antecedent_core::query::GraphAssumptionSet
@@ -2738,6 +2863,7 @@ impl core::hash::Hash for antecedent_core::recalc::Branch
 impl core::hash::Hash for antecedent_core::recalc::Revalidation
 impl core::hash::Hash for antecedent_core::recalc::Stage
 impl core::hash::Hash for antecedent_core::recalc::StageIdentity
+impl core::hash::Hash for antecedent_core::route_memory::RouteMemoryProfile
 impl core::hash::Hash for antecedent_core::scientific_target::HistoryIndexedExperiment
 impl core::hash::Hash for antecedent_core::scientific_target::HistoryIndexedTargetLaw
 impl core::hash::Hash for antecedent_core::search_budget::AdmittedExactSearch
@@ -2948,15 +3074,22 @@ impl core::marker::Copy for antecedent_core::diagnostic::RouteNativeDiagnostic
 impl core::marker::Copy for antecedent_core::execution::AdmissionError
 impl core::marker::Copy for antecedent_core::execution::AdmissionRemainder
 impl core::marker::Copy for antecedent_core::execution::AdmissionRequest
+impl core::marker::Copy for antecedent_core::execution::PipelineReceipt
+impl core::marker::Copy for antecedent_core::execution::PipelineStep
 impl core::marker::Copy for antecedent_core::execution_attempt::Operation
 impl core::marker::Copy for antecedent_core::execution_attempt::OperationCounts
 impl core::marker::Copy for antecedent_core::execution_attempt::PhysicalEvent
+impl core::marker::Copy for antecedent_core::execution_facts::AccountedQuantity
+impl core::marker::Copy for antecedent_core::execution_facts::AccountingBasis
 impl core::marker::Copy for antecedent_core::execution_facts::ExecutionCounts
 impl core::marker::Copy for antecedent_core::execution_facts::ExecutionFactError
 impl core::marker::Copy for antecedent_core::execution_facts::ExecutionFactStatus
 impl core::marker::Copy for antecedent_core::execution_facts::ExecutionResources
 impl core::marker::Copy for antecedent_core::execution_facts::OutputRetention
 impl core::marker::Copy for antecedent_core::execution_facts::PhysicalExecutionIdentity
+impl core::marker::Copy for antecedent_core::execution_facts::PlannedResources
+impl core::marker::Copy for antecedent_core::identity::DependencyAxis
+impl core::marker::Copy for antecedent_core::identity::ReusableProduct
 impl core::marker::Copy for antecedent_core::inspect::EstimatedResources
 impl core::marker::Copy for antecedent_core::inspect::InspectionRefusal
 impl core::marker::Copy for antecedent_core::inspect::UncertaintyDemand
@@ -2970,8 +3103,15 @@ impl core::marker::Copy for antecedent_core::measurement_model::MeasurementInfer
 impl core::marker::Copy for antecedent_core::measurement_model::MeasurementKind
 impl core::marker::Copy for antecedent_core::measurement_model::MeasurementRoute
 impl core::marker::Copy for antecedent_core::measurement_model::ParameterUncertainty
+impl core::marker::Copy for antecedent_core::measurement_record::AllocationSample
+impl core::marker::Copy for antecedent_core::measurement_record::CountVariability
+impl core::marker::Copy for antecedent_core::measurement_record::HostProbe
+impl core::marker::Copy for antecedent_core::measurement_record::PeakRss
+impl core::marker::Copy for antecedent_core::measurement_record::PeakRssSummary
 impl core::marker::Copy for antecedent_core::parallel_axis::ParallelAxis
+impl core::marker::Copy for antecedent_core::physical_choice::AlternativeQuote
 impl core::marker::Copy for antecedent_core::physical_choice::AvailableCapabilities
+impl core::marker::Copy for antecedent_core::physical_choice::BackendSupport
 impl core::marker::Copy for antecedent_core::physical_choice::CostQuotes
 impl core::marker::Copy for antecedent_core::physical_choice::DeclaredCost
 impl core::marker::Copy for antecedent_core::physical_choice::OperatorCapability
@@ -2981,6 +3121,9 @@ impl core::marker::Copy for antecedent_core::physical_choice::PhysicalChoiceRefu
 impl core::marker::Copy for antecedent_core::physical_choice::RejectedAlternative
 impl core::marker::Copy for antecedent_core::physical_choice::RejectionReason
 impl core::marker::Copy for antecedent_core::physical_choice::ResourceCapability
+impl core::marker::Copy for antecedent_core::physical_choice::RouteChoice
+impl core::marker::Copy for antecedent_core::physical_choice::RouteChoiceError
+impl core::marker::Copy for antecedent_core::physical_choice::RouteWork
 impl core::marker::Copy for antecedent_core::query::ComputationLimits
 impl core::marker::Copy for antecedent_core::query::ExperimentFamily
 impl core::marker::Copy for antecedent_core::query::GraphAssumptionSet
@@ -3004,6 +3147,7 @@ impl core::marker::Copy for antecedent_core::recalc::Stage
 impl core::marker::Copy for antecedent_core::recalc::StageEntry
 impl core::marker::Copy for antecedent_core::recalc::StageIdentity
 impl core::marker::Copy for antecedent_core::recalc::StageStatus
+impl core::marker::Copy for antecedent_core::route_memory::RouteMemoryProfile
 impl core::marker::Copy for antecedent_core::search_budget::AdmittedExactSearch
 impl core::marker::Copy for antecedent_core::search_budget::ApproximationEvidence
 impl core::marker::Copy for antecedent_core::search_budget::ExactGraphSearch
@@ -3392,6 +3536,7 @@ impl core::marker::Freeze for antecedent_core::cancellation_boundary::BoundaryEr
 impl core::marker::Freeze for antecedent_core::cancellation_boundary::BoundaryReport [auto]
 impl core::marker::Freeze for antecedent_core::cancellation_boundary::BoundarySession [auto]
 impl core::marker::Freeze for antecedent_core::cancellation_boundary::CancelSite [auto]
+impl core::marker::Freeze for antecedent_core::cancellation_boundary::IsolatedCallError [auto]
 impl core::marker::Freeze for antecedent_core::cancellation_boundary::PartialResult [auto]
 impl core::marker::Freeze for antecedent_core::cancellation_boundary::ProviderDisposition [auto]
 impl core::marker::Freeze for antecedent_core::cancellation_boundary::StopReceipt [auto]
@@ -3416,10 +3561,15 @@ impl core::marker::Freeze for antecedent_core::execution::AdmissionError [auto]
 impl core::marker::Freeze for antecedent_core::execution::AdmissionPool [auto]
 impl core::marker::Freeze for antecedent_core::execution::AdmissionRemainder [auto]
 impl core::marker::Freeze for antecedent_core::execution::AdmissionRequest [auto]
+impl core::marker::Freeze for antecedent_core::execution::PipelineReceipt [auto]
+impl core::marker::Freeze for antecedent_core::execution::PipelineStep [auto]
 impl core::marker::Freeze for antecedent_core::execution_attempt::AttemptReport [auto]
 impl core::marker::Freeze for antecedent_core::execution_attempt::Operation [auto]
 impl core::marker::Freeze for antecedent_core::execution_attempt::OperationCounts [auto]
 impl core::marker::Freeze for antecedent_core::execution_attempt::PhysicalEvent [auto]
+impl core::marker::Freeze for antecedent_core::execution_facts::AccountedQuantity [auto]
+impl core::marker::Freeze for antecedent_core::execution_facts::AccountingBasis [auto]
+impl core::marker::Freeze for antecedent_core::execution_facts::ExecutionAccounting [auto]
 impl core::marker::Freeze for antecedent_core::execution_facts::ExecutionBackend [auto]
 impl core::marker::Freeze for antecedent_core::execution_facts::ExecutionCounts [auto]
 impl core::marker::Freeze for antecedent_core::execution_facts::ExecutionFactError [auto]
@@ -3429,6 +3579,9 @@ impl core::marker::Freeze for antecedent_core::execution_facts::ExecutionResourc
 impl core::marker::Freeze for antecedent_core::execution_facts::MeasuredExecution [auto]
 impl core::marker::Freeze for antecedent_core::execution_facts::OutputRetention [auto]
 impl core::marker::Freeze for antecedent_core::execution_facts::PhysicalExecutionIdentity [auto]
+impl core::marker::Freeze for antecedent_core::execution_facts::PlannedResources [auto]
+impl core::marker::Freeze for antecedent_core::identity::DependencyAxis [auto]
+impl core::marker::Freeze for antecedent_core::identity::ReusableProduct [auto]
 impl core::marker::Freeze for antecedent_core::inspect::EstimatedResources [auto]
 impl core::marker::Freeze for antecedent_core::inspect::EvidenceTransformation [auto]
 impl core::marker::Freeze for antecedent_core::inspect::EvidenceTransformations [auto]
@@ -3464,8 +3617,19 @@ impl core::marker::Freeze for antecedent_core::measurement_model::PosteriorRefer
 impl core::marker::Freeze for antecedent_core::measurement_model::RepresentationMapping [auto]
 impl core::marker::Freeze for antecedent_core::measurement_model::RepresentationVersion [auto]
 impl core::marker::Freeze for antecedent_core::measurement_model::VarianceComponent [auto]
+impl core::marker::Freeze for antecedent_core::measurement_record::AllocationSample [auto]
+impl core::marker::Freeze for antecedent_core::measurement_record::CountVariability [auto]
+impl core::marker::Freeze for antecedent_core::measurement_record::HostProbe [auto]
+impl core::marker::Freeze for antecedent_core::measurement_record::MeasurementRecord [auto]
+impl core::marker::Freeze for antecedent_core::measurement_record::MeasurementSummary [auto]
+impl core::marker::Freeze for antecedent_core::measurement_record::PeakRss [auto]
+impl core::marker::Freeze for antecedent_core::measurement_record::PeakRssSummary [auto]
+impl core::marker::Freeze for antecedent_core::measurement_record::StageTime [auto]
+impl core::marker::Freeze for antecedent_core::measurement_record::StageVariability [auto]
 impl core::marker::Freeze for antecedent_core::parallel_axis::ParallelAxis [auto]
+impl core::marker::Freeze for antecedent_core::physical_choice::AlternativeQuote [auto]
 impl core::marker::Freeze for antecedent_core::physical_choice::AvailableCapabilities [auto]
+impl core::marker::Freeze for antecedent_core::physical_choice::BackendSupport [auto]
 impl core::marker::Freeze for antecedent_core::physical_choice::CostQuotes [auto]
 impl core::marker::Freeze for antecedent_core::physical_choice::DeclaredCost [auto]
 impl core::marker::Freeze for antecedent_core::physical_choice::OperatorCapability [auto]
@@ -3475,6 +3639,9 @@ impl core::marker::Freeze for antecedent_core::physical_choice::PhysicalChoiceRe
 impl core::marker::Freeze for antecedent_core::physical_choice::RejectedAlternative [auto]
 impl core::marker::Freeze for antecedent_core::physical_choice::RejectionReason [auto]
 impl core::marker::Freeze for antecedent_core::physical_choice::ResourceCapability [auto]
+impl core::marker::Freeze for antecedent_core::physical_choice::RouteChoice [auto]
+impl core::marker::Freeze for antecedent_core::physical_choice::RouteChoiceError [auto]
+impl core::marker::Freeze for antecedent_core::physical_choice::RouteWork [auto]
 impl core::marker::Freeze for antecedent_core::query::ComputationLimits [auto]
 impl core::marker::Freeze for antecedent_core::query::ExperimentFamily [auto]
 impl core::marker::Freeze for antecedent_core::query::GraphAssumptionSet [auto]
@@ -3503,6 +3670,7 @@ impl core::marker::Freeze for antecedent_core::recalc::StageEntry [auto]
 impl core::marker::Freeze for antecedent_core::recalc::StageIdentities [auto]
 impl core::marker::Freeze for antecedent_core::recalc::StageIdentity [auto]
 impl core::marker::Freeze for antecedent_core::recalc::StageStatus [auto]
+impl core::marker::Freeze for antecedent_core::route_memory::RouteMemoryProfile [auto]
 impl core::marker::Freeze for antecedent_core::scientific_target::HistoryIndexedExperiment [auto]
 impl core::marker::Freeze for antecedent_core::scientific_target::HistoryIndexedTargetLaw [auto]
 impl core::marker::Freeze for antecedent_core::search_budget::AdmittedExactSearch [auto]
@@ -3894,6 +4062,7 @@ impl core::marker::Send for antecedent_core::cancellation_boundary::BoundaryErro
 impl core::marker::Send for antecedent_core::cancellation_boundary::BoundaryReport [auto]
 impl core::marker::Send for antecedent_core::cancellation_boundary::BoundarySession [auto]
 impl core::marker::Send for antecedent_core::cancellation_boundary::CancelSite [auto]
+impl core::marker::Send for antecedent_core::cancellation_boundary::IsolatedCallError [auto]
 impl core::marker::Send for antecedent_core::cancellation_boundary::PartialResult [auto]
 impl core::marker::Send for antecedent_core::cancellation_boundary::ProviderDisposition [auto]
 impl core::marker::Send for antecedent_core::cancellation_boundary::StopReceipt [auto]
@@ -3922,10 +4091,15 @@ impl core::marker::Send for antecedent_core::execution::AdmissionLease [auto]
 impl core::marker::Send for antecedent_core::execution::AdmissionPool [auto]
 impl core::marker::Send for antecedent_core::execution::AdmissionRemainder [auto]
 impl core::marker::Send for antecedent_core::execution::AdmissionRequest [auto]
+impl core::marker::Send for antecedent_core::execution::PipelineReceipt [auto]
+impl core::marker::Send for antecedent_core::execution::PipelineStep [auto]
 impl core::marker::Send for antecedent_core::execution_attempt::AttemptReport [auto]
 impl core::marker::Send for antecedent_core::execution_attempt::Operation [auto]
 impl core::marker::Send for antecedent_core::execution_attempt::OperationCounts [auto]
 impl core::marker::Send for antecedent_core::execution_attempt::PhysicalEvent [auto]
+impl core::marker::Send for antecedent_core::execution_facts::AccountedQuantity [auto]
+impl core::marker::Send for antecedent_core::execution_facts::AccountingBasis [auto]
+impl core::marker::Send for antecedent_core::execution_facts::ExecutionAccounting [auto]
 impl core::marker::Send for antecedent_core::execution_facts::ExecutionBackend [auto]
 impl core::marker::Send for antecedent_core::execution_facts::ExecutionCounts [auto]
 impl core::marker::Send for antecedent_core::execution_facts::ExecutionFactError [auto]
@@ -3935,6 +4109,9 @@ impl core::marker::Send for antecedent_core::execution_facts::ExecutionResources
 impl core::marker::Send for antecedent_core::execution_facts::MeasuredExecution [auto]
 impl core::marker::Send for antecedent_core::execution_facts::OutputRetention [auto]
 impl core::marker::Send for antecedent_core::execution_facts::PhysicalExecutionIdentity [auto]
+impl core::marker::Send for antecedent_core::execution_facts::PlannedResources [auto]
+impl core::marker::Send for antecedent_core::identity::DependencyAxis [auto]
+impl core::marker::Send for antecedent_core::identity::ReusableProduct [auto]
 impl core::marker::Send for antecedent_core::inspect::EstimatedResources [auto]
 impl core::marker::Send for antecedent_core::inspect::EvidenceTransformation [auto]
 impl core::marker::Send for antecedent_core::inspect::EvidenceTransformations [auto]
@@ -3970,8 +4147,19 @@ impl core::marker::Send for antecedent_core::measurement_model::PosteriorReferen
 impl core::marker::Send for antecedent_core::measurement_model::RepresentationMapping [auto]
 impl core::marker::Send for antecedent_core::measurement_model::RepresentationVersion [auto]
 impl core::marker::Send for antecedent_core::measurement_model::VarianceComponent [auto]
+impl core::marker::Send for antecedent_core::measurement_record::AllocationSample [auto]
+impl core::marker::Send for antecedent_core::measurement_record::CountVariability [auto]
+impl core::marker::Send for antecedent_core::measurement_record::HostProbe [auto]
+impl core::marker::Send for antecedent_core::measurement_record::MeasurementRecord [auto]
+impl core::marker::Send for antecedent_core::measurement_record::MeasurementSummary [auto]
+impl core::marker::Send for antecedent_core::measurement_record::PeakRss [auto]
+impl core::marker::Send for antecedent_core::measurement_record::PeakRssSummary [auto]
+impl core::marker::Send for antecedent_core::measurement_record::StageTime [auto]
+impl core::marker::Send for antecedent_core::measurement_record::StageVariability [auto]
 impl core::marker::Send for antecedent_core::parallel_axis::ParallelAxis [auto]
+impl core::marker::Send for antecedent_core::physical_choice::AlternativeQuote [auto]
 impl core::marker::Send for antecedent_core::physical_choice::AvailableCapabilities [auto]
+impl core::marker::Send for antecedent_core::physical_choice::BackendSupport [auto]
 impl core::marker::Send for antecedent_core::physical_choice::CostQuotes [auto]
 impl core::marker::Send for antecedent_core::physical_choice::DeclaredCost [auto]
 impl core::marker::Send for antecedent_core::physical_choice::OperatorCapability [auto]
@@ -3981,6 +4169,9 @@ impl core::marker::Send for antecedent_core::physical_choice::PhysicalChoiceRefu
 impl core::marker::Send for antecedent_core::physical_choice::RejectedAlternative [auto]
 impl core::marker::Send for antecedent_core::physical_choice::RejectionReason [auto]
 impl core::marker::Send for antecedent_core::physical_choice::ResourceCapability [auto]
+impl core::marker::Send for antecedent_core::physical_choice::RouteChoice [auto]
+impl core::marker::Send for antecedent_core::physical_choice::RouteChoiceError [auto]
+impl core::marker::Send for antecedent_core::physical_choice::RouteWork [auto]
 impl core::marker::Send for antecedent_core::query::ComputationLimits [auto]
 impl core::marker::Send for antecedent_core::query::ExperimentFamily [auto]
 impl core::marker::Send for antecedent_core::query::GraphAssumptionSet [auto]
@@ -4009,6 +4200,7 @@ impl core::marker::Send for antecedent_core::recalc::StageEntry [auto]
 impl core::marker::Send for antecedent_core::recalc::StageIdentities [auto]
 impl core::marker::Send for antecedent_core::recalc::StageIdentity [auto]
 impl core::marker::Send for antecedent_core::recalc::StageStatus [auto]
+impl core::marker::Send for antecedent_core::route_memory::RouteMemoryProfile [auto]
 impl core::marker::Send for antecedent_core::scientific_target::HistoryIndexedExperiment [auto]
 impl core::marker::Send for antecedent_core::scientific_target::HistoryIndexedTargetLaw [auto]
 impl core::marker::Send for antecedent_core::search_budget::AdmittedExactSearch [auto]
@@ -4405,9 +4597,14 @@ impl core::marker::StructuralPartialEq for antecedent_core::diagnostic::RouteNat
 impl core::marker::StructuralPartialEq for antecedent_core::execution::AdmissionError
 impl core::marker::StructuralPartialEq for antecedent_core::execution::AdmissionRemainder
 impl core::marker::StructuralPartialEq for antecedent_core::execution::AdmissionRequest
+impl core::marker::StructuralPartialEq for antecedent_core::execution::PipelineReceipt
+impl core::marker::StructuralPartialEq for antecedent_core::execution::PipelineStep
 impl core::marker::StructuralPartialEq for antecedent_core::execution_attempt::AttemptReport
 impl core::marker::StructuralPartialEq for antecedent_core::execution_attempt::Operation
 impl core::marker::StructuralPartialEq for antecedent_core::execution_attempt::OperationCounts
+impl core::marker::StructuralPartialEq for antecedent_core::execution_facts::AccountedQuantity
+impl core::marker::StructuralPartialEq for antecedent_core::execution_facts::AccountingBasis
+impl core::marker::StructuralPartialEq for antecedent_core::execution_facts::ExecutionAccounting
 impl core::marker::StructuralPartialEq for antecedent_core::execution_facts::ExecutionBackend
 impl core::marker::StructuralPartialEq for antecedent_core::execution_facts::ExecutionCounts
 impl core::marker::StructuralPartialEq for antecedent_core::execution_facts::ExecutionFactError
@@ -4417,6 +4614,9 @@ impl core::marker::StructuralPartialEq for antecedent_core::execution_facts::Exe
 impl core::marker::StructuralPartialEq for antecedent_core::execution_facts::MeasuredExecution
 impl core::marker::StructuralPartialEq for antecedent_core::execution_facts::OutputRetention
 impl core::marker::StructuralPartialEq for antecedent_core::execution_facts::PhysicalExecutionIdentity
+impl core::marker::StructuralPartialEq for antecedent_core::execution_facts::PlannedResources
+impl core::marker::StructuralPartialEq for antecedent_core::identity::DependencyAxis
+impl core::marker::StructuralPartialEq for antecedent_core::identity::ReusableProduct
 impl core::marker::StructuralPartialEq for antecedent_core::inspect::EstimatedResources
 impl core::marker::StructuralPartialEq for antecedent_core::inspect::EvidenceTransformation
 impl core::marker::StructuralPartialEq for antecedent_core::inspect::EvidenceTransformations
@@ -4452,8 +4652,18 @@ impl core::marker::StructuralPartialEq for antecedent_core::measurement_model::P
 impl core::marker::StructuralPartialEq for antecedent_core::measurement_model::RepresentationMapping
 impl core::marker::StructuralPartialEq for antecedent_core::measurement_model::RepresentationVersion
 impl core::marker::StructuralPartialEq for antecedent_core::measurement_model::VarianceComponent
+impl core::marker::StructuralPartialEq for antecedent_core::measurement_record::AllocationSample
+impl core::marker::StructuralPartialEq for antecedent_core::measurement_record::CountVariability
+impl core::marker::StructuralPartialEq for antecedent_core::measurement_record::MeasurementRecord
+impl core::marker::StructuralPartialEq for antecedent_core::measurement_record::MeasurementSummary
+impl core::marker::StructuralPartialEq for antecedent_core::measurement_record::PeakRss
+impl core::marker::StructuralPartialEq for antecedent_core::measurement_record::PeakRssSummary
+impl core::marker::StructuralPartialEq for antecedent_core::measurement_record::StageTime
+impl core::marker::StructuralPartialEq for antecedent_core::measurement_record::StageVariability
 impl core::marker::StructuralPartialEq for antecedent_core::parallel_axis::ParallelAxis
+impl core::marker::StructuralPartialEq for antecedent_core::physical_choice::AlternativeQuote
 impl core::marker::StructuralPartialEq for antecedent_core::physical_choice::AvailableCapabilities
+impl core::marker::StructuralPartialEq for antecedent_core::physical_choice::BackendSupport
 impl core::marker::StructuralPartialEq for antecedent_core::physical_choice::CostQuotes
 impl core::marker::StructuralPartialEq for antecedent_core::physical_choice::DeclaredCost
 impl core::marker::StructuralPartialEq for antecedent_core::physical_choice::OperatorCapability
@@ -4463,6 +4673,9 @@ impl core::marker::StructuralPartialEq for antecedent_core::physical_choice::Phy
 impl core::marker::StructuralPartialEq for antecedent_core::physical_choice::RejectedAlternative
 impl core::marker::StructuralPartialEq for antecedent_core::physical_choice::RejectionReason
 impl core::marker::StructuralPartialEq for antecedent_core::physical_choice::ResourceCapability
+impl core::marker::StructuralPartialEq for antecedent_core::physical_choice::RouteChoice
+impl core::marker::StructuralPartialEq for antecedent_core::physical_choice::RouteChoiceError
+impl core::marker::StructuralPartialEq for antecedent_core::physical_choice::RouteWork
 impl core::marker::StructuralPartialEq for antecedent_core::query::ComputationLimits
 impl core::marker::StructuralPartialEq for antecedent_core::query::ExperimentFamily
 impl core::marker::StructuralPartialEq for antecedent_core::query::GraphAssumptionSet
@@ -4491,6 +4704,7 @@ impl core::marker::StructuralPartialEq for antecedent_core::recalc::StageEntry
 impl core::marker::StructuralPartialEq for antecedent_core::recalc::StageIdentities
 impl core::marker::StructuralPartialEq for antecedent_core::recalc::StageIdentity
 impl core::marker::StructuralPartialEq for antecedent_core::recalc::StageStatus
+impl core::marker::StructuralPartialEq for antecedent_core::route_memory::RouteMemoryProfile
 impl core::marker::StructuralPartialEq for antecedent_core::scientific_target::HistoryIndexedExperiment
 impl core::marker::StructuralPartialEq for antecedent_core::scientific_target::HistoryIndexedTargetLaw
 impl core::marker::StructuralPartialEq for antecedent_core::search_budget::AdmittedExactSearch
@@ -4882,6 +5096,7 @@ impl core::marker::Sync for antecedent_core::cancellation_boundary::BoundaryErro
 impl core::marker::Sync for antecedent_core::cancellation_boundary::BoundaryReport [auto]
 impl core::marker::Sync for antecedent_core::cancellation_boundary::BoundarySession [auto]
 impl core::marker::Sync for antecedent_core::cancellation_boundary::CancelSite [auto]
+impl core::marker::Sync for antecedent_core::cancellation_boundary::IsolatedCallError [auto]
 impl core::marker::Sync for antecedent_core::cancellation_boundary::PartialResult [auto]
 impl core::marker::Sync for antecedent_core::cancellation_boundary::ProviderDisposition [auto]
 impl core::marker::Sync for antecedent_core::cancellation_boundary::StopReceipt [auto]
@@ -4910,10 +5125,15 @@ impl core::marker::Sync for antecedent_core::execution::AdmissionLease [auto]
 impl core::marker::Sync for antecedent_core::execution::AdmissionPool [auto]
 impl core::marker::Sync for antecedent_core::execution::AdmissionRemainder [auto]
 impl core::marker::Sync for antecedent_core::execution::AdmissionRequest [auto]
+impl core::marker::Sync for antecedent_core::execution::PipelineReceipt [auto]
+impl core::marker::Sync for antecedent_core::execution::PipelineStep [auto]
 impl core::marker::Sync for antecedent_core::execution_attempt::AttemptReport [auto]
 impl core::marker::Sync for antecedent_core::execution_attempt::Operation [auto]
 impl core::marker::Sync for antecedent_core::execution_attempt::OperationCounts [auto]
 impl core::marker::Sync for antecedent_core::execution_attempt::PhysicalEvent [auto]
+impl core::marker::Sync for antecedent_core::execution_facts::AccountedQuantity [auto]
+impl core::marker::Sync for antecedent_core::execution_facts::AccountingBasis [auto]
+impl core::marker::Sync for antecedent_core::execution_facts::ExecutionAccounting [auto]
 impl core::marker::Sync for antecedent_core::execution_facts::ExecutionBackend [auto]
 impl core::marker::Sync for antecedent_core::execution_facts::ExecutionCounts [auto]
 impl core::marker::Sync for antecedent_core::execution_facts::ExecutionFactError [auto]
@@ -4923,6 +5143,9 @@ impl core::marker::Sync for antecedent_core::execution_facts::ExecutionResources
 impl core::marker::Sync for antecedent_core::execution_facts::MeasuredExecution [auto]
 impl core::marker::Sync for antecedent_core::execution_facts::OutputRetention [auto]
 impl core::marker::Sync for antecedent_core::execution_facts::PhysicalExecutionIdentity [auto]
+impl core::marker::Sync for antecedent_core::execution_facts::PlannedResources [auto]
+impl core::marker::Sync for antecedent_core::identity::DependencyAxis [auto]
+impl core::marker::Sync for antecedent_core::identity::ReusableProduct [auto]
 impl core::marker::Sync for antecedent_core::inspect::EstimatedResources [auto]
 impl core::marker::Sync for antecedent_core::inspect::EvidenceTransformation [auto]
 impl core::marker::Sync for antecedent_core::inspect::EvidenceTransformations [auto]
@@ -4958,8 +5181,19 @@ impl core::marker::Sync for antecedent_core::measurement_model::PosteriorReferen
 impl core::marker::Sync for antecedent_core::measurement_model::RepresentationMapping [auto]
 impl core::marker::Sync for antecedent_core::measurement_model::RepresentationVersion [auto]
 impl core::marker::Sync for antecedent_core::measurement_model::VarianceComponent [auto]
+impl core::marker::Sync for antecedent_core::measurement_record::AllocationSample [auto]
+impl core::marker::Sync for antecedent_core::measurement_record::CountVariability [auto]
+impl core::marker::Sync for antecedent_core::measurement_record::HostProbe [auto]
+impl core::marker::Sync for antecedent_core::measurement_record::MeasurementRecord [auto]
+impl core::marker::Sync for antecedent_core::measurement_record::MeasurementSummary [auto]
+impl core::marker::Sync for antecedent_core::measurement_record::PeakRss [auto]
+impl core::marker::Sync for antecedent_core::measurement_record::PeakRssSummary [auto]
+impl core::marker::Sync for antecedent_core::measurement_record::StageTime [auto]
+impl core::marker::Sync for antecedent_core::measurement_record::StageVariability [auto]
 impl core::marker::Sync for antecedent_core::parallel_axis::ParallelAxis [auto]
+impl core::marker::Sync for antecedent_core::physical_choice::AlternativeQuote [auto]
 impl core::marker::Sync for antecedent_core::physical_choice::AvailableCapabilities [auto]
+impl core::marker::Sync for antecedent_core::physical_choice::BackendSupport [auto]
 impl core::marker::Sync for antecedent_core::physical_choice::CostQuotes [auto]
 impl core::marker::Sync for antecedent_core::physical_choice::DeclaredCost [auto]
 impl core::marker::Sync for antecedent_core::physical_choice::OperatorCapability [auto]
@@ -4969,6 +5203,9 @@ impl core::marker::Sync for antecedent_core::physical_choice::PhysicalChoiceRefu
 impl core::marker::Sync for antecedent_core::physical_choice::RejectedAlternative [auto]
 impl core::marker::Sync for antecedent_core::physical_choice::RejectionReason [auto]
 impl core::marker::Sync for antecedent_core::physical_choice::ResourceCapability [auto]
+impl core::marker::Sync for antecedent_core::physical_choice::RouteChoice [auto]
+impl core::marker::Sync for antecedent_core::physical_choice::RouteChoiceError [auto]
+impl core::marker::Sync for antecedent_core::physical_choice::RouteWork [auto]
 impl core::marker::Sync for antecedent_core::query::ComputationLimits [auto]
 impl core::marker::Sync for antecedent_core::query::ExperimentFamily [auto]
 impl core::marker::Sync for antecedent_core::query::GraphAssumptionSet [auto]
@@ -4997,6 +5234,7 @@ impl core::marker::Sync for antecedent_core::recalc::StageEntry [auto]
 impl core::marker::Sync for antecedent_core::recalc::StageIdentities [auto]
 impl core::marker::Sync for antecedent_core::recalc::StageIdentity [auto]
 impl core::marker::Sync for antecedent_core::recalc::StageStatus [auto]
+impl core::marker::Sync for antecedent_core::route_memory::RouteMemoryProfile [auto]
 impl core::marker::Sync for antecedent_core::scientific_target::HistoryIndexedExperiment [auto]
 impl core::marker::Sync for antecedent_core::scientific_target::HistoryIndexedTargetLaw [auto]
 impl core::marker::Sync for antecedent_core::search_budget::AdmittedExactSearch [auto]
@@ -5388,6 +5626,7 @@ impl core::marker::Unpin for antecedent_core::cancellation_boundary::BoundaryErr
 impl core::marker::Unpin for antecedent_core::cancellation_boundary::BoundaryReport [auto]
 impl core::marker::Unpin for antecedent_core::cancellation_boundary::BoundarySession [auto]
 impl core::marker::Unpin for antecedent_core::cancellation_boundary::CancelSite [auto]
+impl core::marker::Unpin for antecedent_core::cancellation_boundary::IsolatedCallError [auto]
 impl core::marker::Unpin for antecedent_core::cancellation_boundary::PartialResult [auto]
 impl core::marker::Unpin for antecedent_core::cancellation_boundary::ProviderDisposition [auto]
 impl core::marker::Unpin for antecedent_core::cancellation_boundary::StopReceipt [auto]
@@ -5416,10 +5655,15 @@ impl core::marker::Unpin for antecedent_core::execution::AdmissionLease [auto]
 impl core::marker::Unpin for antecedent_core::execution::AdmissionPool [auto]
 impl core::marker::Unpin for antecedent_core::execution::AdmissionRemainder [auto]
 impl core::marker::Unpin for antecedent_core::execution::AdmissionRequest [auto]
+impl core::marker::Unpin for antecedent_core::execution::PipelineReceipt [auto]
+impl core::marker::Unpin for antecedent_core::execution::PipelineStep [auto]
 impl core::marker::Unpin for antecedent_core::execution_attempt::AttemptReport [auto]
 impl core::marker::Unpin for antecedent_core::execution_attempt::Operation [auto]
 impl core::marker::Unpin for antecedent_core::execution_attempt::OperationCounts [auto]
 impl core::marker::Unpin for antecedent_core::execution_attempt::PhysicalEvent [auto]
+impl core::marker::Unpin for antecedent_core::execution_facts::AccountedQuantity [auto]
+impl core::marker::Unpin for antecedent_core::execution_facts::AccountingBasis [auto]
+impl core::marker::Unpin for antecedent_core::execution_facts::ExecutionAccounting [auto]
 impl core::marker::Unpin for antecedent_core::execution_facts::ExecutionBackend [auto]
 impl core::marker::Unpin for antecedent_core::execution_facts::ExecutionCounts [auto]
 impl core::marker::Unpin for antecedent_core::execution_facts::ExecutionFactError [auto]
@@ -5429,6 +5673,9 @@ impl core::marker::Unpin for antecedent_core::execution_facts::ExecutionResource
 impl core::marker::Unpin for antecedent_core::execution_facts::MeasuredExecution [auto]
 impl core::marker::Unpin for antecedent_core::execution_facts::OutputRetention [auto]
 impl core::marker::Unpin for antecedent_core::execution_facts::PhysicalExecutionIdentity [auto]
+impl core::marker::Unpin for antecedent_core::execution_facts::PlannedResources [auto]
+impl core::marker::Unpin for antecedent_core::identity::DependencyAxis [auto]
+impl core::marker::Unpin for antecedent_core::identity::ReusableProduct [auto]
 impl core::marker::Unpin for antecedent_core::inspect::EstimatedResources [auto]
 impl core::marker::Unpin for antecedent_core::inspect::EvidenceTransformation [auto]
 impl core::marker::Unpin for antecedent_core::inspect::EvidenceTransformations [auto]
@@ -5464,8 +5711,19 @@ impl core::marker::Unpin for antecedent_core::measurement_model::PosteriorRefere
 impl core::marker::Unpin for antecedent_core::measurement_model::RepresentationMapping [auto]
 impl core::marker::Unpin for antecedent_core::measurement_model::RepresentationVersion [auto]
 impl core::marker::Unpin for antecedent_core::measurement_model::VarianceComponent [auto]
+impl core::marker::Unpin for antecedent_core::measurement_record::AllocationSample [auto]
+impl core::marker::Unpin for antecedent_core::measurement_record::CountVariability [auto]
+impl core::marker::Unpin for antecedent_core::measurement_record::HostProbe [auto]
+impl core::marker::Unpin for antecedent_core::measurement_record::MeasurementRecord [auto]
+impl core::marker::Unpin for antecedent_core::measurement_record::MeasurementSummary [auto]
+impl core::marker::Unpin for antecedent_core::measurement_record::PeakRss [auto]
+impl core::marker::Unpin for antecedent_core::measurement_record::PeakRssSummary [auto]
+impl core::marker::Unpin for antecedent_core::measurement_record::StageTime [auto]
+impl core::marker::Unpin for antecedent_core::measurement_record::StageVariability [auto]
 impl core::marker::Unpin for antecedent_core::parallel_axis::ParallelAxis [auto]
+impl core::marker::Unpin for antecedent_core::physical_choice::AlternativeQuote [auto]
 impl core::marker::Unpin for antecedent_core::physical_choice::AvailableCapabilities [auto]
+impl core::marker::Unpin for antecedent_core::physical_choice::BackendSupport [auto]
 impl core::marker::Unpin for antecedent_core::physical_choice::CostQuotes [auto]
 impl core::marker::Unpin for antecedent_core::physical_choice::DeclaredCost [auto]
 impl core::marker::Unpin for antecedent_core::physical_choice::OperatorCapability [auto]
@@ -5475,6 +5733,9 @@ impl core::marker::Unpin for antecedent_core::physical_choice::PhysicalChoiceRef
 impl core::marker::Unpin for antecedent_core::physical_choice::RejectedAlternative [auto]
 impl core::marker::Unpin for antecedent_core::physical_choice::RejectionReason [auto]
 impl core::marker::Unpin for antecedent_core::physical_choice::ResourceCapability [auto]
+impl core::marker::Unpin for antecedent_core::physical_choice::RouteChoice [auto]
+impl core::marker::Unpin for antecedent_core::physical_choice::RouteChoiceError [auto]
+impl core::marker::Unpin for antecedent_core::physical_choice::RouteWork [auto]
 impl core::marker::Unpin for antecedent_core::query::ComputationLimits [auto]
 impl core::marker::Unpin for antecedent_core::query::ExperimentFamily [auto]
 impl core::marker::Unpin for antecedent_core::query::GraphAssumptionSet [auto]
@@ -5503,6 +5764,7 @@ impl core::marker::Unpin for antecedent_core::recalc::StageEntry [auto]
 impl core::marker::Unpin for antecedent_core::recalc::StageIdentities [auto]
 impl core::marker::Unpin for antecedent_core::recalc::StageIdentity [auto]
 impl core::marker::Unpin for antecedent_core::recalc::StageStatus [auto]
+impl core::marker::Unpin for antecedent_core::route_memory::RouteMemoryProfile [auto]
 impl core::marker::Unpin for antecedent_core::scientific_target::HistoryIndexedExperiment [auto]
 impl core::marker::Unpin for antecedent_core::scientific_target::HistoryIndexedTargetLaw [auto]
 impl core::marker::Unpin for antecedent_core::search_budget::AdmittedExactSearch [auto]
@@ -5897,6 +6159,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::cancellation_b
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::cancellation_boundary::BoundaryReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::cancellation_boundary::BoundarySession [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::cancellation_boundary::CancelSite [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::cancellation_boundary::IsolatedCallError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::cancellation_boundary::PartialResult [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::cancellation_boundary::ProviderDisposition [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::cancellation_boundary::StopReceipt [auto]
@@ -5925,10 +6188,15 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution::Adm
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution::AdmissionPool [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution::AdmissionRemainder [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution::AdmissionRequest [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution::PipelineReceipt [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution::PipelineStep [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_attempt::AttemptReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_attempt::Operation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_attempt::OperationCounts [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_attempt::PhysicalEvent [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_facts::AccountedQuantity [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_facts::AccountingBasis [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_facts::ExecutionAccounting [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_facts::ExecutionBackend [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_facts::ExecutionCounts [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_facts::ExecutionFactError [auto]
@@ -5938,6 +6206,9 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_fact
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_facts::MeasuredExecution [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_facts::OutputRetention [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_facts::PhysicalExecutionIdentity [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_facts::PlannedResources [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::identity::DependencyAxis [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::identity::ReusableProduct [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::inspect::EstimatedResources [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::inspect::EvidenceTransformation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::inspect::EvidenceTransformations [auto]
@@ -5973,8 +6244,19 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_mo
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_model::RepresentationMapping [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_model::RepresentationVersion [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_model::VarianceComponent [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_record::AllocationSample [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_record::CountVariability [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_record::HostProbe [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_record::MeasurementRecord [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_record::MeasurementSummary [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_record::PeakRss [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_record::PeakRssSummary [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_record::StageTime [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_record::StageVariability [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::parallel_axis::ParallelAxis [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::physical_choice::AlternativeQuote [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::physical_choice::AvailableCapabilities [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::physical_choice::BackendSupport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::physical_choice::CostQuotes [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::physical_choice::DeclaredCost [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::physical_choice::OperatorCapability [auto]
@@ -5984,6 +6266,9 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::physical_choic
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::physical_choice::RejectedAlternative [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::physical_choice::RejectionReason [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::physical_choice::ResourceCapability [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::physical_choice::RouteChoice [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::physical_choice::RouteChoiceError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::physical_choice::RouteWork [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::query::ComputationLimits [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::query::ExperimentFamily [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::query::GraphAssumptionSet [auto]
@@ -6012,6 +6297,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::StageE
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::StageIdentities [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::StageIdentity [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::StageStatus [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::route_memory::RouteMemoryProfile [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::scientific_target::HistoryIndexedExperiment [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::scientific_target::HistoryIndexedTargetLaw [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::search_budget::AdmittedExactSearch [auto]
@@ -6402,6 +6688,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::cancellation_boun
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::cancellation_boundary::BoundaryReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::cancellation_boundary::BoundarySession [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::cancellation_boundary::CancelSite [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::cancellation_boundary::IsolatedCallError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::cancellation_boundary::PartialResult [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::cancellation_boundary::ProviderDisposition [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::cancellation_boundary::StopReceipt [auto]
@@ -6430,10 +6717,15 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution::Admiss
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution::AdmissionPool [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution::AdmissionRemainder [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution::AdmissionRequest [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution::PipelineReceipt [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution::PipelineStep [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_attempt::AttemptReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_attempt::Operation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_attempt::OperationCounts [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_attempt::PhysicalEvent [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_facts::AccountedQuantity [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_facts::AccountingBasis [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_facts::ExecutionAccounting [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_facts::ExecutionBackend [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_facts::ExecutionCounts [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_facts::ExecutionFactError [auto]
@@ -6443,6 +6735,9 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_facts::
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_facts::MeasuredExecution [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_facts::OutputRetention [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_facts::PhysicalExecutionIdentity [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_facts::PlannedResources [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::identity::DependencyAxis [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::identity::ReusableProduct [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::inspect::EstimatedResources [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::inspect::EvidenceTransformation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::inspect::EvidenceTransformations [auto]
@@ -6478,8 +6773,19 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_model
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_model::RepresentationMapping [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_model::RepresentationVersion [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_model::VarianceComponent [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_record::AllocationSample [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_record::CountVariability [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_record::HostProbe [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_record::MeasurementRecord [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_record::MeasurementSummary [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_record::PeakRss [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_record::PeakRssSummary [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_record::StageTime [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_record::StageVariability [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::parallel_axis::ParallelAxis [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::physical_choice::AlternativeQuote [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::physical_choice::AvailableCapabilities [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::physical_choice::BackendSupport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::physical_choice::CostQuotes [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::physical_choice::DeclaredCost [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::physical_choice::OperatorCapability [auto]
@@ -6489,6 +6795,9 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::physical_choice::
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::physical_choice::RejectedAlternative [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::physical_choice::RejectionReason [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::physical_choice::ResourceCapability [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::physical_choice::RouteChoice [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::physical_choice::RouteChoiceError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::physical_choice::RouteWork [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::query::ComputationLimits [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::query::ExperimentFamily [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::query::GraphAssumptionSet [auto]
@@ -6517,6 +6826,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::StageEntr
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::StageIdentities [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::StageIdentity [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::StageStatus [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::route_memory::RouteMemoryProfile [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::scientific_target::HistoryIndexedExperiment [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::scientific_target::HistoryIndexedTargetLaw [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::search_budget::AdmittedExactSearch [auto]
@@ -6583,13 +6893,27 @@ impl<T: core::clone::Clone> core::clone::Clone for antecedent_core::IdentifiedSe
 impl<T: core::cmp::PartialEq> core::cmp::PartialEq for antecedent_core::IdentifiedSet<T>
 impl<T: core::fmt::Debug, E: core::fmt::Debug> core::fmt::Debug for antecedent_core::execution_attempt::ExecutionAttempt<T, E>
 impl<T: core::fmt::Debug> core::fmt::Debug for antecedent_core::IdentifiedSet<T>
+impl<T: core::fmt::Debug> core::fmt::Debug for antecedent_core::cancellation_boundary::IsolatedOutcome<T>
+impl<T> core::fmt::Debug for antecedent_core::cancellation_boundary::AbandonedCall<T>
 impl<T> core::marker::Freeze for antecedent_core::IdentifiedSet<T> where T: core::marker::Freeze [auto]
+impl<T> core::marker::Freeze for antecedent_core::cancellation_boundary::AbandonedCall<T> [auto]
+impl<T> core::marker::Freeze for antecedent_core::cancellation_boundary::IsolatedOutcome<T> where T: core::marker::Freeze [auto]
 impl<T> core::marker::Send for antecedent_core::IdentifiedSet<T> where T: core::marker::Send [auto]
+impl<T> core::marker::Send for antecedent_core::cancellation_boundary::AbandonedCall<T> where T: core::marker::Send [auto]
+impl<T> core::marker::Send for antecedent_core::cancellation_boundary::IsolatedOutcome<T> where T: core::marker::Send [auto]
 impl<T> core::marker::StructuralPartialEq for antecedent_core::IdentifiedSet<T>
 impl<T> core::marker::Sync for antecedent_core::IdentifiedSet<T> where T: core::marker::Sync [auto]
+impl<T> core::marker::Sync for antecedent_core::cancellation_boundary::AbandonedCall<T> where T: core::marker::Send [auto]
+impl<T> core::marker::Sync for antecedent_core::cancellation_boundary::IsolatedOutcome<T> where T: core::marker::Sync + core::marker::Send [auto]
 impl<T> core::marker::Unpin for antecedent_core::IdentifiedSet<T> where T: core::marker::Unpin [auto]
+impl<T> core::marker::Unpin for antecedent_core::cancellation_boundary::AbandonedCall<T> [auto]
+impl<T> core::marker::Unpin for antecedent_core::cancellation_boundary::IsolatedOutcome<T> where T: core::marker::Unpin [auto]
 impl<T> core::panic::unwind_safe::RefUnwindSafe for antecedent_core::IdentifiedSet<T> where T: core::panic::unwind_safe::RefUnwindSafe [auto]
+impl<T> core::panic::unwind_safe::RefUnwindSafe for antecedent_core::cancellation_boundary::AbandonedCall<T> [auto]
+impl<T> core::panic::unwind_safe::RefUnwindSafe for antecedent_core::cancellation_boundary::IsolatedOutcome<T> where T: core::panic::unwind_safe::RefUnwindSafe [auto]
 impl<T> core::panic::unwind_safe::UnwindSafe for antecedent_core::IdentifiedSet<T> where T: core::panic::unwind_safe::UnwindSafe [auto]
+impl<T> core::panic::unwind_safe::UnwindSafe for antecedent_core::cancellation_boundary::AbandonedCall<T> [auto]
+impl<T> core::panic::unwind_safe::UnwindSafe for antecedent_core::cancellation_boundary::IsolatedOutcome<T> where T: core::panic::unwind_safe::UnwindSafe [auto]
 macro antecedent_core::impl_refused!
 macro antecedent_core::named_variants!
 macro antecedent_core::reason_code!
@@ -6599,6 +6923,7 @@ pub const <antecedent_core::DiagnosticScope>::ALL: [Self; 3]
 pub const <antecedent_core::IdentificationStatus>::ALL: [Self; 6]
 pub const <antecedent_core::IdentityDomain>::ALL: [antecedent_core::IdentityDomain; 15]
 pub const <antecedent_core::IntervalMethod>::ALL: [antecedent_core::IntervalMethod; 9]
+pub const <antecedent_core::KernelPolicy>::SCALAR_BASELINE_ENV: &'static str
 pub const <antecedent_core::Lag>::CONTEMPORANEOUS: Self
 pub const <antecedent_core::ProviderCapability>::ALL: [Self; 9]
 pub const <antecedent_core::RealizationKind>::ALL: [Self; 4]
@@ -6634,6 +6959,8 @@ pub const <antecedent_core::TransportOutcomeKind>::ALL: [Self; 10]
 pub const <antecedent_core::TransportOutcomeKind>::IDENTIFICATION: [Self; 5]
 pub const <antecedent_core::TransportOutcomeKind>::LEGACY_IDENTIFICATION_SPELLINGS: [(&'static str, Self); 6]
 pub const <antecedent_core::cancellation_boundary::CancelSite>::ALL: [Self; 7]
+pub const <antecedent_core::identity::DependencyAxis>::ALL: [Self; 14]
+pub const <antecedent_core::identity::ReusableProduct>::ALL: [Self; 6]
 pub const <antecedent_core::intervention::CyclicFamily>::ALL: [Self; 3]
 pub const <antecedent_core::intervention::ExecutionSurface>::ALL: [Self; 4]
 pub const <antecedent_core::measurement_model::MeasurementKind>::ALL: [Self; 6]
@@ -6687,6 +7014,12 @@ pub const antecedent_core::intervention::CYCLIC_SOFT_REPLACEMENT_ATTEMPT: antece
 pub const antecedent_core::intervention::CYCLIC_SUPPORTED_OPERATION_ATTEMPT: antecedent_core::NextAttempt
 pub const antecedent_core::intervention::CYCLIC_UNTIMED_CLAMP_ATTEMPT: antecedent_core::NextAttempt
 pub const antecedent_core::measurement_model::MEASUREMENT_MODEL_FORMAT: u16
+pub const antecedent_core::measurement_record::OBSERVABLE_FIELDS: [&str; 9]
+pub const antecedent_core::measurement_record::PEAK_RSS_INCOMPLETE: &str
+pub const antecedent_core::measurement_record::PEAK_RSS_NEEDS_LIBC: &str
+pub const antecedent_core::measurement_record::PEAK_RSS_NOT_SAMPLED: &str
+pub const antecedent_core::measurement_record::PEAK_RSS_NO_REPEATS: &str
+pub const antecedent_core::physical_choice::DEFAULT_STREAM_BATCH_ROWS: u64
 pub const antecedent_core::reason_code::PREFIX: &str
 pub const antecedent_core::reason_code::REASON_CODES: &[&str]
 pub const antecedent_core::reason_code::RUNTIME_REFUSAL_CODES: &[&str]
@@ -6815,12 +7148,15 @@ pub enum antecedent_core::device_reservation::ArithmeticPath
 pub enum antecedent_core::device_reservation::ComputeSelection
 pub enum antecedent_core::diagnostic::RouteMass
 pub enum antecedent_core::execution::MapExecutionError<E>
+pub enum antecedent_core::execution::PipelineStep
 pub enum antecedent_core::execution_attempt::Operation
 pub enum antecedent_core::execution_attempt::PhysicalEvent
 pub enum antecedent_core::execution_facts::OutputRetention
 pub enum antecedent_core::intervention::ExecutionSurface
 pub enum antecedent_core::measurement_model::MeasurementParameters
 pub enum antecedent_core::measurement_model::MeasurementRoute
+pub enum antecedent_core::measurement_record::PeakRss
+pub enum antecedent_core::measurement_record::PeakRssSummary
 pub enum antecedent_core::parallel_axis::ParallelAxis
 pub enum antecedent_core::physical_choice::OperatorCapability
 pub enum antecedent_core::physical_choice::PhysicalAlternative
@@ -7395,12 +7731,19 @@ pub field antecedent_core::VariableSchema::unit: core::option::Option<alloc::syn
 pub field antecedent_core::VariableSchema::value_type: antecedent_core::ValueType
 pub field antecedent_core::WorldObservation::variable: antecedent_core::VariableId
 pub field antecedent_core::WorldObservation::world: antecedent_core::WorldId
+pub field antecedent_core::execution::PipelineReceipt::items_consumed: usize
+pub field antecedent_core::execution::PipelineReceipt::peak_live: usize
+pub field antecedent_core::execution::PipelineReceipt::workers: usize
 pub field antecedent_core::execution_attempt::ExecutionAttempt::facts: core::option::Option<antecedent_core::execution_facts::ExecutionFacts>
 pub field antecedent_core::execution_attempt::ExecutionAttempt::report: antecedent_core::execution_attempt::AttemptReport
 pub field antecedent_core::execution_attempt::ExecutionAttempt::result: core::result::Result<T, E>
 pub field antecedent_core::execution_attempt::OperationCounts::attempted: u64
 pub field antecedent_core::execution_attempt::OperationCounts::completed: u64
 pub field antecedent_core::execution_attempt::OperationCounts::failed: u64
+pub field antecedent_core::execution_facts::PlannedResources::copy_bytes: core::option::Option<u64>
+pub field antecedent_core::execution_facts::PlannedResources::peak_memory_bytes: core::option::Option<u64>
+pub field antecedent_core::execution_facts::PlannedResources::worker_threads: core::option::Option<u64>
+pub field antecedent_core::execution_facts::PlannedResources::workspace_bytes: core::option::Option<u64>
 pub field antecedent_core::intervention::CapabilityRefusal::operation: &'static str
 pub field antecedent_core::intervention::CapabilityRefusal::reason: &'static str
 pub field antecedent_core::intervention::CapabilityRefusal::surface: antecedent_core::intervention::ExecutionSurface
@@ -7455,6 +7798,55 @@ pub field antecedent_core::measurement_model::RepresentationVersion::coordinate_
 pub field antecedent_core::measurement_model::RepresentationVersion::version: u32
 pub field antecedent_core::measurement_model::VarianceComponent::name: alloc::string::String
 pub field antecedent_core::measurement_model::VarianceComponent::variance: f64
+pub field antecedent_core::measurement_record::AllocationSample::count: u64
+pub field antecedent_core::measurement_record::AllocationSample::live_bytes: u64
+pub field antecedent_core::measurement_record::AllocationSample::peak_live_bytes: u64
+pub field antecedent_core::measurement_record::AllocationSample::total_bytes: u64
+pub field antecedent_core::measurement_record::CountVariability::count: u64
+pub field antecedent_core::measurement_record::CountVariability::max: u64
+pub field antecedent_core::measurement_record::CountVariability::median: u64
+pub field antecedent_core::measurement_record::CountVariability::min: u64
+pub field antecedent_core::measurement_record::MeasurementRecord::allocation_bytes: u64
+pub field antecedent_core::measurement_record::MeasurementRecord::allocation_count: u64
+pub field antecedent_core::measurement_record::MeasurementRecord::borrow_bytes: u64
+pub field antecedent_core::measurement_record::MeasurementRecord::cancelled: bool
+pub field antecedent_core::measurement_record::MeasurementRecord::copy_bytes: u64
+pub field antecedent_core::measurement_record::MeasurementRecord::device: core::option::Option<alloc::string::String>
+pub field antecedent_core::measurement_record::MeasurementRecord::failed: bool
+pub field antecedent_core::measurement_record::MeasurementRecord::fit_count: u64
+pub field antecedent_core::measurement_record::MeasurementRecord::peak_live_bytes: u64
+pub field antecedent_core::measurement_record::MeasurementRecord::peak_rss: antecedent_core::measurement_record::PeakRss
+pub field antecedent_core::measurement_record::MeasurementRecord::retained_bytes: u64
+pub field antecedent_core::measurement_record::MeasurementRecord::retained_outputs: u64
+pub field antecedent_core::measurement_record::MeasurementRecord::source_passes: u64
+pub field antecedent_core::measurement_record::MeasurementRecord::spill_bytes: u64
+pub field antecedent_core::measurement_record::MeasurementRecord::stage_times_ns: alloc::vec::Vec<antecedent_core::measurement_record::StageTime>
+pub field antecedent_core::measurement_record::MeasurementRecord::test_count: u64
+pub field antecedent_core::measurement_record::MeasurementRecord::threads: u32
+pub field antecedent_core::measurement_record::MeasurementRecord::unobserved: alloc::vec::Vec<&'static str>
+pub field antecedent_core::measurement_record::MeasurementSummary::allocation_bytes: antecedent_core::measurement_record::CountVariability
+pub field antecedent_core::measurement_record::MeasurementSummary::allocation_count: antecedent_core::measurement_record::CountVariability
+pub field antecedent_core::measurement_record::MeasurementSummary::borrow_bytes: antecedent_core::measurement_record::CountVariability
+pub field antecedent_core::measurement_record::MeasurementSummary::cancelled: bool
+pub field antecedent_core::measurement_record::MeasurementSummary::copy_bytes: antecedent_core::measurement_record::CountVariability
+pub field antecedent_core::measurement_record::MeasurementSummary::device: core::option::Option<alloc::string::String>
+pub field antecedent_core::measurement_record::MeasurementSummary::failed: bool
+pub field antecedent_core::measurement_record::MeasurementSummary::fit_count: antecedent_core::measurement_record::CountVariability
+pub field antecedent_core::measurement_record::MeasurementSummary::peak_live_bytes: antecedent_core::measurement_record::CountVariability
+pub field antecedent_core::measurement_record::MeasurementSummary::peak_rss: antecedent_core::measurement_record::PeakRssSummary
+pub field antecedent_core::measurement_record::MeasurementSummary::repeats: u64
+pub field antecedent_core::measurement_record::MeasurementSummary::retained_bytes: antecedent_core::measurement_record::CountVariability
+pub field antecedent_core::measurement_record::MeasurementSummary::retained_outputs: antecedent_core::measurement_record::CountVariability
+pub field antecedent_core::measurement_record::MeasurementSummary::source_passes: antecedent_core::measurement_record::CountVariability
+pub field antecedent_core::measurement_record::MeasurementSummary::spill_bytes: antecedent_core::measurement_record::CountVariability
+pub field antecedent_core::measurement_record::MeasurementSummary::stage_times_ns: alloc::vec::Vec<antecedent_core::measurement_record::StageVariability>
+pub field antecedent_core::measurement_record::MeasurementSummary::test_count: antecedent_core::measurement_record::CountVariability
+pub field antecedent_core::measurement_record::MeasurementSummary::threads: antecedent_core::measurement_record::CountVariability
+pub field antecedent_core::measurement_record::MeasurementSummary::unobserved: alloc::vec::Vec<&'static str>
+pub field antecedent_core::measurement_record::StageTime::name: alloc::string::String
+pub field antecedent_core::measurement_record::StageTime::nanos: u64
+pub field antecedent_core::measurement_record::StageVariability::name: alloc::string::String
+pub field antecedent_core::measurement_record::StageVariability::nanos: antecedent_core::measurement_record::CountVariability
 pub field antecedent_core::query::ComputationLimits::max_standardizer_candidates: u32
 pub field antecedent_core::query::ComputationLimits::multi_node_c_component_recursion: bool
 pub field antecedent_core::query::TheoremReference::citation: alloc::sync::Arc<str>
@@ -7585,7 +7977,9 @@ pub fn <antecedent_core::CanonicalWriter>::fn real(&mut self, value: f64) -> &mu
 pub fn <antecedent_core::CanonicalWriter>::fn reals(&mut self, values: &[f64]) -> &mut Self
 pub fn <antecedent_core::CanonicalWriter>::fn text(&mut self, text: &str) -> &mut Self
 pub fn <antecedent_core::CanonicalWriter>::fn texts<S: core::convert::AsRef<str>>(&mut self, values: &[S]) -> &mut Self
+pub fn <antecedent_core::CanonicalWriter>::fn u32s(&mut self, values: &[u32]) -> &mut Self
 pub fn <antecedent_core::CanonicalWriter>::fn word(&mut self, word: u64) -> &mut Self
+pub fn <antecedent_core::CanonicalWriter>::fn words(&mut self, values: &[u64]) -> &mut Self
 pub fn <antecedent_core::CapabilityAnswer>::const fn capability(&self) -> antecedent_core::ProviderCapability
 pub fn <antecedent_core::CapabilityAnswer>::const fn provider(&self) -> antecedent_core::ProviderId
 pub fn <antecedent_core::CapabilityAnswer>::fn provider_name(&self) -> &str
@@ -7832,6 +8226,8 @@ pub fn <antecedent_core::ExecutionContext>::fn map_indexed<T, E, F>(&self, n: us
 pub fn <antecedent_core::ExecutionContext>::fn map_indexed_with_scratch<T, S, E, F>(&self, n: usize, make_scratch: impl core::ops::function::Fn() -> S + core::marker::Sync, f: F) -> core::result::Result<alloc::vec::Vec<T>, E> where E: core::marker::Send, F: core::ops::function::Fn(usize, &Self, &mut S) -> core::result::Result<T, E> + core::marker::Sync, S: core::marker::Send, T: core::marker::Send
 pub fn <antecedent_core::ExecutionContext>::fn map_indexed_with_scratch_if_free<T, S, E, F>(&self, n: usize, make_scratch: impl core::ops::function::Fn() -> S + core::marker::Sync, f: F) -> core::result::Result<alloc::vec::Vec<T>, E> where E: core::marker::Send, F: core::ops::function::Fn(usize, &Self, &mut S) -> core::result::Result<T, E> + core::marker::Sync, S: core::marker::Send, T: core::marker::Send
 pub fn <antecedent_core::ExecutionContext>::fn memory_limit_bytes(&self) -> core::option::Option<u64>
+pub fn <antecedent_core::ExecutionContext>::fn pipeline_indexed<T, E, P, C>(&self, n: usize, window: usize, produce: P, consume: C) -> core::result::Result<antecedent_core::execution::PipelineReceipt, antecedent_core::execution::MapExecutionError<E>> where C: core::ops::function::FnMut(usize, T) -> core::result::Result<antecedent_core::execution::PipelineStep, E>, E: core::marker::Send, P: core::ops::function::Fn(usize, &Self) -> core::result::Result<T, E> + core::marker::Sync, T: core::marker::Send
+pub fn <antecedent_core::ExecutionContext>::fn pipeline_indexed_with_scratch<T, S, E, P, C>(&self, n: usize, window: usize, make_scratch: impl core::ops::function::Fn() -> S + core::marker::Sync, produce: P, consume: C) -> core::result::Result<antecedent_core::execution::PipelineReceipt, antecedent_core::execution::MapExecutionError<E>> where C: core::ops::function::FnMut(usize, T) -> core::result::Result<antecedent_core::execution::PipelineStep, E>, E: core::marker::Send, P: core::ops::function::Fn(usize, &Self, &mut S) -> core::result::Result<T, E> + core::marker::Sync, S: core::marker::Send, T: core::marker::Send
 pub fn <antecedent_core::ExecutionContext>::fn production(seed: u64, max_threads: u32) -> Self
 pub fn <antecedent_core::ExecutionContext>::fn production_default(seed: u64) -> Self
 pub fn <antecedent_core::ExecutionContext>::fn serial_inner(&self) -> Self
@@ -7939,6 +8335,7 @@ pub fn <antecedent_core::IvBoundsQuery>::fn validate(&self) -> core::result::Res
 pub fn <antecedent_core::KernelPolicy>::const fn arch_simd_effective(&self) -> bool
 pub fn <antecedent_core::KernelPolicy>::const fn default_policy() -> Self
 pub fn <antecedent_core::KernelPolicy>::const fn scalar_only() -> Self
+pub fn <antecedent_core::KernelPolicy>::fn production_policy() -> Self
 pub fn <antecedent_core::Lag>::const fn as_usize(self) -> usize
 pub fn <antecedent_core::Lag>::const fn from_raw(raw: u32) -> Self
 pub fn <antecedent_core::Lag>::const fn historical(steps: core::num::nonzero::NonZeroU32) -> Self
@@ -8204,11 +8601,13 @@ pub fn <antecedent_core::RngKey>::const fn policy(self) -> antecedent_core::Redu
 pub fn <antecedent_core::RngKey>::const fn replicate(self) -> antecedent_core::ReplicateId
 pub fn <antecedent_core::RolloutDidEstimator>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::RouteBudget>::const fn bytes(self) -> u64
+pub fn <antecedent_core::RouteBudget>::const fn from_limit(limit: core::option::Option<u64>) -> Self
 pub fn <antecedent_core::RouteBudget>::const fn new(bytes: u64) -> Self
 pub fn <antecedent_core::RouteMemoryComponent>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::RouteMemoryDeclaration>::const fn admit(self, budget: antecedent_core::RouteBudget) -> core::result::Result<antecedent_core::AdmittedRouteMemory, antecedent_core::RouteMemoryError>
 pub fn <antecedent_core::RouteMemoryDeclaration>::const fn design_expansion(self, bytes: u64) -> Self
 pub fn <antecedent_core::RouteMemoryDeclaration>::const fn encoded_column(self, width: antecedent_core::EncodedWidth) -> Self
+pub fn <antecedent_core::RouteMemoryDeclaration>::const fn encoded_columns(self, width: antecedent_core::EncodedWidth, count: u64) -> Self
 pub fn <antecedent_core::RouteMemoryDeclaration>::const fn estimate(self) -> core::result::Result<antecedent_core::RouteMemoryEstimate, antecedent_core::RouteMemoryError>
 pub fn <antecedent_core::RouteMemoryDeclaration>::const fn learner_fold_copies(self, copies: u64, bytes_per_copy: u64) -> Self
 pub fn <antecedent_core::RouteMemoryDeclaration>::const fn masks(self, bytes: u64) -> Self
@@ -8219,6 +8618,7 @@ pub fn <antecedent_core::RouteMemoryDeclaration>::const fn rows(self, rows: u64)
 pub fn <antecedent_core::RouteMemoryDeclaration>::const fn solver_scratch(self, bytes: u64) -> Self
 pub fn <antecedent_core::RouteMemoryDeclaration>::const fn workers(self, workers: u64) -> Self
 pub fn <antecedent_core::RouteMemoryEstimate>::const fn admit(self, budget: antecedent_core::RouteBudget) -> core::result::Result<antecedent_core::AdmittedRouteMemory, antecedent_core::RouteMemoryError>
+pub fn <antecedent_core::RouteMemoryEstimate>::const fn components(self) -> [(antecedent_core::RouteMemoryComponent, u64); 8]
 pub fn <antecedent_core::RouteMemoryEstimate>::const fn concurrent_workers(self) -> u64
 pub fn <antecedent_core::RouteMemoryEstimate>::const fn copy_count(self) -> u64
 pub fn <antecedent_core::RouteMemoryEstimate>::const fn design_expansion(self) -> u64
@@ -8261,7 +8661,9 @@ pub fn <antecedent_core::SearchBudget<'a>>::const fn depth_reached(&self) -> usi
 pub fn <antecedent_core::SearchBudget<'a>>::const fn limits(&self) -> antecedent_core::SearchLimits
 pub fn <antecedent_core::SearchBudget<'a>>::const fn memory_limit_bytes(&self) -> u64
 pub fn <antecedent_core::SearchBudget<'a>>::const fn operations(&self) -> usize
+pub fn <antecedent_core::SearchBudget<'a>>::const fn operations_remaining(&self) -> usize
 pub fn <antecedent_core::SearchBudget<'a>>::fn charge(&mut self, depth: usize, bytes: u64) -> core::result::Result<(), antecedent_core::SearchStop>
+pub fn <antecedent_core::SearchBudget<'a>>::fn lease_storage(&self, bytes: u64) -> core::result::Result<antecedent_core::execution::AdmissionLease, antecedent_core::SearchStop>
 pub fn <antecedent_core::SearchBudget<'a>>::fn new(limits: antecedent_core::SearchLimits, ctx: &'a antecedent_core::ExecutionContext) -> core::result::Result<Self, antecedent_core::SearchReceipt>
 pub fn <antecedent_core::SearchBudget<'a>>::fn receipt(&self, stop: antecedent_core::SearchStop, explored: alloc::vec::Vec<alloc::string::String>, unevaluated: alloc::vec::Vec<alloc::string::String>) -> antecedent_core::SearchReceipt
 pub fn <antecedent_core::SearchBudget<'a>>::fn with_memory(limits: antecedent_core::SearchLimits, memory_limit_bytes: u64, ctx: &'a antecedent_core::ExecutionContext) -> core::result::Result<Self, antecedent_core::SearchReceipt>
@@ -8269,6 +8671,8 @@ pub fn <antecedent_core::SearchReceipt>::fn summary(&self) -> alloc::string::Str
 pub fn <antecedent_core::SearchStop>::const fn code(self) -> &'static str
 pub fn <antecedent_core::SemanticDigest>::const fn as_bytes(&self) -> &[u8; 32]
 pub fn <antecedent_core::SemanticDigest>::const fn from_bytes(bytes: [u8; 32]) -> Self
+pub fn <antecedent_core::SemanticDigest>::fn of_reals(tag: &str, values: &[f64]) -> Self
+pub fn <antecedent_core::SemanticDigest>::fn of_u32s(tag: &str, values: &[u32]) -> Self
 pub fn <antecedent_core::SemanticDigest>::fn to_hex(&self) -> alloc::string::String
 pub fn <antecedent_core::SemanticOperation>::const fn get(self) -> u64
 pub fn <antecedent_core::SemanticOperation>::const fn new(raw: u64) -> Self
@@ -8509,6 +8913,11 @@ pub fn <antecedent_core::WorldSpec>::fn intervention_of(&self, variable: anteced
 pub fn <antecedent_core::WorldSpec>::fn interventions(&self) -> impl core::iter::traits::iterator::Iterator<Item = (antecedent_core::VariableId, f64)> + '_
 pub fn <antecedent_core::WorldSpec>::fn new(interventions: impl core::iter::traits::collect::IntoIterator<Item = (antecedent_core::VariableId, f64)>, routes: impl core::iter::traits::collect::IntoIterator<Item = antecedent_core::EdgeRoute>) -> core::result::Result<Self, antecedent_core::QueryError>
 pub fn <antecedent_core::WorldSpec>::fn routes(&self) -> &[antecedent_core::EdgeRoute]
+pub fn <antecedent_core::cancellation_boundary::AbandonedCall<T>>::const fn cancel_latency(&self) -> core::time::Duration
+pub fn <antecedent_core::cancellation_boundary::AbandonedCall<T>>::const fn within_latency_bound(&self) -> bool
+pub fn <antecedent_core::cancellation_boundary::AbandonedCall<T>>::fn is_running(&self) -> bool
+pub fn <antecedent_core::cancellation_boundary::AbandonedCall<T>>::fn take_retained(&self) -> core::option::Option<T>
+pub fn <antecedent_core::cancellation_boundary::AbandonedCall<T>>::fn wait_finished(&self, timeout: core::time::Duration) -> bool
 pub fn <antecedent_core::cancellation_boundary::Boundary>::const fn latency_bound(self) -> core::time::Duration
 pub fn <antecedent_core::cancellation_boundary::Boundary>::const fn max_call_bytes(self) -> u64
 pub fn <antecedent_core::cancellation_boundary::Boundary>::const fn new(site: antecedent_core::cancellation_boundary::CancelSite, max_call_bytes: u64, latency_bound: core::time::Duration, retain_partial: bool, publish_partial_claim: bool) -> core::result::Result<Self, antecedent_core::cancellation_boundary::BoundaryError>
@@ -8639,6 +9048,15 @@ pub fn <antecedent_core::execution_attempt::AttemptReport>::fn peak_admitted_byt
 pub fn <antecedent_core::execution_attempt::AttemptReport>::fn peak_admitted_threads(&self) -> core::option::Option<u64>
 pub fn <antecedent_core::execution_attempt::AttemptReport>::fn physical(&self, event: antecedent_core::execution_attempt::PhysicalEvent) -> core::option::Option<u64>
 pub fn <antecedent_core::execution_attempt::OperationCounts>::fn unfinished(self) -> u64
+pub fn <antecedent_core::execution_facts::AccountedQuantity>::const fn basis(self) -> antecedent_core::execution_facts::AccountingBasis
+pub fn <antecedent_core::execution_facts::AccountedQuantity>::const fn name(self) -> &'static str
+pub fn <antecedent_core::execution_facts::AccountedQuantity>::const fn value(self) -> core::option::Option<u64>
+pub fn <antecedent_core::execution_facts::AccountingBasis>::const fn as_str(self) -> &'static str
+pub fn <antecedent_core::execution_facts::ExecutionAccounting>::const fn retention(&self) -> antecedent_core::execution_facts::OutputRetention
+pub fn <antecedent_core::execution_facts::ExecutionAccounting>::const fn status(&self) -> antecedent_core::execution_facts::ExecutionFactStatus
+pub fn <antecedent_core::execution_facts::ExecutionAccounting>::fn get(&self, name: &str) -> core::option::Option<antecedent_core::execution_facts::AccountedQuantity>
+pub fn <antecedent_core::execution_facts::ExecutionAccounting>::fn quantities(&self) -> &[antecedent_core::execution_facts::AccountedQuantity]
+pub fn <antecedent_core::execution_facts::ExecutionAccounting>::fn with_basis(&self, basis: antecedent_core::execution_facts::AccountingBasis) -> impl core::iter::traits::iterator::Iterator<Item = antecedent_core::execution_facts::AccountedQuantity> + '_
 pub fn <antecedent_core::execution_facts::ExecutionBackend>::const fn kernel(&self) -> antecedent_core::KernelPolicy
 pub fn <antecedent_core::execution_facts::ExecutionBackend>::const fn new(name: alloc::string::String, kernel: antecedent_core::KernelPolicy) -> Self
 pub fn <antecedent_core::execution_facts::ExecutionBackend>::fn name(&self) -> &str
@@ -8663,15 +9081,20 @@ pub fn <antecedent_core::execution_facts::ExecutionFacts>::const fn scientific_c
 pub fn <antecedent_core::execution_facts::ExecutionFacts>::const fn scientific_identity(&self) -> core::option::Option<antecedent_core::SemanticDigest>
 pub fn <antecedent_core::execution_facts::ExecutionFacts>::const fn status(&self) -> antecedent_core::execution_facts::ExecutionFactStatus
 pub fn <antecedent_core::execution_facts::ExecutionFacts>::const fn with_scientific_identity(self, scientific_identity: core::option::Option<antecedent_core::SemanticDigest>) -> Self
+pub fn <antecedent_core::execution_facts::ExecutionFacts>::fn accounting(&self, planned: core::option::Option<antecedent_core::execution_facts::PlannedResources>) -> antecedent_core::execution_facts::ExecutionAccounting
 pub fn <antecedent_core::execution_facts::ExecutionFacts>::fn from_artifact(measured: antecedent_core::execution_facts::MeasuredExecution, coverage: u64) -> Self
 pub fn <antecedent_core::execution_facts::ExecutionFacts>::fn is_native(&self) -> bool
 pub fn <antecedent_core::execution_facts::ExecutionFacts>::fn native_coverage(&self) -> core::option::Option<u64>
+pub fn <antecedent_core::execution_facts::ExecutionFacts>::fn observed_allocated_bytes(&self) -> core::option::Option<u64>
+pub fn <antecedent_core::execution_facts::ExecutionFacts>::fn observed_allocations(&self) -> core::option::Option<u64>
+pub fn <antecedent_core::execution_facts::ExecutionFacts>::fn observed_cache_hits(&self) -> core::option::Option<u64>
 pub fn <antecedent_core::execution_facts::ExecutionFacts>::fn observed_copied_bytes(&self) -> core::option::Option<u64>
 pub fn <antecedent_core::execution_facts::ExecutionFacts>::fn observed_copies(&self) -> core::option::Option<u64>
 pub fn <antecedent_core::execution_facts::ExecutionFacts>::fn observed_model_fits(&self) -> core::option::Option<u64>
 pub fn <antecedent_core::execution_facts::ExecutionFacts>::fn observed_retained_bytes(&self) -> core::option::Option<u64>
 pub fn <antecedent_core::execution_facts::ExecutionFacts>::fn observed_scans(&self) -> core::option::Option<u64>
 pub fn <antecedent_core::execution_facts::ExecutionFacts>::fn observed_spill_bytes(&self) -> core::option::Option<u64>
+pub fn <antecedent_core::execution_facts::ExecutionFacts>::fn observed_tests(&self) -> core::option::Option<u64>
 pub fn <antecedent_core::execution_facts::ExecutionFacts>::fn peak_admitted_bytes(&self) -> core::option::Option<u64>
 pub fn <antecedent_core::execution_facts::ExecutionFacts>::fn peak_admitted_threads(&self) -> core::option::Option<u64>
 pub fn <antecedent_core::execution_facts::ExecutionFacts>::fn physical_identity(&self) -> antecedent_core::execution_facts::PhysicalExecutionIdentity
@@ -8689,11 +9112,14 @@ pub fn <antecedent_core::execution_facts::MeasuredExecution>::const fn new(count
 pub fn <antecedent_core::execution_facts::MeasuredExecution>::const fn resources(&self) -> antecedent_core::execution_facts::ExecutionResources
 pub fn <antecedent_core::execution_facts::MeasuredExecution>::const fn retention(&self) -> antecedent_core::execution_facts::OutputRetention
 pub fn <antecedent_core::execution_facts::MeasuredExecution>::const fn status(&self) -> antecedent_core::execution_facts::ExecutionFactStatus
+pub fn <antecedent_core::execution_facts::MeasuredExecution>::const fn with_observed_allocations(self, allocations: core::option::Option<u64>, allocated_bytes: core::option::Option<u64>) -> Self
 pub fn <antecedent_core::execution_facts::MeasuredExecution>::const fn with_observed_buffer_bytes(self, copied_bytes: core::option::Option<u64>, retained_bytes: core::option::Option<u64>) -> Self
 pub fn <antecedent_core::execution_facts::MeasuredExecution>::fn try_add_counts(&mut self, extra: antecedent_core::execution_facts::ExecutionCounts) -> core::result::Result<(), antecedent_core::execution_facts::ExecutionFactError>
 pub fn <antecedent_core::execution_facts::MeasuredExecution>::fn try_add_resources(&mut self, extra: antecedent_core::execution_facts::ExecutionResources) -> core::result::Result<(), antecedent_core::execution_facts::ExecutionFactError>
 pub fn <antecedent_core::execution_facts::OutputRetention>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::execution_facts::PhysicalExecutionIdentity>::const fn digest(self) -> antecedent_core::SemanticDigest
+pub fn <antecedent_core::identity::ReusableProduct>::const fn required_axes(self) -> &'static [antecedent_core::identity::DependencyAxis]
+pub fn <antecedent_core::identity::ReusableProduct>::fn omitted_axes(self, covered: &[antecedent_core::identity::DependencyAxis]) -> alloc::vec::Vec<antecedent_core::identity::DependencyAxis>
 pub fn <antecedent_core::inspect::EstimatedResources>::const fn declared(memory_limit_bytes: core::option::Option<u64>, estimated_bytes: u64) -> Self
 pub fn <antecedent_core::inspect::EstimatedResources>::const fn estimated_bytes(self) -> u64
 pub fn <antecedent_core::inspect::EstimatedResources>::const fn memory_limit_bytes(self) -> core::option::Option<u64>
@@ -8758,10 +9184,35 @@ pub fn <antecedent_core::measurement_model::MeasurementRoute>::fn from_name(name
 pub fn <antecedent_core::measurement_model::ParameterUncertainty>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::measurement_model::ParameterUncertainty>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_core::measurement_model::RepresentationMapping>::fn carries_intervention_meaning(&self) -> bool
+pub fn <antecedent_core::measurement_record::CountVariability>::fn from_counts(counts: impl core::iter::traits::collect::IntoIterator<Item = u64>) -> Self
+pub fn <antecedent_core::measurement_record::MeasurementRecord>::fn add_allocation_bytes(&mut self, bytes: u64)
+pub fn <antecedent_core::measurement_record::MeasurementRecord>::fn add_allocation_window(&mut self, before: antecedent_core::measurement_record::AllocationSample, after: antecedent_core::measurement_record::AllocationSample)
+pub fn <antecedent_core::measurement_record::MeasurementRecord>::fn add_borrow_bytes(&mut self, bytes: u64)
+pub fn <antecedent_core::measurement_record::MeasurementRecord>::fn add_copy_bytes(&mut self, bytes: u64)
+pub fn <antecedent_core::measurement_record::MeasurementRecord>::fn add_fit_count(&mut self, fits: u64)
+pub fn <antecedent_core::measurement_record::MeasurementRecord>::fn add_retained_outputs(&mut self, outputs: u64)
+pub fn <antecedent_core::measurement_record::MeasurementRecord>::fn add_source_passes(&mut self, passes: u64)
+pub fn <antecedent_core::measurement_record::MeasurementRecord>::fn add_spill_bytes(&mut self, bytes: u64)
+pub fn <antecedent_core::measurement_record::MeasurementRecord>::fn add_stage_time(&mut self, name: &str, nanos: u64)
+pub fn <antecedent_core::measurement_record::MeasurementRecord>::fn add_test_count(&mut self, tests: u64)
+pub fn <antecedent_core::measurement_record::MeasurementRecord>::fn cancel(&mut self)
+pub fn <antecedent_core::measurement_record::MeasurementRecord>::fn fail(&mut self)
+pub fn <antecedent_core::measurement_record::MeasurementRecord>::fn from_execution_facts(facts: &antecedent_core::execution_facts::ExecutionFacts) -> Self
+pub fn <antecedent_core::measurement_record::MeasurementRecord>::fn observe_peak_rss(&mut self)
+pub fn <antecedent_core::measurement_record::MeasurementRecord>::fn observed(&self, field: &str) -> bool
+pub fn <antecedent_core::measurement_record::MeasurementRecord>::fn set_device(&mut self, device: core::option::Option<&str>)
+pub fn <antecedent_core::measurement_record::MeasurementRecord>::fn set_threads(&mut self, threads: u32)
+pub fn <antecedent_core::measurement_record::MeasurementRecord>::fn to_json(&self) -> alloc::string::String
+pub fn <antecedent_core::measurement_record::MeasurementSummary>::fn from_repeats(samples: &[antecedent_core::measurement_record::MeasurementRecord]) -> Self
+pub fn <antecedent_core::measurement_record::MeasurementSummary>::fn to_json(&self) -> alloc::string::String
 pub fn <antecedent_core::numerical_admission::NumericalAdmissionToken>::fn capture() -> Self
 pub fn <antecedent_core::numerical_admission::NumericalAdmissionToken>::fn execute<T>(&self, ctx: &antecedent_core::ExecutionContext, execute: impl core::ops::function::FnOnce() -> T) -> T
 pub fn <antecedent_core::parallel_axis::ParallelAxis>::const fn all() -> [Self; 6]
 pub fn <antecedent_core::parallel_axis::ParallelAxis>::const fn as_str(self) -> &'static str
+pub fn <antecedent_core::physical_choice::AlternativeQuote>::const fn alternative(self) -> antecedent_core::physical_choice::PhysicalAlternative
+pub fn <antecedent_core::physical_choice::AlternativeQuote>::const fn cost(self) -> antecedent_core::physical_choice::DeclaredCost
+pub fn <antecedent_core::physical_choice::AlternativeQuote>::const fn resident_bytes(self) -> u64
+pub fn <antecedent_core::physical_choice::AlternativeQuote>::const fn work_cells(self) -> u64
 pub fn <antecedent_core::physical_choice::AvailableCapabilities>::const fn all() -> Self
 pub fn <antecedent_core::physical_choice::AvailableCapabilities>::const fn empty() -> Self
 pub fn <antecedent_core::physical_choice::AvailableCapabilities>::const fn has_operator(self, capability: antecedent_core::physical_choice::OperatorCapability) -> bool
@@ -8770,6 +9221,10 @@ pub fn <antecedent_core::physical_choice::AvailableCapabilities>::const fn with_
 pub fn <antecedent_core::physical_choice::AvailableCapabilities>::const fn with_resource(self, capability: antecedent_core::physical_choice::ResourceCapability) -> Self
 pub fn <antecedent_core::physical_choice::AvailableCapabilities>::const fn without_operator(self, capability: antecedent_core::physical_choice::OperatorCapability) -> Self
 pub fn <antecedent_core::physical_choice::AvailableCapabilities>::const fn without_resource(self, capability: antecedent_core::physical_choice::ResourceCapability) -> Self
+pub fn <antecedent_core::physical_choice::BackendSupport>::const fn implements(self, alternative: antecedent_core::physical_choice::PhysicalAlternative) -> bool
+pub fn <antecedent_core::physical_choice::BackendSupport>::const fn materialized_only() -> Self
+pub fn <antecedent_core::physical_choice::BackendSupport>::const fn none() -> Self
+pub fn <antecedent_core::physical_choice::BackendSupport>::const fn with(self, alternative: antecedent_core::physical_choice::PhysicalAlternative, implemented: bool) -> Self
 pub fn <antecedent_core::physical_choice::CostQuotes>::const fn cost(self, alternative: antecedent_core::physical_choice::PhysicalAlternative) -> antecedent_core::physical_choice::DeclaredCost
 pub fn <antecedent_core::physical_choice::CostQuotes>::const fn new(direct_prepared_numeric_views: antecedent_core::physical_choice::DeclaredCost, streamed_reduction: antecedent_core::physical_choice::DeclaredCost, materialized_design: antecedent_core::physical_choice::DeclaredCost, optional_lazy_preparation: antecedent_core::physical_choice::DeclaredCost) -> Self
 pub fn <antecedent_core::physical_choice::DeclaredCost>::const fn from_raw(raw: u64) -> Self
@@ -8790,6 +9245,18 @@ pub fn <antecedent_core::physical_choice::RejectedAlternative>::const fn alterna
 pub fn <antecedent_core::physical_choice::RejectedAlternative>::const fn reason(self) -> antecedent_core::physical_choice::RejectionReason
 pub fn <antecedent_core::physical_choice::ResourceCapability>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::physical_choice::ResourceCapability>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_core::physical_choice::RouteChoice>::const fn budget_bytes(&self) -> u64
+pub fn <antecedent_core::physical_choice::RouteChoice>::const fn choice(&self) -> &antecedent_core::physical_choice::PhysicalChoice
+pub fn <antecedent_core::physical_choice::RouteChoice>::const fn quote(&self, alternative: antecedent_core::physical_choice::PhysicalAlternative) -> antecedent_core::physical_choice::AlternativeQuote
+pub fn <antecedent_core::physical_choice::RouteChoice>::const fn quotes(&self) -> &[antecedent_core::physical_choice::AlternativeQuote; 4]
+pub fn <antecedent_core::physical_choice::RouteChoice>::const fn selected(&self) -> antecedent_core::physical_choice::PhysicalAlternative
+pub fn <antecedent_core::physical_choice::RouteChoice>::fn select(work: antecedent_core::physical_choice::RouteWork, support: antecedent_core::physical_choice::BackendSupport, budget: antecedent_core::RouteBudget) -> core::result::Result<Self, antecedent_core::physical_choice::RouteChoiceError>
+pub fn <antecedent_core::physical_choice::RouteWork>::const fn batch_rows(self, rows: u64) -> Self
+pub fn <antecedent_core::physical_choice::RouteWork>::const fn columns(self) -> u64
+pub fn <antecedent_core::physical_choice::RouteWork>::const fn element_bytes(self, bytes: u64) -> Self
+pub fn <antecedent_core::physical_choice::RouteWork>::const fn new(rows: u64, columns: u64, passes: u64) -> Self
+pub fn <antecedent_core::physical_choice::RouteWork>::const fn passes(self) -> u64
+pub fn <antecedent_core::physical_choice::RouteWork>::const fn rows(self) -> u64
 pub fn <antecedent_core::query::ExperimentFamily>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::query::GraphAssumptionSet>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::query::OutcomeGuarantee>::const fn as_str(self) -> &'static str
@@ -8847,6 +9314,20 @@ pub fn <antecedent_core::recalc::StageIdentity>::fn revalidation_since(&self, re
 pub fn <antecedent_core::recalc::StageIdentity>::fn to_hex(&self) -> alloc::string::String
 pub fn <antecedent_core::recalc::StageStatus>::const fn revalidation(&self) -> antecedent_core::recalc::Revalidation
 pub fn <antecedent_core::recalc::StageStatus>::const fn tag(&self) -> &'static str
+pub fn <antecedent_core::route_memory::RouteMemoryProfile>::const fn columns(self) -> u64
+pub fn <antecedent_core::route_memory::RouteMemoryProfile>::const fn cross_fitting(self, folds: u64, learners: u64) -> Self
+pub fn <antecedent_core::route_memory::RouteMemoryProfile>::const fn declared_operator_bytes(self, scratch: core::option::Option<u64>, retained: core::option::Option<u64>, output: core::option::Option<u64>) -> Self
+pub fn <antecedent_core::route_memory::RouteMemoryProfile>::const fn design(rows: u64, columns: u64) -> Self
+pub fn <antecedent_core::route_memory::RouteMemoryProfile>::const fn design_bytes(self) -> core::result::Result<u64, antecedent_core::RouteMemoryError>
+pub fn <antecedent_core::route_memory::RouteMemoryProfile>::const fn expanded(self, expanded: bool) -> Self
+pub fn <antecedent_core::route_memory::RouteMemoryProfile>::const fn posterior_draws(self, draws: u64) -> Self
+pub fn <antecedent_core::route_memory::RouteMemoryProfile>::const fn resampling(self, replicates: u64) -> Self
+pub fn <antecedent_core::route_memory::RouteMemoryProfile>::const fn rows(self) -> u64
+pub fn <antecedent_core::route_memory::RouteMemoryProfile>::const fn width(self, width: antecedent_core::EncodedWidth) -> Self
+pub fn <antecedent_core::route_memory::RouteMemoryProfile>::const fn workers(self, workers: u64) -> Self
+pub fn <antecedent_core::route_memory::RouteMemoryProfile>::fn admit(self, budget: antecedent_core::RouteBudget) -> core::result::Result<antecedent_core::AdmittedRouteMemory, antecedent_core::RouteMemoryError>
+pub fn <antecedent_core::route_memory::RouteMemoryProfile>::fn declaration(self) -> core::result::Result<antecedent_core::RouteMemoryDeclaration, antecedent_core::RouteMemoryError>
+pub fn <antecedent_core::route_memory::RouteMemoryProfile>::fn estimate(self) -> core::result::Result<antecedent_core::RouteMemoryEstimate, antecedent_core::RouteMemoryError>
 pub fn <antecedent_core::scientific_target::HistoryIndexedExperiment>::fn levels(&self) -> &[u32]
 pub fn <antecedent_core::scientific_target::HistoryIndexedExperiment>::fn mass(&self) -> f64
 pub fn <antecedent_core::scientific_target::HistoryIndexedTargetLaw>::fn coordinates(&self) -> &[antecedent_core::VariableId]
@@ -8884,6 +9365,7 @@ pub fn <antecedent_core::search_budget::SearchResourceLimit>::const fn memory_by
 pub fn <antecedent_core::search_budget::SearchResourceLimit>::const fn new(memory_bytes: u64, work: u64) -> Self
 pub fn <antecedent_core::search_budget::SearchResourceLimit>::const fn work(self) -> u64
 pub fn antecedent_core::blake3_hex(bytes: &[u8]) -> alloc::string::String
+pub fn antecedent_core::cancellation_boundary::run_isolated<T, F, C>(ctx: &antecedent_core::ExecutionContext, boundary: antecedent_core::cancellation_boundary::Boundary, call_bytes: u64, poll: core::time::Duration, call: F, cleanup: C) -> core::result::Result<antecedent_core::cancellation_boundary::IsolatedOutcome<T>, antecedent_core::cancellation_boundary::IsolatedCallError> where C: core::ops::function::FnOnce(T) + core::marker::Send + 'static, F: core::ops::function::FnOnce() -> T + core::marker::Send + 'static, T: core::marker::Send + 'static
 pub fn antecedent_core::clip_value(value: f64, lower: f64, upper: f64) -> f64
 pub fn antecedent_core::default_user_threads() -> u32
 pub fn antecedent_core::derive_key_digest(context: &str, parts: &[&[u8]]) -> [u8; 32]
@@ -8900,6 +9382,8 @@ pub fn antecedent_core::identity::to_hex(bytes: &[u8]) -> alloc::string::String
 pub fn antecedent_core::inspect::inspect(inputs: antecedent_core::inspect::InspectionInputs) -> core::result::Result<antecedent_core::inspect::PlanInspection, antecedent_core::inspect::InspectionRefusal>
 pub fn antecedent_core::is_blank(text: &str) -> bool
 pub fn antecedent_core::measurement_model::measurement_data_digest(parts: &[(&str, &[f64])]) -> antecedent_core::SemanticDigest
+pub fn antecedent_core::measurement_record::measure<T, E>(ctx: &antecedent_core::ExecutionContext, probe: &dyn antecedent_core::measurement_record::ResourceProbe, work: impl core::ops::function::FnOnce() -> core::result::Result<T, E>) -> (core::result::Result<T, E>, antecedent_core::measurement_record::MeasurementRecord)
+pub fn antecedent_core::measurement_record::sample_peak_rss() -> antecedent_core::measurement_record::PeakRss
 pub fn antecedent_core::policy_graphless_coordinate(multi: bool, ipw: bool, uplift: bool, cate: bool, regret: bool, crossfit: bool) -> (&'static str, &'static str, &'static str)
 pub fn antecedent_core::query::randomized_graphless_coordinate(design: &antecedent_core::RandomizationDesign, estimand: antecedent_core::RandomizedEstimand, received_treatment: bool, fixed_cuped: bool, has_ancova: bool) -> (&'static str, &'static str, &'static str, &'static str, &'static str)
 pub fn antecedent_core::reason_code::split_prefix(message: &str) -> core::option::Option<(&str, &str)>
@@ -8926,6 +9410,7 @@ pub mod antecedent_core::inspect
 pub mod antecedent_core::interval
 pub mod antecedent_core::intervention
 pub mod antecedent_core::measurement_model
+pub mod antecedent_core::measurement_record
 pub mod antecedent_core::node
 pub mod antecedent_core::operator
 pub mod antecedent_core::parallel_axis
@@ -9289,6 +9774,8 @@ pub struct antecedent_core::WorldId has private fields
 pub struct antecedent_core::WorldObservation
 pub struct antecedent_core::WorldSpec
 pub struct antecedent_core::WorldSpec has private fields
+pub struct antecedent_core::cancellation_boundary::AbandonedCall has private fields
+pub struct antecedent_core::cancellation_boundary::AbandonedCall<T>
 pub struct antecedent_core::cancellation_boundary::Boundary
 pub struct antecedent_core::cancellation_boundary::Boundary has private fields
 pub struct antecedent_core::cancellation_boundary::BoundarySession
@@ -9325,6 +9812,7 @@ pub struct antecedent_core::execution::AdmissionRemainder
 pub struct antecedent_core::execution::AdmissionRemainder has private fields
 pub struct antecedent_core::execution::AdmissionRequest
 pub struct antecedent_core::execution::AdmissionRequest has private fields
+pub struct antecedent_core::execution::PipelineReceipt
 pub struct antecedent_core::execution_attempt::AttemptReport
 pub struct antecedent_core::execution_attempt::AttemptReport has private fields
 pub struct antecedent_core::execution_attempt::ExecutionAttempt<T, E>
@@ -9332,6 +9820,10 @@ pub struct antecedent_core::execution_attempt::ObservationToken has private fiel
 pub struct antecedent_core::execution_attempt::ObservedAdmission has private fields
 pub struct antecedent_core::execution_attempt::OperationCounts
 pub struct antecedent_core::execution_attempt::OperationGuard has private fields
+pub struct antecedent_core::execution_facts::AccountedQuantity
+pub struct antecedent_core::execution_facts::AccountedQuantity has private fields
+pub struct antecedent_core::execution_facts::ExecutionAccounting
+pub struct antecedent_core::execution_facts::ExecutionAccounting has private fields
 pub struct antecedent_core::execution_facts::ExecutionBackend
 pub struct antecedent_core::execution_facts::ExecutionBackend has private fields
 pub struct antecedent_core::execution_facts::ExecutionCounts
@@ -9344,6 +9836,7 @@ pub struct antecedent_core::execution_facts::MeasuredExecution
 pub struct antecedent_core::execution_facts::MeasuredExecution has private fields
 pub struct antecedent_core::execution_facts::PhysicalExecutionIdentity
 pub struct antecedent_core::execution_facts::PhysicalExecutionIdentity has private fields
+pub struct antecedent_core::execution_facts::PlannedResources
 pub struct antecedent_core::inspect::EstimatedResources
 pub struct antecedent_core::inspect::EstimatedResources has private fields
 pub struct antecedent_core::inspect::EvidenceTransformation
@@ -9371,9 +9864,20 @@ pub struct antecedent_core::measurement_model::PosteriorReference
 pub struct antecedent_core::measurement_model::RepresentationMapping
 pub struct antecedent_core::measurement_model::RepresentationVersion
 pub struct antecedent_core::measurement_model::VarianceComponent
+pub struct antecedent_core::measurement_record::AllocationSample
+pub struct antecedent_core::measurement_record::CountVariability
+pub struct antecedent_core::measurement_record::HostProbe
+pub struct antecedent_core::measurement_record::MeasurementRecord
+pub struct antecedent_core::measurement_record::MeasurementSummary
+pub struct antecedent_core::measurement_record::StageTime
+pub struct antecedent_core::measurement_record::StageVariability
 pub struct antecedent_core::numerical_admission::NumericalAdmissionToken has private fields
+pub struct antecedent_core::physical_choice::AlternativeQuote
+pub struct antecedent_core::physical_choice::AlternativeQuote has private fields
 pub struct antecedent_core::physical_choice::AvailableCapabilities
 pub struct antecedent_core::physical_choice::AvailableCapabilities has private fields
+pub struct antecedent_core::physical_choice::BackendSupport
+pub struct antecedent_core::physical_choice::BackendSupport has private fields
 pub struct antecedent_core::physical_choice::CostQuotes
 pub struct antecedent_core::physical_choice::CostQuotes has private fields
 pub struct antecedent_core::physical_choice::DeclaredCost
@@ -9383,6 +9887,10 @@ pub struct antecedent_core::physical_choice::PhysicalChoice has private fields
 pub struct antecedent_core::physical_choice::PhysicalChoiceRefusal has private fields
 pub struct antecedent_core::physical_choice::RejectedAlternative
 pub struct antecedent_core::physical_choice::RejectedAlternative has private fields
+pub struct antecedent_core::physical_choice::RouteChoice
+pub struct antecedent_core::physical_choice::RouteChoice has private fields
+pub struct antecedent_core::physical_choice::RouteWork
+pub struct antecedent_core::physical_choice::RouteWork has private fields
 pub struct antecedent_core::query::ComputationLimits
 pub struct antecedent_core::query::TheoremReference
 pub struct antecedent_core::recalc::Branch
@@ -9397,6 +9905,8 @@ pub struct antecedent_core::recalc::StageIdentities
 pub struct antecedent_core::recalc::StageIdentities has private fields
 pub struct antecedent_core::recalc::StageIdentity
 pub struct antecedent_core::recalc::StageIdentity has private fields
+pub struct antecedent_core::route_memory::RouteMemoryProfile
+pub struct antecedent_core::route_memory::RouteMemoryProfile has private fields
 pub struct antecedent_core::scientific_target::HistoryIndexedExperiment
 pub struct antecedent_core::scientific_target::HistoryIndexedExperiment has private fields
 pub struct antecedent_core::scientific_target::HistoryIndexedTargetLaw
@@ -9421,6 +9931,7 @@ pub trait antecedent_core::BatchCallback: core::marker::Send + core::marker::Syn
 pub trait antecedent_core::CanonicalEncode
 pub trait antecedent_core::ProgressSink: core::marker::Send + core::marker::Sync
 pub trait antecedent_core::Refused
+pub trait antecedent_core::measurement_record::ResourceProbe
 pub trait fn fn antecedent_core::BatchCallback::call(&self, inputs: &[&[f64]], out: &mut [f64]) -> core::result::Result<(), antecedent_core::CallbackError>
 pub trait fn fn antecedent_core::BatchCallback::spec(&self) -> &antecedent_core::CallbackSpec
 pub trait fn fn antecedent_core::CanonicalEncode::encode(&self, writer: &mut antecedent_core::CanonicalWriter)
@@ -9429,6 +9940,9 @@ pub trait fn fn antecedent_core::Refused::as_refusal(&self) -> antecedent_core::
 pub trait fn fn antecedent_core::Refused::refusal_code(&self) -> &'static str
 pub trait fn fn antecedent_core::Refused::refusal_detail(&self) -> &'static str
 pub trait fn fn antecedent_core::Refused::refusal_message(&self) -> &str
+pub trait fn fn antecedent_core::measurement_record::ResourceProbe::allocation(&self) -> core::option::Option<antecedent_core::measurement_record::AllocationSample>
+pub trait fn fn antecedent_core::measurement_record::ResourceProbe::begin_window(&self) {default}
+pub trait fn fn antecedent_core::measurement_record::ResourceProbe::peak_rss(&self) -> antecedent_core::measurement_record::PeakRss
 pub type antecedent_core::NonZeroThreadCount = core::num::nonzero::NonZeroU32
 pub type antecedent_core::refusal::RefusalParts = (&'static str, alloc::string::String, alloc::string::String)
 pub use antecedent_core::assumption::Assumption = antecedent_core::Assumption
@@ -10589,6 +11103,7 @@ pub variant antecedent_core::TemporalAssignment::Dose { dose: alloc::sync::Arc<[
 pub variant antecedent_core::TemporalAssignment::Factorial { first: alloc::sync::Arc<[bool]>, first_probability: alloc::sync::Arc<[f64]>, second: alloc::sync::Arc<[bool]>, second_probability: alloc::sync::Arc<[f64]> }
 pub variant antecedent_core::TemporalAssignment::Interference { assignment: alloc::sync::Arc<[bool]>, probability: alloc::sync::Arc<[f64]>, clusters: alloc::sync::Arc<[alloc::sync::Arc<str>]> }
 pub variant antecedent_core::TemporalAssignment::MultiArm { assignment: alloc::sync::Arc<[usize]>, probabilities: alloc::sync::Arc<[alloc::vec::Vec<f64>]>, arms: alloc::sync::Arc<[alloc::sync::Arc<str>]>, categorical: bool, ordered: bool }
+pub variant antecedent_core::TemporalAssignment::ObservationalExcursion { treatment: antecedent_core::VariableId, history: alloc::sync::Arc<[antecedent_core::VariableId]> }
 pub variant antecedent_core::TemporalAssignment::RegimeSurvival { treatment: antecedent_core::VariableId, censored: antecedent_core::VariableId, confounders: alloc::sync::Arc<[antecedent_core::VariableId]>, horizon: u32 }
 pub variant antecedent_core::TemporalAssignment::TwoArm { assignment: alloc::sync::Arc<[bool]>, probability: alloc::sync::Arc<[f64]> }
 pub variant antecedent_core::TemporalDesignFunctional::Mean
@@ -10679,6 +11194,13 @@ pub variant antecedent_core::cancellation_boundary::CancelSite::Resample
 pub variant antecedent_core::cancellation_boundary::CancelSite::Scan
 pub variant antecedent_core::cancellation_boundary::CancelSite::Search
 pub variant antecedent_core::cancellation_boundary::CancelSite::Solver
+pub variant antecedent_core::cancellation_boundary::IsolatedCallError::Admission(antecedent_core::execution::AdmissionError)
+pub variant antecedent_core::cancellation_boundary::IsolatedCallError::Boundary(antecedent_core::cancellation_boundary::BoundaryError)
+pub variant antecedent_core::cancellation_boundary::IsolatedCallError::Panicked
+pub variant antecedent_core::cancellation_boundary::IsolatedCallError::PollTooCoarse { poll: core::time::Duration, bound: core::time::Duration }
+pub variant antecedent_core::cancellation_boundary::IsolatedCallError::Spawn(alloc::string::String)
+pub variant antecedent_core::cancellation_boundary::IsolatedOutcome::Abandoned(antecedent_core::cancellation_boundary::AbandonedCall<T>)
+pub variant antecedent_core::cancellation_boundary::IsolatedOutcome::Completed { value: T, call_bytes: u64, observe_latency: core::time::Duration }
 pub variant antecedent_core::cancellation_boundary::ProviderDisposition::Interruptible
 pub variant antecedent_core::cancellation_boundary::ProviderDisposition::Isolated
 pub variant antecedent_core::cancellation_boundary::ProviderDisposition::Refused
@@ -10724,6 +11246,8 @@ pub variant antecedent_core::execution::AdmissionError::Released
 pub variant antecedent_core::execution::AdmissionError::WaitBoundExceeded { bound: core::time::Duration }
 pub variant antecedent_core::execution::MapExecutionError::Admission(antecedent_core::execution::AdmissionError)
 pub variant antecedent_core::execution::MapExecutionError::Work(E)
+pub variant antecedent_core::execution::PipelineStep::Continue
+pub variant antecedent_core::execution::PipelineStep::Stop
 pub variant antecedent_core::execution_attempt::Operation::AdjustedFit
 pub variant antecedent_core::execution_attempt::Operation::CachedFailureRead
 pub variant antecedent_core::execution_attempt::Operation::Decision
@@ -10742,6 +11266,8 @@ pub variant antecedent_core::execution_attempt::Operation::ProgramCompilation
 pub variant antecedent_core::execution_attempt::Operation::ProviderBinding
 pub variant antecedent_core::execution_attempt::Operation::ProviderInvocation
 pub variant antecedent_core::execution_attempt::Operation::ScoreConstruction
+pub variant antecedent_core::execution_attempt::PhysicalEvent::AllocatedBytes
+pub variant antecedent_core::execution_attempt::PhysicalEvent::Allocation
 pub variant antecedent_core::execution_attempt::PhysicalEvent::CacheHit
 pub variant antecedent_core::execution_attempt::PhysicalEvent::ConditionalIndependenceTest
 pub variant antecedent_core::execution_attempt::PhysicalEvent::CopiedBytes
@@ -10753,6 +11279,9 @@ pub variant antecedent_core::execution_attempt::PhysicalEvent::RetainedFull
 pub variant antecedent_core::execution_attempt::PhysicalEvent::RetainedSummary
 pub variant antecedent_core::execution_attempt::PhysicalEvent::Scan
 pub variant antecedent_core::execution_attempt::PhysicalEvent::SpillBytes
+pub variant antecedent_core::execution_facts::AccountingBasis::AdmissionReservation
+pub variant antecedent_core::execution_facts::AccountingBasis::Estimate
+pub variant antecedent_core::execution_facts::AccountingBasis::Measured
 pub variant antecedent_core::execution_facts::ExecutionFactError::Overflow
 pub variant antecedent_core::execution_facts::ExecutionFactStatus::Cancelled
 pub variant antecedent_core::execution_facts::ExecutionFactStatus::Completed
@@ -10761,6 +11290,26 @@ pub variant antecedent_core::execution_facts::OutputRetention::DiskBacked
 pub variant antecedent_core::execution_facts::OutputRetention::FullReusable
 pub variant antecedent_core::execution_facts::OutputRetention::SummaryOnly
 pub variant antecedent_core::execution_facts::OutputRetention::Unmeasured
+pub variant antecedent_core::identity::DependencyAxis::Design
+pub variant antecedent_core::identity::DependencyAxis::Folds
+pub variant antecedent_core::identity::DependencyAxis::Inference
+pub variant antecedent_core::identity::DependencyAxis::Model
+pub variant antecedent_core::identity::DependencyAxis::Numerical
+pub variant antecedent_core::identity::DependencyAxis::Options
+pub variant antecedent_core::identity::DependencyAxis::Outcome
+pub variant antecedent_core::identity::DependencyAxis::Provider
+pub variant antecedent_core::identity::DependencyAxis::Rows
+pub variant antecedent_core::identity::DependencyAxis::Schema
+pub variant antecedent_core::identity::DependencyAxis::Seed
+pub variant antecedent_core::identity::DependencyAxis::Target
+pub variant antecedent_core::identity::DependencyAxis::Treatment
+pub variant antecedent_core::identity::DependencyAxis::Weights
+pub variant antecedent_core::identity::ReusableProduct::LearnerBundle
+pub variant antecedent_core::identity::ReusableProduct::OutcomeFit
+pub variant antecedent_core::identity::ReusableProduct::PolicyNuisance
+pub variant antecedent_core::identity::ReusableProduct::PropensityFit
+pub variant antecedent_core::identity::ReusableProduct::RetainedIdentification
+pub variant antecedent_core::identity::ReusableProduct::SequentialNuisance
 pub variant antecedent_core::inspect::InspectionRefusal::BlankName
 pub variant antecedent_core::inspect::InspectionRefusal::MissingAssumptions
 pub variant antecedent_core::inspect::InspectionRefusal::MissingBackendPolicy
@@ -10833,6 +11382,10 @@ pub variant antecedent_core::measurement_model::ParameterEvidence::ValidationSam
 pub variant antecedent_core::measurement_model::ParameterUncertainty::DeclaredExact
 pub variant antecedent_core::measurement_model::ParameterUncertainty::NotPropagated
 pub variant antecedent_core::measurement_model::ParameterUncertainty::Propagated
+pub variant antecedent_core::measurement_record::PeakRss::Bytes(u64)
+pub variant antecedent_core::measurement_record::PeakRss::Unsupported { reason: &'static str }
+pub variant antecedent_core::measurement_record::PeakRssSummary::Bytes(antecedent_core::measurement_record::CountVariability)
+pub variant antecedent_core::measurement_record::PeakRssSummary::Unsupported { reason: &'static str }
 pub variant antecedent_core::parallel_axis::ParallelAxis::Chain
 pub variant antecedent_core::parallel_axis::ParallelAxis::Fold
 pub variant antecedent_core::parallel_axis::ParallelAxis::GraphTest
@@ -10854,6 +11407,8 @@ pub variant antecedent_core::physical_choice::ResourceCapability::DesignMemory
 pub variant antecedent_core::physical_choice::ResourceCapability::LazyBackend
 pub variant antecedent_core::physical_choice::ResourceCapability::PreparedColumns
 pub variant antecedent_core::physical_choice::ResourceCapability::StreamingScratch
+pub variant antecedent_core::physical_choice::RouteChoiceError::NoneAdmitted(antecedent_core::physical_choice::PhysicalChoiceRefusal)
+pub variant antecedent_core::physical_choice::RouteChoiceError::Unrepresentable
 pub variant antecedent_core::query::ExperimentFamily::SuppliedCatalog
 pub variant antecedent_core::query::ExperimentFamily::TheoremExperiments
 pub variant antecedent_core::query::GraphAssumptionSet::SemiMarkovianSelectionAdmg

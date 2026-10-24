@@ -259,6 +259,11 @@ EVIDENCE_OVERRIDE = {
     "composition.temporal.frequentist": [T + "horizon_composition.rs::coupled_horizons_compose_with_the_spread_of_the_realizations"],
     "composition.temporal.bayesian": [T + "horizon_composition.rs::the_compiled_temporal_response_retains_joint_horizons_in_both_modes"],
 }
+for _class in ("TemporalDag", "TemporalCpdag", "TemporalPag"):
+    EVIDENCE_OVERRIDE[f"closed.AverageEffect.{_class}"] = [
+        T + "lag_zero_average_effect.rs::the_lag_zero_average_effect_is_the_explicit_pulse_and_stays_unlicensed",
+        T + "lag_zero_average_effect.rs::every_lag_zero_average_effect_publishes_an_artifact_a_consumer_reads",
+    ]
 
 
 # Executing routes whose artifact the evidence tests do not read back: the production reader of

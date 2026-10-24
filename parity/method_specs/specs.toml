@@ -746,7 +746,7 @@ provenance = [
   "discovery.class_posterior",
   "discovery.graph_mcmc",
 ]
-api_review = "parity/public_api/antecedent-discovery.txt: 39 of 42 public items reviewed"
+api_review = "parity/public_api/antecedent-discovery.txt: 42 of 42 public items reviewed"
 identifying_result = "Discover"
 assumptions = "the identification premises of Discover on the recorded route; the module documents no further premise"
 sampling_units = "tabular rows; methods=pc,fci,rfci,ges,direct_lingam,notears (frequentist) and exact_dag_posterior,exact_dag_marginals,order_mcmc,structure_mcmc,ci_screened_posterior (Bayesian); bootstrap_stability over a frequentist method (independent rows) and class_posterior over a DAG or bounded-lag template posterior; order_mcmc under the Laplace-noise score; exact_pag_posterior over the Gaussian maximal ancestral graphs of at most four variables and pag_mcmc over two to eight"
@@ -1584,7 +1584,7 @@ decision_basis = "licensed per the counterpart inventory; execution crates/antec
 provenance = [
   "estimate.bayesian_temporal_mediation",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 5 of 6 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 6 of 6 public items reviewed"
 identifying_result = "TemporalMediationEffect identified by temporal.mediation"
 assumptions = "the identification premises of TemporalMediationEffect on the recorded route; the module documents no further premise"
 sampling_units = "ordered observations of the declared series or panel; serial dependence is handled by block resampling or block weights"
@@ -3220,7 +3220,7 @@ provenance = [
   "stats.response.local_polynomial",
   "support.coordinate",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 19 of 23 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 22 of 23 public items reviewed"
 identifying_result = "InterventionResponse identified by response.backdoor"
 assumptions = "Least-squares nuisances require finite outcome moments; a heavy-tailed outcome is reported on the support diagnostic axis rather than by demoting overlap or matrix-cell licensing."
 sampling_units = "Complete-observation estimators for continuous causal responses."
@@ -3425,7 +3425,7 @@ decision_basis = "licensed per the counterpart inventory; execution crates/antec
 provenance = [
   "attribution.basic",
 ]
-api_review = "parity/public_api/antecedent-attribution.txt: 7 of 8 public items reviewed"
+api_review = "parity/public_api/antecedent-attribution.txt: 8 of 8 public items reviewed"
 identifying_result = "AnomalyAttribution"
 assumptions = "ChangeAttribution.Dag is the same pattern. intrinsic_influence is execution_only (whole-procedure bootstrap interval, uncalibrated). MechanismChange and UnitChange are execution_only and off-axis."
 sampling_units = "A density is not a probability: it is unbounded, it carries the units of 1/y, and it moves under any rescaling of the target."
@@ -3450,7 +3450,7 @@ decision_basis = "licensed per the counterpart inventory; execution crates/antec
 provenance = [
   "attribution.basic",
 ]
-api_review = "parity/public_api/antecedent-attribution.txt: 7 of 8 public items reviewed"
+api_review = "parity/public_api/antecedent-attribution.txt: 8 of 8 public items reviewed"
 identifying_result = "AnomalyAttribution"
 assumptions = "the identification premises of AnomalyAttribution on the recorded route; the module documents no further premise"
 sampling_units = "A density is not a probability: it is unbounded, it carries the units of 1/y, and it moves under any rescaling of the target."
@@ -3475,7 +3475,7 @@ decision_basis = "licensed per the counterpart inventory; execution crates/antec
 provenance = [
   "attribution.basic",
 ]
-api_review = "parity/public_api/antecedent-attribution.txt: 7 of 8 public items reviewed"
+api_review = "parity/public_api/antecedent-attribution.txt: 8 of 8 public items reviewed"
 identifying_result = "AnomalyAttribution"
 assumptions = "Closed Admg/Cpdag/Pag/TemporalAdmg: engine has no lagged latent slice. That is a target boundary."
 sampling_units = "A density is not a probability: it is unbounded, it carries the units of 1/y, and it moves under any rescaling of the target."
@@ -3500,7 +3500,7 @@ decision_basis = "licensed per the counterpart inventory; execution crates/antec
 provenance = [
   "attribution.basic",
 ]
-api_review = "parity/public_api/antecedent-attribution.txt: 7 of 8 public items reviewed"
+api_review = "parity/public_api/antecedent-attribution.txt: 8 of 8 public items reviewed"
 identifying_result = "AnomalyAttribution"
 assumptions = "the identification premises of AnomalyAttribution on the recorded route; the module documents no further premise"
 sampling_units = "A density is not a probability: it is unbounded, it carries the units of 1/y, and it moves under any rescaling of the target."
@@ -3866,7 +3866,7 @@ provenance = [
   "estimate.functional_distribution",
   "estimate.functional_effect",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 37 of 39 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 39 of 39 public items reviewed"
 identifying_result = "AverageEffect identified by general.id"
 assumptions = "The estimators here evaluate the functional at each observed value r of its free variables and report Σ_r P̂(r) θ̂(r) / Σ_r P̂(r) over the values at which every required empirical cell exists."
 sampling_units = "P̂(r) comes from the same row law as the other factors, so bootstrap and Bayesian-bootstrap draws reweight it consistently."
@@ -3891,7 +3891,7 @@ provenance = [
   "estimate.functional_distribution",
   "estimate.functional_effect",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 37 of 39 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 39 of 39 public items reviewed"
 identifying_result = "AverageEffect"
 assumptions = "The estimators here evaluate the functional at each observed value r of its free variables and report Σ_r P̂(r) θ̂(r) / Σ_r P̂(r) over the values at which every required empirical cell exists."
 sampling_units = "P̂(r) comes from the same row law as the other factors, so bootstrap and Bayesian-bootstrap draws reweight it consistently."
@@ -3917,7 +3917,7 @@ provenance = [
   "estimate.functional_distribution",
   "estimate.functional_effect",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 37 of 39 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 39 of 39 public items reviewed"
 identifying_result = "TemporalAdmg functional.effect is the contemporaneous projection, not Pulse or Sustained"
 assumptions = "Same projection note on InterventionResponse.TemporalAdmg and ResponseCurve.TemporalAdmg."
 sampling_units = "P̂(r) comes from the same row law as the other factors, so bootstrap and Bayesian-bootstrap draws reweight it consistently."
@@ -4371,7 +4371,7 @@ decision_basis = "executing_unlicensed per the counterpart inventory; execution 
 provenance = [
   "state.ols_refresh",
 ]
-api_review = "parity/public_api/antecedent-state.txt: 25 of 27 public items reviewed"
+api_review = "parity/public_api/antecedent-state.txt: 27 of 27 public items reviewed"
 identifying_result = "LinearModelRefresh"
 assumptions = "the identification premises of LinearModelRefresh on the recorded route; the module documents no further premise"
 sampling_units = "independent rows of the declared sample; the study's sampling design may declare clusters or weights"
@@ -4421,7 +4421,7 @@ decision_basis = "executing_unlicensed per the counterpart inventory; execution 
 provenance = [
   "state.period_refresh",
 ]
-api_review = "parity/public_api/antecedent.txt: 38 of 41 public items reviewed"
+api_review = "parity/public_api/antecedent.txt: 41 of 41 public items reviewed"
 identifying_result = "Both are one target: the lag coefficients and the innovation variance of one mechanism."
 assumptions = "Route unlisted."
 sampling_units = "A new observation period is applied with the products-that-read-it rules of antecedent_estimate::temporal_refresh::refresh_survival: the model reads the period unless the caller declared the mechanism invariant across periods (MechanismStanding::DeclaredInvariant); it always reads the population, the cadence, the horizon, the initial law, the lag alignment, the intervention history and the regimes."
@@ -4446,7 +4446,7 @@ decision_basis = "executing_unlicensed per the counterpart inventory; execution 
 provenance = [
   "state.period_refresh",
 ]
-api_review = "parity/public_api/antecedent.txt: 38 of 41 public items reviewed"
+api_review = "parity/public_api/antecedent.txt: 41 of 41 public items reviewed"
 identifying_result = "Both are one target: the lag coefficients and the innovation variance of one mechanism."
 assumptions = "The earlier posterior is never the prior of a period whose mechanism was not declared the same, because that would assume the stationarity a temporal index does not give; a period that overlaps the summarized one, or reuses its snapshot, is refused: the same observations would enter twice. The gap is not filled and not assumed stationary: the rows that would span it are not formed, and the new period contributes its own rows only."
 sampling_units = "A new observation period is applied with the products-that-read-it rules of antecedent_estimate::temporal_refresh::refresh_survival: the model reads the period unless the caller declared the mechanism invariant across periods (MechanismStanding::DeclaredInvariant); it always reads the population, the cadence, the horizon, the initial law, the lag alignment, the intervention history and the regimes."

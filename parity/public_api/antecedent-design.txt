@@ -81,6 +81,8 @@ impl antecedent_design::composition_bundle::NodeVerifier for antecedent_design::
 impl antecedent_design::composition_bundle::NodeVerifier for antecedent_design::composition_verifiers::ScientificBridgeVerifier
 impl antecedent_design::composition_bundle::NodeVerifier for antecedent_design::composition_verifiers::SensitivityVerifier
 impl antecedent_design::composition_bundle::NodeVerifier for antecedent_design::composition_verifiers::StudyRankingVerifier
+impl antecedent_design::decision_evaluation::DemandSource for antecedent_design::decision_evaluation::ArtifactDemand<'_>
+impl antecedent_design::decision_evaluation::DemandSource for antecedent_design::decision_evaluation::MeanDemand<'_>
 impl antecedent_design::signal::SignalProvider for antecedent_design::signal::ExternalSignal
 impl antecedent_design::signal::SignalProvider for antecedent_design::signal::NativeBinomialSignal
 impl antecedent_design::signal::SignalProvider for antecedent_design::signal::NativeGaussianMeanSignal
@@ -309,8 +311,12 @@ impl core::clone::Clone for antecedent_design::decision_eval::MeanSource
 impl core::clone::Clone for antecedent_design::decision_eval::SourceReceipt
 impl core::clone::Clone for antecedent_design::decision_eval::Verdict
 impl core::clone::Clone for antecedent_design::decision_evaluation::BatchRecord
+impl core::clone::Clone for antecedent_design::decision_evaluation::DemandBudget
 impl core::clone::Clone for antecedent_design::decision_evaluation::DemandEvaluation
+impl core::clone::Clone for antecedent_design::decision_evaluation::DemandSourceError
 impl core::clone::Clone for antecedent_design::decision_evaluation::EvaluationError
+impl core::clone::Clone for antecedent_design::decision_evaluation::ExecutedDemand
+impl core::clone::Clone for antecedent_design::decision_evaluation::ExecutionRecord
 impl core::clone::Clone for antecedent_design::decision_evaluation::MissingCarrier
 impl core::clone::Clone for antecedent_design::decision_evaluation::RequestedCarrier
 impl core::clone::Clone for antecedent_design::decision_evaluation::RetentionRecord
@@ -871,6 +877,9 @@ impl core::cmp::Eq for antecedent_design::decision_contract::UncertaintyRequirem
 impl core::cmp::Eq for antecedent_design::decision_eval::MeanEstimate
 impl core::cmp::Eq for antecedent_design::decision_eval::SourceReceipt
 impl core::cmp::Eq for antecedent_design::decision_evaluation::BatchRecord
+impl core::cmp::Eq for antecedent_design::decision_evaluation::DemandBudget
+impl core::cmp::Eq for antecedent_design::decision_evaluation::DemandSourceError
+impl core::cmp::Eq for antecedent_design::decision_evaluation::ExecutionRecord
 impl core::cmp::Eq for antecedent_design::decision_evaluation::MissingCarrier
 impl core::cmp::Eq for antecedent_design::decision_evaluation::RequestedCarrier
 impl core::cmp::Eq for antecedent_design::decision_evaluation::RetentionRecord
@@ -1244,8 +1253,12 @@ impl core::cmp::PartialEq for antecedent_design::decision_eval::MeanSource
 impl core::cmp::PartialEq for antecedent_design::decision_eval::SourceReceipt
 impl core::cmp::PartialEq for antecedent_design::decision_eval::Verdict
 impl core::cmp::PartialEq for antecedent_design::decision_evaluation::BatchRecord
+impl core::cmp::PartialEq for antecedent_design::decision_evaluation::DemandBudget
 impl core::cmp::PartialEq for antecedent_design::decision_evaluation::DemandEvaluation
+impl core::cmp::PartialEq for antecedent_design::decision_evaluation::DemandSourceError
 impl core::cmp::PartialEq for antecedent_design::decision_evaluation::EvaluationError
+impl core::cmp::PartialEq for antecedent_design::decision_evaluation::ExecutedDemand
+impl core::cmp::PartialEq for antecedent_design::decision_evaluation::ExecutionRecord
 impl core::cmp::PartialEq for antecedent_design::decision_evaluation::MissingCarrier
 impl core::cmp::PartialEq for antecedent_design::decision_evaluation::RequestedCarrier
 impl core::cmp::PartialEq for antecedent_design::decision_evaluation::RetentionRecord
@@ -1774,6 +1787,7 @@ impl core::error::Error for antecedent_design::StudyCandidateError
 impl core::error::Error for antecedent_design::StudyPlanError
 impl core::error::Error for antecedent_design::ZTransportPlanningError
 impl core::error::Error for antecedent_design::composition_bundle::BundleError
+impl core::error::Error for antecedent_design::decision_evaluation::DemandSourceError
 impl core::error::Error for antecedent_design::decision_evaluation::EvaluationError
 impl core::error::Error for antecedent_design::decision_reliability::ReliabilityError
 impl core::error::Error for antecedent_design::decision_transported_source::TransportedRefusal
@@ -2018,8 +2032,12 @@ impl core::fmt::Debug for antecedent_design::decision_eval::MeanSource
 impl core::fmt::Debug for antecedent_design::decision_eval::SourceReceipt
 impl core::fmt::Debug for antecedent_design::decision_eval::Verdict
 impl core::fmt::Debug for antecedent_design::decision_evaluation::BatchRecord
+impl core::fmt::Debug for antecedent_design::decision_evaluation::DemandBudget
 impl core::fmt::Debug for antecedent_design::decision_evaluation::DemandEvaluation
+impl core::fmt::Debug for antecedent_design::decision_evaluation::DemandSourceError
 impl core::fmt::Debug for antecedent_design::decision_evaluation::EvaluationError
+impl core::fmt::Debug for antecedent_design::decision_evaluation::ExecutedDemand
+impl core::fmt::Debug for antecedent_design::decision_evaluation::ExecutionRecord
 impl core::fmt::Debug for antecedent_design::decision_evaluation::MissingCarrier
 impl core::fmt::Debug for antecedent_design::decision_evaluation::RequestedCarrier
 impl core::fmt::Debug for antecedent_design::decision_evaluation::RetentionRecord
@@ -2501,6 +2519,7 @@ impl core::fmt::Display for antecedent_design::StudyPlanError
 impl core::fmt::Display for antecedent_design::ZTransportPlanningError
 impl core::fmt::Display for antecedent_design::composition_bundle::BundleError
 impl core::fmt::Display for antecedent_design::decision_eval::DecisionEvalError
+impl core::fmt::Display for antecedent_design::decision_evaluation::DemandSourceError
 impl core::fmt::Display for antecedent_design::decision_evaluation::EvaluationError
 impl core::fmt::Display for antecedent_design::decision_reliability::ReliabilityError
 impl core::fmt::Display for antecedent_design::decision_transported_source::TransportedRefusal
@@ -2625,6 +2644,8 @@ impl core::marker::Copy for antecedent_design::decision_contract::UncertaintyReq
 impl core::marker::Copy for antecedent_design::decision_eval::FunctionalValue
 impl core::marker::Copy for antecedent_design::decision_eval::MeanEstimate
 impl core::marker::Copy for antecedent_design::decision_evaluation::BatchRecord
+impl core::marker::Copy for antecedent_design::decision_evaluation::DemandBudget
+impl core::marker::Copy for antecedent_design::decision_evaluation::ExecutionRecord
 impl core::marker::Copy for antecedent_design::decision_evaluation::MissingCarrier
 impl core::marker::Copy for antecedent_design::decision_evaluation::RequestedCarrier
 impl core::marker::Copy for antecedent_design::decision_evaluation::RetentionRecord
@@ -2989,8 +3010,12 @@ impl core::marker::Freeze for antecedent_design::decision_eval::MeanSource [auto
 impl core::marker::Freeze for antecedent_design::decision_eval::SourceReceipt [auto]
 impl core::marker::Freeze for antecedent_design::decision_eval::Verdict [auto]
 impl core::marker::Freeze for antecedent_design::decision_evaluation::BatchRecord [auto]
+impl core::marker::Freeze for antecedent_design::decision_evaluation::DemandBudget [auto]
 impl core::marker::Freeze for antecedent_design::decision_evaluation::DemandEvaluation [auto]
+impl core::marker::Freeze for antecedent_design::decision_evaluation::DemandSourceError [auto]
 impl core::marker::Freeze for antecedent_design::decision_evaluation::EvaluationError [auto]
+impl core::marker::Freeze for antecedent_design::decision_evaluation::ExecutedDemand [auto]
+impl core::marker::Freeze for antecedent_design::decision_evaluation::ExecutionRecord [auto]
 impl core::marker::Freeze for antecedent_design::decision_evaluation::MissingCarrier [auto]
 impl core::marker::Freeze for antecedent_design::decision_evaluation::RequestedCarrier [auto]
 impl core::marker::Freeze for antecedent_design::decision_evaluation::RetentionRecord [auto]
@@ -3689,8 +3714,12 @@ impl core::marker::Send for antecedent_design::decision_eval::MeanSource [auto]
 impl core::marker::Send for antecedent_design::decision_eval::SourceReceipt [auto]
 impl core::marker::Send for antecedent_design::decision_eval::Verdict [auto]
 impl core::marker::Send for antecedent_design::decision_evaluation::BatchRecord [auto]
+impl core::marker::Send for antecedent_design::decision_evaluation::DemandBudget [auto]
 impl core::marker::Send for antecedent_design::decision_evaluation::DemandEvaluation [auto]
+impl core::marker::Send for antecedent_design::decision_evaluation::DemandSourceError [auto]
 impl core::marker::Send for antecedent_design::decision_evaluation::EvaluationError [auto]
+impl core::marker::Send for antecedent_design::decision_evaluation::ExecutedDemand [auto]
+impl core::marker::Send for antecedent_design::decision_evaluation::ExecutionRecord [auto]
 impl core::marker::Send for antecedent_design::decision_evaluation::MissingCarrier [auto]
 impl core::marker::Send for antecedent_design::decision_evaluation::RequestedCarrier [auto]
 impl core::marker::Send for antecedent_design::decision_evaluation::RetentionRecord [auto]
@@ -4340,8 +4369,12 @@ impl core::marker::StructuralPartialEq for antecedent_design::decision_eval::Mea
 impl core::marker::StructuralPartialEq for antecedent_design::decision_eval::SourceReceipt
 impl core::marker::StructuralPartialEq for antecedent_design::decision_eval::Verdict
 impl core::marker::StructuralPartialEq for antecedent_design::decision_evaluation::BatchRecord
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evaluation::DemandBudget
 impl core::marker::StructuralPartialEq for antecedent_design::decision_evaluation::DemandEvaluation
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evaluation::DemandSourceError
 impl core::marker::StructuralPartialEq for antecedent_design::decision_evaluation::EvaluationError
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evaluation::ExecutedDemand
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evaluation::ExecutionRecord
 impl core::marker::StructuralPartialEq for antecedent_design::decision_evaluation::MissingCarrier
 impl core::marker::StructuralPartialEq for antecedent_design::decision_evaluation::RequestedCarrier
 impl core::marker::StructuralPartialEq for antecedent_design::decision_evaluation::RetentionRecord
@@ -4992,8 +5025,12 @@ impl core::marker::Sync for antecedent_design::decision_eval::MeanSource [auto]
 impl core::marker::Sync for antecedent_design::decision_eval::SourceReceipt [auto]
 impl core::marker::Sync for antecedent_design::decision_eval::Verdict [auto]
 impl core::marker::Sync for antecedent_design::decision_evaluation::BatchRecord [auto]
+impl core::marker::Sync for antecedent_design::decision_evaluation::DemandBudget [auto]
 impl core::marker::Sync for antecedent_design::decision_evaluation::DemandEvaluation [auto]
+impl core::marker::Sync for antecedent_design::decision_evaluation::DemandSourceError [auto]
 impl core::marker::Sync for antecedent_design::decision_evaluation::EvaluationError [auto]
+impl core::marker::Sync for antecedent_design::decision_evaluation::ExecutedDemand [auto]
+impl core::marker::Sync for antecedent_design::decision_evaluation::ExecutionRecord [auto]
 impl core::marker::Sync for antecedent_design::decision_evaluation::MissingCarrier [auto]
 impl core::marker::Sync for antecedent_design::decision_evaluation::RequestedCarrier [auto]
 impl core::marker::Sync for antecedent_design::decision_evaluation::RetentionRecord [auto]
@@ -5693,8 +5730,12 @@ impl core::marker::Unpin for antecedent_design::decision_eval::MeanSource [auto]
 impl core::marker::Unpin for antecedent_design::decision_eval::SourceReceipt [auto]
 impl core::marker::Unpin for antecedent_design::decision_eval::Verdict [auto]
 impl core::marker::Unpin for antecedent_design::decision_evaluation::BatchRecord [auto]
+impl core::marker::Unpin for antecedent_design::decision_evaluation::DemandBudget [auto]
 impl core::marker::Unpin for antecedent_design::decision_evaluation::DemandEvaluation [auto]
+impl core::marker::Unpin for antecedent_design::decision_evaluation::DemandSourceError [auto]
 impl core::marker::Unpin for antecedent_design::decision_evaluation::EvaluationError [auto]
+impl core::marker::Unpin for antecedent_design::decision_evaluation::ExecutedDemand [auto]
+impl core::marker::Unpin for antecedent_design::decision_evaluation::ExecutionRecord [auto]
 impl core::marker::Unpin for antecedent_design::decision_evaluation::MissingCarrier [auto]
 impl core::marker::Unpin for antecedent_design::decision_evaluation::RequestedCarrier [auto]
 impl core::marker::Unpin for antecedent_design::decision_evaluation::RetentionRecord [auto]
@@ -6393,8 +6434,12 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_eva
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_eval::SourceReceipt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_eval::Verdict [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evaluation::BatchRecord [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evaluation::DemandBudget [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evaluation::DemandEvaluation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evaluation::DemandSourceError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evaluation::EvaluationError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evaluation::ExecutedDemand [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evaluation::ExecutionRecord [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evaluation::MissingCarrier [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evaluation::RequestedCarrier [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evaluation::RetentionRecord [auto]
@@ -7086,8 +7131,12 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_eval::
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_eval::SourceReceipt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_eval::Verdict [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evaluation::BatchRecord [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evaluation::DemandBudget [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evaluation::DemandEvaluation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evaluation::DemandSourceError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evaluation::EvaluationError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evaluation::ExecutedDemand [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evaluation::ExecutionRecord [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evaluation::MissingCarrier [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evaluation::RequestedCarrier [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evaluation::RetentionRecord [auto]
@@ -7807,6 +7856,8 @@ impl<'a> core::marker::Freeze for antecedent_design::PlanInputs<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_design::RepairFamilyRef<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_design::adaptive_trial_transport::AdaptiveTransportRequest<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_design::composition_bundle::UpstreamNode<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_design::decision_evaluation::ArtifactDemand<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_design::decision_evaluation::MeanDemand<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_design::evsi::EvsiEvidence<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_design::program_search::ProgramSearchSource<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_design::temporal_policy_transport::TemporalPolicyRequest<'a> [auto]
@@ -7816,6 +7867,8 @@ impl<'a> core::marker::Send for antecedent_design::PlanInputs<'a> [auto]
 impl<'a> core::marker::Send for antecedent_design::RepairFamilyRef<'a> [auto]
 impl<'a> core::marker::Send for antecedent_design::adaptive_trial_transport::AdaptiveTransportRequest<'a> [auto]
 impl<'a> core::marker::Send for antecedent_design::composition_bundle::UpstreamNode<'a> [auto]
+impl<'a> core::marker::Send for antecedent_design::decision_evaluation::ArtifactDemand<'a> [auto]
+impl<'a> core::marker::Send for antecedent_design::decision_evaluation::MeanDemand<'a> [auto]
 impl<'a> core::marker::Send for antecedent_design::evsi::EvsiEvidence<'a> [auto]
 impl<'a> core::marker::Send for antecedent_design::program_search::ProgramSearchSource<'a> [auto]
 impl<'a> core::marker::Send for antecedent_design::temporal_policy_transport::TemporalPolicyRequest<'a> [auto]
@@ -7826,6 +7879,8 @@ impl<'a> core::marker::Sync for antecedent_design::PlanInputs<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_design::RepairFamilyRef<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_design::adaptive_trial_transport::AdaptiveTransportRequest<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_design::composition_bundle::UpstreamNode<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_design::decision_evaluation::ArtifactDemand<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_design::decision_evaluation::MeanDemand<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_design::evsi::EvsiEvidence<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_design::program_search::ProgramSearchSource<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_design::temporal_policy_transport::TemporalPolicyRequest<'a> [auto]
@@ -7835,6 +7890,8 @@ impl<'a> core::marker::Unpin for antecedent_design::PlanInputs<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_design::RepairFamilyRef<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_design::adaptive_trial_transport::AdaptiveTransportRequest<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_design::composition_bundle::UpstreamNode<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_design::decision_evaluation::ArtifactDemand<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_design::decision_evaluation::MeanDemand<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_design::evsi::EvsiEvidence<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_design::program_search::ProgramSearchSource<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_design::temporal_policy_transport::TemporalPolicyRequest<'a> [auto]
@@ -7844,6 +7901,8 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_design::PlanInpu
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_design::RepairFamilyRef<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_design::adaptive_trial_transport::AdaptiveTransportRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_design::composition_bundle::UpstreamNode<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evaluation::ArtifactDemand<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evaluation::MeanDemand<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_design::evsi::EvsiEvidence<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::ProgramSearchSource<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_design::temporal_policy_transport::TemporalPolicyRequest<'a> [auto]
@@ -7853,6 +7912,8 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_design::PlanInputs<
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_design::RepairFamilyRef<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_design::adaptive_trial_transport::AdaptiveTransportRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_design::composition_bundle::UpstreamNode<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evaluation::ArtifactDemand<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evaluation::MeanDemand<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_design::evsi::EvsiEvidence<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::ProgramSearchSource<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_design::temporal_policy_transport::TemporalPolicyRequest<'a> [auto]
@@ -9138,11 +9199,27 @@ pub field antecedent_design::decision_eval::SourceReceipt::snapshot_id: alloc::s
 pub field antecedent_design::decision_evaluation::BatchRecord::batches: usize
 pub field antecedent_design::decision_evaluation::BatchRecord::carrier: antecedent_design::decision_evaluation::RequestedCarrier
 pub field antecedent_design::decision_evaluation::BatchRecord::items: usize
+pub field antecedent_design::decision_evaluation::DemandBudget::retained_bytes: u64
+pub field antecedent_design::decision_evaluation::DemandBudget::retention: antecedent_core::execution_facts::OutputRetention
+pub field antecedent_design::decision_evaluation::DemandBudget::scratch_bytes: u64
 pub field antecedent_design::decision_evaluation::DemandEvaluation::batching: antecedent_design::decision_evaluation::BatchRecord
 pub field antecedent_design::decision_evaluation::DemandEvaluation::decision: antecedent_design::decision_eval::DecisionResult
 pub field antecedent_design::decision_evaluation::DemandEvaluation::draws_requested: usize
 pub field antecedent_design::decision_evaluation::DemandEvaluation::predictions_requested: usize
 pub field antecedent_design::decision_evaluation::DemandEvaluation::retention: antecedent_design::decision_evaluation::RetentionRecord
+pub field antecedent_design::decision_evaluation::ExecutedDemand::decision: antecedent_design::decision_eval::DecisionResult
+pub field antecedent_design::decision_evaluation::ExecutedDemand::record: antecedent_design::decision_evaluation::ExecutionRecord
+pub field antecedent_design::decision_evaluation::ExecutedDemand::utilities: core::option::Option<alloc::vec::Vec<alloc::vec::Vec<f64>>>
+pub field antecedent_design::decision_evaluation::ExecutionRecord::batch_rows: usize
+pub field antecedent_design::decision_evaluation::ExecutionRecord::batches: usize
+pub field antecedent_design::decision_evaluation::ExecutionRecord::carrier: antecedent_design::decision_evaluation::RequestedCarrier
+pub field antecedent_design::decision_evaluation::ExecutionRecord::draws_drawn: usize
+pub field antecedent_design::decision_evaluation::ExecutionRecord::items: usize
+pub field antecedent_design::decision_evaluation::ExecutionRecord::predictions_requested: usize
+pub field antecedent_design::decision_evaluation::ExecutionRecord::retained_bytes: u64
+pub field antecedent_design::decision_evaluation::ExecutionRecord::retained_peak_bytes: u64
+pub field antecedent_design::decision_evaluation::ExecutionRecord::retention: antecedent_core::execution_facts::OutputRetention
+pub field antecedent_design::decision_evaluation::ExecutionRecord::scratch_bytes: u64
 pub field antecedent_design::decision_evaluation::RetentionRecord::fits: usize
 pub field antecedent_design::decision_evaluation::RetentionRecord::mode: antecedent_core::execution_facts::OutputRetention
 pub field antecedent_design::decision_reliability::CalibrationCoordinate::adaptively_generated: bool
@@ -11089,7 +11166,10 @@ pub fn <antecedent_design::decision_contract::UncertaintyRequirement>::const fn 
 pub fn <antecedent_design::decision_contract::UncertaintyRequirement>::const fn satisfied_by(self, supplied: antecedent_design::decision_contract::UncertaintyKind) -> bool
 pub fn <antecedent_design::decision_eval::DecisionEvalError>::const fn reason_code(&self) -> &'static str
 pub fn <antecedent_design::decision_eval::DecisionEvalError>::fn to_refusal(&self) -> antecedent_contract::external_refusal::ExternalRefusal
+pub fn <antecedent_design::decision_evaluation::ArtifactDemand<'a>>::fn new(artifact: &'a antecedent_io_core::distribution_artifact::DistributionArtifact) -> Self
 pub fn <antecedent_design::decision_evaluation::BatchRecord>::const fn means(items: usize) -> Self
+pub fn <antecedent_design::decision_evaluation::DemandSourceError>::fn new(message: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn <antecedent_design::decision_evaluation::MeanDemand<'a>>::const fn new(source: &'a antecedent_design::decision_eval::MeanSource) -> Self
 pub fn <antecedent_design::decision_evaluation::MissingCarrier>::const fn as_str(self) -> &'static str
 pub fn <antecedent_design::decision_evaluation::RequestedCarrier>::const fn as_str(self) -> &'static str
 pub fn <antecedent_design::decision_evaluation::RetentionRecord>::const fn means_summary() -> Self
@@ -11368,6 +11448,7 @@ pub fn <antecedent_design::scientific_source::ScientificDecisionSource>::const f
 pub fn <antecedent_design::scientific_source::ScientificDecisionSource>::fn as_numerical_source(&self) -> &antecedent_design::scientific_source::ScientificSourcePayload
 pub fn <antecedent_design::scientific_source::ScientificDecisionSource>::fn authorize(&self, scope: antecedent_design::scientific_source::ScientificConsumptionScope) -> core::result::Result<(), antecedent_design::scientific_source::ScientificSourceError>
 pub fn <antecedent_design::scientific_source::ScientificDecisionSource>::fn evaluate(&self, contract: &antecedent_design::DecisionContract, scope: antecedent_design::scientific_source::ScientificConsumptionScope) -> core::result::Result<antecedent_design::scientific_source::ScopedDecisionResult, antecedent_design::scientific_source::ScientificSourceError>
+pub fn <antecedent_design::scientific_source::ScientificDecisionSource>::fn evaluate_admitted(&self, contract: &antecedent_design::DecisionContract, scope: antecedent_design::scientific_source::ScientificConsumptionScope, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_design::scientific_source::ScopedDecisionResult, antecedent_design::scientific_source::ScientificSourceError>
 pub fn <antecedent_design::scientific_source::ScientificDecisionSource>::fn identification(&self) -> &antecedent_identify::compiled_product::CompiledIdentificationProduct
 pub fn <antecedent_design::scientific_source::ScientificDecisionSource>::fn new(target: antecedent_core::scientific_target::identity::ScientificTarget, identification: antecedent_identify::compiled_product::CompiledIdentificationProduct, dependency: antecedent_core::identity::SemanticDigest, payload: antecedent_design::scientific_source::ScientificSourcePayload) -> core::result::Result<Self, antecedent_design::scientific_source::ScientificSourceError>
 pub fn <antecedent_design::scientific_source::ScientificDecisionSource>::fn new_projected(target: antecedent_core::scientific_target::identity::ScientificTarget, identification: antecedent_identify::compiled_product::CompiledIdentificationProduct, dependency: antecedent_core::identity::SemanticDigest, payload: antecedent_design::scientific_source::ScientificSourcePayload, projection: antecedent_design::scientific_source::ScientificSourceProjection) -> core::result::Result<Self, antecedent_design::scientific_source::ScientificSourceError>
@@ -11543,7 +11624,11 @@ pub fn antecedent_design::decision_artifact::source_digest(source: &antecedent_i
 pub fn antecedent_design::decision_eval::evaluate_contract(contract: &antecedent_design::DecisionContract, source: &antecedent_io_core::distribution_artifact::DistributionArtifact) -> core::result::Result<antecedent_design::decision_eval::DecisionResult, antecedent_design::decision_eval::DecisionEvalError>
 pub fn antecedent_design::decision_eval::evaluate_contract_on_means(contract: &antecedent_design::DecisionContract, source: &antecedent_design::decision_eval::MeanSource) -> core::result::Result<antecedent_design::decision_eval::DecisionResult, antecedent_design::decision_eval::DecisionEvalError>
 pub fn antecedent_design::decision_eval::evaluate_functional(contract: &antecedent_design::DecisionContract, action_id: &str, functional: antecedent_design::DecisionFunctional, source: &antecedent_io_core::distribution_artifact::DistributionArtifact) -> core::result::Result<antecedent_design::decision_eval::FunctionalValue, antecedent_design::decision_eval::DecisionEvalError>
+pub fn antecedent_design::decision_evaluation::evaluate_artifact_admitted(contract: &antecedent_design::DecisionContract, artifact: &antecedent_io_core::distribution_artifact::DistributionArtifact, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_design::decision_eval::DecisionResult, antecedent_design::decision_eval::DecisionEvalError>
+pub fn antecedent_design::decision_evaluation::evaluate_mean_source_admitted(contract: &antecedent_design::DecisionContract, source: &antecedent_design::decision_eval::MeanSource, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_design::decision_eval::DecisionResult, antecedent_design::decision_eval::DecisionEvalError>
 pub fn antecedent_design::decision_evaluation::evaluate_on_means(contract: &antecedent_design::DecisionContract, source: &antecedent_design::decision_eval::MeanSource) -> core::result::Result<antecedent_design::decision_evaluation::DemandEvaluation, antecedent_design::decision_evaluation::EvaluationError>
+pub fn antecedent_design::decision_evaluation::execute_demand(contract: &antecedent_design::DecisionContract, source: &mut dyn antecedent_design::decision_evaluation::DemandSource, budget: antecedent_design::decision_evaluation::DemandBudget, cancellation: core::option::Option<&antecedent_core::execution::CancellationToken>) -> core::result::Result<antecedent_design::decision_evaluation::ExecutedDemand, antecedent_design::decision_evaluation::EvaluationError>
+pub fn antecedent_design::decision_evaluation::execute_demand_admitted(contract: &antecedent_design::DecisionContract, source: &mut dyn antecedent_design::decision_evaluation::DemandSource, budget: antecedent_design::decision_evaluation::DemandBudget, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_design::decision_evaluation::ExecutedDemand, antecedent_design::decision_evaluation::EvaluationError>
 pub fn antecedent_design::decision_reliability::artifact::consume(bytes: &[u8], expected: &antecedent_design::decision_reliability::DecisionReliabilityExpectation, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_design::decision_reliability::DecisionReliabilityArtifact, antecedent_io_core::error::IoError>
 pub fn antecedent_design::decision_reliability::assess(draws: &antecedent_design::decision_reliability::DecisionDraws, validation: core::option::Option<&antecedent_design::decision_reliability::DecisionDraws>, request: &antecedent_design::decision_reliability::ReliabilityRequest, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_design::decision_reliability::ReliabilityReport, antecedent_design::decision_reliability::ReliabilityError>
 pub fn antecedent_design::decision_reliability::banded_record_functional(coordinate: &antecedent_design::decision_reliability::CalibrationCoordinate) -> core::option::Option<alloc::string::String>
@@ -11934,8 +12019,17 @@ pub struct antecedent_design::decision_eval::DecisionResult
 pub struct antecedent_design::decision_eval::FunctionalValue
 pub struct antecedent_design::decision_eval::MeanSource
 pub struct antecedent_design::decision_eval::SourceReceipt
+pub struct antecedent_design::decision_evaluation::ArtifactDemand has private fields
+pub struct antecedent_design::decision_evaluation::ArtifactDemand<'a>
 pub struct antecedent_design::decision_evaluation::BatchRecord
+pub struct antecedent_design::decision_evaluation::DemandBudget
 pub struct antecedent_design::decision_evaluation::DemandEvaluation
+pub struct antecedent_design::decision_evaluation::DemandSourceError
+pub struct antecedent_design::decision_evaluation::DemandSourceError has private fields
+pub struct antecedent_design::decision_evaluation::ExecutedDemand
+pub struct antecedent_design::decision_evaluation::ExecutionRecord
+pub struct antecedent_design::decision_evaluation::MeanDemand has private fields
+pub struct antecedent_design::decision_evaluation::MeanDemand<'a>
 pub struct antecedent_design::decision_evaluation::RetentionRecord
 pub struct antecedent_design::decision_reliability::CalibrationCoordinate
 pub struct antecedent_design::decision_reliability::CandidateDraws
@@ -12310,6 +12404,7 @@ pub trait antecedent_design::ObjectiveScorer
 pub trait antecedent_design::RepairFamily
 pub trait antecedent_design::Utility<A, O>: core::marker::Send + core::marker::Sync
 pub trait antecedent_design::composition_bundle::NodeVerifier
+pub trait antecedent_design::decision_evaluation::DemandSource
 pub trait antecedent_design::program_search::continuous::CompiledProgramEvaluator: core::marker::Sync
 pub trait antecedent_design::program_search::selection::procedure::ProgramSelectionProcedure<D>
 pub trait antecedent_design::signal::SignalProvider: core::marker::Send + core::marker::Sync
@@ -12331,6 +12426,20 @@ pub trait fn fn antecedent_design::Utility::affine_in_state(&self, actions: &[A]
 pub trait fn fn antecedent_design::Utility::evaluate_batch(&self, actions: &[A], outcomes: &[O], out: &mut [f64]) -> core::result::Result<(), antecedent_design::DesignError>
 pub trait fn fn antecedent_design::composition_bundle::NodeVerifier::kind(&self) -> antecedent_design::composition_bundle::NodeKind
 pub trait fn fn antecedent_design::composition_bundle::NodeVerifier::verify(&self, node_id: &str, bytes: &[u8], upstream: &[antecedent_design::composition_bundle::UpstreamNode<'_>]) -> core::result::Result<antecedent_design::composition_bundle::VerifiedNode, antecedent_design::composition_bundle::NodeFailure>
+pub trait fn fn antecedent_design::decision_evaluation::DemandSource::answers_outcome_law(&self) -> bool {default}
+pub trait fn fn antecedent_design::decision_evaluation::DemandSource::coordinates(&self) -> &[antecedent_contract::quantity::ScientificQuantity]
+pub trait fn fn antecedent_design::decision_evaluation::DemandSource::draw_count(&self) -> usize
+pub trait fn fn antecedent_design::decision_evaluation::DemandSource::exact_law(&self) -> bool {default}
+pub trait fn fn antecedent_design::decision_evaluation::DemandSource::fill_draws(&mut self, start: usize, rows: usize, out: &mut [f64]) -> core::result::Result<(), antecedent_design::decision_evaluation::DemandSourceError>
+pub trait fn fn antecedent_design::decision_evaluation::DemandSource::joint(&self) -> bool
+pub trait fn fn antecedent_design::decision_evaluation::DemandSource::mean_estimate(&self) -> antecedent_design::decision_eval::MeanEstimate
+pub trait fn fn antecedent_design::decision_evaluation::DemandSource::means(&mut self) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_design::decision_evaluation::DemandSourceError>
+pub trait fn fn antecedent_design::decision_evaluation::DemandSource::receipt(&self) -> antecedent_design::decision_eval::SourceReceipt
+pub trait fn fn antecedent_design::decision_evaluation::DemandSource::requires_joint_rows(&self) -> bool {default}
+pub trait fn fn antecedent_design::decision_evaluation::DemandSource::supplies_draws(&self) -> bool
+pub trait fn fn antecedent_design::decision_evaluation::DemandSource::supplies_means(&self) -> bool {default}
+pub trait fn fn antecedent_design::decision_evaluation::DemandSource::unsupported(&self, _column: usize) -> bool {default}
+pub trait fn fn antecedent_design::decision_evaluation::DemandSource::weights(&self) -> core::option::Option<&[f64]> {default}
 pub trait fn fn antecedent_design::program_search::continuous::CompiledProgramEvaluator::evaluate_program(&self, controls: &[f64], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_design::program_search::continuous::CompiledContinuousCandidate, antecedent_design::program_search::ProgramSearchError>
 pub trait fn fn antecedent_design::program_search::selection::procedure::ProgramSelectionProcedure::evaluate(&self, validation: &[&D], action: &<Self as antecedent_design::program_search::selection::procedure::ProgramSelectionProcedure>::Action, replicate: usize, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_design::program_search::selection::procedure::HeldoutProgramValue, antecedent_design::program_search::ProgramSearchError>
 pub trait fn fn antecedent_design::program_search::selection::procedure::ProgramSelectionProcedure::feasible(&self, fit: &<Self as antecedent_design::program_search::selection::procedure::ProgramSelectionProcedure>::Fit, candidates: <Self as antecedent_design::program_search::selection::procedure::ProgramSelectionProcedure>::Candidates, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<<Self as antecedent_design::program_search::selection::procedure::ProgramSelectionProcedure>::Candidates, antecedent_design::program_search::ProgramSearchError>
@@ -12943,10 +13052,17 @@ pub variant antecedent_design::decision_eval::MeanEstimate::Posterior
 pub variant antecedent_design::decision_eval::Verdict::Indistinguishable(alloc::vec::Vec<alloc::string::String>)
 pub variant antecedent_design::decision_eval::Verdict::NoAdmissibleAction
 pub variant antecedent_design::decision_eval::Verdict::UniquelyOptimal(alloc::string::String)
+pub variant antecedent_design::decision_evaluation::EvaluationError::Admission { message: alloc::string::String }
+pub variant antecedent_design::decision_evaluation::EvaluationError::Cancelled { batches: usize }
+pub variant antecedent_design::decision_evaluation::EvaluationError::CarrierUnavailable { needed: alloc::vec::Vec<antecedent_design::SourceRepresentation> }
 pub variant antecedent_design::decision_evaluation::EvaluationError::Contract(antecedent_design::DecisionContractError)
 pub variant antecedent_design::decision_evaluation::EvaluationError::Evaluation(antecedent_design::decision_eval::DecisionEvalError)
 pub variant antecedent_design::decision_evaluation::EvaluationError::IdentifiedSet
 pub variant antecedent_design::decision_evaluation::EvaluationError::MeansInsufficient { missing: &'static [antecedent_design::decision_evaluation::MissingCarrier], needed: alloc::vec::Vec<antecedent_design::SourceRepresentation>, missing_label: &'static str }
+pub variant antecedent_design::decision_evaluation::EvaluationError::RetentionExceeded { needed: u64, budget: u64 }
+pub variant antecedent_design::decision_evaluation::EvaluationError::RetentionUnsupported { mode: antecedent_core::execution_facts::OutputRetention }
+pub variant antecedent_design::decision_evaluation::EvaluationError::ScratchTooSmall { needed: u64, budget: u64 }
+pub variant antecedent_design::decision_evaluation::EvaluationError::Source { message: alloc::string::String }
 pub variant antecedent_design::decision_evaluation::MissingCarrier::Draws
 pub variant antecedent_design::decision_evaluation::MissingCarrier::Predictions
 pub variant antecedent_design::decision_evaluation::RequestedCarrier::Draws

@@ -15,6 +15,7 @@
 #[non_exhaustive] pub enum antecedent_model::cyclic_world::WorldFailureCause
 #[non_exhaustive] pub enum antecedent_model::cyclic_world::WorldSolvedBy
 #[non_exhaustive] pub enum antecedent_model::discretized_scm::DiscretizationMethod
+#[non_exhaustive] pub enum antecedent_model::history_operators::HistoryExecutionError
 #[non_exhaustive] pub enum antecedent_model::history_operators::HistoryOperatorError
 #[non_exhaustive] pub enum antecedent_model::information_time::InformationRefusal
 #[non_exhaustive] pub enum antecedent_model::intervention_request::InterventionRequestError
@@ -208,6 +209,7 @@ impl core::clone::Clone for antecedent_model::equation_system::PolynomialEquatio
 impl core::clone::Clone for antecedent_model::equation_system::PolynomialSystem
 impl core::clone::Clone for antecedent_model::history_operators::ActionTiming
 impl core::clone::Clone for antecedent_model::history_operators::CensoringAssignmentWeight
+impl core::clone::Clone for antecedent_model::history_operators::ColumnFit
 impl core::clone::Clone for antecedent_model::history_operators::DelayedAction
 impl core::clone::Clone for antecedent_model::history_operators::DelayedDynamics
 impl core::clone::Clone for antecedent_model::history_operators::DelayedFeedback
@@ -216,16 +218,25 @@ impl core::clone::Clone for antecedent_model::history_operators::FeedbackDelay
 impl core::clone::Clone for antecedent_model::history_operators::FeedbackSearch
 impl core::clone::Clone for antecedent_model::history_operators::FeedbackSearchCap
 impl core::clone::Clone for antecedent_model::history_operators::HistoryConstruction
+impl core::clone::Clone for antecedent_model::history_operators::HistoryExecutionError
 impl core::clone::Clone for antecedent_model::history_operators::HistoryOperatorError
+impl core::clone::Clone for antecedent_model::history_operators::HistoryOperatorKind
+impl core::clone::Clone for antecedent_model::history_operators::HistoryProgram
+impl core::clone::Clone for antecedent_model::history_operators::HistoryWindows
 impl core::clone::Clone for antecedent_model::history_operators::Horizon
+impl core::clone::Clone for antecedent_model::history_operators::InitialState
 impl core::clone::Clone for antecedent_model::history_operators::InitialStateChange
 impl core::clone::Clone for antecedent_model::history_operators::OperatorFrame
 impl core::clone::Clone for antecedent_model::history_operators::PolicyEvaluation
+impl core::clone::Clone for antecedent_model::history_operators::PolicyRule
+impl core::clone::Clone for antecedent_model::history_operators::ReductionFunctional
 impl core::clone::Clone for antecedent_model::history_operators::ResponseTarget
 impl core::clone::Clone for antecedent_model::history_operators::SequentialRegression
 impl core::clone::Clone for antecedent_model::history_operators::TargetResponse
+impl core::clone::Clone for antecedent_model::history_operators::TrajectoryExecution
 impl core::clone::Clone for antecedent_model::history_operators::TrajectoryReduction
 impl core::clone::Clone for antecedent_model::history_operators::Transition
+impl core::clone::Clone for antecedent_model::history_operators::TransitionFit
 impl core::clone::Clone for antecedent_model::history_operators::TruncationCertificate
 impl core::clone::Clone for antecedent_model::history_operators::WeightRole
 impl core::clone::Clone for antecedent_model::information_time::AvailableOutcome
@@ -364,9 +375,11 @@ impl core::cmp::Eq for antecedent_model::history_operators::FeedbackDelay
 impl core::cmp::Eq for antecedent_model::history_operators::FeedbackSearch
 impl core::cmp::Eq for antecedent_model::history_operators::FeedbackSearchCap
 impl core::cmp::Eq for antecedent_model::history_operators::HistoryConstruction
+impl core::cmp::Eq for antecedent_model::history_operators::HistoryOperatorKind
 impl core::cmp::Eq for antecedent_model::history_operators::Horizon
 impl core::cmp::Eq for antecedent_model::history_operators::OperatorFrame
 impl core::cmp::Eq for antecedent_model::history_operators::PolicyEvaluation
+impl core::cmp::Eq for antecedent_model::history_operators::ReductionFunctional
 impl core::cmp::Eq for antecedent_model::history_operators::ResponseTarget
 impl core::cmp::Eq for antecedent_model::history_operators::SequentialRegression
 impl core::cmp::Eq for antecedent_model::history_operators::TargetResponse
@@ -546,6 +559,7 @@ impl core::cmp::PartialEq for antecedent_model::equation_system::PolynomialEquat
 impl core::cmp::PartialEq for antecedent_model::equation_system::PolynomialSystem
 impl core::cmp::PartialEq for antecedent_model::history_operators::ActionTiming
 impl core::cmp::PartialEq for antecedent_model::history_operators::CensoringAssignmentWeight
+impl core::cmp::PartialEq for antecedent_model::history_operators::ColumnFit
 impl core::cmp::PartialEq for antecedent_model::history_operators::DelayedAction
 impl core::cmp::PartialEq for antecedent_model::history_operators::DelayedDynamics
 impl core::cmp::PartialEq for antecedent_model::history_operators::DelayedFeedback
@@ -553,16 +567,25 @@ impl core::cmp::PartialEq for antecedent_model::history_operators::FeedbackDelay
 impl core::cmp::PartialEq for antecedent_model::history_operators::FeedbackSearch
 impl core::cmp::PartialEq for antecedent_model::history_operators::FeedbackSearchCap
 impl core::cmp::PartialEq for antecedent_model::history_operators::HistoryConstruction
+impl core::cmp::PartialEq for antecedent_model::history_operators::HistoryExecutionError
 impl core::cmp::PartialEq for antecedent_model::history_operators::HistoryOperatorError
+impl core::cmp::PartialEq for antecedent_model::history_operators::HistoryOperatorKind
+impl core::cmp::PartialEq for antecedent_model::history_operators::HistoryProgram
+impl core::cmp::PartialEq for antecedent_model::history_operators::HistoryWindows
 impl core::cmp::PartialEq for antecedent_model::history_operators::Horizon
+impl core::cmp::PartialEq for antecedent_model::history_operators::InitialState
 impl core::cmp::PartialEq for antecedent_model::history_operators::InitialStateChange
 impl core::cmp::PartialEq for antecedent_model::history_operators::OperatorFrame
 impl core::cmp::PartialEq for antecedent_model::history_operators::PolicyEvaluation
+impl core::cmp::PartialEq for antecedent_model::history_operators::PolicyRule
+impl core::cmp::PartialEq for antecedent_model::history_operators::ReductionFunctional
 impl core::cmp::PartialEq for antecedent_model::history_operators::ResponseTarget
 impl core::cmp::PartialEq for antecedent_model::history_operators::SequentialRegression
 impl core::cmp::PartialEq for antecedent_model::history_operators::TargetResponse
+impl core::cmp::PartialEq for antecedent_model::history_operators::TrajectoryExecution
 impl core::cmp::PartialEq for antecedent_model::history_operators::TrajectoryReduction
 impl core::cmp::PartialEq for antecedent_model::history_operators::Transition
+impl core::cmp::PartialEq for antecedent_model::history_operators::TransitionFit
 impl core::cmp::PartialEq for antecedent_model::history_operators::TruncationCertificate
 impl core::cmp::PartialEq for antecedent_model::history_operators::WeightRole
 impl core::cmp::PartialEq for antecedent_model::information_time::AvailableOutcome
@@ -672,6 +695,7 @@ impl core::error::Error for antecedent_model::compose::CompositionError
 impl core::error::Error for antecedent_model::compose::GaussianConditioningError
 impl core::error::Error for antecedent_model::cyclic_world::CyclicInterventionRefusal
 impl core::error::Error for antecedent_model::discretized_scm_artifact::ArtifactRefusal
+impl core::error::Error for antecedent_model::history_operators::HistoryExecutionError
 impl core::error::Error for antecedent_model::history_operators::HistoryOperatorError
 impl core::error::Error for antecedent_model::information_time::InformationRefusal
 impl core::error::Error for antecedent_model::intervention_request::InterventionRequestError
@@ -848,6 +872,7 @@ impl core::fmt::Debug for antecedent_model::equation_system::PolynomialEquation
 impl core::fmt::Debug for antecedent_model::equation_system::PolynomialSystem
 impl core::fmt::Debug for antecedent_model::history_operators::ActionTiming
 impl core::fmt::Debug for antecedent_model::history_operators::CensoringAssignmentWeight
+impl core::fmt::Debug for antecedent_model::history_operators::ColumnFit
 impl core::fmt::Debug for antecedent_model::history_operators::DelayedAction
 impl core::fmt::Debug for antecedent_model::history_operators::DelayedDynamics
 impl core::fmt::Debug for antecedent_model::history_operators::DelayedFeedback
@@ -856,16 +881,26 @@ impl core::fmt::Debug for antecedent_model::history_operators::FeedbackDelay
 impl core::fmt::Debug for antecedent_model::history_operators::FeedbackSearch
 impl core::fmt::Debug for antecedent_model::history_operators::FeedbackSearchCap
 impl core::fmt::Debug for antecedent_model::history_operators::HistoryConstruction
+impl core::fmt::Debug for antecedent_model::history_operators::HistoryExecutionError
 impl core::fmt::Debug for antecedent_model::history_operators::HistoryOperatorError
+impl core::fmt::Debug for antecedent_model::history_operators::HistoryOperatorKind
+impl core::fmt::Debug for antecedent_model::history_operators::HistoryProgram
+impl core::fmt::Debug for antecedent_model::history_operators::HistoryScan
+impl core::fmt::Debug for antecedent_model::history_operators::HistoryWindows
 impl core::fmt::Debug for antecedent_model::history_operators::Horizon
+impl core::fmt::Debug for antecedent_model::history_operators::InitialState
 impl core::fmt::Debug for antecedent_model::history_operators::InitialStateChange
 impl core::fmt::Debug for antecedent_model::history_operators::OperatorFrame
 impl core::fmt::Debug for antecedent_model::history_operators::PolicyEvaluation
+impl core::fmt::Debug for antecedent_model::history_operators::PolicyRule
+impl core::fmt::Debug for antecedent_model::history_operators::ReductionFunctional
 impl core::fmt::Debug for antecedent_model::history_operators::ResponseTarget
 impl core::fmt::Debug for antecedent_model::history_operators::SequentialRegression
 impl core::fmt::Debug for antecedent_model::history_operators::TargetResponse
+impl core::fmt::Debug for antecedent_model::history_operators::TrajectoryExecution
 impl core::fmt::Debug for antecedent_model::history_operators::TrajectoryReduction
 impl core::fmt::Debug for antecedent_model::history_operators::Transition
+impl core::fmt::Debug for antecedent_model::history_operators::TransitionFit
 impl core::fmt::Debug for antecedent_model::history_operators::TruncationCertificate
 impl core::fmt::Debug for antecedent_model::history_operators::WeightRole
 impl core::fmt::Debug for antecedent_model::information_time::AvailableOutcome
@@ -945,6 +980,7 @@ impl core::fmt::Display for antecedent_model::compose::GaussianConditioningError
 impl core::fmt::Display for antecedent_model::cyclic_world::CyclicInterventionRefusal
 impl core::fmt::Display for antecedent_model::cyclic_world::CyclicRefusalKind
 impl core::fmt::Display for antecedent_model::discretized_scm_artifact::ArtifactRefusal
+impl core::fmt::Display for antecedent_model::history_operators::HistoryExecutionError
 impl core::fmt::Display for antecedent_model::history_operators::HistoryOperatorError
 impl core::fmt::Display for antecedent_model::history_operators::ResponseTarget
 impl core::fmt::Display for antecedent_model::history_operators::WeightRole
@@ -978,6 +1014,7 @@ impl core::hash::Hash for antecedent_model::history_operators::DelayedDynamics
 impl core::hash::Hash for antecedent_model::history_operators::FeedbackDelay
 impl core::hash::Hash for antecedent_model::history_operators::FeedbackSearch
 impl core::hash::Hash for antecedent_model::history_operators::FeedbackSearchCap
+impl core::hash::Hash for antecedent_model::history_operators::HistoryOperatorKind
 impl core::hash::Hash for antecedent_model::history_operators::Horizon
 impl core::hash::Hash for antecedent_model::history_operators::ResponseTarget
 impl core::hash::Hash for antecedent_model::history_operators::TargetResponse
@@ -1036,7 +1073,10 @@ impl core::marker::Copy for antecedent_model::history_operators::DelayedAction
 impl core::marker::Copy for antecedent_model::history_operators::FeedbackDelay
 impl core::marker::Copy for antecedent_model::history_operators::FeedbackSearch
 impl core::marker::Copy for antecedent_model::history_operators::FeedbackSearchCap
+impl core::marker::Copy for antecedent_model::history_operators::HistoryOperatorKind
 impl core::marker::Copy for antecedent_model::history_operators::Horizon
+impl core::marker::Copy for antecedent_model::history_operators::PolicyRule
+impl core::marker::Copy for antecedent_model::history_operators::ReductionFunctional
 impl core::marker::Copy for antecedent_model::history_operators::ResponseTarget
 impl core::marker::Copy for antecedent_model::history_operators::TargetResponse
 impl core::marker::Copy for antecedent_model::history_operators::TruncationCertificate
@@ -1232,6 +1272,7 @@ impl core::marker::Freeze for antecedent_model::equation_system::PolynomialEquat
 impl core::marker::Freeze for antecedent_model::equation_system::PolynomialSystem [auto]
 impl core::marker::Freeze for antecedent_model::history_operators::ActionTiming [auto]
 impl core::marker::Freeze for antecedent_model::history_operators::CensoringAssignmentWeight [auto]
+impl core::marker::Freeze for antecedent_model::history_operators::ColumnFit [auto]
 impl core::marker::Freeze for antecedent_model::history_operators::DelayedAction [auto]
 impl core::marker::Freeze for antecedent_model::history_operators::DelayedDynamics [auto]
 impl core::marker::Freeze for antecedent_model::history_operators::DelayedFeedback [auto]
@@ -1240,16 +1281,26 @@ impl core::marker::Freeze for antecedent_model::history_operators::FeedbackDelay
 impl core::marker::Freeze for antecedent_model::history_operators::FeedbackSearch [auto]
 impl core::marker::Freeze for antecedent_model::history_operators::FeedbackSearchCap [auto]
 impl core::marker::Freeze for antecedent_model::history_operators::HistoryConstruction [auto]
+impl core::marker::Freeze for antecedent_model::history_operators::HistoryExecutionError [auto]
 impl core::marker::Freeze for antecedent_model::history_operators::HistoryOperatorError [auto]
+impl core::marker::Freeze for antecedent_model::history_operators::HistoryOperatorKind [auto]
+impl core::marker::Freeze for antecedent_model::history_operators::HistoryProgram [auto]
+impl core::marker::Freeze for antecedent_model::history_operators::HistoryScan [auto]
+impl core::marker::Freeze for antecedent_model::history_operators::HistoryWindows [auto]
 impl core::marker::Freeze for antecedent_model::history_operators::Horizon [auto]
+impl core::marker::Freeze for antecedent_model::history_operators::InitialState [auto]
 impl core::marker::Freeze for antecedent_model::history_operators::InitialStateChange [auto]
 impl core::marker::Freeze for antecedent_model::history_operators::OperatorFrame [auto]
 impl core::marker::Freeze for antecedent_model::history_operators::PolicyEvaluation [auto]
+impl core::marker::Freeze for antecedent_model::history_operators::PolicyRule [auto]
+impl core::marker::Freeze for antecedent_model::history_operators::ReductionFunctional [auto]
 impl core::marker::Freeze for antecedent_model::history_operators::ResponseTarget [auto]
 impl core::marker::Freeze for antecedent_model::history_operators::SequentialRegression [auto]
 impl core::marker::Freeze for antecedent_model::history_operators::TargetResponse [auto]
+impl core::marker::Freeze for antecedent_model::history_operators::TrajectoryExecution [auto]
 impl core::marker::Freeze for antecedent_model::history_operators::TrajectoryReduction [auto]
 impl core::marker::Freeze for antecedent_model::history_operators::Transition [auto]
+impl core::marker::Freeze for antecedent_model::history_operators::TransitionFit [auto]
 impl core::marker::Freeze for antecedent_model::history_operators::TruncationCertificate [auto]
 impl core::marker::Freeze for antecedent_model::history_operators::WeightRole [auto]
 impl core::marker::Freeze for antecedent_model::information_time::AvailableOutcome [auto]
@@ -1491,6 +1542,7 @@ impl core::marker::Send for antecedent_model::equation_system::PolynomialEquatio
 impl core::marker::Send for antecedent_model::equation_system::PolynomialSystem [auto]
 impl core::marker::Send for antecedent_model::history_operators::ActionTiming [auto]
 impl core::marker::Send for antecedent_model::history_operators::CensoringAssignmentWeight [auto]
+impl core::marker::Send for antecedent_model::history_operators::ColumnFit [auto]
 impl core::marker::Send for antecedent_model::history_operators::DelayedAction [auto]
 impl core::marker::Send for antecedent_model::history_operators::DelayedDynamics [auto]
 impl core::marker::Send for antecedent_model::history_operators::DelayedFeedback [auto]
@@ -1499,16 +1551,26 @@ impl core::marker::Send for antecedent_model::history_operators::FeedbackDelay [
 impl core::marker::Send for antecedent_model::history_operators::FeedbackSearch [auto]
 impl core::marker::Send for antecedent_model::history_operators::FeedbackSearchCap [auto]
 impl core::marker::Send for antecedent_model::history_operators::HistoryConstruction [auto]
+impl core::marker::Send for antecedent_model::history_operators::HistoryExecutionError [auto]
 impl core::marker::Send for antecedent_model::history_operators::HistoryOperatorError [auto]
+impl core::marker::Send for antecedent_model::history_operators::HistoryOperatorKind [auto]
+impl core::marker::Send for antecedent_model::history_operators::HistoryProgram [auto]
+impl core::marker::Send for antecedent_model::history_operators::HistoryScan [auto]
+impl core::marker::Send for antecedent_model::history_operators::HistoryWindows [auto]
 impl core::marker::Send for antecedent_model::history_operators::Horizon [auto]
+impl core::marker::Send for antecedent_model::history_operators::InitialState [auto]
 impl core::marker::Send for antecedent_model::history_operators::InitialStateChange [auto]
 impl core::marker::Send for antecedent_model::history_operators::OperatorFrame [auto]
 impl core::marker::Send for antecedent_model::history_operators::PolicyEvaluation [auto]
+impl core::marker::Send for antecedent_model::history_operators::PolicyRule [auto]
+impl core::marker::Send for antecedent_model::history_operators::ReductionFunctional [auto]
 impl core::marker::Send for antecedent_model::history_operators::ResponseTarget [auto]
 impl core::marker::Send for antecedent_model::history_operators::SequentialRegression [auto]
 impl core::marker::Send for antecedent_model::history_operators::TargetResponse [auto]
+impl core::marker::Send for antecedent_model::history_operators::TrajectoryExecution [auto]
 impl core::marker::Send for antecedent_model::history_operators::TrajectoryReduction [auto]
 impl core::marker::Send for antecedent_model::history_operators::Transition [auto]
+impl core::marker::Send for antecedent_model::history_operators::TransitionFit [auto]
 impl core::marker::Send for antecedent_model::history_operators::TruncationCertificate [auto]
 impl core::marker::Send for antecedent_model::history_operators::WeightRole [auto]
 impl core::marker::Send for antecedent_model::information_time::AvailableOutcome [auto]
@@ -1716,6 +1778,7 @@ impl core::marker::StructuralPartialEq for antecedent_model::equation_system::Po
 impl core::marker::StructuralPartialEq for antecedent_model::equation_system::PolynomialSystem
 impl core::marker::StructuralPartialEq for antecedent_model::history_operators::ActionTiming
 impl core::marker::StructuralPartialEq for antecedent_model::history_operators::CensoringAssignmentWeight
+impl core::marker::StructuralPartialEq for antecedent_model::history_operators::ColumnFit
 impl core::marker::StructuralPartialEq for antecedent_model::history_operators::DelayedAction
 impl core::marker::StructuralPartialEq for antecedent_model::history_operators::DelayedDynamics
 impl core::marker::StructuralPartialEq for antecedent_model::history_operators::DelayedFeedback
@@ -1723,16 +1786,25 @@ impl core::marker::StructuralPartialEq for antecedent_model::history_operators::
 impl core::marker::StructuralPartialEq for antecedent_model::history_operators::FeedbackSearch
 impl core::marker::StructuralPartialEq for antecedent_model::history_operators::FeedbackSearchCap
 impl core::marker::StructuralPartialEq for antecedent_model::history_operators::HistoryConstruction
+impl core::marker::StructuralPartialEq for antecedent_model::history_operators::HistoryExecutionError
 impl core::marker::StructuralPartialEq for antecedent_model::history_operators::HistoryOperatorError
+impl core::marker::StructuralPartialEq for antecedent_model::history_operators::HistoryOperatorKind
+impl core::marker::StructuralPartialEq for antecedent_model::history_operators::HistoryProgram
+impl core::marker::StructuralPartialEq for antecedent_model::history_operators::HistoryWindows
 impl core::marker::StructuralPartialEq for antecedent_model::history_operators::Horizon
+impl core::marker::StructuralPartialEq for antecedent_model::history_operators::InitialState
 impl core::marker::StructuralPartialEq for antecedent_model::history_operators::InitialStateChange
 impl core::marker::StructuralPartialEq for antecedent_model::history_operators::OperatorFrame
 impl core::marker::StructuralPartialEq for antecedent_model::history_operators::PolicyEvaluation
+impl core::marker::StructuralPartialEq for antecedent_model::history_operators::PolicyRule
+impl core::marker::StructuralPartialEq for antecedent_model::history_operators::ReductionFunctional
 impl core::marker::StructuralPartialEq for antecedent_model::history_operators::ResponseTarget
 impl core::marker::StructuralPartialEq for antecedent_model::history_operators::SequentialRegression
 impl core::marker::StructuralPartialEq for antecedent_model::history_operators::TargetResponse
+impl core::marker::StructuralPartialEq for antecedent_model::history_operators::TrajectoryExecution
 impl core::marker::StructuralPartialEq for antecedent_model::history_operators::TrajectoryReduction
 impl core::marker::StructuralPartialEq for antecedent_model::history_operators::Transition
+impl core::marker::StructuralPartialEq for antecedent_model::history_operators::TransitionFit
 impl core::marker::StructuralPartialEq for antecedent_model::history_operators::TruncationCertificate
 impl core::marker::StructuralPartialEq for antecedent_model::history_operators::WeightRole
 impl core::marker::StructuralPartialEq for antecedent_model::information_time::AvailableOutcome
@@ -1969,6 +2041,7 @@ impl core::marker::Sync for antecedent_model::equation_system::PolynomialEquatio
 impl core::marker::Sync for antecedent_model::equation_system::PolynomialSystem [auto]
 impl core::marker::Sync for antecedent_model::history_operators::ActionTiming [auto]
 impl core::marker::Sync for antecedent_model::history_operators::CensoringAssignmentWeight [auto]
+impl core::marker::Sync for antecedent_model::history_operators::ColumnFit [auto]
 impl core::marker::Sync for antecedent_model::history_operators::DelayedAction [auto]
 impl core::marker::Sync for antecedent_model::history_operators::DelayedDynamics [auto]
 impl core::marker::Sync for antecedent_model::history_operators::DelayedFeedback [auto]
@@ -1977,16 +2050,26 @@ impl core::marker::Sync for antecedent_model::history_operators::FeedbackDelay [
 impl core::marker::Sync for antecedent_model::history_operators::FeedbackSearch [auto]
 impl core::marker::Sync for antecedent_model::history_operators::FeedbackSearchCap [auto]
 impl core::marker::Sync for antecedent_model::history_operators::HistoryConstruction [auto]
+impl core::marker::Sync for antecedent_model::history_operators::HistoryExecutionError [auto]
 impl core::marker::Sync for antecedent_model::history_operators::HistoryOperatorError [auto]
+impl core::marker::Sync for antecedent_model::history_operators::HistoryOperatorKind [auto]
+impl core::marker::Sync for antecedent_model::history_operators::HistoryProgram [auto]
+impl core::marker::Sync for antecedent_model::history_operators::HistoryScan [auto]
+impl core::marker::Sync for antecedent_model::history_operators::HistoryWindows [auto]
 impl core::marker::Sync for antecedent_model::history_operators::Horizon [auto]
+impl core::marker::Sync for antecedent_model::history_operators::InitialState [auto]
 impl core::marker::Sync for antecedent_model::history_operators::InitialStateChange [auto]
 impl core::marker::Sync for antecedent_model::history_operators::OperatorFrame [auto]
 impl core::marker::Sync for antecedent_model::history_operators::PolicyEvaluation [auto]
+impl core::marker::Sync for antecedent_model::history_operators::PolicyRule [auto]
+impl core::marker::Sync for antecedent_model::history_operators::ReductionFunctional [auto]
 impl core::marker::Sync for antecedent_model::history_operators::ResponseTarget [auto]
 impl core::marker::Sync for antecedent_model::history_operators::SequentialRegression [auto]
 impl core::marker::Sync for antecedent_model::history_operators::TargetResponse [auto]
+impl core::marker::Sync for antecedent_model::history_operators::TrajectoryExecution [auto]
 impl core::marker::Sync for antecedent_model::history_operators::TrajectoryReduction [auto]
 impl core::marker::Sync for antecedent_model::history_operators::Transition [auto]
+impl core::marker::Sync for antecedent_model::history_operators::TransitionFit [auto]
 impl core::marker::Sync for antecedent_model::history_operators::TruncationCertificate [auto]
 impl core::marker::Sync for antecedent_model::history_operators::WeightRole [auto]
 impl core::marker::Sync for antecedent_model::information_time::AvailableOutcome [auto]
@@ -2228,6 +2311,7 @@ impl core::marker::Unpin for antecedent_model::equation_system::PolynomialEquati
 impl core::marker::Unpin for antecedent_model::equation_system::PolynomialSystem [auto]
 impl core::marker::Unpin for antecedent_model::history_operators::ActionTiming [auto]
 impl core::marker::Unpin for antecedent_model::history_operators::CensoringAssignmentWeight [auto]
+impl core::marker::Unpin for antecedent_model::history_operators::ColumnFit [auto]
 impl core::marker::Unpin for antecedent_model::history_operators::DelayedAction [auto]
 impl core::marker::Unpin for antecedent_model::history_operators::DelayedDynamics [auto]
 impl core::marker::Unpin for antecedent_model::history_operators::DelayedFeedback [auto]
@@ -2236,16 +2320,26 @@ impl core::marker::Unpin for antecedent_model::history_operators::FeedbackDelay 
 impl core::marker::Unpin for antecedent_model::history_operators::FeedbackSearch [auto]
 impl core::marker::Unpin for antecedent_model::history_operators::FeedbackSearchCap [auto]
 impl core::marker::Unpin for antecedent_model::history_operators::HistoryConstruction [auto]
+impl core::marker::Unpin for antecedent_model::history_operators::HistoryExecutionError [auto]
 impl core::marker::Unpin for antecedent_model::history_operators::HistoryOperatorError [auto]
+impl core::marker::Unpin for antecedent_model::history_operators::HistoryOperatorKind [auto]
+impl core::marker::Unpin for antecedent_model::history_operators::HistoryProgram [auto]
+impl core::marker::Unpin for antecedent_model::history_operators::HistoryScan [auto]
+impl core::marker::Unpin for antecedent_model::history_operators::HistoryWindows [auto]
 impl core::marker::Unpin for antecedent_model::history_operators::Horizon [auto]
+impl core::marker::Unpin for antecedent_model::history_operators::InitialState [auto]
 impl core::marker::Unpin for antecedent_model::history_operators::InitialStateChange [auto]
 impl core::marker::Unpin for antecedent_model::history_operators::OperatorFrame [auto]
 impl core::marker::Unpin for antecedent_model::history_operators::PolicyEvaluation [auto]
+impl core::marker::Unpin for antecedent_model::history_operators::PolicyRule [auto]
+impl core::marker::Unpin for antecedent_model::history_operators::ReductionFunctional [auto]
 impl core::marker::Unpin for antecedent_model::history_operators::ResponseTarget [auto]
 impl core::marker::Unpin for antecedent_model::history_operators::SequentialRegression [auto]
 impl core::marker::Unpin for antecedent_model::history_operators::TargetResponse [auto]
+impl core::marker::Unpin for antecedent_model::history_operators::TrajectoryExecution [auto]
 impl core::marker::Unpin for antecedent_model::history_operators::TrajectoryReduction [auto]
 impl core::marker::Unpin for antecedent_model::history_operators::Transition [auto]
+impl core::marker::Unpin for antecedent_model::history_operators::TransitionFit [auto]
 impl core::marker::Unpin for antecedent_model::history_operators::TruncationCertificate [auto]
 impl core::marker::Unpin for antecedent_model::history_operators::WeightRole [auto]
 impl core::marker::Unpin for antecedent_model::information_time::AvailableOutcome [auto]
@@ -2479,6 +2573,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::equation_syst
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::equation_system::PolynomialSystem [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::ActionTiming [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::CensoringAssignmentWeight [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::ColumnFit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::DelayedAction [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::DelayedDynamics [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::DelayedFeedback [auto]
@@ -2487,16 +2582,26 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_opera
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::FeedbackSearch [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::FeedbackSearchCap [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::HistoryConstruction [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::HistoryExecutionError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::HistoryOperatorError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::HistoryOperatorKind [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::HistoryProgram [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::HistoryScan [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::HistoryWindows [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::Horizon [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::InitialState [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::InitialStateChange [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::OperatorFrame [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::PolicyEvaluation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::PolicyRule [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::ReductionFunctional [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::ResponseTarget [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::SequentialRegression [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::TargetResponse [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::TrajectoryExecution [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::TrajectoryReduction [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::Transition [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::TransitionFit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::TruncationCertificate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::WeightRole [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::information_time::AvailableOutcome [auto]
@@ -2729,6 +2834,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_model::equation_system:
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::equation_system::PolynomialSystem [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::ActionTiming [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::CensoringAssignmentWeight [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::ColumnFit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::DelayedAction [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::DelayedDynamics [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::DelayedFeedback [auto]
@@ -2737,16 +2843,26 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operator
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::FeedbackSearch [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::FeedbackSearchCap [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::HistoryConstruction [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::HistoryExecutionError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::HistoryOperatorError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::HistoryOperatorKind [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::HistoryProgram [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::HistoryScan [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::HistoryWindows [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::Horizon [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::InitialState [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::InitialStateChange [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::OperatorFrame [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::PolicyEvaluation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::PolicyRule [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::ReductionFunctional [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::ResponseTarget [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::SequentialRegression [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::TargetResponse [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::TrajectoryExecution [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::TrajectoryReduction [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::Transition [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::TransitionFit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::TruncationCertificate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::WeightRole [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::information_time::AvailableOutcome [auto]
@@ -2865,6 +2981,8 @@ impl<'a> core::clone::Clone for antecedent_model::NoiseFix<'a>
 impl<'a> core::clone::Clone for antecedent_model::NoiseSource<'a>
 impl<'a> core::clone::Clone for antecedent_model::ParentBatch<'a>
 impl<'a> core::clone::Clone for antecedent_model::TemporalPlan<'a>
+impl<'a> core::clone::Clone for antecedent_model::history_operators::TickSeries<'a>
+impl<'a> core::cmp::PartialEq for antecedent_model::history_operators::TickSeries<'a>
 impl<'a> core::fmt::Debug for antecedent_model::ConditionEvidence<'a>
 impl<'a> core::fmt::Debug for antecedent_model::ModelView<'a>
 impl<'a> core::fmt::Debug for antecedent_model::NoiseBatchMut<'a>
@@ -2873,12 +2991,14 @@ impl<'a> core::fmt::Debug for antecedent_model::NoiseSource<'a>
 impl<'a> core::fmt::Debug for antecedent_model::ParentBatch<'a>
 impl<'a> core::fmt::Debug for antecedent_model::TemporalPlan<'a>
 impl<'a> core::fmt::Debug for antecedent_model::ValueBatchMut<'a>
+impl<'a> core::fmt::Debug for antecedent_model::history_operators::TickSeries<'a>
 impl<'a> core::marker::Copy for antecedent_model::ConditionEvidence<'a>
 impl<'a> core::marker::Copy for antecedent_model::NodeEvaluation<'a>
 impl<'a> core::marker::Copy for antecedent_model::NoiseFix<'a>
 impl<'a> core::marker::Copy for antecedent_model::NoiseSource<'a>
 impl<'a> core::marker::Copy for antecedent_model::ParentBatch<'a>
 impl<'a> core::marker::Copy for antecedent_model::TemporalPlan<'a>
+impl<'a> core::marker::Copy for antecedent_model::history_operators::TickSeries<'a>
 impl<'a> core::marker::Freeze for antecedent_model::ConditionEvidence<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_model::ModelView<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_model::NodeEvaluation<'a> [auto]
@@ -2890,6 +3010,7 @@ impl<'a> core::marker::Freeze for antecedent_model::ParentBatch<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_model::TemporalNoise<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_model::TemporalPlan<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_model::ValueBatchMut<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_model::history_operators::TickSeries<'a> [auto]
 impl<'a> core::marker::Send for antecedent_model::ConditionEvidence<'a> [auto]
 impl<'a> core::marker::Send for antecedent_model::ModelView<'a> [auto]
 impl<'a> core::marker::Send for antecedent_model::NodeEvaluation<'a> [auto]
@@ -2901,6 +3022,8 @@ impl<'a> core::marker::Send for antecedent_model::ParentBatch<'a> [auto]
 impl<'a> core::marker::Send for antecedent_model::TemporalNoise<'a> [auto]
 impl<'a> core::marker::Send for antecedent_model::TemporalPlan<'a> [auto]
 impl<'a> core::marker::Send for antecedent_model::ValueBatchMut<'a> [auto]
+impl<'a> core::marker::Send for antecedent_model::history_operators::TickSeries<'a> [auto]
+impl<'a> core::marker::StructuralPartialEq for antecedent_model::history_operators::TickSeries<'a>
 impl<'a> core::marker::Sync for antecedent_model::ConditionEvidence<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_model::ModelView<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_model::NodeEvaluation<'a> [auto]
@@ -2912,6 +3035,7 @@ impl<'a> core::marker::Sync for antecedent_model::ParentBatch<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_model::TemporalNoise<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_model::TemporalPlan<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_model::ValueBatchMut<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_model::history_operators::TickSeries<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_model::ConditionEvidence<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_model::ModelView<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_model::NodeEvaluation<'a> [auto]
@@ -2923,6 +3047,7 @@ impl<'a> core::marker::Unpin for antecedent_model::ParentBatch<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_model::TemporalNoise<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_model::TemporalPlan<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_model::ValueBatchMut<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_model::history_operators::TickSeries<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_model::ConditionEvidence<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_model::NodeNoise<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_model::NoiseBatchMut<'a> [auto]
@@ -2932,11 +3057,13 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_model::ParentBat
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_model::TemporalNoise<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_model::TemporalPlan<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_model::ValueBatchMut<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::TickSeries<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_model::ConditionEvidence<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_model::NoiseFix<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_model::NoiseSource<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_model::ParentBatch<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_model::TemporalPlan<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::TickSeries<'a> [auto]
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::compile::CompiledSystemPlan
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::compile::ExecutionBlock
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_model::compile::SystemSemantics
@@ -3128,6 +3255,9 @@ pub enum antecedent_model::discretized_scm::ParadigmCell
 pub enum antecedent_model::discretized_scm::ParityRoute
 pub enum antecedent_model::history_operators::DelayedAction
 pub enum antecedent_model::history_operators::FeedbackSearch
+pub enum antecedent_model::history_operators::HistoryOperatorKind
+pub enum antecedent_model::history_operators::PolicyRule
+pub enum antecedent_model::history_operators::ReductionFunctional
 pub enum antecedent_model::history_operators::ResponseTarget
 pub enum antecedent_model::history_operators::WeightRole
 pub enum antecedent_model::information_time::ForwardOnly
@@ -3494,6 +3624,9 @@ pub field antecedent_model::equation_system::PolynomialEquation::terms: alloc::v
 pub field antecedent_model::equation_system::PolynomialSystem::domain: alloc::vec::Vec<antecedent_model::equation_system::Interval>
 pub field antecedent_model::equation_system::PolynomialSystem::equations: alloc::vec::Vec<antecedent_model::equation_system::PolynomialEquation>
 pub field antecedent_model::equation_system::PolynomialSystem::variables: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_model::history_operators::ColumnFit::coefficients: alloc::vec::Vec<f64>
+pub field antecedent_model::history_operators::ColumnFit::residual_variance: f64
+pub field antecedent_model::history_operators::ColumnFit::rows: usize
 pub field antecedent_model::history_operators::DelayedFeedbackRequest::ancestry_steps: u32
 pub field antecedent_model::history_operators::DelayedFeedbackRequest::cadence: antecedent_data::temporal::TimeIndex
 pub field antecedent_model::history_operators::DelayedFeedbackRequest::delay: core::option::Option<antecedent_model::history_operators::FeedbackDelay>
@@ -3505,8 +3638,16 @@ pub field antecedent_model::history_operators::DelayedFeedbackRequest::intervent
 pub field antecedent_model::history_operators::DelayedFeedbackRequest::search_cap: core::option::Option<antecedent_model::history_operators::FeedbackSearchCap>
 pub field antecedent_model::history_operators::DelayedFeedbackRequest::temporal: antecedent_core::intervention::TemporalPolicy
 pub field antecedent_model::history_operators::DelayedFeedbackRequest::truncation: core::option::Option<antecedent_model::history_operators::TruncationCertificate>
+pub field antecedent_model::history_operators::InitialState::actions: alloc::vec::Vec<f64>
+pub field antecedent_model::history_operators::InitialState::outcomes: alloc::vec::Vec<f64>
 pub field antecedent_model::history_operators::InitialStateChange::law_name: alloc::string::String
 pub field antecedent_model::history_operators::InitialStateChange::level: f64
+pub field antecedent_model::history_operators::TrajectoryExecution::fit: antecedent_model::history_operators::TransitionFit
+pub field antecedent_model::history_operators::TrajectoryExecution::policy: alloc::vec::Vec<f64>
+pub field antecedent_model::history_operators::TrajectoryExecution::policy_value: f64
+pub field antecedent_model::history_operators::TrajectoryExecution::reference: alloc::vec::Vec<f64>
+pub field antecedent_model::history_operators::TrajectoryExecution::reference_value: f64
+pub field antecedent_model::history_operators::TrajectoryExecution::windows: usize
 pub field antecedent_model::intervention_request::ClampTarget::dimension: usize
 pub field antecedent_model::intervention_request::ClampTarget::indices: alloc::vec::Vec<usize>
 pub field antecedent_model::intervention_request::HardClampIdentity::dimension: usize
@@ -3934,6 +4075,7 @@ pub fn <antecedent_model::history_operators::ActionTiming>::fn try_new(cadence: 
 pub fn <antecedent_model::history_operators::CensoringAssignmentWeight>::const fn assignment(&self) -> f64
 pub fn <antecedent_model::history_operators::CensoringAssignmentWeight>::const fn censoring(&self) -> f64
 pub fn <antecedent_model::history_operators::CensoringAssignmentWeight>::const fn frame(&self) -> &antecedent_model::history_operators::OperatorFrame
+pub fn <antecedent_model::history_operators::CensoringAssignmentWeight>::fn row_weights(&self, censoring_probability: &[f64], assignment_probability: &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_model::history_operators::HistoryExecutionError>
 pub fn <antecedent_model::history_operators::CensoringAssignmentWeight>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: antecedent_core::scientific_target::model::InitialLaw, censoring: f64, assignment: f64) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
 pub fn <antecedent_model::history_operators::DelayedAction>::const fn level_at(self, step: i32) -> f64
 pub fn <antecedent_model::history_operators::DelayedAction>::const fn permanent_level(self) -> f64
@@ -3962,7 +4104,27 @@ pub fn <antecedent_model::history_operators::FeedbackSearchCap>::const fn declar
 pub fn <antecedent_model::history_operators::FeedbackSearchCap>::const fn steps(self) -> u32
 pub fn <antecedent_model::history_operators::HistoryConstruction>::const fn frame(&self) -> &antecedent_model::history_operators::OperatorFrame
 pub fn <antecedent_model::history_operators::HistoryConstruction>::const fn history(&self) -> antecedent_core::scientific_target::model::HistoryWindow
+pub fn <antecedent_model::history_operators::HistoryConstruction>::fn scan(&self, series: &antecedent_model::history_operators::TickSeries<'_>) -> core::result::Result<antecedent_model::history_operators::HistoryWindows, antecedent_model::history_operators::HistoryExecutionError>
+pub fn <antecedent_model::history_operators::HistoryConstruction>::fn scan_columns(&self, data: &antecedent_data::dataset::TimeSeriesData, columns: impl core::convert::Into<alloc::sync::Arc<[antecedent_data::sample::LaggedColumn]>>) -> core::result::Result<antecedent_model::history_operators::HistoryScan, antecedent_model::history_operators::HistoryExecutionError>
 pub fn <antecedent_model::history_operators::HistoryConstruction>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: antecedent_core::scientific_target::model::InitialLaw, history: antecedent_core::scientific_target::model::HistoryWindow) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
+pub fn <antecedent_model::history_operators::HistoryOperatorKind>::const fn as_str(self) -> &'static str
+pub fn <antecedent_model::history_operators::HistoryOperatorKind>::fn operator(self) -> core::result::Result<antecedent_core::operator::Operator, antecedent_core::operator::OperatorError>
+pub fn <antecedent_model::history_operators::HistoryProgram>::const fn step_ns(&self) -> u64
+pub fn <antecedent_model::history_operators::HistoryProgram>::fn execute(&self, series: &antecedent_model::history_operators::TickSeries<'_>, row_weights: core::option::Option<&[f64]>, policy: antecedent_model::history_operators::PolicyRule, reference: antecedent_model::history_operators::PolicyRule, initial: core::option::Option<&antecedent_model::history_operators::InitialState>) -> core::result::Result<antecedent_model::history_operators::TrajectoryExecution, antecedent_model::history_operators::HistoryExecutionError>
+pub fn <antecedent_model::history_operators::HistoryProgram>::fn kinds(&self) -> alloc::vec::Vec<antecedent_model::history_operators::HistoryOperatorKind>
+pub fn <antecedent_model::history_operators::HistoryProgram>::fn policy_name(&self) -> &str
+pub fn <antecedent_model::history_operators::HistoryProgram>::fn try_new(history: antecedent_model::history_operators::HistoryConstruction, timing: antecedent_model::history_operators::ActionTiming, policy: antecedent_model::history_operators::PolicyEvaluation, transition: antecedent_model::history_operators::Transition, regression: antecedent_model::history_operators::SequentialRegression, weights: core::option::Option<antecedent_model::history_operators::CensoringAssignmentWeight>, reduction: antecedent_model::history_operators::TrajectoryReduction) -> core::result::Result<Self, antecedent_model::history_operators::HistoryExecutionError>
+pub fn <antecedent_model::history_operators::HistoryScan>::const fn lag_plan(&self) -> &antecedent_data::sample::LaggedSamplePlan
+pub fn <antecedent_model::history_operators::HistoryScan>::fn complete(&mut self, data: &antecedent_data::dataset::TimeSeriesData, policy: &antecedent_core::execution::KernelPolicy) -> core::result::Result<antecedent_data::sample::LaggedPreparedSample<'_>, antecedent_data::error::DataError>
+pub fn <antecedent_model::history_operators::HistoryScan>::fn plan(data: &antecedent_data::dataset::TimeSeriesData, max_lag: u32, columns: impl core::convert::Into<alloc::sync::Arc<[antecedent_data::sample::LaggedColumn]>>) -> core::result::Result<Self, antecedent_data::error::DataError>
+pub fn <antecedent_model::history_operators::HistoryScan>::fn windows(&mut self, data: &antecedent_data::dataset::TimeSeriesData, policy: &antecedent_core::execution::KernelPolicy, gaps: bool) -> core::result::Result<(antecedent_data::sample::LaggedPreparedSample<'_>, core::option::Option<alloc::vec::Vec<bool>>), antecedent_data::error::DataError>
+pub fn <antecedent_model::history_operators::HistoryScan>::fn with_gaps(&mut self, data: &antecedent_data::dataset::TimeSeriesData, policy: &antecedent_core::execution::KernelPolicy) -> core::result::Result<antecedent_data::sample::GappedSample<'_>, antecedent_data::error::DataError>
+pub fn <antecedent_model::history_operators::HistoryWindows>::const fn columns(&self) -> usize
+pub fn <antecedent_model::history_operators::HistoryWindows>::const fn depth(&self) -> u32
+pub fn <antecedent_model::history_operators::HistoryWindows>::const fn first_tick(&self) -> usize
+pub fn <antecedent_model::history_operators::HistoryWindows>::fn design(&self) -> &[f64]
+pub fn <antecedent_model::history_operators::HistoryWindows>::fn rows(&self) -> usize
+pub fn <antecedent_model::history_operators::HistoryWindows>::fn target(&self) -> &[f64]
 pub fn <antecedent_model::history_operators::Horizon>::const fn end_ns(self) -> u64
 pub fn <antecedent_model::history_operators::Horizon>::const fn ending_at(end_ns: u64) -> Self
 pub fn <antecedent_model::history_operators::OperatorFrame>::const fn cadence(&self) -> &antecedent_data::temporal::TimeIndex
@@ -3975,6 +4137,8 @@ pub fn <antecedent_model::history_operators::PolicyEvaluation>::fn policy(&self)
 pub fn <antecedent_model::history_operators::PolicyEvaluation>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: antecedent_core::scientific_target::model::InitialLaw, policy: impl core::convert::Into<alloc::sync::Arc<str>>) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
 pub fn <antecedent_model::history_operators::ResponseTarget>::const fn as_str(self) -> &'static str
 pub fn <antecedent_model::history_operators::SequentialRegression>::const fn frame(&self) -> &antecedent_model::history_operators::OperatorFrame
+pub fn <antecedent_model::history_operators::SequentialRegression>::fn fit(&self, windows: &antecedent_model::history_operators::HistoryWindows, weights: core::option::Option<&[f64]>) -> core::result::Result<antecedent_model::history_operators::TransitionFit, antecedent_model::history_operators::HistoryExecutionError>
+pub fn <antecedent_model::history_operators::SequentialRegression>::fn fit_columns(&self, columns: &[&[f64]], target: &[f64], weights: core::option::Option<&[f64]>) -> core::result::Result<antecedent_model::history_operators::ColumnFit, antecedent_model::history_operators::HistoryExecutionError>
 pub fn <antecedent_model::history_operators::SequentialRegression>::fn outcome(&self) -> &str
 pub fn <antecedent_model::history_operators::SequentialRegression>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: antecedent_core::scientific_target::model::InitialLaw, outcome: impl core::convert::Into<alloc::sync::Arc<str>>) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
 pub fn <antecedent_model::history_operators::TargetResponse>::const fn action(self) -> antecedent_model::history_operators::DelayedAction
@@ -3982,12 +4146,24 @@ pub fn <antecedent_model::history_operators::TargetResponse>::const fn level(sel
 pub fn <antecedent_model::history_operators::TargetResponse>::const fn level_bits(self) -> u64
 pub fn <antecedent_model::history_operators::TargetResponse>::const fn spread_bits(self) -> u64
 pub fn <antecedent_model::history_operators::TargetResponse>::const fn target(self) -> antecedent_model::history_operators::ResponseTarget
+pub fn <antecedent_model::history_operators::TickSeries<'a>>::const fn is_empty(&self) -> bool
+pub fn <antecedent_model::history_operators::TickSeries<'a>>::const fn len(&self) -> usize
+pub fn <antecedent_model::history_operators::TickSeries<'a>>::fn try_new(outcome: &'a [f64], action: &'a [f64]) -> core::result::Result<Self, antecedent_model::history_operators::HistoryExecutionError>
+pub fn <antecedent_model::history_operators::TrajectoryExecution>::fn contrast(&self) -> f64
 pub fn <antecedent_model::history_operators::TrajectoryReduction>::const fn frame(&self) -> &antecedent_model::history_operators::OperatorFrame
+pub fn <antecedent_model::history_operators::TrajectoryReduction>::fn evaluated(&self) -> core::result::Result<antecedent_model::history_operators::ReductionFunctional, antecedent_model::history_operators::HistoryExecutionError>
 pub fn <antecedent_model::history_operators::TrajectoryReduction>::fn functional(&self) -> &str
+pub fn <antecedent_model::history_operators::TrajectoryReduction>::fn reduce(&self, trajectory: &[f64]) -> core::result::Result<f64, antecedent_model::history_operators::HistoryExecutionError>
 pub fn <antecedent_model::history_operators::TrajectoryReduction>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: antecedent_core::scientific_target::model::InitialLaw, functional: impl core::convert::Into<alloc::sync::Arc<str>>) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
 pub fn <antecedent_model::history_operators::Transition>::const fn frame(&self) -> &antecedent_model::history_operators::OperatorFrame
 pub fn <antecedent_model::history_operators::Transition>::const fn step_ns(&self) -> u64
+pub fn <antecedent_model::history_operators::Transition>::fn step(fit: &antecedent_model::history_operators::TransitionFit, outcomes: &[f64], actions: &[f64], action_now: f64) -> f64
 pub fn <antecedent_model::history_operators::Transition>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: antecedent_core::scientific_target::model::InitialLaw) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
+pub fn <antecedent_model::history_operators::TransitionFit>::const fn depth(&self) -> u32
+pub fn <antecedent_model::history_operators::TransitionFit>::const fn residual_variance(&self) -> f64
+pub fn <antecedent_model::history_operators::TransitionFit>::const fn rows(&self) -> usize
+pub fn <antecedent_model::history_operators::TransitionFit>::fn action_effect(&self, lag: u32) -> core::option::Option<f64>
+pub fn <antecedent_model::history_operators::TransitionFit>::fn coefficients(&self) -> &[f64]
 pub fn <antecedent_model::history_operators::TruncationCertificate>::const fn retained_ticks(self) -> u32
 pub fn <antecedent_model::history_operators::TruncationCertificate>::const fn retaining(retained_ticks: u32) -> Self
 pub fn <antecedent_model::history_operators::WeightRole>::const fn as_str(self) -> &'static str
@@ -4373,6 +4549,7 @@ pub struct antecedent_model::history_operators::ActionTiming
 pub struct antecedent_model::history_operators::ActionTiming has private fields
 pub struct antecedent_model::history_operators::CensoringAssignmentWeight
 pub struct antecedent_model::history_operators::CensoringAssignmentWeight has private fields
+pub struct antecedent_model::history_operators::ColumnFit
 pub struct antecedent_model::history_operators::DelayedDynamics
 pub struct antecedent_model::history_operators::DelayedDynamics has private fields
 pub struct antecedent_model::history_operators::DelayedFeedback
@@ -4384,8 +4561,15 @@ pub struct antecedent_model::history_operators::FeedbackSearchCap
 pub struct antecedent_model::history_operators::FeedbackSearchCap has private fields
 pub struct antecedent_model::history_operators::HistoryConstruction
 pub struct antecedent_model::history_operators::HistoryConstruction has private fields
+pub struct antecedent_model::history_operators::HistoryProgram
+pub struct antecedent_model::history_operators::HistoryProgram has private fields
+pub struct antecedent_model::history_operators::HistoryScan
+pub struct antecedent_model::history_operators::HistoryScan has private fields
+pub struct antecedent_model::history_operators::HistoryWindows
+pub struct antecedent_model::history_operators::HistoryWindows has private fields
 pub struct antecedent_model::history_operators::Horizon
 pub struct antecedent_model::history_operators::Horizon has private fields
+pub struct antecedent_model::history_operators::InitialState
 pub struct antecedent_model::history_operators::InitialStateChange
 pub struct antecedent_model::history_operators::OperatorFrame
 pub struct antecedent_model::history_operators::OperatorFrame has private fields
@@ -4395,10 +4579,15 @@ pub struct antecedent_model::history_operators::SequentialRegression
 pub struct antecedent_model::history_operators::SequentialRegression has private fields
 pub struct antecedent_model::history_operators::TargetResponse
 pub struct antecedent_model::history_operators::TargetResponse has private fields
+pub struct antecedent_model::history_operators::TickSeries has private fields
+pub struct antecedent_model::history_operators::TickSeries<'a>
+pub struct antecedent_model::history_operators::TrajectoryExecution
 pub struct antecedent_model::history_operators::TrajectoryReduction
 pub struct antecedent_model::history_operators::TrajectoryReduction has private fields
 pub struct antecedent_model::history_operators::Transition
 pub struct antecedent_model::history_operators::Transition has private fields
+pub struct antecedent_model::history_operators::TransitionFit
+pub struct antecedent_model::history_operators::TransitionFit has private fields
 pub struct antecedent_model::history_operators::TruncationCertificate
 pub struct antecedent_model::history_operators::TruncationCertificate has private fields
 pub struct antecedent_model::information_time::AvailableOutcome
@@ -4917,6 +5106,23 @@ pub variant antecedent_model::history_operators::DelayedAction::Pulse { at_step:
 pub variant antecedent_model::history_operators::DelayedAction::Sustained { from_step: i32, until_step: i32, level_bits: u64 }
 pub variant antecedent_model::history_operators::FeedbackSearch::Identified { cap: antecedent_model::history_operators::FeedbackSearchCap }
 pub variant antecedent_model::history_operators::FeedbackSearch::PlannerDefault
+pub variant antecedent_model::history_operators::HistoryExecutionError::FrameMismatch { operator: &'static str }
+pub variant antecedent_model::history_operators::HistoryExecutionError::HistoryCapUnresolved
+pub variant antecedent_model::history_operators::HistoryExecutionError::HistoryDepthZero
+pub variant antecedent_model::history_operators::HistoryExecutionError::HistoryShorterThanColumns { cap: u32, needed: u32 }
+pub variant antecedent_model::history_operators::HistoryExecutionError::HorizonUncountable
+pub variant antecedent_model::history_operators::HistoryExecutionError::InitialStateRequired { law: alloc::string::String }
+pub variant antecedent_model::history_operators::HistoryExecutionError::InitialStateShape { outcomes: usize, actions: usize, depth: u32 }
+pub variant antecedent_model::history_operators::HistoryExecutionError::NonFinitePolicyLevel { value: f64 }
+pub variant antecedent_model::history_operators::HistoryExecutionError::NonFiniteValue { tick: usize }
+pub variant antecedent_model::history_operators::HistoryExecutionError::ProbabilityOutOfRange { role: antecedent_model::history_operators::WeightRole, tick: usize, value: f64 }
+pub variant antecedent_model::history_operators::HistoryExecutionError::Scan { message: alloc::string::String }
+pub variant antecedent_model::history_operators::HistoryExecutionError::SeriesLengthMismatch { outcome: usize, action: usize }
+pub variant antecedent_model::history_operators::HistoryExecutionError::SeriesTooShort { depth: u32, columns: usize, needed: usize, got: usize }
+pub variant antecedent_model::history_operators::HistoryExecutionError::SingularHistory
+pub variant antecedent_model::history_operators::HistoryExecutionError::UnknownFunctional { name: alloc::string::String }
+pub variant antecedent_model::history_operators::HistoryExecutionError::UnstableRollout { step: u32 }
+pub variant antecedent_model::history_operators::HistoryExecutionError::WeightShape { windows: usize, got: usize }
 pub variant antecedent_model::history_operators::HistoryOperatorError::ActionMissesCadence { at_ns: u64, interval_ns: u64 }
 pub variant antecedent_model::history_operators::HistoryOperatorError::ActionNotDelayable
 pub variant antecedent_model::history_operators::HistoryOperatorError::ActionOutsideHorizon { step: i32, horizon_steps: u32 }
@@ -4940,6 +5146,21 @@ pub variant antecedent_model::history_operators::HistoryOperatorError::SearchNot
 pub variant antecedent_model::history_operators::HistoryOperatorError::UncertifiedTruncation { retained_ticks: u32, required_ticks: u32 }
 pub variant antecedent_model::history_operators::HistoryOperatorError::UnstableAutoregression { autoregression: f64 }
 pub variant antecedent_model::history_operators::HistoryOperatorError::UnsupportedOperation { operation: &'static str, reason: &'static str }
+pub variant antecedent_model::history_operators::HistoryOperatorKind::ActionTiming
+pub variant antecedent_model::history_operators::HistoryOperatorKind::HistoryConstruction
+pub variant antecedent_model::history_operators::HistoryOperatorKind::PolicyEvaluation
+pub variant antecedent_model::history_operators::HistoryOperatorKind::SequentialRegression
+pub variant antecedent_model::history_operators::HistoryOperatorKind::TrajectoryReduction
+pub variant antecedent_model::history_operators::HistoryOperatorKind::Transition
+pub variant antecedent_model::history_operators::HistoryOperatorKind::Weights
+pub variant antecedent_model::history_operators::PolicyRule::Hold(f64)
+pub variant antecedent_model::history_operators::PolicyRule::Pulse { level: f64, otherwise: f64 }
+pub variant antecedent_model::history_operators::PolicyRule::Reactive { cutoff: f64, below: f64, at_or_above: f64, otherwise: f64 }
+pub variant antecedent_model::history_operators::PolicyRule::Sustained { level: f64, otherwise: f64 }
+pub variant antecedent_model::history_operators::ReductionFunctional::Final
+pub variant antecedent_model::history_operators::ReductionFunctional::Maximum
+pub variant antecedent_model::history_operators::ReductionFunctional::Mean
+pub variant antecedent_model::history_operators::ReductionFunctional::Sum
 pub variant antecedent_model::history_operators::ResponseTarget::ContinuousTime
 pub variant antecedent_model::history_operators::ResponseTarget::FiniteHorizon
 pub variant antecedent_model::history_operators::ResponseTarget::StaticEquilibrium

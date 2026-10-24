@@ -393,6 +393,19 @@ pub(super) fn response(
     season: usize,
     class: usize,
 ) -> f64 {
+    mechanism(data, p, exposures, class) + additive_terms(p, z, season)
+}
+/// The terms that do not depend on exposure: intercept, confounder and season.
+pub(super) fn additive_terms(p: &PanelParameters, z: f64, season: usize) -> f64 {
+    p.intercept + p.confounder * z + p.season_effects[season]
+}
+/// The saturated main effects and interaction products of one exposure vector.
+pub(super) fn mechanism(
+    data: &CompiledPanel<'_>,
+    p: &PanelParameters,
+    exposures: &[f64],
+    class: usize,
+) -> f64 {
     let k = p.half_saturation_of(class);
     let saturated: Vec<_> = exposures
         .iter()
@@ -414,7 +427,7 @@ pub(super) fn response(
                     .unwrap_or(f64::NAN)
         })
         .sum::<f64>();
-    p.intercept + main + products + p.confounder * z + p.season_effects[season]
+    main + products
 }
 pub(super) fn observed_response(
     data: &CompiledPanel<'_>,
@@ -439,12 +452,32 @@ pub(super) fn observed_response(
         data.family.class_of(group_index),
     )
 }
+/// The mechanism value of the last exposure vector a scenario saw. A program holds its
+/// schedule constant over stretches (and every adstock window fills after the carryover
+/// order), so consecutive periods with bit-identical exposures share one evaluation of the
+/// saturation and interaction program; the value is the same number the direct call returns.
+#[derive(Default)]
+pub(super) struct MechanismMemo {
+    exposures: Vec<f64>,
+    class: usize,
+    value: Option<f64>,
+}
 pub(super) fn program_response(
     data: &CompiledPanel<'_>,
     p: &PanelParameters,
     program: &PanelProgram,
     scenario: &PanelScenario,
     time: usize,
+) -> f64 {
+    program_response_memo(data, p, program, scenario, time, &mut MechanismMemo::default())
+}
+pub(super) fn program_response_memo(
+    data: &CompiledPanel<'_>,
+    p: &PanelParameters,
+    program: &PanelProgram,
+    scenario: &PanelScenario,
+    time: usize,
+    memo: &mut MechanismMemo,
 ) -> f64 {
     let exposures: Vec<_> = p
         .channels
@@ -473,7 +506,20 @@ pub(super) fn program_response(
             .position(|group| group.id == scenario.group)
             .map_or(0, |index| data.family.class_of(index)),
     };
-    response(data, p, &exposures, scenario.confounder[time], scenario.season[time], class)
+    let same = memo.value.is_some()
+        && memo.class == class
+        && memo.exposures.len() == exposures.len()
+        && memo.exposures.iter().zip(&exposures).all(|(a, b)| a.to_bits() == b.to_bits());
+    let mechanism_value = if same {
+        memo.value.unwrap_or(f64::NAN)
+    } else {
+        let value = mechanism(data, p, &exposures, class);
+        memo.exposures = exposures;
+        memo.class = class;
+        memo.value = Some(value);
+        value
+    };
+    mechanism_value + additive_terms(p, scenario.confounder[time], scenario.season[time])
 }
 /// Conservatively retained heap and inline bytes for one complete global parameter value.
 pub(super) fn parameter_bytes(data: &PanelData) -> Result<usize, PanelError> {

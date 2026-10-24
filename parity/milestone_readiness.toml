@@ -6,7 +6,7 @@ milestone = "K0"
 ready = true
 conditions = 17
 met = 17
-checked_in_plan = true
+checked_in_plan = false
 
 [[condition]]
 id = "prerequisite.B01"
@@ -17,7 +17,7 @@ detail = ""
 [[condition]]
 id = "prerequisite.B02"
 met = true
-evidence = "parity/capabilities/route_manifest.toml: 363 method records verified against the implementation"
+evidence = "parity/capabilities/route_manifest.toml: 372 method records verified against the implementation"
 detail = ""
 
 [[condition]]
@@ -101,7 +101,7 @@ detail = ""
 [[condition]]
 id = "reviews.decided"
 met = true
-evidence = "review decisions: admitted=178, blocked_research=6, not_admitted=8, specification_only=16"
+evidence = "review decisions: admitted=178, blocked_research=2, not_admitted=12, specification_only=16"
 detail = ""
 
 [[condition]]

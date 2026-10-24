@@ -12784,8 +12784,8 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/builder/finish.rs"
 implementation = ["crates/antecedent/src/analysis/builder/finish.rs"]
 provenance = []
-evidence = []
-artifact_consumer = []
+evidence = ["crates/antecedent/tests/lag_zero_average_effect.rs::the_lag_zero_average_effect_is_the_explicit_pulse_and_stays_unlicensed", "crates/antecedent/tests/lag_zero_average_effect.rs::every_lag_zero_average_effect_publishes_an_artifact_a_consumer_reads"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/lag_zero_average_effect.rs::the_lag_zero_average_effect_is_the_explicit_pulse_and_stays_unlicensed"]
 
 [[method]]
 id = "method.closed.AverageEffect.TemporalCpdag"
@@ -12812,8 +12812,8 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/builder/finish.rs"
 implementation = ["crates/antecedent/src/analysis/builder/finish.rs"]
 provenance = []
-evidence = ["crates/antecedent/tests/lag_zero_average_effect.rs"]
-artifact_consumer = []
+evidence = ["crates/antecedent/tests/lag_zero_average_effect.rs", "crates/antecedent/tests/lag_zero_average_effect.rs::the_lag_zero_average_effect_is_the_explicit_pulse_and_stays_unlicensed", "crates/antecedent/tests/lag_zero_average_effect.rs::every_lag_zero_average_effect_publishes_an_artifact_a_consumer_reads"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/lag_zero_average_effect.rs"]
 
 [[method]]
 id = "method.closed.AverageEffect.TemporalPag"
@@ -12840,8 +12840,8 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/builder/finish.rs"
 implementation = ["crates/antecedent/src/analysis/builder/finish.rs"]
 provenance = []
-evidence = []
-artifact_consumer = []
+evidence = ["crates/antecedent/tests/lag_zero_average_effect.rs::the_lag_zero_average_effect_is_the_explicit_pulse_and_stays_unlicensed", "crates/antecedent/tests/lag_zero_average_effect.rs::every_lag_zero_average_effect_publishes_an_artifact_a_consumer_reads"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/lag_zero_average_effect.rs::the_lag_zero_average_effect_is_the_explicit_pulse_and_stays_unlicensed"]
 
 [[method]]
 id = "method.bayesian.complier_effect"

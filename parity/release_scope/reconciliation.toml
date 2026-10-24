@@ -1644,8 +1644,8 @@ id = "X02.temporal.frequentist"
 source = "method_children"
 list = "mandatory"
 status = "reconciled"
-owner = ["crates/antecedent-estimate/src/joint_panel.rs", "crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/joint_panel_workflow.rs::actual_frequentist_panel_fit_retains_aligned_worlds_and_reuses_after_builder_disposal", "crates/antecedent/tests/joint_panel_workflow.rs::confounded_panel_does_not_acquire_a_causal_license_from_a_finite_mechanism"]
+owner = ["crates/antecedent-estimate/src/joint_panel/inference.rs", "crates/antecedent-estimate"]
+fixtures = ["crates/antecedent/tests/joint_panel_workflow.rs::actual_frequentist_panel_fit_retains_aligned_worlds_and_reuses_after_builder_disposal", "crates/antecedent/tests/joint_panel_workflow.rs::confounded_panel_does_not_acquire_a_causal_license_from_a_finite_mechanism", "crates/antecedent/tests/joint_panel_workflow.rs::exact_whole_program_assignment_earns_the_world_claim_without_promoting_model_uncertainty"]
 consumer = ["crates/antecedent-io/src/joint_panel_artifact.rs::FrozenPanelFit;crates/antecedent/src/analysis/joint_panel.rs;crates/antecedent/tests/joint_panel_workflow.rs::fresh_process_panel_artifact_consumer", "crates/antecedent/src/analysis/joint_panel/ports.rs"]
 
 [[row]]
@@ -1653,8 +1653,8 @@ id = "X02.temporal.bayesian"
 source = "method_children"
 list = "mandatory"
 status = "reconciled"
-owner = ["crates/antecedent-estimate/src/joint_panel.rs", "crates/antecedent-prob"]
-fixtures = ["crates/antecedent/tests/joint_panel_workflow.rs::actual_bayesian_panel_fit_preserves_mixing_diagnostics_and_shared_draw_axes", "crates/antecedent/tests/joint_panel_workflow.rs::period_randomization_does_not_certify_the_held_out_whole_program"]
+owner = ["crates/antecedent-estimate/src/joint_panel/inference.rs", "crates/antecedent-prob"]
+fixtures = ["crates/antecedent/tests/joint_panel_workflow.rs::actual_bayesian_panel_fit_preserves_mixing_diagnostics_and_shared_draw_axes", "crates/antecedent/tests/joint_panel_workflow.rs::period_randomization_does_not_certify_the_held_out_whole_program", "crates/antecedent/tests/joint_panel_workflow.rs::exact_whole_program_assignment_earns_the_world_claim_without_promoting_model_uncertainty"]
 consumer = ["crates/antecedent-io/src/joint_panel_artifact.rs::FrozenPanelFit;crates/antecedent/src/analysis/joint_panel.rs;crates/antecedent/tests/joint_panel_workflow.rs::fresh_process_panel_artifact_consumer", "crates/antecedent/src/analysis/joint_panel/ports.rs"]
 
 [[row]]
@@ -1842,8 +1842,8 @@ id = "X02.broader.static.frequentist"
 source = "method_children"
 list = "research"
 status = "reconciled"
-owner = ["crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/joint_panel_workflow.rs::recoverable_callback_feature_is_refused_by_public_panel_compilation", "crates/antecedent/src/analysis/joint_panel/tests.rs::dose_time_refuses_implicit_extra_channel_and_unassigned_exposure_continuation"]
+owner = ["crates/antecedent-estimate/src/joint_panel/family.rs", "crates/antecedent-estimate"]
+fixtures = ["crates/antecedent-estimate/src/joint_panel/family_tests.rs::static_hill_and_group_classes_recover_curves_and_beat_shared_saturation", "crates/antecedent-estimate/src/joint_panel/family_tests.rs::spatially_correlated_intercepts_are_recovered_and_improve_on_independent_groups", "crates/antecedent-estimate/src/joint_panel/family_tests.rs::scores_of_the_family_coordinates_match_analytic_derivatives_of_the_dense_likelihood", "crates/antecedent-estimate/src/joint_panel/family_tests.rs::spatial_marginal_matches_the_dense_joint_covariance_and_its_conditional_moments"]
 consumer = ["crates/antecedent-io/src/joint_panel_artifact.rs::FrozenPanelFit;crates/antecedent/src/analysis/joint_panel.rs;crates/antecedent/tests/joint_panel_workflow.rs::fresh_process_panel_artifact_consumer"]
 
 [[row]]
@@ -1851,8 +1851,8 @@ id = "X02.broader.static.bayesian"
 source = "method_children"
 list = "research"
 status = "reconciled"
-owner = ["crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/joint_panel_workflow.rs::programmable_feature_constant_semantics_and_forbidden_reads_are_checked_before_fit", "crates/antecedent/src/analysis/joint_panel/tests.rs::dose_time_refuses_implicit_extra_channel_and_unassigned_exposure_continuation"]
+owner = ["crates/antecedent-estimate/src/joint_panel/family.rs", "crates/antecedent-prob"]
+fixtures = ["crates/antecedent-estimate/src/joint_panel/family_tests.rs::static_hill_and_group_classes_recover_curves_and_beat_shared_saturation", "crates/antecedent-estimate/src/joint_panel/family_tests.rs::transformed_priors_carry_the_exact_change_of_variables_jacobian", "crates/antecedent-estimate/src/joint_panel/family_tests.rs::bayesian_posterior_over_every_family_coordinate_is_sampled_with_shared_axes"]
 consumer = ["crates/antecedent-io/src/joint_panel_artifact.rs::FrozenPanelFit;crates/antecedent/src/analysis/joint_panel.rs;crates/antecedent/tests/joint_panel_workflow.rs::fresh_process_panel_artifact_consumer"]
 
 [[row]]
@@ -1860,8 +1860,8 @@ id = "X02.broader.temporal.frequentist"
 source = "method_children"
 list = "research"
 status = "reconciled"
-owner = ["crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/joint_panel_workflow.rs::recoverable_callback_feature_is_refused_by_public_panel_compilation", "crates/antecedent-estimate/src/joint_panel/time_varying.rs::unsupported_specifications_and_unique_explanations_remain_separate_attempts"]
+owner = ["crates/antecedent-estimate/src/joint_panel/family.rs", "crates/antecedent-estimate"]
+fixtures = ["crates/antecedent-estimate/src/joint_panel/family_tests.rs::geometric_hill_family_recovers_the_response_curves_of_a_simulated_panel", "crates/antecedent-estimate/src/joint_panel/time_varying.rs::broader_family_coordinates_vary_through_the_same_path_and_refit_a_shape_change", "crates/antecedent/tests/joint_panel_workflow.rs::temporal_panel_fits_a_broader_family_through_the_same_selection_procedure", "crates/antecedent/tests/joint_panel_workflow.rs::broader_families_inherit_the_randomized_design_claim_and_leave_confounded_panels_unlicensed"]
 consumer = ["crates/antecedent-io/src/joint_panel_artifact.rs::FrozenPanelFit;crates/antecedent/src/analysis/joint_panel.rs;crates/antecedent/tests/joint_panel_workflow.rs::fresh_process_panel_artifact_consumer"]
 
 [[row]]
@@ -1869,8 +1869,8 @@ id = "X02.broader.temporal.bayesian"
 source = "method_children"
 list = "research"
 status = "reconciled"
-owner = ["crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/joint_panel_workflow.rs::programmable_feature_constant_semantics_and_forbidden_reads_are_checked_before_fit", "crates/antecedent-estimate/src/joint_panel/time_varying.rs::unsupported_specifications_and_unique_explanations_remain_separate_attempts"]
+owner = ["crates/antecedent-estimate/src/joint_panel/family.rs", "crates/antecedent-prob"]
+fixtures = ["crates/antecedent-estimate/src/joint_panel/time_varying.rs::broader_family_posterior_selects_jointly_with_the_family_coordinates_and_group_axes", "crates/antecedent-estimate/src/joint_panel/family_tests.rs::bayesian_posterior_over_every_family_coordinate_is_sampled_with_shared_axes", "crates/antecedent/tests/joint_panel_workflow.rs::broader_families_inherit_the_randomized_design_claim_and_leave_confounded_panels_unlicensed"]
 consumer = ["crates/antecedent-io/src/joint_panel_artifact.rs::FrozenPanelFit;crates/antecedent/src/analysis/joint_panel.rs;crates/antecedent/tests/joint_panel_workflow.rs::fresh_process_panel_artifact_consumer"]
 
 [[row]]
@@ -1879,8 +1879,8 @@ source = "scope_amendment_2026_10_20"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-identify/src/cyclic_id.rs", "crates/antecedent-identify/src/cyclic_calculus.rs", "crates/antecedent-io/src/cyclic_functional.rs", "crates/antecedent-io/src/cyclic_gaussian_functional.rs", "crates/antecedent-estimate/src/cyclic_functional.rs", "crates/antecedent-estimate/src/cyclic_gaussian_functional.rs", "crates/antecedent-discovery/src/cyclic_fci.rs"]
-fixtures = ["crates/antecedent-identify/src/cyclic_id.rs", "crates/antecedent-identify/src/cyclic_calculus.rs", "crates/antecedent-io/src/cyclic_functional.rs", "crates/antecedent-io/src/cyclic_gaussian_functional.rs", "crates/antecedent-estimate/src/cyclic_gaussian_functional.rs", "crates/antecedent-discovery/src/cyclic_fci.rs", "crates/antecedent/tests/cyclic_family_fixtures.rs", "crates/antecedent/tests/cyclic_independent_consumer.rs", "crates/antecedent/tests/cyclic_dag_regression.rs", "crates/antecedent-io/tests/cyclic_family_typed.rs", "python/tests/test_cyclic.py"]
-consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs"]
+fixtures = ["crates/antecedent-identify/src/cyclic_id.rs", "crates/antecedent-identify/src/cyclic_calculus.rs", "crates/antecedent-io/src/cyclic_functional.rs", "crates/antecedent-io/src/cyclic_gaussian_functional.rs", "crates/antecedent-estimate/src/cyclic_gaussian_functional.rs", "crates/antecedent-discovery/src/cyclic_fci.rs", "crates/antecedent/tests/cyclic_family_fixtures.rs", "crates/antecedent/tests/cyclic_independent_consumer.rs", "crates/antecedent/tests/cyclic_dag_regression.rs", "crates/antecedent-io/tests/cyclic_family_typed.rs", "crates/antecedent-estimate/tests/recovery_held_out_regimes.rs", "python/tests/test_cyclic.py"]
+consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs", "crates/antecedent-identify/src/experiment_moments_noisy.rs", "crates/antecedent-estimate/src/experimental_fit.rs"]
 
 [[row]]
 id = "Y19"
@@ -1888,8 +1888,8 @@ source = "scope_amendment_2026_10_20"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-model/src/nonlinear_equilibrium.rs", "crates/antecedent-model/src/mechanism_expr.rs", "crates/antecedent-model/src/local_cyclic.rs", "crates/antecedent-model/src/system_compile.rs", "crates/antecedent-model/src/equation_system.rs", "crates/antecedent-model/src/equilibrium_polynomial.rs", "crates/antecedent-estimate/src/cyclic_likelihood.rs", "crates/antecedent-estimate/src/cyclic_gradient.rs", "crates/antecedent-estimate/src/cyclic_adam.rs", "crates/antecedent-model/src/linear_moments.rs", "crates/antecedent-estimate/src/polynomial_scm.rs", "crates/antecedent-model/src/continuous_cyclic.rs", "crates/antecedent-estimate/src/cyclic_dynamics.rs", "crates/antecedent-estimate/src/ou_mechanisms.rs", "crates/antecedent-estimate/src/constraint_likelihood.rs", "crates/antecedent-graph/src/bipartite.rs", "crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_system_artifact.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs"]
-fixtures = ["crates/antecedent-model/src/nonlinear_equilibrium.rs", "crates/antecedent-model/src/mechanism_expr.rs", "crates/antecedent-model/src/local_cyclic.rs", "crates/antecedent-model/src/system_compile.rs", "crates/antecedent-model/src/equation_system.rs", "crates/antecedent-model/src/equilibrium_polynomial.rs", "crates/antecedent-estimate/src/cyclic_likelihood.rs", "crates/antecedent-estimate/src/cyclic_gradient.rs", "crates/antecedent-estimate/src/cyclic_adam.rs", "crates/antecedent-model/src/linear_moments.rs", "crates/antecedent-estimate/src/polynomial_scm.rs", "crates/antecedent-model/src/continuous_cyclic.rs", "crates/antecedent-estimate/src/cyclic_dynamics.rs", "crates/antecedent-estimate/src/ou_mechanisms.rs", "crates/antecedent-estimate/src/constraint_likelihood.rs", "crates/antecedent-graph/src/bipartite.rs", "crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_system_artifact.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent/tests/cyclic_family_fixtures.rs", "crates/antecedent/tests/cyclic_independent_consumer.rs", "crates/antecedent/tests/cyclic_dag_regression.rs", "crates/antecedent-io/tests/cyclic_family_typed.rs", "python/tests/test_cyclic.py"]
-consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs"]
+fixtures = ["crates/antecedent-model/src/nonlinear_equilibrium.rs", "crates/antecedent-model/src/mechanism_expr.rs", "crates/antecedent-model/src/local_cyclic.rs", "crates/antecedent-model/src/system_compile.rs", "crates/antecedent-model/src/equation_system.rs", "crates/antecedent-model/src/equilibrium_polynomial.rs", "crates/antecedent-estimate/src/cyclic_likelihood.rs", "crates/antecedent-estimate/src/cyclic_gradient.rs", "crates/antecedent-estimate/src/cyclic_adam.rs", "crates/antecedent-model/src/linear_moments.rs", "crates/antecedent-estimate/src/polynomial_scm.rs", "crates/antecedent-model/src/continuous_cyclic.rs", "crates/antecedent-estimate/src/cyclic_dynamics.rs", "crates/antecedent-estimate/src/ou_mechanisms.rs", "crates/antecedent-estimate/src/constraint_likelihood.rs", "crates/antecedent-graph/src/bipartite.rs", "crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_system_artifact.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent/tests/cyclic_family_fixtures.rs", "crates/antecedent/tests/cyclic_independent_consumer.rs", "crates/antecedent/tests/cyclic_dag_regression.rs", "crates/antecedent-io/tests/cyclic_family_typed.rs", "crates/antecedent-estimate/tests/recovery_held_out_regimes.rs", "python/tests/test_cyclic.py"]
+consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs", "crates/antecedent-identify/src/experiment_moments_noisy.rs", "crates/antecedent-estimate/src/experimental_fit.rs"]
 
 [[row]]
 id = "Y18.1"
@@ -1897,8 +1897,8 @@ source = "scope_amendment_2026_10_20"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-identify/src/cyclic_id.rs", "crates/antecedent-identify/src/cyclic_calculus.rs", "crates/antecedent-io/src/cyclic_functional.rs", "crates/antecedent-io/src/cyclic_gaussian_functional.rs", "crates/antecedent-estimate/src/cyclic_functional.rs", "crates/antecedent-estimate/src/cyclic_gaussian_functional.rs"]
-fixtures = ["crates/antecedent-identify/src/cyclic_id.rs", "crates/antecedent-identify/src/cyclic_calculus.rs", "crates/antecedent-io/src/cyclic_functional.rs", "crates/antecedent-io/src/cyclic_gaussian_functional.rs", "crates/antecedent-estimate/src/cyclic_gaussian_functional.rs", "crates/antecedent/tests/cyclic_family_fixtures.rs", "crates/antecedent/tests/cyclic_independent_consumer.rs", "crates/antecedent/tests/cyclic_dag_regression.rs", "crates/antecedent-io/tests/cyclic_family_typed.rs", "python/tests/test_cyclic.py"]
-consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs"]
+fixtures = ["crates/antecedent-identify/src/cyclic_id.rs", "crates/antecedent-identify/src/cyclic_calculus.rs", "crates/antecedent-io/src/cyclic_functional.rs", "crates/antecedent-io/src/cyclic_gaussian_functional.rs", "crates/antecedent-estimate/src/cyclic_gaussian_functional.rs", "crates/antecedent/tests/cyclic_family_fixtures.rs", "crates/antecedent/tests/cyclic_independent_consumer.rs", "crates/antecedent/tests/cyclic_dag_regression.rs", "crates/antecedent-io/tests/cyclic_family_typed.rs", "crates/antecedent-estimate/tests/recovery_held_out_regimes.rs", "python/tests/test_cyclic.py"]
+consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs", "crates/antecedent-identify/src/experiment_moments_noisy.rs", "crates/antecedent-estimate/src/experimental_fit.rs"]
 
 [[row]]
 id = "Y18.2"
@@ -1906,8 +1906,8 @@ source = "scope_amendment_2026_10_20"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-discovery/src/cyclic_fci.rs"]
-fixtures = ["crates/antecedent-discovery/src/cyclic_fci.rs", "crates/antecedent/tests/cyclic_family_fixtures.rs", "crates/antecedent/tests/cyclic_independent_consumer.rs", "crates/antecedent/tests/cyclic_dag_regression.rs", "crates/antecedent-io/tests/cyclic_family_typed.rs", "python/tests/test_cyclic.py"]
-consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs"]
+fixtures = ["crates/antecedent-discovery/src/cyclic_fci.rs", "crates/antecedent/tests/cyclic_family_fixtures.rs", "crates/antecedent/tests/cyclic_independent_consumer.rs", "crates/antecedent/tests/cyclic_dag_regression.rs", "crates/antecedent-io/tests/cyclic_family_typed.rs", "crates/antecedent-estimate/tests/recovery_held_out_regimes.rs", "python/tests/test_cyclic.py"]
+consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs", "crates/antecedent-identify/src/experiment_moments_noisy.rs", "crates/antecedent-estimate/src/experimental_fit.rs"]
 
 [[row]]
 id = "Y19.1"
@@ -1915,8 +1915,8 @@ source = "scope_amendment_2026_10_20"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-model/src/nonlinear_equilibrium.rs", "crates/antecedent-model/src/mechanism_expr.rs", "crates/antecedent-model/src/local_cyclic.rs", "crates/antecedent-model/src/system_compile.rs"]
-fixtures = ["crates/antecedent-model/src/nonlinear_equilibrium.rs", "crates/antecedent-model/src/mechanism_expr.rs", "crates/antecedent-model/src/local_cyclic.rs", "crates/antecedent-model/src/system_compile.rs", "crates/antecedent/tests/cyclic_family_fixtures.rs", "crates/antecedent/tests/cyclic_independent_consumer.rs", "crates/antecedent/tests/cyclic_dag_regression.rs", "crates/antecedent-io/tests/cyclic_family_typed.rs", "python/tests/test_cyclic.py"]
-consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs"]
+fixtures = ["crates/antecedent-model/src/nonlinear_equilibrium.rs", "crates/antecedent-model/src/mechanism_expr.rs", "crates/antecedent-model/src/local_cyclic.rs", "crates/antecedent-model/src/system_compile.rs", "crates/antecedent/tests/cyclic_family_fixtures.rs", "crates/antecedent/tests/cyclic_independent_consumer.rs", "crates/antecedent/tests/cyclic_dag_regression.rs", "crates/antecedent-io/tests/cyclic_family_typed.rs", "crates/antecedent-estimate/tests/recovery_held_out_regimes.rs", "python/tests/test_cyclic.py"]
+consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs", "crates/antecedent-identify/src/experiment_moments_noisy.rs", "crates/antecedent-estimate/src/experimental_fit.rs"]
 
 [[row]]
 id = "Y19.2"
@@ -1924,8 +1924,8 @@ source = "scope_amendment_2026_10_20"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-model/src/equation_system.rs", "crates/antecedent-model/src/equilibrium_polynomial.rs"]
-fixtures = ["crates/antecedent-model/src/equation_system.rs", "crates/antecedent-model/src/equilibrium_polynomial.rs", "crates/antecedent/tests/cyclic_family_fixtures.rs", "crates/antecedent/tests/cyclic_independent_consumer.rs", "crates/antecedent/tests/cyclic_dag_regression.rs", "crates/antecedent-io/tests/cyclic_family_typed.rs", "python/tests/test_cyclic.py"]
-consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs"]
+fixtures = ["crates/antecedent-model/src/equation_system.rs", "crates/antecedent-model/src/equilibrium_polynomial.rs", "crates/antecedent/tests/cyclic_family_fixtures.rs", "crates/antecedent/tests/cyclic_independent_consumer.rs", "crates/antecedent/tests/cyclic_dag_regression.rs", "crates/antecedent-io/tests/cyclic_family_typed.rs", "crates/antecedent-estimate/tests/recovery_held_out_regimes.rs", "python/tests/test_cyclic.py"]
+consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs", "crates/antecedent-identify/src/experiment_moments_noisy.rs", "crates/antecedent-estimate/src/experimental_fit.rs"]
 
 [[row]]
 id = "Y19.3"
@@ -1933,8 +1933,8 @@ source = "scope_amendment_2026_10_20"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/cyclic_likelihood.rs", "crates/antecedent-estimate/src/cyclic_gradient.rs", "crates/antecedent-estimate/src/cyclic_adam.rs", "crates/antecedent-model/src/linear_moments.rs"]
-fixtures = ["crates/antecedent-estimate/src/cyclic_likelihood.rs", "crates/antecedent-estimate/src/cyclic_gradient.rs", "crates/antecedent-estimate/src/cyclic_adam.rs", "crates/antecedent-model/src/linear_moments.rs", "crates/antecedent/tests/cyclic_family_fixtures.rs", "crates/antecedent/tests/cyclic_independent_consumer.rs", "crates/antecedent/tests/cyclic_dag_regression.rs", "crates/antecedent-io/tests/cyclic_family_typed.rs", "python/tests/test_cyclic.py"]
-consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs"]
+fixtures = ["crates/antecedent-estimate/src/cyclic_likelihood.rs", "crates/antecedent-estimate/src/cyclic_gradient.rs", "crates/antecedent-estimate/src/cyclic_adam.rs", "crates/antecedent-model/src/linear_moments.rs", "crates/antecedent/tests/cyclic_family_fixtures.rs", "crates/antecedent/tests/cyclic_independent_consumer.rs", "crates/antecedent/tests/cyclic_dag_regression.rs", "crates/antecedent-io/tests/cyclic_family_typed.rs", "crates/antecedent-estimate/tests/recovery_held_out_regimes.rs", "python/tests/test_cyclic.py"]
+consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs", "crates/antecedent-identify/src/experiment_moments_noisy.rs", "crates/antecedent-estimate/src/experimental_fit.rs"]
 
 [[row]]
 id = "Y19.4"
@@ -1942,8 +1942,8 @@ source = "scope_amendment_2026_10_20"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/cyclic_likelihood.rs", "crates/antecedent-estimate/src/polynomial_scm.rs"]
-fixtures = ["crates/antecedent-estimate/src/cyclic_likelihood.rs", "crates/antecedent-estimate/src/polynomial_scm.rs", "crates/antecedent/tests/cyclic_family_fixtures.rs", "crates/antecedent/tests/cyclic_independent_consumer.rs", "crates/antecedent/tests/cyclic_dag_regression.rs", "crates/antecedent-io/tests/cyclic_family_typed.rs", "python/tests/test_cyclic.py"]
-consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs"]
+fixtures = ["crates/antecedent-estimate/src/cyclic_likelihood.rs", "crates/antecedent-estimate/src/polynomial_scm.rs", "crates/antecedent/tests/cyclic_family_fixtures.rs", "crates/antecedent/tests/cyclic_independent_consumer.rs", "crates/antecedent/tests/cyclic_dag_regression.rs", "crates/antecedent-io/tests/cyclic_family_typed.rs", "crates/antecedent-estimate/tests/recovery_held_out_regimes.rs", "python/tests/test_cyclic.py"]
+consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs", "crates/antecedent-identify/src/experiment_moments_noisy.rs", "crates/antecedent-estimate/src/experimental_fit.rs"]
 
 [[row]]
 id = "Y19.5"
@@ -1951,8 +1951,8 @@ source = "scope_amendment_2026_10_20"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-model/src/continuous_cyclic.rs", "crates/antecedent-estimate/src/cyclic_dynamics.rs"]
-fixtures = ["crates/antecedent-model/src/continuous_cyclic.rs", "crates/antecedent-estimate/src/cyclic_dynamics.rs", "crates/antecedent/tests/cyclic_family_fixtures.rs", "crates/antecedent/tests/cyclic_independent_consumer.rs", "crates/antecedent/tests/cyclic_dag_regression.rs", "crates/antecedent-io/tests/cyclic_family_typed.rs", "python/tests/test_cyclic.py"]
-consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs"]
+fixtures = ["crates/antecedent-model/src/continuous_cyclic.rs", "crates/antecedent-estimate/src/cyclic_dynamics.rs", "crates/antecedent/tests/cyclic_family_fixtures.rs", "crates/antecedent/tests/cyclic_independent_consumer.rs", "crates/antecedent/tests/cyclic_dag_regression.rs", "crates/antecedent-io/tests/cyclic_family_typed.rs", "crates/antecedent-estimate/tests/recovery_held_out_regimes.rs", "python/tests/test_cyclic.py"]
+consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs", "crates/antecedent-identify/src/experiment_moments_noisy.rs", "crates/antecedent-estimate/src/experimental_fit.rs"]
 
 [[row]]
 id = "Y19.6"
@@ -1960,8 +1960,8 @@ source = "scope_amendment_2026_10_20"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-model/src/continuous_cyclic.rs", "crates/antecedent-estimate/src/ou_mechanisms.rs"]
-fixtures = ["crates/antecedent-model/src/continuous_cyclic.rs", "crates/antecedent-estimate/src/ou_mechanisms.rs", "crates/antecedent/tests/cyclic_family_fixtures.rs", "crates/antecedent/tests/cyclic_independent_consumer.rs", "crates/antecedent/tests/cyclic_dag_regression.rs", "crates/antecedent-io/tests/cyclic_family_typed.rs", "python/tests/test_cyclic.py"]
-consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs"]
+fixtures = ["crates/antecedent-model/src/continuous_cyclic.rs", "crates/antecedent-estimate/src/ou_mechanisms.rs", "crates/antecedent/tests/cyclic_family_fixtures.rs", "crates/antecedent/tests/cyclic_independent_consumer.rs", "crates/antecedent/tests/cyclic_dag_regression.rs", "crates/antecedent-io/tests/cyclic_family_typed.rs", "crates/antecedent-estimate/tests/recovery_held_out_regimes.rs", "python/tests/test_cyclic.py"]
+consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs", "crates/antecedent-identify/src/experiment_moments_noisy.rs", "crates/antecedent-estimate/src/experimental_fit.rs"]
 
 [[row]]
 id = "Y19.7"
@@ -1969,8 +1969,8 @@ source = "scope_amendment_2026_10_20"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-model/src/equation_system.rs", "crates/antecedent-estimate/src/constraint_likelihood.rs", "crates/antecedent-graph/src/bipartite.rs"]
-fixtures = ["crates/antecedent-model/src/equation_system.rs", "crates/antecedent-estimate/src/constraint_likelihood.rs", "crates/antecedent-graph/src/bipartite.rs", "crates/antecedent/tests/cyclic_family_fixtures.rs", "crates/antecedent/tests/cyclic_independent_consumer.rs", "crates/antecedent/tests/cyclic_dag_regression.rs", "crates/antecedent-io/tests/cyclic_family_typed.rs", "python/tests/test_cyclic.py"]
-consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs"]
+fixtures = ["crates/antecedent-model/src/equation_system.rs", "crates/antecedent-estimate/src/constraint_likelihood.rs", "crates/antecedent-graph/src/bipartite.rs", "crates/antecedent/tests/cyclic_family_fixtures.rs", "crates/antecedent/tests/cyclic_independent_consumer.rs", "crates/antecedent/tests/cyclic_dag_regression.rs", "crates/antecedent-io/tests/cyclic_family_typed.rs", "crates/antecedent-estimate/tests/recovery_held_out_regimes.rs", "python/tests/test_cyclic.py"]
+consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs", "crates/antecedent-identify/src/experiment_moments_noisy.rs", "crates/antecedent-estimate/src/experimental_fit.rs"]
 
 [[row]]
 id = "Y19.8"
@@ -1978,8 +1978,8 @@ source = "scope_amendment_2026_10_20"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_system_artifact.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs"]
-fixtures = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_system_artifact.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent/tests/cyclic_family_fixtures.rs", "crates/antecedent/tests/cyclic_independent_consumer.rs", "crates/antecedent/tests/cyclic_dag_regression.rs", "crates/antecedent-io/tests/cyclic_family_typed.rs", "python/tests/test_cyclic.py"]
-consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs"]
+fixtures = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_system_artifact.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent/tests/cyclic_family_fixtures.rs", "crates/antecedent/tests/cyclic_independent_consumer.rs", "crates/antecedent/tests/cyclic_dag_regression.rs", "crates/antecedent-io/tests/cyclic_family_typed.rs", "crates/antecedent-estimate/tests/recovery_held_out_regimes.rs", "python/tests/test_cyclic.py"]
+consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs", "crates/antecedent-identify/src/experiment_moments_noisy.rs", "crates/antecedent-estimate/src/experimental_fit.rs"]
 
 [[row]]
 id = "G08"

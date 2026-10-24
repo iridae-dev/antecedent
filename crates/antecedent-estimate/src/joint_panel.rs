@@ -849,11 +849,17 @@ fn evaluate_bound(
             else {
                 return Err(invalid("program refers to a group with no fitted random effect"));
             };
+            let mut memo = likelihood::MechanismMemo::default();
             for (time, mean) in means.iter_mut().enumerate() {
                 check_cancelled(ctx)?;
-                *mean +=
-                    likelihood::program_response(data, &draw.parameters, program, scenario, time)
-                        + draw.group_intercepts[group_index];
+                *mean += likelihood::program_response_memo(
+                    data,
+                    &draw.parameters,
+                    program,
+                    scenario,
+                    time,
+                    &mut memo,
+                ) + draw.group_intercepts[group_index];
             }
         }
         for mean in &mut means {

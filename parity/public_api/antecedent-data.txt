@@ -39,6 +39,8 @@ impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::arrow_adapter
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::file_source::FileChunk [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::file_source::MaterializedTable [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::file_source::TableChunkReader [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::source::OwnedSource [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::source::SegmentedSource [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::ArrowFrameView [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::ArrowLoadResult [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::EventData [auto]
@@ -60,6 +62,8 @@ impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::arrow_adapter::F
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::file_source::FileChunk [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::file_source::MaterializedTable [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::file_source::TableChunkReader [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::source::OwnedSource [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::source::SegmentedSource [auto]
 impl antecedent_core::refusal::Refused for antecedent_data::PanelPreparationError
 impl antecedent_data::TableView for antecedent_data::EventData
 impl antecedent_data::TableView for antecedent_data::OwnedColumnarStorage
@@ -167,6 +171,7 @@ impl core::clone::Clone for antecedent_data::column_closure::ObservationFrame
 impl core::clone::Clone for antecedent_data::column_closure::PushdownRefusal
 impl core::clone::Clone for antecedent_data::column_closure::RequiredColumn
 impl core::clone::Clone for antecedent_data::design_layout::LayoutError
+impl core::clone::Clone for antecedent_data::design_layout::MaskSelection
 impl core::clone::Clone for antecedent_data::design_layout::OwnershipCopy
 impl core::clone::Clone for antecedent_data::design_layout::OwnershipReceipt
 impl core::clone::Clone for antecedent_data::file_source::ChunkQuote
@@ -184,6 +189,12 @@ impl core::clone::Clone for antecedent_data::file_source::ScanReceipt
 impl core::clone::Clone for antecedent_data::file_source::TableFile
 impl core::clone::Clone for antecedent_data::file_source::TableFileFormat
 impl core::clone::Clone for antecedent_data::file_source::WriteOptions
+impl core::clone::Clone for antecedent_data::lazy_identity::BaseScan
+impl core::clone::Clone for antecedent_data::lazy_identity::FullContentIdentity
+impl core::clone::Clone for antecedent_data::lazy_identity::IncrementalDigest
+impl core::clone::Clone for antecedent_data::lazy_identity::LazyViewIdentity
+impl core::clone::Clone for antecedent_data::lazy_identity::SegmentChunkIdentity
+impl core::clone::Clone for antecedent_data::lazy_identity::VersionedIdentity
 impl core::clone::Clone for antecedent_data::materialize::AdmissionRecord
 impl core::clone::Clone for antecedent_data::materialize::CategoryLevels
 impl core::clone::Clone for antecedent_data::materialize::DeliveryRecord
@@ -203,6 +214,15 @@ impl core::clone::Clone for antecedent_data::materialize::StreamQuote
 impl core::clone::Clone for antecedent_data::materialize::StreamingScan
 impl core::clone::Clone for antecedent_data::missing::ChunkMissing
 impl core::clone::Clone for antecedent_data::missing::MissingConversion
+impl core::clone::Clone for antecedent_data::source::CohortOrder
+impl core::clone::Clone for antecedent_data::source::OwnedSource
+impl core::clone::Clone for antecedent_data::source::RowChunk
+impl core::clone::Clone for antecedent_data::source::SegmentedSource
+impl core::clone::Clone for antecedent_data::source::SnapshotContract
+impl core::clone::Clone for antecedent_data::source::SourceIdentity
+impl core::clone::Clone for antecedent_data::source::SourceModality
+impl core::clone::Clone for antecedent_data::source::SplitSpan
+impl core::clone::Clone for antecedent_data::source::ValidityPolicy
 impl core::cmp::Eq for antecedent_data::AttritionRow
 impl core::cmp::Eq for antecedent_data::BalanceRequirement
 impl core::cmp::Eq for antecedent_data::BooleanColumn
@@ -275,6 +295,7 @@ impl core::cmp::Eq for antecedent_data::column_closure::ObservationFrame
 impl core::cmp::Eq for antecedent_data::column_closure::PushdownRefusal
 impl core::cmp::Eq for antecedent_data::column_closure::RequiredColumn
 impl core::cmp::Eq for antecedent_data::design_layout::LayoutError
+impl core::cmp::Eq for antecedent_data::design_layout::MaskSelection
 impl core::cmp::Eq for antecedent_data::design_layout::OwnershipCopy
 impl core::cmp::Eq for antecedent_data::design_layout::OwnershipReceipt
 impl core::cmp::Eq for antecedent_data::file_source::ChunkQuote
@@ -291,6 +312,11 @@ impl core::cmp::Eq for antecedent_data::file_source::RowCursor
 impl core::cmp::Eq for antecedent_data::file_source::ScanReceipt
 impl core::cmp::Eq for antecedent_data::file_source::TableFileFormat
 impl core::cmp::Eq for antecedent_data::file_source::WriteOptions
+impl core::cmp::Eq for antecedent_data::lazy_identity::FullContentIdentity
+impl core::cmp::Eq for antecedent_data::lazy_identity::IncrementalDigest
+impl core::cmp::Eq for antecedent_data::lazy_identity::LazyViewIdentity
+impl core::cmp::Eq for antecedent_data::lazy_identity::SegmentChunkIdentity
+impl core::cmp::Eq for antecedent_data::lazy_identity::VersionedIdentity
 impl core::cmp::Eq for antecedent_data::materialize::AdmissionRecord
 impl core::cmp::Eq for antecedent_data::materialize::CategoryLevels
 impl core::cmp::Eq for antecedent_data::materialize::DeliveryRecord
@@ -309,6 +335,13 @@ impl core::cmp::Eq for antecedent_data::materialize::StreamQuote
 impl core::cmp::Eq for antecedent_data::materialize::StreamingScan
 impl core::cmp::Eq for antecedent_data::missing::ChunkMissing
 impl core::cmp::Eq for antecedent_data::missing::MissingConversion
+impl core::cmp::Eq for antecedent_data::source::CohortOrder
+impl core::cmp::Eq for antecedent_data::source::RowChunk
+impl core::cmp::Eq for antecedent_data::source::SnapshotContract
+impl core::cmp::Eq for antecedent_data::source::SourceIdentity
+impl core::cmp::Eq for antecedent_data::source::SourceModality
+impl core::cmp::Eq for antecedent_data::source::SplitSpan
+impl core::cmp::Eq for antecedent_data::source::ValidityPolicy
 impl core::cmp::Ord for antecedent_data::CategoryCode
 impl core::cmp::Ord for antecedent_data::ChunkIndex
 impl core::cmp::Ord for antecedent_data::GlobalId
@@ -394,6 +427,7 @@ impl core::cmp::PartialEq for antecedent_data::column_closure::ObservationFrame
 impl core::cmp::PartialEq for antecedent_data::column_closure::PushdownRefusal
 impl core::cmp::PartialEq for antecedent_data::column_closure::RequiredColumn
 impl core::cmp::PartialEq for antecedent_data::design_layout::LayoutError
+impl core::cmp::PartialEq for antecedent_data::design_layout::MaskSelection
 impl core::cmp::PartialEq for antecedent_data::design_layout::OwnershipCopy
 impl core::cmp::PartialEq for antecedent_data::design_layout::OwnershipReceipt
 impl core::cmp::PartialEq for antecedent_data::file_source::ChunkQuote
@@ -410,6 +444,11 @@ impl core::cmp::PartialEq for antecedent_data::file_source::RowCursor
 impl core::cmp::PartialEq for antecedent_data::file_source::ScanReceipt
 impl core::cmp::PartialEq for antecedent_data::file_source::TableFileFormat
 impl core::cmp::PartialEq for antecedent_data::file_source::WriteOptions
+impl core::cmp::PartialEq for antecedent_data::lazy_identity::FullContentIdentity
+impl core::cmp::PartialEq for antecedent_data::lazy_identity::IncrementalDigest
+impl core::cmp::PartialEq for antecedent_data::lazy_identity::LazyViewIdentity
+impl core::cmp::PartialEq for antecedent_data::lazy_identity::SegmentChunkIdentity
+impl core::cmp::PartialEq for antecedent_data::lazy_identity::VersionedIdentity
 impl core::cmp::PartialEq for antecedent_data::materialize::AdmissionRecord
 impl core::cmp::PartialEq for antecedent_data::materialize::CategoryLevels
 impl core::cmp::PartialEq for antecedent_data::materialize::DeliveryRecord
@@ -428,6 +467,13 @@ impl core::cmp::PartialEq for antecedent_data::materialize::StreamQuote
 impl core::cmp::PartialEq for antecedent_data::materialize::StreamingScan
 impl core::cmp::PartialEq for antecedent_data::missing::ChunkMissing
 impl core::cmp::PartialEq for antecedent_data::missing::MissingConversion
+impl core::cmp::PartialEq for antecedent_data::source::CohortOrder
+impl core::cmp::PartialEq for antecedent_data::source::RowChunk
+impl core::cmp::PartialEq for antecedent_data::source::SnapshotContract
+impl core::cmp::PartialEq for antecedent_data::source::SourceIdentity
+impl core::cmp::PartialEq for antecedent_data::source::SourceModality
+impl core::cmp::PartialEq for antecedent_data::source::SplitSpan
+impl core::cmp::PartialEq for antecedent_data::source::ValidityPolicy
 impl core::cmp::PartialOrd for antecedent_data::CategoryCode
 impl core::cmp::PartialOrd for antecedent_data::ChunkIndex
 impl core::cmp::PartialOrd for antecedent_data::GlobalId
@@ -572,6 +618,7 @@ impl core::fmt::Debug for antecedent_data::column_closure::ObservationFrame
 impl core::fmt::Debug for antecedent_data::column_closure::PushdownRefusal
 impl core::fmt::Debug for antecedent_data::column_closure::RequiredColumn
 impl core::fmt::Debug for antecedent_data::design_layout::LayoutError
+impl core::fmt::Debug for antecedent_data::design_layout::MaskSelection
 impl core::fmt::Debug for antecedent_data::design_layout::OwnershipCopy
 impl core::fmt::Debug for antecedent_data::design_layout::OwnershipReceipt
 impl core::fmt::Debug for antecedent_data::file_source::ChunkQuote
@@ -593,6 +640,12 @@ impl core::fmt::Debug for antecedent_data::file_source::TableFile
 impl core::fmt::Debug for antecedent_data::file_source::TableFileFormat
 impl core::fmt::Debug for antecedent_data::file_source::TableStream
 impl core::fmt::Debug for antecedent_data::file_source::WriteOptions
+impl core::fmt::Debug for antecedent_data::lazy_identity::BaseScan
+impl core::fmt::Debug for antecedent_data::lazy_identity::FullContentIdentity
+impl core::fmt::Debug for antecedent_data::lazy_identity::IncrementalDigest
+impl core::fmt::Debug for antecedent_data::lazy_identity::LazyViewIdentity
+impl core::fmt::Debug for antecedent_data::lazy_identity::SegmentChunkIdentity
+impl core::fmt::Debug for antecedent_data::lazy_identity::VersionedIdentity
 impl core::fmt::Debug for antecedent_data::materialize::AdmissionRecord
 impl core::fmt::Debug for antecedent_data::materialize::CategoryLevels
 impl core::fmt::Debug for antecedent_data::materialize::DeliveryRecord
@@ -612,6 +665,15 @@ impl core::fmt::Debug for antecedent_data::materialize::StreamQuote
 impl core::fmt::Debug for antecedent_data::materialize::StreamingScan
 impl core::fmt::Debug for antecedent_data::missing::ChunkMissing
 impl core::fmt::Debug for antecedent_data::missing::MissingConversion
+impl core::fmt::Debug for antecedent_data::source::CohortOrder
+impl core::fmt::Debug for antecedent_data::source::OwnedSource
+impl core::fmt::Debug for antecedent_data::source::RowChunk
+impl core::fmt::Debug for antecedent_data::source::SegmentedSource
+impl core::fmt::Debug for antecedent_data::source::SnapshotContract
+impl core::fmt::Debug for antecedent_data::source::SourceIdentity
+impl core::fmt::Debug for antecedent_data::source::SourceModality
+impl core::fmt::Debug for antecedent_data::source::SplitSpan
+impl core::fmt::Debug for antecedent_data::source::ValidityPolicy
 impl core::fmt::Display for antecedent_data::BorrowError
 impl core::fmt::Display for antecedent_data::DataError
 impl core::fmt::Display for antecedent_data::GlobalIndexError
@@ -709,6 +771,7 @@ impl core::marker::Copy for antecedent_data::backend_boundary::LazyBackendRefusa
 impl core::marker::Copy for antecedent_data::backend_boundary::PreparationBackend
 impl core::marker::Copy for antecedent_data::column_closure::ColumnDuty
 impl core::marker::Copy for antecedent_data::design_layout::LayoutError
+impl core::marker::Copy for antecedent_data::design_layout::MaskSelection
 impl core::marker::Copy for antecedent_data::design_layout::OwnershipCopy
 impl core::marker::Copy for antecedent_data::file_source::ChunkQuote
 impl core::marker::Copy for antecedent_data::file_source::FileContentIdentity
@@ -719,6 +782,12 @@ impl core::marker::Copy for antecedent_data::file_source::ReadOptions
 impl core::marker::Copy for antecedent_data::file_source::RowCursor
 impl core::marker::Copy for antecedent_data::file_source::TableFileFormat
 impl core::marker::Copy for antecedent_data::file_source::WriteOptions
+impl core::marker::Copy for antecedent_data::lazy_identity::BaseScan
+impl core::marker::Copy for antecedent_data::lazy_identity::FullContentIdentity
+impl core::marker::Copy for antecedent_data::lazy_identity::IncrementalDigest
+impl core::marker::Copy for antecedent_data::lazy_identity::LazyViewIdentity
+impl core::marker::Copy for antecedent_data::lazy_identity::SegmentChunkIdentity
+impl core::marker::Copy for antecedent_data::lazy_identity::VersionedIdentity
 impl core::marker::Copy for antecedent_data::materialize::AdmissionRecord
 impl core::marker::Copy for antecedent_data::materialize::DeliveryRecord
 impl core::marker::Copy for antecedent_data::materialize::EstimatorStreamNeed
@@ -728,6 +797,10 @@ impl core::marker::Copy for antecedent_data::materialize::PreparationStep
 impl core::marker::Copy for antecedent_data::materialize::ReceiptSource
 impl core::marker::Copy for antecedent_data::materialize::RouteBound
 impl core::marker::Copy for antecedent_data::materialize::SchemaValueKind
+impl core::marker::Copy for antecedent_data::source::RowChunk
+impl core::marker::Copy for antecedent_data::source::SourceIdentity
+impl core::marker::Copy for antecedent_data::source::SourceModality
+impl core::marker::Copy for antecedent_data::source::ValidityPolicy
 impl core::marker::Freeze for antecedent_data::ArrowCColumn [auto]
 impl core::marker::Freeze for antecedent_data::ArrowFrameView [auto]
 impl core::marker::Freeze for antecedent_data::ArrowLoadResult [auto]
@@ -831,6 +904,7 @@ impl core::marker::Freeze for antecedent_data::column_closure::ObservationFrame 
 impl core::marker::Freeze for antecedent_data::column_closure::PushdownRefusal [auto]
 impl core::marker::Freeze for antecedent_data::column_closure::RequiredColumn [auto]
 impl core::marker::Freeze for antecedent_data::design_layout::LayoutError [auto]
+impl core::marker::Freeze for antecedent_data::design_layout::MaskSelection [auto]
 impl core::marker::Freeze for antecedent_data::design_layout::OwnershipCopy [auto]
 impl core::marker::Freeze for antecedent_data::design_layout::OwnershipReceipt [auto]
 impl core::marker::Freeze for antecedent_data::file_source::ChunkQuote [auto]
@@ -851,6 +925,12 @@ impl core::marker::Freeze for antecedent_data::file_source::TableFile [auto]
 impl core::marker::Freeze for antecedent_data::file_source::TableFileFormat [auto]
 impl core::marker::Freeze for antecedent_data::file_source::TableStream [auto]
 impl core::marker::Freeze for antecedent_data::file_source::WriteOptions [auto]
+impl core::marker::Freeze for antecedent_data::lazy_identity::BaseScan [auto]
+impl core::marker::Freeze for antecedent_data::lazy_identity::FullContentIdentity [auto]
+impl core::marker::Freeze for antecedent_data::lazy_identity::IncrementalDigest [auto]
+impl core::marker::Freeze for antecedent_data::lazy_identity::LazyViewIdentity [auto]
+impl core::marker::Freeze for antecedent_data::lazy_identity::SegmentChunkIdentity [auto]
+impl core::marker::Freeze for antecedent_data::lazy_identity::VersionedIdentity [auto]
 impl core::marker::Freeze for antecedent_data::materialize::AdmissionRecord [auto]
 impl core::marker::Freeze for antecedent_data::materialize::CategoryLevels [auto]
 impl core::marker::Freeze for antecedent_data::materialize::DeliveryRecord [auto]
@@ -870,6 +950,15 @@ impl core::marker::Freeze for antecedent_data::materialize::StreamQuote [auto]
 impl core::marker::Freeze for antecedent_data::materialize::StreamingScan [auto]
 impl core::marker::Freeze for antecedent_data::missing::ChunkMissing [auto]
 impl core::marker::Freeze for antecedent_data::missing::MissingConversion [auto]
+impl core::marker::Freeze for antecedent_data::source::CohortOrder [auto]
+impl core::marker::Freeze for antecedent_data::source::OwnedSource [auto]
+impl core::marker::Freeze for antecedent_data::source::RowChunk [auto]
+impl core::marker::Freeze for antecedent_data::source::SegmentedSource [auto]
+impl core::marker::Freeze for antecedent_data::source::SnapshotContract [auto]
+impl core::marker::Freeze for antecedent_data::source::SourceIdentity [auto]
+impl core::marker::Freeze for antecedent_data::source::SourceModality [auto]
+impl core::marker::Freeze for antecedent_data::source::SplitSpan [auto]
+impl core::marker::Freeze for antecedent_data::source::ValidityPolicy [auto]
 impl core::marker::Send for antecedent_data::ArrowCColumn [auto]
 impl core::marker::Send for antecedent_data::ArrowFrameView [auto]
 impl core::marker::Send for antecedent_data::ArrowLoadResult [auto]
@@ -973,6 +1062,7 @@ impl core::marker::Send for antecedent_data::column_closure::ObservationFrame [a
 impl core::marker::Send for antecedent_data::column_closure::PushdownRefusal [auto]
 impl core::marker::Send for antecedent_data::column_closure::RequiredColumn [auto]
 impl core::marker::Send for antecedent_data::design_layout::LayoutError [auto]
+impl core::marker::Send for antecedent_data::design_layout::MaskSelection [auto]
 impl core::marker::Send for antecedent_data::design_layout::OwnershipCopy [auto]
 impl core::marker::Send for antecedent_data::design_layout::OwnershipReceipt [auto]
 impl core::marker::Send for antecedent_data::file_source::ChunkQuote [auto]
@@ -993,6 +1083,12 @@ impl core::marker::Send for antecedent_data::file_source::TableFile [auto]
 impl core::marker::Send for antecedent_data::file_source::TableFileFormat [auto]
 impl core::marker::Send for antecedent_data::file_source::TableStream [auto]
 impl core::marker::Send for antecedent_data::file_source::WriteOptions [auto]
+impl core::marker::Send for antecedent_data::lazy_identity::BaseScan [auto]
+impl core::marker::Send for antecedent_data::lazy_identity::FullContentIdentity [auto]
+impl core::marker::Send for antecedent_data::lazy_identity::IncrementalDigest [auto]
+impl core::marker::Send for antecedent_data::lazy_identity::LazyViewIdentity [auto]
+impl core::marker::Send for antecedent_data::lazy_identity::SegmentChunkIdentity [auto]
+impl core::marker::Send for antecedent_data::lazy_identity::VersionedIdentity [auto]
 impl core::marker::Send for antecedent_data::materialize::AdmissionRecord [auto]
 impl core::marker::Send for antecedent_data::materialize::CategoryLevels [auto]
 impl core::marker::Send for antecedent_data::materialize::DeliveryRecord [auto]
@@ -1012,6 +1108,15 @@ impl core::marker::Send for antecedent_data::materialize::StreamQuote [auto]
 impl core::marker::Send for antecedent_data::materialize::StreamingScan [auto]
 impl core::marker::Send for antecedent_data::missing::ChunkMissing [auto]
 impl core::marker::Send for antecedent_data::missing::MissingConversion [auto]
+impl core::marker::Send for antecedent_data::source::CohortOrder [auto]
+impl core::marker::Send for antecedent_data::source::OwnedSource [auto]
+impl core::marker::Send for antecedent_data::source::RowChunk [auto]
+impl core::marker::Send for antecedent_data::source::SegmentedSource [auto]
+impl core::marker::Send for antecedent_data::source::SnapshotContract [auto]
+impl core::marker::Send for antecedent_data::source::SourceIdentity [auto]
+impl core::marker::Send for antecedent_data::source::SourceModality [auto]
+impl core::marker::Send for antecedent_data::source::SplitSpan [auto]
+impl core::marker::Send for antecedent_data::source::ValidityPolicy [auto]
 impl core::marker::StructuralPartialEq for antecedent_data::AttritionBaseline
 impl core::marker::StructuralPartialEq for antecedent_data::AttritionRow
 impl core::marker::StructuralPartialEq for antecedent_data::BalanceRequirement
@@ -1091,6 +1196,7 @@ impl core::marker::StructuralPartialEq for antecedent_data::column_closure::Obse
 impl core::marker::StructuralPartialEq for antecedent_data::column_closure::PushdownRefusal
 impl core::marker::StructuralPartialEq for antecedent_data::column_closure::RequiredColumn
 impl core::marker::StructuralPartialEq for antecedent_data::design_layout::LayoutError
+impl core::marker::StructuralPartialEq for antecedent_data::design_layout::MaskSelection
 impl core::marker::StructuralPartialEq for antecedent_data::design_layout::OwnershipCopy
 impl core::marker::StructuralPartialEq for antecedent_data::design_layout::OwnershipReceipt
 impl core::marker::StructuralPartialEq for antecedent_data::file_source::ChunkQuote
@@ -1107,6 +1213,11 @@ impl core::marker::StructuralPartialEq for antecedent_data::file_source::RowCurs
 impl core::marker::StructuralPartialEq for antecedent_data::file_source::ScanReceipt
 impl core::marker::StructuralPartialEq for antecedent_data::file_source::TableFileFormat
 impl core::marker::StructuralPartialEq for antecedent_data::file_source::WriteOptions
+impl core::marker::StructuralPartialEq for antecedent_data::lazy_identity::FullContentIdentity
+impl core::marker::StructuralPartialEq for antecedent_data::lazy_identity::IncrementalDigest
+impl core::marker::StructuralPartialEq for antecedent_data::lazy_identity::LazyViewIdentity
+impl core::marker::StructuralPartialEq for antecedent_data::lazy_identity::SegmentChunkIdentity
+impl core::marker::StructuralPartialEq for antecedent_data::lazy_identity::VersionedIdentity
 impl core::marker::StructuralPartialEq for antecedent_data::materialize::AdmissionRecord
 impl core::marker::StructuralPartialEq for antecedent_data::materialize::CategoryLevels
 impl core::marker::StructuralPartialEq for antecedent_data::materialize::DeliveryRecord
@@ -1125,6 +1236,13 @@ impl core::marker::StructuralPartialEq for antecedent_data::materialize::StreamQ
 impl core::marker::StructuralPartialEq for antecedent_data::materialize::StreamingScan
 impl core::marker::StructuralPartialEq for antecedent_data::missing::ChunkMissing
 impl core::marker::StructuralPartialEq for antecedent_data::missing::MissingConversion
+impl core::marker::StructuralPartialEq for antecedent_data::source::CohortOrder
+impl core::marker::StructuralPartialEq for antecedent_data::source::RowChunk
+impl core::marker::StructuralPartialEq for antecedent_data::source::SnapshotContract
+impl core::marker::StructuralPartialEq for antecedent_data::source::SourceIdentity
+impl core::marker::StructuralPartialEq for antecedent_data::source::SourceModality
+impl core::marker::StructuralPartialEq for antecedent_data::source::SplitSpan
+impl core::marker::StructuralPartialEq for antecedent_data::source::ValidityPolicy
 impl core::marker::Sync for antecedent_data::ArrowFrameView [auto]
 impl core::marker::Sync for antecedent_data::ArrowLoadResult [auto]
 impl core::marker::Sync for antecedent_data::AttritionBaseline [auto]
@@ -1226,6 +1344,7 @@ impl core::marker::Sync for antecedent_data::column_closure::ObservationFrame [a
 impl core::marker::Sync for antecedent_data::column_closure::PushdownRefusal [auto]
 impl core::marker::Sync for antecedent_data::column_closure::RequiredColumn [auto]
 impl core::marker::Sync for antecedent_data::design_layout::LayoutError [auto]
+impl core::marker::Sync for antecedent_data::design_layout::MaskSelection [auto]
 impl core::marker::Sync for antecedent_data::design_layout::OwnershipCopy [auto]
 impl core::marker::Sync for antecedent_data::design_layout::OwnershipReceipt [auto]
 impl core::marker::Sync for antecedent_data::file_source::ChunkQuote [auto]
@@ -1245,6 +1364,12 @@ impl core::marker::Sync for antecedent_data::file_source::ScanReceipt [auto]
 impl core::marker::Sync for antecedent_data::file_source::TableFile [auto]
 impl core::marker::Sync for antecedent_data::file_source::TableFileFormat [auto]
 impl core::marker::Sync for antecedent_data::file_source::WriteOptions [auto]
+impl core::marker::Sync for antecedent_data::lazy_identity::BaseScan [auto]
+impl core::marker::Sync for antecedent_data::lazy_identity::FullContentIdentity [auto]
+impl core::marker::Sync for antecedent_data::lazy_identity::IncrementalDigest [auto]
+impl core::marker::Sync for antecedent_data::lazy_identity::LazyViewIdentity [auto]
+impl core::marker::Sync for antecedent_data::lazy_identity::SegmentChunkIdentity [auto]
+impl core::marker::Sync for antecedent_data::lazy_identity::VersionedIdentity [auto]
 impl core::marker::Sync for antecedent_data::materialize::AdmissionRecord [auto]
 impl core::marker::Sync for antecedent_data::materialize::CategoryLevels [auto]
 impl core::marker::Sync for antecedent_data::materialize::DeliveryRecord [auto]
@@ -1264,6 +1389,15 @@ impl core::marker::Sync for antecedent_data::materialize::StreamQuote [auto]
 impl core::marker::Sync for antecedent_data::materialize::StreamingScan [auto]
 impl core::marker::Sync for antecedent_data::missing::ChunkMissing [auto]
 impl core::marker::Sync for antecedent_data::missing::MissingConversion [auto]
+impl core::marker::Sync for antecedent_data::source::CohortOrder [auto]
+impl core::marker::Sync for antecedent_data::source::OwnedSource [auto]
+impl core::marker::Sync for antecedent_data::source::RowChunk [auto]
+impl core::marker::Sync for antecedent_data::source::SegmentedSource [auto]
+impl core::marker::Sync for antecedent_data::source::SnapshotContract [auto]
+impl core::marker::Sync for antecedent_data::source::SourceIdentity [auto]
+impl core::marker::Sync for antecedent_data::source::SourceModality [auto]
+impl core::marker::Sync for antecedent_data::source::SplitSpan [auto]
+impl core::marker::Sync for antecedent_data::source::ValidityPolicy [auto]
 impl core::marker::Unpin for antecedent_data::ArrowCColumn [auto]
 impl core::marker::Unpin for antecedent_data::ArrowFrameView [auto]
 impl core::marker::Unpin for antecedent_data::ArrowLoadResult [auto]
@@ -1367,6 +1501,7 @@ impl core::marker::Unpin for antecedent_data::column_closure::ObservationFrame [
 impl core::marker::Unpin for antecedent_data::column_closure::PushdownRefusal [auto]
 impl core::marker::Unpin for antecedent_data::column_closure::RequiredColumn [auto]
 impl core::marker::Unpin for antecedent_data::design_layout::LayoutError [auto]
+impl core::marker::Unpin for antecedent_data::design_layout::MaskSelection [auto]
 impl core::marker::Unpin for antecedent_data::design_layout::OwnershipCopy [auto]
 impl core::marker::Unpin for antecedent_data::design_layout::OwnershipReceipt [auto]
 impl core::marker::Unpin for antecedent_data::file_source::ChunkQuote [auto]
@@ -1388,6 +1523,12 @@ impl core::marker::Unpin for antecedent_data::file_source::TableFile [auto]
 impl core::marker::Unpin for antecedent_data::file_source::TableFileFormat [auto]
 impl core::marker::Unpin for antecedent_data::file_source::TableStream [auto]
 impl core::marker::Unpin for antecedent_data::file_source::WriteOptions [auto]
+impl core::marker::Unpin for antecedent_data::lazy_identity::BaseScan [auto]
+impl core::marker::Unpin for antecedent_data::lazy_identity::FullContentIdentity [auto]
+impl core::marker::Unpin for antecedent_data::lazy_identity::IncrementalDigest [auto]
+impl core::marker::Unpin for antecedent_data::lazy_identity::LazyViewIdentity [auto]
+impl core::marker::Unpin for antecedent_data::lazy_identity::SegmentChunkIdentity [auto]
+impl core::marker::Unpin for antecedent_data::lazy_identity::VersionedIdentity [auto]
 impl core::marker::Unpin for antecedent_data::materialize::AdmissionRecord [auto]
 impl core::marker::Unpin for antecedent_data::materialize::CategoryLevels [auto]
 impl core::marker::Unpin for antecedent_data::materialize::DeliveryRecord [auto]
@@ -1407,6 +1548,15 @@ impl core::marker::Unpin for antecedent_data::materialize::StreamQuote [auto]
 impl core::marker::Unpin for antecedent_data::materialize::StreamingScan [auto]
 impl core::marker::Unpin for antecedent_data::missing::ChunkMissing [auto]
 impl core::marker::Unpin for antecedent_data::missing::MissingConversion [auto]
+impl core::marker::Unpin for antecedent_data::source::CohortOrder [auto]
+impl core::marker::Unpin for antecedent_data::source::OwnedSource [auto]
+impl core::marker::Unpin for antecedent_data::source::RowChunk [auto]
+impl core::marker::Unpin for antecedent_data::source::SegmentedSource [auto]
+impl core::marker::Unpin for antecedent_data::source::SnapshotContract [auto]
+impl core::marker::Unpin for antecedent_data::source::SourceIdentity [auto]
+impl core::marker::Unpin for antecedent_data::source::SourceModality [auto]
+impl core::marker::Unpin for antecedent_data::source::SplitSpan [auto]
+impl core::marker::Unpin for antecedent_data::source::ValidityPolicy [auto]
 impl core::ops::deref::Deref for antecedent_data::F64Buffer
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::ArrowCColumn [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::AttritionBaseline [auto]
@@ -1493,6 +1643,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::column_closure
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::column_closure::PushdownRefusal [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::column_closure::RequiredColumn [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::design_layout::LayoutError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::design_layout::MaskSelection [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::design_layout::OwnershipCopy [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::design_layout::OwnershipReceipt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::file_source::ChunkQuote [auto]
@@ -1511,6 +1662,12 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::file_source::T
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::file_source::TableFileFormat [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::file_source::TableStream [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::file_source::WriteOptions [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::lazy_identity::BaseScan [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::lazy_identity::FullContentIdentity [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::lazy_identity::IncrementalDigest [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::lazy_identity::LazyViewIdentity [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::lazy_identity::SegmentChunkIdentity [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::lazy_identity::VersionedIdentity [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::materialize::AdmissionRecord [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::materialize::CategoryLevels [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::materialize::DeliveryRecord [auto]
@@ -1530,6 +1687,13 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::materialize::S
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::materialize::StreamingScan [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::missing::ChunkMissing [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::missing::MissingConversion [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::source::CohortOrder [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::source::RowChunk [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::source::SnapshotContract [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::source::SourceIdentity [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::source::SourceModality [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::source::SplitSpan [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::source::ValidityPolicy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::ArrowCColumn [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::AttritionBaseline [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::AttritionRow [auto]
@@ -1615,6 +1779,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_data::column_closure::O
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::column_closure::PushdownRefusal [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::column_closure::RequiredColumn [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::design_layout::LayoutError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::design_layout::MaskSelection [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::design_layout::OwnershipCopy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::design_layout::OwnershipReceipt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::file_source::ChunkQuote [auto]
@@ -1633,6 +1798,12 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_data::file_source::Tabl
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::file_source::TableFileFormat [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::file_source::TableStream [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::file_source::WriteOptions [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::lazy_identity::BaseScan [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::lazy_identity::FullContentIdentity [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::lazy_identity::IncrementalDigest [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::lazy_identity::LazyViewIdentity [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::lazy_identity::SegmentChunkIdentity [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::lazy_identity::VersionedIdentity [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::materialize::AdmissionRecord [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::materialize::CategoryLevels [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::materialize::DeliveryRecord [auto]
@@ -1652,47 +1823,63 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_data::materialize::Stre
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::materialize::StreamingScan [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::missing::ChunkMissing [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::missing::MissingConversion [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::source::CohortOrder [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::source::RowChunk [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::source::SnapshotContract [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::source::SourceIdentity [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::source::SourceModality [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::source::SplitSpan [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::source::ValidityPolicy [auto]
 impl<'a> !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::ColumnView<'a> [auto]
 impl<'a> !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::PanelUnitView<'a> [auto]
+impl<'a> !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::source::BorrowedSource<'a> [auto]
 impl<'a> !core::panic::unwind_safe::UnwindSafe for antecedent_data::ColumnView<'a> [auto]
 impl<'a> !core::panic::unwind_safe::UnwindSafe for antecedent_data::PanelUnitView<'a> [auto]
+impl<'a> !core::panic::unwind_safe::UnwindSafe for antecedent_data::source::BorrowedSource<'a> [auto]
 impl<'a> core::clone::Clone for antecedent_data::CategoricalView<'a>
 impl<'a> core::clone::Clone for antecedent_data::ColumnView<'a>
 impl<'a> core::clone::Clone for antecedent_data::GappedSample<'a>
 impl<'a> core::clone::Clone for antecedent_data::LaggedPreparedSample<'a>
 impl<'a> core::clone::Clone for antecedent_data::design_layout::DesignLayout<'a>
+impl<'a> core::clone::Clone for antecedent_data::source::BorrowedSource<'a>
 impl<'a> core::fmt::Debug for antecedent_data::CategoricalView<'a>
 impl<'a> core::fmt::Debug for antecedent_data::ColumnView<'a>
 impl<'a> core::fmt::Debug for antecedent_data::GappedSample<'a>
 impl<'a> core::fmt::Debug for antecedent_data::LaggedPreparedSample<'a>
 impl<'a> core::fmt::Debug for antecedent_data::design_layout::DesignLayout<'a>
+impl<'a> core::fmt::Debug for antecedent_data::source::BorrowedSource<'a>
 impl<'a> core::marker::Copy for antecedent_data::CategoricalView<'a>
 impl<'a> core::marker::Copy for antecedent_data::ColumnView<'a>
 impl<'a> core::marker::Copy for antecedent_data::LaggedPreparedSample<'a>
+impl<'a> core::marker::Copy for antecedent_data::source::BorrowedSource<'a>
 impl<'a> core::marker::Freeze for antecedent_data::CategoricalView<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_data::ColumnView<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_data::GappedSample<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_data::LaggedPreparedSample<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_data::PanelUnitView<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_data::design_layout::DesignLayout<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_data::source::BorrowedSource<'a> [auto]
 impl<'a> core::marker::Send for antecedent_data::CategoricalView<'a> [auto]
 impl<'a> core::marker::Send for antecedent_data::ColumnView<'a> [auto]
 impl<'a> core::marker::Send for antecedent_data::GappedSample<'a> [auto]
 impl<'a> core::marker::Send for antecedent_data::LaggedPreparedSample<'a> [auto]
 impl<'a> core::marker::Send for antecedent_data::PanelUnitView<'a> [auto]
 impl<'a> core::marker::Send for antecedent_data::design_layout::DesignLayout<'a> [auto]
+impl<'a> core::marker::Send for antecedent_data::source::BorrowedSource<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_data::CategoricalView<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_data::ColumnView<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_data::GappedSample<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_data::LaggedPreparedSample<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_data::PanelUnitView<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_data::design_layout::DesignLayout<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_data::source::BorrowedSource<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_data::CategoricalView<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_data::ColumnView<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_data::GappedSample<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_data::LaggedPreparedSample<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_data::PanelUnitView<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_data::design_layout::DesignLayout<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_data::source::BorrowedSource<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_data::CategoricalView<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_data::GappedSample<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_data::LaggedPreparedSample<'a> [auto]
@@ -1722,6 +1909,9 @@ pub const antecedent_data::backend_boundary::POLARS_IS_INTERNAL_CONTRACT_BACKEND
 pub const antecedent_data::file_source::DEFAULT_CHUNK_ROWS: usize
 pub const antecedent_data::file_source::DEFAULT_TEXT_BYTES_PER_ROW: u64
 pub const antecedent_data::file_source::FILE_IDENTITY_VERSION: u16
+pub const antecedent_data::lazy_identity::FULL_CONTENT_VERSION: u16
+pub const antecedent_data::lazy_identity::INCREMENTAL_VERSION: u16
+pub const antecedent_data::lazy_identity::LAZY_VIEW_VERSION: u16
 pub const antecedent_data::materialize::PREPARATION_ORDER: [antecedent_data::materialize::PreparationStep; 5]
 pub const antecedent_data::unbalanced_panel::BALANCE_BEFORE_NUISANCE: antecedent_core::refusal::NextAttempt
 pub const antecedent_data::unbalanced_panel::DECLARE_AVAILABLE_CASE: antecedent_core::refusal::NextAttempt
@@ -1747,8 +1937,11 @@ pub enum antecedent_data::WindowNextAttempt
 pub enum antecedent_data::arrow_adapter::EstimatorFrame
 pub enum antecedent_data::backend_boundary::PreparationBackend
 pub enum antecedent_data::column_closure::ColumnDuty
+pub enum antecedent_data::design_layout::MaskSelection
 pub enum antecedent_data::file_source::FileColumnKind
 pub enum antecedent_data::file_source::TableFileFormat
+pub enum antecedent_data::lazy_identity::BaseScan
+pub enum antecedent_data::lazy_identity::VersionedIdentity
 pub enum antecedent_data::materialize::AdmissionRecord
 pub enum antecedent_data::materialize::DeliveryRecord
 pub enum antecedent_data::materialize::EstimatorStreamNeed
@@ -1757,6 +1950,10 @@ pub enum antecedent_data::materialize::ReceiptSource
 pub enum antecedent_data::materialize::RouteBound
 pub enum antecedent_data::materialize::SchemaValueKind
 pub enum antecedent_data::materialize::StreamDelivery
+pub enum antecedent_data::source::CohortOrder
+pub enum antecedent_data::source::SourceIdentity
+pub enum antecedent_data::source::SourceModality
+pub enum antecedent_data::source::ValidityPolicy
 pub field antecedent_data::ArrowCColumn::name: alloc::string::String
 pub field antecedent_data::ArrowLoadResult::bytes_borrowed: u64
 pub field antecedent_data::ArrowLoadResult::bytes_copied: u64
@@ -1935,6 +2132,17 @@ pub field antecedent_data::missing::ChunkMissing::rows_total: usize
 pub field antecedent_data::missing::MissingConversion::chunks: alloc::sync::Arc<[antecedent_data::missing::ChunkMissing]>
 pub field antecedent_data::missing::MissingConversion::policy: antecedent_data::MissingPolicy
 pub field antecedent_data::missing::MissingConversion::population_bound: bool
+pub field antecedent_data::source::SnapshotContract::cohort: antecedent_data::source::CohortOrder
+pub field antecedent_data::source::SnapshotContract::identity: antecedent_data::source::SourceIdentity
+pub field antecedent_data::source::SnapshotContract::modality: antecedent_data::source::SourceModality
+pub field antecedent_data::source::SnapshotContract::rows: usize
+pub field antecedent_data::source::SnapshotContract::schema_names: alloc::sync::Arc<[alloc::sync::Arc<str>]>
+pub field antecedent_data::source::SnapshotContract::splits: alloc::vec::Vec<antecedent_data::source::SplitSpan>
+pub field antecedent_data::source::SnapshotContract::time_index: core::option::Option<antecedent_data::TimeIndex>
+pub field antecedent_data::source::SnapshotContract::unit: core::option::Option<alloc::sync::Arc<str>>
+pub field antecedent_data::source::SnapshotContract::validity: antecedent_data::source::ValidityPolicy
+pub field antecedent_data::source::SplitSpan::label: alloc::sync::Arc<str>
+pub field antecedent_data::source::SplitSpan::rows: core::ops::range::Range<usize>
 pub fn <antecedent_data::ArrowCColumn>::fn from_arrow_array(name: impl core::convert::Into<alloc::string::String>, array: &dyn arrow_array::array::Array) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::ArrowCColumn>::fn into_array(self) -> core::result::Result<arrow_array::array::ArrayRef, antecedent_data::DataError>
 pub fn <antecedent_data::ArrowCColumn>::fn into_chunk_arrays(self) -> core::result::Result<alloc::vec::Vec<arrow_array::array::ArrayRef>, antecedent_data::DataError>
@@ -2184,6 +2392,9 @@ pub fn <antecedent_data::TabularData>::fn complete_case_mask(&self, ids: &[antec
 pub fn <antecedent_data::TabularData>::fn complete_case_mask_into(&self, ids: &[antecedent_core::ids::VariableId], out: &mut alloc::vec::Vec<bool>) -> core::result::Result<(), antecedent_data::DataError>
 pub fn <antecedent_data::TabularData>::fn discrete_column(&self, id: antecedent_core::ids::VariableId) -> core::result::Result<antecedent_data::DiscreteColumn, antecedent_data::DataError>
 pub fn <antecedent_data::TabularData>::fn float64_masked(&self, id: antecedent_core::ids::VariableId, keep: &[bool]) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_data::DataError>
+pub fn <antecedent_data::TabularData>::fn float64_selected(&self, id: antecedent_core::ids::VariableId, keep: &[bool]) -> core::result::Result<alloc::borrow::Cow<'_, [f64]>, antecedent_data::DataError>
+pub fn <antecedent_data::TabularData>::fn float64_selected_arc(&self, id: antecedent_core::ids::VariableId, keep: &[bool]) -> core::result::Result<alloc::sync::Arc<[f64]>, antecedent_data::DataError>
+pub fn <antecedent_data::TabularData>::fn float64_selected_into(&self, id: antecedent_core::ids::VariableId, keep: &[bool], dest: &mut [f64]) -> core::result::Result<(), antecedent_data::DataError>
 pub fn <antecedent_data::TabularData>::fn from_f64_columns<'a, S>(columns: impl core::iter::traits::collect::IntoIterator<Item = (S, &'a [f64])>) -> core::result::Result<Self, antecedent_data::DataError> where S: core::convert::Into<alloc::sync::Arc<str>>
 pub fn <antecedent_data::TabularData>::fn new(storage: antecedent_data::OwnedColumnarStorage) -> Self
 pub fn <antecedent_data::TabularData>::fn project(&self, ids: &[antecedent_core::ids::VariableId]) -> core::result::Result<(Self, antecedent_data::IdRemap), antecedent_data::DataError>
@@ -2258,6 +2469,7 @@ pub fn <antecedent_data::column_closure::ColumnClosure>::fn project(&self, keep:
 pub fn <antecedent_data::column_closure::ColumnClosure>::fn push_filter(&self, frame: &antecedent_data::column_closure::ObservationFrame, filter: &antecedent_data::column_closure::ColumnFilter) -> core::result::Result<antecedent_data::column_closure::Cohort, antecedent_data::column_closure::ClosureError>
 pub fn <antecedent_data::column_closure::ColumnDuty>::const fn name(self) -> &'static str
 pub fn <antecedent_data::column_closure::ColumnFilter>::fn column(&self) -> &antecedent_data::column_closure::ColumnRole
+pub fn <antecedent_data::column_closure::ColumnFilter>::fn drops(&self, row: usize) -> bool
 pub fn <antecedent_data::column_closure::ColumnFilter>::fn new(column: antecedent_data::column_closure::ColumnRole, drop_row: alloc::vec::Vec<bool>) -> Self
 pub fn <antecedent_data::column_closure::ColumnRole>::fn as_str(&self) -> &str
 pub fn <antecedent_data::column_closure::ColumnRole>::fn new(name: impl core::convert::AsRef<str>) -> Self
@@ -2267,6 +2479,7 @@ pub fn <antecedent_data::column_closure::ObservationFrame>::fn try_new(columns: 
 pub fn <antecedent_data::design_layout::DesignLayout<'a>>::const fn n_rows(&self) -> usize
 pub fn <antecedent_data::design_layout::DesignLayout<'a>>::const fn receipt(&self) -> &antecedent_data::design_layout::OwnershipReceipt
 pub fn <antecedent_data::design_layout::DesignLayout<'a>>::fn column(&self, index: usize) -> core::option::Option<&[f64]>
+pub fn <antecedent_data::design_layout::DesignLayout<'a>>::fn from_mask(columns: &[antecedent_data::ColumnView<'a>], keep: &[bool]) -> core::result::Result<Self, antecedent_data::design_layout::LayoutError>
 pub fn <antecedent_data::design_layout::DesignLayout<'a>>::fn from_views(columns: &[antecedent_data::ColumnView<'a>], rows: &[antecedent_data::GlobalId]) -> core::result::Result<Self, antecedent_data::design_layout::LayoutError>
 pub fn <antecedent_data::design_layout::DesignLayout<'a>>::fn get(&self, column_major_index: usize) -> core::option::Option<f64>
 pub fn <antecedent_data::design_layout::DesignLayout<'a>>::fn n_columns(&self) -> usize
@@ -2276,6 +2489,8 @@ pub fn <antecedent_data::design_layout::LayoutError>::const fn column_index(self
 pub fn <antecedent_data::design_layout::LayoutError>::const fn column_len(self) -> core::option::Option<usize>
 pub fn <antecedent_data::design_layout::LayoutError>::const fn global_id(self) -> core::option::Option<antecedent_data::GlobalId>
 pub fn <antecedent_data::design_layout::LayoutError>::const fn inexact_value(self) -> core::option::Option<i64>
+pub fn <antecedent_data::design_layout::MaskSelection>::const fn count(self) -> usize
+pub fn <antecedent_data::design_layout::MaskSelection>::const fn is_borrowable(self) -> bool
 pub fn <antecedent_data::design_layout::OwnershipCopy>::const fn column(self) -> usize
 pub fn <antecedent_data::design_layout::OwnershipCopy>::const fn name(self) -> &'static str
 pub fn <antecedent_data::design_layout::OwnershipReceipt>::fn copies(&self) -> &[antecedent_data::design_layout::OwnershipCopy]
@@ -2317,6 +2532,7 @@ pub fn <antecedent_data::file_source::MemoryStage>::const fn as_str(self) -> &'s
 pub fn <antecedent_data::file_source::ReadOptions>::fn with_chunk_rows(chunk_rows: usize) -> Self
 pub fn <antecedent_data::file_source::ReadPlan>::const fn chunk_rows(&self) -> usize
 pub fn <antecedent_data::file_source::ReadPlan>::const fn owned_bytes_per_row(&self) -> u64
+pub fn <antecedent_data::file_source::ReadPlan>::const fn reader_bytes(&self) -> u64
 pub fn <antecedent_data::file_source::ReadPlan>::fn chunk_quote(&self) -> core::result::Result<antecedent_data::file_source::ChunkQuote, antecedent_data::file_source::FileSourceError>
 pub fn <antecedent_data::file_source::ReadPlan>::fn closure(&self) -> &antecedent_data::column_closure::ColumnClosure
 pub fn <antecedent_data::file_source::ReadPlan>::fn columns(&self) -> &[antecedent_data::file_source::FileColumn]
@@ -2364,6 +2580,30 @@ pub fn <antecedent_data::file_source::TableStream>::fn columns(&self) -> &[antec
 pub fn <antecedent_data::file_source::TableStream>::fn new(stream: antecedent_data::arrow_ffi::ArrowCStream) -> core::result::Result<Self, antecedent_data::file_source::FileSourceError>
 pub fn <antecedent_data::file_source::TableStream>::fn plan(&self, closure: &antecedent_data::column_closure::ColumnClosure, options: antecedent_data::file_source::ReadOptions) -> core::result::Result<antecedent_data::file_source::ReadPlan, antecedent_data::file_source::FileSourceError>
 pub fn <antecedent_data::file_source::TableStream>::fn reader(self, plan: &antecedent_data::file_source::ReadPlan, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_data::file_source::TableChunkReader, antecedent_data::file_source::FileSourceError>
+pub fn <antecedent_data::lazy_identity::BaseScan>::const fn unverified(_claimed: [u8; 32]) -> Self
+pub fn <antecedent_data::lazy_identity::BaseScan>::fn accept(&self, parts: &[&[u8]], bytes: &[u8]) -> core::result::Result<antecedent_data::lazy_identity::IncrementalDigest, antecedent_data::DataError>
+pub fn <antecedent_data::lazy_identity::BaseScan>::fn verify(source: &antecedent_data::source::OwnedSource) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::lazy_identity::BaseScan>::fn verify_segmented(source: &antecedent_data::source::SegmentedSource) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::lazy_identity::FullContentIdentity>::const fn binding(&self) -> [u8; 32]
+pub fn <antecedent_data::lazy_identity::FullContentIdentity>::const fn digest(&self) -> [u8; 32]
+pub fn <antecedent_data::lazy_identity::FullContentIdentity>::const fn version(&self) -> u16
+pub fn <antecedent_data::lazy_identity::FullContentIdentity>::fn try_from_contract(contract: &antecedent_data::source::SnapshotContract) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::lazy_identity::FullContentIdentity>::fn try_from_segmented(source: &antecedent_data::source::SegmentedSource) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::lazy_identity::FullContentIdentity>::fn try_from_source(source: &antecedent_data::source::OwnedSource) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::lazy_identity::IncrementalDigest>::const fn digest(&self) -> [u8; 32]
+pub fn <antecedent_data::lazy_identity::IncrementalDigest>::const fn parent(&self) -> [u8; 32]
+pub fn <antecedent_data::lazy_identity::IncrementalDigest>::const fn version(&self) -> u16
+pub fn <antecedent_data::lazy_identity::LazyViewIdentity>::const fn binding(&self) -> [u8; 32]
+pub fn <antecedent_data::lazy_identity::LazyViewIdentity>::const fn digest(&self) -> [u8; 32]
+pub fn <antecedent_data::lazy_identity::LazyViewIdentity>::const fn parent(&self) -> [u8; 32]
+pub fn <antecedent_data::lazy_identity::LazyViewIdentity>::const fn rows(&self) -> core::ops::range::Range<usize>
+pub fn <antecedent_data::lazy_identity::LazyViewIdentity>::const fn version(&self) -> u16
+pub fn <antecedent_data::lazy_identity::LazyViewIdentity>::fn from_chunk(full: &antecedent_data::lazy_identity::FullContentIdentity, chunk: &antecedent_data::source::RowChunk) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::lazy_identity::SegmentChunkIdentity>::const fn digest(&self) -> [u8; 32]
+pub fn <antecedent_data::lazy_identity::SegmentChunkIdentity>::const fn parent(&self) -> [u8; 32]
+pub fn <antecedent_data::lazy_identity::SegmentChunkIdentity>::const fn part(&self) -> usize
+pub fn <antecedent_data::lazy_identity::SegmentChunkIdentity>::const fn rows(&self) -> core::ops::range::Range<usize>
+pub fn <antecedent_data::lazy_identity::SegmentChunkIdentity>::fn new(source: &antecedent_data::source::SegmentedSource, composite: &antecedent_data::lazy_identity::FullContentIdentity, part: usize, start: usize, end: usize) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::materialize::AdmissionRecord>::const fn materialized_bytes(self) -> core::option::Option<u64>
 pub fn <antecedent_data::materialize::PreparationBudget>::const fn bytes(self) -> u64
 pub fn <antecedent_data::materialize::PreparationBudget>::const fn new(bytes: u64) -> Self
@@ -2399,6 +2639,30 @@ pub fn <antecedent_data::materialize::StreamingScan>::fn receipt(&self) -> &ante
 pub fn <antecedent_data::missing::MissingConversion>::fn convert<T: antecedent_data::TableView>(table: &T, analysis_mask: core::option::Option<&antecedent_data::ValidityBitmap>, variables: &[antecedent_core::ids::VariableId], policy: antecedent_data::MissingPolicy) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::missing::MissingConversion>::fn from_scan(policy: antecedent_data::MissingPolicy, chunks: impl core::convert::Into<alloc::sync::Arc<[antecedent_data::missing::ChunkMissing]>>) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::missing::MissingConversion>::fn proved_rows_kept(&self) -> core::option::Option<usize>
+pub fn <antecedent_data::source::BorrowedSource<'_>>::fn contract(&self) -> &antecedent_data::source::SnapshotContract
+pub fn <antecedent_data::source::BorrowedSource<'_>>::fn storage(&self) -> &antecedent_data::OwnedColumnarStorage
+pub fn <antecedent_data::source::OwnedSource>::fn borrow(&self) -> antecedent_data::source::BorrowedSource<'_>
+pub fn <antecedent_data::source::OwnedSource>::fn chunk(&self, start: usize, end: usize) -> core::result::Result<antecedent_data::source::RowChunk, antecedent_data::DataError>
+pub fn <antecedent_data::source::OwnedSource>::fn contract(&self) -> &antecedent_data::source::SnapshotContract
+pub fn <antecedent_data::source::OwnedSource>::fn from_storage(storage: antecedent_data::OwnedColumnarStorage, modality: antecedent_data::source::SourceModality) -> Self
+pub fn <antecedent_data::source::OwnedSource>::fn from_tabular(data: &antecedent_data::TabularData) -> Self
+pub fn <antecedent_data::source::OwnedSource>::fn from_time_series(series: &antecedent_data::TimeSeriesData, modality: antecedent_data::source::SourceModality) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::source::OwnedSource>::fn project(&self, columns: &[u32]) -> core::result::Result<antecedent_data::source::SnapshotContract, antecedent_data::DataError>
+pub fn <antecedent_data::source::OwnedSource>::fn with_cohort(self, cohort: antecedent_data::source::CohortOrder) -> Self
+pub fn <antecedent_data::source::OwnedSource>::fn with_splits(self, splits: alloc::vec::Vec<antecedent_data::source::SplitSpan>) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::source::OwnedSource>::fn with_time_index(self, time_index: antecedent_data::TimeIndex) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::source::OwnedSource>::fn with_unit(self, unit: impl core::convert::Into<alloc::sync::Arc<str>>) -> Self
+pub fn <antecedent_data::source::OwnedSource>::fn with_validity(self, validity: antecedent_data::source::ValidityPolicy) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::source::RowChunk>::fn parent(&self) -> [u8; 32]
+pub fn <antecedent_data::source::RowChunk>::fn rows(&self) -> core::ops::range::Range<usize>
+pub fn <antecedent_data::source::SegmentedSource>::fn from_multi_environment(environments: &antecedent_data::MultiEnvironmentData) -> Self
+pub fn <antecedent_data::source::SegmentedSource>::fn from_panel(panel: &antecedent_data::PanelData) -> Self
+pub fn <antecedent_data::source::SegmentedSource>::fn modality(&self) -> antecedent_data::source::SourceModality
+pub fn <antecedent_data::source::SegmentedSource>::fn parts(&self) -> &[antecedent_data::source::OwnedSource]
+pub fn <antecedent_data::source::SegmentedSource>::fn rows(&self) -> usize
+pub fn <antecedent_data::source::SegmentedSource>::fn unit_id(&self, index: usize) -> core::option::Option<u32>
+pub fn <antecedent_data::source::SegmentedSource>::fn with_part(self, index: usize, part: antecedent_data::source::OwnedSource) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::source::SnapshotContract>::fn full_digest(&self) -> core::option::Option<[u8; 32]>
 pub fn antecedent_data::arrow_adapter::tabular_from_arrow_c_columns(columns: alloc::vec::Vec<antecedent_data::ArrowCColumn>) -> core::result::Result<antecedent_data::ArrowLoadResult, antecedent_data::DataError>
 pub fn antecedent_data::arrow_adapter::tabular_from_record_batch(batch: &arrow_array::record_batch::RecordBatch) -> core::result::Result<antecedent_data::ArrowLoadResult, antecedent_data::DataError>
 pub fn antecedent_data::categorical::compile_contrast_matrix(domain: &antecedent_data::CategoryDomain, contrast: &antecedent_data::Contrast) -> core::result::Result<antecedent_data::ContrastMatrix, antecedent_data::DataError>
@@ -2408,12 +2672,15 @@ pub fn antecedent_data::column_blocks_for_frame(groups: &antecedent_data::Vector
 pub fn antecedent_data::complete_float_columns(table: &antecedent_data::TabularData, replacements: &[(antecedent_core::ids::VariableId, alloc::sync::Arc<[f64]>)]) -> core::result::Result<antecedent_data::TabularData, antecedent_data::DataError>
 pub fn antecedent_data::complete_rows<T: antecedent_data::TableView>(table: &T, analysis_mask: core::option::Option<&antecedent_data::ValidityBitmap>, variables: &[antecedent_core::ids::VariableId]) -> core::result::Result<alloc::vec::Vec<bool>, antecedent_data::DataError>
 pub fn antecedent_data::dedupe_variable_ids(ids: impl core::iter::traits::collect::IntoIterator<Item = antecedent_core::ids::VariableId>) -> alloc::vec::Vec<antecedent_core::ids::VariableId>
+pub fn antecedent_data::design_layout::classify_mask(keep: &[bool]) -> antecedent_data::design_layout::MaskSelection
+pub fn antecedent_data::design_layout::zeroed_shared(len: usize) -> alloc::sync::Arc<[f64]>
 pub fn antecedent_data::dropped_row_digest(rows_total: usize, dropped: &[u64]) -> alloc::string::String
 pub fn antecedent_data::file_source::chunk_local_index(chunk_start: antecedent_data::GlobalId, row: antecedent_data::GlobalId) -> core::result::Result<antecedent_data::ChunkIndex, antecedent_data::file_source::FileSourceError>
 pub fn antecedent_data::file_source::write_table_file(path: impl core::convert::AsRef<std::path::Path>, format: antecedent_data::file_source::TableFileFormat, data: &antecedent_data::TabularData, options: antecedent_data::file_source::WriteOptions) -> core::result::Result<antecedent_data::GlobalId, antecedent_data::file_source::FileSourceError>
 pub fn antecedent_data::fill_circular_block_indexes(n: usize, length: usize, rng: &mut antecedent_core::execution::CausalRng, out: &mut [usize]) -> core::result::Result<(), antecedent_data::DataError>
 pub fn antecedent_data::fill_declared_plan(declaration: antecedent_core::sampling_design::SamplingDesignDeclaration, plan: antecedent_data::ResamplingPlan, n: usize, cluster_ids: core::option::Option<&[u32]>, rng: &mut antecedent_core::execution::CausalRng, out: &mut alloc::vec::Vec<antecedent_data::GlobalId>) -> core::result::Result<(), antecedent_data::DataError>
 pub fn antecedent_data::fill_resample_index_batch(plan: antecedent_data::ResamplingPlan, n: usize, n_replicates: usize, cluster_ids: core::option::Option<&[u32]>, ctx: &antecedent_core::execution::ExecutionContext, stream_base: u64, out: &mut [antecedent_data::GlobalId]) -> core::result::Result<(), antecedent_data::DataError>
+pub fn antecedent_data::fill_resample_index_replicate(plan: antecedent_data::ResamplingPlan, n: usize, cluster_ids: core::option::Option<&[u32]>, ctx: &antecedent_core::execution::ExecutionContext, stream_base: u64, replicate: u64, out: &mut alloc::vec::Vec<antecedent_data::GlobalId>) -> core::result::Result<(), antecedent_data::DataError>
 pub fn antecedent_data::fill_resample_indexes(plan: antecedent_data::ResamplingPlan, n: usize, rng: &mut antecedent_core::execution::CausalRng, out: &mut alloc::vec::Vec<antecedent_data::GlobalId>) -> core::result::Result<(), antecedent_data::DataError>
 pub fn antecedent_data::first_missing_cell<T: antecedent_data::TableView>(table: &T, variables: &[antecedent_core::ids::VariableId]) -> core::result::Result<core::option::Option<antecedent_data::MissingCell>, antecedent_data::DataError>
 pub fn antecedent_data::materialize::deliver_stream(quote: &antecedent_data::materialize::StreamQuote, budget: antecedent_data::materialize::PreparationBudget, controls: antecedent_data::materialize::PreparationControls) -> core::result::Result<antecedent_data::materialize::StreamDelivery, antecedent_data::DataError>
@@ -2422,7 +2689,6 @@ pub fn antecedent_data::materialize::prepare_table(table: &antecedent_data::Tabu
 pub fn antecedent_data::missing::policy_required_text(cell: &antecedent_data::MissingCell, route: &str, available: &[antecedent_data::MissingPolicy]) -> alloc::string::String
 pub fn antecedent_data::pool_multi_env_lagged_frame(data: &antecedent_data::MultiEnvironmentData, variables: &[antecedent_core::ids::VariableId], frame_depth: u32, dummies: antecedent_data::DummyOptions, policy: &antecedent_core::execution::KernelPolicy) -> core::result::Result<antecedent_data::PooledLaggedFrame, antecedent_data::DataError>
 pub fn antecedent_data::resample::fill_declared_resample(declaration: antecedent_core::sampling_design::SamplingDesignDeclaration, n: usize, cluster_ids: core::option::Option<&[u32]>, block_length: usize, embargo: u32, rng: &mut antecedent_core::execution::CausalRng, out: &mut alloc::vec::Vec<antecedent_data::GlobalId>) -> core::result::Result<(), antecedent_data::DataError>
-pub fn antecedent_data::resample::fill_resample_index_replicate(plan: antecedent_data::ResamplingPlan, n: usize, cluster_ids: core::option::Option<&[u32]>, ctx: &antecedent_core::execution::ExecutionContext, stream_base: u64, replicate: u64, out: &mut alloc::vec::Vec<antecedent_data::GlobalId>) -> core::result::Result<(), antecedent_data::DataError>
 pub fn antecedent_data::resample::fill_resample_weight_replicate(plan: antecedent_data::ResamplingPlan, n: usize, ctx: &antecedent_core::execution::ExecutionContext, stream_base: u64, replicate: u64, out: &mut alloc::vec::Vec<f64>) -> core::result::Result<(), antecedent_data::DataError>
 pub fn antecedent_data::resample::resample_timeseries(data: &antecedent_data::TimeSeriesData, plan: antecedent_data::ResamplingPlan, rng: &mut antecedent_core::execution::CausalRng, index_scratch: &mut alloc::vec::Vec<antecedent_data::GlobalId>) -> core::result::Result<antecedent_data::TimeSeriesData, antecedent_data::DataError>
 pub fn antecedent_data::surrogate::surrogate_permute_columns(data: &antecedent_data::TimeSeriesData, rng: &mut antecedent_core::execution::CausalRng) -> core::result::Result<antecedent_data::TimeSeriesData, antecedent_data::DataError>
@@ -2443,6 +2709,7 @@ pub mod antecedent_data::event
 pub mod antecedent_data::file_source
 pub mod antecedent_data::global_index
 pub mod antecedent_data::lagged_frame
+pub mod antecedent_data::lazy_identity
 pub mod antecedent_data::materialize
 pub mod antecedent_data::missing
 pub mod antecedent_data::multi_env
@@ -2456,6 +2723,7 @@ pub mod antecedent_data::resample
 pub mod antecedent_data::sample
 pub mod antecedent_data::sample_policy
 pub mod antecedent_data::selection
+pub mod antecedent_data::source
 pub mod antecedent_data::split
 pub mod antecedent_data::storage
 pub mod antecedent_data::surrogate
@@ -2617,6 +2885,14 @@ pub struct antecedent_data::file_source::TableFile has private fields
 pub struct antecedent_data::file_source::TableStream
 pub struct antecedent_data::file_source::TableStream has private fields
 pub struct antecedent_data::file_source::WriteOptions
+pub struct antecedent_data::lazy_identity::FullContentIdentity
+pub struct antecedent_data::lazy_identity::FullContentIdentity has private fields
+pub struct antecedent_data::lazy_identity::IncrementalDigest
+pub struct antecedent_data::lazy_identity::IncrementalDigest has private fields
+pub struct antecedent_data::lazy_identity::LazyViewIdentity
+pub struct antecedent_data::lazy_identity::LazyViewIdentity has private fields
+pub struct antecedent_data::lazy_identity::SegmentChunkIdentity
+pub struct antecedent_data::lazy_identity::SegmentChunkIdentity has private fields
 pub struct antecedent_data::materialize::CategoryLevels
 pub struct antecedent_data::materialize::PreparationBudget
 pub struct antecedent_data::materialize::PreparationBudget has private fields
@@ -2631,6 +2907,16 @@ pub struct antecedent_data::materialize::StreamingScan
 pub struct antecedent_data::materialize::StreamingScan has private fields
 pub struct antecedent_data::missing::ChunkMissing
 pub struct antecedent_data::missing::MissingConversion
+pub struct antecedent_data::source::BorrowedSource has private fields
+pub struct antecedent_data::source::BorrowedSource<'a>
+pub struct antecedent_data::source::OwnedSource
+pub struct antecedent_data::source::OwnedSource has private fields
+pub struct antecedent_data::source::RowChunk
+pub struct antecedent_data::source::RowChunk has private fields
+pub struct antecedent_data::source::SegmentedSource
+pub struct antecedent_data::source::SegmentedSource has private fields
+pub struct antecedent_data::source::SnapshotContract
+pub struct antecedent_data::source::SplitSpan
 pub trait antecedent_data::ForeignBufferOwner: core::marker::Send + core::marker::Sync + core::fmt::Debug
 pub trait antecedent_data::TableView
 pub trait fn fn antecedent_data::TableView::column(&self, id: antecedent_core::ids::VariableId) -> core::result::Result<antecedent_data::ColumnView<'_>, antecedent_data::DataError>
@@ -2720,6 +3006,7 @@ pub use antecedent_data::resample::circular_block_length = antecedent_data::circ
 pub use antecedent_data::resample::fill_circular_block_indexes = antecedent_data::fill_circular_block_indexes
 pub use antecedent_data::resample::fill_declared_plan = antecedent_data::fill_declared_plan
 pub use antecedent_data::resample::fill_resample_index_batch = antecedent_data::fill_resample_index_batch
+pub use antecedent_data::resample::fill_resample_index_replicate = antecedent_data::fill_resample_index_replicate
 pub use antecedent_data::resample::fill_resample_indexes = antecedent_data::fill_resample_indexes
 pub use antecedent_data::resample_timeseries = antecedent_data::resample::resample_timeseries
 pub use antecedent_data::sample::DropSummary = antecedent_data::DropSummary
@@ -2857,6 +3144,9 @@ pub variant antecedent_data::column_closure::ColumnDuty::Support
 pub variant antecedent_data::column_closure::ColumnDuty::Target
 pub variant antecedent_data::column_closure::ColumnDuty::Validator
 pub variant antecedent_data::column_closure::ColumnDuty::Weight
+pub variant antecedent_data::design_layout::MaskSelection::Empty
+pub variant antecedent_data::design_layout::MaskSelection::Run { start: usize, len: usize }
+pub variant antecedent_data::design_layout::MaskSelection::Scatter { count: usize }
 pub variant antecedent_data::file_source::FileColumnKind::Boolean
 pub variant antecedent_data::file_source::FileColumnKind::Categorical { ordered: bool }
 pub variant antecedent_data::file_source::FileColumnKind::Float64
@@ -2892,6 +3182,10 @@ pub variant antecedent_data::file_source::MemoryStage::Materialization
 pub variant antecedent_data::file_source::TableFileFormat::ArrowIpcFile
 pub variant antecedent_data::file_source::TableFileFormat::ArrowIpcStream
 pub variant antecedent_data::file_source::TableFileFormat::Parquet
+pub variant antecedent_data::lazy_identity::BaseScan::Unverified
+pub variant antecedent_data::lazy_identity::BaseScan::Verified(antecedent_data::lazy_identity::FullContentIdentity)
+pub variant antecedent_data::lazy_identity::VersionedIdentity::Full(antecedent_data::lazy_identity::FullContentIdentity)
+pub variant antecedent_data::lazy_identity::VersionedIdentity::Lazy(antecedent_data::lazy_identity::LazyViewIdentity)
 pub variant antecedent_data::materialize::AdmissionRecord::Materialized { bytes: u64, budget: u64 }
 pub variant antecedent_data::materialize::AdmissionRecord::Streaming { scratch_bytes: u64, budget: u64 }
 pub variant antecedent_data::materialize::AdmissionRecord::Unmetered { bytes: u64 }
@@ -2924,3 +3218,13 @@ pub variant antecedent_data::materialize::SchemaValueKind::Unspecified
 pub variant antecedent_data::materialize::SchemaValueKind::Vector
 pub variant antecedent_data::materialize::StreamDelivery::MaterializeRequired { bytes: u64 }
 pub variant antecedent_data::materialize::StreamDelivery::Scan(antecedent_data::materialize::StreamingScan)
+pub variant antecedent_data::source::CohortOrder::Labeled(alloc::sync::Arc<str>)
+pub variant antecedent_data::source::CohortOrder::Storage
+pub variant antecedent_data::source::SourceIdentity::Full([u8; 32])
+pub variant antecedent_data::source::SourceIdentity::Projected { parent: [u8; 32], columns: u64 }
+pub variant antecedent_data::source::SourceModality::MultiEnvironment
+pub variant antecedent_data::source::SourceModality::Panel
+pub variant antecedent_data::source::SourceModality::Tabular
+pub variant antecedent_data::source::SourceModality::TimeSeries
+pub variant antecedent_data::source::ValidityPolicy::F64InvalidIffNan
+pub variant antecedent_data::source::ValidityPolicy::NullDistinctFromNan

@@ -26,12 +26,15 @@
 #[non_exhaustive] pub enum antecedent_stats::adaptive_inference::WithinUnitCorrelation
 #[non_exhaustive] pub enum antecedent_stats::ci::AttainableP
 #[non_exhaustive] pub enum antecedent_stats::faer_scope::FaerScopeError
+#[non_exhaustive] pub enum antecedent_stats::layout_rules::LayoutRefusal
 #[non_exhaustive] pub enum antecedent_stats::measurement_error::MeasurementErrorError
 #[non_exhaustive] pub enum antecedent_stats::synthesis_transport::TransportedSynthesisError
 #[non_exhaustive] pub struct antecedent_stats::Hc2Coefficient
+impl !core::marker::Freeze for antecedent_stats::BoxTreeIndex [auto]
 impl !core::marker::Freeze for antecedent_stats::faer_scope::FaerScratch [auto]
 impl antecedent_core::canonical_encode::CanonicalEncode for antecedent_stats::Coefficient
 impl antecedent_core::canonical_encode::CanonicalEncode for antecedent_stats::Combine
+impl antecedent_core::canonical_encode::CanonicalEncode for antecedent_stats::ExprTerm
 impl antecedent_core::canonical_encode::CanonicalEncode for antecedent_stats::Preposterior
 impl antecedent_core::canonical_encode::CanonicalEncode for antecedent_stats::StageOp
 impl antecedent_core::canonical_encode::CanonicalEncode for antecedent_stats::StageSpec
@@ -87,6 +90,7 @@ impl core::clone::Clone for antecedent_stats::Evaluated
 impl core::clone::Clone for antecedent_stats::ExceedanceDecision
 impl core::clone::Clone for antecedent_stats::ExposureProbabilities
 impl core::clone::Clone for antecedent_stats::ExposureProbabilityMethod
+impl core::clone::Clone for antecedent_stats::ExprTerm
 impl core::clone::Clone for antecedent_stats::FaerBackend
 impl core::clone::Clone for antecedent_stats::FdrAdjustment
 impl core::clone::Clone for antecedent_stats::FirstStageDiagnostics
@@ -109,6 +113,7 @@ impl core::clone::Clone for antecedent_stats::IdentifiedSetInterval
 impl core::clone::Clone for antecedent_stats::IdentifiedSetIntervalMethod
 impl core::clone::Clone for antecedent_stats::IntervalCandidate
 impl core::clone::Clone for antecedent_stats::JointLawError
+impl core::clone::Clone for antecedent_stats::JointTwoSlsFit
 impl core::clone::Clone for antecedent_stats::KaplanMeierIpcw
 impl core::clone::Clone for antecedent_stats::KnnDependence
 impl core::clone::Clone for antecedent_stats::KnnDependenceWorkspace
@@ -274,15 +279,23 @@ impl core::clone::Clone for antecedent_stats::adaptive_inference::UnitSummary
 impl core::clone::Clone for antecedent_stats::adaptive_inference::WeightScheme
 impl core::clone::Clone for antecedent_stats::adaptive_inference::WithinUnitCorrelation
 impl core::clone::Clone for antecedent_stats::ci::AttainableP
+impl core::clone::Clone for antecedent_stats::ci::GpdcExactQuote
 impl core::clone::Clone for antecedent_stats::continuous_error::CalibratedFit
 impl core::clone::Clone for antecedent_stats::continuous_error::OutcomeFamily
 impl core::clone::Clone for antecedent_stats::continuous_error::ReliabilityErrorVariance
 impl core::clone::Clone for antecedent_stats::continuous_error::SimexConfig
 impl core::clone::Clone for antecedent_stats::continuous_error::SimexExtrapolant
 impl core::clone::Clone for antecedent_stats::continuous_error::SimexFit
+impl core::clone::Clone for antecedent_stats::faer_backend::SolverTraffic
 impl core::clone::Clone for antecedent_stats::faer_scope::FaerScope
 impl core::clone::Clone for antecedent_stats::faer_scope::FaerScopeError
 impl core::clone::Clone for antecedent_stats::gram::GramLayoutError
+impl core::clone::Clone for antecedent_stats::layout_rules::LayoutChoice
+impl core::clone::Clone for antecedent_stats::layout_rules::LayoutOp
+impl core::clone::Clone for antecedent_stats::layout_rules::LayoutRefusal
+impl core::clone::Clone for antecedent_stats::layout_rules::LayoutRequest
+impl core::clone::Clone for antecedent_stats::layout_rules::Product
+impl core::clone::Clone for antecedent_stats::layout_rules::StorageLayout
 impl core::clone::Clone for antecedent_stats::longitudinal_regime::RegimeKernelError
 impl core::clone::Clone for antecedent_stats::longitudinal_regime::RegimeValueSummary
 impl core::clone::Clone for antecedent_stats::measurement_error::BinaryErrorRates
@@ -349,11 +362,19 @@ impl core::cmp::Eq for antecedent_stats::adaptive_inference::UncertaintyParadigm
 impl core::cmp::Eq for antecedent_stats::adaptive_inference::UnitSummary
 impl core::cmp::Eq for antecedent_stats::adaptive_inference::WeightScheme
 impl core::cmp::Eq for antecedent_stats::ci::AttainableP
+impl core::cmp::Eq for antecedent_stats::ci::GpdcExactQuote
 impl core::cmp::Eq for antecedent_stats::continuous_error::OutcomeFamily
 impl core::cmp::Eq for antecedent_stats::continuous_error::SimexExtrapolant
+impl core::cmp::Eq for antecedent_stats::faer_backend::SolverTraffic
 impl core::cmp::Eq for antecedent_stats::faer_scope::FaerScope
 impl core::cmp::Eq for antecedent_stats::faer_scope::FaerScopeError
 impl core::cmp::Eq for antecedent_stats::gram::GramLayoutError
+impl core::cmp::Eq for antecedent_stats::layout_rules::LayoutChoice
+impl core::cmp::Eq for antecedent_stats::layout_rules::LayoutOp
+impl core::cmp::Eq for antecedent_stats::layout_rules::LayoutRefusal
+impl core::cmp::Eq for antecedent_stats::layout_rules::LayoutRequest
+impl core::cmp::Eq for antecedent_stats::layout_rules::Product
+impl core::cmp::Eq for antecedent_stats::layout_rules::StorageLayout
 impl core::cmp::Eq for antecedent_stats::longitudinal_regime::RegimeKernelError
 impl core::cmp::Eq for antecedent_stats::measurement_error::TwoByTwoCounts
 impl core::cmp::PartialEq for antecedent_stats::BasisKind
@@ -383,6 +404,7 @@ impl core::cmp::PartialEq for antecedent_stats::Evaluated
 impl core::cmp::PartialEq for antecedent_stats::ExceedanceDecision
 impl core::cmp::PartialEq for antecedent_stats::ExposureProbabilities
 impl core::cmp::PartialEq for antecedent_stats::ExposureProbabilityMethod
+impl core::cmp::PartialEq for antecedent_stats::ExprTerm
 impl core::cmp::PartialEq for antecedent_stats::FdrAdjustment
 impl core::cmp::PartialEq for antecedent_stats::FirstStageDiagnostics
 impl core::cmp::PartialEq for antecedent_stats::FitDiagnostics
@@ -537,15 +559,23 @@ impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::UnitSummary
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::WeightScheme
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::WithinUnitCorrelation
 impl core::cmp::PartialEq for antecedent_stats::ci::AttainableP
+impl core::cmp::PartialEq for antecedent_stats::ci::GpdcExactQuote
 impl core::cmp::PartialEq for antecedent_stats::continuous_error::CalibratedFit
 impl core::cmp::PartialEq for antecedent_stats::continuous_error::OutcomeFamily
 impl core::cmp::PartialEq for antecedent_stats::continuous_error::ReliabilityErrorVariance
 impl core::cmp::PartialEq for antecedent_stats::continuous_error::SimexConfig
 impl core::cmp::PartialEq for antecedent_stats::continuous_error::SimexExtrapolant
 impl core::cmp::PartialEq for antecedent_stats::continuous_error::SimexFit
+impl core::cmp::PartialEq for antecedent_stats::faer_backend::SolverTraffic
 impl core::cmp::PartialEq for antecedent_stats::faer_scope::FaerScope
 impl core::cmp::PartialEq for antecedent_stats::faer_scope::FaerScopeError
 impl core::cmp::PartialEq for antecedent_stats::gram::GramLayoutError
+impl core::cmp::PartialEq for antecedent_stats::layout_rules::LayoutChoice
+impl core::cmp::PartialEq for antecedent_stats::layout_rules::LayoutOp
+impl core::cmp::PartialEq for antecedent_stats::layout_rules::LayoutRefusal
+impl core::cmp::PartialEq for antecedent_stats::layout_rules::LayoutRequest
+impl core::cmp::PartialEq for antecedent_stats::layout_rules::Product
+impl core::cmp::PartialEq for antecedent_stats::layout_rules::StorageLayout
 impl core::cmp::PartialEq for antecedent_stats::longitudinal_regime::RegimeKernelError
 impl core::cmp::PartialEq for antecedent_stats::longitudinal_regime::RegimeValueSummary
 impl core::cmp::PartialEq for antecedent_stats::measurement_error::BinaryErrorRates
@@ -614,6 +644,7 @@ impl core::default::Default for antecedent_stats::adaptive_inference::ResourceBu
 impl core::default::Default for antecedent_stats::adaptive_inference::ResourceReceipt
 impl core::default::Default for antecedent_stats::continuous_error::SimexConfig
 impl core::default::Default for antecedent_stats::faer_backend::ResampledLeastSquaresWorkspace
+impl core::default::Default for antecedent_stats::faer_backend::SolverTraffic
 impl core::error::Error for antecedent_stats::ChainError
 impl core::error::Error for antecedent_stats::JointLawError
 impl core::error::Error for antecedent_stats::StatsError
@@ -622,6 +653,7 @@ impl core::error::Error for antecedent_stats::adaptive_inference::AdaptiveInfere
 impl core::error::Error for antecedent_stats::adaptive_inference::CapacityError
 impl core::error::Error for antecedent_stats::adaptive_inference::ProcedureContractError
 impl core::error::Error for antecedent_stats::faer_scope::FaerScopeError
+impl core::error::Error for antecedent_stats::layout_rules::LayoutRefusal
 impl core::error::Error for antecedent_stats::longitudinal_regime::RegimeKernelError
 impl core::error::Error for antecedent_stats::measurement_error::MeasurementErrorError
 impl core::error::Error for antecedent_stats::synthesis_transport::TransportedSynthesisError
@@ -629,6 +661,7 @@ impl core::fmt::Debug for antecedent_stats::AdditiveDesign
 impl core::fmt::Debug for antecedent_stats::BasisKind
 impl core::fmt::Debug for antecedent_stats::BayesFactorCi
 impl core::fmt::Debug for antecedent_stats::BetweenStudyMethod
+impl core::fmt::Debug for antecedent_stats::BoxTreeIndex
 impl core::fmt::Debug for antecedent_stats::CalibrationReport
 impl core::fmt::Debug for antecedent_stats::ChainError
 impl core::fmt::Debug for antecedent_stats::CiBatchResult
@@ -658,6 +691,7 @@ impl core::fmt::Debug for antecedent_stats::Evaluated
 impl core::fmt::Debug for antecedent_stats::ExceedanceDecision
 impl core::fmt::Debug for antecedent_stats::ExposureProbabilities
 impl core::fmt::Debug for antecedent_stats::ExposureProbabilityMethod
+impl core::fmt::Debug for antecedent_stats::ExprTerm
 impl core::fmt::Debug for antecedent_stats::FaerBackend
 impl core::fmt::Debug for antecedent_stats::FdrAdjustment
 impl core::fmt::Debug for antecedent_stats::FirstStageDiagnostics
@@ -680,6 +714,7 @@ impl core::fmt::Debug for antecedent_stats::IdentifiedSetInterval
 impl core::fmt::Debug for antecedent_stats::IdentifiedSetIntervalMethod
 impl core::fmt::Debug for antecedent_stats::IntervalCandidate
 impl core::fmt::Debug for antecedent_stats::JointLawError
+impl core::fmt::Debug for antecedent_stats::JointTwoSlsFit
 impl core::fmt::Debug for antecedent_stats::KaplanMeierIpcw
 impl core::fmt::Debug for antecedent_stats::KnnDependence
 impl core::fmt::Debug for antecedent_stats::KnnDependenceWorkspace
@@ -845,15 +880,23 @@ impl core::fmt::Debug for antecedent_stats::adaptive_inference::UnitSummary
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::WeightScheme
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::WithinUnitCorrelation
 impl core::fmt::Debug for antecedent_stats::ci::AttainableP
+impl core::fmt::Debug for antecedent_stats::ci::GpdcExactQuote
 impl core::fmt::Debug for antecedent_stats::continuous_error::CalibratedFit
 impl core::fmt::Debug for antecedent_stats::continuous_error::OutcomeFamily
 impl core::fmt::Debug for antecedent_stats::continuous_error::ReliabilityErrorVariance
 impl core::fmt::Debug for antecedent_stats::continuous_error::SimexConfig
 impl core::fmt::Debug for antecedent_stats::continuous_error::SimexExtrapolant
 impl core::fmt::Debug for antecedent_stats::continuous_error::SimexFit
+impl core::fmt::Debug for antecedent_stats::faer_backend::SolverTraffic
 impl core::fmt::Debug for antecedent_stats::faer_scope::FaerScope
 impl core::fmt::Debug for antecedent_stats::faer_scope::FaerScopeError
 impl core::fmt::Debug for antecedent_stats::gram::GramLayoutError
+impl core::fmt::Debug for antecedent_stats::layout_rules::LayoutChoice
+impl core::fmt::Debug for antecedent_stats::layout_rules::LayoutOp
+impl core::fmt::Debug for antecedent_stats::layout_rules::LayoutRefusal
+impl core::fmt::Debug for antecedent_stats::layout_rules::LayoutRequest
+impl core::fmt::Debug for antecedent_stats::layout_rules::Product
+impl core::fmt::Debug for antecedent_stats::layout_rules::StorageLayout
 impl core::fmt::Debug for antecedent_stats::longitudinal_regime::RegimeKernelError
 impl core::fmt::Debug for antecedent_stats::longitudinal_regime::RegimeValueSummary
 impl core::fmt::Debug for antecedent_stats::measurement_error::BinaryErrorRates
@@ -887,6 +930,7 @@ impl core::fmt::Display for antecedent_stats::adaptive_inference::CapacityError
 impl core::fmt::Display for antecedent_stats::adaptive_inference::ProcedureContractError
 impl core::fmt::Display for antecedent_stats::faer_scope::FaerScopeError
 impl core::fmt::Display for antecedent_stats::gram::GramLayoutError
+impl core::fmt::Display for antecedent_stats::layout_rules::LayoutRefusal
 impl core::fmt::Display for antecedent_stats::longitudinal_regime::RegimeKernelError
 impl core::fmt::Display for antecedent_stats::measurement_error::MeasurementErrorError
 impl core::fmt::Display for antecedent_stats::synthesis_transport::TransportedSynthesisError
@@ -905,6 +949,9 @@ impl core::hash::Hash for antecedent_stats::adaptive_inference::UncertaintyParad
 impl core::hash::Hash for antecedent_stats::ci::AttainableP
 impl core::hash::Hash for antecedent_stats::continuous_error::OutcomeFamily
 impl core::hash::Hash for antecedent_stats::continuous_error::SimexExtrapolant
+impl core::hash::Hash for antecedent_stats::layout_rules::LayoutOp
+impl core::hash::Hash for antecedent_stats::layout_rules::Product
+impl core::hash::Hash for antecedent_stats::layout_rules::StorageLayout
 impl core::marker::Copy for antecedent_stats::BasisKind
 impl core::marker::Copy for antecedent_stats::BayesFactorCi
 impl core::marker::Copy for antecedent_stats::BetweenStudyMethod
@@ -925,6 +972,7 @@ impl core::marker::Copy for antecedent_stats::DrawSpread
 impl core::marker::Copy for antecedent_stats::Enclosure
 impl core::marker::Copy for antecedent_stats::ExceedanceDecision
 impl core::marker::Copy for antecedent_stats::ExposureProbabilityMethod
+impl core::marker::Copy for antecedent_stats::ExprTerm
 impl core::marker::Copy for antecedent_stats::FaerBackend
 impl core::marker::Copy for antecedent_stats::FdrAdjustment
 impl core::marker::Copy for antecedent_stats::GamOptions
@@ -1018,11 +1066,19 @@ impl core::marker::Copy for antecedent_stats::adaptive_inference::UnitSummary
 impl core::marker::Copy for antecedent_stats::adaptive_inference::WeightScheme
 impl core::marker::Copy for antecedent_stats::adaptive_inference::WithinUnitCorrelation
 impl core::marker::Copy for antecedent_stats::ci::AttainableP
+impl core::marker::Copy for antecedent_stats::ci::GpdcExactQuote
 impl core::marker::Copy for antecedent_stats::continuous_error::OutcomeFamily
 impl core::marker::Copy for antecedent_stats::continuous_error::SimexExtrapolant
+impl core::marker::Copy for antecedent_stats::faer_backend::SolverTraffic
 impl core::marker::Copy for antecedent_stats::faer_scope::FaerScope
 impl core::marker::Copy for antecedent_stats::faer_scope::FaerScopeError
 impl core::marker::Copy for antecedent_stats::gram::GramLayoutError
+impl core::marker::Copy for antecedent_stats::layout_rules::LayoutChoice
+impl core::marker::Copy for antecedent_stats::layout_rules::LayoutOp
+impl core::marker::Copy for antecedent_stats::layout_rules::LayoutRefusal
+impl core::marker::Copy for antecedent_stats::layout_rules::LayoutRequest
+impl core::marker::Copy for antecedent_stats::layout_rules::Product
+impl core::marker::Copy for antecedent_stats::layout_rules::StorageLayout
 impl core::marker::Copy for antecedent_stats::longitudinal_regime::RegimeKernelError
 impl core::marker::Copy for antecedent_stats::longitudinal_regime::RegimeValueSummary
 impl core::marker::Copy for antecedent_stats::measurement_error::BinaryErrorRates
@@ -1064,6 +1120,7 @@ impl core::marker::Freeze for antecedent_stats::Evaluated [auto]
 impl core::marker::Freeze for antecedent_stats::ExceedanceDecision [auto]
 impl core::marker::Freeze for antecedent_stats::ExposureProbabilities [auto]
 impl core::marker::Freeze for antecedent_stats::ExposureProbabilityMethod [auto]
+impl core::marker::Freeze for antecedent_stats::ExprTerm [auto]
 impl core::marker::Freeze for antecedent_stats::FaerBackend [auto]
 impl core::marker::Freeze for antecedent_stats::FdrAdjustment [auto]
 impl core::marker::Freeze for antecedent_stats::FirstStageDiagnostics [auto]
@@ -1086,6 +1143,7 @@ impl core::marker::Freeze for antecedent_stats::IdentifiedSetInterval [auto]
 impl core::marker::Freeze for antecedent_stats::IdentifiedSetIntervalMethod [auto]
 impl core::marker::Freeze for antecedent_stats::IntervalCandidate [auto]
 impl core::marker::Freeze for antecedent_stats::JointLawError [auto]
+impl core::marker::Freeze for antecedent_stats::JointTwoSlsFit [auto]
 impl core::marker::Freeze for antecedent_stats::KaplanMeierIpcw [auto]
 impl core::marker::Freeze for antecedent_stats::KnnDependence [auto]
 impl core::marker::Freeze for antecedent_stats::KnnDependenceWorkspace [auto]
@@ -1251,6 +1309,7 @@ impl core::marker::Freeze for antecedent_stats::adaptive_inference::UnitSummary 
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::WeightScheme [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::WithinUnitCorrelation [auto]
 impl core::marker::Freeze for antecedent_stats::ci::AttainableP [auto]
+impl core::marker::Freeze for antecedent_stats::ci::GpdcExactQuote [auto]
 impl core::marker::Freeze for antecedent_stats::continuous_error::CalibratedFit [auto]
 impl core::marker::Freeze for antecedent_stats::continuous_error::OutcomeFamily [auto]
 impl core::marker::Freeze for antecedent_stats::continuous_error::ReliabilityErrorVariance [auto]
@@ -1259,9 +1318,16 @@ impl core::marker::Freeze for antecedent_stats::continuous_error::SimexExtrapola
 impl core::marker::Freeze for antecedent_stats::continuous_error::SimexFit [auto]
 impl core::marker::Freeze for antecedent_stats::faer_backend::ResampledLeastSquares [auto]
 impl core::marker::Freeze for antecedent_stats::faer_backend::ResampledLeastSquaresWorkspace [auto]
+impl core::marker::Freeze for antecedent_stats::faer_backend::SolverTraffic [auto]
 impl core::marker::Freeze for antecedent_stats::faer_scope::FaerScope [auto]
 impl core::marker::Freeze for antecedent_stats::faer_scope::FaerScopeError [auto]
 impl core::marker::Freeze for antecedent_stats::gram::GramLayoutError [auto]
+impl core::marker::Freeze for antecedent_stats::layout_rules::LayoutChoice [auto]
+impl core::marker::Freeze for antecedent_stats::layout_rules::LayoutOp [auto]
+impl core::marker::Freeze for antecedent_stats::layout_rules::LayoutRefusal [auto]
+impl core::marker::Freeze for antecedent_stats::layout_rules::LayoutRequest [auto]
+impl core::marker::Freeze for antecedent_stats::layout_rules::Product [auto]
+impl core::marker::Freeze for antecedent_stats::layout_rules::StorageLayout [auto]
 impl core::marker::Freeze for antecedent_stats::longitudinal_regime::RegimeKernelError [auto]
 impl core::marker::Freeze for antecedent_stats::longitudinal_regime::RegimeValueSummary [auto]
 impl core::marker::Freeze for antecedent_stats::measurement_error::BinaryErrorRates [auto]
@@ -1290,6 +1356,7 @@ impl core::marker::Send for antecedent_stats::AdditiveDesign [auto]
 impl core::marker::Send for antecedent_stats::BasisKind [auto]
 impl core::marker::Send for antecedent_stats::BayesFactorCi [auto]
 impl core::marker::Send for antecedent_stats::BetweenStudyMethod [auto]
+impl core::marker::Send for antecedent_stats::BoxTreeIndex [auto]
 impl core::marker::Send for antecedent_stats::CalibrationReport [auto]
 impl core::marker::Send for antecedent_stats::ChainError [auto]
 impl core::marker::Send for antecedent_stats::CiBatchResult [auto]
@@ -1319,6 +1386,7 @@ impl core::marker::Send for antecedent_stats::Evaluated [auto]
 impl core::marker::Send for antecedent_stats::ExceedanceDecision [auto]
 impl core::marker::Send for antecedent_stats::ExposureProbabilities [auto]
 impl core::marker::Send for antecedent_stats::ExposureProbabilityMethod [auto]
+impl core::marker::Send for antecedent_stats::ExprTerm [auto]
 impl core::marker::Send for antecedent_stats::FaerBackend [auto]
 impl core::marker::Send for antecedent_stats::FdrAdjustment [auto]
 impl core::marker::Send for antecedent_stats::FirstStageDiagnostics [auto]
@@ -1341,6 +1409,7 @@ impl core::marker::Send for antecedent_stats::IdentifiedSetInterval [auto]
 impl core::marker::Send for antecedent_stats::IdentifiedSetIntervalMethod [auto]
 impl core::marker::Send for antecedent_stats::IntervalCandidate [auto]
 impl core::marker::Send for antecedent_stats::JointLawError [auto]
+impl core::marker::Send for antecedent_stats::JointTwoSlsFit [auto]
 impl core::marker::Send for antecedent_stats::KaplanMeierIpcw [auto]
 impl core::marker::Send for antecedent_stats::KnnDependence [auto]
 impl core::marker::Send for antecedent_stats::KnnDependenceWorkspace [auto]
@@ -1506,6 +1575,7 @@ impl core::marker::Send for antecedent_stats::adaptive_inference::UnitSummary [a
 impl core::marker::Send for antecedent_stats::adaptive_inference::WeightScheme [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::WithinUnitCorrelation [auto]
 impl core::marker::Send for antecedent_stats::ci::AttainableP [auto]
+impl core::marker::Send for antecedent_stats::ci::GpdcExactQuote [auto]
 impl core::marker::Send for antecedent_stats::continuous_error::CalibratedFit [auto]
 impl core::marker::Send for antecedent_stats::continuous_error::OutcomeFamily [auto]
 impl core::marker::Send for antecedent_stats::continuous_error::ReliabilityErrorVariance [auto]
@@ -1514,10 +1584,17 @@ impl core::marker::Send for antecedent_stats::continuous_error::SimexExtrapolant
 impl core::marker::Send for antecedent_stats::continuous_error::SimexFit [auto]
 impl core::marker::Send for antecedent_stats::faer_backend::ResampledLeastSquares [auto]
 impl core::marker::Send for antecedent_stats::faer_backend::ResampledLeastSquaresWorkspace [auto]
+impl core::marker::Send for antecedent_stats::faer_backend::SolverTraffic [auto]
 impl core::marker::Send for antecedent_stats::faer_scope::FaerScope [auto]
 impl core::marker::Send for antecedent_stats::faer_scope::FaerScopeError [auto]
 impl core::marker::Send for antecedent_stats::faer_scope::FaerScratch [auto]
 impl core::marker::Send for antecedent_stats::gram::GramLayoutError [auto]
+impl core::marker::Send for antecedent_stats::layout_rules::LayoutChoice [auto]
+impl core::marker::Send for antecedent_stats::layout_rules::LayoutOp [auto]
+impl core::marker::Send for antecedent_stats::layout_rules::LayoutRefusal [auto]
+impl core::marker::Send for antecedent_stats::layout_rules::LayoutRequest [auto]
+impl core::marker::Send for antecedent_stats::layout_rules::Product [auto]
+impl core::marker::Send for antecedent_stats::layout_rules::StorageLayout [auto]
 impl core::marker::Send for antecedent_stats::longitudinal_regime::RegimeKernelError [auto]
 impl core::marker::Send for antecedent_stats::longitudinal_regime::RegimeValueSummary [auto]
 impl core::marker::Send for antecedent_stats::measurement_error::BinaryErrorRates [auto]
@@ -1569,6 +1646,7 @@ impl core::marker::StructuralPartialEq for antecedent_stats::Evaluated
 impl core::marker::StructuralPartialEq for antecedent_stats::ExceedanceDecision
 impl core::marker::StructuralPartialEq for antecedent_stats::ExposureProbabilities
 impl core::marker::StructuralPartialEq for antecedent_stats::ExposureProbabilityMethod
+impl core::marker::StructuralPartialEq for antecedent_stats::ExprTerm
 impl core::marker::StructuralPartialEq for antecedent_stats::FdrAdjustment
 impl core::marker::StructuralPartialEq for antecedent_stats::FirstStageDiagnostics
 impl core::marker::StructuralPartialEq for antecedent_stats::FitDiagnostics
@@ -1723,15 +1801,23 @@ impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference:
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::WeightScheme
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::WithinUnitCorrelation
 impl core::marker::StructuralPartialEq for antecedent_stats::ci::AttainableP
+impl core::marker::StructuralPartialEq for antecedent_stats::ci::GpdcExactQuote
 impl core::marker::StructuralPartialEq for antecedent_stats::continuous_error::CalibratedFit
 impl core::marker::StructuralPartialEq for antecedent_stats::continuous_error::OutcomeFamily
 impl core::marker::StructuralPartialEq for antecedent_stats::continuous_error::ReliabilityErrorVariance
 impl core::marker::StructuralPartialEq for antecedent_stats::continuous_error::SimexConfig
 impl core::marker::StructuralPartialEq for antecedent_stats::continuous_error::SimexExtrapolant
 impl core::marker::StructuralPartialEq for antecedent_stats::continuous_error::SimexFit
+impl core::marker::StructuralPartialEq for antecedent_stats::faer_backend::SolverTraffic
 impl core::marker::StructuralPartialEq for antecedent_stats::faer_scope::FaerScope
 impl core::marker::StructuralPartialEq for antecedent_stats::faer_scope::FaerScopeError
 impl core::marker::StructuralPartialEq for antecedent_stats::gram::GramLayoutError
+impl core::marker::StructuralPartialEq for antecedent_stats::layout_rules::LayoutChoice
+impl core::marker::StructuralPartialEq for antecedent_stats::layout_rules::LayoutOp
+impl core::marker::StructuralPartialEq for antecedent_stats::layout_rules::LayoutRefusal
+impl core::marker::StructuralPartialEq for antecedent_stats::layout_rules::LayoutRequest
+impl core::marker::StructuralPartialEq for antecedent_stats::layout_rules::Product
+impl core::marker::StructuralPartialEq for antecedent_stats::layout_rules::StorageLayout
 impl core::marker::StructuralPartialEq for antecedent_stats::longitudinal_regime::RegimeKernelError
 impl core::marker::StructuralPartialEq for antecedent_stats::longitudinal_regime::RegimeValueSummary
 impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::BinaryErrorRates
@@ -1760,6 +1846,7 @@ impl core::marker::Sync for antecedent_stats::AdditiveDesign [auto]
 impl core::marker::Sync for antecedent_stats::BasisKind [auto]
 impl core::marker::Sync for antecedent_stats::BayesFactorCi [auto]
 impl core::marker::Sync for antecedent_stats::BetweenStudyMethod [auto]
+impl core::marker::Sync for antecedent_stats::BoxTreeIndex [auto]
 impl core::marker::Sync for antecedent_stats::CalibrationReport [auto]
 impl core::marker::Sync for antecedent_stats::ChainError [auto]
 impl core::marker::Sync for antecedent_stats::CiBatchResult [auto]
@@ -1789,6 +1876,7 @@ impl core::marker::Sync for antecedent_stats::Evaluated [auto]
 impl core::marker::Sync for antecedent_stats::ExceedanceDecision [auto]
 impl core::marker::Sync for antecedent_stats::ExposureProbabilities [auto]
 impl core::marker::Sync for antecedent_stats::ExposureProbabilityMethod [auto]
+impl core::marker::Sync for antecedent_stats::ExprTerm [auto]
 impl core::marker::Sync for antecedent_stats::FaerBackend [auto]
 impl core::marker::Sync for antecedent_stats::FdrAdjustment [auto]
 impl core::marker::Sync for antecedent_stats::FirstStageDiagnostics [auto]
@@ -1811,6 +1899,7 @@ impl core::marker::Sync for antecedent_stats::IdentifiedSetInterval [auto]
 impl core::marker::Sync for antecedent_stats::IdentifiedSetIntervalMethod [auto]
 impl core::marker::Sync for antecedent_stats::IntervalCandidate [auto]
 impl core::marker::Sync for antecedent_stats::JointLawError [auto]
+impl core::marker::Sync for antecedent_stats::JointTwoSlsFit [auto]
 impl core::marker::Sync for antecedent_stats::KaplanMeierIpcw [auto]
 impl core::marker::Sync for antecedent_stats::KnnDependence [auto]
 impl core::marker::Sync for antecedent_stats::KnnDependenceWorkspace [auto]
@@ -1976,6 +2065,7 @@ impl core::marker::Sync for antecedent_stats::adaptive_inference::UnitSummary [a
 impl core::marker::Sync for antecedent_stats::adaptive_inference::WeightScheme [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::WithinUnitCorrelation [auto]
 impl core::marker::Sync for antecedent_stats::ci::AttainableP [auto]
+impl core::marker::Sync for antecedent_stats::ci::GpdcExactQuote [auto]
 impl core::marker::Sync for antecedent_stats::continuous_error::CalibratedFit [auto]
 impl core::marker::Sync for antecedent_stats::continuous_error::OutcomeFamily [auto]
 impl core::marker::Sync for antecedent_stats::continuous_error::ReliabilityErrorVariance [auto]
@@ -1984,10 +2074,17 @@ impl core::marker::Sync for antecedent_stats::continuous_error::SimexExtrapolant
 impl core::marker::Sync for antecedent_stats::continuous_error::SimexFit [auto]
 impl core::marker::Sync for antecedent_stats::faer_backend::ResampledLeastSquares [auto]
 impl core::marker::Sync for antecedent_stats::faer_backend::ResampledLeastSquaresWorkspace [auto]
+impl core::marker::Sync for antecedent_stats::faer_backend::SolverTraffic [auto]
 impl core::marker::Sync for antecedent_stats::faer_scope::FaerScope [auto]
 impl core::marker::Sync for antecedent_stats::faer_scope::FaerScopeError [auto]
 impl core::marker::Sync for antecedent_stats::faer_scope::FaerScratch [auto]
 impl core::marker::Sync for antecedent_stats::gram::GramLayoutError [auto]
+impl core::marker::Sync for antecedent_stats::layout_rules::LayoutChoice [auto]
+impl core::marker::Sync for antecedent_stats::layout_rules::LayoutOp [auto]
+impl core::marker::Sync for antecedent_stats::layout_rules::LayoutRefusal [auto]
+impl core::marker::Sync for antecedent_stats::layout_rules::LayoutRequest [auto]
+impl core::marker::Sync for antecedent_stats::layout_rules::Product [auto]
+impl core::marker::Sync for antecedent_stats::layout_rules::StorageLayout [auto]
 impl core::marker::Sync for antecedent_stats::longitudinal_regime::RegimeKernelError [auto]
 impl core::marker::Sync for antecedent_stats::longitudinal_regime::RegimeValueSummary [auto]
 impl core::marker::Sync for antecedent_stats::measurement_error::BinaryErrorRates [auto]
@@ -2016,6 +2113,7 @@ impl core::marker::Unpin for antecedent_stats::AdditiveDesign [auto]
 impl core::marker::Unpin for antecedent_stats::BasisKind [auto]
 impl core::marker::Unpin for antecedent_stats::BayesFactorCi [auto]
 impl core::marker::Unpin for antecedent_stats::BetweenStudyMethod [auto]
+impl core::marker::Unpin for antecedent_stats::BoxTreeIndex [auto]
 impl core::marker::Unpin for antecedent_stats::CalibrationReport [auto]
 impl core::marker::Unpin for antecedent_stats::ChainError [auto]
 impl core::marker::Unpin for antecedent_stats::CiBatchResult [auto]
@@ -2045,6 +2143,7 @@ impl core::marker::Unpin for antecedent_stats::Evaluated [auto]
 impl core::marker::Unpin for antecedent_stats::ExceedanceDecision [auto]
 impl core::marker::Unpin for antecedent_stats::ExposureProbabilities [auto]
 impl core::marker::Unpin for antecedent_stats::ExposureProbabilityMethod [auto]
+impl core::marker::Unpin for antecedent_stats::ExprTerm [auto]
 impl core::marker::Unpin for antecedent_stats::FaerBackend [auto]
 impl core::marker::Unpin for antecedent_stats::FdrAdjustment [auto]
 impl core::marker::Unpin for antecedent_stats::FirstStageDiagnostics [auto]
@@ -2067,6 +2166,7 @@ impl core::marker::Unpin for antecedent_stats::IdentifiedSetInterval [auto]
 impl core::marker::Unpin for antecedent_stats::IdentifiedSetIntervalMethod [auto]
 impl core::marker::Unpin for antecedent_stats::IntervalCandidate [auto]
 impl core::marker::Unpin for antecedent_stats::JointLawError [auto]
+impl core::marker::Unpin for antecedent_stats::JointTwoSlsFit [auto]
 impl core::marker::Unpin for antecedent_stats::KaplanMeierIpcw [auto]
 impl core::marker::Unpin for antecedent_stats::KnnDependence [auto]
 impl core::marker::Unpin for antecedent_stats::KnnDependenceWorkspace [auto]
@@ -2232,6 +2332,7 @@ impl core::marker::Unpin for antecedent_stats::adaptive_inference::UnitSummary [
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::WeightScheme [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::WithinUnitCorrelation [auto]
 impl core::marker::Unpin for antecedent_stats::ci::AttainableP [auto]
+impl core::marker::Unpin for antecedent_stats::ci::GpdcExactQuote [auto]
 impl core::marker::Unpin for antecedent_stats::continuous_error::CalibratedFit [auto]
 impl core::marker::Unpin for antecedent_stats::continuous_error::OutcomeFamily [auto]
 impl core::marker::Unpin for antecedent_stats::continuous_error::ReliabilityErrorVariance [auto]
@@ -2240,10 +2341,17 @@ impl core::marker::Unpin for antecedent_stats::continuous_error::SimexExtrapolan
 impl core::marker::Unpin for antecedent_stats::continuous_error::SimexFit [auto]
 impl core::marker::Unpin for antecedent_stats::faer_backend::ResampledLeastSquares [auto]
 impl core::marker::Unpin for antecedent_stats::faer_backend::ResampledLeastSquaresWorkspace [auto]
+impl core::marker::Unpin for antecedent_stats::faer_backend::SolverTraffic [auto]
 impl core::marker::Unpin for antecedent_stats::faer_scope::FaerScope [auto]
 impl core::marker::Unpin for antecedent_stats::faer_scope::FaerScopeError [auto]
 impl core::marker::Unpin for antecedent_stats::faer_scope::FaerScratch [auto]
 impl core::marker::Unpin for antecedent_stats::gram::GramLayoutError [auto]
+impl core::marker::Unpin for antecedent_stats::layout_rules::LayoutChoice [auto]
+impl core::marker::Unpin for antecedent_stats::layout_rules::LayoutOp [auto]
+impl core::marker::Unpin for antecedent_stats::layout_rules::LayoutRefusal [auto]
+impl core::marker::Unpin for antecedent_stats::layout_rules::LayoutRequest [auto]
+impl core::marker::Unpin for antecedent_stats::layout_rules::Product [auto]
+impl core::marker::Unpin for antecedent_stats::layout_rules::StorageLayout [auto]
 impl core::marker::Unpin for antecedent_stats::longitudinal_regime::RegimeKernelError [auto]
 impl core::marker::Unpin for antecedent_stats::longitudinal_regime::RegimeValueSummary [auto]
 impl core::marker::Unpin for antecedent_stats::measurement_error::BinaryErrorRates [auto]
@@ -2273,6 +2381,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::AdditiveDesig
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::BasisKind [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::BayesFactorCi [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::BetweenStudyMethod [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::BoxTreeIndex [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::CalibrationReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::ChainError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::CiBatchResult [auto]
@@ -2302,6 +2411,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::Evaluated [au
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::ExceedanceDecision [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::ExposureProbabilities [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::ExposureProbabilityMethod [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::ExprTerm [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::FaerBackend [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::FdrAdjustment [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::FirstStageDiagnostics [auto]
@@ -2324,6 +2434,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::IdentifiedSet
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::IdentifiedSetIntervalMethod [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::IntervalCandidate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::JointLawError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::JointTwoSlsFit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::KaplanMeierIpcw [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::KnnDependence [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::KnnDependenceWorkspace [auto]
@@ -2489,6 +2600,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_infe
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::WeightScheme [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::WithinUnitCorrelation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::ci::AttainableP [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::ci::GpdcExactQuote [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::continuous_error::CalibratedFit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::continuous_error::OutcomeFamily [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::continuous_error::ReliabilityErrorVariance [auto]
@@ -2497,10 +2609,17 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::continuous_er
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::continuous_error::SimexFit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::faer_backend::ResampledLeastSquares [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::faer_backend::ResampledLeastSquaresWorkspace [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::faer_backend::SolverTraffic [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::faer_scope::FaerScope [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::faer_scope::FaerScopeError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::faer_scope::FaerScratch [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::gram::GramLayoutError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::layout_rules::LayoutChoice [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::layout_rules::LayoutOp [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::layout_rules::LayoutRefusal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::layout_rules::LayoutRequest [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::layout_rules::Product [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::layout_rules::StorageLayout [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::longitudinal_regime::RegimeKernelError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::longitudinal_regime::RegimeValueSummary [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::BinaryErrorRates [auto]
@@ -2529,6 +2648,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::AdditiveDesign [
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::BasisKind [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::BayesFactorCi [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::BetweenStudyMethod [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::BoxTreeIndex [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::CalibrationReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::ChainError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::CiBatchResult [auto]
@@ -2558,6 +2678,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::Evaluated [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::ExceedanceDecision [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::ExposureProbabilities [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::ExposureProbabilityMethod [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::ExprTerm [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::FaerBackend [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::FdrAdjustment [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::FirstStageDiagnostics [auto]
@@ -2580,6 +2701,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::IdentifiedSetInt
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::IdentifiedSetIntervalMethod [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::IntervalCandidate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::JointLawError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::JointTwoSlsFit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::KaplanMeierIpcw [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::KnnDependence [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::KnnDependenceWorkspace [auto]
@@ -2745,6 +2867,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inferen
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::WeightScheme [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::WithinUnitCorrelation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::ci::AttainableP [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::ci::GpdcExactQuote [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::continuous_error::CalibratedFit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::continuous_error::OutcomeFamily [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::continuous_error::ReliabilityErrorVariance [auto]
@@ -2753,10 +2876,17 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::continuous_error
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::continuous_error::SimexFit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::faer_backend::ResampledLeastSquares [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::faer_backend::ResampledLeastSquaresWorkspace [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::faer_backend::SolverTraffic [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::faer_scope::FaerScope [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::faer_scope::FaerScopeError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::faer_scope::FaerScratch [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::gram::GramLayoutError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::layout_rules::LayoutChoice [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::layout_rules::LayoutOp [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::layout_rules::LayoutRefusal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::layout_rules::LayoutRequest [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::layout_rules::Product [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::layout_rules::StorageLayout [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::longitudinal_regime::RegimeKernelError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::longitudinal_regime::RegimeValueSummary [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::BinaryErrorRates [auto]
@@ -2939,7 +3069,7 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::longitudinal
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::longitudinal_regime::SubjectHistories<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::LinearErrorData<'a> [auto]
 pub const <antecedent_stats::Combine>::ALL: [Self; 4]
-pub const <antecedent_stats::IdentifiedSetIntervalMethod>::ALL: [Self; 2]
+pub const <antecedent_stats::IdentifiedSetIntervalMethod>::ALL: [Self; 3]
 pub const <antecedent_stats::ValueFunctional>::ALL: [Self; 5]
 pub const <antecedent_stats::adaptive_inference::BetaPrior>::UNIFORM: Self
 pub const <antecedent_stats::adaptive_inference::OutcomeObservation>::COMPLETE: Self
@@ -2955,6 +3085,7 @@ pub const antecedent_stats::DRAW_INTERPOLATED_CONSTRUCTION: &str
 pub const antecedent_stats::EXACT_MATCHING_ROW_LIMIT: usize
 pub const antecedent_stats::GPDC_NYSTROM_MAX_INDUCING_POINTS: usize
 pub const antecedent_stats::MAX_CLUSTER_DIMENSIONS: usize
+pub const antecedent_stats::MAX_EXPRESSION_TERMS: usize
 pub const antecedent_stats::MIXTURE_EQUAL_TAIL_CONSTRUCTION: &str
 pub const antecedent_stats::NORMAL_APPROXIMATION_CONSTRUCTION: &str
 pub const antecedent_stats::UNCALIBRATED_SPREAD_LABEL: &str
@@ -3009,6 +3140,7 @@ pub const antecedent_stats::propagation_chain::DECISION_BAND_LEVEL: f64
 pub const antecedent_stats::propagation_chain::MAX_CHAIN_NODES: usize
 pub const antecedent_stats::propagation_chain::MAX_CHAIN_ROWS: usize
 pub const antecedent_stats::propagation_chain::MAX_PREPOSTERIOR_ROWS: usize
+pub const antecedent_stats::propagation_chain::MAX_TABLE_VARIABLES: usize
 pub const antecedent_stats::propagation_chain::MIN_UPDATE_EFFECTIVE_SIZE: f64
 pub const antecedent_stats::synthesis::MAX_STUDIES: usize
 pub const antecedent_stats::synthesis::MAX_TAU_SUPPORT: usize
@@ -3022,6 +3154,7 @@ pub enum antecedent_stats::ContrastCodingKind
 pub enum antecedent_stats::DecisionVerdict
 pub enum antecedent_stats::DesignColumnRole
 pub enum antecedent_stats::ExposureProbabilityMethod
+pub enum antecedent_stats::ExprTerm
 pub enum antecedent_stats::GaussianObservation
 pub enum antecedent_stats::GlmFamily
 pub enum antecedent_stats::GlmRefusalKind
@@ -3047,6 +3180,9 @@ pub enum antecedent_stats::adaptive_inference::SequenceKind
 pub enum antecedent_stats::adaptive_inference::StopReason
 pub enum antecedent_stats::continuous_error::OutcomeFamily
 pub enum antecedent_stats::continuous_error::SimexExtrapolant
+pub enum antecedent_stats::layout_rules::LayoutOp
+pub enum antecedent_stats::layout_rules::Product
+pub enum antecedent_stats::layout_rules::StorageLayout
 pub enum antecedent_stats::synthesis_transport::SummaryOrigin
 pub field antecedent_stats::BlockTest::x_cols: &'a [usize]
 pub field antecedent_stats::BlockTest::y_cols: &'a [usize]
@@ -3231,6 +3367,12 @@ pub field antecedent_stats::IvBlocks::instruments_colmajor: &'a [f64]
 pub field antecedent_stats::IvBlocks::nrows: usize
 pub field antecedent_stats::IvBlocks::x_ncols: usize
 pub field antecedent_stats::IvBlocks::z_ncols: usize
+pub field antecedent_stats::JointTwoSlsFit::first_stage_diagnostics: alloc::vec::Vec<antecedent_stats::FirstStageDiagnostics>
+pub field antecedent_stats::JointTwoSlsFit::first_stages: alloc::vec::Vec<antecedent_stats::LeastSquaresFit>
+pub field antecedent_stats::JointTwoSlsFit::fitted_endogenous: alloc::vec::Vec<f64>
+pub field antecedent_stats::JointTwoSlsFit::second_stage: antecedent_stats::LeastSquaresFit
+pub field antecedent_stats::JointTwoSlsFit::structural_residuals: alloc::vec::Vec<f64>
+pub field antecedent_stats::JointTwoSlsFit::structural_rss: f64
 pub field antecedent_stats::KaplanMeierIpcw::tail_restriction: core::option::Option<f64>
 pub field antecedent_stats::KaplanMeierIpcw::weights: alloc::vec::Vec<f64>
 pub field antecedent_stats::KnnDependence::k: usize
@@ -3740,6 +3882,12 @@ pub field antecedent_stats::adaptive_inference::TerminalAtom::rule_stopped: bool
 pub field antecedent_stats::adaptive_inference::UnitRecord::arm: usize
 pub field antecedent_stats::adaptive_inference::UnitRecord::assignment_probability: f64
 pub field antecedent_stats::adaptive_inference::UnitRecord::measurements: &'a [f64]
+pub field antecedent_stats::ci::GpdcExactQuote::cache_slots: usize
+pub field antecedent_stats::ci::GpdcExactQuote::conditioning_columns: u64
+pub field antecedent_stats::ci::GpdcExactQuote::factorizations: u64
+pub field antecedent_stats::ci::GpdcExactQuote::peak_bytes: u64
+pub field antecedent_stats::ci::GpdcExactQuote::rows: u64
+pub field antecedent_stats::ci::GpdcExactQuote::work: u64
 pub field antecedent_stats::continuous_error::CalibratedFit::coefficients: alloc::vec::Vec<f64>
 pub field antecedent_stats::continuous_error::CalibratedFit::error_variance: f64
 pub field antecedent_stats::continuous_error::CalibratedFit::family: antecedent_stats::continuous_error::OutcomeFamily
@@ -3761,7 +3909,22 @@ pub field antecedent_stats::continuous_error::SimexFit::lambdas: alloc::vec::Vec
 pub field antecedent_stats::continuous_error::SimexFit::naive_coefficients: alloc::vec::Vec<f64>
 pub field antecedent_stats::continuous_error::SimexFit::reliability: f64
 pub field antecedent_stats::continuous_error::SimexFit::replicates: u32
+pub field antecedent_stats::faer_backend::SolverTraffic::design_gathers: u64
+pub field antecedent_stats::faer_backend::SolverTraffic::gathered_cells: u64
+pub field antecedent_stats::faer_backend::SolverTraffic::in_place_views: u64
+pub field antecedent_stats::faer_backend::SolverTraffic::largest_scratch_bytes: u64
+pub field antecedent_stats::faer_backend::SolverTraffic::scratch_allocations: u64
+pub field antecedent_stats::faer_backend::SolverTraffic::scratch_bytes_allocated: u64
 pub field antecedent_stats::faer_scope::FaerScratch::buffer: dyn_stack::mem::MemBuffer
+pub field antecedent_stats::layout_rules::LayoutChoice::product: antecedent_stats::layout_rules::Product
+pub field antecedent_stats::layout_rules::LayoutChoice::scratch_bytes: u64
+pub field antecedent_stats::layout_rules::LayoutChoice::workers: u32
+pub field antecedent_stats::layout_rules::LayoutRequest::available_workers: u32
+pub field antecedent_stats::layout_rules::LayoutRequest::cols: usize
+pub field antecedent_stats::layout_rules::LayoutRequest::op: antecedent_stats::layout_rules::LayoutOp
+pub field antecedent_stats::layout_rules::LayoutRequest::rows: usize
+pub field antecedent_stats::layout_rules::LayoutRequest::scratch_budget_bytes: u64
+pub field antecedent_stats::layout_rules::LayoutRequest::storage: antecedent_stats::layout_rules::StorageLayout
 pub field antecedent_stats::longitudinal_regime::RegimeValueSummary::effective_sample_size: f64
 pub field antecedent_stats::longitudinal_regime::RegimeValueSummary::matched_observed_fraction: f64
 pub field antecedent_stats::longitudinal_regime::RegimeValueSummary::maximum_weight: f64
@@ -3890,6 +4053,15 @@ pub fn <antecedent_stats::AdditiveDesign>::fn expand(x_colmajor: &[f64], nrows: 
 pub fn <antecedent_stats::AdditiveDesign>::fn nrows(&self) -> usize
 pub fn <antecedent_stats::AdditiveDesign>::fn specs(&self) -> &[antecedent_stats::SmoothSpec]
 pub fn <antecedent_stats::BayesFactorCi>::fn new() -> Self
+pub fn <antecedent_stats::BoxTreeIndex>::const fn dim(&self) -> usize
+pub fn <antecedent_stats::BoxTreeIndex>::fn exact_within(features_rowmajor: &[f64], dim: usize, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_stats::StatsError>
+pub fn <antecedent_stats::BoxTreeIndex>::fn is_empty(&self) -> bool
+pub fn <antecedent_stats::BoxTreeIndex>::fn len(&self) -> usize
+pub fn <antecedent_stats::BoxTreeIndex>::fn match_all_within(&self, queries_rowmajor: &[f64], n_queries: usize, caliper: core::option::Option<f64>, out_donor_row: &mut [usize], out_distance: &mut [f64], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<u32, antecedent_stats::StatsError>
+pub fn <antecedent_stats::BoxTreeIndex>::fn nearest(&self, query: &[f64], caliper: core::option::Option<f64>) -> core::result::Result<core::option::Option<(usize, f64)>, antecedent_stats::StatsError>
+pub fn <antecedent_stats::BoxTreeIndex>::fn nearest_k(&self, query: &[f64], k: usize, out: &mut alloc::vec::Vec<(usize, f64)>) -> core::result::Result<(), antecedent_stats::StatsError>
+pub fn <antecedent_stats::BoxTreeIndex>::fn quote_bytes(n: usize, dim: usize) -> core::option::Option<u64>
+pub fn <antecedent_stats::BoxTreeIndex>::fn retained_memory_bytes(&self) -> u64
 pub fn <antecedent_stats::CalibrationReport>::fn power(self) -> f64
 pub fn <antecedent_stats::CalibrationReport>::fn type_i_rate(self) -> f64
 pub fn <antecedent_stats::CiBatchRequest<'_>>::fn nrows(&self) -> core::result::Result<usize, antecedent_stats::StatsError>
@@ -3921,6 +4093,8 @@ pub fn <antecedent_stats::DesignColumnMap>::fn with_smooth_links(self, smooths: 
 pub fn <antecedent_stats::DesignColumnMap>::fn with_standardization_links(self, record: &antecedent_stats::StandardizationRecord) -> Self
 pub fn <antecedent_stats::Enclosure>::fn new(lower: f64, upper: f64) -> core::result::Result<Self, antecedent_stats::ChainError>
 pub fn <antecedent_stats::FaerBackend>::fn least_squares_coefficients(&self, x_colmajor: &[f64], nrows: usize, ncols: usize, y: &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_stats::StatsError>
+pub fn <antecedent_stats::FaerBackend>::fn least_squares_coefficients_leased(&self, x_colmajor: &[f64], nrows: usize, ncols: usize, y: &[f64], available_workers: u32, scratch: &antecedent_core::execution::AdmissionLease) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_stats::StatsError>
+pub fn <antecedent_stats::FaerBackend>::fn least_squares_or_min_norm(&self, x_colmajor: &[f64], nrows: usize, ncols: usize, y: &[f64], workspace: &mut antecedent_stats::LeastSquaresWorkspace) -> core::result::Result<antecedent_stats::LeastSquaresFit, antecedent_stats::StatsError>
 pub fn <antecedent_stats::FaerBackend>::fn min_norm_least_squares(&self, x_colmajor: &[f64], nrows: usize, ncols: usize, y: &[f64]) -> core::result::Result<antecedent_stats::LeastSquaresFit, antecedent_stats::StatsError>
 pub fn <antecedent_stats::FdrAdjustment>::const fn bh() -> Self
 pub fn <antecedent_stats::FdrAdjustment>::const fn by() -> Self
@@ -3939,7 +4113,9 @@ pub fn <antecedent_stats::GlmFamily>::fn mean_from_eta(self, eta: f64) -> f64
 pub fn <antecedent_stats::GlmFit>::fn require_ok(&self) -> core::result::Result<(), antecedent_stats::StatsError>
 pub fn <antecedent_stats::GlmOptions>::const fn new(max_iter: u32, tol: f64) -> Self
 pub fn <antecedent_stats::GlmOptions>::const fn without_separation_ridge(self) -> Self
+pub fn <antecedent_stats::Gpdc>::const fn with_work_limit(self, operations: u64) -> Self
 pub fn <antecedent_stats::Gpdc>::fn new() -> Self
+pub fn <antecedent_stats::Gpdc>::fn quote(&self, request: &antecedent_stats::CiBatchRequest<'_>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<core::option::Option<antecedent_stats::ci::GpdcExactQuote>, antecedent_stats::StatsError>
 pub fn <antecedent_stats::GpdcNystrom>::fn new() -> Self
 pub fn <antecedent_stats::IdentifiedSetInterval>::const fn with_truncated(self, truncated: bool) -> Self
 pub fn <antecedent_stats::IdentifiedSetInterval>::fn tail_probability(&self) -> f64
@@ -4154,6 +4330,8 @@ pub fn <antecedent_stats::gram::ColumnMajorDesign<'a>>::const fn x(self) -> &'a 
 pub fn <antecedent_stats::gram::ColumnMajorDesign<'a>>::fn new(x: &'a [f64], nrows: usize, ncols: usize) -> core::result::Result<Self, antecedent_stats::gram::GramLayoutError>
 pub fn <antecedent_stats::gram::DesignRow<'a>>::const fn as_slice(self) -> &'a [f64]
 pub fn <antecedent_stats::gram::DesignRow<'a>>::const fn new(values: &'a [f64]) -> Self
+pub fn <antecedent_stats::layout_rules::LayoutOp>::const fn as_str(self) -> &'static str
+pub fn <antecedent_stats::layout_rules::Product>::const fn as_str(self) -> &'static str
 pub fn <antecedent_stats::longitudinal_regime::RegimeKernelError>::const fn message(self) -> &'static str
 pub fn <antecedent_stats::longitudinal_regime::RegimeKernelError>::const fn route(self) -> core::option::Option<antecedent_core::diagnostic::RouteNativeDiagnostic>
 pub fn <antecedent_stats::longitudinal_regime::RegimeKernelError>::fn from_message(message: &'static str) -> Self
@@ -4294,6 +4472,7 @@ pub fn antecedent_stats::expand_bspline(x: &[f64], n_basis: usize, knots: core::
 pub fn antecedent_stats::exposure_probabilities(design: &antecedent_core::query::interference::AssignmentDesign, incoming: &[alloc::vec::Vec<(usize, f64)>], mapping: &antecedent_core::query::interference::ExposureMapping, level: antecedent_core::query::interference::ExposureLevel, monte_carlo_draws: u32, seed: u64) -> core::result::Result<antecedent_stats::ExposureProbabilities, antecedent_stats::StatsError>
 pub fn antecedent_stats::exposures(assignment: &[bool], incoming: &[alloc::vec::Vec<(usize, f64)>], mapping: &antecedent_core::query::interference::ExposureMapping) -> core::result::Result<alloc::vec::Vec<antecedent_core::query::interference::ExposureLevel>, antecedent_stats::StatsError>
 pub fn antecedent_stats::f_critical(level: f64, d1: usize, d2: usize) -> f64
+pub fn antecedent_stats::faer_backend::observe_solver_traffic<R>(work: impl core::ops::function::FnOnce() -> R) -> (R, antecedent_stats::faer_backend::SolverTraffic)
 pub fn antecedent_stats::fdr::holm(p_values: &[f64]) -> alloc::vec::Vec<f64>
 pub fn antecedent_stats::first_col_is_exact_ones(x_colmajor: &[f64], nrows: usize) -> bool
 pub fn antecedent_stats::fit_2sls(blocks: &antecedent_stats::IvBlocks<'_>, endogenous: &[f64], y: &[f64], backend: &impl antecedent_stats::DenseLinearAlgebra, workspace: &mut antecedent_stats::LeastSquaresWorkspace) -> core::result::Result<antecedent_stats::TwoSlsFit, antecedent_stats::StatsError>
@@ -4306,6 +4485,7 @@ pub fn antecedent_stats::fit_glm_ridge(family: antecedent_stats::GlmFamily, desi
 pub fn antecedent_stats::fit_glm_ridge_weighted(family: antecedent_stats::GlmFamily, design: antecedent_stats::GlmDesignRef<'_>, weights: &[f64], backend: &impl antecedent_stats::DenseLinearAlgebra, workspace: &mut antecedent_stats::LeastSquaresWorkspace, options: &antecedent_stats::GlmOptions, lambda: f64) -> core::result::Result<antecedent_stats::GlmFit, antecedent_stats::StatsError>
 pub fn antecedent_stats::fit_glm_weighted(family: antecedent_stats::GlmFamily, design: antecedent_stats::GlmDesignRef<'_>, weights: &[f64], backend: &impl antecedent_stats::DenseLinearAlgebra, workspace: &mut antecedent_stats::LeastSquaresWorkspace, options: &antecedent_stats::GlmOptions) -> core::result::Result<antecedent_stats::GlmFit, antecedent_stats::StatsError>
 pub fn antecedent_stats::fit_huber_m(x_colmajor: &[f64], nrows: usize, ncols: usize, y: &[f64], options: &antecedent_stats::MEstimateOptions, backend: &impl antecedent_stats::DenseLinearAlgebra, workspace: &mut antecedent_stats::LeastSquaresWorkspace) -> core::result::Result<antecedent_stats::MEstimateFit, antecedent_stats::StatsError>
+pub fn antecedent_stats::fit_joint_2sls(blocks: &antecedent_stats::IvBlocks<'_>, endogenous_colmajor: &[f64], endogenous_columns: usize, y: &[f64], backend: &impl antecedent_stats::DenseLinearAlgebra, workspace: &mut antecedent_stats::LeastSquaresWorkspace) -> core::result::Result<antecedent_stats::JointTwoSlsFit, antecedent_stats::StatsError>
 pub fn antecedent_stats::fit_lasso(x_colmajor: &[f64], nrows: usize, ncols: usize, y: &[f64], options: &antecedent_stats::LassoOptions) -> core::result::Result<antecedent_stats::LassoFit, antecedent_stats::StatsError>
 pub fn antecedent_stats::fit_lasso_with_ones_column(x_colmajor: &[f64], nrows: usize, ncols: usize, y: &[f64], options: &antecedent_stats::LassoOptions) -> core::result::Result<antecedent_stats::LassoFit, antecedent_stats::StatsError>
 pub fn antecedent_stats::fit_logistic_weighted(design: antecedent_stats::GlmDesignRef<'_>, weights: &[f64], backend: &impl antecedent_stats::DenseLinearAlgebra, workspace: &mut antecedent_stats::LeastSquaresWorkspace, options: &antecedent_stats::GlmOptions) -> core::result::Result<antecedent_stats::GlmFit, antecedent_stats::StatsError>
@@ -4331,6 +4511,7 @@ pub fn antecedent_stats::gauss_hermite_standard_normal(n: usize) -> (alloc::vec:
 pub fn antecedent_stats::gaussian_density(value: f64, mean: f64, standard_deviation: f64) -> f64
 pub fn antecedent_stats::gaussian_local_quadratic_adjusted_influence_prechecked(workspace: &mut antecedent_stats::LocalQuadraticWorkspace, x: &[f64], y: &[f64], at: f64, bandwidth: f64) -> core::result::Result<antecedent_stats::LocalPolynomialInfluence, antecedent_stats::StatsError>
 pub fn antecedent_stats::gaussian_local_quadratic_bias_corrected(x: &[f64], y: &[f64], at: f64, bandwidth: f64, observation_weights: core::option::Option<&[f64]>) -> core::result::Result<antecedent_stats::LocalPolynomialBiasCorrected, antecedent_stats::StatsError>
+pub fn antecedent_stats::gaussian_local_quadratic_bias_corrected_influence(x: &[f64], y: &[f64], at: f64, bandwidth: f64, observation_weights: core::option::Option<&[f64]>) -> core::result::Result<(antecedent_stats::LocalPolynomialBiasCorrected, alloc::vec::Vec<[f64; 3]>), antecedent_stats::StatsError>
 pub fn antecedent_stats::gaussian_local_quadratic_influence(x: &[f64], y: &[f64], at: f64, bandwidth: f64) -> core::result::Result<antecedent_stats::LocalPolynomialInfluence, antecedent_stats::StatsError>
 pub fn antecedent_stats::gaussian_local_quadratic_influence_prechecked(workspace: &mut antecedent_stats::LocalQuadraticWorkspace, x: &[f64], y: &[f64], at: f64, bandwidth: f64) -> core::result::Result<antecedent_stats::LocalPolynomialInfluence, antecedent_stats::StatsError>
 pub fn antecedent_stats::gaussian_local_quadratic_influence_with(workspace: &mut antecedent_stats::LocalQuadraticWorkspace, x: &[f64], y: &[f64], at: f64, bandwidth: f64) -> core::result::Result<antecedent_stats::LocalPolynomialInfluence, antecedent_stats::StatsError>
@@ -4339,6 +4520,7 @@ pub fn antecedent_stats::gaussian_observation_log_likelihood(observations: &[ant
 pub fn antecedent_stats::gram::invert_square(a_in: &[f64], ncols: usize) -> core::option::Option<alloc::vec::Vec<f64>>
 pub fn antecedent_stats::hierarchical_normal_borrowing(estimates: &[f64], variances: &[f64], mean_prior: antecedent_stats::MeanPrior, tau_prior: &antecedent_stats::TauPrior) -> core::result::Result<antecedent_stats::HierarchicalPosterior, antecedent_stats::SynthesisError>
 pub fn antecedent_stats::identified_set::imbens_manski_critical_value(level: f64, standardized_width: f64) -> f64
+pub fn antecedent_stats::identified_set::imbens_manski_influence(points: &[f64], scores: &[&[f64]], level: f64) -> core::option::Option<antecedent_stats::IdentifiedSetInterval>
 pub fn antecedent_stats::identified_set::imbens_manski_posterior_draws(posterior_means: &[f64], draws: &[&[f64]], rows: usize, level: f64) -> core::option::Option<antecedent_stats::IdentifiedSetInterval>
 pub fn antecedent_stats::identified_set::imbens_manski_shared_replicates(points: &[f64], draws: &[alloc::vec::Vec<f64>], se_scale: f64, rows: usize, level: f64) -> core::option::Option<antecedent_stats::IdentifiedSetInterval>
 pub fn antecedent_stats::independent_product_table(columns: &[alloc::vec::Vec<f64>], max_rows: usize) -> core::result::Result<alloc::vec::Vec<alloc::vec::Vec<f64>>, antecedent_stats::ChainError>
@@ -4355,6 +4537,9 @@ pub fn antecedent_stats::joint_law::paired_moments(x: &[f64], y: &[f64]) -> core
 pub fn antecedent_stats::joint_law::product_moment_envelope(x: &antecedent_stats::Marginal, y: &antecedent_stats::Marginal, cancel: &antecedent_core::execution::CancellationToken) -> core::result::Result<antecedent_stats::ValueBounds, antecedent_stats::JointLawError>
 pub fn antecedent_stats::joint_law::sum_cdf_envelope(x: &antecedent_stats::Marginal, y: &antecedent_stats::Marginal, threshold: f64) -> core::result::Result<antecedent_stats::ValueBounds, antecedent_stats::JointLawError>
 pub fn antecedent_stats::kaplan_meier_ipcw(time: &[f64], event: &[f64], entry: core::option::Option<&[f64]>, survival_floor: f64) -> core::result::Result<antecedent_stats::KaplanMeierIpcw, antecedent_stats::StatsError>
+pub fn antecedent_stats::layout_rules::form_xtx_measured(x_colmajor: &[f64], nrows: usize, ncols: usize, xtx: &mut [f64], available_workers: u32) -> antecedent_stats::layout_rules::LayoutChoice
+pub fn antecedent_stats::layout_rules::scratch_requirement_bytes(op: antecedent_stats::layout_rules::LayoutOp, rows: usize, cols: usize, workers: u32) -> u64
+pub fn antecedent_stats::layout_rules::select_layout(request: &antecedent_stats::layout_rules::LayoutRequest) -> core::result::Result<antecedent_stats::layout_rules::LayoutChoice, antecedent_stats::layout_rules::LayoutRefusal>
 pub fn antecedent_stats::ln_gamma(z: f64) -> f64
 pub fn antecedent_stats::longitudinal_regime::evaluate_g_formula_value(predictions: &[f64], actions: &[bool], treatment_probability: &[f64], censoring_probability: &[f64], subjects: usize, periods: usize, minimum_probability: f64) -> core::result::Result<antecedent_stats::longitudinal_regime::RegimeValueSummary, antecedent_stats::longitudinal_regime::RegimeKernelError>
 pub fn antecedent_stats::longitudinal_regime::evaluate_regime_value(outcomes: &[f64], histories: &antecedent_stats::longitudinal_regime::SubjectHistories<'_>, actions: &[bool]) -> core::result::Result<antecedent_stats::longitudinal_regime::RegimeValueSummary, antecedent_stats::longitudinal_regime::RegimeKernelError>
@@ -4373,6 +4558,7 @@ pub fn antecedent_stats::measurement_error::corrected_risk_difference_nondiffere
 pub fn antecedent_stats::measurement_error::posterior_means(draws: &[f64], n: usize, draw_count: usize) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_stats::measurement_error::MeasurementErrorError>
 pub fn antecedent_stats::measurement_error::replicate_variance_components(values: &[f64], sizes: &[u32]) -> core::result::Result<(antecedent_stats::measurement_error::VarianceComponents, alloc::vec::Vec<f64>), antecedent_stats::measurement_error::MeasurementErrorError>
 pub fn antecedent_stats::measurement_error::rubin_combine(coefficients: &[alloc::vec::Vec<f64>], covariances: &[alloc::vec::Vec<f64>]) -> core::result::Result<antecedent_stats::measurement_error::CombinedImputations, antecedent_stats::measurement_error::MeasurementErrorError>
+pub fn antecedent_stats::moment_matched_normal_table(means: &[f64], covariance: &[f64], rows: usize, seed: u64) -> core::result::Result<alloc::vec::Vec<alloc::vec::Vec<f64>>, antecedent_stats::ChainError>
 pub fn antecedent_stats::normal_ppf(p: f64) -> f64
 pub fn antecedent_stats::observation::selected_outcome_pseudo_values(observed: &[f64], indicator: &[f64], probabilities: &[f64], outcome_regression: core::option::Option<&[f64]>) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_stats::StatsError>
 pub fn antecedent_stats::pooled_dependence_envelope(estimates: &[f64], standard_errors: &[f64], rho_lo: f64, rho_hi: f64) -> core::result::Result<antecedent_stats::DependenceEnvelope, antecedent_stats::SynthesisError>
@@ -4387,6 +4573,7 @@ pub fn antecedent_stats::power::t_test_power(noncentrality: f64, df: core::optio
 pub fn antecedent_stats::predict_lasso(fit: &antecedent_stats::LassoFit, x_colmajor: &[f64], nrows: usize, ncols: usize) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_stats::StatsError>
 pub fn antecedent_stats::predict_propensity(x_colmajor: &[f64], nrows: usize, ncols: usize, coefficients: &[f64], out: &mut [f64]) -> core::result::Result<(), antecedent_stats::StatsError>
 pub fn antecedent_stats::preposterior(parameter: &[f64], utility: &[f64], weights: core::option::Option<&[f64]>, study: &antecedent_stats::Preposterior, cancel: &antecedent_core::execution::CancellationToken) -> core::result::Result<antecedent_stats::PreposteriorOutcome, antecedent_stats::ChainError>
+pub fn antecedent_stats::propagation_chain::shared_row_correlation(rows_a: usize, rows_b: usize, shared: usize) -> core::result::Result<f64, antecedent_stats::ChainError>
 pub fn antecedent_stats::propagation_chain::summarize(column: &[f64], weights: core::option::Option<&[f64]>) -> core::result::Result<antecedent_stats::ColumnSummary, antecedent_stats::ChainError>
 pub fn antecedent_stats::propagation_chain::validate_spec(n_sources: usize, stages: &[antecedent_stats::StageSpec]) -> core::result::Result<(), antecedent_stats::ChainError>
 pub fn antecedent_stats::propagation_chain::weights_from_log(log_weights: &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_stats::ChainError>
@@ -4438,10 +4625,12 @@ pub mod antecedent_stats::gram
 pub mod antecedent_stats::identified_set
 pub mod antecedent_stats::interference
 pub mod antecedent_stats::joint_law
+pub mod antecedent_stats::layout_rules
 pub mod antecedent_stats::linalg
 pub mod antecedent_stats::longitudinal_regime
 pub mod antecedent_stats::m_estimate
 pub mod antecedent_stats::matching
+pub mod antecedent_stats::matching_boxtree
 pub mod antecedent_stats::measurement_error
 pub mod antecedent_stats::observation
 pub mod antecedent_stats::power
@@ -4458,6 +4647,8 @@ pub struct antecedent_stats::AdditiveDesign
 pub struct antecedent_stats::AdditiveDesign has private fields
 pub struct antecedent_stats::BayesFactorCi
 pub struct antecedent_stats::BlockTest<'a>
+pub struct antecedent_stats::BoxTreeIndex
+pub struct antecedent_stats::BoxTreeIndex has private fields
 pub struct antecedent_stats::CalibrationReport
 pub struct antecedent_stats::CiBatchRequest<'a>
 pub struct antecedent_stats::CiBatchResult
@@ -4497,11 +4688,13 @@ pub struct antecedent_stats::GlmDesignRef<'a>
 pub struct antecedent_stats::GlmFit
 pub struct antecedent_stats::GlmOptions
 pub struct antecedent_stats::Gpdc
+pub struct antecedent_stats::Gpdc has private fields
 pub struct antecedent_stats::GpdcNystrom
 pub struct antecedent_stats::HierarchicalPosterior
 pub struct antecedent_stats::IdentifiedSetInterval
 pub struct antecedent_stats::IntervalCandidate
 pub struct antecedent_stats::IvBlocks<'a>
+pub struct antecedent_stats::JointTwoSlsFit
 pub struct antecedent_stats::KaplanMeierIpcw
 pub struct antecedent_stats::KnnDependence
 pub struct antecedent_stats::KnnDependenceWorkspace
@@ -4650,6 +4843,7 @@ pub struct antecedent_stats::adaptive_inference::TerminalAtom
 pub struct antecedent_stats::adaptive_inference::UnitRecord<'a>
 pub struct antecedent_stats::ci::CovarianceCiSession has private fields
 pub struct antecedent_stats::ci::CovarianceCiSession<'a>
+pub struct antecedent_stats::ci::GpdcExactQuote
 pub struct antecedent_stats::continuous_error::CalibratedFit
 pub struct antecedent_stats::continuous_error::ReliabilityErrorVariance
 pub struct antecedent_stats::continuous_error::SimexConfig
@@ -4660,6 +4854,7 @@ pub struct antecedent_stats::faer_backend::ResampledLeastSquares
 pub struct antecedent_stats::faer_backend::ResampledLeastSquares has private fields
 pub struct antecedent_stats::faer_backend::ResampledLeastSquaresWorkspace
 pub struct antecedent_stats::faer_backend::ResampledLeastSquaresWorkspace has private fields
+pub struct antecedent_stats::faer_backend::SolverTraffic
 pub struct antecedent_stats::faer_scope::FaerScope
 pub struct antecedent_stats::faer_scope::FaerScope has private fields
 pub struct antecedent_stats::faer_scope::FaerScratch
@@ -4669,6 +4864,8 @@ pub struct antecedent_stats::gram::ColumnMajorDesign<'a>
 pub struct antecedent_stats::gram::DesignRow has private fields
 pub struct antecedent_stats::gram::DesignRow<'a>
 pub struct antecedent_stats::gram::GramLayoutError
+pub struct antecedent_stats::layout_rules::LayoutChoice
+pub struct antecedent_stats::layout_rules::LayoutRequest
 pub struct antecedent_stats::longitudinal_regime::RegimeKernelError
 pub struct antecedent_stats::longitudinal_regime::RegimeKernelError has private fields
 pub struct antecedent_stats::longitudinal_regime::RegimeValueSummary
@@ -4707,6 +4904,7 @@ pub trait fn fn antecedent_stats::ConditionalIndependence::test(&self, prepared:
 pub trait fn fn antecedent_stats::ConditionalIndependence::test_batch(&self, prepared: &antecedent_stats::PreparedCiTest, request: &antecedent_stats::CiBatchRequest<'_>, workspace: &mut antecedent_stats::CiWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_stats::CiBatchResult, antecedent_stats::StatsError>
 pub trait fn fn antecedent_stats::ConditionalIndependence::test_batch_adhoc(&self, request: &antecedent_stats::CiBatchRequest<'_>, workspace: &mut antecedent_stats::CiWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_stats::CiBatchResult, antecedent_stats::StatsError> {default}
 pub trait fn fn antecedent_stats::DenseLinearAlgebra::least_squares(&self, x_colmajor: &[f64], nrows: usize, ncols: usize, y: &[f64], workspace: &mut antecedent_stats::LeastSquaresWorkspace) -> core::result::Result<antecedent_stats::LeastSquaresFit, antecedent_stats::StatsError>
+pub trait fn fn antecedent_stats::DenseLinearAlgebra::row_scaled_least_squares(&self, x_colmajor: &[f64], nrows: usize, ncols: usize, row_scale: &[f64], y: &[f64], workspace: &mut antecedent_stats::LeastSquaresWorkspace) -> core::result::Result<antecedent_stats::LeastSquaresFit, antecedent_stats::StatsError> {default}
 pub use antecedent_stats::ConditionalIndependenceTest = antecedent_stats::ConditionalIndependence
 pub use antecedent_stats::NORMAL_Q975 = special::NORMAL_Q975
 pub use antecedent_stats::STRUCTURAL_ENVELOPE_LABEL = joint_law::STRUCTURAL_ENVELOPE_LABEL
@@ -4996,6 +5194,7 @@ pub use antecedent_stats::identified_set::IdentifiedSetInterval = antecedent_sta
 pub use antecedent_stats::identified_set::IdentifiedSetIntervalMethod = antecedent_stats::IdentifiedSetIntervalMethod
 pub use antecedent_stats::iid_se = antecedent_stats::describe::iid_se
 pub use antecedent_stats::imbens_manski_critical_value = antecedent_stats::identified_set::imbens_manski_critical_value
+pub use antecedent_stats::imbens_manski_influence = antecedent_stats::identified_set::imbens_manski_influence
 pub use antecedent_stats::imbens_manski_posterior_draws = antecedent_stats::identified_set::imbens_manski_posterior_draws
 pub use antecedent_stats::imbens_manski_shared_replicates = antecedent_stats::identified_set::imbens_manski_shared_replicates
 pub use antecedent_stats::interference::ExposureProbabilities = antecedent_stats::ExposureProbabilities
@@ -5056,6 +5255,7 @@ pub use antecedent_stats::marginal_interval_candidate = antecedent_stats::joint_
 pub use antecedent_stats::matching::EXACT_MATCHING_ROW_LIMIT = antecedent_stats::EXACT_MATCHING_ROW_LIMIT
 pub use antecedent_stats::matching::MatchingDistance = antecedent_stats::MatchingDistance
 pub use antecedent_stats::matching::MatchingIndex = antecedent_stats::MatchingIndex
+pub use antecedent_stats::matching_boxtree::BoxTreeIndex = antecedent_stats::BoxTreeIndex
 pub use antecedent_stats::max_abs_cusum = antecedent_stats::divergence::max_abs_cusum
 pub use antecedent_stats::mean_and_se = antecedent_stats::describe::mean_and_se
 pub use antecedent_stats::mean_diff_two_sample = antecedent_stats::divergence::mean_diff_two_sample
@@ -5086,6 +5286,8 @@ pub use antecedent_stats::propagation_chain::Combine = antecedent_stats::Combine
 pub use antecedent_stats::propagation_chain::Decision = antecedent_stats::Decision
 pub use antecedent_stats::propagation_chain::Enclosure = antecedent_stats::Enclosure
 pub use antecedent_stats::propagation_chain::Evaluated = antecedent_stats::Evaluated
+pub use antecedent_stats::propagation_chain::ExprTerm = antecedent_stats::ExprTerm
+pub use antecedent_stats::propagation_chain::MAX_EXPRESSION_TERMS = antecedent_stats::MAX_EXPRESSION_TERMS
 pub use antecedent_stats::propagation_chain::PoolOutcome = antecedent_stats::PoolOutcome
 pub use antecedent_stats::propagation_chain::Preposterior = antecedent_stats::Preposterior
 pub use antecedent_stats::propagation_chain::PreposteriorOutcome = antecedent_stats::PreposteriorOutcome
@@ -5096,6 +5298,7 @@ pub use antecedent_stats::propagation_chain::decide = antecedent_stats::decide
 pub use antecedent_stats::propagation_chain::evaluate_columns = antecedent_stats::evaluate_columns
 pub use antecedent_stats::propagation_chain::evaluate_enclosures = antecedent_stats::evaluate_enclosures
 pub use antecedent_stats::propagation_chain::independent_product_table = antecedent_stats::independent_product_table
+pub use antecedent_stats::propagation_chain::moment_matched_normal_table = antecedent_stats::moment_matched_normal_table
 pub use antecedent_stats::propagation_chain::preposterior = antecedent_stats::preposterior
 pub use antecedent_stats::propensity::PropensityFit = antecedent_stats::PropensityFit
 pub use antecedent_stats::propensity::PropensityWorkspace = antecedent_stats::PropensityWorkspace
@@ -5129,6 +5332,7 @@ pub use antecedent_stats::response::diagonal_low_rank_quadratic_traces = anteced
 pub use antecedent_stats::response::gaussian_density = antecedent_stats::gaussian_density
 pub use antecedent_stats::response::gaussian_local_quadratic_adjusted_influence_prechecked = antecedent_stats::gaussian_local_quadratic_adjusted_influence_prechecked
 pub use antecedent_stats::response::gaussian_local_quadratic_bias_corrected = antecedent_stats::gaussian_local_quadratic_bias_corrected
+pub use antecedent_stats::response::gaussian_local_quadratic_bias_corrected_influence = antecedent_stats::gaussian_local_quadratic_bias_corrected_influence
 pub use antecedent_stats::response::gaussian_local_quadratic_influence = antecedent_stats::gaussian_local_quadratic_influence
 pub use antecedent_stats::response::gaussian_local_quadratic_influence_prechecked = antecedent_stats::gaussian_local_quadratic_influence_prechecked
 pub use antecedent_stats::response::gaussian_local_quadratic_influence_with = antecedent_stats::gaussian_local_quadratic_influence_with
@@ -5137,6 +5341,7 @@ pub use antecedent_stats::ridge_gram_inverse = antecedent_stats::regularized::ri
 pub use antecedent_stats::sample_std = divergence::sample_std
 pub use antecedent_stats::score_coefficient_covariance = antecedent_stats::covariance::score_coefficient_covariance
 pub use antecedent_stats::selected_outcome_pseudo_values = antecedent_stats::observation::selected_outcome_pseudo_values
+pub use antecedent_stats::shared_row_correlation = antecedent_stats::propagation_chain::shared_row_correlation
 pub use antecedent_stats::silverman_bandwidth = antecedent_stats::response::silverman_bandwidth
 pub use antecedent_stats::silverman_normal_reference_factor = antecedent_stats::response::silverman_normal_reference_factor
 pub use antecedent_stats::special::NORMAL_Q975 = antecedent_kernels::NORMAL_Q975
@@ -5171,12 +5376,14 @@ pub use antecedent_stats::synthesis::random_effects_dersimonian_laird = antecede
 pub use antecedent_stats::synthesis::random_effects_reml = antecedent_stats::random_effects_reml
 pub use antecedent_stats::twosls::FirstStageDiagnostics = antecedent_stats::FirstStageDiagnostics
 pub use antecedent_stats::twosls::IvBlocks = antecedent_stats::IvBlocks
+pub use antecedent_stats::twosls::JointTwoSlsFit = antecedent_stats::JointTwoSlsFit
 pub use antecedent_stats::twosls::TwoSlsFit = antecedent_stats::TwoSlsFit
 pub use antecedent_stats::twosls::anderson_rubin_confidence_set = antecedent_stats::anderson_rubin_confidence_set
 pub use antecedent_stats::twosls::anderson_rubin_kf_critical = antecedent_stats::anderson_rubin_kf_critical
 pub use antecedent_stats::twosls::anderson_rubin_statistic = antecedent_stats::anderson_rubin_statistic
 pub use antecedent_stats::twosls::f_critical = antecedent_stats::f_critical
 pub use antecedent_stats::twosls::fit_2sls = antecedent_stats::fit_2sls
+pub use antecedent_stats::twosls::fit_joint_2sls = antecedent_stats::fit_joint_2sls
 pub use antecedent_stats::twosls::fit_wls = antecedent_stats::fit_wls
 pub use antecedent_stats::validate_spec = antecedent_stats::propagation_chain::validate_spec
 pub use antecedent_stats::weights_from_log = antecedent_stats::propagation_chain::weights_from_log
@@ -5185,6 +5392,7 @@ pub variant antecedent_stats::BetweenStudyMethod::DerSimonianLaird
 pub variant antecedent_stats::BetweenStudyMethod::RestrictedMaximumLikelihood
 pub variant antecedent_stats::ChainError::Budget(&'static str)
 pub variant antecedent_stats::ChainError::Cancelled
+pub variant antecedent_stats::ChainError::Denominator(&'static str)
 pub variant antecedent_stats::ChainError::Domain(&'static str)
 pub variant antecedent_stats::ChainError::EnclosureUnbounded(&'static str)
 pub variant antecedent_stats::ChainError::InvalidWeights(&'static str)
@@ -5218,6 +5426,13 @@ pub variant antecedent_stats::ExposureProbabilityMethod::Exact
 pub variant antecedent_stats::ExposureProbabilityMethod::MonteCarlo { draws: u32, seed: u64 }
 pub variant antecedent_stats::ExposureProbabilityMethod::SuppliedExternallyEstimated
 pub variant antecedent_stats::ExposureProbabilityMethod::SuppliedKnown
+pub variant antecedent_stats::ExprTerm::Add
+pub variant antecedent_stats::ExprTerm::Constant(f64)
+pub variant antecedent_stats::ExprTerm::Divide { min_magnitude: f64 }
+pub variant antecedent_stats::ExprTerm::Input(usize)
+pub variant antecedent_stats::ExprTerm::Multiply
+pub variant antecedent_stats::ExprTerm::RequireRange { low: f64, high: f64 }
+pub variant antecedent_stats::ExprTerm::Subtract
 pub variant antecedent_stats::GaussianObservation::Exact(f64)
 pub variant antecedent_stats::GaussianObservation::IntervalCensored { lower: f64, upper: f64 }
 pub variant antecedent_stats::GaussianObservation::LeftCensored(f64)
@@ -5231,6 +5446,7 @@ pub variant antecedent_stats::GlmFamily::PoissonLog
 pub variant antecedent_stats::GlmRefusalKind::BoundarySaturated
 pub variant antecedent_stats::GlmRefusalKind::NonConverged
 pub variant antecedent_stats::GlmRefusalKind::Separated
+pub variant antecedent_stats::IdentifiedSetIntervalMethod::ImbensManskiInfluence
 pub variant antecedent_stats::IdentifiedSetIntervalMethod::ImbensManskiSharedBlock
 pub variant antecedent_stats::IdentifiedSetIntervalMethod::ProductPosteriorEnvelopeQuantile
 pub variant antecedent_stats::JointLawError::BudgetExceeded(&'static str)
@@ -5272,6 +5488,7 @@ pub variant antecedent_stats::SignificanceMethod::Analytic
 pub variant antecedent_stats::SignificanceMethod::BlockShuffle { replicates: u32, block_size: usize }
 pub variant antecedent_stats::StageOp::Affine { scale: antecedent_stats::Coefficient, shift: antecedent_stats::Coefficient }
 pub variant antecedent_stats::StageOp::Binary(antecedent_stats::Combine)
+pub variant antecedent_stats::StageOp::Expression(alloc::vec::Vec<antecedent_stats::ExprTerm>)
 pub variant antecedent_stats::StageOp::Pool { dependent: bool }
 pub variant antecedent_stats::StageOp::Preposterior(antecedent_stats::Preposterior)
 pub variant antecedent_stats::StageOp::Reweight { weights: alloc::vec::Vec<f64> }
@@ -5287,6 +5504,7 @@ pub variant antecedent_stats::StatsError::Route { message: &'static str, diagnos
 pub variant antecedent_stats::StatsError::Shape { message: &'static str }
 pub variant antecedent_stats::StatsError::SingularLocalDesign { order: usize }
 pub variant antecedent_stats::StatsError::Unsupported { message: &'static str }
+pub variant antecedent_stats::StatsError::WorkLimit { message: &'static str, required_work: u64, limit_work: u64 }
 pub variant antecedent_stats::SynthesisError::InvalidCorrelationRange(&'static str)
 pub variant antecedent_stats::SynthesisError::InvalidPrior(&'static str)
 pub variant antecedent_stats::SynthesisError::NonFinite(&'static str)
@@ -5416,6 +5634,18 @@ pub variant antecedent_stats::continuous_error::SimexExtrapolant::Quadratic
 pub variant antecedent_stats::faer_scope::FaerScopeError::ScratchOverBudget { required_bytes: u64, budget_bytes: u64 }
 pub variant antecedent_stats::faer_scope::FaerScopeError::ScratchOverflow
 pub variant antecedent_stats::faer_scope::FaerScopeError::ZeroWorkers
+pub variant antecedent_stats::layout_rules::LayoutOp::ColumnPivotedQr
+pub variant antecedent_stats::layout_rules::LayoutOp::Gram
+pub variant antecedent_stats::layout_rules::LayoutOp::SymmetricEigen
+pub variant antecedent_stats::layout_rules::LayoutOp::ThinSvd
+pub variant antecedent_stats::layout_rules::LayoutRefusal::EmptyShape
+pub variant antecedent_stats::layout_rules::LayoutRefusal::NoWorkers
+pub variant antecedent_stats::layout_rules::LayoutRefusal::ScratchOverBudget { required_bytes: u64, budget_bytes: u64 }
+pub variant antecedent_stats::layout_rules::Product::Faer
+pub variant antecedent_stats::layout_rules::Product::Reference
+pub variant antecedent_stats::layout_rules::StorageLayout::Dense
+pub variant antecedent_stats::layout_rules::StorageLayout::DenseRowMajor
+pub variant antecedent_stats::layout_rules::StorageLayout::Sparse { nonzeros_per_column: u32 }
 pub variant antecedent_stats::measurement_error::MeasurementErrorError::ConfusionIllConditioned { condition: f64, maximum: f64 }
 pub variant antecedent_stats::measurement_error::MeasurementErrorError::EmptyLatentCategory
 pub variant antecedent_stats::measurement_error::MeasurementErrorError::InsufficientReplicates(&'static str)

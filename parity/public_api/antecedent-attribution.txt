@@ -33,6 +33,9 @@ impl core::clone::Clone for antecedent_attribution::IntrinsicMethod
 impl core::clone::Clone for antecedent_attribution::MechanismChangeDetection
 impl core::clone::Clone for antecedent_attribution::MechanismChangeMethod
 impl core::clone::Clone for antecedent_attribution::MechanismChangePosterior
+impl core::clone::Clone for antecedent_attribution::MechanismHedge
+impl core::clone::Clone for antecedent_attribution::NoiseBlockIdentification
+impl core::clone::Clone for antecedent_attribution::NoiseBlockPlan
 impl core::clone::Clone for antecedent_attribution::PartialStderr
 impl core::clone::Clone for antecedent_attribution::PathContribution
 impl core::clone::Clone for antecedent_attribution::PopulationDoContrast
@@ -49,6 +52,7 @@ impl core::cmp::Eq for antecedent_attribution::DifferenceMeasure
 impl core::cmp::Eq for antecedent_attribution::FitResampling
 impl core::cmp::Eq for antecedent_attribution::IntrinsicAllocation
 impl core::cmp::Eq for antecedent_attribution::MechanismChangeMethod
+impl core::cmp::Eq for antecedent_attribution::MechanismHedge
 impl core::cmp::Eq for antecedent_attribution::ShapleyMethod
 impl core::cmp::Eq for antecedent_attribution::UncertaintyComponent
 impl core::cmp::PartialEq for antecedent_attribution::AnomalyScores
@@ -63,6 +67,7 @@ impl core::cmp::PartialEq for antecedent_attribution::IntrinsicInfluenceQuery
 impl core::cmp::PartialEq for antecedent_attribution::IntrinsicMethod
 impl core::cmp::PartialEq for antecedent_attribution::MechanismChangeMethod
 impl core::cmp::PartialEq for antecedent_attribution::MechanismChangePosterior
+impl core::cmp::PartialEq for antecedent_attribution::MechanismHedge
 impl core::cmp::PartialEq for antecedent_attribution::PartialStderr
 impl core::cmp::PartialEq for antecedent_attribution::PopulationDoContrast
 impl core::cmp::PartialEq for antecedent_attribution::ShapleyMethod
@@ -108,6 +113,9 @@ impl core::fmt::Debug for antecedent_attribution::IntrinsicMethod
 impl core::fmt::Debug for antecedent_attribution::MechanismChangeDetection
 impl core::fmt::Debug for antecedent_attribution::MechanismChangeMethod
 impl core::fmt::Debug for antecedent_attribution::MechanismChangePosterior
+impl core::fmt::Debug for antecedent_attribution::MechanismHedge
+impl core::fmt::Debug for antecedent_attribution::NoiseBlockIdentification
+impl core::fmt::Debug for antecedent_attribution::NoiseBlockPlan
 impl core::fmt::Debug for antecedent_attribution::PartialStderr
 impl core::fmt::Debug for antecedent_attribution::PathContribution
 impl core::fmt::Debug for antecedent_attribution::PopulationDoContrast
@@ -157,6 +165,9 @@ impl core::marker::Freeze for antecedent_attribution::IntrinsicMethod [auto]
 impl core::marker::Freeze for antecedent_attribution::MechanismChangeDetection [auto]
 impl core::marker::Freeze for antecedent_attribution::MechanismChangeMethod [auto]
 impl core::marker::Freeze for antecedent_attribution::MechanismChangePosterior [auto]
+impl core::marker::Freeze for antecedent_attribution::MechanismHedge [auto]
+impl core::marker::Freeze for antecedent_attribution::NoiseBlockIdentification [auto]
+impl core::marker::Freeze for antecedent_attribution::NoiseBlockPlan [auto]
 impl core::marker::Freeze for antecedent_attribution::PartialStderr [auto]
 impl core::marker::Freeze for antecedent_attribution::PathContribution [auto]
 impl core::marker::Freeze for antecedent_attribution::PopulationDoContrast [auto]
@@ -193,6 +204,9 @@ impl core::marker::Send for antecedent_attribution::IntrinsicMethod [auto]
 impl core::marker::Send for antecedent_attribution::MechanismChangeDetection [auto]
 impl core::marker::Send for antecedent_attribution::MechanismChangeMethod [auto]
 impl core::marker::Send for antecedent_attribution::MechanismChangePosterior [auto]
+impl core::marker::Send for antecedent_attribution::MechanismHedge [auto]
+impl core::marker::Send for antecedent_attribution::NoiseBlockIdentification [auto]
+impl core::marker::Send for antecedent_attribution::NoiseBlockPlan [auto]
 impl core::marker::Send for antecedent_attribution::PartialStderr [auto]
 impl core::marker::Send for antecedent_attribution::PathContribution [auto]
 impl core::marker::Send for antecedent_attribution::PopulationDoContrast [auto]
@@ -216,6 +230,7 @@ impl core::marker::StructuralPartialEq for antecedent_attribution::IntrinsicInfl
 impl core::marker::StructuralPartialEq for antecedent_attribution::IntrinsicMethod
 impl core::marker::StructuralPartialEq for antecedent_attribution::MechanismChangeMethod
 impl core::marker::StructuralPartialEq for antecedent_attribution::MechanismChangePosterior
+impl core::marker::StructuralPartialEq for antecedent_attribution::MechanismHedge
 impl core::marker::StructuralPartialEq for antecedent_attribution::PartialStderr
 impl core::marker::StructuralPartialEq for antecedent_attribution::PopulationDoContrast
 impl core::marker::StructuralPartialEq for antecedent_attribution::ShapleyMethod
@@ -245,6 +260,9 @@ impl core::marker::Sync for antecedent_attribution::IntrinsicMethod [auto]
 impl core::marker::Sync for antecedent_attribution::MechanismChangeDetection [auto]
 impl core::marker::Sync for antecedent_attribution::MechanismChangeMethod [auto]
 impl core::marker::Sync for antecedent_attribution::MechanismChangePosterior [auto]
+impl core::marker::Sync for antecedent_attribution::MechanismHedge [auto]
+impl core::marker::Sync for antecedent_attribution::NoiseBlockIdentification [auto]
+impl core::marker::Sync for antecedent_attribution::NoiseBlockPlan [auto]
 impl core::marker::Sync for antecedent_attribution::PartialStderr [auto]
 impl core::marker::Sync for antecedent_attribution::PathContribution [auto]
 impl core::marker::Sync for antecedent_attribution::PopulationDoContrast [auto]
@@ -281,6 +299,9 @@ impl core::marker::Unpin for antecedent_attribution::IntrinsicMethod [auto]
 impl core::marker::Unpin for antecedent_attribution::MechanismChangeDetection [auto]
 impl core::marker::Unpin for antecedent_attribution::MechanismChangeMethod [auto]
 impl core::marker::Unpin for antecedent_attribution::MechanismChangePosterior [auto]
+impl core::marker::Unpin for antecedent_attribution::MechanismHedge [auto]
+impl core::marker::Unpin for antecedent_attribution::NoiseBlockIdentification [auto]
+impl core::marker::Unpin for antecedent_attribution::NoiseBlockPlan [auto]
 impl core::marker::Unpin for antecedent_attribution::PartialStderr [auto]
 impl core::marker::Unpin for antecedent_attribution::PathContribution [auto]
 impl core::marker::Unpin for antecedent_attribution::PopulationDoContrast [auto]
@@ -317,6 +338,9 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::Intrins
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::MechanismChangeDetection [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::MechanismChangeMethod [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::MechanismChangePosterior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::MechanismHedge [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::NoiseBlockIdentification [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::NoiseBlockPlan [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::PartialStderr [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::PathContribution [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::PopulationDoContrast [auto]
@@ -353,6 +377,9 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_attribution::IntrinsicM
 impl core::panic::unwind_safe::UnwindSafe for antecedent_attribution::MechanismChangeDetection [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_attribution::MechanismChangeMethod [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_attribution::MechanismChangePosterior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_attribution::MechanismHedge [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_attribution::NoiseBlockIdentification [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_attribution::NoiseBlockPlan [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_attribution::PartialStderr [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_attribution::PathContribution [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_attribution::PopulationDoContrast [auto]
@@ -382,10 +409,13 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::Noi
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::PopulationRefit<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_attribution::NoiseIndependence<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_attribution::PopulationRefit<'a> [auto]
+pub const antecedent_attribution::HEDGE_WITNESS_ID: &str
+pub const antecedent_attribution::HEDGE_WITNESS_TEST: &str
 pub const antecedent_attribution::INTRINSIC_MAX_EXACT_PLAYERS: usize
 pub const antecedent_attribution::MIN_BLOCK_PERMUTATIONS: usize
 pub const antecedent_attribution::intrinsic_influence::MIN_FIT_BOOTSTRAP_REPLICATES: u32
 pub enum antecedent_attribution::IntrinsicAllocation
+pub enum antecedent_attribution::NoiseBlockIdentification
 pub enum antecedent_attribution::NoiseIndependence<'a>
 pub enum antecedent_attribution::PopulationRefit<'a>
 pub field antecedent_attribution::AnomalyScores::abs_contribution_sum: alloc::sync::Arc<[f64]>
@@ -494,6 +524,11 @@ pub field antecedent_attribution::MechanismChangePosterior::prior: f64
 pub field antecedent_attribution::MechanismChangePosterior::probability: f64
 pub field antecedent_attribution::MechanismChangePosterior::statistic: f64
 pub field antecedent_attribution::MechanismChangePosterior::variable: antecedent_core::ids::VariableId
+pub field antecedent_attribution::MechanismHedge::ancestor: antecedent_core::ids::VariableId
+pub field antecedent_attribution::MechanismHedge::node: antecedent_core::ids::VariableId
+pub field antecedent_attribution::MechanismHedge::path: alloc::vec::Vec<antecedent_core::ids::VariableId>
+pub field antecedent_attribution::NoiseBlockPlan::blocks: alloc::vec::Vec<alloc::vec::Vec<antecedent_core::ids::VariableId>>
+pub field antecedent_attribution::NoiseBlockPlan::directed: antecedent_graph::dag::Dag
 pub field antecedent_attribution::PartialStderr::excluded: alloc::vec::Vec<antecedent_attribution::UncertaintyComponent>
 pub field antecedent_attribution::PartialStderr::included: alloc::vec::Vec<antecedent_attribution::UncertaintyComponent>
 pub field antecedent_attribution::PartialStderr::stderr: f64
@@ -557,6 +592,7 @@ pub fn <antecedent_attribution::IntrinsicInfluenceQuery>::fn new(target: anteced
 pub fn <antecedent_attribution::IntrinsicInfluenceQuery>::fn validate(&self) -> core::result::Result<(), antecedent_attribution::AttributionError>
 pub fn <antecedent_attribution::IntrinsicInfluenceResult>::fn contribution_sum(&self) -> f64
 pub fn <antecedent_attribution::MechanismChangePosterior>::fn into_detection(self) -> antecedent_attribution::MechanismChangeDetection
+pub fn <antecedent_attribution::MechanismHedge>::fn describe(&self) -> alloc::string::String
 pub fn <antecedent_attribution::PartialStderr>::fn is_complete(&self) -> bool
 pub fn <antecedent_attribution::ShapleyEstimate>::fn into_contributions(self) -> alloc::vec::Vec<antecedent_attribution::ComponentContribution>
 pub fn <antecedent_attribution::SourceInfluence>::fn component_stderr(&self, component: antecedent_attribution::UncertaintyComponent) -> core::option::Option<f64>
@@ -565,17 +601,20 @@ pub fn <antecedent_attribution::SourceInfluence>::fn status(&self, component: an
 pub fn antecedent_attribution::anomaly::arrow_strengths(model: &antecedent_model::compile::CompiledCausalModel) -> core::result::Result<alloc::vec::Vec<antecedent_attribution::ArrowStrength>, antecedent_attribution::AttributionError>
 pub fn antecedent_attribution::anomaly::population_do_contrast(model: &antecedent_model::compile::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, parent: antecedent_core::ids::VariableId, child: antecedent_core::ids::VariableId, delta: f64, max_units: usize, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_attribution::PopulationDoContrast, antecedent_attribution::AttributionError>
 pub fn antecedent_attribution::anomaly::score_anomalies(model: &antecedent_model::compile::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, query: &antecedent_core::query::attribution::AnomalyAttributionQuery) -> core::result::Result<alloc::vec::Vec<antecedent_attribution::AnomalyScores>, antecedent_attribution::AttributionError>
+pub fn antecedent_attribution::anomaly::score_anomalies_blocks_with(model: &antecedent_model::compile::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, query: &antecedent_core::query::attribution::AnomalyAttributionQuery, blocks: &[alloc::vec::Vec<antecedent_core::ids::VariableId>], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_attribution::AnomalyScores>, antecedent_attribution::AttributionError>
 pub fn antecedent_attribution::anomaly::score_anomalies_with(model: &antecedent_model::compile::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, query: &antecedent_core::query::attribution::AnomalyAttributionQuery, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_attribution::AnomalyScores>, antecedent_attribution::AttributionError>
 pub fn antecedent_attribution::detect_mechanism_changes(graph_model: &antecedent_model::compile::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, query: &antecedent_core::query::attribution::MechanismChangeQuery, method: antecedent_attribution::MechanismChangeMethod, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_attribution::MechanismChangeDetection>, antecedent_attribution::AttributionError>
 pub fn antecedent_attribution::detect_mechanism_changes_block(graph_model: &antecedent_model::compile::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, query: &antecedent_core::query::attribution::MechanismChangeQuery, method: antecedent_attribution::MechanismChangeMethod, block: usize, permutations: usize, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_attribution::MechanismChangeDetection>, antecedent_attribution::AttributionError>
 pub fn antecedent_attribution::distribution_change(graph_model: &antecedent_model::compile::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, query: &antecedent_core::query::attribution::ChangeAttributionQuery, options: &antecedent_attribution::DistributionChangeOptions, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_attribution::ChangeAttributionResult, antecedent_attribution::AttributionError>
 pub fn antecedent_attribution::distribution_change::distribution_change_with_frequency_weights(graph_model: &antecedent_model::compile::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, query: &antecedent_core::query::attribution::ChangeAttributionQuery, options: &antecedent_attribution::DistributionChangeOptions, baseline_counts: &[f64], comparison_counts: &[f64], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_attribution::ChangeAttributionResult, antecedent_attribution::AttributionError>
 pub fn antecedent_attribution::distribution_change::distribution_change_with_row_weights(graph_model: &antecedent_model::compile::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, query: &antecedent_core::query::attribution::ChangeAttributionQuery, options: &antecedent_attribution::DistributionChangeOptions, baseline_weights: &[f64], comparison_weights: &[f64], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_attribution::ChangeAttributionResult, antecedent_attribution::AttributionError>
+pub fn antecedent_attribution::distribution_change_blocks(graph_model: &antecedent_model::compile::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, query: &antecedent_core::query::attribution::ChangeAttributionQuery, options: &antecedent_attribution::DistributionChangeOptions, blocks: &[alloc::vec::Vec<antecedent_core::ids::VariableId>], refit: core::option::Option<&antecedent_attribution::PopulationRefit<'_>>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_attribution::ChangeAttributionResult, antecedent_attribution::AttributionError>
 pub fn antecedent_attribution::distribution_change_robust(graph_model: &antecedent_model::compile::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, query: &antecedent_core::query::attribution::ChangeAttributionQuery, options: &antecedent_attribution::RobustChangeOptions, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_attribution::ChangeAttributionResult, antecedent_attribution::AttributionError>
 pub fn antecedent_attribution::distribution_change_robust_with_refit(graph_model: &antecedent_model::compile::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, query: &antecedent_core::query::attribution::ChangeAttributionQuery, options: &antecedent_attribution::RobustChangeOptions, refit: &antecedent_attribution::PopulationRefit<'_>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_attribution::ChangeAttributionResult, antecedent_attribution::AttributionError>
 pub fn antecedent_attribution::estimate_shapley<P: antecedent_attribution::CoalitionPayoff>(players: &[antecedent_core::ids::ComponentId], config: &antecedent_core::query::attribution::ShapleyConfig, payoff: &mut P, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_attribution::ShapleyEstimate, antecedent_attribution::AttributionError>
 pub fn antecedent_attribution::feature_relevance(model: &antecedent_model::compile::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, outcome: antecedent_core::ids::VariableId, features: &[antecedent_core::ids::VariableId], options: &antecedent_attribution::FeatureRelevanceOptions, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_attribution::FeatureRelevance>, antecedent_attribution::AttributionError>
 pub fn antecedent_attribution::intrinsic_influence(model: &antecedent_model::compile::CompiledCausalModel, noise: antecedent_attribution::NoiseIndependence<'_>, data: core::option::Option<&antecedent_data::dataset::TabularData>, query: &antecedent_attribution::IntrinsicInfluenceQuery, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_attribution::IntrinsicInfluenceResult, antecedent_attribution::AttributionError>
+pub fn antecedent_attribution::latent_blocks::plan_noise_blocks(admg: &antecedent_graph::admg::Admg, targets: &[antecedent_core::ids::VariableId]) -> core::result::Result<antecedent_attribution::NoiseBlockIdentification, antecedent_attribution::AttributionError>
 pub fn antecedent_attribution::mechanism_change::mechanism_change_posterior(graph_model: &antecedent_model::compile::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, query: &antecedent_core::query::attribution::MechanismChangeQuery, prior: f64, block: usize, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_attribution::MechanismChangePosterior>, antecedent_attribution::AttributionError>
 pub fn antecedent_attribution::path::path_decompose(model: &antecedent_model::compile::CompiledCausalModel, sources: &[antecedent_core::ids::VariableId], outcome: antecedent_core::ids::VariableId, max_paths: usize, max_len: usize, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_attribution::ChangeAttributionResult, antecedent_attribution::AttributionError>
 pub fn antecedent_attribution::population::resolve_rows(data: &antecedent_data::dataset::TabularData, selector: &antecedent_core::query::attribution::PopulationSelector) -> core::result::Result<alloc::vec::Vec<usize>, antecedent_attribution::AttributionError>
@@ -591,6 +630,7 @@ pub mod antecedent_attribution::distribution_change
 pub mod antecedent_attribution::error
 pub mod antecedent_attribution::feature_relevance
 pub mod antecedent_attribution::intrinsic_influence
+pub mod antecedent_attribution::latent_blocks
 pub mod antecedent_attribution::mechanism_change
 pub mod antecedent_attribution::path
 pub mod antecedent_attribution::population
@@ -620,6 +660,8 @@ pub struct antecedent_attribution::IntrinsicInfluenceResult
 pub struct antecedent_attribution::IntrinsicMethod
 pub struct antecedent_attribution::MechanismChangeDetection
 pub struct antecedent_attribution::MechanismChangePosterior
+pub struct antecedent_attribution::MechanismHedge
+pub struct antecedent_attribution::NoiseBlockPlan
 pub struct antecedent_attribution::PartialStderr
 pub struct antecedent_attribution::PathContribution
 pub struct antecedent_attribution::PopulationDoContrast
@@ -662,6 +704,12 @@ pub use antecedent_attribution::intrinsic_influence::ShapleyMethod = antecedent_
 pub use antecedent_attribution::intrinsic_influence::SourceInfluence = antecedent_attribution::SourceInfluence
 pub use antecedent_attribution::intrinsic_influence::UncertaintyComponent = antecedent_attribution::UncertaintyComponent
 pub use antecedent_attribution::intrinsic_influence::intrinsic_influence = antecedent_attribution::intrinsic_influence
+pub use antecedent_attribution::latent_blocks::HEDGE_WITNESS_ID = antecedent_attribution::HEDGE_WITNESS_ID
+pub use antecedent_attribution::latent_blocks::HEDGE_WITNESS_TEST = antecedent_attribution::HEDGE_WITNESS_TEST
+pub use antecedent_attribution::latent_blocks::MechanismHedge = antecedent_attribution::MechanismHedge
+pub use antecedent_attribution::latent_blocks::NoiseBlockIdentification = antecedent_attribution::NoiseBlockIdentification
+pub use antecedent_attribution::latent_blocks::NoiseBlockPlan = antecedent_attribution::NoiseBlockPlan
+pub use antecedent_attribution::latent_blocks::distribution_change_blocks = antecedent_attribution::distribution_change_blocks
 pub use antecedent_attribution::mechanism_change::MIN_BLOCK_PERMUTATIONS = antecedent_attribution::MIN_BLOCK_PERMUTATIONS
 pub use antecedent_attribution::mechanism_change::MechanismChangeMethod = antecedent_attribution::MechanismChangeMethod
 pub use antecedent_attribution::mechanism_change::MechanismChangePosterior = antecedent_attribution::MechanismChangePosterior
@@ -669,6 +717,7 @@ pub use antecedent_attribution::mechanism_change::detect_mechanism_changes = ant
 pub use antecedent_attribution::mechanism_change::detect_mechanism_changes_block = antecedent_attribution::detect_mechanism_changes_block
 pub use antecedent_attribution::mechanism_change_posterior = antecedent_attribution::mechanism_change::mechanism_change_posterior
 pub use antecedent_attribution::path_decompose = antecedent_attribution::path::path_decompose
+pub use antecedent_attribution::plan_noise_blocks = antecedent_attribution::latent_blocks::plan_noise_blocks
 pub use antecedent_attribution::population_do_contrast = antecedent_attribution::anomaly::population_do_contrast
 pub use antecedent_attribution::resolve_rows = antecedent_attribution::population::resolve_rows
 pub use antecedent_attribution::result::CacheStats = antecedent_attribution::CacheStats
@@ -687,6 +736,7 @@ pub use antecedent_attribution::robust::distribution_change_robust = antecedent_
 pub use antecedent_attribution::robust::distribution_change_robust_with_refit = antecedent_attribution::distribution_change_robust_with_refit
 pub use antecedent_attribution::root_cause_rank = antecedent_attribution::root_cause::root_cause_rank
 pub use antecedent_attribution::score_anomalies = antecedent_attribution::anomaly::score_anomalies
+pub use antecedent_attribution::score_anomalies_blocks_with = antecedent_attribution::anomaly::score_anomalies_blocks_with
 pub use antecedent_attribution::score_anomalies_with = antecedent_attribution::anomaly::score_anomalies_with
 pub use antecedent_attribution::shapley::CoalitionPayoff = antecedent_attribution::CoalitionPayoff
 pub use antecedent_attribution::shapley::ShapleyEstimate = antecedent_attribution::ShapleyEstimate
@@ -735,6 +785,8 @@ pub variant antecedent_attribution::MechanismChangeMethod::ClassifierTwoSample
 pub variant antecedent_attribution::MechanismChangeMethod::KernelTwoSample
 pub variant antecedent_attribution::MechanismChangeMethod::LikelihoodRatio
 pub variant antecedent_attribution::MechanismChangeMethod::MeanDiff
+pub variant antecedent_attribution::NoiseBlockIdentification::Hedged(antecedent_attribution::MechanismHedge)
+pub variant antecedent_attribution::NoiseBlockIdentification::Identified(antecedent_attribution::NoiseBlockPlan)
 pub variant antecedent_attribution::NoiseIndependence::Declared
 pub variant antecedent_attribution::NoiseIndependence::Structure(&'a antecedent_graph::admg::Admg)
 pub variant antecedent_attribution::NoiseIndependence::Undeclared

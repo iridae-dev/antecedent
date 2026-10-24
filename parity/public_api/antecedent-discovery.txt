@@ -127,6 +127,8 @@ impl core::clone::Clone for antecedent_discovery::SpaceDummyCiMode
 impl core::clone::Clone for antecedent_discovery::StructureMcmc
 impl core::clone::Clone for antecedent_discovery::StructureSelection
 impl core::clone::Clone for antecedent_discovery::StructureStability
+impl core::clone::Clone for antecedent_discovery::TemporalAdmgAtom
+impl core::clone::Clone for antecedent_discovery::TemporalAdmgPosterior
 impl core::clone::Clone for antecedent_discovery::TemporalConstraints
 impl core::clone::Clone for antecedent_discovery::TimeDummyCiMode
 impl core::clone::Clone for antecedent_discovery::conflict_resolution::ConflictResolution
@@ -188,6 +190,7 @@ impl core::cmp::Eq for antecedent_discovery::OrientationError
 impl core::cmp::Eq for antecedent_discovery::PossibleDSepBudget
 impl core::cmp::Eq for antecedent_discovery::RegimeAssignment
 impl core::cmp::Eq for antecedent_discovery::SpaceDummyCiMode
+impl core::cmp::Eq for antecedent_discovery::TemporalAdmgAtom
 impl core::cmp::Eq for antecedent_discovery::TimeDummyCiMode
 impl core::cmp::Eq for antecedent_discovery::conflict_resolution::ConflictResolution
 impl core::cmp::Eq for antecedent_discovery::conflict_resolution::IncidentOrientation
@@ -246,6 +249,7 @@ impl core::cmp::PartialEq for antecedent_discovery::ScoredLink
 impl core::cmp::PartialEq for antecedent_discovery::SpaceDummyCiMode
 impl core::cmp::PartialEq for antecedent_discovery::StructureSelection
 impl core::cmp::PartialEq for antecedent_discovery::StructureStability
+impl core::cmp::PartialEq for antecedent_discovery::TemporalAdmgAtom
 impl core::cmp::PartialEq for antecedent_discovery::TimeDummyCiMode
 impl core::cmp::PartialEq for antecedent_discovery::conflict_resolution::ConflictResolution
 impl core::cmp::PartialEq for antecedent_discovery::conflict_resolution::IncidentOrientation
@@ -336,6 +340,7 @@ impl core::default::Default for antecedent_discovery::Rpcmci
 impl core::default::Default for antecedent_discovery::RuleDelta
 impl core::default::Default for antecedent_discovery::SpaceDummyCiMode
 impl core::default::Default for antecedent_discovery::StructureMcmc
+impl core::default::Default for antecedent_discovery::TemporalAdmgAtom
 impl core::default::Default for antecedent_discovery::TemporalConstraints
 impl core::default::Default for antecedent_discovery::TimeDummyCiMode
 impl core::default::Default for antecedent_discovery::conflict_resolution::IncidentOrientation
@@ -418,6 +423,8 @@ impl core::fmt::Debug for antecedent_discovery::SpaceDummyCiMode
 impl core::fmt::Debug for antecedent_discovery::StructureMcmc
 impl core::fmt::Debug for antecedent_discovery::StructureSelection
 impl core::fmt::Debug for antecedent_discovery::StructureStability
+impl core::fmt::Debug for antecedent_discovery::TemporalAdmgAtom
+impl core::fmt::Debug for antecedent_discovery::TemporalAdmgPosterior
 impl core::fmt::Debug for antecedent_discovery::TemporalConstraints
 impl core::fmt::Debug for antecedent_discovery::TimeDummyCiMode
 impl core::fmt::Debug for antecedent_discovery::conflict_resolution::ConflictResolution
@@ -480,6 +487,7 @@ impl core::hash::Hash for antecedent_discovery::CrossEnvLinkAssumption
 impl core::hash::Hash for antecedent_discovery::JpcmciNodeRole
 impl core::hash::Hash for antecedent_discovery::LaggedLink
 impl core::hash::Hash for antecedent_discovery::SpaceDummyCiMode
+impl core::hash::Hash for antecedent_discovery::TemporalAdmgAtom
 impl core::hash::Hash for antecedent_discovery::TimeDummyCiMode
 impl core::hash::Hash for antecedent_discovery::selective::DiscoveryStage
 impl core::hash::Hash for antecedent_discovery::selective::Mark
@@ -511,6 +519,7 @@ impl core::marker::Copy for antecedent_discovery::PagMcmcSchedule
 impl core::marker::Copy for antecedent_discovery::PossibleDSepBudget
 impl core::marker::Copy for antecedent_discovery::ScoredLink
 impl core::marker::Copy for antecedent_discovery::SpaceDummyCiMode
+impl core::marker::Copy for antecedent_discovery::TemporalAdmgAtom
 impl core::marker::Copy for antecedent_discovery::TimeDummyCiMode
 impl core::marker::Copy for antecedent_discovery::cyclic_fci::CyclicFciPremises
 impl core::marker::Copy for antecedent_discovery::graph_posterior::GraphMcmcRun
@@ -595,6 +604,8 @@ impl core::marker::Freeze for antecedent_discovery::SpaceDummyCiMode [auto]
 impl core::marker::Freeze for antecedent_discovery::StructureMcmc [auto]
 impl core::marker::Freeze for antecedent_discovery::StructureSelection [auto]
 impl core::marker::Freeze for antecedent_discovery::StructureStability [auto]
+impl core::marker::Freeze for antecedent_discovery::TemporalAdmgAtom [auto]
+impl core::marker::Freeze for antecedent_discovery::TemporalAdmgPosterior [auto]
 impl core::marker::Freeze for antecedent_discovery::TemporalConstraints [auto]
 impl core::marker::Freeze for antecedent_discovery::TimeDummyCiMode [auto]
 impl core::marker::Freeze for antecedent_discovery::conflict_resolution::ConflictResolution [auto]
@@ -707,6 +718,8 @@ impl core::marker::Send for antecedent_discovery::SpaceDummyCiMode [auto]
 impl core::marker::Send for antecedent_discovery::StructureMcmc [auto]
 impl core::marker::Send for antecedent_discovery::StructureSelection [auto]
 impl core::marker::Send for antecedent_discovery::StructureStability [auto]
+impl core::marker::Send for antecedent_discovery::TemporalAdmgAtom [auto]
+impl core::marker::Send for antecedent_discovery::TemporalAdmgPosterior [auto]
 impl core::marker::Send for antecedent_discovery::TemporalConstraints [auto]
 impl core::marker::Send for antecedent_discovery::TimeDummyCiMode [auto]
 impl core::marker::Send for antecedent_discovery::conflict_resolution::ConflictResolution [auto]
@@ -781,6 +794,7 @@ impl core::marker::StructuralPartialEq for antecedent_discovery::ScoredLink
 impl core::marker::StructuralPartialEq for antecedent_discovery::SpaceDummyCiMode
 impl core::marker::StructuralPartialEq for antecedent_discovery::StructureSelection
 impl core::marker::StructuralPartialEq for antecedent_discovery::StructureStability
+impl core::marker::StructuralPartialEq for antecedent_discovery::TemporalAdmgAtom
 impl core::marker::StructuralPartialEq for antecedent_discovery::TimeDummyCiMode
 impl core::marker::StructuralPartialEq for antecedent_discovery::conflict_resolution::ConflictResolution
 impl core::marker::StructuralPartialEq for antecedent_discovery::conflict_resolution::IncidentOrientation
@@ -880,6 +894,8 @@ impl core::marker::Sync for antecedent_discovery::SpaceDummyCiMode [auto]
 impl core::marker::Sync for antecedent_discovery::StructureMcmc [auto]
 impl core::marker::Sync for antecedent_discovery::StructureSelection [auto]
 impl core::marker::Sync for antecedent_discovery::StructureStability [auto]
+impl core::marker::Sync for antecedent_discovery::TemporalAdmgAtom [auto]
+impl core::marker::Sync for antecedent_discovery::TemporalAdmgPosterior [auto]
 impl core::marker::Sync for antecedent_discovery::TemporalConstraints [auto]
 impl core::marker::Sync for antecedent_discovery::TimeDummyCiMode [auto]
 impl core::marker::Sync for antecedent_discovery::conflict_resolution::ConflictResolution [auto]
@@ -998,6 +1014,8 @@ impl core::marker::Unpin for antecedent_discovery::SpaceDummyCiMode [auto]
 impl core::marker::Unpin for antecedent_discovery::StructureMcmc [auto]
 impl core::marker::Unpin for antecedent_discovery::StructureSelection [auto]
 impl core::marker::Unpin for antecedent_discovery::StructureStability [auto]
+impl core::marker::Unpin for antecedent_discovery::TemporalAdmgAtom [auto]
+impl core::marker::Unpin for antecedent_discovery::TemporalAdmgPosterior [auto]
 impl core::marker::Unpin for antecedent_discovery::TemporalConstraints [auto]
 impl core::marker::Unpin for antecedent_discovery::TimeDummyCiMode [auto]
 impl core::marker::Unpin for antecedent_discovery::conflict_resolution::ConflictResolution [auto]
@@ -1105,6 +1123,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::SpaceDumm
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::StructureMcmc [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::StructureSelection [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::StructureStability [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::TemporalAdmgAtom [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::TemporalAdmgPosterior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::TemporalConstraints [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::TimeDummyCiMode [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::conflict_resolution::ConflictResolution [auto]
@@ -1207,6 +1227,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::SpaceDummyCi
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::StructureMcmc [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::StructureSelection [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::StructureStability [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::TemporalAdmgAtom [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::TemporalAdmgPosterior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::TemporalConstraints [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::TimeDummyCiMode [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::conflict_resolution::ConflictResolution [auto]
@@ -1424,6 +1446,7 @@ pub field antecedent_discovery::GraphPosterior::edge_mcse: core::option::Option<
 pub field antecedent_discovery::GraphPosterior::edge_rhat: core::option::Option<alloc::sync::Arc<[f64]>>
 pub field antecedent_discovery::GraphPosterior::ess: f64
 pub field antecedent_discovery::GraphPosterior::graph_keys: alloc::sync::Arc<[u64]>
+pub field antecedent_discovery::GraphPosterior::lag_bidirected_masks: core::option::Option<alloc::sync::Arc<[u64]>>
 pub field antecedent_discovery::GraphPosterior::lag_masks: core::option::Option<alloc::sync::Arc<[u64]>>
 pub field antecedent_discovery::GraphPosterior::lagged_edge_marginals: core::option::Option<alloc::sync::Arc<[f64]>>
 pub field antecedent_discovery::GraphPosterior::lagged_edge_mcse: core::option::Option<alloc::sync::Arc<[f64]>>
@@ -1544,6 +1567,10 @@ pub field antecedent_discovery::StructureStability::reference_frequency: f64
 pub field antecedent_discovery::StructureStability::requested: u32
 pub field antecedent_discovery::StructureStability::structures: alloc::vec::Vec<antecedent_discovery::StructureSelection>
 pub field antecedent_discovery::StructureStability::succeeded: u32
+pub field antecedent_discovery::TemporalAdmgAtom::contemporaneous: antecedent_discovery::AdjacencyMask
+pub field antecedent_discovery::TemporalAdmgAtom::lagged_bidirected: u64
+pub field antecedent_discovery::TemporalAdmgAtom::lagged_directed: u64
+pub field antecedent_discovery::TemporalAdmgPosterior::max_lag: u32
 pub field antecedent_discovery::TemporalConstraints::max_lag: antecedent_core::ids::Lag
 pub field antecedent_discovery::TemporalConstraints::min_lag: antecedent_core::ids::Lag
 pub field antecedent_discovery::conflict_resolution::IncidentOrientation::children: alloc::vec::Vec<u32>
@@ -1768,13 +1795,16 @@ pub fn <antecedent_discovery::Ges>::fn with_fdr_adjustment(self, fdr: core::opti
 pub fn <antecedent_discovery::Ges>::fn with_max_subset(self, max_subset: core::option::Option<usize>) -> Self
 pub fn <antecedent_discovery::Ges>::fn with_pc_screening(self, screen: bool) -> Self
 pub fn <antecedent_discovery::GraphPosterior>::fn from_atoms(n_vars: usize, weights: impl core::convert::Into<alloc::sync::Arc<[f64]>>, atoms: impl core::iter::traits::collect::IntoIterator<Item = impl core::convert::Into<antecedent_discovery::AdjacencyMask>>, edge_marginals: impl core::convert::Into<alloc::sync::Arc<[f64]>>, orientation_marginals: impl core::convert::Into<alloc::sync::Arc<[f64]>>, sampling: antecedent_discovery::SamplingSummary) -> core::result::Result<Self, antecedent_discovery::DiscoveryError>
+pub fn <antecedent_discovery::GraphPosterior>::fn is_lagged_temporal_admg(&self) -> bool
 pub fn <antecedent_discovery::GraphPosterior>::fn new(n_vars: usize, weights: impl core::convert::Into<alloc::sync::Arc<[f64]>>, adjacency: impl core::convert::Into<alloc::sync::Arc<[u64]>>, edge_marginals: impl core::convert::Into<alloc::sync::Arc<[f64]>>, orientation_marginals: impl core::convert::Into<alloc::sync::Arc<[f64]>>, sampling: antecedent_discovery::SamplingSummary) -> core::result::Result<Self, antecedent_discovery::DiscoveryError>
+pub fn <antecedent_discovery::GraphPosterior>::fn temporal_admg_atom(&self, index: usize) -> core::option::Option<antecedent_discovery::TemporalAdmgAtom>
 pub fn <antecedent_discovery::GraphPosterior>::fn to_equivalence_classes(&self) -> core::result::Result<Self, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::GraphPosterior>::fn to_weighted_samples(&self) -> core::result::Result<antecedent_prob::graph_samples::WeightedGraphSamples, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::GraphPosterior>::fn with_algorithm(self, algorithm: impl core::convert::Into<alloc::sync::Arc<str>>) -> Self
 pub fn <antecedent_discovery::GraphPosterior>::fn with_atom_kind(self, kind: antecedent_discovery::GraphPosteriorAtomKind) -> Self
 pub fn <antecedent_discovery::GraphPosterior>::fn with_edge_chain_diagnostics(self, rhat: alloc::vec::Vec<f64>, ess: alloc::vec::Vec<f64>) -> core::result::Result<Self, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::GraphPosterior>::fn with_edge_mcse(self, mcse: alloc::vec::Vec<f64>) -> core::result::Result<Self, antecedent_discovery::DiscoveryError>
+pub fn <antecedent_discovery::GraphPosterior>::fn with_lag_bidirected_masks(self, masks: impl core::convert::Into<alloc::sync::Arc<[u64]>>) -> core::result::Result<Self, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::GraphPosterior>::fn with_lag_masks(self, masks: impl core::convert::Into<alloc::sync::Arc<[u64]>>) -> core::result::Result<Self, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::GraphPosterior>::fn with_lagged_edge_mcse(self, mcse: alloc::vec::Vec<f64>) -> core::result::Result<Self, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::GraphPosterior>::fn with_lagged_marginals(self, max_lag: u32, lagged: impl core::convert::Into<alloc::sync::Arc<[f64]>>) -> core::result::Result<Self, antecedent_discovery::DiscoveryError>
@@ -1898,6 +1928,9 @@ pub fn <antecedent_discovery::StructureMcmc>::fn with_schedule(self, n_chains: u
 pub fn <antecedent_discovery::StructureMcmc>::fn with_temperatures(self, temperatures: impl core::convert::Into<alloc::vec::Vec<f64>>) -> Self
 pub fn <antecedent_discovery::StructureStability>::fn adjacency_frequency(&self, a: antecedent_discovery::selective::StructureNode, b: antecedent_discovery::selective::StructureNode) -> f64
 pub fn <antecedent_discovery::StructureStability>::fn tabulate(reference: antecedent_discovery::selective::DiscoveredStructure, resamples: &[antecedent_discovery::selective::DiscoveredStructure], requested: u32) -> core::result::Result<Self, antecedent_discovery::DiscoveryError>
+pub fn <antecedent_discovery::TemporalAdmgAtom>::fn to_template(&self, n_vars: usize, max_lag: u32, variables: &[antecedent_core::ids::VariableId]) -> core::result::Result<antecedent_graph::temporal_admg::TemporalAdmg, antecedent_discovery::DiscoveryError>
+pub fn <antecedent_discovery::TemporalAdmgPosterior>::fn new(max_lag: u32) -> Self
+pub fn <antecedent_discovery::TemporalAdmgPosterior>::fn run(&self, data: &antecedent_data::dataset::TimeSeriesData, variables: &[antecedent_core::ids::VariableId], candidates: &[antecedent_discovery::TemporalAdmgAtom], log_prior: core::option::Option<&[f64]>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::GraphPosterior, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::cyclic_fci::SigmaCiOracle>::fn new(graph: antecedent_graph::cyclic::CyclicMixedGraph, column_nodes: alloc::vec::Vec<antecedent_graph::types::DenseNodeId>) -> core::result::Result<Self, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::selective::CiTestSpec>::fn declared(identity: impl core::convert::Into<alloc::string::String>, test: alloc::sync::Arc<dyn antecedent_stats::ci::types::ConditionalIndependenceTest + core::marker::Send + core::marker::Sync>) -> Self
 pub fn <antecedent_discovery::selective::CiTestSpec>::fn named(name: impl core::convert::Into<alloc::string::String>) -> Self
@@ -2053,6 +2086,8 @@ pub fn antecedent_discovery::graph_posterior::normalize_log_weights(log_w: &[f64
 pub fn antecedent_discovery::graph_posterior::pag_from_adjacency_mask(mask: u64, mark_mask: u64, n_vars: usize) -> core::result::Result<antecedent_graph::pag::Pag, antecedent_discovery::DiscoveryError>
 pub fn antecedent_discovery::graph_posterior::parents_of(mask: u64, n: usize, node: usize) -> alloc::vec::Vec<u32>
 pub fn antecedent_discovery::graph_posterior::set_edge(mask: u64, n: usize, from: usize, to: usize, present: bool) -> u64
+pub fn antecedent_discovery::has_lagged_edge(word: u64, n_vars: usize, lag: u32, from: usize, to: usize) -> bool
+pub fn antecedent_discovery::lagged_edge_bit(n_vars: usize, lag: u32, from: usize, to: usize) -> u32
 pub fn antecedent_discovery::lpcmci_phases::init_complete_pag(variables: &[antecedent_core::ids::VariableId], max_lag: u32) -> core::result::Result<(antecedent_graph::temporal_pag::TemporalPag, std::collections::hash::map::HashMap<(u32, u32), antecedent_graph::types::DenseNodeId>), antecedent_discovery::DiscoveryError>
 pub fn antecedent_discovery::lpcmci_phases::run_lpcmci_algorithm(engine: &antecedent_discovery::PcmciEngine, data: &antecedent_data::dataset::TimeSeriesData, variables: &[antecedent_core::ids::VariableId], workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::ExecutionContext, fdr: core::option::Option<antecedent_stats::fdr::FdrAdjustment>, n_preliminary: u32) -> core::result::Result<antecedent_discovery::PagDiscoveryResult, antecedent_discovery::DiscoveryError>
 pub fn antecedent_discovery::orientation::run_orientation_to_fixed_point<G: antecedent_discovery::orientation::CpdagOps>(graph: &mut G, rules: &[&dyn antecedent_discovery::OrientationRule<G>], state: &mut antecedent_discovery::OrientationState) -> core::result::Result<antecedent_discovery::RuleDelta, antecedent_discovery::OrientationError>
@@ -2072,6 +2107,8 @@ pub fn antecedent_discovery::selective::identity::temporal_data_identity(data: &
 pub fn antecedent_discovery::selective::observe_orientation<T>(f: impl core::ops::function::FnOnce() -> T) -> (T, antecedent_discovery::selective::OrientationWork)
 pub fn antecedent_discovery::selective::request_selection_diagram(outcome: &antecedent_discovery::selective::DiscoveryOutcome, selection_targets: &[antecedent_core::ids::VariableId]) -> core::result::Result<core::convert::Infallible, antecedent_discovery::selective::DiscoveredStructureRefusal>
 pub fn antecedent_discovery::selective::reuse::split_rows(data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], rule: antecedent_discovery::selective::reuse::SplitRule) -> core::result::Result<antecedent_discovery::selective::reuse::SplitRows, antecedent_discovery::selective::SelectiveDiscoveryError>
+pub fn antecedent_discovery::temporal_admg_atoms::temporal_admg_from_lagged_atoms(contemporaneous: impl core::convert::Into<antecedent_discovery::AdjacencyMask>, lagged_directed: u64, lagged_bidirected: u64, n_vars: usize, max_lag: u32, variables: &[antecedent_core::ids::VariableId]) -> core::result::Result<antecedent_graph::temporal_admg::TemporalAdmg, antecedent_discovery::DiscoveryError>
+pub fn antecedent_discovery::temporal_admg_atoms::with_lagged_edge(word: u64, n_vars: usize, lag: u32, from: usize, to: usize, present: bool) -> core::result::Result<u64, antecedent_discovery::DiscoveryError>
 pub fn antecedent_discovery::weakly_minimal::make_sepset_weakly_minimal(engine: &antecedent_discovery::PcmciEngine, frame: &antecedent_data::lagged_frame::LaggedFrame, link: antecedent_discovery::LaggedLink, z: &[(antecedent_core::ids::VariableId, antecedent_core::ids::Lag)], ancs: &[(antecedent_core::ids::VariableId, antecedent_core::ids::Lag)], workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<(antecedent_core::ids::VariableId, antecedent_core::ids::Lag)>, antecedent_discovery::DiscoveryError>
 pub mod antecedent_discovery::adjacency_mask
 pub mod antecedent_discovery::ci
@@ -2127,6 +2164,8 @@ pub mod antecedent_discovery::selective::transport
 pub mod antecedent_discovery::selective::work
 pub mod antecedent_discovery::stability
 pub mod antecedent_discovery::structure_mcmc
+pub mod antecedent_discovery::temporal_admg_atoms
+pub mod antecedent_discovery::temporal_admg_posterior
 pub mod antecedent_discovery::uncovered_paths
 pub mod antecedent_discovery::weakly_minimal
 pub struct antecedent_discovery::AdjacencyMask
@@ -2196,6 +2235,8 @@ pub struct antecedent_discovery::ScoredLink
 pub struct antecedent_discovery::StructureMcmc
 pub struct antecedent_discovery::StructureSelection
 pub struct antecedent_discovery::StructureStability
+pub struct antecedent_discovery::TemporalAdmgAtom
+pub struct antecedent_discovery::TemporalAdmgPosterior
 pub struct antecedent_discovery::TemporalConstraints
 pub struct antecedent_discovery::conflict_resolution::IncidentOrientation
 pub struct antecedent_discovery::cyclic_fci::CyclicFciPremises
@@ -2465,11 +2506,17 @@ pub use antecedent_discovery::stability::MarkSelection = antecedent_discovery::M
 pub use antecedent_discovery::stability::StructureSelection = antecedent_discovery::StructureSelection
 pub use antecedent_discovery::stability::StructureStability = antecedent_discovery::StructureStability
 pub use antecedent_discovery::structure_mcmc::StructureMcmc = antecedent_discovery::StructureMcmc
+pub use antecedent_discovery::temporal_admg_atoms::TemporalAdmgAtom = antecedent_discovery::TemporalAdmgAtom
+pub use antecedent_discovery::temporal_admg_atoms::has_lagged_edge = antecedent_discovery::has_lagged_edge
+pub use antecedent_discovery::temporal_admg_atoms::lagged_edge_bit = antecedent_discovery::lagged_edge_bit
+pub use antecedent_discovery::temporal_admg_from_lagged_atoms = antecedent_discovery::temporal_admg_atoms::temporal_admg_from_lagged_atoms
+pub use antecedent_discovery::temporal_admg_posterior::TemporalAdmgPosterior = antecedent_discovery::TemporalAdmgPosterior
 pub use antecedent_discovery::temporal_cpdag_from_dbn_masks = antecedent_discovery::dbn_posterior::temporal_cpdag_from_dbn_masks
 pub use antecedent_discovery::temporal_dag_from_dbn_masks = antecedent_discovery::dbn_posterior::temporal_dag_from_dbn_masks
 pub use antecedent_discovery::temporal_pag_from_dbn_masks = antecedent_discovery::dbn_posterior::temporal_pag_from_dbn_masks
 pub use antecedent_discovery::threshold_scored_links = antecedent_discovery::evidence::threshold_scored_links
 pub use antecedent_discovery::two_regime_half_split = antecedent_discovery::rpcmci::two_regime_half_split
+pub use antecedent_discovery::with_lagged_edge = antecedent_discovery::temporal_admg_atoms::with_lagged_edge
 pub variant antecedent_discovery::CiMaskType::X
 pub variant antecedent_discovery::CiMaskType::Xz
 pub variant antecedent_discovery::CiMaskType::Y

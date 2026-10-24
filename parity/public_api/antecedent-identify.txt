@@ -30,6 +30,7 @@ impl antecedent_identify::Identifier<antecedent_graph::dag::Dag> for antecedent_
 impl antecedent_identify::Identifier<antecedent_graph::dag::Dag> for antecedent_identify::InstrumentalVariableIdentifier
 impl core::clone::Clone for antecedent_identify::AcceptedRegimeContract
 impl core::clone::Clone for antecedent_identify::AdjustmentSearchConfig
+impl core::clone::Clone for antecedent_identify::AdmgCandidates
 impl core::clone::Clone for antecedent_identify::AutoIdentifier
 impl core::clone::Clone for antecedent_identify::BackdoorIdentifier
 impl core::clone::Clone for antecedent_identify::BinaryIvLaw
@@ -205,6 +206,7 @@ impl core::clone::Clone for antecedent_identify::StudyProposalDerivation
 impl core::clone::Clone for antecedent_identify::StudyRepair
 impl core::clone::Clone for antecedent_identify::StudySubsetOutcome
 impl core::clone::Clone for antecedent_identify::StudySubsetRecord
+impl core::clone::Clone for antecedent_identify::TemporalAdmgAdjustment
 impl core::clone::Clone for antecedent_identify::TemporalBackdoorIdentifier
 impl core::clone::Clone for antecedent_identify::TemporalClassEnvelope
 impl core::clone::Clone for antecedent_identify::TemporalCompletionGraph
@@ -212,6 +214,7 @@ impl core::clone::Clone for antecedent_identify::TemporalIdentificationResult
 impl core::clone::Clone for antecedent_identify::TemporalIvIdentifier
 impl core::clone::Clone for antecedent_identify::TemporalIvResult
 impl core::clone::Clone for antecedent_identify::TemporalMediationIdentifier
+impl core::clone::Clone for antecedent_identify::TemporalPagMediationWindow
 impl core::clone::Clone for antecedent_identify::TransportCertificate
 impl core::clone::Clone for antecedent_identify::TransportFormula
 impl core::clone::Clone for antecedent_identify::TransportIdentification
@@ -875,6 +878,7 @@ impl core::error::Error for antecedent_identify::sid::temporal_sequence::Tempora
 impl core::error::Error for antecedent_identify::sid::temporal_sequence::TemporalSequenceError
 impl core::fmt::Debug for antecedent_identify::AcceptedRegimeContract
 impl core::fmt::Debug for antecedent_identify::AdjustmentSearchConfig
+impl core::fmt::Debug for antecedent_identify::AdmgCandidates
 impl core::fmt::Debug for antecedent_identify::AutoIdentifier
 impl core::fmt::Debug for antecedent_identify::BackdoorIdentifier
 impl core::fmt::Debug for antecedent_identify::BinaryIvLaw
@@ -1050,6 +1054,7 @@ impl core::fmt::Debug for antecedent_identify::StudyProposalDerivation
 impl core::fmt::Debug for antecedent_identify::StudyRepair
 impl core::fmt::Debug for antecedent_identify::StudySubsetOutcome
 impl core::fmt::Debug for antecedent_identify::StudySubsetRecord
+impl core::fmt::Debug for antecedent_identify::TemporalAdmgAdjustment
 impl core::fmt::Debug for antecedent_identify::TemporalBackdoorIdentifier
 impl core::fmt::Debug for antecedent_identify::TemporalClassEnvelope
 impl core::fmt::Debug for antecedent_identify::TemporalCompletionGraph
@@ -1057,6 +1062,7 @@ impl core::fmt::Debug for antecedent_identify::TemporalIdentificationResult
 impl core::fmt::Debug for antecedent_identify::TemporalIvIdentifier
 impl core::fmt::Debug for antecedent_identify::TemporalIvResult
 impl core::fmt::Debug for antecedent_identify::TemporalMediationIdentifier
+impl core::fmt::Debug for antecedent_identify::TemporalPagMediationWindow
 impl core::fmt::Debug for antecedent_identify::TransportCertificate
 impl core::fmt::Debug for antecedent_identify::TransportFormula
 impl core::fmt::Debug for antecedent_identify::TransportIdentification
@@ -1345,6 +1351,7 @@ impl core::marker::Copy for antecedent_identify::sid::temporal_sequence::Mechani
 impl core::marker::Copy for antecedent_identify::sid::temporal_sequence::TemporalDecisionLimits
 impl core::marker::Freeze for antecedent_identify::AcceptedRegimeContract [auto]
 impl core::marker::Freeze for antecedent_identify::AdjustmentSearchConfig [auto]
+impl core::marker::Freeze for antecedent_identify::AdmgCandidates [auto]
 impl core::marker::Freeze for antecedent_identify::AutoIdentifier [auto]
 impl core::marker::Freeze for antecedent_identify::BackdoorIdentifier [auto]
 impl core::marker::Freeze for antecedent_identify::BinaryIvLaw [auto]
@@ -1520,6 +1527,7 @@ impl core::marker::Freeze for antecedent_identify::StudyProposalDerivation [auto
 impl core::marker::Freeze for antecedent_identify::StudyRepair [auto]
 impl core::marker::Freeze for antecedent_identify::StudySubsetOutcome [auto]
 impl core::marker::Freeze for antecedent_identify::StudySubsetRecord [auto]
+impl core::marker::Freeze for antecedent_identify::TemporalAdmgAdjustment [auto]
 impl core::marker::Freeze for antecedent_identify::TemporalBackdoorIdentifier [auto]
 impl core::marker::Freeze for antecedent_identify::TemporalClassEnvelope [auto]
 impl core::marker::Freeze for antecedent_identify::TemporalCompletionGraph [auto]
@@ -1527,6 +1535,7 @@ impl core::marker::Freeze for antecedent_identify::TemporalIdentificationResult 
 impl core::marker::Freeze for antecedent_identify::TemporalIvIdentifier [auto]
 impl core::marker::Freeze for antecedent_identify::TemporalIvResult [auto]
 impl core::marker::Freeze for antecedent_identify::TemporalMediationIdentifier [auto]
+impl core::marker::Freeze for antecedent_identify::TemporalPagMediationWindow [auto]
 impl core::marker::Freeze for antecedent_identify::TransportCertificate [auto]
 impl core::marker::Freeze for antecedent_identify::TransportFormula [auto]
 impl core::marker::Freeze for antecedent_identify::TransportIdentification [auto]
@@ -1683,6 +1692,7 @@ impl core::marker::Freeze for antecedent_identify::temporal_admg::TemporalAdmgId
 impl core::marker::Freeze for antecedent_identify::temporal_admg::TemporalAdmgWindowPlan [auto]
 impl core::marker::Send for antecedent_identify::AcceptedRegimeContract [auto]
 impl core::marker::Send for antecedent_identify::AdjustmentSearchConfig [auto]
+impl core::marker::Send for antecedent_identify::AdmgCandidates [auto]
 impl core::marker::Send for antecedent_identify::AutoIdentifier [auto]
 impl core::marker::Send for antecedent_identify::BackdoorIdentifier [auto]
 impl core::marker::Send for antecedent_identify::BinaryIvLaw [auto]
@@ -1858,6 +1868,7 @@ impl core::marker::Send for antecedent_identify::StudyProposalDerivation [auto]
 impl core::marker::Send for antecedent_identify::StudyRepair [auto]
 impl core::marker::Send for antecedent_identify::StudySubsetOutcome [auto]
 impl core::marker::Send for antecedent_identify::StudySubsetRecord [auto]
+impl core::marker::Send for antecedent_identify::TemporalAdmgAdjustment [auto]
 impl core::marker::Send for antecedent_identify::TemporalBackdoorIdentifier [auto]
 impl core::marker::Send for antecedent_identify::TemporalClassEnvelope [auto]
 impl core::marker::Send for antecedent_identify::TemporalCompletionGraph [auto]
@@ -1865,6 +1876,7 @@ impl core::marker::Send for antecedent_identify::TemporalIdentificationResult [a
 impl core::marker::Send for antecedent_identify::TemporalIvIdentifier [auto]
 impl core::marker::Send for antecedent_identify::TemporalIvResult [auto]
 impl core::marker::Send for antecedent_identify::TemporalMediationIdentifier [auto]
+impl core::marker::Send for antecedent_identify::TemporalPagMediationWindow [auto]
 impl core::marker::Send for antecedent_identify::TransportCertificate [auto]
 impl core::marker::Send for antecedent_identify::TransportFormula [auto]
 impl core::marker::Send for antecedent_identify::TransportIdentification [auto]
@@ -2260,6 +2272,7 @@ impl core::marker::StructuralPartialEq for antecedent_identify::sid::temporal_se
 impl core::marker::StructuralPartialEq for antecedent_identify::temporal_admg::TemporalAdmgWindowPlan
 impl core::marker::Sync for antecedent_identify::AcceptedRegimeContract [auto]
 impl core::marker::Sync for antecedent_identify::AdjustmentSearchConfig [auto]
+impl core::marker::Sync for antecedent_identify::AdmgCandidates [auto]
 impl core::marker::Sync for antecedent_identify::AutoIdentifier [auto]
 impl core::marker::Sync for antecedent_identify::BackdoorIdentifier [auto]
 impl core::marker::Sync for antecedent_identify::BinaryIvLaw [auto]
@@ -2435,6 +2448,7 @@ impl core::marker::Sync for antecedent_identify::StudyProposalDerivation [auto]
 impl core::marker::Sync for antecedent_identify::StudyRepair [auto]
 impl core::marker::Sync for antecedent_identify::StudySubsetOutcome [auto]
 impl core::marker::Sync for antecedent_identify::StudySubsetRecord [auto]
+impl core::marker::Sync for antecedent_identify::TemporalAdmgAdjustment [auto]
 impl core::marker::Sync for antecedent_identify::TemporalBackdoorIdentifier [auto]
 impl core::marker::Sync for antecedent_identify::TemporalClassEnvelope [auto]
 impl core::marker::Sync for antecedent_identify::TemporalCompletionGraph [auto]
@@ -2442,6 +2456,7 @@ impl core::marker::Sync for antecedent_identify::TemporalIdentificationResult [a
 impl core::marker::Sync for antecedent_identify::TemporalIvIdentifier [auto]
 impl core::marker::Sync for antecedent_identify::TemporalIvResult [auto]
 impl core::marker::Sync for antecedent_identify::TemporalMediationIdentifier [auto]
+impl core::marker::Sync for antecedent_identify::TemporalPagMediationWindow [auto]
 impl core::marker::Sync for antecedent_identify::TransportCertificate [auto]
 impl core::marker::Sync for antecedent_identify::TransportFormula [auto]
 impl core::marker::Sync for antecedent_identify::TransportIdentification [auto]
@@ -2598,6 +2613,7 @@ impl core::marker::Sync for antecedent_identify::temporal_admg::TemporalAdmgIden
 impl core::marker::Sync for antecedent_identify::temporal_admg::TemporalAdmgWindowPlan [auto]
 impl core::marker::Unpin for antecedent_identify::AcceptedRegimeContract [auto]
 impl core::marker::Unpin for antecedent_identify::AdjustmentSearchConfig [auto]
+impl core::marker::Unpin for antecedent_identify::AdmgCandidates [auto]
 impl core::marker::Unpin for antecedent_identify::AutoIdentifier [auto]
 impl core::marker::Unpin for antecedent_identify::BackdoorIdentifier [auto]
 impl core::marker::Unpin for antecedent_identify::BinaryIvLaw [auto]
@@ -2773,6 +2789,7 @@ impl core::marker::Unpin for antecedent_identify::StudyProposalDerivation [auto]
 impl core::marker::Unpin for antecedent_identify::StudyRepair [auto]
 impl core::marker::Unpin for antecedent_identify::StudySubsetOutcome [auto]
 impl core::marker::Unpin for antecedent_identify::StudySubsetRecord [auto]
+impl core::marker::Unpin for antecedent_identify::TemporalAdmgAdjustment [auto]
 impl core::marker::Unpin for antecedent_identify::TemporalBackdoorIdentifier [auto]
 impl core::marker::Unpin for antecedent_identify::TemporalClassEnvelope [auto]
 impl core::marker::Unpin for antecedent_identify::TemporalCompletionGraph [auto]
@@ -2780,6 +2797,7 @@ impl core::marker::Unpin for antecedent_identify::TemporalIdentificationResult [
 impl core::marker::Unpin for antecedent_identify::TemporalIvIdentifier [auto]
 impl core::marker::Unpin for antecedent_identify::TemporalIvResult [auto]
 impl core::marker::Unpin for antecedent_identify::TemporalMediationIdentifier [auto]
+impl core::marker::Unpin for antecedent_identify::TemporalPagMediationWindow [auto]
 impl core::marker::Unpin for antecedent_identify::TransportCertificate [auto]
 impl core::marker::Unpin for antecedent_identify::TransportFormula [auto]
 impl core::marker::Unpin for antecedent_identify::TransportIdentification [auto]
@@ -2936,6 +2954,7 @@ impl core::marker::Unpin for antecedent_identify::temporal_admg::TemporalAdmgIde
 impl core::marker::Unpin for antecedent_identify::temporal_admg::TemporalAdmgWindowPlan [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::AcceptedRegimeContract [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::AdjustmentSearchConfig [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::AdmgCandidates [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::AutoIdentifier [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::BackdoorIdentifier [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::BinaryIvLaw [auto]
@@ -3111,6 +3130,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::StudyPropo
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::StudyRepair [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::StudySubsetOutcome [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::StudySubsetRecord [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::TemporalAdmgAdjustment [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::TemporalBackdoorIdentifier [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::TemporalClassEnvelope [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::TemporalCompletionGraph [auto]
@@ -3118,6 +3138,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::TemporalId
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::TemporalIvIdentifier [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::TemporalIvResult [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::TemporalMediationIdentifier [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::TemporalPagMediationWindow [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::TransportCertificate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::TransportFormula [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::TransportIdentification [auto]
@@ -3274,6 +3295,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::temporal_a
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::temporal_admg::TemporalAdmgWindowPlan [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::AcceptedRegimeContract [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::AdjustmentSearchConfig [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::AdmgCandidates [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::AutoIdentifier [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::BackdoorIdentifier [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::BinaryIvLaw [auto]
@@ -3449,6 +3471,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::StudyProposal
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::StudyRepair [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::StudySubsetOutcome [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::StudySubsetRecord [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::TemporalAdmgAdjustment [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::TemporalBackdoorIdentifier [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::TemporalClassEnvelope [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::TemporalCompletionGraph [auto]
@@ -3456,6 +3479,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::TemporalIdent
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::TemporalIvIdentifier [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::TemporalIvResult [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::TemporalMediationIdentifier [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::TemporalPagMediationWindow [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::TransportCertificate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::TransportFormula [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::TransportIdentification [auto]
@@ -3774,20 +3798,28 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_identify::sid::SHedgeR
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_identify::sid::SelectionForestRecord
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_identify::sid::SidDerivationRecord
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_identify::sid::SidStepRecord
+impl<G: core::clone::Clone> core::clone::Clone for antecedent_identify::ClassTransportEnvelope<G>
 impl<G: core::clone::Clone> core::clone::Clone for antecedent_identify::GraphIdentificationCase<G>
 impl<G: core::clone::Clone> core::clone::Clone for antecedent_identify::IdentificationEnvelope<G>
+impl<G: core::fmt::Debug> core::fmt::Debug for antecedent_identify::ClassTransportEnvelope<G>
 impl<G: core::fmt::Debug> core::fmt::Debug for antecedent_identify::GraphIdentificationCase<G>
 impl<G: core::fmt::Debug> core::fmt::Debug for antecedent_identify::IdentificationEnvelope<G>
+impl<G> core::marker::Freeze for antecedent_identify::ClassTransportEnvelope<G> [auto]
 impl<G> core::marker::Freeze for antecedent_identify::GraphIdentificationCase<G> where G: core::marker::Freeze [auto]
 impl<G> core::marker::Freeze for antecedent_identify::IdentificationEnvelope<G> [auto]
+impl<G> core::marker::Send for antecedent_identify::ClassTransportEnvelope<G> where G: core::marker::Send [auto]
 impl<G> core::marker::Send for antecedent_identify::GraphIdentificationCase<G> where G: core::marker::Send [auto]
 impl<G> core::marker::Send for antecedent_identify::IdentificationEnvelope<G> where G: core::marker::Send [auto]
+impl<G> core::marker::Sync for antecedent_identify::ClassTransportEnvelope<G> where G: core::marker::Sync [auto]
 impl<G> core::marker::Sync for antecedent_identify::GraphIdentificationCase<G> where G: core::marker::Sync [auto]
 impl<G> core::marker::Sync for antecedent_identify::IdentificationEnvelope<G> where G: core::marker::Sync [auto]
+impl<G> core::marker::Unpin for antecedent_identify::ClassTransportEnvelope<G> where G: core::marker::Unpin [auto]
 impl<G> core::marker::Unpin for antecedent_identify::GraphIdentificationCase<G> where G: core::marker::Unpin [auto]
 impl<G> core::marker::Unpin for antecedent_identify::IdentificationEnvelope<G> where G: core::marker::Unpin [auto]
+impl<G> core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::ClassTransportEnvelope<G> where G: core::panic::unwind_safe::RefUnwindSafe [auto]
 impl<G> core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::GraphIdentificationCase<G> where G: core::panic::unwind_safe::RefUnwindSafe [auto]
 impl<G> core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::IdentificationEnvelope<G> where G: core::panic::unwind_safe::RefUnwindSafe [auto]
+impl<G> core::panic::unwind_safe::UnwindSafe for antecedent_identify::ClassTransportEnvelope<G> where G: core::panic::unwind_safe::UnwindSafe [auto]
 impl<G> core::panic::unwind_safe::UnwindSafe for antecedent_identify::GraphIdentificationCase<G> where G: core::panic::unwind_safe::UnwindSafe [auto]
 impl<G> core::panic::unwind_safe::UnwindSafe for antecedent_identify::IdentificationEnvelope<G> where G: core::panic::unwind_safe::UnwindSafe [auto]
 pub const <antecedent_identify::MixedRule>::ALL: [Self; 10]
@@ -3800,6 +3832,8 @@ pub const antecedent_identify::CHAIN_RECOVERY_LIMITS: antecedent_core::search::S
 pub const antecedent_identify::CHAIN_RECOVERY_RULE_VERSION: &str
 pub const antecedent_identify::CLAMP_EXPERIMENT_RECIPE: &str
 pub const antecedent_identify::CLAMP_EXPERIMENT_RECIPE_ATTEMPT: antecedent_core::refusal::NextAttempt
+pub const antecedent_identify::CLASS_TRANSPORT_CANDIDATES_BOUNDED_REASON: &str
+pub const antecedent_identify::CLASS_TRANSPORT_METHOD: &str
 pub const antecedent_identify::CONDITIONAL_WITNESS_MAX_LATENT_LEVELS: usize
 pub const antecedent_identify::COUNTERFACTUAL_TRANSPORT_CONTRACT: &str
 pub const antecedent_identify::COUNTERFACTUAL_TRANSPORT_DEFAULT_LIMITS: antecedent_core::search::SearchLimits
@@ -3831,6 +3865,8 @@ pub const antecedent_identify::MZ_TRANSPORT_MAX_OBSERVED: usize
 pub const antecedent_identify::MZ_TRANSPORT_MAX_SOURCES: usize
 pub const antecedent_identify::MZ_TRANSPORT_MEMORY_BYTES: u64
 pub const antecedent_identify::NO_LATENT_TO_OUTCOME: &str
+pub const antecedent_identify::PAG_ADMG_SEARCH_BOUNDED_DIAGNOSTIC_CODE: &str
+pub const antecedent_identify::PAG_TRANSPORT_SEARCH_BOUNDED_DIAGNOSTIC_CODE: &str
 pub const antecedent_identify::PARENT_ADJUSTMENT_RULE: &str
 pub const antecedent_identify::PRIOR_REGULARIZATION_ATTEMPT: &str
 pub const antecedent_identify::RECOVERY_DEFAULT_LIMITS: antecedent_identify::RecoveryLimits
@@ -3847,6 +3883,7 @@ pub const antecedent_identify::STUDY_PLAN_MAX_REGIMES_PER_CANDIDATE: usize
 pub const antecedent_identify::STUDY_PLAN_MAX_SUBSET: usize
 pub const antecedent_identify::STUDY_PLAN_MEMORY_BYTES: u64
 pub const antecedent_identify::STUDY_PLAN_RANKING: &str
+pub const antecedent_identify::TEMPORAL_PAG_WINDOW_NOT_MAG_DIAGNOSTIC_CODE: &str
 pub const antecedent_identify::TIERED_JOINT_ADJUSTMENT_REFUSE: &str
 pub const antecedent_identify::counterfactual_id::COUNTERFACTUAL_ID_CONTRACT: &str
 pub const antecedent_identify::counterfactual_id::COUNTERFACTUAL_ID_DEFAULT_LIMITS: antecedent_core::search::SearchLimits
@@ -3982,6 +4019,8 @@ pub field antecedent_identify::AdjustmentSearchConfig::max_results: usize
 pub field antecedent_identify::AdjustmentSearchConfig::maximal_only: bool
 pub field antecedent_identify::AdjustmentSearchConfig::measurement_costs: alloc::sync::Arc<[(antecedent_core::ids::VariableId, f64)]>
 pub field antecedent_identify::AdjustmentSearchConfig::minimal_only: bool
+pub field antecedent_identify::AdmgCandidates::bounded: bool
+pub field antecedent_identify::AdmgCandidates::members: alloc::vec::Vec<antecedent_graph::admg::Admg>
 pub field antecedent_identify::AutoIdentifier::backdoor: antecedent_identify::BackdoorIdentifier
 pub field antecedent_identify::AutoIdentifier::efficient: antecedent_identify::EfficientBackdoorIdentifier
 pub field antecedent_identify::AutoIdentifier::frontdoor: antecedent_identify::FrontDoorIdentifier
@@ -4025,6 +4064,8 @@ pub field antecedent_identify::ClampExperimentSet::physical_dynamical_stability:
 pub field antecedent_identify::ClampExperimentSet::regimes: antecedent_identify::RegimeAssumption
 pub field antecedent_identify::ClampExperimentSet::uniqueness_restriction: antecedent_identify::experimental_recovery::UniquenessRestriction
 pub field antecedent_identify::ClampExperimentSet::weak_stability: antecedent_identify::WeakStability
+pub field antecedent_identify::ClassTransportEnvelope::envelope: antecedent_identify::IdentificationEnvelope<G>
+pub field antecedent_identify::ClassTransportEnvelope::proofs: alloc::vec::Vec<antecedent_identify::TransportIdentification>
 pub field antecedent_identify::ClassicalTransportQuery::outcomes: alloc::sync::Arc<[antecedent_core::ids::VariableId]>
 pub field antecedent_identify::ClassicalTransportQuery::source: alloc::sync::Arc<str>
 pub field antecedent_identify::ClassicalTransportQuery::target: alloc::sync::Arc<str>
@@ -4451,6 +4492,9 @@ pub field antecedent_identify::StudySubsetRecord::candidates: alloc::vec::Vec<al
 pub field antecedent_identify::StudySubsetRecord::cost_units: u64
 pub field antecedent_identify::StudySubsetRecord::outcome: antecedent_identify::StudySubsetOutcome
 pub field antecedent_identify::StudySubsetRecord::sample_budget: u64
+pub field antecedent_identify::TemporalAdmgAdjustment::plan: antecedent_identify::temporal_admg::TemporalAdmgWindowPlan
+pub field antecedent_identify::TemporalAdmgAdjustment::result: antecedent_identify::IdentificationResult
+pub field antecedent_identify::TemporalAdmgAdjustment::window: antecedent_graph::temporal_admg::UnrolledTemporalAdmg
 pub field antecedent_identify::TemporalBackdoorIdentifier::inner: antecedent_identify::BackdoorIdentifier
 pub field antecedent_identify::TemporalBackdoorIdentifier::parent_adjustment_fallback: bool
 pub field antecedent_identify::TemporalClassEnvelope::envelope: antecedent_identify::IdentificationEnvelope<antecedent_identify::TemporalCompletionGraph>
@@ -4470,6 +4514,10 @@ pub field antecedent_identify::TemporalIvResult::uncertified: alloc::vec::Vec<an
 pub field antecedent_identify::TemporalIvResult::unfolded: antecedent_graph::unfold::UnfoldedTemporalGraph
 pub field antecedent_identify::TemporalMediationIdentifier::allow_natural_controlled_alias: bool
 pub field antecedent_identify::TemporalMediationIdentifier::temporal: antecedent_identify::TemporalBackdoorIdentifier
+pub field antecedent_identify::TemporalPagMediationWindow::indexer: antecedent_core::temporal::TemporalIndexer
+pub field antecedent_identify::TemporalPagMediationWindow::outcome_offset: i32
+pub field antecedent_identify::TemporalPagMediationWindow::query: antecedent_core::query::mediation::MediationQuery
+pub field antecedent_identify::TemporalPagMediationWindow::treatment_offset: i32
 pub field antecedent_identify::TransportCertificate::premises: alloc::sync::Arc<[alloc::sync::Arc<str>]>
 pub field antecedent_identify::TransportCertificate::rule: alloc::sync::Arc<str>
 pub field antecedent_identify::TransportCertificate::selection_targets: alloc::sync::Arc<[antecedent_core::ids::VariableId]>
@@ -4999,14 +5047,22 @@ pub fn <antecedent_identify::FrontDoorIdentifier>::fn identify(&self, prepared: 
 pub fn <antecedent_identify::FrontDoorIdentifier>::fn new() -> Self
 pub fn <antecedent_identify::FrontDoorIdentifier>::fn prepare(&self, graph: &antecedent_graph::dag::Dag) -> core::result::Result<antecedent_identify::PreparedIdentificationGraph, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::FrontDoorIdentifier>::fn prepare_with_assumptions(&self, graph: &antecedent_graph::dag::Dag, assumptions: antecedent_core::assumption::AssumptionSet) -> core::result::Result<antecedent_identify::PreparedIdentificationGraph, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::GeneralizedAdjustmentIdentifier>::fn admg_candidates_of_mag(&self, mag: &antecedent_graph::pag::Pag) -> core::result::Result<antecedent_identify::AdmgCandidates, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::GeneralizedAdjustmentIdentifier>::fn identify_cpdag_distribution_envelope(&self, cpdag: &antecedent_graph::cpdag::Cpdag, query: &antecedent_core::query::CausalQuery) -> core::result::Result<antecedent_identify::IdentificationEnvelope<antecedent_graph::dag::Dag>, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::GeneralizedAdjustmentIdentifier>::fn identify_cpdag_envelope(&self, cpdag: &antecedent_graph::cpdag::Cpdag, query: &antecedent_core::query::average::AverageEffectQuery) -> core::result::Result<antecedent_identify::IdentificationEnvelope<antecedent_graph::dag::Dag>, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::GeneralizedAdjustmentIdentifier>::fn identify_cpdag_path_specific_envelope(&self, cpdag: &antecedent_graph::cpdag::Cpdag, query: &antecedent_core::query::CausalQuery) -> core::result::Result<antecedent_identify::IdentificationEnvelope<antecedent_graph::dag::Dag>, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::GeneralizedAdjustmentIdentifier>::fn identify_cpdag_response_envelope(&self, graph: &antecedent_graph::cpdag::Cpdag, query: &antecedent_core::query::response::ResponseQuery) -> core::result::Result<antecedent_identify::IdentificationEnvelope<antecedent_graph::dag::Dag>, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::GeneralizedAdjustmentIdentifier>::fn identify_cpdag_transport_envelope(&self, cpdag: &antecedent_graph::cpdag::Cpdag, selection_targets: &[antecedent_core::ids::VariableId], query: &antecedent_core::query::transport::TransportQuery) -> core::result::Result<antecedent_identify::ClassTransportEnvelope<antecedent_graph::dag::Dag>, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::GeneralizedAdjustmentIdentifier>::fn identify_joint_admg_response(&self, graph: &antecedent_graph::admg::Admg, query: &antecedent_core::query::response::ResponseQuery) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::GeneralizedAdjustmentIdentifier>::fn identify_joint_dag_response(&self, dag: &antecedent_graph::dag::Dag, query: &antecedent_core::query::response::ResponseQuery) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::GeneralizedAdjustmentIdentifier>::fn identify_pag_distribution_envelope(&self, pag: &antecedent_graph::pag::Pag, query: &antecedent_core::query::CausalQuery) -> core::result::Result<antecedent_identify::IdentificationEnvelope<antecedent_graph::pag::Pag>, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::GeneralizedAdjustmentIdentifier>::fn identify_pag_envelope(&self, pag: &antecedent_graph::pag::Pag, query: &antecedent_core::query::average::AverageEffectQuery) -> core::result::Result<antecedent_identify::IdentificationEnvelope<antecedent_graph::pag::Pag>, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::GeneralizedAdjustmentIdentifier>::fn identify_pag_path_specific_envelope(&self, pag: &antecedent_graph::pag::Pag, query: &antecedent_core::query::CausalQuery) -> core::result::Result<antecedent_identify::IdentificationEnvelope<antecedent_graph::pag::Pag>, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::GeneralizedAdjustmentIdentifier>::fn identify_pag_response_envelope(&self, graph: &antecedent_graph::pag::Pag, query: &antecedent_core::query::response::ResponseQuery) -> core::result::Result<antecedent_identify::IdentificationEnvelope<antecedent_graph::pag::Pag>, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::GeneralizedAdjustmentIdentifier>::fn identify_pag_transport_envelope(&self, pag: &antecedent_graph::pag::Pag, selection_targets: &[antecedent_core::ids::VariableId], query: &antecedent_core::query::transport::TransportQuery) -> core::result::Result<antecedent_identify::ClassTransportEnvelope<antecedent_graph::pag::Pag>, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::GeneralizedAdjustmentIdentifier>::fn identify_temporal_cpdag_envelope(&self, cpdag: &antecedent_graph::cpdag::TemporalCpdag, query: &antecedent_core::query::temporal::TemporalEffectQuery) -> core::result::Result<antecedent_identify::TemporalClassEnvelope, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::GeneralizedAdjustmentIdentifier>::fn identify_temporal_pag_envelope(&self, pag: &antecedent_graph::temporal_pag::TemporalPag, query: &antecedent_core::query::temporal::TemporalEffectQuery) -> core::result::Result<antecedent_identify::TemporalClassEnvelope, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::GeneralizedAdjustmentIdentifier>::fn identify_temporal_pag_path_specific_envelope(&self, pag: &antecedent_graph::temporal_pag::TemporalPag, window: &antecedent_identify::TemporalPagMediationWindow) -> core::result::Result<antecedent_identify::TemporalClassEnvelope, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::GeneralizedAdjustmentIdentifier>::fn new() -> Self
 pub fn <antecedent_identify::HedgeCertificate>::fn from_sets(f: &antecedent_graph::workspace::BitSet, f_prime: &antecedent_graph::workspace::BitSet, dense_to_var: impl core::ops::function::Fn(antecedent_graph::types::DenseNodeId) -> antecedent_core::ids::VariableId) -> Self
 pub fn <antecedent_identify::HedgeCertificate>::fn verify(&self, prepared: &antecedent_identify::PreparedAdmg, treatments: &[antecedent_core::ids::VariableId], outcomes: &[antecedent_core::ids::VariableId]) -> core::result::Result<(), antecedent_identify::IdentificationError>
@@ -5359,6 +5415,13 @@ pub fn <antecedent_identify::sid::temporal_sequence::TemporalSlots>::fn position
 pub fn <antecedent_identify::sid::temporal_sequence::TemporalSlots>::fn slice(&self, variable: antecedent_core::ids::VariableId) -> core::option::Option<u8>
 pub fn <antecedent_identify::sid::temporal_sequence::TemporalSlots>::fn variables(&self) -> alloc::vec::Vec<antecedent_core::ids::VariableId>
 pub fn <antecedent_identify::sid::temporal_sequence::UnrolledSequence>::fn coordinate(&self, variable: antecedent_core::ids::VariableId, period: usize) -> antecedent_core::ids::VariableId
+pub fn antecedent_identify::admg_adjustment::identify_admg_front_door_derivative(admg: &antecedent_graph::admg::Admg, query: &antecedent_core::query::response::ResponseQuery) -> core::result::Result<core::option::Option<antecedent_identify::IdentificationResult>, antecedent_identify::IdentificationError>
+pub fn antecedent_identify::admg_adjustment::identify_admg_response_adjustment(admg: &antecedent_graph::admg::Admg, query: &antecedent_core::query::response::ResponseQuery) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
+pub fn antecedent_identify::admg_adjustment::identify_cpdag_derivative_pairs(cpdag: &antecedent_graph::cpdag::Cpdag, query: &antecedent_core::query::response::ResponseQuery) -> core::result::Result<antecedent_identify::IdentificationEnvelope<antecedent_graph::dag::Dag>, antecedent_identify::IdentificationError>
+pub fn antecedent_identify::admg_adjustment::identify_pag_derivative_pairs(pag: &antecedent_graph::pag::Pag, query: &antecedent_core::query::response::ResponseQuery) -> core::result::Result<antecedent_identify::IdentificationEnvelope<antecedent_graph::pag::Pag>, antecedent_identify::IdentificationError>
+pub fn antecedent_identify::admg_adjustment::identify_temporal_admg_front_door_derivative(template: &antecedent_graph::temporal_admg::TemporalAdmg, probe: &antecedent_core::query::temporal::TemporalEffectQuery, query: &antecedent_core::query::response::ResponseQuery, variable_count: u32) -> core::result::Result<core::option::Option<antecedent_identify::TemporalAdmgAdjustment>, antecedent_identify::IdentificationError>
+pub fn antecedent_identify::admg_adjustment::identify_temporal_admg_response_adjustment(template: &antecedent_graph::temporal_admg::TemporalAdmg, probe: &antecedent_core::query::temporal::TemporalEffectQuery, query: &antecedent_core::query::response::ResponseQuery, variable_count: u32) -> core::result::Result<antecedent_identify::TemporalAdmgAdjustment, antecedent_identify::IdentificationError>
+pub fn antecedent_identify::admg_adjustment::upgrade_id_only_derivative_cases(envelope: &mut antecedent_identify::IdentificationEnvelope<antecedent_graph::pag::Pag>, query: &antecedent_core::query::response::ResponseQuery) -> core::result::Result<(), antecedent_identify::IdentificationError>
 pub fn antecedent_identify::backdoor::check_joint_adjustment(graph: &antecedent_graph::dag::Dag, treatments: &[antecedent_core::ids::VariableId], outcome: antecedent_core::ids::VariableId, adjustment: &[antecedent_core::ids::VariableId]) -> core::result::Result<core::option::Option<antecedent_identify::backdoor::CheckedJointAdjustment>, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::binary_iv_ate_bounds(law: antecedent_identify::BinaryIvLaw) -> core::result::Result<antecedent_core::response::IdentifiedSet<f64>, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::bind_mixed_source_catalog(graph: &antecedent_graph::admg::Admg, derivation: &antecedent_identify::MixedSourceDerivation, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog) -> core::result::Result<antecedent_identify::BoundMixedSourceFunctional, antecedent_identify::IdentificationError>
@@ -5397,6 +5460,8 @@ pub fn antecedent_identify::experimental_recovery::as_recovered_mechanism(draw: 
 pub fn antecedent_identify::experimental_recovery::joint_draw_from_blocks(nodes: &[antecedent_core::ids::VariableId], blocks: &[antecedent_identify::experimental_recovery::AssembledCoefficientRecovery], intercept: alloc::vec::Vec<f64>, noise_mean: alloc::vec::Vec<f64>, noise_covariance: alloc::vec::Vec<f64>, weight: f64) -> core::result::Result<antecedent_identify::experimental_recovery::JointRecoveryDraw, antecedent_identify::experimental_recovery::UncertaintyFault>
 pub fn antecedent_identify::experimental_recovery::recover_assembled_coefficients(block: &antecedent_identify::experiment_moments::TargetConstraintBlock, asserted_rank: core::option::Option<&antecedent_identify::DeclaredEquationRank>, weak_stability: antecedent_identify::WeakStability) -> antecedent_identify::experimental_recovery::AssembledCoefficientRecovery
 pub fn antecedent_identify::experimental_recovery::regime_is_identified(decision: &antecedent_identify::ExperimentalRecoveryDecision, design: &[antecedent_identify::DeclaredClampExperiment], regime: &antecedent_identify::DeclaredClampExperiment) -> bool
+pub fn antecedent_identify::generalized::invisible_directed_edges(mag: &antecedent_graph::pag::Pag) -> alloc::vec::Vec<(antecedent_graph::types::DenseNodeId, antecedent_graph::types::DenseNodeId)>
+pub fn antecedent_identify::generalized::mag_to_confounded_admg(mag: &antecedent_graph::pag::Pag) -> core::option::Option<antecedent_graph::admg::Admg>
 pub fn antecedent_identify::history_identification::identify_history(target: antecedent_identify::history_identification::HistoryIdentificationTarget, graph: &antecedent_graph::temporal::TemporalDag, focus: antecedent_core::temporal::TemporalNodeKey, initial_law: core::option::Option<&antecedent_core::scientific_target::model::InitialLaw>, bound: antecedent_identify::history_identification::HistorySearchBound) -> core::result::Result<antecedent_identify::history_identification::HistoryIdentification, antecedent_identify::history_identification::HistoryIdentificationRefusal>
 pub fn antecedent_identify::identify_catalog_transport(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ClassicalTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::CatalogTransportResult, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::identify_catalog_transport_selection_standardization_first(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ClassicalTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::CatalogTransportResult, antecedent_identify::IdentificationError>
@@ -5448,6 +5513,8 @@ pub fn antecedent_identify::sid::verify_z_transport_derivation(diagram: &anteced
 pub fn antecedent_identify::temporal_admg::identify_temporal_admg_contrast(template: &antecedent_graph::temporal_admg::TemporalAdmg, query: &antecedent_core::query::temporal::TemporalEffectQuery) -> core::result::Result<antecedent_identify::temporal_admg::TemporalAdmgIdentification, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::temporal_admg::identify_temporal_admg_contrast_over(template: &antecedent_graph::temporal_admg::TemporalAdmg, query: &antecedent_core::query::temporal::TemporalEffectQuery, variable_count: u32) -> core::result::Result<antecedent_identify::temporal_admg::TemporalAdmgIdentification, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::temporal_admg::plan_temporal_admg_window(template: &antecedent_graph::temporal_admg::TemporalAdmg, query: &antecedent_core::query::temporal::TemporalEffectQuery) -> core::result::Result<antecedent_identify::temporal_admg::TemporalAdmgWindowPlan, antecedent_identify::IdentificationError>
+pub fn antecedent_identify::temporal_pag_mediation_window(template: &antecedent_graph::temporal_pag::TemporalPag, effect: &antecedent_core::query::temporal::TemporalEffectQuery, query: &antecedent_core::query::mediation::MediationQuery, variable_count: u32) -> core::result::Result<antecedent_identify::TemporalPagMediationWindow, antecedent_identify::IdentificationError>
+pub mod antecedent_identify::admg_adjustment
 pub mod antecedent_identify::assumptions
 pub mod antecedent_identify::auto
 pub mod antecedent_identify::backdoor
@@ -5497,6 +5564,7 @@ pub mod antecedent_identify::transport
 pub struct antecedent_identify::AcceptedRegimeContract
 pub struct antecedent_identify::AcceptedRegimeContract has private fields
 pub struct antecedent_identify::AdjustmentSearchConfig
+pub struct antecedent_identify::AdmgCandidates
 pub struct antecedent_identify::AutoIdentifier
 pub struct antecedent_identify::BackdoorIdentifier
 pub struct antecedent_identify::BinaryIvLaw
@@ -5519,6 +5587,7 @@ pub struct antecedent_identify::ChainRecoveryWitness
 pub struct antecedent_identify::ChainWitnessCheck
 pub struct antecedent_identify::ChainWitnessMechanism
 pub struct antecedent_identify::ClampExperimentSet
+pub struct antecedent_identify::ClassTransportEnvelope<G>
 pub struct antecedent_identify::ClassicalTransportDerivation
 pub struct antecedent_identify::ClassicalTransportDerivation has private fields
 pub struct antecedent_identify::ClassicalTransportQuery
@@ -5658,12 +5727,14 @@ pub struct antecedent_identify::StudyPlanRefusal
 pub struct antecedent_identify::StudyProposal
 pub struct antecedent_identify::StudyRepair
 pub struct antecedent_identify::StudySubsetRecord
+pub struct antecedent_identify::TemporalAdmgAdjustment
 pub struct antecedent_identify::TemporalBackdoorIdentifier
 pub struct antecedent_identify::TemporalClassEnvelope
 pub struct antecedent_identify::TemporalIdentificationResult
 pub struct antecedent_identify::TemporalIvIdentifier
 pub struct antecedent_identify::TemporalIvResult
 pub struct antecedent_identify::TemporalMediationIdentifier
+pub struct antecedent_identify::TemporalPagMediationWindow
 pub struct antecedent_identify::TransportCertificate
 pub struct antecedent_identify::TransportIdentifier
 pub struct antecedent_identify::TwoSourceZTransportComponent
@@ -5804,6 +5875,7 @@ pub trait fn fn antecedent_identify::Identifier::prepare(&self, graph: &G, assum
 pub trait type antecedent_identify::Identifier::Prepared
 pub use antecedent_identify::IdentificationStatus = result::IdentificationStatus
 pub use antecedent_identify::IdentifiedEstimand = result::IdentifiedEstimand
+pub use antecedent_identify::admg_adjustment::TemporalAdmgAdjustment = antecedent_identify::TemporalAdmgAdjustment
 pub use antecedent_identify::auto::AutoIdentifier = antecedent_identify::AutoIdentifier
 pub use antecedent_identify::auto::PreparedAutoGraph = antecedent_identify::PreparedAutoGraph
 pub use antecedent_identify::backdoor::AdjustmentSearchConfig = antecedent_identify::AdjustmentSearchConfig
@@ -5876,8 +5948,16 @@ pub use antecedent_identify::id::ScheduleContrast = antecedent_identify::Schedul
 pub use antecedent_identify::idc::IdcIdentifier = antecedent_identify::IdcIdentifier
 pub use antecedent_identify::identifier::IdentificationWorkspace = antecedent_identify::IdentificationWorkspace
 pub use antecedent_identify::identifier::Identifier = antecedent_identify::Identifier
+pub use antecedent_identify::identify_admg_front_door_derivative = antecedent_identify::admg_adjustment::identify_admg_front_door_derivative
+pub use antecedent_identify::identify_admg_response_adjustment = antecedent_identify::admg_adjustment::identify_admg_response_adjustment
+pub use antecedent_identify::identify_cpdag_derivative_pairs = antecedent_identify::admg_adjustment::identify_cpdag_derivative_pairs
+pub use antecedent_identify::identify_pag_derivative_pairs = antecedent_identify::admg_adjustment::identify_pag_derivative_pairs
+pub use antecedent_identify::identify_temporal_admg_front_door_derivative = antecedent_identify::admg_adjustment::identify_temporal_admg_front_door_derivative
+pub use antecedent_identify::identify_temporal_admg_response_adjustment = antecedent_identify::admg_adjustment::identify_temporal_admg_response_adjustment
+pub use antecedent_identify::invisible_directed_edges = antecedent_identify::generalized::invisible_directed_edges
 pub use antecedent_identify::iv::InstrumentSearchConfig = antecedent_identify::InstrumentSearchConfig
 pub use antecedent_identify::iv::InstrumentalVariableIdentifier = antecedent_identify::InstrumentalVariableIdentifier
+pub use antecedent_identify::mag_to_confounded_admg = antecedent_identify::generalized::mag_to_confounded_admg
 pub use antecedent_identify::path_specific::PathSpecificIdentifier = antecedent_identify::PathSpecificIdentifier
 pub use antecedent_identify::prepared::PreparedAdmg = antecedent_identify::PreparedAdmg
 pub use antecedent_identify::prepared::dag_to_admg = antecedent_identify::dag_to_admg
@@ -6130,6 +6210,7 @@ pub use antecedent_identify::transport::TransportCertificate = antecedent_identi
 pub use antecedent_identify::transport::TransportFormula = antecedent_identify::TransportFormula
 pub use antecedent_identify::transport::TransportIdentification = antecedent_identify::TransportIdentification
 pub use antecedent_identify::transport::TransportIdentifier = antecedent_identify::TransportIdentifier
+pub use antecedent_identify::upgrade_id_only_derivative_cases = antecedent_identify::admg_adjustment::upgrade_id_only_derivative_cases
 pub use antecedent_identify::validate_mixed_source_query = antecedent_identify::sid::validate_mixed_source_query
 pub use antecedent_identify::validate_mz_transport_query = antecedent_identify::sid::validate_mz_transport_query
 pub use antecedent_identify::validate_regime_contract = antecedent_identify::experiment_regime::validate_regime_contract
