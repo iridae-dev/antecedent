@@ -18,6 +18,10 @@ pub struct JointDesignCapability {
     pub compiled_native_port: bool,
     /// Explicit implementation obligations still outstanding; not scientific boundaries.
     pub implementation_gaps: &'static [&'static str],
+    /// Limits of the declared statistical procedure, separate from missing implementation.
+    pub statistical_limitations: &'static [&'static str],
+    /// Registered stable-candidate measurement status; implementation tests grant no release license.
+    pub calibration: &'static str,
 }
 /// Required catalogue, including every promised design rather than only passing rows.
 pub const JOINT_DESIGN_CAPABILITIES: [JointDesignCapability; 7] = [
@@ -28,7 +32,11 @@ pub const JOINT_DESIGN_CAPABILITIES: [JointDesignCapability; 7] = [
         target: "complete-program means and prespecified joint contrasts",
         compiled_world_port: true,
         compiled_native_port: true,
-        implementation_gaps: &["complete release calibration remains candidate-bound"],
+        implementation_gaps: &[],
+        statistical_limitations: &[
+            "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license",
+        ],
+        calibration: "registered_unmeasured_candidate_bound",
     },
     JointDesignCapability {
         design: "switchback",
@@ -37,10 +45,11 @@ pub const JOINT_DESIGN_CAPABILITIES: [JointDesignCapability; 7] = [
         target: "finite-carryover joint-history means over eligible periods",
         compiled_world_port: false,
         compiled_native_port: true,
-        implementation_gaps: &[
-            "scientific world-source adapter for history-averaged targets",
-            "independent all-stage chain reference matrix",
+        implementation_gaps: &[],
+        statistical_limitations: &[
+            "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license",
         ],
+        calibration: "registered_unmeasured_candidate_bound",
     },
     JointDesignCapability {
         design: "geo_experiment",
@@ -49,7 +58,11 @@ pub const JOINT_DESIGN_CAPABILITIES: [JointDesignCapability; 7] = [
         target: "fixed population-weighted cluster joint-program means with latent unit-response hierarchical posterior",
         compiled_world_port: true,
         compiled_native_port: true,
-        implementation_gaps: &["complete release calibration remains candidate-bound"],
+        implementation_gaps: &[],
+        statistical_limitations: &[
+            "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license",
+        ],
+        calibration: "registered_unmeasured_candidate_bound",
     },
     JointDesignCapability {
         design: "sequential_observational",
@@ -58,23 +71,26 @@ pub const JOINT_DESIGN_CAPABILITIES: [JointDesignCapability; 7] = [
         target: "full-history longitudinal g-formula means with treatment-affected covariates",
         compiled_world_port: true,
         compiled_native_port: true,
-        implementation_gaps: &[
-            "continuous conditional-mechanism generalization",
-            "complete release calibration remains candidate-bound",
+        implementation_gaps: &[],
+        statistical_limitations: &[
+            "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license",
         ],
+        calibration: "registered_unmeasured_candidate_bound",
     },
     JointDesignCapability {
         design: "instrumented_dose",
         frequentist_owner: Some("joint_design::instrumented::instrumented_joint_contrasts"),
         bayesian_owner: Some("joint_design::instrumented::instrumented_joint_posterior"),
-        target: "joint structural-feature moment contrasts, distinct from local/complier effects",
+        target: "joint structural-feature moment contrasts and separately retained encouragement-specific local/complier effects",
         compiled_world_port: false,
         compiled_native_port: true,
-        implementation_gaps: &[
-            "scientific world-source and experiment consumer adapters for native contrast targets",
-            "weak-identification robust uncertainty",
-            "independent all-stage chain reference matrix",
+        implementation_gaps: &[],
+        statistical_limitations: &[
+            "structural whole-unit jackknife is asymptotic, not weak-IV robust",
+            "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
+            "Gaussian structural likelihood is distinct from encouragement-specific local score law",
         ],
+        calibration: "registered_unmeasured_candidate_bound",
     },
     JointDesignCapability {
         design: "difference_in_differences",
@@ -83,10 +99,11 @@ pub const JOINT_DESIGN_CAPABILITIES: [JointDesignCapability; 7] = [
         target: "joint-regime cohort-time ATT against supported untreated cohorts",
         compiled_world_port: false,
         compiled_native_port: true,
-        implementation_gaps: &[
-            "scientific world-source and experiment consumer adapters for native contrast targets",
-            "independent all-stage chain reference matrix",
+        implementation_gaps: &[],
+        statistical_limitations: &[
+            "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license",
         ],
+        calibration: "registered_unmeasured_candidate_bound",
     },
     JointDesignCapability {
         design: "synthetic_control",
@@ -95,9 +112,10 @@ pub const JOINT_DESIGN_CAPABILITIES: [JointDesignCapability; 7] = [
         target: "joint rollout contrasts against explicitly unaffected donor/reference worlds",
         compiled_world_port: false,
         compiled_native_port: true,
-        implementation_gaps: &[
-            "scientific world-source and experiment consumer adapters for native contrast targets",
-            "independent all-stage chain reference matrix",
+        implementation_gaps: &[],
+        statistical_limitations: &[
+            "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license",
         ],
+        calibration: "registered_unmeasured_candidate_bound",
     },
 ];

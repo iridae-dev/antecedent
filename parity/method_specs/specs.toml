@@ -2560,6 +2560,7 @@ estimator = "Exhaustive evaluation of declared feasible finite candidates throug
 diagnostics = "Every operational/risk exclusion, exact source and search identities; selected-decision reliability unmeasured. Finite-set certificate only under the retained supplied law."
 failure_policy = "Unsupported scientific scope or incomplete uncertainty refuses; resource/cancellation failure grants no complete certificate. A supplied-set optimum does not establish a continuous or statistically calibrated optimum."
 references = [
+  "parity/fixtures/joint_panel_search.toml (X04.3 compiler-derived global bounds, actual held-out selection and complete-procedure replay)",
   "Release scope and gates",
   "X04 — Search a typed space of intervention programs",
   "Plan backward from the decision",
@@ -2580,6 +2581,7 @@ estimator = "Bounded coordinate pattern search through a frozen-fit compiler ada
 diagnostics = "Every operational/risk exclusion, exact source and search identities; selected-decision reliability unmeasured. Best feasible point, explicit stop/failures, gap absent unless a valid bound exists, no global certificate."
 failure_policy = "Unsupported scientific scope or incomplete uncertainty refuses; resource/cancellation failure grants no complete certificate. Comparative optimality/regret and robust structure refuse without their required competitor/set law; finite search remains the supported fallback."
 references = [
+  "parity/fixtures/joint_panel_search.toml (X04.3 compiler-derived global bounds, actual held-out selection and complete-procedure replay)",
   "Release scope and gates",
   "X04 — Search a typed space of intervention programs",
   "Plan backward from the decision",
@@ -2600,6 +2602,7 @@ estimator = "Exhaustive evaluation of declared feasible finite candidates throug
 diagnostics = "Every operational/risk exclusion, exact source and search identities; selected-decision reliability unmeasured. Finite-set certificate only under the retained supplied law."
 failure_policy = "Unsupported scientific scope or incomplete uncertainty refuses; resource/cancellation failure grants no complete certificate. A supplied-set optimum does not establish a continuous or statistically calibrated optimum."
 references = [
+  "parity/fixtures/joint_panel_search.toml (X04.3 compiler-derived global bounds, actual held-out selection and complete-procedure replay)",
   "Release scope and gates",
   "X04 — Search a typed space of intervention programs",
   "Plan backward from the decision",
@@ -2620,6 +2623,7 @@ estimator = "Bounded coordinate pattern search through a frozen-fit compiler ada
 diagnostics = "Every operational/risk exclusion, exact source and search identities; selected-decision reliability unmeasured. Best feasible point, explicit stop/failures, gap absent unless a valid bound exists, no global certificate."
 failure_policy = "Unsupported scientific scope or incomplete uncertainty refuses; resource/cancellation failure grants no complete certificate. Comparative optimality/regret and robust structure refuse without their required competitor/set law; finite search remains the supported fallback."
 references = [
+  "parity/fixtures/joint_panel_search.toml (X04.3 compiler-derived global bounds, actual held-out selection and complete-procedure replay)",
   "Release scope and gates",
   "X04 — Search a typed space of intervention programs",
   "Plan backward from the decision",
@@ -2640,6 +2644,7 @@ estimator = "Exhaustive evaluation of declared feasible finite candidates throug
 diagnostics = "Every operational/risk exclusion, exact source and search identities; selected-decision reliability unmeasured. Finite-set certificate only under the retained supplied law."
 failure_policy = "Unsupported scientific scope or incomplete uncertainty refuses; resource/cancellation failure grants no complete certificate. A supplied-set optimum does not establish a continuous or statistically calibrated optimum."
 references = [
+  "parity/fixtures/joint_panel_search.toml (X04.3 compiler-derived global bounds, actual held-out selection and complete-procedure replay)",
   "Release scope and gates",
   "X04 — Search a typed space of intervention programs",
   "Plan backward from the decision",
@@ -2660,6 +2665,7 @@ estimator = "Bounded coordinate pattern search through a frozen-fit compiler ada
 diagnostics = "Every operational/risk exclusion, exact source and search identities; selected-decision reliability unmeasured. Best feasible point, explicit stop/failures, gap absent unless a valid bound exists, no global certificate."
 failure_policy = "Unsupported scientific scope or incomplete uncertainty refuses; resource/cancellation failure grants no complete certificate. Comparative optimality/regret and robust structure refuse without their required competitor/set law; finite search remains the supported fallback."
 references = [
+  "parity/fixtures/joint_panel_search.toml (X04.3 compiler-derived global bounds, actual held-out selection and complete-procedure replay)",
   "Release scope and gates",
   "X04 — Search a typed space of intervention programs",
   "Plan backward from the decision",
@@ -2680,6 +2686,7 @@ estimator = "Exhaustive evaluation of declared feasible finite candidates throug
 diagnostics = "Every operational/risk exclusion, exact source and search identities; selected-decision reliability unmeasured. Finite-set certificate only under the retained supplied law."
 failure_policy = "Unsupported scientific scope or incomplete uncertainty refuses; resource/cancellation failure grants no complete certificate. A supplied-set optimum does not establish a continuous or statistically calibrated optimum."
 references = [
+  "parity/fixtures/joint_panel_search.toml (X04.3 compiler-derived global bounds, actual held-out selection and complete-procedure replay)",
   "Release scope and gates",
   "X04 — Search a typed space of intervention programs",
   "Plan backward from the decision",
@@ -2700,6 +2707,7 @@ estimator = "Bounded coordinate pattern search through a frozen-fit compiler ada
 diagnostics = "Every operational/risk exclusion, exact source and search identities; selected-decision reliability unmeasured. Best feasible point, explicit stop/failures, gap absent unless a valid bound exists, no global certificate."
 failure_policy = "Unsupported scientific scope or incomplete uncertainty refuses; resource/cancellation failure grants no complete certificate. Comparative optimality/regret and robust structure refuse without their required competitor/set law; finite search remains the supported fallback."
 references = [
+  "parity/fixtures/joint_panel_search.toml (X04.3 compiler-derived global bounds, actual held-out selection and complete-procedure replay)",
   "Release scope and gates",
   "X04 — Search a typed space of intervention programs",
   "Plan backward from the decision",
@@ -2709,17 +2717,20 @@ references = [
 [[spec]]
 id = "X05.static.frequentist"
 parent = "X05"
-gap = "target"
+gap = "validation"
 route = "unlisted"
-target = "experiment-to-decision closure"
-review_status = "blocked_research"
-identifying_result = "unlisted"
-assumptions = "unlisted"
-sampling_units = "unlisted"
-estimator = "unlisted"
-diagnostics = "unlisted"
-failure_policy = "Refuse this axis. Comprehensive closure is a longitudinal estimand translation. Static experiments remain P09."
+target = "static experimental estimand to original typed design target, conditional update, constrained decision and next-study net value"
+review_status = "not_admitted"
+identifying_result = "Original X07 scientific functional and source premises are retained, including local complier, structural feature, eligible switchback history, cohort ATT and treated-unit donor-reference targets; model-conditional panel projections retain their compiler proof."
+assumptions = "Explicit experimental population, time window, horizon, dose, duration, exposure, recency and spend translation; global mapping law and source dependence; transport for changed populations or horizons; independent likelihood evidence and all prior/mapping origins. Native ratio posterior moments require explicit bounded mapping support and a positive known-variance Gaussian experimental likelihood."
+sampling_units = "The actual source design units and original full histories, clustered geo assignments or donor/reference series are retained; the new Gaussian mean likelihood uses its separately declared independent experimental observations."
+estimator = "Actual frequentist native estimates retain their sampling law and typed target; attempting to use sampling uncertainty as a Bayesian prior produces a scoped refusal before downstream Bayesian updating. Proper native Bayesian counterparts provide the positive modular chain under the same original identification result."
+diagnostics = "The generated complete catalogue crosses statistical modes, deterministic/dependent mappings, five translations and three decision cases. Executed source-bound acceptance records retain independent original-target, posterior-weight/mean, constrained utility and nested EVSI reference checks, explicit quadrature bounds and Monte Carlo error, fresh-process original-data replay, evidence overlap/withdrawal and invalid premise counterexamples. Q08/E14 stable-candidate calibration procedures are registered and remain unmeasured."
+failure_policy = "Missing identification, incompatible target or translation, unsupported global mapping support, overlapping likelihood/prior evidence, incomplete fitted-law diagnostics and stale or withdrawn current authority refuse. Sampling-law uncertainty never becomes a Bayesian prior; local effects never become population effects. The update remains explicitly conditional and modular, not a joint refit."
 references = [
+  "conformance/response/joint_panel/experiment_reference.py (independent estimands, finite likelihood and bounded-error nested integration)",
+  "scripts/run_joint_panel_experiment_acceptance.py (executed full matrix and retained source-bound row evidence)",
+  "parity/joint_response_calibration.toml (registered stable-candidate full experiment-chain measurement)",
   "Release scope and gates",
   "X05 — Preserve experiment-to-update-to-decision meaning",
 ]
@@ -2727,17 +2738,20 @@ references = [
 [[spec]]
 id = "X05.temporal.frequentist"
 parent = "X05"
-gap = "theory"
+gap = "validation"
 route = "unlisted"
-target = "geo-experiment to longitudinal model to decision"
-review_status = "blocked_research"
-identifying_result = "Experiment estimand (population, window, dose, duration, regime) translated into a longitudinal model, with bridge uncertainty"
-assumptions = "Recency, duration, spend or exposure differences, transport, and source or mapping dependence stay in the bridge. The same experiment is not used twice through a prior and a later update. Experimental priors alone do not close the chain."
-sampling_units = "unlisted"
-estimator = "unlisted"
-diagnostics = "bridge uncertainty, update-to-decision trace, and exact invalidation; procedure unlisted"
-failure_policy = "An incompatible mapping refuses or returns an explicitly weaker conditional result. No proved map from a windowed experiment estimand through recency, dose, transport, and update to a decision."
+target = "temporal experimental estimand to original typed design target, conditional update, constrained decision and next-study net value"
+review_status = "not_admitted"
+identifying_result = "Original X07 scientific functional and source premises are retained, including local complier, structural feature, eligible switchback history, cohort ATT and treated-unit donor-reference targets; model-conditional panel projections retain their compiler proof."
+assumptions = "Explicit experimental population, time window, horizon, dose, duration, exposure, recency and spend translation; global mapping law and source dependence; transport for changed populations or horizons; independent likelihood evidence and all prior/mapping origins. Native ratio posterior moments require explicit bounded mapping support and a positive known-variance Gaussian experimental likelihood."
+sampling_units = "The actual source design units and original full histories, clustered geo assignments or donor/reference series are retained; the new Gaussian mean likelihood uses its separately declared independent experimental observations."
+estimator = "Actual frequentist native estimates retain their sampling law and typed target; attempting to use sampling uncertainty as a Bayesian prior produces a scoped refusal before downstream Bayesian updating. Proper native Bayesian counterparts provide the positive modular chain under the same original identification result."
+diagnostics = "The generated complete catalogue crosses statistical modes, deterministic/dependent mappings, five translations and three decision cases. Executed source-bound acceptance records retain independent original-target, posterior-weight/mean, constrained utility and nested EVSI reference checks, explicit quadrature bounds and Monte Carlo error, fresh-process original-data replay, evidence overlap/withdrawal and invalid premise counterexamples. Q08/E14 stable-candidate calibration procedures are registered and remain unmeasured."
+failure_policy = "Missing identification, incompatible target or translation, unsupported global mapping support, overlapping likelihood/prior evidence, incomplete fitted-law diagnostics and stale or withdrawn current authority refuse. Sampling-law uncertainty never becomes a Bayesian prior; local effects never become population effects. The update remains explicitly conditional and modular, not a joint refit."
 references = [
+  "conformance/response/joint_panel/experiment_reference.py (independent estimands, finite likelihood and bounded-error nested integration)",
+  "scripts/run_joint_panel_experiment_acceptance.py (executed full matrix and retained source-bound row evidence)",
+  "parity/joint_response_calibration.toml (registered stable-candidate full experiment-chain measurement)",
   "Release scope and gates",
   "X05 — Preserve experiment-to-update-to-decision meaning",
   "Standardize the envelope and preserve the representation",
@@ -2746,17 +2760,20 @@ references = [
 [[spec]]
 id = "X05.static.bayesian"
 parent = "X05"
-gap = "target"
+gap = "validation"
 route = "unlisted"
-target = "experiment-to-decision closure"
-review_status = "blocked_research"
-identifying_result = "unlisted"
-assumptions = "unlisted"
-sampling_units = "unlisted"
-estimator = "unlisted"
-diagnostics = "unlisted"
-failure_policy = "Refuse this axis. Comprehensive closure is a longitudinal estimand translation. Static experiments remain P09."
+target = "static experimental estimand to original typed design target, conditional update, constrained decision and next-study net value"
+review_status = "not_admitted"
+identifying_result = "Original X07 scientific functional and source premises are retained, including local complier, structural feature, eligible switchback history, cohort ATT and treated-unit donor-reference targets; model-conditional panel projections retain their compiler proof."
+assumptions = "Explicit experimental population, time window, horizon, dose, duration, exposure, recency and spend translation; global mapping law and source dependence; transport for changed populations or horizons; independent likelihood evidence and all prior/mapping origins. Native ratio posterior moments require explicit bounded mapping support and a positive known-variance Gaussian experimental likelihood."
+sampling_units = "The actual source design units and original full histories, clustered geo assignments or donor/reference series are retained; the new Gaussian mean likelihood uses its separately declared independent experimental observations."
+estimator = "JointLawExperimentResult and NativeJointExperimentResult condition genuine retained native or full-panel posterior draws using FrozenJointImportance, explicit paired affine mapping and an independent known-variance Gaussian experimental likelihood; constrained utility enumeration and weighted next-study integration consume the resulting same joint law."
+diagnostics = "The generated complete catalogue crosses statistical modes, deterministic/dependent mappings, five translations and three decision cases. Executed source-bound acceptance records retain independent original-target, posterior-weight/mean, constrained utility and nested EVSI reference checks, explicit quadrature bounds and Monte Carlo error, fresh-process original-data replay, evidence overlap/withdrawal and invalid premise counterexamples. Q08/E14 stable-candidate calibration procedures are registered and remain unmeasured."
+failure_policy = "Missing identification, incompatible target or translation, unsupported global mapping support, overlapping likelihood/prior evidence, incomplete fitted-law diagnostics and stale or withdrawn current authority refuse. Sampling-law uncertainty never becomes a Bayesian prior; local effects never become population effects. The update remains explicitly conditional and modular, not a joint refit."
 references = [
+  "conformance/response/joint_panel/experiment_reference.py (independent estimands, finite likelihood and bounded-error nested integration)",
+  "scripts/run_joint_panel_experiment_acceptance.py (executed full matrix and retained source-bound row evidence)",
+  "parity/joint_response_calibration.toml (registered stable-candidate full experiment-chain measurement)",
   "Release scope and gates",
   "X05 — Preserve experiment-to-update-to-decision meaning",
 ]
@@ -2764,17 +2781,20 @@ references = [
 [[spec]]
 id = "X05.temporal.bayesian"
 parent = "X05"
-gap = "theory"
+gap = "validation"
 route = "unlisted"
-target = "geo-experiment to longitudinal model to decision"
-review_status = "blocked_research"
-identifying_result = "Experiment estimand (population, window, dose, duration, regime) translated into a longitudinal model, with bridge uncertainty"
-assumptions = "Recency, duration, spend or exposure differences, transport, and source or mapping dependence stay in the bridge. The same experiment is not used twice through a prior and a later update. Experimental priors alone do not close the chain."
-sampling_units = "Declared independent experimental mean observation and inherited model posterior law, with explicit disjoint data/prior/mapping evidence origins."
-estimator = "FrozenJointImportance modular update of actual shared panel posterior realizations under a known-variance Gaussian experiment-mean likelihood and paired finite affine bridge uncertainty; weighted existing preposterior ranking for additional samples of the same mapped estimand."
-diagnostics = "Bridge licensing/units/population/window/duration/exposure/recency/spend/dependence checks, effective finite weights, changed response/decision, current ledger revisions and net future-data value after cost; calibration unmeasured."
-failure_policy = "Missing/incompatible mapping, duplicate evidence, frequentist approximation used as posterior, incomplete mixing/draws or stale current authority refuses. The weaker result is explicitly conditional on the frozen model and licensed mapping. Ranking new regimes without bridges refuses; additional samples of the same mapped estimand provide the smaller ranking."
+target = "temporal experimental estimand to original typed design target, conditional update, constrained decision and next-study net value"
+review_status = "not_admitted"
+identifying_result = "Original X07 scientific functional and source premises are retained, including local complier, structural feature, eligible switchback history, cohort ATT and treated-unit donor-reference targets; model-conditional panel projections retain their compiler proof."
+assumptions = "Explicit experimental population, time window, horizon, dose, duration, exposure, recency and spend translation; global mapping law and source dependence; transport for changed populations or horizons; independent likelihood evidence and all prior/mapping origins. Native ratio posterior moments require explicit bounded mapping support and a positive known-variance Gaussian experimental likelihood."
+sampling_units = "The actual source design units and original full histories, clustered geo assignments or donor/reference series are retained; the new Gaussian mean likelihood uses its separately declared independent experimental observations."
+estimator = "JointLawExperimentResult and NativeJointExperimentResult condition genuine retained native or full-panel posterior draws using FrozenJointImportance, explicit paired affine mapping and an independent known-variance Gaussian experimental likelihood; constrained utility enumeration and weighted next-study integration consume the resulting same joint law."
+diagnostics = "The generated complete catalogue crosses statistical modes, deterministic/dependent mappings, five translations and three decision cases. Executed source-bound acceptance records retain independent original-target, posterior-weight/mean, constrained utility and nested EVSI reference checks, explicit quadrature bounds and Monte Carlo error, fresh-process original-data replay, evidence overlap/withdrawal and invalid premise counterexamples. Q08/E14 stable-candidate calibration procedures are registered and remain unmeasured."
+failure_policy = "Missing identification, incompatible target or translation, unsupported global mapping support, overlapping likelihood/prior evidence, incomplete fitted-law diagnostics and stale or withdrawn current authority refuse. Sampling-law uncertainty never becomes a Bayesian prior; local effects never become population effects. The update remains explicitly conditional and modular, not a joint refit."
 references = [
+  "conformance/response/joint_panel/experiment_reference.py (independent estimands, finite likelihood and bounded-error nested integration)",
+  "scripts/run_joint_panel_experiment_acceptance.py (executed full matrix and retained source-bound row evidence)",
+  "parity/joint_response_calibration.toml (registered stable-candidate full experiment-chain measurement)",
   "Release scope and gates",
   "X05 — Preserve experiment-to-update-to-decision meaning",
   "Standardize the envelope and preserve the representation",

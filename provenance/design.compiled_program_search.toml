@@ -4,7 +4,7 @@ source_translation = false
 copied_code = false
 copied_comments = false
 copied_tests = false
-papers = ["https://stanford.edu/~boyd/cvxbook/bv_cvxslides.pdf"]
+papers = [{ title = "Convex Optimization", url = "https://stanford.edu/~boyd/cvxbook/bv_cvxslides.pdf", sections = ["Chapter 5: Lagrangian duality; weak duality and dual feasible lower bounds (applied to negative utility)"] }]
 implementation_deviations = [
   "Independent deterministic exhaustive finite-set comparison and bounded coordinate pattern search; the existing decision functional engine evaluates every mean/law objective and hard risk constraint.",
   "Operational bounds, scheduled control costs, budget and linear restrictions remain hard feasibility conditions. No objective penalty stands in for feasibility.",
@@ -29,4 +29,7 @@ test_sources = [
   "crates/antecedent-design/src/program_search/selection/procedure.rs",
   "crates/antecedent-estimate/src/joint_panel/expression.rs",
   "crates/antecedent/tests/joint_panel_workflow.rs",
+  "crates/antecedent/src/analysis/joint_panel/selection.rs",
+  "crates/antecedent/src/analysis/joint_panel/selection/instrumented.rs",
+  "python/tests/test_joint_panel.py",
 ]

@@ -98,7 +98,7 @@ pub fn switchback_joint_posterior(
         || prior.sequence_variance.len() != sequences.len()
         || prior.sequence_rho.len() != sequences.len()
         || prior.draws < 2
-        || prior.draws > 100000
+        || prior.draws > 100_000
         || prior.mean.iter().any(|v| !v.is_finite())
         || prior
             .variance
@@ -177,7 +177,10 @@ pub fn switchback_joint_posterior(
     )
     .map_err(|e| e.to_string())?
     .to_vec();
-    let draws = raw.chunks_exact(k).map(<[f64]>::to_vec).collect();
+    // The shared MVN sampler stores coordinate-major columns. Restore draw-major
+    // rows explicitly so one row remains one complete joint mechanism realization.
+    let draws =
+        (0..prior.draws).map(|d| (0..k).map(|j| raw[j * prior.draws + d]).collect()).collect();
     JointDesignPosterior::from_draws(design.worlds.iter().map(|(key,_)|key.clone()).collect(),draws,"independently randomized complete sequence".into(),"Gaussian stationary joint-history conditional means with declared known sequence AR(1) residual covariance and proper independent Gaussian mean priors; finite-carryover no-anticipation design retained".into())
 }
 

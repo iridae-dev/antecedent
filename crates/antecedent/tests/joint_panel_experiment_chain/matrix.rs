@@ -2,6 +2,12 @@
 //! Independent finite-law references across every admitted response projection,
 //! deterministic/dependent mappings and changed exposure/population translations.
 use super::*;
+mod acceptance_record {
+    include!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../conformance/response/joint_panel/acceptance_record.rs"
+    ));
+}
 
 pub(super) fn exercise(
     prepared: &PreparedStudy<JointPanelState>,
@@ -16,7 +22,7 @@ pub(super) fn exercise(
             coefficients: (0..horizon).map(|t| if t + 2 >= horizon { 0.5 } else { 0.0 }).collect(),
         },
     ];
-    for functional in functionals {
+    for (functional_index, functional) in functionals.into_iter().enumerate() {
         for uncertain in [false, true] {
             for translation_case in 0..5 {
                 let fixture =
@@ -25,12 +31,28 @@ pub(super) fn exercise(
                     .condition_experiment(fixture.update.clone(), &fixture.ledger, ctx)
                     .expect("declared finite paired translation executes without a refit");
                 verify_independent_likelihood_reference(original, &updated, &fixture);
-                verify_constrained_decision(&updated, &fixture);
-                verify_next_study(&updated, &fixture, ctx);
+                let feasible_actions = verify_constrained_decision(&updated, &fixture);
+                let free_study = verify_next_study(&updated, &fixture, vec![0, 1], 0.0, ctx);
+                let constrained_study =
+                    verify_next_study(&updated, &fixture, feasible_actions, 1e-7, ctx);
+                assert_ne!(
+                    free_study["admissible_action_identity"],
+                    constrained_study["admissible_action_identity"]
+                );
                 verify_evidence_changes_decision(original, &updated, &fixture, ctx);
                 // Replay binds the translated quantities, the exact mapping slots,
                 // observed evidence and the weighted law, not merely an output mean.
                 verify_experiment_artifacts(prepared, &updated, &fixture, ctx);
+                let functional_name =
+                    ["terminal_mean", "window_average", "weighted_sum"][functional_index];
+                acceptance_record::record(
+                    &format!("retained_panel::{functional_name}"),
+                    uncertain,
+                    translation_case,
+                    "retained_panel",
+                    &original.dependency_identity().to_hex(),
+                    serde_json::json!({"constrained_next_study":constrained_study,"unconstrained_next_study":free_study,"independent_likelihood_and_posterior":"checked","constrained_utility_and_ties":"checked","nested_next_study_reference":"checked_with_quadrature_bound_and_mcse","fresh_original_fit_and_update_replay":"checked","changed_evidence":"checked"}),
+                );
             }
         }
     }
@@ -58,13 +80,14 @@ fn translated_fixture(
         let (mx, my) = (mean(x), mean(y));
         x.iter().zip(y).map(|(a, b)| (a - mx) * (b - my)).sum::<f64>() / n
     };
+    let state_mean = mean(&states);
     let slopes = states
         .iter()
-        .map(|v| if uncertain { 1.2 + 0.04 * (v - mean(&states)).tanh() } else { 1.2 })
+        .map(|v| if uncertain { 1.2 + 0.04 * (v - state_mean).tanh() } else { 1.2 })
         .collect::<Vec<_>>();
     let intercepts = states
         .iter()
-        .map(|v| if uncertain { 0.15 + 0.02 * (v - mean(&states)).tanh() } else { 0.15 })
+        .map(|v| if uncertain { 0.15 + 0.02 * (v - state_mean).tanh() } else { 0.15 })
         .collect::<Vec<_>>();
     let target = original.experiment_quantity(&functional).unwrap();
     let mut bridge =
@@ -139,7 +162,10 @@ fn translated_fixture(
     fixture
 }
 
-fn verify_constrained_decision(updated: &PanelExperimentResult, fixture: &ExperimentFixture) {
+fn verify_constrained_decision(
+    updated: &PanelExperimentResult,
+    fixture: &ExperimentFixture,
+) -> Vec<usize> {
     let law = updated.numerical_law_source(&fixture.ledger).unwrap();
     let weights = law.metadata().weights.as_ref().unwrap();
     let width = fixture.coefficients.len();
@@ -218,6 +244,7 @@ fn verify_constrained_decision(updated: &PanelExperimentResult, fixture: &Experi
     let reference_evpi =
         values.iter().zip(weights).map(|(v, w)| w * (v - costs[2]).max(0.0)).sum::<f64>();
     assert!((actual.evpi.unwrap() - reference_evpi).abs() < 1e-9);
+    actual.actions.iter().enumerate().filter_map(|(i, a)| a.admissible.then_some(i)).collect()
 }
 
 fn verify_evidence_changes_decision(
@@ -257,8 +284,10 @@ fn verify_evidence_changes_decision(
 fn verify_next_study(
     updated: &PanelExperimentResult,
     fixture: &ExperimentFixture,
+    actions: Vec<usize>,
+    cost_shift: f64,
     ctx: &ExecutionContext,
-) {
+) -> serde_json::Value {
     let mean = updated
         .response_means(&fixture.ledger)
         .unwrap()
@@ -266,9 +295,11 @@ fn verify_next_study(
         .iter()
         .zip(&fixture.coefficients)
         .map(|(v, c)| v * c)
-        .sum::<f64>();
+        .sum::<f64>()
+        + cost_shift;
+    let action_ids = actions.clone();
     let problem = DecisionProblem::new(
-        vec![0, 1],
+        actions,
         Arc::new(ContrastUtility { coefficients: fixture.coefficients.clone(), threshold: mean }),
         vec![],
     );
@@ -290,12 +321,13 @@ fn verify_next_study(
         updated.rank_next_samples(&problem, &candidates, 32, &fixture.ledger, ctx).unwrap();
     let (reference, error) = reference_next_study_value(updated, fixture, mean);
     assert_eq!(ranking[0].id, "small_cost");
-    for candidate in ranking {
+    for candidate in &ranking {
         let tolerance = error + 6.0 * candidate.standard_error + 1e-9;
         assert!((candidate.gross_evsi - reference).abs() <= tolerance);
         let cost = if candidate.id == "small_cost" { 0.02 } else { 0.07 };
         assert!((candidate.net_value.unwrap() - (reference - cost)).abs() <= tolerance);
     }
+    serde_json::json!({"evsi_reference":reference,"evsi_absolute_error":(ranking[0].gross_evsi-reference).abs(),"quadrature_error_bound":error,"evsi_mcse":ranking[0].standard_error,"admissible_action_identity":ranking[0].admissible_action_identity.to_hex(),"operational_action_ids":action_ids,"terminal_cost":mean,"net_value":ranking[0].net_value})
 }
 
 fn verify_fitless_native_law_adapter(original: &JointPanelResult, ctx: &ExecutionContext) {
@@ -478,7 +510,13 @@ fn native_randomized_chain(target: &antecedent_core::ScientificTarget, ctx: &Exe
                 (prior_law.mean(arm).unwrap() - expected).abs() < 8.0 * (variance / 512.0).sqrt()
             );
         }
-        exercise_native_source(&result, ctx);
+        let (family, case) = match sampling_unit {
+            "participant_factorial" => ("factorial_multi_arm", "compiled_world_factorial"),
+            "participant_multiarm" => ("factorial_multi_arm", "compiled_world_multi_arm"),
+            _ => ("geo_experiment", "compiled_world_geo"),
+        };
+        exercise_native_source(&result, family, case, ctx);
+        record_world_refusal(&frequentist, family, case);
         let artifact = result.export_artifact().unwrap();
         prepared.consume_current(&artifact, ctx).unwrap();
     }
@@ -486,11 +524,13 @@ fn native_randomized_chain(target: &antecedent_core::ScientificTarget, ctx: &Exe
 
 fn exercise_native_source(
     design: &antecedent::analysis::joint_panel::designs::JointDesignResult,
+    family: &str,
+    case: &str,
     ctx: &ExecutionContext,
 ) {
     for uncertain in [false, true] {
         for translation in 0..5 {
-            exercise_native_source_variant(design, uncertain, translation, ctx);
+            exercise_native_source_variant(design, uncertain, translation, family, case, ctx);
         }
     }
 }
@@ -498,6 +538,8 @@ fn exercise_native_source_variant(
     design: &antecedent::analysis::joint_panel::designs::JointDesignResult,
     uncertain: bool,
     translation: usize,
+    family: &str,
+    case: &str,
     ctx: &ExecutionContext,
 ) {
     let source = design.posterior_source().unwrap();
@@ -680,7 +722,7 @@ fn exercise_native_source_variant(
     }
     let problem = DecisionProblem::new(
         vec![0, 1],
-        Arc::new(ContrastUtility { coefficients, threshold: current }),
+        Arc::new(ContrastUtility { coefficients: coefficients.clone(), threshold: current }),
         vec![],
     );
     let samples = [
@@ -700,6 +742,34 @@ fn exercise_native_source_variant(
     let ranking = updated.rank_next_samples(&problem, &samples, 128, &ledger, ctx).unwrap();
     assert_eq!(ranking[0].id, "cheap");
     assert_eq!(ranking[0].gross_evsi, ranking[1].gross_evsi);
+    let feasible_actions = limited
+        .result
+        .actions
+        .iter()
+        .enumerate()
+        .filter_map(|(i, a)| a.admissible.then_some(i))
+        .collect::<Vec<_>>();
+    assert_eq!(feasible_actions, vec![0]);
+    let constrained_problem = DecisionProblem::new(
+        feasible_actions,
+        Arc::new(ContrastUtility { coefficients: coefficients.clone(), threshold: current }),
+        vec![],
+    );
+    let constrained_ranking =
+        updated.rank_next_samples(&constrained_problem, &samples, 8, &ledger, ctx).unwrap();
+    assert_ne!(
+        constrained_ranking[0].admissible_action_identity,
+        ranking[0].admissible_action_identity
+    );
+    assert!(
+        ranking[0].gross_evsi > constrained_ranking[0].gross_evsi + 1e-12,
+        "changing operational feasibility must change future information value"
+    );
+    for row in &constrained_ranking {
+        assert!(row.gross_evsi.abs() < 1e-12);
+        let cost = if row.id == "cheap" { 0.01 } else { 0.1 };
+        assert!((row.net_value.unwrap() + cost).abs() < 1e-12);
+    }
     let sigma = 0.5;
     let lower = predicted.iter().copied().fold(f64::INFINITY, f64::min) - 8.0 * sigma;
     let upper = predicted.iter().copied().fold(f64::NEG_INFINITY, f64::max) + 8.0 * sigma;
@@ -740,6 +810,14 @@ fn exercise_native_source_variant(
     assert!(JointLawExperimentResult::replay(&serde_json::to_vec(&altered).unwrap(), ctx).is_err());
     ledger.withdraw_source(experiment, "experiment withdrawn").unwrap();
     assert!(updated.consume_current(&artifact, &ledger, ctx).is_err());
+    acceptance_record::record(
+        &format!("{family}::bayesian"),
+        uncertain,
+        translation,
+        case,
+        &design.dependency_identity().to_hex(),
+        serde_json::json!({"constrained_next_study":{"evsi_reference":0.0,"evsi_absolute_error":constrained_ranking[0].gross_evsi.abs(),"quadrature_error_bound":0.0,"evsi_mcse":constrained_ranking[0].standard_error,"admissible_action_identity":constrained_ranking[0].admissible_action_identity.to_hex(),"operational_action_ids":[0],"net_value":constrained_ranking[0].net_value},"admissible_action_identity":ranking[0].admissible_action_identity.to_hex(),"native_posterior_reference":"checked","likelihood_and_posterior_reference":"checked","utility_constraints_ties":"checked","evsi_reference":reference,"evsi_absolute_error":(ranking[0].gross_evsi-reference).abs(),"quadrature_error_bound":error,"evsi_mcse":ranking[0].standard_error,"fresh_original_design_and_update_replay":"checked","withdrawal_and_tamper":"checked"}),
+    );
 }
 
 #[test]
@@ -909,7 +987,13 @@ fn longitudinal_treatment_affected_history_executes_the_full_experiment_chain() 
         assert!((law.mean(i).unwrap() - reference).abs() < 0.025);
     }
     assert!((law.mean(1).unwrap() - law.mean(0).unwrap()) > 0.25);
-    exercise_native_source(&result, &ctx);
+    exercise_native_source(
+        &result,
+        "sequential_observational",
+        "compiled_world_longitudinal",
+        &ctx,
+    );
+    record_world_refusal(&frequentist, "sequential_observational", "compiled_world_longitudinal");
     prepared.consume_current(&result.export_artifact().unwrap(), &ctx).unwrap();
 }
 
@@ -1295,4 +1379,27 @@ fn native_law_fresh_process_consumer() {
 
 fn zero_utility() -> UtilityExpr {
     UtilityExpr::difference(UtilityExpr::Input(0), UtilityExpr::Input(0))
+}
+
+fn record_world_refusal(
+    design: &antecedent::analysis::joint_panel::designs::JointDesignResult,
+    family: &str,
+    case: &str,
+) {
+    for uncertain in [false, true] {
+        for translation in 0..5 {
+            assert!(
+                design.posterior_source().is_err(),
+                "sampling distribution is not a Bayesian prior"
+            );
+            acceptance_record::record(
+                &format!("{family}::frequentist"),
+                uncertain,
+                translation,
+                case,
+                &design.dependency_identity().to_hex(),
+                serde_json::json!({"sampling_law_prior_guard":"expected_scoped_refusal","downstream_stages":"not_applicable_sampling_law_is_not_a_prior"}),
+            );
+        }
+    }
 }

@@ -2,10 +2,12 @@
 //! a marginal treatment range never supplies joint support.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+pub mod capabilities;
+pub mod compiled;
+pub mod gaussian_longitudinal;
 pub mod instrumented;
 pub mod longitudinal;
-pub mod compiled;
-pub mod capabilities;
+pub mod local_instrument;
 pub mod randomized;
 pub mod rollout;
 pub mod switchback;
@@ -18,6 +20,8 @@ pub enum JointUncertainty {
     IndependentUnitSandwich,
     /// Entire independent episodes deleted and the complete functional re-estimated.
     DeleteEpisodeJackknife,
+    /// Complete independent-episode resampling refits every selected mechanism and support model.
+    FullProcedureBootstrap,
     /// Explicit posterior model, whose assumptions are retained verbatim.
     Posterior {
         /// Statistical model and prior.

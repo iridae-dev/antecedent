@@ -250,6 +250,24 @@ fn sample(groups: &[Vec<usize>], rng: &mut antecedent_core::execution::CausalRng
     }
     indices
 }
+fn selection_quote(
+    training: &[Vec<usize>],
+    validation: &[Vec<usize>],
+    repetitions: usize,
+    partition_bytes: usize,
+) -> Result<usize, ProgramSearchError> {
+    // Sampling a long cluster repeatedly can exceed the original row count.
+    let maximum = |clusters: &[Vec<usize>]| {
+        clusters.iter().map(Vec::len).max().unwrap_or(0).checked_mul(clusters.len())
+    };
+    maximum(training)
+        .and_then(|n| n.checked_add(maximum(validation)?))
+        .and_then(|n| n.checked_mul(16))
+        .and_then(|n| n.checked_add(16384))
+        .and_then(|n| n.checked_mul(repetitions.checked_add(1)?))
+        .and_then(|n| n.checked_add(partition_bytes))
+        .ok_or_else(|| invalid("selection procedure storage overflow"))
+}
 /// Execute selection and evaluate the selected action on genuinely reserved data.
 /// Resampling repeats generation, fitting, feasibility, search, selection and
 /// evaluation. Original unit clusters are resampled together within each stage.
@@ -295,30 +313,8 @@ pub fn execute_heldout_selection<D, P: ProgramSelectionProcedure<D>>(
     partition.validate()?;
     let train_clusters = clusters(training);
     let validation_clusters = clusters(validation);
-    // Sampling a long cluster repeatedly can exceed the original row count.
-    let max_indices = train_clusters
-        .iter()
-        .map(Vec::len)
-        .max()
-        .unwrap_or(0)
-        .checked_mul(train_clusters.len())
-        .and_then(|n| {
-            n.checked_add(
-                validation_clusters
-                    .iter()
-                    .map(Vec::len)
-                    .max()
-                    .unwrap_or(0)
-                    .checked_mul(validation_clusters.len())?,
-            )
-        })
-        .ok_or_else(|| invalid("selection resample size overflow"))?;
-    let quote = max_indices
-        .checked_mul(16)
-        .and_then(|n| n.checked_add(16384))
-        .and_then(|n| n.checked_mul(repetitions.checked_add(1)?))
-        .and_then(|n| n.checked_add(partition_bytes))
-        .ok_or_else(|| invalid("selection procedure storage overflow"))?;
+    let quote =
+        selection_quote(&train_clusters, &validation_clusters, repetitions, partition_bytes)?;
     let retention = Arc::new(
         ctx.acquire_admission(0, quote as u64)
             .map_err(|e| ProgramSearchError::Resource(e.to_string()))?,

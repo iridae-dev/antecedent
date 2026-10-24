@@ -284,7 +284,7 @@ pub fn randomized_weighted_population_posterior(
         || arm.outcome_variance.len() != units.len()
         || prior.heterogeneity_variance.len() != k
         || arm.draws < 2
-        || arm.draws > 100000
+        || arm.draws > 100_000
         || arm.mean.iter().any(|v| !v.is_finite())
         || arm
             .variance

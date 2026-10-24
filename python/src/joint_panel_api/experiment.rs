@@ -207,7 +207,7 @@ impl PyPanelExperiment {
                 .rank_next_samples(&problem, &candidates, replicates, &ledger, &ctx)
                 .map_err(panel_error)
         })?;
-        Ok(serde_json::json!({"scope":"model_conditional","calibration":"unmeasured","candidates":rows.iter().map(|r|serde_json::json!({"id":r.id,"gross_evsi":r.gross_evsi,"standard_error":r.standard_error,"net_value":r.net_value,"dependency_identity":r.dependency_identity.to_hex(),"question_identity":r.question_identity.to_hex()})).collect::<Vec<_>>()}).to_string())
+        Ok(serde_json::json!({"scope":"model_conditional","calibration":"unmeasured","candidates":rows.iter().map(|r|serde_json::json!({"id":r.id,"gross_evsi":r.gross_evsi,"standard_error":r.standard_error,"net_value":r.net_value,"dependency_identity":r.dependency_identity.to_hex(),"question_identity":r.question_identity.to_hex(),"admissible_action_identity":r.admissible_action_identity.to_hex()})).collect::<Vec<_>>()}).to_string())
     }
     fn report(&self, ledger: PyRef<'_, EvidenceLedgerHandle>) -> PyResult<String> {
         let (prior, posterior) = self.inner.response_means(ledger.ledger()).map_err(panel_error)?;
@@ -379,7 +379,7 @@ impl PyDesignExperiment {
                 .rank_next_samples(&problem, &candidates, replicates, &ledger, &ctx)
                 .map_err(panel_error)
         })?;
-        Ok(serde_json::json!({"scope":"model_conditional","calibration":"unmeasured","candidates":rows.iter().map(|r|serde_json::json!({"id":r.id,"gross_evsi":r.gross_evsi,"standard_error":r.standard_error,"net_value":r.net_value,"dependency_identity":r.dependency_identity.to_hex(),"question_identity":r.question_identity.to_hex()})).collect::<Vec<_>>()}).to_string())
+        Ok(serde_json::json!({"scope":"model_conditional","calibration":"unmeasured","candidates":rows.iter().map(|r|serde_json::json!({"id":r.id,"gross_evsi":r.gross_evsi,"standard_error":r.standard_error,"net_value":r.net_value,"dependency_identity":r.dependency_identity.to_hex(),"question_identity":r.question_identity.to_hex(),"admissible_action_identity":r.admissible_action_identity.to_hex()})).collect::<Vec<_>>()}).to_string())
     }
     fn report(&self, ledger: PyRef<'_, EvidenceLedgerHandle>) -> PyResult<String> {
         let law = self.inner.numerical_law_source(ledger.ledger()).map_err(panel_error)?;
@@ -387,6 +387,180 @@ impl PyDesignExperiment {
             .map(|i| law.mean(i).map_err(|e| crate::value_err(e.to_string())))
             .collect::<PyResult<Vec<_>>>()?;
         Ok(serde_json::json!({"posterior_means":means,"posterior_weights":law.metadata().weights,"quantities":law.quantities(),"scope":"model_conditional_experimental_update;calibration_unmeasured","modular_policy":"frozen_joint_importance","calibration":"unmeasured"}).to_string())
+    }
+    fn decide(
+        &self,
+        contract_json: &str,
+        ledger: PyRef<'_, EvidenceLedgerHandle>,
+    ) -> PyResult<String> {
+        let contract = antecedent_design::decision_artifact::contract_from_json(contract_json)
+            .map_err(|e| crate::value_err(e.to_string()))?;
+        let result = self.inner.decide(&contract, ledger.ledger()).map_err(panel_error)?;
+        antecedent_design::decision_artifact::result_to_json(
+            &result.result,
+            self.inner.numerical_law_source(ledger.ledger()).map_err(panel_error)?,
+        )
+        .map_err(|e| crate::value_err(e.to_string()))
+    }
+    #[pyo3(signature=(ledger,*,seed=0,threads=1,max_bytes=None,cancel=None))]
+    fn export(
+        &self,
+        py: Python<'_>,
+        ledger: PyRef<'_, EvidenceLedgerHandle>,
+        seed: u64,
+        threads: u32,
+        max_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<Py<PyBytes>> {
+        let ctx = context(seed, threads, max_bytes, cancel)?;
+        let ledger = ledger.ledger().clone();
+        let bytes =
+            crate::detach_catch(py, || self.inner.export(&ledger, &ctx).map_err(panel_error))?;
+        Ok(PyBytes::new(py, &bytes).unbind())
+    }
+    #[pyo3(signature=(bytes,ledger,*,seed=0,threads=1,max_bytes=None,cancel=None))]
+    fn verify_current(
+        &self,
+        py: Python<'_>,
+        bytes: &[u8],
+        ledger: PyRef<'_, EvidenceLedgerHandle>,
+        seed: u64,
+        threads: u32,
+        max_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<()> {
+        let ctx = context(seed, threads, max_bytes, cancel)?;
+        let ledger = ledger.ledger().clone();
+        crate::detach_catch(py, || {
+            self.inner.consume_current(bytes, &ledger, &ctx).map(|_| ()).map_err(panel_error)
+        })
+    }
+}
+#[pymethods]
+impl super::designs::PyNativeJointDesignResult {
+    fn experiment_quantity(&self, binding_json: &str) -> PyResult<String> {
+        crate::bridge::check_declared_size(
+            binding_json,
+            crate::bridge::MAX_SPEC_DECLARATION_BYTES,
+            "native target projection",
+        )?;
+        let binding: facade::NativeExperimentBinding =
+            serde_json::from_str(binding_json).map_err(|e| crate::value_err(e.to_string()))?;
+        let quantity = self.inner.experiment_quantity(&binding).map_err(panel_error)?;
+        serde_json::to_string(&antecedent_io::quantity_wire::ScientificQuantityWire::from(
+            &quantity,
+        ))
+        .map_err(|e| crate::value_err(e.to_string()))
+    }
+    #[pyo3(signature=(binding_json,declaration_json,ledger,*,seed=0,threads=1,max_bytes=None,cancel=None))]
+    fn condition_native_experiment(
+        &self,
+        py: Python<'_>,
+        binding_json: &str,
+        declaration_json: &str,
+        ledger: PyRef<'_, EvidenceLedgerHandle>,
+        seed: u64,
+        threads: u32,
+        max_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<PyNativeExperiment> {
+        crate::bridge::check_declared_size(
+            binding_json,
+            crate::bridge::MAX_SPEC_DECLARATION_BYTES,
+            "native target projection",
+        )?;
+        let binding: facade::NativeExperimentBinding =
+            serde_json::from_str(binding_json).map_err(|e| crate::value_err(e.to_string()))?;
+        let update = parse_update(declaration_json)?;
+        if !matches!(update.functional, facade::JointPanelResponseFunctional::TerminalMean) {
+            return Err(crate::value_err(
+                "native experiment retains the original method-native target; a time redefinition requires recompilation",
+            ));
+        }
+        let request = facade::JointLawExperimentRequest {
+            bridge: update.bridge,
+            observed_mean: update.observed_mean,
+            observation_variance: update.observation_variance,
+            sample_size: update.sample_size,
+            mapping: update.mapping,
+            evidence: update.evidence,
+        };
+        let ctx = context(seed, threads, max_bytes, cancel)?;
+        let ledger = ledger.ledger().clone();
+        let inner = crate::detach_catch(py, || {
+            self.inner
+                .condition_native_experiment(binding, request, &ledger, &ctx)
+                .map_err(panel_error)
+        })?;
+        Ok(PyNativeExperiment { inner })
+    }
+}
+#[pyclass(name = "_NativeJointExperiment", frozen)]
+pub(crate) struct PyNativeExperiment {
+    inner: facade::NativeJointExperimentResult,
+}
+#[pymethods]
+impl PyNativeExperiment {
+    #[pyo3(signature=(declaration_json,ledger,*,replicates=199,seed=0,threads=1,max_bytes=None,cancel=None))]
+    fn rank_next_samples(
+        &self,
+        py: Python<'_>,
+        declaration_json: &str,
+        ledger: PyRef<'_, EvidenceLedgerHandle>,
+        replicates: usize,
+        seed: u64,
+        threads: u32,
+        max_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<String> {
+        crate::bridge::check_declared_size(
+            declaration_json,
+            crate::bridge::MAX_SPEC_DECLARATION_BYTES,
+            "future-study ranking",
+        )?;
+        let d: FutureDeclaration =
+            serde_json::from_str(declaration_json).map_err(|e| crate::value_err(e.to_string()))?;
+        if d.actions.is_empty()
+            || d.actions.len() > 512
+            || d.actions.iter().any(|a| {
+                a.id.trim().is_empty()
+                    || !a.intercept.is_finite()
+                    || a.coefficients.iter().any(|v| !v.is_finite())
+            })
+        {
+            return Err(crate::value_err("invalid bounded terminal action utility"));
+        }
+        let count = d.actions.len();
+        let problem = antecedent_design::decision::DecisionProblem::new(
+            (0..count).collect(),
+            std::sync::Arc::new(Utility { actions: d.actions }),
+            vec![],
+        );
+        let candidates = d
+            .candidates
+            .into_iter()
+            .map(|c| facade::PanelFutureSample {
+                id: c.id,
+                sample_size: c.sample_size,
+                observation_variance: c.observation_variance,
+                cost_utility: c.cost_utility,
+            })
+            .collect::<Vec<_>>();
+        let ctx = context(seed, threads, max_bytes, cancel)?;
+        let ledger = ledger.ledger().clone();
+        let rows = crate::detach_catch(py, || {
+            self.inner
+                .rank_next_samples(&problem, &candidates, replicates, &ledger, &ctx)
+                .map_err(panel_error)
+        })?;
+        Ok(serde_json::json!({"scope":"model_conditional","calibration":"unmeasured","candidates":rows.iter().map(|r|serde_json::json!({"id":r.id,"gross_evsi":r.gross_evsi,"standard_error":r.standard_error,"net_value":r.net_value,"dependency_identity":r.dependency_identity.to_hex(),"question_identity":r.question_identity.to_hex(),"admissible_action_identity":r.admissible_action_identity.to_hex()})).collect::<Vec<_>>()}).to_string())
+    }
+    fn report(&self, ledger: PyRef<'_, EvidenceLedgerHandle>) -> PyResult<String> {
+        let law = self.inner.numerical_law_source(ledger.ledger()).map_err(panel_error)?;
+        let means = (0..law.shape()[1])
+            .map(|i| law.mean(i).map_err(|e| crate::value_err(e.to_string())))
+            .collect::<PyResult<Vec<_>>>()?;
+        Ok(serde_json::json!({"posterior_means":means,"posterior_weights":law.metadata().weights,"quantities":law.quantities(),"scope":"model_conditional_experimental_update;calibration_unmeasured","identification":self.inner.identification(),"local_ratio_regularization":self.inner.local_ratio_regularization(),"modular_policy":"frozen_joint_importance","calibration":"unmeasured"}).to_string())
     }
     fn decide(
         &self,
@@ -445,5 +619,6 @@ pub(super) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(joint_panel_experiment_acceptance_matrix, module)?)?;
     module.add_class::<PyPanelExperiment>()?;
     module.add_class::<PyDesignExperiment>()?;
+    module.add_class::<PyNativeExperiment>()?;
     Ok(())
 }

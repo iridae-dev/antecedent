@@ -34,7 +34,7 @@ pub mod selection;
 mod source;
 mod static_source;
 pub use experiment::{
-    HistoricalJointLawExperiment, HistoricalNativeJointExperiment, JointExperimentAcceptanceMatrix,
+    HistoricalJointLawExperiment, HistoricalNativeJointExperiment, LocalRatioGaussianRegularization, JointExperimentAcceptanceMatrix,
     JointExperimentAcceptanceRow, JointLawExperimentRequest, JointLawExperimentResult,
     NativeExperimentBinding, NativeExperimentDecision, NativeJointExperimentResult,
     PanelExperimentDecisionSource, PanelExperimentDecisionState, PanelExperimentEvidence,

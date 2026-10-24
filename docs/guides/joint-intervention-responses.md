@@ -142,12 +142,38 @@ scope without asserting uniquely determined causal attribution.
 The design-native `JointDesignResult.decompose_reference_components` preserves the
 whole response covariance in frequentist runs: exact linear maps propagate it into
 Shapley, sequential and all 24 ordering-specific covariance matrices. Posterior sources
-retain aligned draws and any finite-law importance weights. Versioned reference artifacts
+retain aligned draws and any finite-law importance weights. Complete-procedure bootstrap
+sources retain their fitted point and every paired refit slot, including failure diagnostics;
+failed slots never become zero covariance or silently disappear. The continuous full-history
+g-computation owner supplies these same paired refits and its distinct proper conditional
+model posterior directly through the compiled world adapter. Versioned reference artifacts
 retain the original design, explicit component recipe, requested scope and numerical
 replay digest. `replay_reference_decomposition` returns historical numbers without a
 current-authorizing source; current consumption also compares the independently retained
-design and caller-specified bindings/scope. Changing an ordering cannot silently reuse an
+design, exact statistical execution (including prior and seed), and caller-specified
+bindings/scope. Changing an ordering cannot silently reuse an
 artifact for a different scientific question.
+
+`decompose_population_reference` handles actual covariate-distribution changes using
+identified stratum response worlds and explicit before/after probabilities. Its
+`SelectionDiagram` must confine population selection to an exogenous baseline root,
+with no baseline parent or latent common cause. The diagram declares all other response
+mechanisms invariant; the compiler checks these structural conditions and every
+constant-baseline source program before mixing its response. The returned transport
+proof retains the graph, functional and exact population-law identity. Selection at the
+outcome mechanism or baseline latent confounding produces a scientific refusal;
+`attempt_population_reference` can execute a caller-specified coarser intervention
+contrast under its own visible target. Rust and Python expose population artifact
+export, independent historical replay and caller-current consumption.
+
+The checked fixture in `conformance/response/joint_panel/population_reference.json`
+contains an actual 16-arm source codebook and observations for
+`Y=(1+L) M A/(A+S)`, with baseline weights changing from `(0.8,0.2)` to `(0.2,0.8)`.
+Rust and Python compare all four contributions against separately calculated subset
+weights, including a population-only change that contributes solely to population.
+The full measurement procedure is registered in
+`parity/joint_response_calibration.toml`; final calibration remains tied to the stable
+candidate and supplies no implementation-stage release license.
 
 
 
@@ -274,3 +300,86 @@ actual experimental population, and an explicit transport premise applying to
 the target. A same-population horizon extrapolation still requires that premise.
 Removing the estimand translation, naming another experimental population or
 supplying a transport premise for another target refuses the update.
+
+For switchback histories, structural IV feature contrasts, cohort-specific DiD
+ATTs and donor-reference rollout contrasts, `NativeJointDesignResult` offers
+`experiment_quantity` and `condition_native_experiment` in Rust
+(`experiment_quantity` and `condition_experiment` in Python). A
+`NativeExperimentBinding` names the exact linear functional of retained native
+coordinates and explicitly declares their original response units. The quantity
+identity includes the original target kind and projection. An IV structural
+contrast remains structural, a cohort ATT remains cohort-specific, and a donor
+contrast retains its treated-unit/reference interpretation throughout the update,
+decision and future-study ranking. This consumer does not manufacture population
+world means to fit a different source interface.
+
+The native consumer exports the complete original design/data/statistical
+artifact and experimental inputs. Historical replay reruns both the original
+native procedure and the modular update. Current consumption additionally matches
+the actual source, target projection and observed experiment and checks the
+caller's current ledger. Each source/mapping dependency binds the statistical
+prior, simulation seed and retained joint law as well as the original design and
+data, so another posterior's draw slots cannot inherit a mapping by sharing a
+prepared source.
+
+The machine-readable experiment acceptance protocol is available as
+`joint_experiment_acceptance_matrix()` in Rust and
+`antecedent.joint_panel.experiment_acceptance_matrix()` in Python. It includes
+all advertised designs, both statistical modes, deterministic and dependent
+mapping laws, five translation cases and three terminal decision cases.
+A protocol row is an obligation, not a passing result.
+
+Run `python3 scripts/run_joint_panel_experiment_acceptance.py` on a stable
+checkout to execute the independent references and write
+`conformance/response/joint_panel/experiment_acceptance_report.json`. The runner
+hashes the actual procedure sources, records each successful executable case's
+source dependency and reference checks, and refuses changed sources or missing
+mandatory cases. Original finite-state and continuous-history g-computation,
+equal-weight and unequal-weight geo populations, and factorial and multi-arm
+assignment each require their own evidence. A frequentist sampling-law refusal
+records the early statistical guard; downstream Bayesian stages are explicitly
+inapplicable in that case. Neither the generated protocol nor this implementation
+acceptance report grants a Q08/E14 release calibration license.
+
+An encouragement-specific local IV ratio keeps its original complier target.
+Its unconditioned ratio law does not automatically establish an expected value.
+The native experiment consumer can condition that proper prior on a positive
+known-variance Gaussian experimental likelihood when the binding explicitly
+supplies `local_ratio_regularization`: global bounds on the mapping intercept
+and slope and the substantive bounded-support assumption. Every retained paired
+realization is checked against those bounds. With a nonzero target coefficient,
+the Gaussian likelihood dominates every polynomial ratio tail, establishing
+posterior moments without asserting any unconditioned prior moment. Missing or
+contradicted bounds refuse the update. These assumptions and their exact identity
+are retained in the target, update artifact and current-consumption checks.
+
+The separate Python `prepare_native_joint_design(recipe, **execution)` entry point
+compiles the design's actual target. Its versioned `kind` recipe selects
+`randomized`, `switchback`, `longitudinal`, `gaussian_longitudinal`,
+`instrumented`, `instrumented_local`, `difference_in_differences` or
+`synthetic_control`. `execute(inference)` retains the same identification proof
+with a compatible statistical procedure. Rust `export_artifact` (Python `.export()`), historical replay
+and independently prepared current consumption retain original observations,
+physical schedules, population, assumptions, prior, seed and full joint law.
+The machine-readable contracts and independent evidence are listed in
+`parity/fixtures/joint_design_procedures.toml`.
+
+Continuous observational histories use explicit conditional mechanisms rather
+than categorical discretization. Covariate and outcome formulas can depend on
+recorded histories, interactions between treatment times and treatment-affected
+covariates. The compiler checks causal ordering, exact intervention schedules,
+joint policy density rank and declared support. Full episode bootstrap refits
+all mechanisms and policy support, retaining each failed slot. The Bayesian
+counterpart uses proper conditional Gaussian/inverse-gamma priors and shares
+one complete mechanism draw across all requested regimes.
+
+`instrumented_local` retains an encouragement-specific complier effect under
+exclusion and monotonicity. It does not require a homogeneous population response
+model. Frequentist inference uses the paired intention-to-treat/receipt Wald
+ratio and withholds its normal interval for weak support. The Bayesian procedure
+retains paired empirical score-law ratio, numerator and denominator draws.
+These Bayesian-bootstrap weights are not a principal-strata likelihood that
+enforces monotonicity, and a finite sampled first-stage check is not a global
+posterior support certificate. The native output makes no claim that ratio
+posterior moments exist. Any downstream expected-utility update must establish
+its required moments separately.

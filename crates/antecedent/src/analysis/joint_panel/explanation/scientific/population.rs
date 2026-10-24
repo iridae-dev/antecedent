@@ -1,6 +1,11 @@
 //! Population-standardized reference worlds under an explicit selection diagram.
 // SPDX-License-Identifier: MIT OR Apache-2.0
-use super::*;
+use super::{
+    decompose_scientific_reference, invalid, ExecutionContext, Intervention, JointPanelError,
+    PanelDecomposition, ReferenceComponentBindings, ScientificConsumptionScope,
+    ScientificDecisionSource, ScientificReferenceDecomposition, ScientificWorldId, SemanticDigest,
+    TemporalPolicy, VariableId, WorldAction,
+};
 use antecedent_graph::{DenseNodeId, NodeRef, SelectionDiagram};
 
 /// Known baseline-stratum distributions and actual identified source interventions.
@@ -46,6 +51,8 @@ impl PopulationReferenceTransportProof {
 /// Actual population-transported hybrid evaluation, with the original scientific source.
 #[derive(Clone, Debug)]
 pub struct PopulationReferenceDecomposition {
+    /// Original full-procedure resampling failures, retaining every requested slot.
+    pub procedure_failures: Vec<Option<String>>,
     /// All sixteen standardized worlds and complete joint uncertainty realizations.
     pub decomposition: PanelDecomposition,
     /// Full covariance propagated from the actual native source, when available.
@@ -277,8 +284,10 @@ pub fn decompose_population_reference(
             Some(sum + weight * values.hybrids[mask])
         })
     };
-    let point =
-        std::array::from_fn(|mask| mix(mask, None).expect("validated complete stratum point"));
+    let mut point = [0.0; 16];
+    for (mask, value) in point.iter_mut().enumerate() {
+        *value = mix(mask, None).ok_or_else(|| invalid("incomplete population stratum point"))?;
+    }
     let draws = (0..slots)
         .map(|slot| {
             let mut row = [0.0; 16];
@@ -297,6 +306,7 @@ pub fn decompose_population_reference(
         ctx,
     )?;
     Ok(PopulationReferenceDecomposition {
+        procedure_failures: Vec::new(),
         decomposition,
         covariance: None,
         source: source.clone(),
@@ -321,9 +331,10 @@ impl crate::analysis::joint_panel::designs::JointDesignResult {
             antecedent_estimate::joint_design::compiled::JointDesignLaw::Bayesian(_) => {
                 self.posterior_source()?
             }
-            antecedent_estimate::joint_design::compiled::JointDesignLaw::Frequentist(_) => {
-                self.mean_source()?
-            }
+            antecedent_estimate::joint_design::compiled::JointDesignLaw::Frequentist(_)
+            | antecedent_estimate::joint_design::compiled::JointDesignLaw::FrequentistBootstrap {
+                ..
+            } => self.mean_source()?,
         };
         let mut result = decompose_population_reference(&source, bindings, diagram, scope, ctx)?;
         let worlds = &self.prepared().proof().worlds;
@@ -341,7 +352,46 @@ impl crate::analysis::joint_panel::designs::JointDesignResult {
                 };
             }
         }
+        if let Some(realizations) = self.law().frequentist_realizations() {
+            let bytes = realizations
+                .len()
+                .checked_mul(16 * 8 + 16)
+                .ok_or_else(|| invalid("bootstrap reference projection quote overflow"))?;
+            let _projection = ctx
+                .acquire_admission(0, bytes as u64)
+                .map_err(|error| super::super::engine::PanelError::Resource(error.to_string()))?;
+            let draws = realizations
+                .iter()
+                .map(|row| {
+                    let row = row.as_ref()?;
+                    if row.len() != worlds.len() {
+                        return None;
+                    }
+                    Some(std::array::from_fn(|mask| {
+                        coefficients[mask]
+                            .iter()
+                            .zip(row)
+                            .map(|(weight, value)| weight * value)
+                            .sum()
+                    }))
+                })
+                .collect::<Vec<_>>();
+            result.decomposition = super::super::engine::decomposition::decompose_hybrid_law(
+                result.decomposition.point.hybrids,
+                &draws,
+                bindings.components.order,
+                ctx,
+            )?;
+            result.procedure_failures =
+                self.law().frequentist_failures().unwrap_or_default().to_vec();
+        }
         let native = self.law().estimate();
+        if native.covariance.is_empty() && self.law().frequentist_realizations().is_some() {
+            return Ok(result);
+        }
+        if native.covariance.len() != worlds.len() * worlds.len() {
+            return Err(invalid("native joint-design covariance axis mismatch"));
+        }
         let covariance = std::array::from_fn(|a| {
             std::array::from_fn(|b| {
                 (0..worlds.len())

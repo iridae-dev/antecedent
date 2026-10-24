@@ -7,16 +7,16 @@ hybrids = 16
 orderings = 24
 orders = "caller-prescribed sequential order and exact average of all permutations"
 component_binding = "Every acted-on variable has one explicit disjoint component; population follows target distributions/conditioning. Panel channels are exposure variables; parameter surgery requires its actual model/source compiler."
-uncertainty = "Complete aligned response/path laws with original failed slots and optional finite-law weights; native full joint covariance propagated by exact linear maps into Shapley, sequential and each ordering. Order sensitivity remains separate."
+uncertainty = "Complete aligned response/path laws with original failed slots, full-procedure failure diagnostics and optional finite-law weights; native full joint covariance propagated by exact linear maps into Shapley, sequential and each ordering. Order sensitivity remains separate."
 reference_scope = "Reference-world contributions do not imply uniquely determined causal explanation."
 conditional_owner = "JointPanelResult.decompose_reference"
 identified_owner = "JointDesignResult.decompose_reference_components"
 population_owner = "JointDesignResult.decompose_population_reference"
 transport = "Explicit SelectionDiagram with selection confined to a baseline root, no baseline parents or latent common cause, supported constant-baseline full-program source interventions, supplied before/after baseline distributions; all other mechanisms invariant as declared by the diagram."
 fallback = "attempt_identified_reference_decomposition and attempt_population_reference execute caller-explicit coarser targets on finer scientific refusal; numerical/resource/cancellation errors propagate."
-artifact = "Version-one full native source design plus component/population recipe, selection graph, scope and numerical replay digest. Historical replay has no current-authorizing source; current consumers compare caller-retained source and requested bindings/diagram/scope."
+artifact = "Version-one full native source design plus component/population recipe, selection graph, scope and numerical replay digest. Historical replay has no current-authorizing source; current consumers compare caller-retained source, exact statistical execution/prior/seed and requested bindings/diagram/scope."
 python = "antecedent.joint_panel.JointDesignResult.decompose_reference_components and decompose_population_reference; export_population_reference, consume_population_reference_current, replay_population_reference"
-positive_evidence = ["crates/antecedent/src/analysis/joint_panel/explanation/scientific.rs::actual_parameter_factorial_reference_decomposes_static_and_temporal_posterior_sources", "crates/antecedent/src/analysis/joint_panel/explanation/scientific.rs::actual_population_transport_decomposition_is_positive_in_both_modes_and_time_forms", "python/tests/test_joint_panel_reference_decomposition.py", "crates/antecedent/tests/joint_panel_workflow.rs"]
+positive_evidence = ["crates/antecedent/src/analysis/joint_panel/explanation/scientific.rs::continuous_history_bootstrap_and_posterior_reference_preserve_the_actual_law", "crates/antecedent/src/analysis/joint_panel/explanation/scientific.rs::actual_parameter_factorial_reference_decomposes_static_and_temporal_posterior_sources", "crates/antecedent/src/analysis/joint_panel/explanation/scientific.rs::actual_population_transport_decomposition_is_positive_in_both_modes_and_time_forms", "python/tests/test_joint_panel_reference_decomposition.py", "crates/antecedent/tests/joint_panel_workflow.rs"]
 counterexamples = ["overlapping component bindings", "missing/mixed hybrid intervention", "unidentified source", "selection at response mechanism", "baseline latent confounding", "unsupported baseline values/history", "changed current population/diagram/scope", "resource/cancellation"]
 calibration_procedure = "parity/joint_response_calibration.toml#compiled_reference_decomposition"
 grants_release_license = false
@@ -34,9 +34,9 @@ implementation = "actual proper-prior Gaussian cell posterior and aligned causal
 [[axis]]
 time = "temporal"
 inference = "frequentist"
-implementation = "whole-program assigned scheduled response means; fitted piecewise/smooth panel complete procedure bootstrap retains change/smoothing selection"
+implementation = "whole-program assigned scheduled response means; continuous full-history g-computation refits all state/assignment/outcome models with paired failed slots; fitted piecewise/smooth panel complete procedure bootstrap retains change/smoothing selection"
 
 [[axis]]
 time = "temporal"
 inference = "bayesian"
-implementation = "whole-program scheduled joint posterior; fitted varying panel decomposition retains original joint parameter/path/model-choice law"
+implementation = "whole-program scheduled joint posterior; continuous full-history proper conditional-model posterior; fitted varying panel decomposition retains original joint parameter/path/model-choice law"

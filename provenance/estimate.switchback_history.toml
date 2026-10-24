@@ -4,12 +4,12 @@ source_translation = false
 copied_code = false
 copied_comments = false
 copied_tests = false
-papers = ["https://arxiv.org/abs/2009.00148"]
+papers = [{ title = "Design and Analysis of Switchback Experiments", url = "https://arxiv.org/abs/2009.00148", sections = ["Finite-carryover potential outcomes, assignment mechanism and Horvitz-Thompson estimation"] }]
 implementation_deviations = [
   "Independent finite-schedule Horvitz-Thompson history-mean estimator. Joint arm labels may encode simultaneous channel assignments; requested histories include the declared carryover order.",
   "Known whole-schedule probabilities determine every eligible history inclusion probability. Marginal arm probabilities are not multiplied to invent joint support. The first L periods are excluded because no prehistory is supplied.",
   "Identification requires consistency, no anticipation, no cross-sequence interference, and no carryover beyond the declared history. Those are premises, not inferred facts. Every requested history requires design and observed support.",
-  "Joint uncertainty is an uncalibrated sequence-cluster sandwich approximation, not the paper's exact randomization procedure or a calibrated finite-sample interval. Bayesian history inference and compiler/artifact routing remain part of open X07.",
+  "Joint mean covariance is an uncalibrated sequence-cluster sandwich approximation. The native joint-design owner additionally provides exhaustive or explicitly partial whole-schedule sharp-null randomization inference, preserving unvisited probability mass. Its separate proper Gaussian history-mean/known-AR1 likelihood and native compiler/artifact routing retain the same history-identification premises. These additions do not claim the paper's optimal design or calibrated asymptotic interval procedure.",
 ]
 upstream_implementations_observed = []
 test_sources = ["crates/antecedent-estimate/src/switchback.rs"]

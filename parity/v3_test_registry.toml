@@ -13,6 +13,20 @@
 schema = 1
 
 [[test]]
+id = "joint-native-experiment-python-workflow"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_joint_panel_experiment.py"
+gates = ["inventory"]
+
+[[test]]
+id = "joint-native-experiment-all-stage-reference-matrix"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/joint_panel/experiment/native/tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
 id = "joint-experiment-advertised-acceptance-matrix"
 crate = "antecedent"
 cargo_target = "lib"
@@ -1276,6 +1290,20 @@ path = "python/tests/test_descriptive_fallback.py"
 gates = ["inventory"]
 
 [[test]]
+id = "evidence-plan-study"
+crate = "antecedent"
+cargo_target = "evidence_plan_study"
+path = "crates/antecedent/tests/evidence_plan_study.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "evidence-plan-study-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_evidence_plan_study.py"
+gates = ["inventory"]
+
+[[test]]
 id = "bridge-draws-contract-rules"
 crate = "antecedent-contract"
 cargo_target = "lib"
@@ -1319,27 +1347,6 @@ path = "python/tests/test_scientific_bridge_draws.py"
 gates = ["inventory"]
 
 [[test]]
-id = "joint-panel-continuous-structural-selection"
-crate = "antecedent"
-cargo_target = "lib"
-path = "crates/antecedent/src/analysis/joint_panel/selection/instrumented.rs"
-gates = ["inventory", "named"]
-
-[[test]]
-id = "evidence-plan-study"
-crate = "antecedent"
-cargo_target = "evidence_plan_study"
-path = "crates/antecedent/tests/evidence_plan_study.rs"
-gates = ["inventory", "named"]
-
-[[test]]
-id = "evidence-plan-study-python"
-crate = "python"
-cargo_target = "script"
-path = "python/tests/test_evidence_plan_study.py"
-gates = ["inventory"]
-
-[[test]]
 id = "bridge-point-propagation-contract"
 crate = "antecedent-contract"
 cargo_target = "lib"
@@ -1359,3 +1366,66 @@ crate = "python"
 cargo_target = "script"
 path = "python/tests/test_scientific_bridge_propagation.py"
 gates = ["inventory"]
+
+[[test]]
+id = "joint-panel-continuous-structural-selection"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/joint_panel/selection/instrumented.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "joint-design-randomized-native"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/joint_design/randomized.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "joint-design-longitudinal-native"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/joint_design/longitudinal.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "joint-design-instrumented-native"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/joint_design/instrumented.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "joint-design-rollout-native"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/joint_design/rollout.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "joint-design-switchback-native"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/joint_design/switchback.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "joint-design-public-native-targets"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/joint_panel/designs/native/tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "joint-panel-experiment-executed-acceptance-matrix"
+crate = "python"
+cargo_target = "script"
+path = "scripts/run_joint_panel_experiment_acceptance.py"
+gates = ["inventory"]
+
+[[test]]
+id = "joint-design-continuous-longitudinal-native"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/joint_design/gaussian_longitudinal.rs"
+gates = ["inventory", "named"]

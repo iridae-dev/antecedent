@@ -64,6 +64,26 @@ def test_parameter_and_population_reference_decomposition_with_actual_source_and
     )
     for draw in report["decomposition"]["draws"]:
         assert sum(draw["shapley"]) == pytest.approx(draw["total"], abs=1e-10)
+    components = {
+        "exposure": [0, 3],
+        "saturation": [1],
+        "mechanism": [2],
+        "hybrids": declaration["stratum_worlds"][0],
+        "order": declaration["order"],
+        "require_identified": True,
+    }
+    component_report = result.decompose_reference_components(**components)
+    component_artifact = result.export_reference_decomposition(components)
+    component_history = joint_panel.replay_reference_decomposition(component_artifact)
+    component_current = result.consume_reference_decomposition_current(
+        component_artifact, components
+    )
+    assert component_history["current_authorization"] is False
+    assert (
+        component_report["decomposition"]
+        == component_history["decomposition"]
+        == component_current["decomposition"]
+    )
     artifact = result.export_population_reference(declaration)
     historical = joint_panel.replay_population_reference(artifact)
     current = result.consume_population_reference_current(artifact, declaration)
@@ -73,6 +93,11 @@ def test_parameter_and_population_reference_decomposition_with_actual_source_and
     changed["after_weights"] = [0.4, 0.6]
     with pytest.raises(CausalValueError, match="caller-current"):
         result.consume_population_reference_current(artifact, changed)
+    other_execution = prepared.execute("frequentist" if bayesian else data["bayesian"])
+    with pytest.raises(CausalValueError, match="statistical execution"):
+        other_execution.consume_reference_decomposition_current(component_artifact, components)
+    with pytest.raises(CausalValueError, match="statistical execution"):
+        other_execution.consume_population_reference_current(artifact, declaration)
 
 
 def test_population_only_change_and_missing_transport_premises():

@@ -23,8 +23,8 @@ pub use matrix::{
     joint_experiment_acceptance_matrix,
 };
 pub use native::{
-    HistoricalNativeJointExperiment, NativeExperimentBinding, NativeExperimentDecision,
-    NativeJointExperimentResult,
+    HistoricalNativeJointExperiment, LocalRatioGaussianRegularization, NativeExperimentBinding,
+    NativeExperimentDecision, NativeJointExperimentResult,
 };
 
 /// Current ledger origins of every likelihood/prior/mapping used by an update.
@@ -655,6 +655,8 @@ pub struct PanelFutureSampleValue {
     pub dependency_identity: SemanticDigest,
     /// Exact projected question, including its sparse temporal functional.
     pub question_identity: SemanticDigest,
+    /// Exact explicit terminal action domain used by every future-data update.
+    pub admissible_action_identity: SemanticDigest,
     /// Actual prefix-world basis and projection used by terminal utility evaluation.
     pub projection: Option<Arc<antecedent_design::scientific_source::ScientificSourceProjection>>,
     retention: Arc<antecedent_core::execution::AdmissionLease>,
@@ -821,7 +823,7 @@ impl PanelExperimentResult {
     /// # Errors
     /// Invalid study/cost/replicate bounds, current authority, resources/cancellation,
     /// unsupported weighted constraints or callback failures refuse the ranking.
-    pub fn rank_next_samples<A>(
+    pub fn rank_next_samples<A: serde::Serialize>(
         &self,
         problem: &DecisionProblem<A, PanelExperimentDecisionState>,
         candidates: &[PanelFutureSample],
@@ -863,7 +865,7 @@ impl From<&PanelExperimentDecisionSource> for ExperimentRankingReceipt {
     }
 }
 #[allow(clippy::too_many_arguments)]
-fn rank_law_next_samples<A>(
+fn rank_law_next_samples<A: serde::Serialize>(
     receipt: &ExperimentRankingReceipt,
     law: &DistributionArtifact,
     update: &PanelExperimentUpdate,
@@ -875,8 +877,15 @@ fn rank_law_next_samples<A>(
 ) -> Result<Vec<PanelFutureSampleValue>, JointPanelError> {
     source::check_cancelled(ctx)?;
     validate_future_sample_catalog(candidates, replicates)?;
+    let mut action_size = law::WireCounter(0);
+    serde_json::to_writer(&mut action_size, &problem.actions)
+        .map_err(|error| JointPanelError::compile(error.to_string()))?;
     let projection_bytes = projection_retained_bytes(receipt.projection.as_deref())?
-        .checked_add(64)
+        .checked_add(action_size.0.checked_mul(2).ok_or_else(|| {
+            JointPanelError::compile("action-domain serialization quote overflow")
+        })?)
+        .and_then(|n| n.checked_add(std::any::type_name::<A>().len()))
+        .and_then(|n| n.checked_add(256))
         .ok_or_else(|| JointPanelError::compile("future-study shared ownership quote overflow"))?;
     let output_bytes = candidates
         .iter()
@@ -888,6 +897,16 @@ fn rank_law_next_samples<A>(
         .and_then(|bytes| u64::try_from(bytes).ok())
         .ok_or_else(|| JointPanelError::compile("future-study output quote overflow"))?;
     let output_retention = Arc::new(admit(ctx, output_bytes)?);
+    let mut action_writer =
+        antecedent_core::CanonicalWriter::new("antecedent.future_study.explicit_action_domain.v1");
+    action_writer
+        .bytes(receipt.question_identity.as_bytes())
+        .text(std::any::type_name::<A>())
+        .bytes(
+            &serde_json::to_vec(&problem.actions)
+                .map_err(|error| JointPanelError::compile(error.to_string()))?,
+        );
+    let admissible_action_identity = SemanticDigest::from_bytes(action_writer.finish());
     let projection = receipt.projection.clone();
     let width = coefficients.len();
     let weights =
@@ -953,6 +972,7 @@ fn rank_law_next_samples<A>(
             identification_identity: receipt.identification_identity,
             dependency_identity: receipt.dependency_identity,
             question_identity: receipt.question_identity,
+            admissible_action_identity,
             projection: projection.clone(),
             retention: Arc::clone(&output_retention),
             id: candidate.id.clone(),

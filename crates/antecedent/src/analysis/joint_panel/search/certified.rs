@@ -1,6 +1,11 @@
 //! Certified search derived from the same retained response evaluated by ordinary search.
 // SPDX-License-Identifier: MIT OR Apache-2.0
-use super::*;
+use super::{
+    Arc, ExecutionContext, FrozenPanelEvaluator, JointPanelContinuousSearchRequest,
+    JointPanelError, JointPanelResult, JointPanelScientificScope, JointPanelSearchUncertainty,
+    ScientificDecisionSource, ScientificSourcePayload, SemanticDigest, engine,
+    map_scientific_error, map_search_error, source,
+};
 use antecedent_core::{ValueExpr, VariableId};
 use antecedent_design::decision_contract::{ProgramObjective, UtilityExpr};
 use antecedent_design::program_search::certified::{
@@ -10,6 +15,17 @@ use antecedent_design::program_search::certified::{
 use engine::expression::{
     CompiledPanelExpression, PanelExpressionControl, compile_panel_expression,
 };
+fn artifact_error(
+    error: antecedent_io::joint_panel_artifact::PanelArtifactError,
+) -> JointPanelError {
+    use antecedent_io::joint_panel_artifact::PanelArtifactError;
+    match error {
+        PanelArtifactError::Cancelled => engine::PanelError::Cancelled.into(),
+        PanelArtifactError::Resource(reason) => engine::PanelError::Resource(reason).into(),
+        PanelArtifactError::Engine(error) => error.into(),
+        error => JointPanelError::compile(error),
+    }
+}
 
 /// Certified scalar optimization bound to an actual retained panel compiler.
 #[derive(Clone, Debug)]
@@ -140,6 +156,10 @@ impl JointPanelResult {
     /// # Errors
     /// Invalid original search, unsupported mean/law demand, numerical expression,
     /// resources, cancellation, or unsupported causal extrapolation.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "binds the complete fitted objective and domain before constructing its proof owner"
+    )]
     pub fn compile_certified_search(
         &self,
         request: JointPanelContinuousSearchRequest,
@@ -269,7 +289,7 @@ impl JointPanelCertifiedSearch {
         let _verified = self.execute(options, ctx)?;
         let document = PanelCertificateDocument {
             version: 1,
-            panel: self.evaluator.result.export(ctx).map_err(JointPanelError::compile)?,
+            panel: self.evaluator.result.export(ctx).map_err(artifact_error)?,
             numerical: self
                 .plan
                 .export_replay(self.initial.clone(), options, ctx)
@@ -302,7 +322,7 @@ impl JointPanelCertifiedSearch {
                     .result
                     .artifact_program()
                     .and_then(|p| p.identity())
-                    .map_err(JointPanelError::compile)?,
+                    .map_err(artifact_error)?,
             )
             || certificate.identity != self.plan.identity()
         {
@@ -385,16 +405,18 @@ pub fn replay_panel_certificate(
     if bytes.len() > 64 * 1024 * 1024 {
         return Err(JointPanelError::compile("panel certificate artifact size limit"));
     }
-    let _input = ctx
-        .acquire_admission(0, (bytes.len() as u64).saturating_mul(16))
-        .map_err(|e| engine::PanelError::Resource(e.to_string()))?;
+    let _input =
+        ctx.acquire_admission(0, (bytes.len() as u64).saturating_mul(16)).map_err(|e| match e {
+            antecedent_core::execution::AdmissionError::Cancelled => engine::PanelError::Cancelled,
+            _ => engine::PanelError::Resource(e.to_string()),
+        })?;
     let d: PanelCertificateDocument =
         antecedent_io::convert::from_cbor(bytes).map_err(JointPanelError::compile)?;
     if d.version != 1 || !d.offset.is_finite() || !d.scale.is_finite() {
         return Err(JointPanelError::compile("invalid panel certificate version/objective"));
     }
     let panel = antecedent_io::joint_panel_artifact::consume_panel_execution(&d.panel, ctx)
-        .map_err(JointPanelError::compile)?;
+        .map_err(artifact_error)?;
     let bindings = d
         .bindings
         .into_iter()
@@ -407,7 +429,7 @@ pub fn replay_panel_certificate(
     let derived = panel
         .program()
         .controlled_response_expression(d.world, &bindings, &d.time_weights, ctx)
-        .map_err(JointPanelError::compile)?;
+        .map_err(artifact_error)?;
     let (plan, certificate) =
         PreparedCertifiedSearch::replay(&d.numerical, None, ctx).map_err(map_search_error)?;
     plan.verify_expression(
@@ -416,7 +438,7 @@ pub fn replay_panel_certificate(
     )
     .map_err(map_search_error)?;
     Ok((
-        SemanticDigest::from_bytes(panel.program().identity().map_err(JointPanelError::compile)?),
+        SemanticDigest::from_bytes(panel.program().identity().map_err(artifact_error)?),
         certificate,
     ))
 }

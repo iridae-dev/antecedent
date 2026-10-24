@@ -1,12 +1,35 @@
 //! Experiment consumers preserving method-native structural, cohort and donor targets.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 use super::super::designs::{NativeJointDesignResult, NativeJointIdentification};
-use super::*;
+use super::{
+    Arc, DecisionProblem, DistributionArtifact, DistributionCalibration, DistributionTrust,
+    EvidenceLedger, ExecutionContext, ExperimentRankingReceipt, JointLawExperimentRequest,
+    JointPanelError, JointPanelResponseFunctional, PanelExperimentDecisionState,
+    PanelExperimentEvidence, PanelExperimentMapping, PanelExperimentModularPolicy,
+    PanelExperimentUpdate, PanelFutureSample, PanelFutureSampleValue, SemanticDigest, SourceId,
+    admit, rank_law_next_samples, source, validate_mapping_moments, validate_model_dependency,
+    validate_update,
+};
 use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_estimate::joint_design::compiled::{JointDesignLaw, JointNativeDesignLaw};
 use antecedent_io::distribution_artifact::{
     DistributionIdentity, DistributionMetadata, DistributionProvenance, DrawAlignment,
 };
+
+/// Declared global support of a local-ratio mapping law used by a Gaussian likelihood.
+/// These are support assumptions on the complete mapping prior, not bounds inferred from draws.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LocalRatioGaussianRegularization {
+    /// Finite global bound on the absolute intercept.
+    pub max_abs_intercept: f64,
+    /// Strict positive lower bound on the absolute mapping slope.
+    pub min_abs_slope: f64,
+    /// Finite global upper bound on the absolute mapping slope.
+    pub max_abs_slope: f64,
+    /// Explicit substantive bounded-support assumption for the entire paired mapping law.
+    pub assumption: String,
+}
 
 /// Explicit linear functional of already compiled native target coordinates.
 /// Combining local/structural/cohort coordinates retains that target kind; it
@@ -18,6 +41,9 @@ pub struct NativeExperimentBinding {
     pub coefficients: Vec<f64>,
     /// Explicit units of the original numeric response and this linear functional.
     pub outcome_units: String,
+    /// Required for a local ratio whose unconditioned moments are not established.
+    #[serde(default)]
+    pub local_ratio_regularization: Option<LocalRatioGaussianRegularization>,
 }
 /// Decision result carrying the actual native scientific target and conditional update scope.
 #[derive(Clone, Debug)]
@@ -97,13 +123,20 @@ fn native_prior(
     let JointNativeDesignLaw::Moments(JointDesignLaw::Bayesian(posterior)) = original.law() else {
         return Err(JointPanelError::Unsupported("native sampling moments, conformal regions and donor point fits cannot become a Bayesian experimental prior".into()));
     };
-    let coordinates = native_coordinates(original, binding)?;
     if posterior.estimate.worlds != original.prepared().identification().targets {
         return Err(JointPanelError::compile(
             "native posterior coordinates do not match the compiled target proof",
         ));
     }
-    let dependency = original.prepared().dependency();
+    native_draw_artifact(original, binding, &posterior.draws)
+}
+fn native_draw_artifact(
+    original: &NativeJointDesignResult,
+    binding: &NativeExperimentBinding,
+    draws: &[Vec<f64>],
+) -> Result<DistributionArtifact, JointPanelError> {
+    let coordinates = native_coordinates(original, binding)?;
+    let dependency = original.dependency_identity();
     let identity = DistributionIdentity::new(
         antecedent_io::quantity_wire::DistributionMeaningWire::CausalFunctionalPosterior,
         &coordinates,
@@ -122,7 +155,7 @@ fn native_prior(
             version: 1,
             identity,
             axes: ["draw".into(), "quantity".into()],
-            shape: [posterior.draws.len(), coordinates.len()],
+            shape: [draws.len(), coordinates.len()],
             weights: None,
             supported: Some(vec![true; coordinates.len()]),
             calibration: DistributionCalibration::Unmeasured,
@@ -130,7 +163,7 @@ fn native_prior(
             legacy_posterior: None,
             legacy_bindings: None,
         },
-        posterior.draws.iter().flatten().copied().collect(),
+        draws.iter().flatten().copied().collect(),
     )
     .map_err(JointPanelError::compile)
 }
@@ -158,6 +191,12 @@ impl NativeJointDesignResult {
         for c in &binding.coefficients {
             writer.real(*c);
         }
+        if let Some(bounds) = &binding.local_ratio_regularization {
+            writer.text(
+                &serde_json::to_string(bounds)
+                    .map_err(|error| JointPanelError::compile(error.to_string()))?,
+            );
+        }
         let projection = SemanticDigest::from_bytes(writer.finish());
         quantity.regime_id = format!("native-projection:{projection}");
         quantity.functional_id =
@@ -167,6 +206,10 @@ impl NativeJointDesignResult {
     /// Condition a genuine native posterior without changing its original scientific target kind.
     /// # Errors
     /// Unsupported native law, mismatched translation, invalid evidence/mapping or admission.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "Keep native target, proper conditional likelihood, evidence authority and admitted retention in one transaction."
+    )]
     pub fn condition_native_experiment(
         &self,
         binding: NativeExperimentBinding,
@@ -191,19 +234,52 @@ impl NativeJointDesignResult {
             evidence: request.evidence,
         };
         validate_update(&update, ledger)?;
-        validate_model_dependency(self.prepared().dependency(), &update, ledger)?;
-        let JointNativeDesignLaw::Moments(JointDesignLaw::Bayesian(posterior)) = self.law() else {
-            return Err(JointPanelError::Unsupported("native experiment conditioning requires the compatible actual posterior likelihood/prior, never sampling/conformal uncertainty".into()));
+        validate_model_dependency(self.dependency_identity(), &update, ledger)?;
+        let draw_count = match self.law() {
+            JointNativeDesignLaw::Moments(JointDesignLaw::Bayesian(posterior)) => {
+                posterior.draws.len()
+            }
+            JointNativeDesignLaw::LocalComplier(local) => {
+                local.posterior.as_ref().map_or(0, Vec::len)
+            }
+            _ => 0,
         };
-        let cells = posterior
-            .draws
-            .len()
-            .checked_mul(posterior.estimate.means.len() + 32)
+        if draw_count == 0 {
+            return Err(JointPanelError::Unsupported("native experiment conditioning requires an actual posterior likelihood/prior, never sampling or conformal uncertainty".into()));
+        }
+        let cells = draw_count
+            .checked_mul(binding.coefficients.len() + 32)
             .and_then(|n| n.checked_mul(32))
             .and_then(|n| u64::try_from(n).ok())
             .ok_or_else(|| JointPanelError::compile("native experiment admission overflow"))?;
+        let mut binding_size = super::law::WireCounter(0);
+        serde_json::to_writer(&mut binding_size, &binding)
+            .map_err(|error| JointPanelError::compile(error.to_string()))?;
+        let cells = cells
+            .checked_add(
+                u64::try_from(binding_size.0)
+                    .map_err(|_| JointPanelError::compile("native binding size overflow"))?,
+            )
+            .ok_or_else(|| JointPanelError::compile("native binding admission overflow"))?;
         let retention = Arc::new(admit(ctx, cells)?);
-        let prior = native_prior(self, &binding)?;
+        let prior = match self.law() {
+            JointNativeDesignLaw::LocalComplier(local) => {
+                validate_local_regularization(&binding, &update)?;
+                let rows = local
+                    .posterior
+                    .as_ref()
+                    .ok_or_else(|| {
+                        JointPanelError::Unsupported(
+                            "local conditioning needs an actual retained posterior".into(),
+                        )
+                    })?
+                    .iter()
+                    .map(|row| vec![row[0]])
+                    .collect::<Vec<_>>();
+                native_draw_artifact(self, &binding, &rows)?
+            }
+            _ => native_prior(self, &binding)?,
+        };
         let values = antecedent_prob::finite_belief::linear_functional_rows(
             prior.draws(),
             &binding.coefficients,
@@ -229,7 +305,7 @@ impl NativeJointDesignResult {
         let dependency = SemanticDigest::from_bytes(
             antecedent_io::joint_panel_experiment_artifact::experiment_update_identity(
                 &prior.metadata().identity.causal_contract_id,
-                self.prepared().dependency(),
+                self.dependency_identity(),
                 update.bridge.identity(),
                 update.observed_mean,
                 update.observation_variance,
@@ -258,10 +334,15 @@ impl NativeJointDesignResult {
     }
 }
 impl NativeJointExperimentResult {
+    /// Additional global mapping support premise establishing local-ratio posterior moments.
+    #[must_use]
+    pub fn local_ratio_regularization(&self) -> Option<&LocalRatioGaussianRegularization> {
+        self.binding.local_ratio_regularization.as_ref()
+    }
     fn validate(&self, ledger: &EvidenceLedger) -> Result<(), JointPanelError> {
         self.retention.observe_current();
         validate_update(&self.update, ledger)?;
-        validate_model_dependency(self.original.prepared().dependency(), &self.update, ledger)
+        validate_model_dependency(self.original.dependency_identity(), &self.update, ledger)
     }
     /// Actual native target retained through the experimental update.
     #[must_use]
@@ -300,7 +381,7 @@ impl NativeJointExperimentResult {
     /// Additional independent samples of this exact mapped native functional.
     /// # Errors
     /// Current evidence, study costs, utility, integration resources or cancellation fails.
-    pub fn rank_next_samples<A>(
+    pub fn rank_next_samples<A: serde::Serialize>(
         &self,
         problem: &DecisionProblem<A, PanelExperimentDecisionState>,
         candidates: &[PanelFutureSample],
@@ -368,12 +449,19 @@ impl NativeJointExperimentResult {
     ) -> Result<Vec<u8>, JointPanelError> {
         self.validate(ledger)?;
         source::check_cancelled(ctx)?;
-        let _lease = admit(
-            ctx,
-            self.retention.remainder().bytes().checked_mul(16).ok_or_else(|| {
-                JointPanelError::compile("native experiment export quote overflow")
-            })?,
-        )?;
+        let mut source_quote = super::law::WireCounter(0);
+        serde_json::to_writer(&mut source_quote, self.original.prepared().recipe())
+            .map_err(JointPanelError::compile)?;
+        serde_json::to_writer(&mut source_quote, self.original.law())
+            .map_err(JointPanelError::compile)?;
+        let bytes = self
+            .retention
+            .remainder()
+            .bytes()
+            .checked_mul(16)
+            .and_then(|n| n.checked_add(u64::try_from(source_quote.0).ok()?.checked_mul(16)?))
+            .ok_or_else(|| JointPanelError::compile("native experiment export quote overflow"))?;
+        let _lease = admit(ctx, bytes)?;
         let (_, history) =
             antecedent_io::evidence_ledger_artifact::EvidenceLedgerArtifact::seal(ledger, &[])
                 .map_err(JointPanelError::compile)?;
@@ -449,7 +537,7 @@ impl NativeJointExperimentResult {
             observation_variance: f64::from_bits(wire.variance),
             sample_size: wire.sample_size,
             mapping: PanelExperimentMapping {
-                dependency: original.prepared().dependency(),
+                dependency: original.dependency_identity(),
                 intercepts: wire.intercepts.iter().map(|v| f64::from_bits(*v)).collect(),
                 slopes: wire.slopes.iter().map(|v| f64::from_bits(*v)).collect(),
             },
@@ -497,4 +585,40 @@ impl NativeJointExperimentResult {
         }
         Ok(())
     }
+}
+
+#[cfg(test)]
+mod tests;
+
+fn validate_local_regularization(
+    binding: &NativeExperimentBinding,
+    update: &PanelExperimentUpdate,
+) -> Result<(), JointPanelError> {
+    let bounds = binding.local_ratio_regularization.as_ref().ok_or_else(||JointPanelError::Unsupported("local ratio prior moments are not established; a Gaussian experiment needs explicit global bounded-mapping support to establish posterior moments".into()))?;
+    if binding.coefficients.len() != 1
+        || !bounds.max_abs_intercept.is_finite()
+        || bounds.max_abs_intercept < 0.0
+        || !bounds.min_abs_slope.is_finite()
+        || bounds.min_abs_slope <= 0.0
+        || !bounds.max_abs_slope.is_finite()
+        || bounds.max_abs_slope < bounds.min_abs_slope
+        || bounds.assumption.trim().is_empty()
+        || update.mapping.intercepts.iter().any(|a| a.abs() > bounds.max_abs_intercept)
+        || update
+            .mapping
+            .slopes
+            .iter()
+            .any(|b| b.abs() < bounds.min_abs_slope || b.abs() > bounds.max_abs_slope)
+    {
+        return Err(JointPanelError::compile(
+            "local ratio Gaussian regularization requires explicit valid global mapping support and every paired realization inside it",
+        ));
+    }
+    // For R, a nonzero c and globally |a|<=A, 0<b_min<=|b|<=B,
+    // |(cR-a)/b-y| >= |cR|/B - A/b_min - |y|. Thus every
+    // |R|^k times the positive known-variance Gaussian likelihood is bounded.
+    // Its normalizer is strictly positive under any proper local-ratio prior.
+    // Every polynomial posterior moment therefore exists, without asserting
+    // any unconditioned ratio prior moment. The bounds remain explicit premises.
+    Ok(())
 }

@@ -44,6 +44,7 @@ pub struct NativeJointDesignResult {
     prepared: PreparedNativeJointDesign,
     inference: Arc<JointDesignInference>,
     law: Arc<JointNativeDesignLaw>,
+    dependency: SemanticDigest,
     _lease: Arc<antecedent_core::execution::AdmissionLease>,
 }
 pub(super) fn admitted(
@@ -64,8 +65,11 @@ fn encoded_size<T: Serialize>(value: &T) -> Result<usize, JointPanelError> {
     }
     Ok(bytes.len())
 }
-fn summary(recipe: &JointDesignRecipe) -> NativeJointIdentification {
-    use JointDesignRecipe::*;
+pub(super) fn summary(recipe: &JointDesignRecipe) -> NativeJointIdentification {
+    use JointDesignRecipe::{
+        DifferenceInDifferences, GaussianLongitudinal, Instrumented, InstrumentedLocal,
+        Longitudinal, Randomized, Switchback, SyntheticControl,
+    };
     let (targets, population, sampling_unit, required_assumptions) = match recipe {
         Randomized { design, .. } => (
             design.worlds.clone(),
@@ -101,6 +105,8 @@ fn summary(recipe: &JointDesignRecipe) -> NativeJointIdentification {
                 "positivity for every retained complete treatment/covariate history".into(),
             ],
         ),
+        GaussianLongitudinal{design,..}=>(design.worlds.iter().map(|w|w.key.clone()).collect(),design.population.clone(),"independent complete continuous longitudinal episode".into(),vec![design.sequential_exchangeability.clone(),design.consistency.clone(),design.conditional_model.clone(),"fitted full-rank transformed joint assignment density; exact integration of all treatment-affected covariate histories".into()]),
+        InstrumentedLocal { design, .. } => (vec![design.key.clone()], design.population.clone(), "independent Bernoulli encouragement unit".into(), vec![design.exclusion.clone(),design.monotonicity.clone(),design.consistency_and_isolation.clone(),"known positive encouragement probabilities; nonzero receipt first stage; target remains encouragement-specific compliers".into()]),
         Instrumented { design, .. } => (
             design.contrasts.iter().map(|(key, _)| key.clone()).collect(),
             design.population.clone(),
@@ -162,9 +168,19 @@ impl PreparedNativeJointDesign {
             .ok()
             .and_then(|n| n.checked_mul(128))
             .ok_or_else(|| failure("native joint-design admission overflow"))?;
+        let native_width = summary(&recipe).targets.len();
+        let quote = quote
+            .checked_add(
+                (native_width as u64)
+                    .checked_mul(native_width as u64)
+                    .and_then(|v| v.checked_mul(64))
+                    .ok_or_else(|| failure("native joint covariance admission overflow"))?,
+            )
+            .ok_or_else(|| failure("native joint admission overflow"))?;
         let lease = admitted(ctx, quote)?;
-        let point =
-            recipe.execute_native(&JointDesignInference::Frequentist, ctx).map_err(failure)?;
+        let point = recipe
+            .execute_native(&JointDesignInference::Frequentist, ctx)
+            .map_err(|error| super::execution_failure(ctx, error))?;
         let identification = summary(&recipe);
         let mut writer = CanonicalWriter::new("antecedent.compiled_native_joint_design.v1");
         writer.bytes(&antecedent_io::convert::to_cbor(&recipe).map_err(failure)?);
@@ -214,6 +230,9 @@ impl PreparedNativeJointDesign {
             JointDesignInference::Frequentist
             | JointDesignInference::SyntheticConformal { .. }
             | JointDesignInference::SwitchbackExactRandomization { .. } => 1,
+            JointDesignInference::LocalComplierBayesian { draws, .. } => *draws,
+            JointDesignInference::GaussianLongitudinalBootstrap { replicates, .. } => *replicates,
+            JointDesignInference::GaussianLongitudinalBayesian { prior } => prior.draws,
             JointDesignInference::RandomizedGaussian { prior } => prior.draws,
             JointDesignInference::RandomizedFinitePopulationGaussian { prior } => prior.arm.draws,
             JointDesignInference::LongitudinalDirichlet { prior } => prior.draws,
@@ -256,13 +275,19 @@ impl PreparedNativeJointDesign {
         let law = if matches!(inference, JointDesignInference::Frequentist) {
             self.point.clone()
         } else {
-            Arc::new(self.recipe.execute_native(&inference, ctx).map_err(failure)?)
+            Arc::new(
+                self.recipe
+                    .execute_native(&inference, ctx)
+                    .map_err(|error| super::execution_failure(ctx, error))?,
+            )
         };
+        let dependency = super::retained_law_identity(self.dependency, &inference, law.as_ref())?;
         check_cancel(ctx)?;
         Ok(NativeJointDesignResult {
             prepared: self.clone(),
             inference: Arc::new(inference),
             law,
+            dependency,
             _lease: lease,
         })
     }
@@ -272,6 +297,11 @@ impl NativeJointDesignResult {
     #[must_use]
     pub fn law(&self) -> &JointNativeDesignLaw {
         &self.law
+    }
+    /// Exact fitted-law slots, priors, RNG stream and numerical recipe identity.
+    #[must_use]
+    pub const fn dependency_identity(&self) -> SemanticDigest {
+        self.dependency
     }
     /// Same exact identification result consumed by either inference mode.
     #[must_use]
@@ -376,3 +406,6 @@ impl PreparedNativeJointDesign {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+pub(crate) use tests::{gaussian_longitudinal_chain_fixture, native_experiment_fixtures};

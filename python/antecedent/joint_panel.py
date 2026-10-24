@@ -20,11 +20,16 @@ from typing import Any
 from . import _native
 from ._joint_panel_designs import (
     JointDesignResult,
+    NativeJointDesignResult,
     PreparedJointDesign,
+    PreparedNativeJointDesign,
     prepare_joint_design,
     prepare_joint_design_for_panel,
+    prepare_native_joint_design,
     replay_joint_design,
+    replay_native_joint_design,
     replay_population_reference,
+    replay_reference_decomposition,
 )
 from ._joint_panel_experiment import PanelExperiment
 from ._joint_panel_experiment import acceptance_matrix as experiment_acceptance_matrix
@@ -36,11 +41,16 @@ __all__ = [
     "PanelExperiment",
     "experiment_acceptance_matrix",
     "JointDesignResult",
+    "NativeJointDesignResult",
     "PreparedJointDesign",
+    "PreparedNativeJointDesign",
     "prepare_joint_design",
     "prepare_joint_design_for_panel",
+    "prepare_native_joint_design",
     "replay_joint_design",
+    "replay_native_joint_design",
     "replay_population_reference",
+    "replay_reference_decomposition",
     "PanelResult",
     "PreparedPanel",
     "PreparedRandomizedProgramSelection",
@@ -359,6 +369,7 @@ class PanelResult:
         initial_step: float = 0.5,
         step_tolerance: float = 1e-6,
         objective_tolerance: float = 0.0,
+        uncertainty: str = "point_means",
         **execution: Any,
     ) -> dict[str, Any]:
         """Execute certified search when supported, otherwise bounded best-found search.
@@ -366,8 +377,12 @@ class PanelResult:
         Both routes evaluate this actual frozen fitted response and preserve its
         scientific scope. The best-found route retains its certificate refusal
         and stopping reason; an unavailable global gap remains absent.
+        ``uncertainty="aligned_law"`` uses the complete original joint law and
+        returns the selected action's actual law separately. Posterior meaning
+        remains distinct from frequentist selected-value coverage.
         """
         declaration = {
+            "uncertainty": uncertainty,
             "certificate": {
                 "base_world": base_world,
                 "controls": list(controls),

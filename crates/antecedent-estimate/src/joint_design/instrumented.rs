@@ -270,7 +270,7 @@ pub fn instrumented_joint_coefficient_posterior(
         || prior.disturbance_covariance.len() != errors * errors
         || prior.disturbance_covariance.iter().any(|x| !x.is_finite())
         || prior.draws < 2
-        || prior.draws > 100000
+        || prior.draws > 100_000
     {
         return Err("invalid proper joint triangular IV prior, raw-feature specification or dimension bound".into());
     }

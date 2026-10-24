@@ -1,0 +1,32 @@
+feature_id = "estimate.joint_design"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+papers = [{ title = "Design and Analysis of Switchback Experiments", url = "https://arxiv.org/abs/2009.00148", sections = ["Finite-carryover potential outcomes and design-based estimation"] }, { title = "Identification and Estimation of Local Average Treatment Effects", url = "https://www.nber.org/papers/t0118", sections = ["Abstract: local average treatment effect identification under valid instruments; local target versus population average"] }]
+implementation_deviations = [
+  "Independent native owners for full-program randomization, finite-carryover schedule randomization, full-history finite and continuous longitudinal g-computation, joint endogenous structural-feature 2SLS, joint regime/cohort/time differences in differences, and supported donor-world synthetic rollout effects. A compiler alias never substitutes one estimator for another design.",
+  "Randomized means use known whole-program probabilities and fixed preassignment population weights with independent-unit/cluster sandwich covariance. Gaussian common-arm-mean likelihood and proper priors are a distinct statistical model. A separate finite-population Gaussian latent potential-response model retains unequal population weights and uncertainty about unobserved unit-by-arm responses.",
+  "Continuous longitudinal g-computation fits all full-history initial, state and outcome conditional Gaussian mechanisms and transformed joint treatment densities. Treatment-affected covariates are integrated under exact schedules, not frozen. Frequentist episode bootstrap refits the complete procedure with failed slots retained; Bayesian inference uses proper Gaussian/inverse-gamma priors and aligned full-mechanism draws. Finite policy covariance must have full joint rank. No release coverage license is inferred.",
+  "A separate weaker-assumption local encouragement route reuses the independent-unit Wald and paired Bayesian-bootstrap score owners under explicit exclusion and monotonicity. Its typed output retains the encouragement-specific complier target, weak-stage interval refusal and paired ratio/numerator/denominator draws. It never asserts existence of posterior ratio moments or converts the target to a population average effect.",
+  "Longitudinal g-computation retains all treatment-affected covariate histories. Frequentist covariance deletes complete episodes and refits every conditional mechanism. Bayesian inference samples proper Dirichlet conditional tables over explicitly supplied fixed finite supports; every regime shares each complete mechanism draw. Missing history support is refused in both modes.",
+  "Joint IV projects every actual endogenous structural feature separately on the full instrument space and requires joint projected-design rank. Actual interaction features are not products of projected doses. Bayesian inference uses a proper joint triangular raw-dose/outcome likelihood with known correlated disturbances, proper priors on all structural and first-stage coefficients, and verified deterministic polynomial features. It does not turn heterogeneous local/complier effects into population effects. Frequentist coefficient covariance is an uncalibrated whole-unit jackknife, not weak-IV robust coverage.",
+  "Joint rollout ATTs use supported never/not-yet-treated cohorts at both periods, explicit no anticipation, consistency and parallel-trend premises. The distinct proper Gaussian unit/calendar/saturated cohort-time likelihood models every observed treated cell, with declared known AR1 errors. An omitted treatment effect cannot become an untreated comparison.",
+  "Synthetic rollout targets preserve explicitly unaffected donor sets, weights, preperiod fit and the declared persistent counterfactual model. Joint frequentist regions use Bonferroni native conformal inversions at the required marginal levels and an explicit residual-exchangeability premise. Bayesian laws reuse the convergence-gated native simplex/AR1 likelihood with proper priors; distinct treated factors are conditionally independent given shared observed donors, whose data are not multiplied as independent outcome evidence.",
+  "Prepared native target execution preserves structural, cohort, history and donor target meanings. Versioned artifacts rerun original data through the actual native owner and compare the retained law. Current consumption independently matches the caller's current full source/design recipe. Historical replay alone grants no caller-current scientific authority.",
+  "The ScientificTarget world-source port additionally checks complete source-codebook world semantics, source population, unit, outcome and terminal aggregation. Longitudinal physical arm dictionaries must generate the exact target schedule. This port admits randomized, finite-state and full-history continuous longitudinal world means; other native targets retain their own target kind instead of receiving an invalid world-mean cast.",
+  "All current sandwich, jackknife, posterior and conformal implementations remain release-uncalibrated. Implementation-stage known-truth and posterior reference checks do not grant Q08/E14 release licenses. The capability inventory includes every promised X07 design and records unfinished implementation obligations explicitly.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-estimate/src/joint_design/randomized.rs",
+  "crates/antecedent-estimate/src/joint_design/longitudinal.rs",
+  "crates/antecedent-estimate/src/joint_design/gaussian_longitudinal.rs",
+  "crates/antecedent-estimate/src/joint_design/local_instrument.rs",
+  "crates/antecedent-estimate/src/joint_design/instrumented.rs",
+  "crates/antecedent-estimate/src/joint_design/rollout.rs",
+  "crates/antecedent-estimate/src/joint_design/switchback.rs",
+  "crates/antecedent/src/analysis/joint_panel/designs/native/tests.rs",
+  "crates/antecedent/tests/joint_panel_experiment_chain/matrix.rs",
+]

@@ -39,10 +39,11 @@ status = "unmeasured"
 
 [[procedure]]
 id = "joint_panel.program_search"
-claim = "Finite-set numerical optimum or continuous best-found feasible point under the supplied retained law; selected-decision reliability unmeasured."
-execution = "Full data fit -> admitted world law -> all feasibility/risk checks -> actual finite/continuous selection -> held-out utility"
+claim = "Finite-set optimum, compiler-derived continuous global bound where supported, or actual bounded best-found result; numerical optimality and selected-value statistical uncertainty retain distinct assumptions."
+execution = "Original data split -> training-only generation/fitting -> actual compiled response -> hard feasibility -> certified or best-found search -> selection -> independent original-observation held-out evaluation; whole-unit resampling repeats every stage"
 required_grid = "Candidate count, controls/time axes, nonlinear interactions, binding budgets/restrictions, weak utility separation and uncertainty quality; resource/cancellation failures."
-score = "Held-out selected utility/regret, operational/risk violation rates, wrong-best rate, failure rate and exact scope of supplied-set certificates."
+score = "Selected-value coverage, training optimism, held-out bias, operational/risk violations, failures and instability; numerical certificate checks use independent analytic optima and planted nonconcave traps."
+measurement_registration = "parity/joint_response_calibration.toml#randomized_selected_program_value and #continuous_structural_selected_program_value"
 status = "unmeasured"
 
 [[procedure]]
@@ -51,4 +52,14 @@ claim = "Conditional FrozenJointImportance update with a licensed affine bridge 
 execution = "Full model fit -> experiment/map realizations -> importance update -> changed response/decision -> future-data update/terminal action/net cost"
 required_grid = "Bridge uncertainty/dependence, evidence overlap, likelihood concentration, posterior effective weights, unequal future costs and weak terminal utility separation."
 score = "Updated-functional calibration under the declared modular law, selected-decision reliability, net-value error, stale/duplicate evidence refusal and failure mass."
+status = "unmeasured"
+
+[[procedure]]
+id = "joint_panel.reference_decomposition"
+claim = "Explicitly bound exposure/saturation/population/mechanism reference contributions; identified scope requires every source hybrid and the actual transport theorem. Unique causal attribution remains separate."
+execution = "Actual native data -> identification -> F/B fit -> checked root-stratum population transport -> all16hybrids -> all24orders -> full joint covariance/law -> independent contribution truth -> artifact/current replay"
+uncertainty = "Native complete-unit covariance or actual aligned posterior law, including supplied weights; fitted panel models retain their original full-procedure initialization/selection/smoothing and failed slots. Order sensitivity is separate."
+required_grid = "Static and complete temporal programs; all4parameter/population components, isolated changes and nonlinear interaction/order dependence; unsupported hybrid, response-mechanism selection and baseline latent-confounding counterexamples."
+score = "All4component joint coverage/width, complete-slot count, order sensitivity and artifact/current-question matching. Registered full procedure runs on the stable candidate; implementation-stage simulations do not grant licenses."
+measurement_registration = "parity/joint_response_calibration.toml#compiled_reference_decomposition"
 status = "unmeasured"

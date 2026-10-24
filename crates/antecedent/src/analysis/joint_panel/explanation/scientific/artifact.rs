@@ -1,6 +1,11 @@
 //! Versioned component recipe and numeric replay tied to the original native design.
 // SPDX-License-Identifier: MIT OR Apache-2.0
-use super::*;
+use super::{
+    invalid, ChangeComponent, ExecutionContext, JointPanelError, PanelDecomposition,
+    PopulationReferenceBindings, PopulationReferenceDecomposition, ReferenceComponentBindings,
+    ScientificConsumptionScope, ScientificReferenceDecomposition, ScientificWorldId,
+    SemanticDigest, VariableId,
+};
 use serde::{Deserialize, Serialize};
 const MAX_BYTES: usize = 24 * 1024 * 1024;
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -18,7 +23,7 @@ impl BindingsWire {
             exposure: bindings.exposure.iter().map(|id| id.raw()).collect(),
             saturation: bindings.saturation.iter().map(|id| id.raw()).collect(),
             mechanism: bindings.mechanism.iter().map(|id| id.raw()).collect(),
-            hybrids: bindings.hybrids.map(|id| id.raw()),
+            hybrids: bindings.hybrids.map(ScientificWorldId::raw),
             order: bindings.order,
         }
     }
@@ -182,6 +187,11 @@ impl crate::analysis::joint_panel::designs::JointDesignResult {
             ));
         }
         let current = self.prepared().consume_current(&wire.design, ctx)?;
+        if current.export_artifact()? != self.export_artifact()? {
+            return Err(invalid(
+                "reference artifact differs from the caller-current statistical execution, prior, draw law or seed",
+            ));
+        }
         let result = current.decompose_reference_components(bindings, scope, ctx)?;
         if digest(&result, ctx)? != wire.digest {
             return Err(invalid("reference decomposition numeric replay mismatch"));
@@ -194,6 +204,8 @@ impl crate::analysis::joint_panel::designs::JointDesignResult {
 /// identity. It exposes no scientific source that could authorize current consumption.
 #[derive(Clone, Debug)]
 pub struct HistoricalReferenceDecomposition {
+    /// Replayed original per-slot full-procedure failure diagnostics.
+    pub procedure_failures: Vec<Option<String>>,
     /// Reproduced numerical law and component outputs.
     pub decomposition: PanelDecomposition,
     /// Reproduced analytic joint covariance from the native method owner.
@@ -226,6 +238,7 @@ pub fn replay_reference_decomposition(
         return Err(invalid("historical reference decomposition numeric replay mismatch"));
     }
     Ok(HistoricalReferenceDecomposition {
+        procedure_failures: result.procedure_failures,
         decomposition: result.decomposition,
         covariance: result.covariance,
         bindings,
@@ -251,7 +264,7 @@ impl PopulationBindingsWire {
             worlds: bindings
                 .stratum_worlds
                 .iter()
-                .map(|worlds| worlds.map(|id| id.raw()))
+                .map(|worlds| worlds.map(ScientificWorldId::raw))
                 .collect(),
             before: bindings.before_weights.clone(),
             after: bindings.after_weights.clone(),
@@ -379,6 +392,11 @@ impl crate::analysis::joint_panel::designs::JointDesignResult {
             ));
         }
         let current = self.prepared().consume_current(&wire.design, ctx)?;
+        if current.export_artifact()? != self.export_artifact()? {
+            return Err(invalid(
+                "reference artifact differs from the caller-current statistical execution, prior, draw law or seed",
+            ));
+        }
         let result = current.decompose_population_reference(bindings, diagram, scope, ctx)?;
         if numerical_digest(
             &result.decomposition,
@@ -395,6 +413,8 @@ impl crate::analysis::joint_panel::designs::JointDesignResult {
 /// Historical population-reference replay without a source granting current permission.
 #[derive(Clone, Debug)]
 pub struct HistoricalPopulationReference {
+    /// Replayed original per-slot full-procedure failure diagnostics.
+    pub procedure_failures: Vec<Option<String>>,
     /// Complete reproduced numerical decomposition.
     pub decomposition: PanelDecomposition,
     /// Reproduced native joint covariance.
@@ -433,6 +453,7 @@ pub fn replay_population_reference(
         return Err(invalid("historical population-reference numeric replay mismatch"));
     }
     Ok(HistoricalPopulationReference {
+        procedure_failures: result.procedure_failures,
         decomposition: result.decomposition,
         covariance: result.covariance,
         transport_identity: result.transport.identity(),

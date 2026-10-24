@@ -6,7 +6,8 @@ use antecedent_core::{
     StructuralAction, TemporalPolicy, VariableId, WorldAction,
 };
 use antecedent_design::scientific_source::{
-    ScientificConsumptionScope, ScientificDecisionSource, ScientificSourcePayload,
+    ScientificConsumptionScope, ScientificDecisionSource, ScientificProjectionBasis,
+    ScientificProjectionOutput, ScientificSourcePayload, ScientificSourceProjection,
 };
 use antecedent_io_core::distribution_artifact::DrawAlignment;
 
@@ -28,6 +29,8 @@ pub struct ReferenceComponentBindings {
 /// Scientific lineage and complete aligned reference-world decomposition.
 #[derive(Clone, Debug)]
 pub struct ScientificReferenceDecomposition {
+    /// Original full-procedure resampling failures, retaining every requested slot.
+    pub procedure_failures: Vec<Option<String>>,
     /// Complete numerical decomposition, with original joint uncertainty semantics.
     pub decomposition: PanelDecomposition,
     /// Analytically propagated native joint covariance, when supplied by the method owner.
@@ -82,7 +85,11 @@ fn split(
             groups[classify(intervention)?].push(intervention.clone());
         }
         return Ok(groups.map(|values| {
-            if values.is_empty() { Actions::Empty } else { Actions::Static(values) }
+            if values.is_empty() {
+                Actions::Empty
+            } else {
+                Actions::Static(values)
+            }
         }));
     }
     if let Some((intervention, policy)) = action.schedule_parts() {
@@ -109,7 +116,11 @@ fn split(
             groups[block(action.variable(), bindings)?].push(action.clone());
         }
         return Ok(groups.map(|values| {
-            if values.is_empty() { Actions::Empty } else { Actions::Structural(values) }
+            if values.is_empty() {
+                Actions::Empty
+            } else {
+                Actions::Structural(values)
+            }
         }));
     }
     Err(invalid("unrecognized reference-world action"))
@@ -125,6 +136,10 @@ fn split(
 /// # Errors
 /// Unsupported scientific scope, incorrect/missing hybrid, component overlap,
 /// independent marginals, numerical/resource/cancellation failure.
+#[expect(
+    clippy::too_many_lines,
+    reason = "validate the complete compiled hybrid basis before consuming its aligned law"
+)]
 pub fn decompose_scientific_reference(
     source: &ScientificDecisionSource,
     bindings: &ReferenceComponentBindings,
@@ -253,8 +268,8 @@ pub fn decompose_scientific_reference(
                     let values = std::array::from_fn(|j| row[indices[j]]);
                     for j in 0..16 {
                         point[j] += values[j]
-                            * weights.as_ref().map_or(1.0, |weights| weights[index])
-                            / total_weight;
+                            * (weights.as_ref().map_or(1.0, |weights| weights[index])
+                                / total_weight);
                     }
                     Some(values)
                 })
@@ -270,6 +285,7 @@ pub fn decompose_scientific_reference(
         ctx,
     )?;
     Ok(ScientificReferenceDecomposition {
+        procedure_failures: Vec::new(),
         decomposition,
         covariance: None,
         source: source.clone(),
@@ -304,9 +320,6 @@ impl super::JointPanelResult {
                 "panel program action variables are exposure channels; saturation/mechanism changes require explicit parameter or structural-action worlds from their owning compiler",
             ));
         }
-        use antecedent_design::scientific_source::{
-            ScientificProjectionBasis, ScientificProjectionOutput, ScientificSourceProjection,
-        };
         let mut means = self.numerical_project_mean_source(
             &super::super::JointPanelResponseFunctional::TerminalMean,
         )?;
@@ -389,6 +402,153 @@ mod tests {
     use antecedent_estimate::joint_design::randomized::{
         JointRandomizedDesign, JointRandomizedUnit, RandomizedGaussianPrior,
     };
+
+    #[test]
+    fn continuous_history_bootstrap_and_posterior_reference_preserve_the_actual_law() {
+        let ctx = ExecutionContext::for_tests(559);
+        let (recipe, bayesian, _) =
+            crate::analysis::joint_panel::designs::gaussian_longitudinal_chain_fixture();
+        let JointDesignRecipe::GaussianLongitudinal { design, .. } = &recipe else {
+            panic!("continuous history owner")
+        };
+        let worlds = design
+            .worlds
+            .iter()
+            .enumerate()
+            .map(|(index, program)| {
+                let steps: Vec<_> = program
+                    .treatments
+                    .iter()
+                    .enumerate()
+                    .map(|(time, values)| {
+                        SequencedIntervention::new(
+                            Intervention::set(VariableId::from_raw(1), Value::f64(values[0])),
+                            TemporalPolicy::pulse(time as i32),
+                        )
+                    })
+                    .collect();
+                InterventionWorld::new(
+                    ScientificWorldId::from_raw(index as u32),
+                    WorldAction::schedule(
+                        Intervention::Sequence(InterventionSequence::new(steps)),
+                        TemporalPolicy::sustained(0, 1),
+                    )
+                    .unwrap(),
+                    index == 0,
+                    WorldBinding::new(
+                        TargetPopulation::AllObserved,
+                        ObservationUnit::new("independent episode").unwrap(),
+                        OutcomeQuantity::mean(
+                            VariableId::from_raw(0),
+                            QuantityUnits::new("response").unwrap(),
+                        )
+                        .unwrap(),
+                        Conditioning::unconditional(),
+                    )
+                    .unwrap(),
+                    TimeFrame::temporal(
+                        2,
+                        antecedent_core::HistoryWindow::max_lag(0),
+                        antecedent_core::InitialLaw::named("observed baseline history").unwrap(),
+                    )
+                    .unwrap(),
+                )
+                .unwrap()
+            })
+            .collect::<Vec<_>>();
+        let source_binding =
+            crate::analysis::joint_panel::designs::JointDesignSourceBinding::from_world(
+                &worlds[0],
+                design.population.clone(),
+            )
+            .unwrap();
+        let bindings = ReferenceComponentBindings {
+            exposure: vec![VariableId::from_raw(1)],
+            saturation: vec![],
+            mechanism: vec![],
+            hybrids: std::array::from_fn(|mask| {
+                ScientificWorldId::from_raw(if mask & 1 == 0 { 0 } else { 3 })
+            }),
+            order: [
+                ChangeComponent::Exposure,
+                ChangeComponent::Saturation,
+                ChangeComponent::Population,
+                ChangeComponent::Mechanism,
+            ],
+        };
+        let proof = JointDesignProof {
+            version: 1,
+            source_binding,
+            longitudinal_arms: vec![],
+            recipe,
+            worlds: worlds
+                .iter()
+                .enumerate()
+                .map(|(index, world)| JointDesignWorldBinding {
+                    key: index.to_string(),
+                    world: index as u32,
+                    target_identity:
+                        crate::analysis::joint_panel::designs::joint_design_world_identity(world)
+                            .to_hex(),
+                })
+                .collect(),
+        };
+        let target = ScientificTarget::new(
+            TargetForm::Worlds(WorldCollection::new(worlds).unwrap()),
+            ModelAssumptions::new(GraphFamily::Unspecified, Default::default()),
+            InferenceSelection::Bayesian,
+        );
+        let prepared = PreparedJointDesign::compile(target, proof, &ctx).unwrap();
+        for inference in [
+            JointDesignInference::GaussianLongitudinalBootstrap { replicates: 32, seed: 559 },
+            bayesian,
+        ] {
+            let result = prepared.execute(inference, &ctx).unwrap();
+            let decomposition = result
+                .decompose_reference_components(
+                    &bindings,
+                    ScientificConsumptionScope::IdentifiedCausal,
+                    &ctx,
+                )
+                .unwrap();
+            assert!((decomposition.decomposition.point.total - 16.6).abs() < 0.5);
+            assert!(decomposition.decomposition.draws.iter().flatten().all(|draw| (draw.shapley
+                [0]
+                - draw.total)
+                .abs()
+                < 1e-10
+                && draw.shapley[1..].iter().all(|value| value.abs() < 1e-10)));
+            if let Some(rows) = result.law().frequentist_realizations() {
+                assert_eq!(decomposition.decomposition.draws.len(), rows.len());
+                assert_eq!(
+                    decomposition.procedure_failures,
+                    result.law().frequentist_failures().unwrap()
+                );
+                assert_eq!(
+                    decomposition.decomposition.point.hybrids[1],
+                    result.law().estimate().means[3]
+                );
+                for (actual, native) in decomposition.decomposition.draws.iter().zip(rows) {
+                    assert_eq!(actual.is_some(), native.is_some());
+                    if let (Some(actual), Some(native)) = (actual, native) {
+                        assert!((actual.total - (native[3] - native[0])).abs() < 1e-10);
+                    }
+                }
+            } else {
+                assert_eq!(decomposition.decomposition.draws.len(), 512);
+            }
+            let artifact = result
+                .export_reference_decomposition(
+                    &bindings,
+                    ScientificConsumptionScope::IdentifiedCausal,
+                    &ctx,
+                )
+                .unwrap();
+            let historical = replay_reference_decomposition(&artifact, &ctx).unwrap();
+            assert_eq!(historical.decomposition.draws, decomposition.decomposition.draws);
+            assert_eq!(historical.procedure_failures, decomposition.procedure_failures);
+        }
+    }
 
     fn compiled_parameter_experiment(
         temporal: bool,
@@ -647,15 +807,13 @@ mod tests {
             );
             let mut invalid = bindings.clone();
             invalid.hybrids[3] = invalid.hybrids[0];
-            assert!(
-                decompose_scientific_reference(
-                    &source,
-                    &invalid,
-                    ScientificConsumptionScope::IdentifiedCausal,
-                    &ExecutionContext::for_tests(312)
-                )
-                .is_err()
-            );
+            assert!(decompose_scientific_reference(
+                &source,
+                &invalid,
+                ScientificConsumptionScope::IdentifiedCausal,
+                &ExecutionContext::for_tests(312)
+            )
+            .is_err());
             let reference_artifact = result
                 .export_reference_decomposition(
                     &bindings,
@@ -681,26 +839,22 @@ mod tests {
             assert_eq!(historical.covariance, current_reference.covariance);
             let mut changed_order = bindings.clone();
             changed_order.order.swap(0, 1);
-            assert!(
-                result
-                    .consume_reference_decomposition_current(
-                        &reference_artifact,
-                        &changed_order,
-                        ScientificConsumptionScope::IdentifiedCausal,
-                        &ExecutionContext::for_tests(314)
-                    )
-                    .is_err()
-            );
-            assert!(
-                result
-                    .consume_reference_decomposition_current(
-                        &reference_artifact,
-                        &bindings,
-                        ScientificConsumptionScope::ModelConditional,
-                        &ExecutionContext::for_tests(314)
-                    )
-                    .is_err()
-            );
+            assert!(result
+                .consume_reference_decomposition_current(
+                    &reference_artifact,
+                    &changed_order,
+                    ScientificConsumptionScope::IdentifiedCausal,
+                    &ExecutionContext::for_tests(314)
+                )
+                .is_err());
+            assert!(result
+                .consume_reference_decomposition_current(
+                    &reference_artifact,
+                    &bindings,
+                    ScientificConsumptionScope::ModelConditional,
+                    &ExecutionContext::for_tests(314)
+                )
+                .is_err());
             let bytes = result.export_artifact().unwrap();
             let replay = crate::analysis::joint_panel::designs::replay_joint_design_artifact(
                 &bytes,
@@ -841,17 +995,15 @@ mod tests {
                 assert_eq!(decomposition.covariance, current.covariance);
                 let mut changed = bindings.clone();
                 changed.after_weights = vec![0.4, 0.6];
-                assert!(
-                    result
-                        .consume_population_reference_current(
-                            &bytes,
-                            &changed,
-                            &diagram,
-                            ScientificConsumptionScope::IdentifiedCausal,
-                            &ExecutionContext::for_tests(319)
-                        )
-                        .is_err()
-                );
+                assert!(result
+                    .consume_population_reference_current(
+                        &bytes,
+                        &changed,
+                        &diagram,
+                        ScientificConsumptionScope::IdentifiedCausal,
+                        &ExecutionContext::for_tests(319)
+                    )
+                    .is_err());
                 let mut isolated = bindings.clone();
                 isolated.components.hybrids.fill(components.hybrids[0]);
                 isolated.stratum_worlds =
@@ -876,16 +1028,14 @@ mod tests {
             }
             let invalid =
                 SelectionDiagram::try_new(graph.clone(), [VariableId::from_raw(4)]).unwrap();
-            assert!(
-                posterior
-                    .decompose_population_reference(
-                        &bindings,
-                        &invalid,
-                        ScientificConsumptionScope::IdentifiedCausal,
-                        &ExecutionContext::for_tests(319)
-                    )
-                    .is_err()
-            );
+            assert!(posterior
+                .decompose_population_reference(
+                    &bindings,
+                    &invalid,
+                    ScientificConsumptionScope::IdentifiedCausal,
+                    &ExecutionContext::for_tests(319)
+                )
+                .is_err());
             graph.insert_bidirected(DenseNodeId::from_raw(3), DenseNodeId::from_raw(4)).unwrap();
             let mut fallback = components.clone();
             fallback.exposure = (0..4).map(VariableId::from_raw).collect();
@@ -909,16 +1059,14 @@ mod tests {
             assert!(refusal.contains("selection"));
             assert!(executed.decomposition.point.total > 3.0);
             let confounded = SelectionDiagram::try_new(graph, [VariableId::from_raw(3)]).unwrap();
-            assert!(
-                posterior
-                    .decompose_population_reference(
-                        &bindings,
-                        &confounded,
-                        ScientificConsumptionScope::IdentifiedCausal,
-                        &ExecutionContext::for_tests(319)
-                    )
-                    .is_err()
-            );
+            assert!(posterior
+                .decompose_population_reference(
+                    &bindings,
+                    &confounded,
+                    ScientificConsumptionScope::IdentifiedCausal,
+                    &ExecutionContext::for_tests(319)
+                )
+                .is_err());
         }
     }
 
@@ -1066,9 +1214,10 @@ impl crate::analysis::joint_panel::designs::JointDesignResult {
             antecedent_estimate::joint_design::compiled::JointDesignLaw::Bayesian(_) => {
                 self.posterior_source()?
             }
-            antecedent_estimate::joint_design::compiled::JointDesignLaw::Frequentist(_) => {
-                self.mean_source()?
-            }
+            antecedent_estimate::joint_design::compiled::JointDesignLaw::Frequentist(_)
+            | antecedent_estimate::joint_design::compiled::JointDesignLaw::FrequentistBootstrap {
+                ..
+            } => self.mean_source()?,
         };
         let mut result = decompose_scientific_reference(&source, bindings, scope, ctx)?;
         let worlds = &self.prepared().proof().worlds;
@@ -1079,7 +1228,37 @@ impl crate::analysis::joint_panel::designs::JointDesignResult {
                     invalid("hybrid absent from original design-functional covariance")
                 })?;
         }
+        if let Some(realizations) = self.law().frequentist_realizations() {
+            let bytes = realizations
+                .len()
+                .checked_mul(16 * 8 + 16)
+                .ok_or_else(|| invalid("bootstrap reference projection quote overflow"))?;
+            let _projection = ctx
+                .acquire_admission(0, bytes as u64)
+                .map_err(|error| super::engine::PanelError::Resource(error.to_string()))?;
+            let draws = realizations
+                .iter()
+                .map(|row| {
+                    let row = row.as_ref()?;
+                    if row.len() != worlds.len() {
+                        return None;
+                    }
+                    Some(indices.map(|index| row[index]))
+                })
+                .collect::<Vec<_>>();
+            result.decomposition = super::engine::decomposition::decompose_hybrid_law(
+                result.decomposition.point.hybrids,
+                &draws,
+                bindings.order,
+                ctx,
+            )?;
+            result.procedure_failures =
+                self.law().frequentist_failures().unwrap_or_default().to_vec();
+        }
         let native = self.law().estimate();
+        if native.covariance.is_empty() && self.law().frequentist_realizations().is_some() {
+            return Ok(result);
+        }
         if native.covariance.len() != worlds.len() * worlds.len() {
             return Err(invalid("native joint-design covariance axis mismatch"));
         }
@@ -1096,11 +1275,11 @@ impl crate::analysis::joint_panel::designs::JointDesignResult {
 
 mod artifact;
 pub use artifact::{
-    HistoricalPopulationReference, HistoricalReferenceDecomposition, replay_population_reference,
-    replay_reference_decomposition,
+    replay_population_reference, replay_reference_decomposition, HistoricalPopulationReference,
+    HistoricalReferenceDecomposition,
 };
 mod population;
 pub use population::{
-    PopulationReferenceAttempt, PopulationReferenceBindings, PopulationReferenceDecomposition,
-    PopulationReferenceTransportProof, decompose_population_reference,
+    decompose_population_reference, PopulationReferenceAttempt, PopulationReferenceBindings,
+    PopulationReferenceDecomposition, PopulationReferenceTransportProof,
 };

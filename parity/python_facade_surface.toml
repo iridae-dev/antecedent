@@ -2633,6 +2633,18 @@ status = "missing"
 reason = "Python reads an operation through inspect() and antecedent.host.operation_status and has no operation-report object to shape as the schema operation_report. Next attempt: a record builder over the inspect() capability report."
 
 [[entry]]
+rust = "antecedent::host::neighbor_records"
+kind = "fn"
+status = "internal"
+reason = "Formats licensed-neighbor rows inside the host refusal record; Python exposes these rows through antecedent.host.refusal_record."
+
+[[entry]]
+rust = "antecedent::host::unmet_obligation_records"
+kind = "fn"
+status = "internal"
+reason = "Formats unmet-obligation rows inside the host refusal record; Python exposes these rows through antecedent.host.refusal_record."
+
+[[entry]]
 rust = "antecedent::host::refusal_code"
 kind = "fn"
 status = "bound"
@@ -2667,3 +2679,87 @@ rust = "antecedent::analysis::structure_route::attribution_quantities"
 kind = "fn"
 status = "bound"
 python = "antecedent.attribution.attribution_uncertainty"
+
+[[entry]]
+rust = "antecedent::analysis::joint_panel::PreparedJointDesign"
+kind = "type"
+status = "bound"
+python = "antecedent.joint_panel.PreparedJointDesign"
+
+[[entry]]
+rust = "antecedent::analysis::joint_panel::designs::PreparedNativeJointDesign"
+kind = "type"
+status = "bound"
+python = "antecedent.joint_panel.PreparedNativeJointDesign"
+
+[[entry]]
+rust = "antecedent::analysis::joint_panel::decompose_population_reference"
+kind = "fn"
+status = "bound"
+python = "native:python/src/joint_panel_api/designs.rs"
+
+[[entry]]
+rust = "antecedent::analysis::joint_panel::decompose_scientific_reference"
+kind = "fn"
+status = "bound"
+python = "native:python/src/joint_panel_api/designs.rs"
+
+[[entry]]
+rust = "antecedent::analysis::joint_panel::designs::replay_joint_design_artifact"
+kind = "fn"
+status = "bound"
+python = "antecedent.joint_panel.replay_joint_design"
+
+[[entry]]
+rust = "antecedent::analysis::joint_panel::designs::replay_native_joint_design"
+kind = "fn"
+status = "bound"
+python = "antecedent.joint_panel.replay_native_joint_design"
+
+[[entry]]
+rust = "antecedent::analysis::joint_panel::joint_experiment_acceptance_matrix"
+kind = "fn"
+status = "bound"
+python = "antecedent.joint_panel.experiment_acceptance_matrix"
+
+[[entry]]
+rust = "antecedent::analysis::joint_panel::replay_panel_certificate"
+kind = "fn"
+status = "bound"
+python = "antecedent.joint_panel.consume_program_certificate"
+
+[[entry]]
+rust = "antecedent::analysis::joint_panel::replay_population_reference"
+kind = "fn"
+status = "bound"
+python = "antecedent.joint_panel.replay_population_reference"
+
+[[entry]]
+rust = "antecedent::analysis::joint_panel::replay_reference_decomposition"
+kind = "fn"
+status = "bound"
+python = "antecedent.joint_panel.replay_reference_decomposition"
+
+[[entry]]
+rust = "antecedent::analysis::joint_panel::selection::PreparedRandomizedSelection"
+kind = "type"
+status = "bound"
+python = "antecedent.joint_panel.PreparedRandomizedProgramSelection"
+
+[[entry]]
+rust = "antecedent::analysis::joint_panel::selection::instrumented::replay_instrumented_selection"
+kind = "fn"
+status = "bound"
+python = "antecedent.joint_panel.consume_instrumented_selection"
+
+[[entry]]
+rust = "antecedent::analysis::joint_panel::selection::replay_randomized_selection"
+kind = "fn"
+status = "bound"
+python = "antecedent.joint_panel.consume_randomized_selection"
+
+[[entry]]
+rust = "antecedent::analysis::joint_panel::designs::joint_design_world_identity"
+kind = "fn"
+status = "internal"
+reason = "Exact target identity is derived inside native prepare_joint_design_for_panel; callers provide explicit compiled source bindings through antecedent.joint_panel."

@@ -352,8 +352,9 @@ impl ProgramSelectionProcedure<JointInstrumentedUnit> for InstrumentedSelectionR
         _: usize,
         ctx: &ExecutionContext,
     ) -> Result<Vec<RankedProgram<Self::Action>>, ProgramSearchError> {
-        let variables =
-            (0..bounds.len()).map(|i| VariableId::from_raw(i as u32)).collect::<Vec<_>>();
+        let variables = (0..bounds.len())
+            .map(|i| u32::try_from(i).map(VariableId::from_raw).map_err(invalid))
+            .collect::<Result<Vec<_>, _>>()?;
         let mut terms = Vec::new();
         for (powers, beta) in self.features.powers.iter().zip(&fit.coefficients) {
             let mut term = ValueExpr::constant(1.0);

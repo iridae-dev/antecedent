@@ -593,6 +593,50 @@ impl core::clone::Clone for antecedent_estimate::joint_bayesian_transport::Sourc
 impl core::clone::Clone for antecedent_estimate::joint_bayesian_transport::TargetData
 impl core::clone::Clone for antecedent_estimate::joint_bayesian_transport::TransportGraphClass
 impl core::clone::Clone for antecedent_estimate::joint_bayesian_transport::VaryingBlock
+impl core::clone::Clone for antecedent_estimate::joint_design::JointDesignEstimate
+impl core::clone::Clone for antecedent_estimate::joint_design::JointDesignPosterior
+impl core::clone::Clone for antecedent_estimate::joint_design::JointUncertainty
+impl core::clone::Clone for antecedent_estimate::joint_design::capabilities::JointDesignCapability
+impl core::clone::Clone for antecedent_estimate::joint_design::compiled::JointDesignInference
+impl core::clone::Clone for antecedent_estimate::joint_design::compiled::JointDesignLaw
+impl core::clone::Clone for antecedent_estimate::joint_design::compiled::JointDesignRecipe
+impl core::clone::Clone for antecedent_estimate::joint_design::compiled::JointNativeDesignLaw
+impl core::clone::Clone for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianAssignmentSupport
+impl core::clone::Clone for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianHistoryFeature
+impl core::clone::Clone for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign
+impl core::clone::Clone for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalEpisode
+impl core::clone::Clone for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalModel
+impl core::clone::Clone for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalPrior
+impl core::clone::Clone for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalWorld
+impl core::clone::Clone for antecedent_estimate::joint_design::gaussian_longitudinal::LongitudinalGaussianBootstrap
+impl core::clone::Clone for antecedent_estimate::joint_design::instrumented::JointInstrumentedDesign
+impl core::clone::Clone for antecedent_estimate::joint_design::instrumented::JointInstrumentedModelFit
+impl core::clone::Clone for antecedent_estimate::joint_design::instrumented::JointInstrumentedUnit
+impl core::clone::Clone for antecedent_estimate::joint_design::instrumented::JointIvGaussianPrior
+impl core::clone::Clone for antecedent_estimate::joint_design::instrumented::JointStructuralFeatureBinding
+impl core::clone::Clone for antecedent_estimate::joint_design::local_instrument::LocalInstrumentDesign
+impl core::clone::Clone for antecedent_estimate::joint_design::local_instrument::LocalInstrumentResult
+impl core::clone::Clone for antecedent_estimate::joint_design::local_instrument::LocalInstrumentUnit
+impl core::clone::Clone for antecedent_estimate::joint_design::longitudinal::LongitudinalDirichletPrior
+impl core::clone::Clone for antecedent_estimate::joint_design::longitudinal::LongitudinalEpisode
+impl core::clone::Clone for antecedent_estimate::joint_design::longitudinal::LongitudinalJointDesign
+impl core::clone::Clone for antecedent_estimate::joint_design::randomized::JointRandomizedDesign
+impl core::clone::Clone for antecedent_estimate::joint_design::randomized::JointRandomizedUnit
+impl core::clone::Clone for antecedent_estimate::joint_design::randomized::RandomizedFinitePopulationPrior
+impl core::clone::Clone for antecedent_estimate::joint_design::randomized::RandomizedGaussianPrior
+impl core::clone::Clone for antecedent_estimate::joint_design::rollout::JointRolloutCell
+impl core::clone::Clone for antecedent_estimate::joint_design::rollout::JointRolloutDesign
+impl core::clone::Clone for antecedent_estimate::joint_design::rollout::JointRolloutGaussianPrior
+impl core::clone::Clone for antecedent_estimate::joint_design::rollout::JointRolloutUnit
+impl core::clone::Clone for antecedent_estimate::joint_design::switchback::JointSwitchbackDesign
+impl core::clone::Clone for antecedent_estimate::joint_design::switchback::JointSwitchbackRandomizationTest
+impl core::clone::Clone for antecedent_estimate::joint_design::switchback::SwitchbackGaussianPrior
+impl core::clone::Clone for antecedent_estimate::joint_design::synthetic::JointSyntheticConformal
+impl core::clone::Clone for antecedent_estimate::joint_design::synthetic::JointSyntheticCoordinate
+impl core::clone::Clone for antecedent_estimate::joint_design::synthetic::JointSyntheticDesign
+impl core::clone::Clone for antecedent_estimate::joint_design::synthetic::JointSyntheticObservation
+impl core::clone::Clone for antecedent_estimate::joint_design::synthetic::JointSyntheticPrior
+impl core::clone::Clone for antecedent_estimate::joint_design::synthetic::JointSyntheticWorld
 impl core::clone::Clone for antecedent_estimate::joint_panel::PanelChannel
 impl core::clone::Clone for antecedent_estimate::joint_panel::PanelChannelHistory
 impl core::clone::Clone for antecedent_estimate::joint_panel::PanelChannelParameters
@@ -617,11 +661,15 @@ impl core::clone::Clone for antecedent_estimate::joint_panel::PanelSamplingOptio
 impl core::clone::Clone for antecedent_estimate::joint_panel::PanelScenario
 impl core::clone::Clone for antecedent_estimate::joint_panel::decomposition::ChangeComponent
 impl core::clone::Clone for antecedent_estimate::joint_panel::decomposition::DecompositionEndpoint
+impl core::clone::Clone for antecedent_estimate::joint_panel::decomposition::DecompositionJointUncertainty
 impl core::clone::Clone for antecedent_estimate::joint_panel::decomposition::MechanismPeriodMap
 impl core::clone::Clone for antecedent_estimate::joint_panel::decomposition::PairedPanelPath
 impl core::clone::Clone for antecedent_estimate::joint_panel::decomposition::PanelDecomposition
 impl core::clone::Clone for antecedent_estimate::joint_panel::decomposition::PanelDecompositionRequest
 impl core::clone::Clone for antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition
+impl core::clone::Clone for antecedent_estimate::joint_panel::decomposition::ReferenceDecompositionCovariance
+impl core::clone::Clone for antecedent_estimate::joint_panel::expression::CompiledPanelExpression
+impl core::clone::Clone for antecedent_estimate::joint_panel::expression::PanelExpressionControl
 impl core::clone::Clone for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast
 impl core::clone::Clone for antecedent_estimate::joint_panel::time_varying::PanelExplanation
 impl core::clone::Clone for antecedent_estimate::joint_panel::time_varying::PanelMeanParameter
@@ -1131,6 +1179,7 @@ impl core::cmp::Eq for antecedent_estimate::joint_bayesian_transport::SourceDepe
 impl core::cmp::Eq for antecedent_estimate::joint_bayesian_transport::SourceSharing
 impl core::cmp::Eq for antecedent_estimate::joint_bayesian_transport::TransportGraphClass
 impl core::cmp::Eq for antecedent_estimate::joint_bayesian_transport::VaryingBlock
+impl core::cmp::Eq for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianHistoryFeature
 impl core::cmp::Eq for antecedent_estimate::joint_panel::PanelChannel
 impl core::cmp::Eq for antecedent_estimate::joint_panel::PanelError
 impl core::cmp::Eq for antecedent_estimate::joint_panel::PanelFeatureInputs
@@ -1672,6 +1721,49 @@ impl core::cmp::PartialEq for antecedent_estimate::joint_bayesian_transport::Sou
 impl core::cmp::PartialEq for antecedent_estimate::joint_bayesian_transport::TargetData
 impl core::cmp::PartialEq for antecedent_estimate::joint_bayesian_transport::TransportGraphClass
 impl core::cmp::PartialEq for antecedent_estimate::joint_bayesian_transport::VaryingBlock
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::JointDesignEstimate
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::JointDesignPosterior
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::JointUncertainty
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::compiled::JointDesignInference
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::compiled::JointDesignLaw
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::compiled::JointDesignRecipe
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::compiled::JointNativeDesignLaw
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianAssignmentSupport
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianHistoryFeature
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalEpisode
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalModel
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalPrior
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalWorld
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::gaussian_longitudinal::LongitudinalGaussianBootstrap
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::instrumented::JointInstrumentedDesign
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::instrumented::JointInstrumentedModelFit
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::instrumented::JointInstrumentedUnit
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::instrumented::JointIvGaussianPrior
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::instrumented::JointStructuralFeatureBinding
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::local_instrument::LocalInstrumentDesign
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::local_instrument::LocalInstrumentResult
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::local_instrument::LocalInstrumentUnit
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::longitudinal::LongitudinalDirichletPrior
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::longitudinal::LongitudinalEpisode
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::longitudinal::LongitudinalJointDesign
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::randomized::JointRandomizedDesign
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::randomized::JointRandomizedUnit
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::randomized::RandomizedFinitePopulationPrior
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::randomized::RandomizedGaussianPrior
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::rollout::JointRolloutCell
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::rollout::JointRolloutDesign
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::rollout::JointRolloutGaussianPrior
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::rollout::JointRolloutUnit
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::switchback::JointSwitchbackDesign
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::switchback::JointSwitchbackRandomizationTest
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::switchback::SwitchbackGaussianPrior
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::synthetic::JointSyntheticConformal
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::synthetic::JointSyntheticCoordinate
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::synthetic::JointSyntheticDesign
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::synthetic::JointSyntheticObservation
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::synthetic::JointSyntheticPrior
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::synthetic::JointSyntheticWorld
 impl core::cmp::PartialEq for antecedent_estimate::joint_panel::PanelChannel
 impl core::cmp::PartialEq for antecedent_estimate::joint_panel::PanelChannelHistory
 impl core::cmp::PartialEq for antecedent_estimate::joint_panel::PanelChannelParameters
@@ -1695,10 +1787,12 @@ impl core::cmp::PartialEq for antecedent_estimate::joint_panel::PanelSamplingOpt
 impl core::cmp::PartialEq for antecedent_estimate::joint_panel::PanelScenario
 impl core::cmp::PartialEq for antecedent_estimate::joint_panel::decomposition::ChangeComponent
 impl core::cmp::PartialEq for antecedent_estimate::joint_panel::decomposition::DecompositionEndpoint
+impl core::cmp::PartialEq for antecedent_estimate::joint_panel::decomposition::DecompositionJointUncertainty
 impl core::cmp::PartialEq for antecedent_estimate::joint_panel::decomposition::MechanismPeriodMap
 impl core::cmp::PartialEq for antecedent_estimate::joint_panel::decomposition::PairedPanelPath
 impl core::cmp::PartialEq for antecedent_estimate::joint_panel::decomposition::PanelDecompositionRequest
 impl core::cmp::PartialEq for antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition
+impl core::cmp::PartialEq for antecedent_estimate::joint_panel::decomposition::ReferenceDecompositionCovariance
 impl core::cmp::PartialEq for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast
 impl core::cmp::PartialEq for antecedent_estimate::joint_panel::time_varying::PanelExplanation
 impl core::cmp::PartialEq for antecedent_estimate::joint_panel::time_varying::PanelMeanParameter
@@ -2733,6 +2827,50 @@ impl core::fmt::Debug for antecedent_estimate::joint_bayesian_transport::SourceS
 impl core::fmt::Debug for antecedent_estimate::joint_bayesian_transport::TargetData
 impl core::fmt::Debug for antecedent_estimate::joint_bayesian_transport::TransportGraphClass
 impl core::fmt::Debug for antecedent_estimate::joint_bayesian_transport::VaryingBlock
+impl core::fmt::Debug for antecedent_estimate::joint_design::JointDesignEstimate
+impl core::fmt::Debug for antecedent_estimate::joint_design::JointDesignPosterior
+impl core::fmt::Debug for antecedent_estimate::joint_design::JointUncertainty
+impl core::fmt::Debug for antecedent_estimate::joint_design::capabilities::JointDesignCapability
+impl core::fmt::Debug for antecedent_estimate::joint_design::compiled::JointDesignInference
+impl core::fmt::Debug for antecedent_estimate::joint_design::compiled::JointDesignLaw
+impl core::fmt::Debug for antecedent_estimate::joint_design::compiled::JointDesignRecipe
+impl core::fmt::Debug for antecedent_estimate::joint_design::compiled::JointNativeDesignLaw
+impl core::fmt::Debug for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianAssignmentSupport
+impl core::fmt::Debug for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianHistoryFeature
+impl core::fmt::Debug for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign
+impl core::fmt::Debug for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalEpisode
+impl core::fmt::Debug for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalModel
+impl core::fmt::Debug for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalPrior
+impl core::fmt::Debug for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalWorld
+impl core::fmt::Debug for antecedent_estimate::joint_design::gaussian_longitudinal::LongitudinalGaussianBootstrap
+impl core::fmt::Debug for antecedent_estimate::joint_design::instrumented::JointInstrumentedDesign
+impl core::fmt::Debug for antecedent_estimate::joint_design::instrumented::JointInstrumentedModelFit
+impl core::fmt::Debug for antecedent_estimate::joint_design::instrumented::JointInstrumentedUnit
+impl core::fmt::Debug for antecedent_estimate::joint_design::instrumented::JointIvGaussianPrior
+impl core::fmt::Debug for antecedent_estimate::joint_design::instrumented::JointStructuralFeatureBinding
+impl core::fmt::Debug for antecedent_estimate::joint_design::local_instrument::LocalInstrumentDesign
+impl core::fmt::Debug for antecedent_estimate::joint_design::local_instrument::LocalInstrumentResult
+impl core::fmt::Debug for antecedent_estimate::joint_design::local_instrument::LocalInstrumentUnit
+impl core::fmt::Debug for antecedent_estimate::joint_design::longitudinal::LongitudinalDirichletPrior
+impl core::fmt::Debug for antecedent_estimate::joint_design::longitudinal::LongitudinalEpisode
+impl core::fmt::Debug for antecedent_estimate::joint_design::longitudinal::LongitudinalJointDesign
+impl core::fmt::Debug for antecedent_estimate::joint_design::randomized::JointRandomizedDesign
+impl core::fmt::Debug for antecedent_estimate::joint_design::randomized::JointRandomizedUnit
+impl core::fmt::Debug for antecedent_estimate::joint_design::randomized::RandomizedFinitePopulationPrior
+impl core::fmt::Debug for antecedent_estimate::joint_design::randomized::RandomizedGaussianPrior
+impl core::fmt::Debug for antecedent_estimate::joint_design::rollout::JointRolloutCell
+impl core::fmt::Debug for antecedent_estimate::joint_design::rollout::JointRolloutDesign
+impl core::fmt::Debug for antecedent_estimate::joint_design::rollout::JointRolloutGaussianPrior
+impl core::fmt::Debug for antecedent_estimate::joint_design::rollout::JointRolloutUnit
+impl core::fmt::Debug for antecedent_estimate::joint_design::switchback::JointSwitchbackDesign
+impl core::fmt::Debug for antecedent_estimate::joint_design::switchback::JointSwitchbackRandomizationTest
+impl core::fmt::Debug for antecedent_estimate::joint_design::switchback::SwitchbackGaussianPrior
+impl core::fmt::Debug for antecedent_estimate::joint_design::synthetic::JointSyntheticConformal
+impl core::fmt::Debug for antecedent_estimate::joint_design::synthetic::JointSyntheticCoordinate
+impl core::fmt::Debug for antecedent_estimate::joint_design::synthetic::JointSyntheticDesign
+impl core::fmt::Debug for antecedent_estimate::joint_design::synthetic::JointSyntheticObservation
+impl core::fmt::Debug for antecedent_estimate::joint_design::synthetic::JointSyntheticPrior
+impl core::fmt::Debug for antecedent_estimate::joint_design::synthetic::JointSyntheticWorld
 impl core::fmt::Debug for antecedent_estimate::joint_panel::PanelChannel
 impl core::fmt::Debug for antecedent_estimate::joint_panel::PanelChannelHistory
 impl core::fmt::Debug for antecedent_estimate::joint_panel::PanelChannelParameters
@@ -2758,11 +2896,15 @@ impl core::fmt::Debug for antecedent_estimate::joint_panel::PanelSamplingOptions
 impl core::fmt::Debug for antecedent_estimate::joint_panel::PanelScenario
 impl core::fmt::Debug for antecedent_estimate::joint_panel::decomposition::ChangeComponent
 impl core::fmt::Debug for antecedent_estimate::joint_panel::decomposition::DecompositionEndpoint
+impl core::fmt::Debug for antecedent_estimate::joint_panel::decomposition::DecompositionJointUncertainty
 impl core::fmt::Debug for antecedent_estimate::joint_panel::decomposition::MechanismPeriodMap
 impl core::fmt::Debug for antecedent_estimate::joint_panel::decomposition::PairedPanelPath
 impl core::fmt::Debug for antecedent_estimate::joint_panel::decomposition::PanelDecomposition
 impl core::fmt::Debug for antecedent_estimate::joint_panel::decomposition::PanelDecompositionRequest
 impl core::fmt::Debug for antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition
+impl core::fmt::Debug for antecedent_estimate::joint_panel::decomposition::ReferenceDecompositionCovariance
+impl core::fmt::Debug for antecedent_estimate::joint_panel::expression::CompiledPanelExpression
+impl core::fmt::Debug for antecedent_estimate::joint_panel::expression::PanelExpressionControl
 impl core::fmt::Debug for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast
 impl core::fmt::Debug for antecedent_estimate::joint_panel::time_varying::PanelExplanation
 impl core::fmt::Debug for antecedent_estimate::joint_panel::time_varying::PanelMeanParameter
@@ -4082,6 +4224,50 @@ impl core::marker::Freeze for antecedent_estimate::joint_bayesian_transport::Sou
 impl core::marker::Freeze for antecedent_estimate::joint_bayesian_transport::TargetData [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_bayesian_transport::TransportGraphClass [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_bayesian_transport::VaryingBlock [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::JointDesignEstimate [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::JointDesignPosterior [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::JointUncertainty [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::capabilities::JointDesignCapability [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::compiled::JointDesignInference [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::compiled::JointDesignLaw [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::compiled::JointDesignRecipe [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::compiled::JointNativeDesignLaw [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianAssignmentSupport [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianHistoryFeature [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalEpisode [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalModel [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalPrior [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalWorld [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::gaussian_longitudinal::LongitudinalGaussianBootstrap [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::instrumented::JointInstrumentedDesign [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::instrumented::JointInstrumentedModelFit [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::instrumented::JointInstrumentedUnit [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::instrumented::JointIvGaussianPrior [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::instrumented::JointStructuralFeatureBinding [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::local_instrument::LocalInstrumentDesign [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::local_instrument::LocalInstrumentResult [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::local_instrument::LocalInstrumentUnit [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::longitudinal::LongitudinalDirichletPrior [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::longitudinal::LongitudinalEpisode [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::longitudinal::LongitudinalJointDesign [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::randomized::JointRandomizedDesign [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::randomized::JointRandomizedUnit [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::randomized::RandomizedFinitePopulationPrior [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::randomized::RandomizedGaussianPrior [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::rollout::JointRolloutCell [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::rollout::JointRolloutDesign [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::rollout::JointRolloutGaussianPrior [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::rollout::JointRolloutUnit [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::switchback::JointSwitchbackDesign [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::switchback::JointSwitchbackRandomizationTest [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::switchback::SwitchbackGaussianPrior [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::synthetic::JointSyntheticConformal [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::synthetic::JointSyntheticCoordinate [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::synthetic::JointSyntheticDesign [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::synthetic::JointSyntheticObservation [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::synthetic::JointSyntheticPrior [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::synthetic::JointSyntheticWorld [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_panel::PanelChannel [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_panel::PanelChannelHistory [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_panel::PanelChannelParameters [auto]
@@ -4107,11 +4293,15 @@ impl core::marker::Freeze for antecedent_estimate::joint_panel::PanelSamplingOpt
 impl core::marker::Freeze for antecedent_estimate::joint_panel::PanelScenario [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_panel::decomposition::ChangeComponent [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_panel::decomposition::DecompositionEndpoint [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::decomposition::DecompositionJointUncertainty [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_panel::decomposition::MechanismPeriodMap [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_panel::decomposition::PairedPanelPath [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_panel::decomposition::PanelDecomposition [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_panel::decomposition::PanelDecompositionRequest [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::decomposition::ReferenceDecompositionCovariance [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::expression::CompiledPanelExpression [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::expression::PanelExpressionControl [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_panel::time_varying::PanelExplanation [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_panel::time_varying::PanelMeanParameter [auto]
@@ -5030,6 +5220,50 @@ impl core::marker::Send for antecedent_estimate::joint_bayesian_transport::Sourc
 impl core::marker::Send for antecedent_estimate::joint_bayesian_transport::TargetData [auto]
 impl core::marker::Send for antecedent_estimate::joint_bayesian_transport::TransportGraphClass [auto]
 impl core::marker::Send for antecedent_estimate::joint_bayesian_transport::VaryingBlock [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::JointDesignEstimate [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::JointDesignPosterior [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::JointUncertainty [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::capabilities::JointDesignCapability [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::compiled::JointDesignInference [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::compiled::JointDesignLaw [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::compiled::JointDesignRecipe [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::compiled::JointNativeDesignLaw [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianAssignmentSupport [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianHistoryFeature [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalEpisode [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalModel [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalPrior [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalWorld [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::gaussian_longitudinal::LongitudinalGaussianBootstrap [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::instrumented::JointInstrumentedDesign [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::instrumented::JointInstrumentedModelFit [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::instrumented::JointInstrumentedUnit [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::instrumented::JointIvGaussianPrior [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::instrumented::JointStructuralFeatureBinding [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::local_instrument::LocalInstrumentDesign [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::local_instrument::LocalInstrumentResult [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::local_instrument::LocalInstrumentUnit [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::longitudinal::LongitudinalDirichletPrior [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::longitudinal::LongitudinalEpisode [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::longitudinal::LongitudinalJointDesign [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::randomized::JointRandomizedDesign [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::randomized::JointRandomizedUnit [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::randomized::RandomizedFinitePopulationPrior [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::randomized::RandomizedGaussianPrior [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::rollout::JointRolloutCell [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::rollout::JointRolloutDesign [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::rollout::JointRolloutGaussianPrior [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::rollout::JointRolloutUnit [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::switchback::JointSwitchbackDesign [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::switchback::JointSwitchbackRandomizationTest [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::switchback::SwitchbackGaussianPrior [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::synthetic::JointSyntheticConformal [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::synthetic::JointSyntheticCoordinate [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::synthetic::JointSyntheticDesign [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::synthetic::JointSyntheticObservation [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::synthetic::JointSyntheticPrior [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::synthetic::JointSyntheticWorld [auto]
 impl core::marker::Send for antecedent_estimate::joint_panel::PanelChannel [auto]
 impl core::marker::Send for antecedent_estimate::joint_panel::PanelChannelHistory [auto]
 impl core::marker::Send for antecedent_estimate::joint_panel::PanelChannelParameters [auto]
@@ -5055,11 +5289,15 @@ impl core::marker::Send for antecedent_estimate::joint_panel::PanelSamplingOptio
 impl core::marker::Send for antecedent_estimate::joint_panel::PanelScenario [auto]
 impl core::marker::Send for antecedent_estimate::joint_panel::decomposition::ChangeComponent [auto]
 impl core::marker::Send for antecedent_estimate::joint_panel::decomposition::DecompositionEndpoint [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::decomposition::DecompositionJointUncertainty [auto]
 impl core::marker::Send for antecedent_estimate::joint_panel::decomposition::MechanismPeriodMap [auto]
 impl core::marker::Send for antecedent_estimate::joint_panel::decomposition::PairedPanelPath [auto]
 impl core::marker::Send for antecedent_estimate::joint_panel::decomposition::PanelDecomposition [auto]
 impl core::marker::Send for antecedent_estimate::joint_panel::decomposition::PanelDecompositionRequest [auto]
 impl core::marker::Send for antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::decomposition::ReferenceDecompositionCovariance [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::expression::CompiledPanelExpression [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::expression::PanelExpressionControl [auto]
 impl core::marker::Send for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast [auto]
 impl core::marker::Send for antecedent_estimate::joint_panel::time_varying::PanelExplanation [auto]
 impl core::marker::Send for antecedent_estimate::joint_panel::time_varying::PanelMeanParameter [auto]
@@ -5857,6 +6095,49 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::joint_bayesian_t
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_bayesian_transport::TargetData
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_bayesian_transport::TransportGraphClass
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_bayesian_transport::VaryingBlock
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::JointDesignEstimate
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::JointDesignPosterior
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::JointUncertainty
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::compiled::JointDesignInference
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::compiled::JointDesignLaw
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::compiled::JointDesignRecipe
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::compiled::JointNativeDesignLaw
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianAssignmentSupport
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianHistoryFeature
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalEpisode
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalModel
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalPrior
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalWorld
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::gaussian_longitudinal::LongitudinalGaussianBootstrap
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::instrumented::JointInstrumentedDesign
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::instrumented::JointInstrumentedModelFit
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::instrumented::JointInstrumentedUnit
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::instrumented::JointIvGaussianPrior
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::instrumented::JointStructuralFeatureBinding
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::local_instrument::LocalInstrumentDesign
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::local_instrument::LocalInstrumentResult
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::local_instrument::LocalInstrumentUnit
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::longitudinal::LongitudinalDirichletPrior
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::longitudinal::LongitudinalEpisode
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::longitudinal::LongitudinalJointDesign
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::randomized::JointRandomizedDesign
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::randomized::JointRandomizedUnit
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::randomized::RandomizedFinitePopulationPrior
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::randomized::RandomizedGaussianPrior
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::rollout::JointRolloutCell
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::rollout::JointRolloutDesign
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::rollout::JointRolloutGaussianPrior
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::rollout::JointRolloutUnit
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::switchback::JointSwitchbackDesign
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::switchback::JointSwitchbackRandomizationTest
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::switchback::SwitchbackGaussianPrior
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::synthetic::JointSyntheticConformal
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::synthetic::JointSyntheticCoordinate
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::synthetic::JointSyntheticDesign
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::synthetic::JointSyntheticObservation
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::synthetic::JointSyntheticPrior
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::synthetic::JointSyntheticWorld
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::PanelChannel
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::PanelChannelHistory
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::PanelChannelParameters
@@ -5880,10 +6161,12 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::Pan
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::PanelScenario
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::decomposition::ChangeComponent
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::decomposition::DecompositionEndpoint
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::decomposition::DecompositionJointUncertainty
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::decomposition::MechanismPeriodMap
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::decomposition::PairedPanelPath
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::decomposition::PanelDecompositionRequest
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::decomposition::ReferenceDecompositionCovariance
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::time_varying::PanelExplanation
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::time_varying::PanelMeanParameter
@@ -6759,6 +7042,50 @@ impl core::marker::Sync for antecedent_estimate::joint_bayesian_transport::Sourc
 impl core::marker::Sync for antecedent_estimate::joint_bayesian_transport::TargetData [auto]
 impl core::marker::Sync for antecedent_estimate::joint_bayesian_transport::TransportGraphClass [auto]
 impl core::marker::Sync for antecedent_estimate::joint_bayesian_transport::VaryingBlock [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::JointDesignEstimate [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::JointDesignPosterior [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::JointUncertainty [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::capabilities::JointDesignCapability [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::compiled::JointDesignInference [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::compiled::JointDesignLaw [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::compiled::JointDesignRecipe [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::compiled::JointNativeDesignLaw [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianAssignmentSupport [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianHistoryFeature [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalEpisode [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalModel [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalPrior [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalWorld [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::gaussian_longitudinal::LongitudinalGaussianBootstrap [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::instrumented::JointInstrumentedDesign [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::instrumented::JointInstrumentedModelFit [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::instrumented::JointInstrumentedUnit [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::instrumented::JointIvGaussianPrior [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::instrumented::JointStructuralFeatureBinding [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::local_instrument::LocalInstrumentDesign [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::local_instrument::LocalInstrumentResult [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::local_instrument::LocalInstrumentUnit [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::longitudinal::LongitudinalDirichletPrior [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::longitudinal::LongitudinalEpisode [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::longitudinal::LongitudinalJointDesign [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::randomized::JointRandomizedDesign [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::randomized::JointRandomizedUnit [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::randomized::RandomizedFinitePopulationPrior [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::randomized::RandomizedGaussianPrior [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::rollout::JointRolloutCell [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::rollout::JointRolloutDesign [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::rollout::JointRolloutGaussianPrior [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::rollout::JointRolloutUnit [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::switchback::JointSwitchbackDesign [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::switchback::JointSwitchbackRandomizationTest [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::switchback::SwitchbackGaussianPrior [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::synthetic::JointSyntheticConformal [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::synthetic::JointSyntheticCoordinate [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::synthetic::JointSyntheticDesign [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::synthetic::JointSyntheticObservation [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::synthetic::JointSyntheticPrior [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::synthetic::JointSyntheticWorld [auto]
 impl core::marker::Sync for antecedent_estimate::joint_panel::PanelChannel [auto]
 impl core::marker::Sync for antecedent_estimate::joint_panel::PanelChannelHistory [auto]
 impl core::marker::Sync for antecedent_estimate::joint_panel::PanelChannelParameters [auto]
@@ -6784,11 +7111,15 @@ impl core::marker::Sync for antecedent_estimate::joint_panel::PanelSamplingOptio
 impl core::marker::Sync for antecedent_estimate::joint_panel::PanelScenario [auto]
 impl core::marker::Sync for antecedent_estimate::joint_panel::decomposition::ChangeComponent [auto]
 impl core::marker::Sync for antecedent_estimate::joint_panel::decomposition::DecompositionEndpoint [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::decomposition::DecompositionJointUncertainty [auto]
 impl core::marker::Sync for antecedent_estimate::joint_panel::decomposition::MechanismPeriodMap [auto]
 impl core::marker::Sync for antecedent_estimate::joint_panel::decomposition::PairedPanelPath [auto]
 impl core::marker::Sync for antecedent_estimate::joint_panel::decomposition::PanelDecomposition [auto]
 impl core::marker::Sync for antecedent_estimate::joint_panel::decomposition::PanelDecompositionRequest [auto]
 impl core::marker::Sync for antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::decomposition::ReferenceDecompositionCovariance [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::expression::CompiledPanelExpression [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::expression::PanelExpressionControl [auto]
 impl core::marker::Sync for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast [auto]
 impl core::marker::Sync for antecedent_estimate::joint_panel::time_varying::PanelExplanation [auto]
 impl core::marker::Sync for antecedent_estimate::joint_panel::time_varying::PanelMeanParameter [auto]
@@ -7709,6 +8040,50 @@ impl core::marker::Unpin for antecedent_estimate::joint_bayesian_transport::Sour
 impl core::marker::Unpin for antecedent_estimate::joint_bayesian_transport::TargetData [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_bayesian_transport::TransportGraphClass [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_bayesian_transport::VaryingBlock [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::JointDesignEstimate [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::JointDesignPosterior [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::JointUncertainty [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::capabilities::JointDesignCapability [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::compiled::JointDesignInference [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::compiled::JointDesignLaw [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::compiled::JointDesignRecipe [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::compiled::JointNativeDesignLaw [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianAssignmentSupport [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianHistoryFeature [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalEpisode [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalModel [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalPrior [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalWorld [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::gaussian_longitudinal::LongitudinalGaussianBootstrap [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::instrumented::JointInstrumentedDesign [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::instrumented::JointInstrumentedModelFit [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::instrumented::JointInstrumentedUnit [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::instrumented::JointIvGaussianPrior [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::instrumented::JointStructuralFeatureBinding [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::local_instrument::LocalInstrumentDesign [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::local_instrument::LocalInstrumentResult [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::local_instrument::LocalInstrumentUnit [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::longitudinal::LongitudinalDirichletPrior [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::longitudinal::LongitudinalEpisode [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::longitudinal::LongitudinalJointDesign [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::randomized::JointRandomizedDesign [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::randomized::JointRandomizedUnit [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::randomized::RandomizedFinitePopulationPrior [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::randomized::RandomizedGaussianPrior [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::rollout::JointRolloutCell [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::rollout::JointRolloutDesign [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::rollout::JointRolloutGaussianPrior [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::rollout::JointRolloutUnit [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::switchback::JointSwitchbackDesign [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::switchback::JointSwitchbackRandomizationTest [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::switchback::SwitchbackGaussianPrior [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::synthetic::JointSyntheticConformal [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::synthetic::JointSyntheticCoordinate [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::synthetic::JointSyntheticDesign [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::synthetic::JointSyntheticObservation [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::synthetic::JointSyntheticPrior [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::synthetic::JointSyntheticWorld [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_panel::PanelChannel [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_panel::PanelChannelHistory [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_panel::PanelChannelParameters [auto]
@@ -7734,11 +8109,15 @@ impl core::marker::Unpin for antecedent_estimate::joint_panel::PanelSamplingOpti
 impl core::marker::Unpin for antecedent_estimate::joint_panel::PanelScenario [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_panel::decomposition::ChangeComponent [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_panel::decomposition::DecompositionEndpoint [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::decomposition::DecompositionJointUncertainty [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_panel::decomposition::MechanismPeriodMap [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_panel::decomposition::PairedPanelPath [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_panel::decomposition::PanelDecomposition [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_panel::decomposition::PanelDecompositionRequest [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::decomposition::ReferenceDecompositionCovariance [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::expression::CompiledPanelExpression [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::expression::PanelExpressionControl [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_panel::time_varying::PanelExplanation [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_panel::time_varying::PanelMeanParameter [auto]
@@ -8659,6 +9038,50 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_baye
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_bayesian_transport::TargetData [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_bayesian_transport::TransportGraphClass [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_bayesian_transport::VaryingBlock [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::JointDesignEstimate [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::JointDesignPosterior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::JointUncertainty [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::capabilities::JointDesignCapability [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::compiled::JointDesignInference [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::compiled::JointDesignLaw [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::compiled::JointDesignRecipe [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::compiled::JointNativeDesignLaw [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianAssignmentSupport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianHistoryFeature [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalEpisode [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalModel [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalPrior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalWorld [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::gaussian_longitudinal::LongitudinalGaussianBootstrap [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::instrumented::JointInstrumentedDesign [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::instrumented::JointInstrumentedModelFit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::instrumented::JointInstrumentedUnit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::instrumented::JointIvGaussianPrior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::instrumented::JointStructuralFeatureBinding [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::local_instrument::LocalInstrumentDesign [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::local_instrument::LocalInstrumentResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::local_instrument::LocalInstrumentUnit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::longitudinal::LongitudinalDirichletPrior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::longitudinal::LongitudinalEpisode [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::longitudinal::LongitudinalJointDesign [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::randomized::JointRandomizedDesign [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::randomized::JointRandomizedUnit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::randomized::RandomizedFinitePopulationPrior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::randomized::RandomizedGaussianPrior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::rollout::JointRolloutCell [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::rollout::JointRolloutDesign [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::rollout::JointRolloutGaussianPrior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::rollout::JointRolloutUnit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::switchback::JointSwitchbackDesign [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::switchback::JointSwitchbackRandomizationTest [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::switchback::SwitchbackGaussianPrior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::synthetic::JointSyntheticConformal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::synthetic::JointSyntheticCoordinate [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::synthetic::JointSyntheticDesign [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::synthetic::JointSyntheticObservation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::synthetic::JointSyntheticPrior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::synthetic::JointSyntheticWorld [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::PanelChannel [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::PanelChannelHistory [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::PanelChannelParameters [auto]
@@ -8684,11 +9107,15 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_pane
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::PanelScenario [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::decomposition::ChangeComponent [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::decomposition::DecompositionEndpoint [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::decomposition::DecompositionJointUncertainty [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::decomposition::MechanismPeriodMap [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::decomposition::PairedPanelPath [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::decomposition::PanelDecomposition [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::decomposition::PanelDecompositionRequest [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::decomposition::ReferenceDecompositionCovariance [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::expression::CompiledPanelExpression [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::expression::PanelExpressionControl [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::time_varying::PanelExplanation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::time_varying::PanelMeanParameter [auto]
@@ -9608,6 +10035,50 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_bayesia
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_bayesian_transport::TargetData [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_bayesian_transport::TransportGraphClass [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_bayesian_transport::VaryingBlock [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::JointDesignEstimate [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::JointDesignPosterior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::JointUncertainty [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::capabilities::JointDesignCapability [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::compiled::JointDesignInference [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::compiled::JointDesignLaw [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::compiled::JointDesignRecipe [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::compiled::JointNativeDesignLaw [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianAssignmentSupport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianHistoryFeature [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalEpisode [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalModel [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalPrior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalWorld [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::gaussian_longitudinal::LongitudinalGaussianBootstrap [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::instrumented::JointInstrumentedDesign [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::instrumented::JointInstrumentedModelFit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::instrumented::JointInstrumentedUnit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::instrumented::JointIvGaussianPrior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::instrumented::JointStructuralFeatureBinding [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::local_instrument::LocalInstrumentDesign [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::local_instrument::LocalInstrumentResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::local_instrument::LocalInstrumentUnit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::longitudinal::LongitudinalDirichletPrior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::longitudinal::LongitudinalEpisode [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::longitudinal::LongitudinalJointDesign [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::randomized::JointRandomizedDesign [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::randomized::JointRandomizedUnit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::randomized::RandomizedFinitePopulationPrior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::randomized::RandomizedGaussianPrior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::rollout::JointRolloutCell [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::rollout::JointRolloutDesign [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::rollout::JointRolloutGaussianPrior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::rollout::JointRolloutUnit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::switchback::JointSwitchbackDesign [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::switchback::JointSwitchbackRandomizationTest [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::switchback::SwitchbackGaussianPrior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::synthetic::JointSyntheticConformal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::synthetic::JointSyntheticCoordinate [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::synthetic::JointSyntheticDesign [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::synthetic::JointSyntheticObservation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::synthetic::JointSyntheticPrior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::synthetic::JointSyntheticWorld [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::PanelChannel [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::PanelChannelHistory [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::PanelChannelParameters [auto]
@@ -9633,11 +10104,15 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::PanelScenario [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::decomposition::ChangeComponent [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::decomposition::DecompositionEndpoint [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::decomposition::DecompositionJointUncertainty [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::decomposition::MechanismPeriodMap [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::decomposition::PairedPanelPath [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::decomposition::PanelDecomposition [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::decomposition::PanelDecompositionRequest [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::decomposition::ReferenceDecompositionCovariance [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::expression::CompiledPanelExpression [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::expression::PanelExpressionControl [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::time_varying::PanelExplanation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::time_varying::PanelMeanParameter [auto]
@@ -10097,6 +10572,50 @@ impl serde_core::ser::Serialize for antecedent_estimate::cyclic_likelihood::Cycl
 impl serde_core::ser::Serialize for antecedent_estimate::cyclic_likelihood::CyclicParameter
 impl serde_core::ser::Serialize for antecedent_estimate::cyclic_likelihood::CyclicPosterior
 impl serde_core::ser::Serialize for antecedent_estimate::cyclic_likelihood::CyclicStructureFit
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::JointDesignEstimate
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::JointDesignPosterior
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::JointUncertainty
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::capabilities::JointDesignCapability
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::compiled::JointDesignInference
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::compiled::JointDesignLaw
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::compiled::JointDesignRecipe
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::compiled::JointNativeDesignLaw
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianAssignmentSupport
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianHistoryFeature
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalEpisode
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalModel
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalPrior
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalWorld
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::gaussian_longitudinal::LongitudinalGaussianBootstrap
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::instrumented::JointInstrumentedDesign
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::instrumented::JointInstrumentedModelFit
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::instrumented::JointInstrumentedUnit
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::instrumented::JointIvGaussianPrior
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::instrumented::JointStructuralFeatureBinding
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::local_instrument::LocalInstrumentDesign
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::local_instrument::LocalInstrumentResult
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::local_instrument::LocalInstrumentUnit
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::longitudinal::LongitudinalDirichletPrior
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::longitudinal::LongitudinalEpisode
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::longitudinal::LongitudinalJointDesign
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::randomized::JointRandomizedDesign
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::randomized::JointRandomizedUnit
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::randomized::RandomizedFinitePopulationPrior
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::randomized::RandomizedGaussianPrior
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::rollout::JointRolloutCell
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::rollout::JointRolloutDesign
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::rollout::JointRolloutGaussianPrior
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::rollout::JointRolloutUnit
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::switchback::JointSwitchbackDesign
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::switchback::JointSwitchbackRandomizationTest
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::switchback::SwitchbackGaussianPrior
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::synthetic::JointSyntheticConformal
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::synthetic::JointSyntheticCoordinate
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::synthetic::JointSyntheticDesign
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::synthetic::JointSyntheticObservation
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::synthetic::JointSyntheticPrior
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::synthetic::JointSyntheticWorld
 impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::PanelChannel
 impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::PanelChannelHistory
 impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::PanelChannelParameters
@@ -10119,10 +10638,12 @@ impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::PanelSampl
 impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::PanelScenario
 impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::decomposition::ChangeComponent
 impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::decomposition::DecompositionEndpoint
+impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::decomposition::DecompositionJointUncertainty
 impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::decomposition::MechanismPeriodMap
 impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::decomposition::PairedPanelPath
 impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::decomposition::PanelDecompositionRequest
 impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition
+impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::decomposition::ReferenceDecompositionCovariance
 impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast
 impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::time_varying::PanelExplanation
 impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::time_varying::PanelMeanParameter
@@ -10801,6 +11322,49 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::cyclic_likel
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::cyclic_likelihood::CyclicParameter
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::cyclic_likelihood::CyclicPosterior
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::cyclic_likelihood::CyclicStructureFit
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::JointDesignEstimate
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::JointDesignPosterior
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::JointUncertainty
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::compiled::JointDesignInference
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::compiled::JointDesignLaw
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::compiled::JointDesignRecipe
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::compiled::JointNativeDesignLaw
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianAssignmentSupport
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianHistoryFeature
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalEpisode
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalModel
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalPrior
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalWorld
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::gaussian_longitudinal::LongitudinalGaussianBootstrap
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::instrumented::JointInstrumentedDesign
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::instrumented::JointInstrumentedModelFit
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::instrumented::JointInstrumentedUnit
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::instrumented::JointIvGaussianPrior
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::instrumented::JointStructuralFeatureBinding
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::local_instrument::LocalInstrumentDesign
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::local_instrument::LocalInstrumentResult
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::local_instrument::LocalInstrumentUnit
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::longitudinal::LongitudinalDirichletPrior
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::longitudinal::LongitudinalEpisode
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::longitudinal::LongitudinalJointDesign
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::randomized::JointRandomizedDesign
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::randomized::JointRandomizedUnit
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::randomized::RandomizedFinitePopulationPrior
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::randomized::RandomizedGaussianPrior
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::rollout::JointRolloutCell
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::rollout::JointRolloutDesign
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::rollout::JointRolloutGaussianPrior
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::rollout::JointRolloutUnit
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::switchback::JointSwitchbackDesign
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::switchback::JointSwitchbackRandomizationTest
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::switchback::SwitchbackGaussianPrior
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::synthetic::JointSyntheticConformal
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::synthetic::JointSyntheticCoordinate
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::synthetic::JointSyntheticDesign
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::synthetic::JointSyntheticObservation
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::synthetic::JointSyntheticPrior
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::synthetic::JointSyntheticWorld
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::PanelChannel
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::PanelChannelHistory
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::PanelChannelParameters
@@ -10823,10 +11387,12 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel:
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::PanelScenario
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::decomposition::ChangeComponent
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::decomposition::DecompositionEndpoint
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::decomposition::DecompositionJointUncertainty
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::decomposition::MechanismPeriodMap
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::decomposition::PairedPanelPath
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::decomposition::PanelDecompositionRequest
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::decomposition::ReferenceDecompositionCovariance
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::time_varying::PanelExplanation
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::time_varying::PanelMeanParameter
@@ -11071,6 +11637,7 @@ pub const antecedent_estimate::joint_bayesian_transport::DETAIL_WEAK_OVERLAP: &s
 pub const antecedent_estimate::joint_bayesian_transport::JOINT_TRANSPORT_MAX_DRAWS: usize
 pub const antecedent_estimate::joint_bayesian_transport::JOINT_TRANSPORT_MAX_PARAMETERS: usize
 pub const antecedent_estimate::joint_bayesian_transport::JOINT_TRANSPORT_SAMPLER: &str
+pub const antecedent_estimate::joint_design::capabilities::JOINT_DESIGN_CAPABILITIES: [antecedent_estimate::joint_design::capabilities::JointDesignCapability; 7]
 pub const antecedent_estimate::latent_class_effects::LATENT_CLASS_CAVEAT: &str
 pub const antecedent_estimate::latent_class_effects::LATENT_CLASS_INFERENCE_CLAIM: &str
 pub const antecedent_estimate::latent_class_effects::LATENT_CLASS_MAX_CLASSES: usize
@@ -11290,6 +11857,13 @@ pub enum antecedent_estimate::joint_bayesian_transport::SourceDependence
 pub enum antecedent_estimate::joint_bayesian_transport::SourceSharing
 pub enum antecedent_estimate::joint_bayesian_transport::TransportGraphClass
 pub enum antecedent_estimate::joint_bayesian_transport::VaryingBlock
+pub enum antecedent_estimate::joint_design::JointUncertainty
+pub enum antecedent_estimate::joint_design::compiled::JointDesignInference
+pub enum antecedent_estimate::joint_design::compiled::JointDesignLaw
+pub enum antecedent_estimate::joint_design::compiled::JointDesignRecipe
+pub enum antecedent_estimate::joint_design::compiled::JointNativeDesignLaw
+pub enum antecedent_estimate::joint_design::gaussian_longitudinal::GaussianAssignmentSupport
+pub enum antecedent_estimate::joint_design::gaussian_longitudinal::GaussianHistoryFeature
 pub enum antecedent_estimate::joint_panel::PanelError
 pub enum antecedent_estimate::joint_panel::PanelFeatureInputs
 pub enum antecedent_estimate::joint_panel::PanelInference
@@ -13659,6 +14233,188 @@ pub field antecedent_estimate::joint_bayesian_transport::SourceEffectSummary::va
 pub field antecedent_estimate::joint_bayesian_transport::TargetData::covariates: alloc::vec::Vec<alloc::vec::Vec<f64>>
 pub field antecedent_estimate::joint_bayesian_transport::TargetData::identity: antecedent_estimate::joint_bayesian_transport::DataIdentity
 pub field antecedent_estimate::joint_bayesian_transport::TargetData::rows: usize
+pub field antecedent_estimate::joint_design::JointDesignEstimate::covariance: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_design::JointDesignEstimate::means: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_design::JointDesignEstimate::sampling_unit: alloc::string::String
+pub field antecedent_estimate::joint_design::JointDesignEstimate::uncertainty: antecedent_estimate::joint_design::JointUncertainty
+pub field antecedent_estimate::joint_design::JointDesignEstimate::worlds: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_estimate::joint_design::JointDesignPosterior::draws: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent_estimate::joint_design::JointDesignPosterior::estimate: antecedent_estimate::joint_design::JointDesignEstimate
+pub field antecedent_estimate::joint_design::capabilities::JointDesignCapability::bayesian_owner: core::option::Option<&'static str>
+pub field antecedent_estimate::joint_design::capabilities::JointDesignCapability::calibration: &'static str
+pub field antecedent_estimate::joint_design::capabilities::JointDesignCapability::compiled_native_port: bool
+pub field antecedent_estimate::joint_design::capabilities::JointDesignCapability::compiled_world_port: bool
+pub field antecedent_estimate::joint_design::capabilities::JointDesignCapability::design: &'static str
+pub field antecedent_estimate::joint_design::capabilities::JointDesignCapability::frequentist_owner: core::option::Option<&'static str>
+pub field antecedent_estimate::joint_design::capabilities::JointDesignCapability::implementation_gaps: &'static [&'static str]
+pub field antecedent_estimate::joint_design::capabilities::JointDesignCapability::statistical_limitations: &'static [&'static str]
+pub field antecedent_estimate::joint_design::capabilities::JointDesignCapability::target: &'static str
+pub field antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign::assignment_support: alloc::vec::Vec<antecedent_estimate::joint_design::gaussian_longitudinal::GaussianAssignmentSupport>
+pub field antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign::channel_variables: alloc::vec::Vec<u32>
+pub field antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign::conditional_model: alloc::string::String
+pub field antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign::consistency: alloc::string::String
+pub field antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign::covariate_variables: alloc::vec::Vec<u32>
+pub field antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign::model: antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalModel
+pub field antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign::population: alloc::string::String
+pub field antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign::sequential_exchangeability: alloc::string::String
+pub field antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign::worlds: alloc::vec::Vec<antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalWorld>
+pub field antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalEpisode::covariates: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalEpisode::id: alloc::string::String
+pub field antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalEpisode::outcome: f64
+pub field antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalEpisode::treatments: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalModel::assignment: alloc::vec::Vec<alloc::vec::Vec<antecedent_estimate::joint_design::gaussian_longitudinal::GaussianHistoryFeature>>
+pub field antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalModel::covariates: alloc::vec::Vec<alloc::vec::Vec<alloc::vec::Vec<antecedent_estimate::joint_design::gaussian_longitudinal::GaussianHistoryFeature>>>
+pub field antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalModel::outcome: alloc::vec::Vec<antecedent_estimate::joint_design::gaussian_longitudinal::GaussianHistoryFeature>
+pub field antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalPrior::coefficient_scale: f64
+pub field antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalPrior::draws: usize
+pub field antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalPrior::seed: u64
+pub field antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalPrior::variance_scale: f64
+pub field antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalPrior::variance_shape: f64
+pub field antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalWorld::key: alloc::string::String
+pub field antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalWorld::treatments: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent_estimate::joint_design::gaussian_longitudinal::LongitudinalGaussianBootstrap::estimate: antecedent_estimate::joint_design::JointDesignEstimate
+pub field antecedent_estimate::joint_design::gaussian_longitudinal::LongitudinalGaussianBootstrap::failures: alloc::vec::Vec<core::option::Option<alloc::string::String>>
+pub field antecedent_estimate::joint_design::gaussian_longitudinal::LongitudinalGaussianBootstrap::realizations: alloc::vec::Vec<core::option::Option<alloc::vec::Vec<f64>>>
+pub field antecedent_estimate::joint_design::instrumented::JointInstrumentedDesign::contrasts: alloc::vec::Vec<(alloc::string::String, alloc::vec::Vec<f64>)>
+pub field antecedent_estimate::joint_design::instrumented::JointInstrumentedDesign::moment_restrictions: alloc::string::String
+pub field antecedent_estimate::joint_design::instrumented::JointInstrumentedDesign::population: alloc::string::String
+pub field antecedent_estimate::joint_design::instrumented::JointInstrumentedDesign::structural_model: alloc::string::String
+pub field antecedent_estimate::joint_design::instrumented::JointInstrumentedModelFit::coefficients: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_design::instrumented::JointInstrumentedModelFit::covariance: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_design::instrumented::JointInstrumentedModelFit::design: antecedent_estimate::joint_design::instrumented::JointInstrumentedDesign
+pub field antecedent_estimate::joint_design::instrumented::JointInstrumentedModelFit::exogenous_columns: usize
+pub field antecedent_estimate::joint_design::instrumented::JointInstrumentedModelFit::features: antecedent_estimate::joint_design::instrumented::JointStructuralFeatureBinding
+pub field antecedent_estimate::joint_design::instrumented::JointInstrumentedModelFit::source_exogenous_means: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_design::instrumented::JointInstrumentedUnit::endogenous: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_design::instrumented::JointInstrumentedUnit::exogenous: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_design::instrumented::JointInstrumentedUnit::id: alloc::string::String
+pub field antecedent_estimate::joint_design::instrumented::JointInstrumentedUnit::instruments: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_design::instrumented::JointInstrumentedUnit::outcome: f64
+pub field antecedent_estimate::joint_design::instrumented::JointIvGaussianPrior::disturbance_covariance: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_design::instrumented::JointIvGaussianPrior::draws: usize
+pub field antecedent_estimate::joint_design::instrumented::JointIvGaussianPrior::parameter_mean: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_design::instrumented::JointIvGaussianPrior::parameter_variance: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_design::instrumented::JointIvGaussianPrior::raw_feature_indices: alloc::vec::Vec<usize>
+pub field antecedent_estimate::joint_design::instrumented::JointIvGaussianPrior::seed: u64
+pub field antecedent_estimate::joint_design::instrumented::JointIvGaussianPrior::structural_features: alloc::vec::Vec<alloc::vec::Vec<u32>>
+pub field antecedent_estimate::joint_design::instrumented::JointStructuralFeatureBinding::powers: alloc::vec::Vec<alloc::vec::Vec<u32>>
+pub field antecedent_estimate::joint_design::instrumented::JointStructuralFeatureBinding::raw_feature_indices: alloc::vec::Vec<usize>
+pub field antecedent_estimate::joint_design::local_instrument::LocalInstrumentDesign::consistency_and_isolation: alloc::string::String
+pub field antecedent_estimate::joint_design::local_instrument::LocalInstrumentDesign::exclusion: alloc::string::String
+pub field antecedent_estimate::joint_design::local_instrument::LocalInstrumentDesign::key: alloc::string::String
+pub field antecedent_estimate::joint_design::local_instrument::LocalInstrumentDesign::monotonicity: alloc::string::String
+pub field antecedent_estimate::joint_design::local_instrument::LocalInstrumentDesign::population: alloc::string::String
+pub field antecedent_estimate::joint_design::local_instrument::LocalInstrumentResult::effect: f64
+pub field antecedent_estimate::joint_design::local_instrument::LocalInstrumentResult::first_stage: f64
+pub field antecedent_estimate::joint_design::local_instrument::LocalInstrumentResult::intention_to_treat: f64
+pub field antecedent_estimate::joint_design::local_instrument::LocalInstrumentResult::interval_95: core::option::Option<[f64; 2]>
+pub field antecedent_estimate::joint_design::local_instrument::LocalInstrumentResult::key: alloc::string::String
+pub field antecedent_estimate::joint_design::local_instrument::LocalInstrumentResult::posterior: core::option::Option<alloc::vec::Vec<[f64; 3]>>
+pub field antecedent_estimate::joint_design::local_instrument::LocalInstrumentResult::statistical_meaning: alloc::string::String
+pub field antecedent_estimate::joint_design::local_instrument::LocalInstrumentResult::variance: f64
+pub field antecedent_estimate::joint_design::local_instrument::LocalInstrumentUnit::assigned: bool
+pub field antecedent_estimate::joint_design::local_instrument::LocalInstrumentUnit::id: alloc::string::String
+pub field antecedent_estimate::joint_design::local_instrument::LocalInstrumentUnit::outcome: f64
+pub field antecedent_estimate::joint_design::local_instrument::LocalInstrumentUnit::probability: f64
+pub field antecedent_estimate::joint_design::local_instrument::LocalInstrumentUnit::received: bool
+pub field antecedent_estimate::joint_design::longitudinal::LongitudinalDirichletPrior::concentration: f64
+pub field antecedent_estimate::joint_design::longitudinal::LongitudinalDirichletPrior::covariate_states: alloc::vec::Vec<alloc::vec::Vec<usize>>
+pub field antecedent_estimate::joint_design::longitudinal::LongitudinalDirichletPrior::draws: usize
+pub field antecedent_estimate::joint_design::longitudinal::LongitudinalDirichletPrior::outcome_values: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_design::longitudinal::LongitudinalDirichletPrior::seed: u64
+pub field antecedent_estimate::joint_design::longitudinal::LongitudinalEpisode::assignments: alloc::vec::Vec<usize>
+pub field antecedent_estimate::joint_design::longitudinal::LongitudinalEpisode::covariates: alloc::vec::Vec<usize>
+pub field antecedent_estimate::joint_design::longitudinal::LongitudinalEpisode::id: alloc::string::String
+pub field antecedent_estimate::joint_design::longitudinal::LongitudinalEpisode::outcome: f64
+pub field antecedent_estimate::joint_design::longitudinal::LongitudinalJointDesign::consistency: alloc::string::String
+pub field antecedent_estimate::joint_design::longitudinal::LongitudinalJointDesign::sampling_population: alloc::string::String
+pub field antecedent_estimate::joint_design::longitudinal::LongitudinalJointDesign::sequential_exchangeability: alloc::string::String
+pub field antecedent_estimate::joint_design::longitudinal::LongitudinalJointDesign::worlds: alloc::vec::Vec<(alloc::string::String, alloc::vec::Vec<usize>)>
+pub field antecedent_estimate::joint_design::randomized::JointRandomizedDesign::between_unit_isolation: alloc::string::String
+pub field antecedent_estimate::joint_design::randomized::JointRandomizedDesign::consistency: alloc::string::String
+pub field antecedent_estimate::joint_design::randomized::JointRandomizedDesign::population: alloc::string::String
+pub field antecedent_estimate::joint_design::randomized::JointRandomizedDesign::sampling_unit: alloc::string::String
+pub field antecedent_estimate::joint_design::randomized::JointRandomizedDesign::worlds: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_estimate::joint_design::randomized::JointRandomizedUnit::arm: usize
+pub field antecedent_estimate::joint_design::randomized::JointRandomizedUnit::id: alloc::string::String
+pub field antecedent_estimate::joint_design::randomized::JointRandomizedUnit::outcome: f64
+pub field antecedent_estimate::joint_design::randomized::JointRandomizedUnit::population_weight: f64
+pub field antecedent_estimate::joint_design::randomized::JointRandomizedUnit::probabilities: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_design::randomized::RandomizedFinitePopulationPrior::arm: antecedent_estimate::joint_design::randomized::RandomizedGaussianPrior
+pub field antecedent_estimate::joint_design::randomized::RandomizedFinitePopulationPrior::heterogeneity_variance: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_design::randomized::RandomizedGaussianPrior::draws: usize
+pub field antecedent_estimate::joint_design::randomized::RandomizedGaussianPrior::mean: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_design::randomized::RandomizedGaussianPrior::outcome_variance: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_design::randomized::RandomizedGaussianPrior::seed: u64
+pub field antecedent_estimate::joint_design::randomized::RandomizedGaussianPrior::variance: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_design::rollout::JointRolloutCell::adoption: i64
+pub field antecedent_estimate::joint_design::rollout::JointRolloutCell::baseline: i64
+pub field antecedent_estimate::joint_design::rollout::JointRolloutCell::key: alloc::string::String
+pub field antecedent_estimate::joint_design::rollout::JointRolloutCell::regime: alloc::string::String
+pub field antecedent_estimate::joint_design::rollout::JointRolloutCell::time: i64
+pub field antecedent_estimate::joint_design::rollout::JointRolloutDesign::cells: alloc::vec::Vec<antecedent_estimate::joint_design::rollout::JointRolloutCell>
+pub field antecedent_estimate::joint_design::rollout::JointRolloutDesign::consistency_and_isolation: alloc::string::String
+pub field antecedent_estimate::joint_design::rollout::JointRolloutDesign::no_anticipation: alloc::string::String
+pub field antecedent_estimate::joint_design::rollout::JointRolloutDesign::parallel_trends: alloc::string::String
+pub field antecedent_estimate::joint_design::rollout::JointRolloutDesign::population: alloc::string::String
+pub field antecedent_estimate::joint_design::rollout::JointRolloutGaussianPrior::ar1_rho: f64
+pub field antecedent_estimate::joint_design::rollout::JointRolloutGaussianPrior::draws: usize
+pub field antecedent_estimate::joint_design::rollout::JointRolloutGaussianPrior::effect_mean: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_design::rollout::JointRolloutGaussianPrior::effect_variance: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_design::rollout::JointRolloutGaussianPrior::outcome_variance: f64
+pub field antecedent_estimate::joint_design::rollout::JointRolloutGaussianPrior::seed: u64
+pub field antecedent_estimate::joint_design::rollout::JointRolloutGaussianPrior::time_mean: f64
+pub field antecedent_estimate::joint_design::rollout::JointRolloutGaussianPrior::time_variance: f64
+pub field antecedent_estimate::joint_design::rollout::JointRolloutGaussianPrior::unit_mean: f64
+pub field antecedent_estimate::joint_design::rollout::JointRolloutGaussianPrior::unit_variance: f64
+pub field antecedent_estimate::joint_design::rollout::JointRolloutUnit::adoption: core::option::Option<i64>
+pub field antecedent_estimate::joint_design::rollout::JointRolloutUnit::id: alloc::string::String
+pub field antecedent_estimate::joint_design::rollout::JointRolloutUnit::outcomes: alloc::vec::Vec<(i64, f64)>
+pub field antecedent_estimate::joint_design::rollout::JointRolloutUnit::regime: alloc::string::String
+pub field antecedent_estimate::joint_design::switchback::JointSwitchbackDesign::carryover: usize
+pub field antecedent_estimate::joint_design::switchback::JointSwitchbackDesign::finite_carryover: alloc::string::String
+pub field antecedent_estimate::joint_design::switchback::JointSwitchbackDesign::no_anticipation: alloc::string::String
+pub field antecedent_estimate::joint_design::switchback::JointSwitchbackDesign::population: alloc::string::String
+pub field antecedent_estimate::joint_design::switchback::JointSwitchbackDesign::sequence_isolation: alloc::string::String
+pub field antecedent_estimate::joint_design::switchback::JointSwitchbackDesign::worlds: alloc::vec::Vec<(alloc::string::String, alloc::vec::Vec<usize>)>
+pub field antecedent_estimate::joint_design::switchback::JointSwitchbackRandomizationTest::assignments_evaluated: usize
+pub field antecedent_estimate::joint_design::switchback::JointSwitchbackRandomizationTest::exhaustive: bool
+pub field antecedent_estimate::joint_design::switchback::JointSwitchbackRandomizationTest::null: alloc::string::String
+pub field antecedent_estimate::joint_design::switchback::JointSwitchbackRandomizationTest::observed: f64
+pub field antecedent_estimate::joint_design::switchback::JointSwitchbackRandomizationTest::p_value: [f64; 2]
+pub field antecedent_estimate::joint_design::switchback::SwitchbackGaussianPrior::draws: usize
+pub field antecedent_estimate::joint_design::switchback::SwitchbackGaussianPrior::mean: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_design::switchback::SwitchbackGaussianPrior::seed: u64
+pub field antecedent_estimate::joint_design::switchback::SwitchbackGaussianPrior::sequence_rho: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_design::switchback::SwitchbackGaussianPrior::sequence_variance: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_design::switchback::SwitchbackGaussianPrior::variance: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_design::synthetic::JointSyntheticConformal::coordinates: alloc::vec::Vec<antecedent_estimate::joint_design::synthetic::JointSyntheticCoordinate>
+pub field antecedent_estimate::joint_design::synthetic::JointSyntheticConformal::joint_level: f64
+pub field antecedent_estimate::joint_design::synthetic::JointSyntheticConformal::residual_exchangeability: alloc::string::String
+pub field antecedent_estimate::joint_design::synthetic::JointSyntheticCoordinate::donor_weights: alloc::vec::Vec<(alloc::string::String, f64)>
+pub field antecedent_estimate::joint_design::synthetic::JointSyntheticCoordinate::effect: f64
+pub field antecedent_estimate::joint_design::synthetic::JointSyntheticCoordinate::interval: core::option::Option<[f64; 2]>
+pub field antecedent_estimate::joint_design::synthetic::JointSyntheticCoordinate::key: alloc::string::String
+pub field antecedent_estimate::joint_design::synthetic::JointSyntheticCoordinate::preperiod_rmse: f64
+pub field antecedent_estimate::joint_design::synthetic::JointSyntheticDesign::counterfactual_model: alloc::string::String
+pub field antecedent_estimate::joint_design::synthetic::JointSyntheticDesign::donor_isolation: alloc::string::String
+pub field antecedent_estimate::joint_design::synthetic::JointSyntheticDesign::population: alloc::string::String
+pub field antecedent_estimate::joint_design::synthetic::JointSyntheticDesign::worlds: alloc::vec::Vec<antecedent_estimate::joint_design::synthetic::JointSyntheticWorld>
+pub field antecedent_estimate::joint_design::synthetic::JointSyntheticObservation::outcome: f64
+pub field antecedent_estimate::joint_design::synthetic::JointSyntheticObservation::time: i64
+pub field antecedent_estimate::joint_design::synthetic::JointSyntheticObservation::unit: alloc::string::String
+pub field antecedent_estimate::joint_design::synthetic::JointSyntheticPrior::ar1_rho: f64
+pub field antecedent_estimate::joint_design::synthetic::JointSyntheticPrior::burn_in: usize
+pub field antecedent_estimate::joint_design::synthetic::JointSyntheticPrior::dirichlet_concentration: f64
+pub field antecedent_estimate::joint_design::synthetic::JointSyntheticPrior::draws: usize
+pub field antecedent_estimate::joint_design::synthetic::JointSyntheticPrior::independent_treated_residuals: alloc::string::String
+pub field antecedent_estimate::joint_design::synthetic::JointSyntheticPrior::seed: u64
+pub field antecedent_estimate::joint_design::synthetic::JointSyntheticPrior::variance_scale: f64
+pub field antecedent_estimate::joint_design::synthetic::JointSyntheticPrior::variance_shape: f64
+pub field antecedent_estimate::joint_design::synthetic::JointSyntheticWorld::donors: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_estimate::joint_design::synthetic::JointSyntheticWorld::intervention: i64
+pub field antecedent_estimate::joint_design::synthetic::JointSyntheticWorld::key: alloc::string::String
+pub field antecedent_estimate::joint_design::synthetic::JointSyntheticWorld::treated_unit: alloc::string::String
 pub field antecedent_estimate::joint_panel::PanelChannel::id: alloc::string::String
 pub field antecedent_estimate::joint_panel::PanelChannelHistory::id: alloc::string::String
 pub field antecedent_estimate::joint_panel::PanelChannelHistory::values: [f64; 2]
@@ -13743,12 +14499,21 @@ pub field antecedent_estimate::joint_panel::PanelScenario::history: alloc::vec::
 pub field antecedent_estimate::joint_panel::PanelScenario::season: alloc::vec::Vec<usize>
 pub field antecedent_estimate::joint_panel::decomposition::DecompositionEndpoint::population_weights: alloc::vec::Vec<f64>
 pub field antecedent_estimate::joint_panel::decomposition::DecompositionEndpoint::program: antecedent_estimate::joint_panel::PanelProgram
+pub field antecedent_estimate::joint_panel::decomposition::DecompositionJointUncertainty::complete: usize
+pub field antecedent_estimate::joint_panel::decomposition::DecompositionJointUncertainty::requested: usize
+pub field antecedent_estimate::joint_panel::decomposition::DecompositionJointUncertainty::sequential_covariance: [[f64; 4]; 4]
+pub field antecedent_estimate::joint_panel::decomposition::DecompositionJointUncertainty::sequential_mean: [f64; 4]
+pub field antecedent_estimate::joint_panel::decomposition::DecompositionJointUncertainty::shapley_covariance: [[f64; 4]; 4]
+pub field antecedent_estimate::joint_panel::decomposition::DecompositionJointUncertainty::shapley_mean: [f64; 4]
+pub field antecedent_estimate::joint_panel::decomposition::DecompositionJointUncertainty::total_variance: f64
+pub field antecedent_estimate::joint_panel::decomposition::DecompositionJointUncertainty::weighted_finite_law: bool
 pub field antecedent_estimate::joint_panel::decomposition::MechanismPeriodMap::after: alloc::vec::Vec<usize>
 pub field antecedent_estimate::joint_panel::decomposition::MechanismPeriodMap::before: alloc::vec::Vec<usize>
 pub field antecedent_estimate::joint_panel::decomposition::PairedPanelPath::after: alloc::vec::Vec<antecedent_estimate::joint_panel::PanelDraw>
 pub field antecedent_estimate::joint_panel::decomposition::PairedPanelPath::before: alloc::vec::Vec<antecedent_estimate::joint_panel::PanelDraw>
 pub field antecedent_estimate::joint_panel::decomposition::PanelDecomposition::draws: alloc::vec::Vec<core::option::Option<antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition>>
 pub field antecedent_estimate::joint_panel::decomposition::PanelDecomposition::point: antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition
+pub field antecedent_estimate::joint_panel::decomposition::PanelDecomposition::weights: core::option::Option<alloc::vec::Vec<f64>>
 pub field antecedent_estimate::joint_panel::decomposition::PanelDecompositionRequest::after: antecedent_estimate::joint_panel::decomposition::DecompositionEndpoint
 pub field antecedent_estimate::joint_panel::decomposition::PanelDecompositionRequest::before: antecedent_estimate::joint_panel::decomposition::DecompositionEndpoint
 pub field antecedent_estimate::joint_panel::decomposition::PanelDecompositionRequest::order: [antecedent_estimate::joint_panel::decomposition::ChangeComponent; 4]
@@ -13756,9 +14521,18 @@ pub field antecedent_estimate::joint_panel::decomposition::PanelDecompositionReq
 pub field antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition::by_order: alloc::vec::Vec<[f64; 4]>
 pub field antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition::hybrids: [f64; 16]
 pub field antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition::order_range: [[f64; 2]; 4]
+pub field antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition::orderings: alloc::vec::Vec<[antecedent_estimate::joint_panel::decomposition::ChangeComponent; 4]>
 pub field antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition::sequential: [f64; 4]
 pub field antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition::shapley: [f64; 4]
 pub field antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition::total: f64
+pub field antecedent_estimate::joint_panel::decomposition::ReferenceDecompositionCovariance::by_order: [[[f64; 4]; 4]; 24]
+pub field antecedent_estimate::joint_panel::decomposition::ReferenceDecompositionCovariance::sequential: [[f64; 4]; 4]
+pub field antecedent_estimate::joint_panel::decomposition::ReferenceDecompositionCovariance::shapley: [[f64; 4]; 4]
+pub field antecedent_estimate::joint_panel::decomposition::ReferenceDecompositionCovariance::total: f64
+pub field antecedent_estimate::joint_panel::expression::CompiledPanelExpression::expression: antecedent_core::value_expr::ValueExpr
+pub field antecedent_estimate::joint_panel::expression::PanelExpressionControl::channel: alloc::string::String
+pub field antecedent_estimate::joint_panel::expression::PanelExpressionControl::period: usize
+pub field antecedent_estimate::joint_panel::expression::PanelExpressionControl::variable: antecedent_core::ids::VariableId
 pub field antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast::explanation: antecedent_estimate::joint_panel::time_varying::PanelExplanation
 pub field antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast::next_attempt: alloc::string::String
 pub field antecedent_estimate::joint_panel::time_varying::TemporalPanelAttempt::choice: antecedent_estimate::joint_panel::time_varying::TemporalModelChoice
@@ -16093,6 +16867,20 @@ pub fn <antecedent_estimate::joint_bayesian_transport::JointDraws>::fn coordinat
 pub fn <antecedent_estimate::joint_bayesian_transport::JointDraws>::fn width(&self) -> usize
 pub fn <antecedent_estimate::joint_bayesian_transport::JointTransportFit>::fn effect_draws(&self) -> (alloc::vec::Vec<alloc::string::String>, alloc::vec::Vec<f64>)
 pub fn <antecedent_estimate::joint_bayesian_transport::JointTransportFit>::fn target_calibration_basis(&self, level: f64) -> core::result::Result<antecedent_core::calibration_basis::CalibrationBasis, antecedent_estimate::joint_bayesian_transport::JointTransportRefusal>
+pub fn <antecedent_estimate::joint_design::JointDesignEstimate>::fn contrast(&self, coefficients: &[f64]) -> core::result::Result<(f64, f64), alloc::string::String>
+pub fn <antecedent_estimate::joint_design::JointDesignPosterior>::fn from_draws(worlds: alloc::vec::Vec<alloc::string::String>, draws: alloc::vec::Vec<alloc::vec::Vec<f64>>, sampling_unit: alloc::string::String, model: alloc::string::String) -> core::result::Result<Self, alloc::string::String>
+pub fn <antecedent_estimate::joint_design::compiled::JointDesignLaw>::fn estimate(&self) -> &antecedent_estimate::joint_design::JointDesignEstimate
+pub fn <antecedent_estimate::joint_design::compiled::JointDesignLaw>::fn frequentist_failures(&self) -> core::option::Option<&[core::option::Option<alloc::string::String>]>
+pub fn <antecedent_estimate::joint_design::compiled::JointDesignLaw>::fn frequentist_realizations(&self) -> core::option::Option<&[core::option::Option<alloc::vec::Vec<f64>>]>
+pub fn <antecedent_estimate::joint_design::compiled::JointDesignRecipe>::fn execute(&self, inference: &antecedent_estimate::joint_design::compiled::JointDesignInference) -> core::result::Result<antecedent_estimate::joint_design::compiled::JointDesignLaw, alloc::string::String>
+pub fn <antecedent_estimate::joint_design::compiled::JointDesignRecipe>::fn execute_native(&self, inference: &antecedent_estimate::joint_design::compiled::JointDesignInference, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_design::compiled::JointNativeDesignLaw, alloc::string::String>
+pub fn <antecedent_estimate::joint_design::compiled::JointDesignRecipe>::fn functional(&self) -> &'static str
+pub fn <antecedent_estimate::joint_design::compiled::JointDesignRecipe>::fn method(&self) -> &'static str
+pub fn <antecedent_estimate::joint_design::compiled::JointDesignRecipe>::fn target_kind(&self) -> &'static str
+pub fn <antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalModel>::fn full_history(horizon: usize, dimensions: usize, channels: usize) -> Self
+pub fn <antecedent_estimate::joint_design::instrumented::JointInstrumentedModelFit>::fn expression(&self, raw_controls: &[antecedent_core::ids::VariableId]) -> core::result::Result<antecedent_core::value_expr::ValueExpr, alloc::string::String>
+pub fn <antecedent_estimate::joint_design::instrumented::JointInstrumentedModelFit>::fn world_mean(&self, raw_doses: &[f64]) -> core::result::Result<(f64, f64), alloc::string::String>
+pub fn <antecedent_estimate::joint_design::synthetic::JointSyntheticConformal>::fn contrast_interval(&self, coefficients: &[f64]) -> core::result::Result<(f64, [f64; 2]), alloc::string::String>
 pub fn <antecedent_estimate::joint_panel::PanelData>::fn identity(&self) -> core::result::Result<antecedent_core::identity::SemanticDigest, antecedent_estimate::joint_panel::PanelError>
 pub fn <antecedent_estimate::joint_panel::PanelData>::fn validate(&self) -> core::result::Result<(), antecedent_estimate::joint_panel::PanelError>
 pub fn <antecedent_estimate::joint_panel::PanelFit>::fn retained_bytes(&self) -> u64
@@ -16106,6 +16894,8 @@ pub fn <antecedent_estimate::joint_panel::PanelProgram>::fn horizon(&self) -> us
 pub fn <antecedent_estimate::joint_panel::decomposition::MechanismPeriodMap>::fn from_invariant(&self, draw: &antecedent_estimate::joint_panel::PanelDraw) -> core::result::Result<antecedent_estimate::joint_panel::decomposition::PairedPanelPath, antecedent_estimate::joint_panel::PanelError>
 pub fn <antecedent_estimate::joint_panel::decomposition::MechanismPeriodMap>::fn from_temporal(&self, draw: &antecedent_estimate::joint_panel::time_varying::TemporalPanelDraw) -> core::result::Result<antecedent_estimate::joint_panel::decomposition::PairedPanelPath, antecedent_estimate::joint_panel::PanelError>
 pub fn <antecedent_estimate::joint_panel::decomposition::PanelDecomposition>::fn admitted_bytes(&self) -> u64
+pub fn <antecedent_estimate::joint_panel::decomposition::PanelDecomposition>::fn joint_uncertainty(&self) -> core::option::Option<antecedent_estimate::joint_panel::decomposition::DecompositionJointUncertainty>
+pub fn <antecedent_estimate::joint_panel::expression::CompiledPanelExpression>::fn admitted_bytes(&self) -> u64
 pub fn <antecedent_estimate::joint_panel::time_varying::TemporalPanelFit>::fn observe_current(&self)
 pub fn <antecedent_estimate::joint_panel::time_varying::TemporalPanelFit>::fn retained_bytes(&self) -> u64
 pub fn <antecedent_estimate::joint_panel::time_varying::TemporalPanelSpec>::fn identity(&self, data: &antecedent_estimate::joint_panel::PanelData) -> core::result::Result<antecedent_core::identity::SemanticDigest, antecedent_estimate::joint_panel::PanelError>
@@ -16622,18 +17412,43 @@ pub fn antecedent_estimate::joint_bayesian_transport::unsupported_graph_refusal(
 pub fn antecedent_estimate::joint_cell_factorized::orderings_for(k: usize, declared: &[usize], all_permutations: bool) -> core::result::Result<alloc::vec::Vec<alloc::vec::Vec<usize>>, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::joint_cell_factorized::refuse_joint_inference() -> antecedent_estimate::EstimationError
 pub fn antecedent_estimate::joint_cell_factorized::refuse_joint_learner_inference() -> antecedent_estimate::EstimationError
+pub fn antecedent_estimate::joint_design::gaussian_longitudinal::gaussian_longitudinal_bootstrap(design: &antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign, episodes: &[antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalEpisode], replicates: usize, seed: u64, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_design::gaussian_longitudinal::LongitudinalGaussianBootstrap, alloc::string::String>
+pub fn antecedent_estimate::joint_design::gaussian_longitudinal::gaussian_longitudinal_point(design: &antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign, episodes: &[antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalEpisode], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<f64>, alloc::string::String>
+pub fn antecedent_estimate::joint_design::gaussian_longitudinal::gaussian_longitudinal_posterior(design: &antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign, episodes: &[antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalEpisode], prior: &antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalPrior, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_design::JointDesignPosterior, alloc::string::String>
+pub fn antecedent_estimate::joint_design::instrumented::fit_instrumented_joint_polynomial(design: &antecedent_estimate::joint_design::instrumented::JointInstrumentedDesign, units: &[antecedent_estimate::joint_design::instrumented::JointInstrumentedUnit], features: antecedent_estimate::joint_design::instrumented::JointStructuralFeatureBinding) -> core::result::Result<antecedent_estimate::joint_design::instrumented::JointInstrumentedModelFit, alloc::string::String>
+pub fn antecedent_estimate::joint_design::instrumented::instrumented_joint_coefficient_posterior(design: &antecedent_estimate::joint_design::instrumented::JointInstrumentedDesign, units: &[antecedent_estimate::joint_design::instrumented::JointInstrumentedUnit], prior: &antecedent_estimate::joint_design::instrumented::JointIvGaussianPrior) -> core::result::Result<alloc::vec::Vec<alloc::vec::Vec<f64>>, alloc::string::String>
+pub fn antecedent_estimate::joint_design::instrumented::instrumented_joint_contrasts(design: &antecedent_estimate::joint_design::instrumented::JointInstrumentedDesign, units: &[antecedent_estimate::joint_design::instrumented::JointInstrumentedUnit]) -> core::result::Result<antecedent_estimate::joint_design::JointDesignEstimate, alloc::string::String>
+pub fn antecedent_estimate::joint_design::instrumented::instrumented_joint_posterior(design: &antecedent_estimate::joint_design::instrumented::JointInstrumentedDesign, units: &[antecedent_estimate::joint_design::instrumented::JointInstrumentedUnit], prior: &antecedent_estimate::joint_design::instrumented::JointIvGaussianPrior) -> core::result::Result<antecedent_estimate::joint_design::JointDesignPosterior, alloc::string::String>
+pub fn antecedent_estimate::joint_design::local_instrument::local_instrument_effect(design: &antecedent_estimate::joint_design::local_instrument::LocalInstrumentDesign, units: &[antecedent_estimate::joint_design::local_instrument::LocalInstrumentUnit], posterior_draws: core::option::Option<usize>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_design::local_instrument::LocalInstrumentResult, alloc::string::String>
+pub fn antecedent_estimate::joint_design::longitudinal::longitudinal_joint_means(design: &antecedent_estimate::joint_design::longitudinal::LongitudinalJointDesign, episodes: &[antecedent_estimate::joint_design::longitudinal::LongitudinalEpisode]) -> core::result::Result<antecedent_estimate::joint_design::JointDesignEstimate, alloc::string::String>
+pub fn antecedent_estimate::joint_design::longitudinal::longitudinal_joint_posterior(design: &antecedent_estimate::joint_design::longitudinal::LongitudinalJointDesign, episodes: &[antecedent_estimate::joint_design::longitudinal::LongitudinalEpisode], prior: &antecedent_estimate::joint_design::longitudinal::LongitudinalDirichletPrior) -> core::result::Result<antecedent_estimate::joint_design::JointDesignPosterior, alloc::string::String>
+pub fn antecedent_estimate::joint_design::randomized::randomized_joint_means(design: &antecedent_estimate::joint_design::randomized::JointRandomizedDesign, units: &[antecedent_estimate::joint_design::randomized::JointRandomizedUnit]) -> core::result::Result<antecedent_estimate::joint_design::JointDesignEstimate, alloc::string::String>
+pub fn antecedent_estimate::joint_design::randomized::randomized_joint_posterior(design: &antecedent_estimate::joint_design::randomized::JointRandomizedDesign, units: &[antecedent_estimate::joint_design::randomized::JointRandomizedUnit], prior: &antecedent_estimate::joint_design::randomized::RandomizedGaussianPrior) -> core::result::Result<antecedent_estimate::joint_design::JointDesignPosterior, alloc::string::String>
+pub fn antecedent_estimate::joint_design::randomized::randomized_weighted_population_posterior(design: &antecedent_estimate::joint_design::randomized::JointRandomizedDesign, units: &[antecedent_estimate::joint_design::randomized::JointRandomizedUnit], prior: &antecedent_estimate::joint_design::randomized::RandomizedFinitePopulationPrior) -> core::result::Result<antecedent_estimate::joint_design::JointDesignPosterior, alloc::string::String>
+pub fn antecedent_estimate::joint_design::rollout::rollout_joint_effects(design: &antecedent_estimate::joint_design::rollout::JointRolloutDesign, units: &[antecedent_estimate::joint_design::rollout::JointRolloutUnit]) -> core::result::Result<antecedent_estimate::joint_design::JointDesignEstimate, alloc::string::String>
+pub fn antecedent_estimate::joint_design::rollout::rollout_joint_posterior(design: &antecedent_estimate::joint_design::rollout::JointRolloutDesign, units: &[antecedent_estimate::joint_design::rollout::JointRolloutUnit], prior: &antecedent_estimate::joint_design::rollout::JointRolloutGaussianPrior) -> core::result::Result<antecedent_estimate::joint_design::JointDesignPosterior, alloc::string::String>
+pub fn antecedent_estimate::joint_design::switchback::switchback_joint_means(design: &antecedent_estimate::joint_design::switchback::JointSwitchbackDesign, sequences: &[antecedent_estimate::switchback::HistoryAssignment]) -> core::result::Result<antecedent_estimate::joint_design::JointDesignEstimate, alloc::string::String>
+pub fn antecedent_estimate::joint_design::switchback::switchback_joint_posterior(design: &antecedent_estimate::joint_design::switchback::JointSwitchbackDesign, sequences: &[antecedent_estimate::switchback::HistoryAssignment], prior: &antecedent_estimate::joint_design::switchback::SwitchbackGaussianPrior) -> core::result::Result<antecedent_estimate::joint_design::JointDesignPosterior, alloc::string::String>
+pub fn antecedent_estimate::joint_design::switchback::switchback_joint_sharp_null_test(design: &antecedent_estimate::joint_design::switchback::JointSwitchbackDesign, sequences: &[antecedent_estimate::switchback::HistoryAssignment], contrast: &[f64], max_cases: usize, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_design::switchback::JointSwitchbackRandomizationTest, alloc::string::String>
+pub fn antecedent_estimate::joint_design::synthetic::synthetic_joint_conformal(design: &antecedent_estimate::joint_design::synthetic::JointSyntheticDesign, data: &[antecedent_estimate::joint_design::synthetic::JointSyntheticObservation], joint_level: f64, residual_exchangeability: &str, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_design::synthetic::JointSyntheticConformal, alloc::string::String>
+pub fn antecedent_estimate::joint_design::synthetic::synthetic_joint_point(design: &antecedent_estimate::joint_design::synthetic::JointSyntheticDesign, data: &[antecedent_estimate::joint_design::synthetic::JointSyntheticObservation]) -> core::result::Result<alloc::vec::Vec<antecedent_estimate::joint_design::synthetic::JointSyntheticCoordinate>, alloc::string::String>
+pub fn antecedent_estimate::joint_design::synthetic::synthetic_joint_posterior(design: &antecedent_estimate::joint_design::synthetic::JointSyntheticDesign, data: &[antecedent_estimate::joint_design::synthetic::JointSyntheticObservation], prior: &antecedent_estimate::joint_design::synthetic::JointSyntheticPrior) -> core::result::Result<antecedent_estimate::joint_design::JointDesignPosterior, alloc::string::String>
 pub fn antecedent_estimate::joint_if::joint_influence_covariance(scores: &[&[f64]], weights: core::option::Option<&[f64]>) -> core::result::Result<antecedent_estimate::JointCovariance, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::joint_if::max_t_critical(cov: &antecedent_estimate::JointCovariance, level: f64, replicates: u32, seed: u64) -> core::result::Result<f64, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::joint_if::max_t_critical_polled(cov: &antecedent_estimate::JointCovariance, level: f64, replicates: u32, rng: &mut antecedent_core::execution::CausalRng, cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<core::option::Option<f64>, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::joint_if::max_t_critical_with_df_polled(cov: &antecedent_estimate::JointCovariance, level: f64, replicates: u32, df: core::option::Option<f64>, rng: &mut antecedent_core::execution::CausalRng, cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<core::option::Option<f64>, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::joint_if::monotone_increasing(values: &[f64]) -> alloc::vec::Vec<f64>
 pub fn antecedent_estimate::joint_if::weighted_mean(scores: &[f64], weights: core::option::Option<&[f64]>) -> core::result::Result<f64, antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::joint_panel::decomposition::decompose_hybrid_law(point: [f64; 16], draws: &[core::option::Option<[f64; 16]>], order: [antecedent_estimate::joint_panel::decomposition::ChangeComponent; 4], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_panel::decomposition::PanelDecomposition, antecedent_estimate::joint_panel::PanelError>
 pub fn antecedent_estimate::joint_panel::decomposition::decompose_invariant_law(data: &antecedent_estimate::joint_panel::PanelData, request: &antecedent_estimate::joint_panel::decomposition::PanelDecompositionRequest, periods: &antecedent_estimate::joint_panel::decomposition::MechanismPeriodMap, point: &antecedent_estimate::joint_panel::PanelDraw, draws: &[core::option::Option<antecedent_estimate::joint_panel::PanelDraw>], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_panel::decomposition::PanelDecomposition, antecedent_estimate::joint_panel::PanelError>
 pub fn antecedent_estimate::joint_panel::decomposition::decompose_panel_law(data: &antecedent_estimate::joint_panel::PanelData, request: &antecedent_estimate::joint_panel::decomposition::PanelDecompositionRequest, point: &antecedent_estimate::joint_panel::decomposition::PairedPanelPath, draws: &[core::option::Option<antecedent_estimate::joint_panel::decomposition::PairedPanelPath>], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_panel::decomposition::PanelDecomposition, antecedent_estimate::joint_panel::PanelError>
 pub fn antecedent_estimate::joint_panel::decomposition::decompose_temporal_law(data: &antecedent_estimate::joint_panel::PanelData, request: &antecedent_estimate::joint_panel::decomposition::PanelDecompositionRequest, periods: &antecedent_estimate::joint_panel::decomposition::MechanismPeriodMap, point: &antecedent_estimate::joint_panel::time_varying::TemporalPanelDraw, draws: &[core::option::Option<antecedent_estimate::joint_panel::time_varying::TemporalPanelDraw>], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_panel::decomposition::PanelDecomposition, antecedent_estimate::joint_panel::PanelError>
 pub fn antecedent_estimate::joint_panel::decomposition::decompose_values(hybrids: [f64; 16], order: [antecedent_estimate::joint_panel::decomposition::ChangeComponent; 4]) -> core::result::Result<antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition, antecedent_estimate::joint_panel::PanelError>
+pub fn antecedent_estimate::joint_panel::decomposition::decompose_weighted_hybrid_law(point: [f64; 16], draws: &[core::option::Option<[f64; 16]>], weights: core::option::Option<&[f64]>, order: [antecedent_estimate::joint_panel::decomposition::ChangeComponent; 4], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_panel::decomposition::PanelDecomposition, antecedent_estimate::joint_panel::PanelError>
+pub fn antecedent_estimate::joint_panel::decomposition::propagate_hybrid_covariance(covariance: &[[f64; 16]; 16], order: [antecedent_estimate::joint_panel::decomposition::ChangeComponent; 4]) -> core::result::Result<antecedent_estimate::joint_panel::decomposition::ReferenceDecompositionCovariance, antecedent_estimate::joint_panel::PanelError>
 pub fn antecedent_estimate::joint_panel::evaluate_panel_law(data: &antecedent_estimate::joint_panel::PanelData, point: &antecedent_estimate::joint_panel::PanelDraw, draws: &[core::option::Option<antecedent_estimate::joint_panel::PanelDraw>], programs: &[antecedent_estimate::joint_panel::PanelProgram], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_panel::PanelLawResponses, antecedent_estimate::joint_panel::PanelError>
 pub fn antecedent_estimate::joint_panel::evaluate_panel_programs(data: &antecedent_estimate::joint_panel::PanelData, draw: &antecedent_estimate::joint_panel::PanelDraw, programs: &[antecedent_estimate::joint_panel::PanelProgram], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_estimate::joint_panel::PanelResponse>, antecedent_estimate::joint_panel::PanelError>
+pub fn antecedent_estimate::joint_panel::expression::compile_panel_expression(data: &antecedent_estimate::joint_panel::PanelData, path: &[antecedent_estimate::joint_panel::PanelDraw], program: &antecedent_estimate::joint_panel::PanelProgram, controls: &[antecedent_estimate::joint_panel::expression::PanelExpressionControl], time_weights: &[f64], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_panel::expression::CompiledPanelExpression, antecedent_estimate::joint_panel::PanelError>
 pub fn antecedent_estimate::joint_panel::fit_panel(data: &antecedent_estimate::joint_panel::PanelData, options: &antecedent_estimate::joint_panel::PanelFitOptions, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_panel::PanelFit, antecedent_estimate::joint_panel::PanelError>
 pub fn antecedent_estimate::joint_panel::project_panel_responses(rows: &[antecedent_estimate::joint_panel::PanelResponse], weights: &[alloc::vec::Vec<f64>]) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_estimate::joint_panel::PanelError>
 pub fn antecedent_estimate::joint_panel::time_varying::evaluate_temporal_law(data: &antecedent_estimate::joint_panel::PanelData, point: &antecedent_estimate::joint_panel::time_varying::TemporalPanelDraw, draws: &[core::option::Option<antecedent_estimate::joint_panel::time_varying::TemporalPanelDraw>], programs: &[antecedent_estimate::joint_panel::PanelProgram], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_panel::PanelLawResponses, antecedent_estimate::joint_panel::PanelError>
@@ -16847,6 +17662,7 @@ pub fn antecedent_estimate::synthetic_control::fit_augmented_synthetic_control(o
 pub fn antecedent_estimate::synthetic_control::fit_synthetic_control(outcome: &[f64], units: &[alloc::string::String], periods: &[i64], treated_unit: &str, intervention_period: i64) -> core::result::Result<antecedent_estimate::synthetic_control::SyntheticControlFit, alloc::string::String>
 pub fn antecedent_estimate::synthetic_control::fit_synthetic_did(outcome: &[f64], units: &[alloc::string::String], periods: &[i64], treated_unit: &str, intervention_period: i64) -> core::result::Result<antecedent_estimate::synthetic_control::SyntheticDidFit, alloc::string::String>
 pub fn antecedent_estimate::synthetic_rollout::conformal_synthetic_control(panel: &antecedent_estimate::synthetic_rollout::SyntheticRolloutPanel<'_>, treated: &str, intervention: i64, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::synthetic_rollout::ConformalSyntheticFit, antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::synthetic_rollout::conformal_synthetic_control_at_level(panel: &antecedent_estimate::synthetic_rollout::SyntheticRolloutPanel<'_>, treated: &str, intervention: i64, level: f64, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::synthetic_rollout::ConformalSyntheticFit, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::synthetic_rollout::multi_unit_synthetic(panel: &antecedent_estimate::synthetic_rollout::SyntheticRolloutPanel<'_>, adoptions: &[(alloc::sync::Arc<str>, i64)], method: antecedent_core::query::synthetic_control::SyntheticPanelMethod, replicates: u32, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::synthetic_rollout::MultiUnitSyntheticFit, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::temporal_adjustment::temporal_coefficient_names(data: &antecedent_data::dataset::TimeSeriesData, estimand: &antecedent_expr::estimand::IdentifiedEstimand, query: &antecedent_core::query::temporal::TemporalEffectQuery, indexer: &antecedent_core::temporal::TemporalIndexer) -> core::result::Result<alloc::sync::Arc<[alloc::sync::Arc<str>]>, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::temporal_adjustment::temporal_conditional_marginal_effect(data: &antecedent_data::dataset::TimeSeriesData, estimand: &antecedent_expr::estimand::IdentifiedEstimand, query: &antecedent_core::query::temporal::TemporalEffectQuery, indexer: &antecedent_core::temporal::TemporalIndexer, policy: &antecedent_core::execution::KernelPolicy, prior_scale: core::option::Option<f64>) -> core::result::Result<f64, antecedent_estimate::EstimationError>
@@ -16992,9 +17808,21 @@ pub mod antecedent_estimate::iv
 pub mod antecedent_estimate::iv_bounds
 pub mod antecedent_estimate::joint_bayesian_transport
 pub mod antecedent_estimate::joint_cell_factorized
+pub mod antecedent_estimate::joint_design
+pub mod antecedent_estimate::joint_design::capabilities
+pub mod antecedent_estimate::joint_design::compiled
+pub mod antecedent_estimate::joint_design::gaussian_longitudinal
+pub mod antecedent_estimate::joint_design::instrumented
+pub mod antecedent_estimate::joint_design::local_instrument
+pub mod antecedent_estimate::joint_design::longitudinal
+pub mod antecedent_estimate::joint_design::randomized
+pub mod antecedent_estimate::joint_design::rollout
+pub mod antecedent_estimate::joint_design::switchback
+pub mod antecedent_estimate::joint_design::synthetic
 pub mod antecedent_estimate::joint_if
 pub mod antecedent_estimate::joint_panel
 pub mod antecedent_estimate::joint_panel::decomposition
+pub mod antecedent_estimate::joint_panel::expression
 pub mod antecedent_estimate::joint_panel::time_varying
 pub mod antecedent_estimate::lagged_instrument
 pub mod antecedent_estimate::latent_class_effects
@@ -17591,6 +18419,43 @@ pub struct antecedent_estimate::joint_bayesian_transport::SourceData
 pub struct antecedent_estimate::joint_bayesian_transport::SourceDisagreement
 pub struct antecedent_estimate::joint_bayesian_transport::SourceEffectSummary
 pub struct antecedent_estimate::joint_bayesian_transport::TargetData
+pub struct antecedent_estimate::joint_design::JointDesignEstimate
+pub struct antecedent_estimate::joint_design::JointDesignPosterior
+pub struct antecedent_estimate::joint_design::capabilities::JointDesignCapability
+pub struct antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign
+pub struct antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalEpisode
+pub struct antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalModel
+pub struct antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalPrior
+pub struct antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalWorld
+pub struct antecedent_estimate::joint_design::gaussian_longitudinal::LongitudinalGaussianBootstrap
+pub struct antecedent_estimate::joint_design::instrumented::JointInstrumentedDesign
+pub struct antecedent_estimate::joint_design::instrumented::JointInstrumentedModelFit
+pub struct antecedent_estimate::joint_design::instrumented::JointInstrumentedUnit
+pub struct antecedent_estimate::joint_design::instrumented::JointIvGaussianPrior
+pub struct antecedent_estimate::joint_design::instrumented::JointStructuralFeatureBinding
+pub struct antecedent_estimate::joint_design::local_instrument::LocalInstrumentDesign
+pub struct antecedent_estimate::joint_design::local_instrument::LocalInstrumentResult
+pub struct antecedent_estimate::joint_design::local_instrument::LocalInstrumentUnit
+pub struct antecedent_estimate::joint_design::longitudinal::LongitudinalDirichletPrior
+pub struct antecedent_estimate::joint_design::longitudinal::LongitudinalEpisode
+pub struct antecedent_estimate::joint_design::longitudinal::LongitudinalJointDesign
+pub struct antecedent_estimate::joint_design::randomized::JointRandomizedDesign
+pub struct antecedent_estimate::joint_design::randomized::JointRandomizedUnit
+pub struct antecedent_estimate::joint_design::randomized::RandomizedFinitePopulationPrior
+pub struct antecedent_estimate::joint_design::randomized::RandomizedGaussianPrior
+pub struct antecedent_estimate::joint_design::rollout::JointRolloutCell
+pub struct antecedent_estimate::joint_design::rollout::JointRolloutDesign
+pub struct antecedent_estimate::joint_design::rollout::JointRolloutGaussianPrior
+pub struct antecedent_estimate::joint_design::rollout::JointRolloutUnit
+pub struct antecedent_estimate::joint_design::switchback::JointSwitchbackDesign
+pub struct antecedent_estimate::joint_design::switchback::JointSwitchbackRandomizationTest
+pub struct antecedent_estimate::joint_design::switchback::SwitchbackGaussianPrior
+pub struct antecedent_estimate::joint_design::synthetic::JointSyntheticConformal
+pub struct antecedent_estimate::joint_design::synthetic::JointSyntheticCoordinate
+pub struct antecedent_estimate::joint_design::synthetic::JointSyntheticDesign
+pub struct antecedent_estimate::joint_design::synthetic::JointSyntheticObservation
+pub struct antecedent_estimate::joint_design::synthetic::JointSyntheticPrior
+pub struct antecedent_estimate::joint_design::synthetic::JointSyntheticWorld
 pub struct antecedent_estimate::joint_panel::PanelChannel
 pub struct antecedent_estimate::joint_panel::PanelChannelHistory
 pub struct antecedent_estimate::joint_panel::PanelChannelParameters
@@ -17614,12 +18479,17 @@ pub struct antecedent_estimate::joint_panel::PanelResponse
 pub struct antecedent_estimate::joint_panel::PanelSamplingOptions
 pub struct antecedent_estimate::joint_panel::PanelScenario
 pub struct antecedent_estimate::joint_panel::decomposition::DecompositionEndpoint
+pub struct antecedent_estimate::joint_panel::decomposition::DecompositionJointUncertainty
 pub struct antecedent_estimate::joint_panel::decomposition::MechanismPeriodMap
 pub struct antecedent_estimate::joint_panel::decomposition::PairedPanelPath
 pub struct antecedent_estimate::joint_panel::decomposition::PanelDecomposition
 pub struct antecedent_estimate::joint_panel::decomposition::PanelDecomposition has private fields
 pub struct antecedent_estimate::joint_panel::decomposition::PanelDecompositionRequest
 pub struct antecedent_estimate::joint_panel::decomposition::ReferenceDecomposition
+pub struct antecedent_estimate::joint_panel::decomposition::ReferenceDecompositionCovariance
+pub struct antecedent_estimate::joint_panel::expression::CompiledPanelExpression
+pub struct antecedent_estimate::joint_panel::expression::CompiledPanelExpression has private fields
+pub struct antecedent_estimate::joint_panel::expression::PanelExpressionControl
 pub struct antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast
 pub struct antecedent_estimate::joint_panel::time_varying::TemporalPanelAttempt
 pub struct antecedent_estimate::joint_panel::time_varying::TemporalPanelDraw
@@ -18920,6 +19790,47 @@ pub variant antecedent_estimate::joint_bayesian_transport::TransportGraphClass::
 pub variant antecedent_estimate::joint_bayesian_transport::TransportGraphClass::GraphPosterior
 pub variant antecedent_estimate::joint_bayesian_transport::VaryingBlock::Intercept
 pub variant antecedent_estimate::joint_bayesian_transport::VaryingBlock::InterceptAndCovariates
+pub variant antecedent_estimate::joint_design::JointUncertainty::DeleteEpisodeJackknife
+pub variant antecedent_estimate::joint_design::JointUncertainty::FullProcedureBootstrap
+pub variant antecedent_estimate::joint_design::JointUncertainty::IndependentUnitSandwich
+pub variant antecedent_estimate::joint_design::JointUncertainty::Posterior { model: alloc::string::String }
+pub variant antecedent_estimate::joint_design::compiled::JointDesignInference::Frequentist
+pub variant antecedent_estimate::joint_design::compiled::JointDesignInference::GaussianLongitudinalBayesian { prior: antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalPrior }
+pub variant antecedent_estimate::joint_design::compiled::JointDesignInference::GaussianLongitudinalBootstrap { replicates: usize, seed: u64 }
+pub variant antecedent_estimate::joint_design::compiled::JointDesignInference::InstrumentedGaussian { prior: antecedent_estimate::joint_design::instrumented::JointIvGaussianPrior }
+pub variant antecedent_estimate::joint_design::compiled::JointDesignInference::LocalComplierBayesian { draws: usize, seed: u64 }
+pub variant antecedent_estimate::joint_design::compiled::JointDesignInference::LongitudinalDirichlet { prior: antecedent_estimate::joint_design::longitudinal::LongitudinalDirichletPrior }
+pub variant antecedent_estimate::joint_design::compiled::JointDesignInference::RandomizedFinitePopulationGaussian { prior: antecedent_estimate::joint_design::randomized::RandomizedFinitePopulationPrior }
+pub variant antecedent_estimate::joint_design::compiled::JointDesignInference::RandomizedGaussian { prior: antecedent_estimate::joint_design::randomized::RandomizedGaussianPrior }
+pub variant antecedent_estimate::joint_design::compiled::JointDesignInference::RolloutGaussian { prior: antecedent_estimate::joint_design::rollout::JointRolloutGaussianPrior }
+pub variant antecedent_estimate::joint_design::compiled::JointDesignInference::SwitchbackExactRandomization { contrast: alloc::vec::Vec<f64>, max_cases: usize }
+pub variant antecedent_estimate::joint_design::compiled::JointDesignInference::SwitchbackGaussian { prior: antecedent_estimate::joint_design::switchback::SwitchbackGaussianPrior }
+pub variant antecedent_estimate::joint_design::compiled::JointDesignInference::SyntheticBayesian { prior: antecedent_estimate::joint_design::synthetic::JointSyntheticPrior }
+pub variant antecedent_estimate::joint_design::compiled::JointDesignInference::SyntheticConformal { joint_level: f64, residual_exchangeability: alloc::string::String }
+pub variant antecedent_estimate::joint_design::compiled::JointDesignLaw::Bayesian(antecedent_estimate::joint_design::JointDesignPosterior)
+pub variant antecedent_estimate::joint_design::compiled::JointDesignLaw::Frequentist(antecedent_estimate::joint_design::JointDesignEstimate)
+pub variant antecedent_estimate::joint_design::compiled::JointDesignLaw::FrequentistBootstrap { estimate: antecedent_estimate::joint_design::JointDesignEstimate, realizations: alloc::vec::Vec<core::option::Option<alloc::vec::Vec<f64>>>, failures: alloc::vec::Vec<core::option::Option<alloc::string::String>> }
+pub variant antecedent_estimate::joint_design::compiled::JointDesignRecipe::DifferenceInDifferences { design: antecedent_estimate::joint_design::rollout::JointRolloutDesign, units: alloc::vec::Vec<antecedent_estimate::joint_design::rollout::JointRolloutUnit> }
+pub variant antecedent_estimate::joint_design::compiled::JointDesignRecipe::GaussianLongitudinal { design: antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign, episodes: alloc::vec::Vec<antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalEpisode> }
+pub variant antecedent_estimate::joint_design::compiled::JointDesignRecipe::Instrumented { design: antecedent_estimate::joint_design::instrumented::JointInstrumentedDesign, units: alloc::vec::Vec<antecedent_estimate::joint_design::instrumented::JointInstrumentedUnit> }
+pub variant antecedent_estimate::joint_design::compiled::JointDesignRecipe::InstrumentedLocal { design: antecedent_estimate::joint_design::local_instrument::LocalInstrumentDesign, units: alloc::vec::Vec<antecedent_estimate::joint_design::local_instrument::LocalInstrumentUnit> }
+pub variant antecedent_estimate::joint_design::compiled::JointDesignRecipe::Longitudinal { design: antecedent_estimate::joint_design::longitudinal::LongitudinalJointDesign, episodes: alloc::vec::Vec<antecedent_estimate::joint_design::longitudinal::LongitudinalEpisode> }
+pub variant antecedent_estimate::joint_design::compiled::JointDesignRecipe::Randomized { design: antecedent_estimate::joint_design::randomized::JointRandomizedDesign, units: alloc::vec::Vec<antecedent_estimate::joint_design::randomized::JointRandomizedUnit> }
+pub variant antecedent_estimate::joint_design::compiled::JointDesignRecipe::Switchback { design: antecedent_estimate::joint_design::switchback::JointSwitchbackDesign, sequences: alloc::vec::Vec<antecedent_estimate::switchback::HistoryAssignment> }
+pub variant antecedent_estimate::joint_design::compiled::JointDesignRecipe::SyntheticControl { design: antecedent_estimate::joint_design::synthetic::JointSyntheticDesign, observations: alloc::vec::Vec<antecedent_estimate::joint_design::synthetic::JointSyntheticObservation> }
+pub variant antecedent_estimate::joint_design::compiled::JointNativeDesignLaw::LocalComplier(antecedent_estimate::joint_design::local_instrument::LocalInstrumentResult)
+pub variant antecedent_estimate::joint_design::compiled::JointNativeDesignLaw::Moments(antecedent_estimate::joint_design::compiled::JointDesignLaw)
+pub variant antecedent_estimate::joint_design::compiled::JointNativeDesignLaw::SwitchbackExact(antecedent_estimate::joint_design::switchback::JointSwitchbackRandomizationTest)
+pub variant antecedent_estimate::joint_design::compiled::JointNativeDesignLaw::SyntheticConformal(antecedent_estimate::joint_design::synthetic::JointSyntheticConformal)
+pub variant antecedent_estimate::joint_design::compiled::JointNativeDesignLaw::SyntheticPoint(alloc::vec::Vec<antecedent_estimate::joint_design::synthetic::JointSyntheticCoordinate>)
+pub variant antecedent_estimate::joint_design::gaussian_longitudinal::GaussianAssignmentSupport::Interval { lower: f64, upper: f64 }
+pub variant antecedent_estimate::joint_design::gaussian_longitudinal::GaussianAssignmentSupport::Positive
+pub variant antecedent_estimate::joint_design::gaussian_longitudinal::GaussianAssignmentSupport::Real
+pub variant antecedent_estimate::joint_design::gaussian_longitudinal::GaussianHistoryFeature::Covariate { time: usize, coordinate: usize }
+pub variant antecedent_estimate::joint_design::gaussian_longitudinal::GaussianHistoryFeature::CovariateTreatment { covariate_time: usize, coordinate: usize, treatment_time: usize, channel: usize }
+pub variant antecedent_estimate::joint_design::gaussian_longitudinal::GaussianHistoryFeature::Intercept
+pub variant antecedent_estimate::joint_design::gaussian_longitudinal::GaussianHistoryFeature::Treatment { time: usize, channel: usize }
+pub variant antecedent_estimate::joint_design::gaussian_longitudinal::GaussianHistoryFeature::TreatmentProduct { first_time: usize, first_channel: usize, second_time: usize, second_channel: usize }
 pub variant antecedent_estimate::joint_panel::PanelError::Cancelled
 pub variant antecedent_estimate::joint_panel::PanelError::Invalid(alloc::string::String)
 pub variant antecedent_estimate::joint_panel::PanelError::Numerical(alloc::string::String)
@@ -18927,6 +19838,7 @@ pub variant antecedent_estimate::joint_panel::PanelError::Resource(alloc::string
 pub variant antecedent_estimate::joint_panel::PanelFeatureInputs::LaggedSaturatedChannels
 pub variant antecedent_estimate::joint_panel::PanelInference::Bayesian { prior: antecedent_estimate::joint_panel::PanelPrior, sampler: antecedent_estimate::joint_panel::PanelSamplingOptions }
 pub variant antecedent_estimate::joint_panel::PanelInference::Frequentist { draws: usize }
+pub variant antecedent_estimate::joint_panel::PanelInference::FrequentistBootstrap { draws: usize }
 pub variant antecedent_estimate::joint_panel::decomposition::ChangeComponent::Exposure
 pub variant antecedent_estimate::joint_panel::decomposition::ChangeComponent::Mechanism
 pub variant antecedent_estimate::joint_panel::decomposition::ChangeComponent::Population

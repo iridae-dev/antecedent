@@ -1639,6 +1639,21 @@ run_adjusted_recalc_precision() {
 run_adjusted_recalc_precision adjusted_ols_retained_covariance_precision
 run_adjusted_recalc_precision adjusted_logit_fixed_target_delta_precision
 
+# Q08/E14 complete joint-response procedures have their own candidate-bound
+# registration, outside the frozen historical coverage/risk-allocation family.
+# Request them explicitly with the exact clean candidate SHA. The dedicated
+# runner validates that SHA, executes every registered ignored Cargo procedure,
+# retains original-data failures and writes logs without issuing coverage licenses.
+if [ -n "${ANTECEDENT_JOINT_RESPONSE_STABLE_CANDIDATE:-}" ]; then
+  echo "== registered joint-response complete procedures (Q08/E14) =="
+  if ! python3 scripts/joint_response_calibration.py \
+      --run-stable-candidate "$ANTECEDENT_JOINT_RESPONSE_STABLE_CANDIDATE"; then
+    FAILED_COUNT=$((FAILED_COUNT + 1))
+    FAILED="${FAILED}joint_response_complete_procedures
+"
+  fi
+fi
+
 if [ "$FAILED_COUNT" -gt 0 ]; then
   echo "gate_calibration: ${FAILED_COUNT} group(s) failed:"
   printf '%s' "$FAILED"

@@ -57,3 +57,16 @@ cells = ["independent_gaussian_joint_arm_prior_and_experimental_evidence"]
 quantities = ["updated_effect_coverage", "evidence_driven_decision_changes", "next_study_net_value", "withdrawal_refusal"]
 inference = "native_bayesian_gaussian_arm_means_and_modular_importance_update"
 minimum_replicates = 400
+
+[[procedure]]
+id = "compiled_native_design_identification_and_uncertainty"
+owner = "X07"
+cargo_package = "antecedent"
+cargo_target = "lib"
+test = "analysis::joint_panel::designs::native::tests::compiled_native_design_full_procedure_calibration"
+source = "crates/antecedent/src/analysis/joint_panel/designs/native/tests.rs"
+stages = ["independent_original_assignments_and_data", "typed_design_compilation", "support_and_rank_checks", "native_frequentist_full_procedure", "native_bayesian_full_mechanism", "joint_contrast_uncertainty", "independent_analytic_truth_comparison", "original_data_artifact_replay", "current_source_consumption"]
+cells = ["factorial_multi_arm", "switchback_finite_carryover", "unequal_weight_geo", "continuous_treatment_affected_longitudinal", "joint_structural_feature_iv", "regime_cohort_did", "joint_synthetic_rollout", "finite_history_longitudinal", "local_encouragement_complier"]
+quantities = ["frequentist_joint_contrast_coverage", "bayesian_joint_contrast_coverage", "support_rank_convergence_failures", "artifact_replay_failures"]
+inference = "distinct_native_frequentist_procedures_and_declared_bayesian_models"
+minimum_replicates = 400

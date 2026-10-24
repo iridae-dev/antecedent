@@ -76,6 +76,28 @@ def condition(
     )
 
 
+def native_quantity(handle: Any, binding: Mapping[str, Any]) -> Any:
+    """Bind a scalar projection while preserving the original method-native target kind."""
+    from .joint_distribution import ScientificQuantity
+
+    return ScientificQuantity._from_wire(
+        json.loads(handle.experiment_quantity(json.dumps(dict(binding), allow_nan=False)))
+    )
+
+
+def condition_native(
+    handle: Any, *, binding: Mapping[str, Any], **declaration: Any
+) -> PanelExperiment:
+    """Execute the target-preserving native experiment owner, with the ordinary bridge inputs."""
+    binding_json = json.dumps(dict(binding), allow_nan=False)
+
+    class BoundNativeTarget:
+        def condition_experiment(self, payload: str, ledger: Any, **execution: Any) -> Any:
+            return handle.condition_native_experiment(binding_json, payload, ledger, **execution)
+
+    return condition(BoundNativeTarget(), **declaration)
+
+
 @dataclass(frozen=True, slots=True)
 class PanelExperiment:
     """Conditional posterior retaining aligned response and uncertain mapping slots.

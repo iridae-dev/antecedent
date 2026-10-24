@@ -236,7 +236,7 @@ pub fn synthetic_joint_posterior(
     if prior.independent_treated_residuals.trim().is_empty()
         || design.worlds.iter().map(|w| &w.treated_unit).collect::<BTreeSet<_>>().len()
             != design.worlds.len()
-        || prior.draws > 100000
+        || prior.draws > 100_000
         || prior.draws < 4
     {
         return Err("joint Bayesian synthetic inference requires distinct treated-unit likelihood factors and explicit conditional residual independence".into());
@@ -259,7 +259,7 @@ pub fn synthetic_joint_posterior(
             },
             crate::util::DrawSpec {
                 draws: prior.draws,
-                seed: prior.seed.wrapping_add(0x9e3779b97f4a7c15u64.wrapping_mul(index as u64 + 1)),
+                seed: prior.seed.wrapping_add(0x9e37_79b9_7f4a_7c15_u64.wrapping_mul(index as u64 + 1)),
             },
         )
         .map_err(|e| e.to_string())?;

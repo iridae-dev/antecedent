@@ -8,10 +8,11 @@
 //! The declared assignment probabilities identify both means; exclusion and monotonicity are
 //! declared, not tested, and the prior identifies nothing.
 //!
-//! **Weak first stage.** The ratio of two posteriors has a proper posterior only when the
-//! first stage is bounded away from zero in every draw. A first-stage draw at or below zero
-//! makes some ratio draws unbounded or of the wrong sign, so the route refuses and names the
-//! next attempt instead of publishing a ratio.
+//! **Weak first stage.** This implementation refuses if any retained first-stage draw is
+//! nonpositive. This is a finite-draw instability guard, not proof that the full score-law
+//! posterior excludes zero. A ratio law can be proper without finite moments; no ratio
+//! expectation or general support certificate follows from passing this guard. These are
+//! empirical score-law weights, not a principal-strata likelihood enforcing monotonicity.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -82,10 +83,10 @@ pub fn bayesian_complier_effect(
     };
     if first_stage.draws.iter().any(|draw| !draw.is_finite() || *draw <= f64::EPSILON) {
         return Err(EstimationError::unsupported(
-            "weak first stage: the posterior of the effect of assignment on receipt reaches zero, \
-             so the complier-effect ratio has no proper posterior. Next attempt: more rows or \
-             stronger encouragement, or the frequentist Wald row whose weak-instrument guard \
-             withholds the interval",
+            "weak first stage: a retained empirical score-law receipt draw is nonpositive; \
+             the ratio procedure refuses this unstable realization. This is a finite-draw \
+             guard, not proof of posterior support or nonexistence of a proper ratio law. \
+             Next attempt: stronger encouragement or weak-instrument-robust inference",
         ));
     }
     let ratio = intention_to_treat

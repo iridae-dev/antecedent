@@ -180,7 +180,90 @@ fn actual_bayesian_panel_fit_preserves_mixing_diagnostics_and_shared_draw_axes()
     assert_eq!(prepared.fits_performed(), 1);
     assert!(!prepared.inspect().identification.is_identified_claim());
     exercise_reference_decomposition(&result, &ctx);
+    exercise_selected_posterior(&result, &ctx);
     experiment_chain::exercise(&prepared, &result, &ctx);
+}
+
+fn exercise_selected_posterior(
+    result: &antecedent::analysis::joint_panel::JointPanelResult,
+    ctx: &ExecutionContext,
+) {
+    use antecedent::analysis::joint_panel::{
+        JointPanelContinuousSearchRequest, JointPanelProgramSearchResult,
+        JointPanelResponseFunctional, JointPanelScientificScope, JointPanelSearchUncertainty,
+    };
+    use antecedent_design::{
+        decision_contract::{
+            ProgramObjective, ProgramSearchContract, ProgramSearchSpace, UtilityExpr,
+        },
+        program_search::{
+            FiniteProgramDomain, ProgramControl, certified::CertificateOptions,
+            continuous::ContinuousSearchOptions,
+        },
+        scientific_source::ScientificSourcePayload,
+    };
+    let request = result.request();
+    let base = &request.worlds[0];
+    let mut initial = Vec::new();
+    let mut controls = Vec::new();
+    for (channel, variable) in base.program.channels.iter().zip(&request.columns.channels) {
+        for (period, value) in channel.values.iter().copied().enumerate() {
+            initial.push(value);
+            controls.push(ProgramControl {
+                variable: *variable,
+                offset: i32::try_from(period).unwrap(),
+                lower: value,
+                upper: value,
+                unit_cost: 0.0,
+            });
+        }
+    }
+    let searched = result
+        .search_program(
+            JointPanelContinuousSearchRequest {
+                base_world: base.world,
+                scope: JointPanelScientificScope::ModelConditional,
+                functional: JointPanelResponseFunctional::TerminalMean,
+                uncertainty: JointPanelSearchUncertainty::AlignedLaw,
+                contract: ProgramSearchContract {
+                    space: ProgramSearchSpace {
+                        id: "selected_posterior_response".into(),
+                        variables: vec!["response".into()],
+                    },
+                    objective: ProgramObjective::ExpectedUtility(UtilityExpr::Input(0)),
+                    constraints: vec![],
+                },
+                domain: FiniteProgramDomain { controls, budget: None, restrictions: vec![] },
+                utility_units: "outcome".into(),
+                initial,
+                options: ContinuousSearchOptions {
+                    max_evaluations: 1,
+                    max_iterations: 1,
+                    initial_step: 0.5,
+                    step_tolerance: 1e-6,
+                    objective_tolerance: 0.0,
+                },
+            },
+            CertificateOptions { absolute_gap: 0.001, max_splits: 0 },
+            ctx,
+        )
+        .unwrap();
+    let JointPanelProgramSearchResult::BestFound { result: searched, .. } = searched else {
+        panic!("the point-response certificate must not substitute for a posterior objective")
+    };
+    let source = searched.best_source.unwrap();
+    let ScientificSourcePayload::Law(law) = source.as_numerical_source() else {
+        panic!("selected program must retain the genuine complete posterior")
+    };
+    assert_eq!(
+        law.metadata().identity.semantic,
+        antecedent_io::quantity_wire::DistributionMeaningWire::CausalFunctionalPosterior
+    );
+    assert_eq!(law.draws().len(), result.draws.len());
+    for (value, original) in law.draws().iter().zip(&result.draws) {
+        assert!((value - original.as_ref().unwrap()[0].means.last().unwrap()).abs() < 1e-12);
+    }
+    assert!(!searched.search.global_certificate);
 }
 
 /// Interaction cells in request order: joint, A only, B only, reference.

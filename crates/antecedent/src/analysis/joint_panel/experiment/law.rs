@@ -1,6 +1,14 @@
 //! Fitless experiment conditioning of an authenticated joint-design posterior.
 // SPDX-License-Identifier: MIT OR Apache-2.0
-use super::*;
+use super::{
+    Arc, BridgeContract, DecisionProblem, DistributionArtifact, DistributionCalibration,
+    DistributionTrust, EvidenceLedger, ExecutionContext, ExperimentRankingReceipt, JointPanelError,
+    JointPanelResponseFunctional, PanelExperimentDecisionSource, PanelExperimentDecisionState,
+    PanelExperimentEvidence, PanelExperimentMapping, PanelExperimentModularPolicy,
+    PanelExperimentUpdate, PanelFutureSample, PanelFutureSampleValue, SemanticDigest, SourceId,
+    admit, rank_law_next_samples, source, validate_mapping_moments, validate_model_dependency,
+    validate_update,
+};
 use antecedent_design::scientific_source::{ScientificDecisionSource, ScientificSourcePayload};
 
 /// Declared experiment over an authenticated world-mean posterior.
@@ -50,6 +58,10 @@ impl JointLawExperimentResult {
     /// # Errors
     /// Nonposterior laws, unbound targets, unsupported bridges, changed evidence,
     /// invalid mappings and failed admission remain explicit refusals.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "One authenticated likelihood update retains source, evidence and admission checks together."
+    )]
     pub fn condition(
         original: ScientificDecisionSource,
         request: JointLawExperimentRequest,
@@ -208,7 +220,7 @@ impl JointLawExperimentResult {
     /// Rank independent future samples of the same translated native estimand.
     /// # Errors
     /// Current evidence, future-study definitions, utilities, resources or cancellation refuse.
-    pub fn rank_next_samples<A>(
+    pub fn rank_next_samples<A: serde::Serialize>(
         &self,
         problem: &DecisionProblem<A, PanelExperimentDecisionState>,
         candidates: &[PanelFutureSample],
@@ -263,7 +275,7 @@ fn contrast_binding(
         .clone();
     let mut seen = std::collections::BTreeSet::new();
     for (i, output) in projection.outputs.iter().enumerate() {
-        if output.terms.len() != 1 || output.terms[0].1 != 1.0 {
+        if output.terms.len() != 1 || output.terms[0].1.to_bits() != 1.0_f64.to_bits() {
             return Err(JointPanelError::Unsupported(
                 "native experiment currently needs one whole-world mean per coordinate".into(),
             ));
@@ -640,7 +652,7 @@ impl super::super::designs::JointDesignResult {
     }
 }
 
-struct WireCounter(usize);
+pub(super) struct WireCounter(pub(super) usize);
 impl std::io::Write for WireCounter {
     fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
         self.0 = self

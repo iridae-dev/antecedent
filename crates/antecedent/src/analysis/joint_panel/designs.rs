@@ -137,7 +137,8 @@ pub struct JointDesignResult {
     prepared: PreparedJointDesign,
     inference: Arc<JointDesignInference>,
     law: Arc<JointDesignLaw>,
-    _lease: Arc<antecedent_core::execution::AdmissionLease>,
+    dependency: SemanticDigest,
+    admission: Arc<antecedent_core::execution::AdmissionLease>,
 }
 fn failure(error: impl std::fmt::Display) -> JointPanelError {
     JointPanelError::compile(error.to_string())
@@ -158,6 +159,35 @@ fn identity(
     writer.bytes(target.identity().as_bytes()).bytes(&encoded);
     Ok(SemanticDigest::from_bytes(writer.finish()))
 }
+pub(super) fn retained_law_identity<T: serde::Serialize>(
+    source: SemanticDigest,
+    inference: &JointDesignInference,
+    law: &T,
+) -> Result<SemanticDigest, JointPanelError> {
+    let mut writer = CanonicalWriter::new("antecedent.joint_design.fitted_law.v1");
+    writer
+        .bytes(source.as_bytes())
+        .bytes(&antecedent_io::convert::to_cbor(inference).map_err(failure)?)
+        .bytes(&antecedent_io::convert::to_cbor(law).map_err(failure)?);
+    Ok(SemanticDigest::from_bytes(writer.finish()))
+}
+fn execution_failure(ctx: &ExecutionContext, error: impl std::fmt::Display) -> JointPanelError {
+    if ctx.cancellation.is_cancelled() {
+        JointPanelError::Engine(super::engine::PanelError::Cancelled)
+    } else {
+        failure(error)
+    }
+}
+fn execute_world_recipe(
+    recipe: &JointDesignRecipe,
+    inference: &JointDesignInference,
+    ctx: &ExecutionContext,
+) -> Result<JointDesignLaw, JointPanelError> {
+    match recipe.execute_native(inference, ctx).map_err(|error| execution_failure(ctx, error))? {
+        antecedent_estimate::joint_design::compiled::JointNativeDesignLaw::Moments(law) => Ok(law),
+        _ => Err(failure("method-native target is not a joint world-mean law")),
+    }
+}
 impl PreparedJointDesign {
     /// Compile exact design-native means. This route never relabels a Gaussian panel
     /// estimator as g-computation, IV or a rollout estimator.
@@ -165,6 +195,10 @@ impl PreparedJointDesign {
     /// # Errors
     /// Unsupported proof version, mismatched world binding, absent design premises,
     /// incomplete support, cancellation or admission refusal.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one atomic proof validates source, physical worlds and identifying expression before constructing authority"
+    )]
     pub fn compile(
         target: ScientificTarget,
         proof: JointDesignProof,
@@ -178,7 +212,9 @@ impl PreparedJointDesign {
         // structural/cohort contrast target and must not be silently cast to world means.
         if !matches!(
             proof.recipe,
-            JointDesignRecipe::Randomized { .. } | JointDesignRecipe::Longitudinal { .. }
+            JointDesignRecipe::Randomized { .. }
+                | JointDesignRecipe::Longitudinal { .. }
+                | JointDesignRecipe::GaussianLongitudinal { .. }
         ) {
             return Err(failure(
                 "this scientific world-mean port requires a mean-functional design; use the native structural/cohort target owner for IV or DiD",
@@ -232,6 +268,13 @@ impl PreparedJointDesign {
             {
                 return Err(failure(
                     "longitudinal history contract differs from the original source sampling population",
+                ));
+            }
+            JointDesignRecipe::GaussianLongitudinal { design, .. }
+                if design.population != proof.source_binding.population_description =>
+            {
+                return Err(failure(
+                    "continuous longitudinal model differs from the original source sampling population",
                 ));
             }
             _ => {}
@@ -306,13 +349,65 @@ impl PreparedJointDesign {
                 "a non-longitudinal proof may not silently introduce a second arm dictionary",
             ));
         }
+        if let JointDesignRecipe::GaussianLongitudinal { design, .. } = &proof.recipe {
+            use antecedent_core::{
+                Intervention, InterventionSequence, SequencedIntervention, TemporalPolicy, Value,
+                WorldAction,
+            };
+            for (regime, world) in design.worlds.iter().zip(worlds) {
+                let expected = if world.time().is_static() && regime.treatments.len() == 1 {
+                    WorldAction::at_decision(
+                        design.channel_variables.iter().zip(&regime.treatments[0]).map(
+                            |(variable, value)| {
+                                Intervention::set(
+                                    VariableId::from_raw(*variable),
+                                    Value::f64(*value),
+                                )
+                            },
+                        ),
+                    )
+                    .map_err(failure)?
+                } else {
+                    if world.time().horizon_steps() != u32::try_from(regime.treatments.len()).ok() {
+                        return Err(failure(
+                            "continuous g-formula horizon differs from its actual scientific world",
+                        ));
+                    }
+                    let mut steps = Vec::new();
+                    for (t, levels) in regime.treatments.iter().enumerate() {
+                        for (variable, value) in design.channel_variables.iter().zip(levels) {
+                            steps.push(SequencedIntervention::new(
+                                Intervention::set(
+                                    VariableId::from_raw(*variable),
+                                    Value::f64(*value),
+                                ),
+                                TemporalPolicy::pulse(i32::try_from(t).map_err(failure)?),
+                            ));
+                        }
+                    }
+                    WorldAction::schedule(
+                        Intervention::Sequence(InterventionSequence::new(steps)),
+                        TemporalPolicy::sustained(
+                            0,
+                            i32::try_from(regime.treatments.len() - 1).map_err(failure)?,
+                        ),
+                    )
+                    .map_err(failure)?
+                };
+                if world.action() != &expected {
+                    return Err(failure(
+                        "continuous treatment history does not equal the target's actual physical intervention schedule",
+                    ));
+                }
+            }
+        }
         let quote = antecedent_io::convert::to_cbor(&proof).map_err(failure)?.len();
         let bytes = u64::try_from(quote)
             .ok()
             .and_then(|v| v.checked_mul(128))
             .ok_or_else(|| failure("joint-design admission size overflow"))?;
         let lease = native::admitted(ctx, bytes)?;
-        let point = proof.recipe.execute(&JointDesignInference::Frequentist).map_err(failure)?;
+        let point = execute_world_recipe(&proof.recipe, &JointDesignInference::Frequentist, ctx)?;
         if point.estimate().worlds.iter().zip(&proof.worlds).any(|(key, b)| key != &b.key)
             || point.estimate().worlds.len() != proof.worlds.len()
         {
@@ -332,8 +427,12 @@ impl PreparedJointDesign {
             source_variables
                 .extend(world.binding().conditioning().variables().iter().map(|v| v.raw()));
             if let Some(actions) = world.action().at_decision_interventions() {
-                source_variables
-                    .extend(actions.iter().flat_map(|a| a.target_variables()).map(|v| v.raw()));
+                source_variables.extend(
+                    actions
+                        .iter()
+                        .flat_map(antecedent_core::Intervention::target_variables)
+                        .map(VariableId::raw),
+                );
             }
             if let Some((action, _)) = world.action().schedule_parts() {
                 source_variables.extend(action.target_variables().iter().map(|v| v.raw()));
@@ -341,6 +440,11 @@ impl PreparedJointDesign {
         }
         for arm in &proof.longitudinal_arms {
             source_variables.extend(arm.levels.iter().map(|(v, _)| *v));
+        }
+        if let JointDesignRecipe::GaussianLongitudinal { design, .. } = &proof.recipe {
+            source_variables.extend(
+                design.channel_variables.iter().chain(&design.covariate_variables).copied(),
+            );
         }
         let max_raw = source_variables.into_iter().max().unwrap_or(0);
         let synthetic = |offset: u32| {
@@ -418,6 +522,49 @@ impl PreparedJointDesign {
                         distribution,
                     })
                 }
+                JointDesignRecipe::GaussianLongitudinal { design, .. } => {
+                    let h = design.worlds[world_index].treatments.len();
+                    let d = design.covariate_variables.len();
+                    let m = design.channel_variables.len();
+                    let states = (0..h * d)
+                        .map(|j| synthetic(u32::try_from(j + 1).map_err(failure)?))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    let arms = (0..h * m)
+                        .map(|j| synthetic(u32::try_from(h * d + j + 1).map_err(failure)?))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    let mut factors = Vec::new();
+                    for t in 0..h {
+                        for j in 0..d {
+                            let at = t * d + j;
+                            let vars = arena.intern_var_set([states[at]]);
+                            let conditioned = arena
+                                .intern_var_set(states[..at].iter().chain(&arms[..t * m]).copied());
+                            factors.push(arena.intern_distribution(
+                                vars,
+                                conditioned,
+                                no_intervention,
+                                DomainRef::Observational,
+                            ));
+                        }
+                    }
+                    let vars = arena.intern_var_set([world.binding().outcome().outcome()]);
+                    let conditioned = arena.intern_var_set(states.iter().chain(&arms).copied());
+                    factors.push(arena.intern_distribution(
+                        vars,
+                        conditioned,
+                        no_intervention,
+                        DomainRef::Observational,
+                    ));
+                    let factors = arena.intern_list(factors);
+                    let product = arena.intern(ExprNode::Product(factors));
+                    let states = arena.intern_var_set(states);
+                    let distribution =
+                        arena.intern(ExprNode::IntegralOut { variables: states, expr: product });
+                    arena.intern(ExprNode::Expectation {
+                        function: OutcomeExprId::identity(world.binding().outcome().outcome()),
+                        distribution,
+                    })
+                }
                 _ => {
                     return Err(failure(
                         "native contrast owner cannot issue a world-mean functional",
@@ -466,16 +613,24 @@ impl PreparedJointDesign {
             ));
         }
         parts.required_factors.push(RequiredFactor::new(proof.recipe.functional(), Arc::from([])));
-        let identification = CompiledIdentificationProduct::new(
-            estimands,
-            arena,
-            trace,
-            target.assumptions().records().clone(),
-            vec![],
-            parts,
-        )
-        .and_then(|p| p.bind_target(&target))
-        .map_err(failure)?;
+        let mut assumptions = target.assumptions().records().clone();
+        for (i, description) in
+            native::summary(&proof.recipe).required_assumptions.into_iter().enumerate()
+        {
+            assumptions.push(antecedent_core::AssumptionRecord {
+                assumption: antecedent_core::Assumption::Custom {
+                    id: format!("{}:premise:{i}", proof.recipe.method()).into(),
+                    description: description.into(),
+                },
+                source: antecedent_core::AssumptionSource::UserDeclared,
+                scope: antecedent_core::AssumptionScope::Identification,
+                status: antecedent_core::AssumptionStatus::Declared,
+            });
+        }
+        let identification =
+            CompiledIdentificationProduct::new(estimands, arena, trace, assumptions, vec![], parts)
+                .and_then(|p| p.bind_target(&target))
+                .map_err(failure)?;
         let dependency = identity(&target, &proof)?;
         Ok(Self {
             target: Arc::new(target),
@@ -492,7 +647,6 @@ impl PreparedJointDesign {
         &self.proof
     }
     /// Common target-bound identification product.
-    #[must_use]
     pub fn identification(&self) -> &CompiledIdentificationProduct {
         &self.identification
     }
@@ -511,8 +665,12 @@ impl PreparedJointDesign {
     ) -> Result<JointDesignResult, JointPanelError> {
         check_cancel(ctx)?;
         let draws = match &inference {
-            JointDesignInference::Frequentist => 1,
-            JointDesignInference::SwitchbackExactRandomization { .. } => 1,
+            JointDesignInference::Frequentist
+            | JointDesignInference::SwitchbackExactRandomization { .. }
+            | JointDesignInference::SyntheticConformal { .. } => 1,
+            JointDesignInference::LocalComplierBayesian { draws, .. } => *draws,
+            JointDesignInference::GaussianLongitudinalBootstrap { replicates, .. } => *replicates,
+            JointDesignInference::GaussianLongitudinalBayesian { prior } => prior.draws,
             JointDesignInference::RandomizedGaussian { prior } => prior.draws,
             JointDesignInference::RandomizedFinitePopulationGaussian { prior } => prior.arm.draws,
             JointDesignInference::LongitudinalDirichlet { prior } => prior.draws,
@@ -520,7 +678,6 @@ impl PreparedJointDesign {
             JointDesignInference::InstrumentedGaussian { prior } => prior.draws,
             JointDesignInference::RolloutGaussian { prior } => prior.draws,
             JointDesignInference::SyntheticBayesian { prior } => prior.draws,
-            JointDesignInference::SyntheticConformal { .. } => 1,
         };
         let bytes = draws
             .checked_mul(self.proof.worlds.len())
@@ -531,14 +688,16 @@ impl PreparedJointDesign {
         let law = if matches!(inference, JointDesignInference::Frequentist) {
             self.point.clone()
         } else {
-            Arc::new(self.proof.recipe.execute(&inference).map_err(failure)?)
+            Arc::new(execute_world_recipe(&self.proof.recipe, &inference, ctx)?)
         };
+        let dependency = retained_law_identity(self.dependency, &inference, law.as_ref())?;
         check_cancel(ctx)?;
         Ok(JointDesignResult {
             prepared: self.clone(),
             inference: Arc::new(inference),
             law,
-            _lease: lease,
+            dependency,
+            admission: lease,
         })
     }
 }
@@ -547,6 +706,11 @@ impl JointDesignResult {
     #[must_use]
     pub fn law(&self) -> &JointDesignLaw {
         &self.law
+    }
+    /// Exact statistical procedure and aligned draw-slot identity, including prior and seed.
+    #[must_use]
+    pub const fn dependency_identity(&self) -> SemanticDigest {
+        self.dependency
     }
     /// Typed original scientific and numerical owner.
     #[must_use]
@@ -591,7 +755,7 @@ impl JointDesignResult {
                 antecedent_design::decision_eval::MeanEstimate::Frequentist
             },
             provider_id: self.prepared.proof.recipe.method().into(),
-            snapshot_id: self.prepared.dependency.to_hex(),
+            snapshot_id: self.dependency.to_hex(),
             causal_contract_id: self.prepared.target.identity().to_hex(),
             rng_id: "retained_native_design".into(),
         };
@@ -612,11 +776,11 @@ impl JointDesignResult {
         ScientificDecisionSource::new_projected(
             self.prepared.target.as_ref().clone(),
             self.prepared.identification.as_ref().clone(),
-            self.prepared.dependency,
+            self.dependency,
             ScientificSourcePayload::Means(payload),
             ScientificSourceProjection { basis, outputs },
         )
-        .map(|s| s.retain_admission(self._lease.clone()))
+        .map(|s| s.retain_admission(self.admission.clone()))
         .map_err(failure)
     }
     /// Build a quantity-bound posterior decision/experiment port from actual aligned mechanism draws.
@@ -636,7 +800,7 @@ impl JointDesignResult {
                 source_id: self.prepared.dependency.to_hex(),
                 provider_id: self.prepared.proof.recipe.method().into(),
                 rng_id: format!("retained:{:?}", self.inference),
-                snapshot_id: self.prepared.dependency.to_hex(),
+                snapshot_id: self.dependency.to_hex(),
                 causal_contract_id: self.prepared.target.identity().to_hex(),
             },
         )
@@ -675,11 +839,11 @@ impl JointDesignResult {
         ScientificDecisionSource::new_projected(
             self.prepared.target.as_ref().clone(),
             self.prepared.identification.as_ref().clone(),
-            self.prepared.dependency,
+            self.dependency,
             ScientificSourcePayload::Law(Box::new(law)),
             ScientificSourceProjection { basis, outputs },
         )
-        .map(|source| source.retain_admission(self._lease.clone()))
+        .map(|source| source.retain_admission(self.admission.clone()))
         .map_err(failure)
     }
 }
@@ -787,3 +951,6 @@ impl PreparedJointDesign {
         Ok(result)
     }
 }
+
+#[cfg(test)]
+pub(crate) use native::{gaussian_longitudinal_chain_fixture, native_experiment_fixtures};

@@ -63,6 +63,38 @@ pub(super) struct PyJointDesignResult {
 #[pymethods]
 impl PyJointDesignResult {
     #[pyo3(signature=(declaration_json,*,seed=0,threads=1,max_bytes=None,cancel=None))]
+    fn export_reference_decomposition<'py>(
+        &self,
+        py: Python<'py>,
+        declaration_json: &str,
+        seed: u64,
+        threads: u32,
+        max_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<Bound<'py, PyBytes>> {
+        let ctx = context(seed, threads, max_bytes, cancel)?;
+        let bytes = crate::detach_catch(py, || {
+            population::export_components(&self.inner, declaration_json, &ctx)
+        })?;
+        Ok(PyBytes::new(py, &bytes))
+    }
+    #[pyo3(signature=(artifact,declaration_json,*,seed=0,threads=1,max_bytes=None,cancel=None))]
+    fn consume_reference_decomposition_current(
+        &self,
+        py: Python<'_>,
+        artifact: &[u8],
+        declaration_json: &str,
+        seed: u64,
+        threads: u32,
+        max_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<String> {
+        let ctx = context(seed, threads, max_bytes, cancel)?;
+        crate::detach_catch(py, || {
+            population::consume_components(&self.inner, artifact, declaration_json, &ctx)
+        })
+    }
+    #[pyo3(signature=(declaration_json,*,seed=0,threads=1,max_bytes=None,cancel=None))]
     fn decompose_population_reference(
         &self,
         py: Python<'_>,
@@ -161,10 +193,10 @@ impl PyJointDesignResult {
         let result = crate::detach_catch(py, || {
             self.inner.decompose_reference_components(&bindings, scope, &ctx).map_err(panel_error)
         })?;
-        serde_json::to_string(&serde_json::json!({"decomposition":{"point":result.decomposition.point,"draws":result.decomposition.draws,"weights":result.decomposition.weights},"covariance":result.covariance,"joint_uncertainty":result.decomposition.joint_uncertainty(),"question_identity":result.question_identity.to_hex(),"scope":if declaration.require_identified{"identified"}else{"model_conditional"},"dependency":result.source.dependency_identity().to_hex(),"identification":result.source.identification().identity().to_hex()})).map_err(|e|crate::value_err(e.to_string()))
+        serde_json::to_string(&serde_json::json!({"decomposition":{"point":result.decomposition.point,"draws":result.decomposition.draws,"weights":result.decomposition.weights},"full_procedure_bootstrap":!result.procedure_failures.is_empty(),"procedure_failures":result.procedure_failures,"covariance":result.covariance,"joint_uncertainty":result.decomposition.joint_uncertainty(),"question_identity":result.question_identity.to_hex(),"scope":if declaration.require_identified{"identified"}else{"model_conditional"},"dependency":result.source.dependency_identity().to_hex(),"identification":result.source.identification().identity().to_hex()})).map_err(|e|crate::value_err(e.to_string()))
     }
     fn report(&self) -> PyResult<String> {
-        serde_json::to_string(&serde_json::json!({"law":self.inner.law(),"dependency":self.inner.prepared().dependency().to_hex(),"identified":self.inner.prepared().identification().is_identified_claim(),"functional":self.inner.prepared().proof().recipe.functional()})).map_err(|e|crate::value_err(e.to_string()))
+        serde_json::to_string(&serde_json::json!({"law":self.inner.law(),"dependency":self.inner.dependency_identity().to_hex(),"source_dependency":self.inner.prepared().dependency().to_hex(),"identified":self.inner.prepared().identification().is_identified_claim(),"functional":self.inner.prepared().proof().recipe.functional()})).map_err(|e|crate::value_err(e.to_string()))
     }
     fn export<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
         let bytes = self.inner.export_artifact().map_err(panel_error)?;
@@ -310,7 +342,7 @@ pub(super) struct PyNativeJointDesignResult {
 #[pymethods]
 impl PyNativeJointDesignResult {
     fn report(&self) -> PyResult<String> {
-        serde_json::to_string(&serde_json::json!({"identification":self.inner.prepared().identification(),"law":self.inner.law(),"dependency":self.inner.prepared().dependency().to_hex()})).map_err(|e|crate::value_err(e.to_string()))
+        serde_json::to_string(&serde_json::json!({"identification":self.inner.prepared().identification(),"law":self.inner.law(),"dependency":self.inner.dependency_identity().to_hex(),"source_dependency":self.inner.prepared().dependency().to_hex()})).map_err(|e|crate::value_err(e.to_string()))
     }
     fn export<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
         let bytes = self.inner.export_artifact().map_err(panel_error)?;

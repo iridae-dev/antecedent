@@ -589,9 +589,13 @@ impl core::clone::Clone for antecedent_design::program_search::certified::Certif
 impl core::clone::Clone for antecedent_design::program_search::certified::CertifiedControl
 impl core::clone::Clone for antecedent_design::program_search::certified::CertifiedRegion
 impl core::clone::Clone for antecedent_design::program_search::certified::CertifiedRestriction
+impl core::clone::Clone for antecedent_design::program_search::certified::ConcaveDualBound
 impl core::clone::Clone for antecedent_design::program_search::certified::GlobalProgramCertificate
+impl core::clone::Clone for antecedent_design::program_search::certified::MonotoneReduction
 impl core::clone::Clone for antecedent_design::program_search::certified::ObjectiveInterval
 impl core::clone::Clone for antecedent_design::program_search::certified::PreparedCertifiedSearch
+impl core::clone::Clone for antecedent_design::program_search::certified::SeparableBlockBound
+impl core::clone::Clone for antecedent_design::program_search::certified::SeparableBound
 impl core::clone::Clone for antecedent_design::program_search::continuous::CompiledContinuousCandidate
 impl core::clone::Clone for antecedent_design::program_search::continuous::ContinuousProgramSearchResult
 impl core::clone::Clone for antecedent_design::program_search::continuous::ContinuousSearchAttempt
@@ -602,6 +606,10 @@ impl core::clone::Clone for antecedent_design::program_search::selection::Candid
 impl core::clone::Clone for antecedent_design::program_search::selection::ObservationalSpan
 impl core::clone::Clone for antecedent_design::program_search::selection::ProgramHoldoutPartition
 impl core::clone::Clone for antecedent_design::program_search::selection::SimultaneousProgramIntervals
+impl core::clone::Clone for antecedent_design::program_search::selection::procedure::HeldoutProgramValue
+impl core::clone::Clone for antecedent_design::program_search::selection::procedure::SelectionRepetition
+impl core::clone::Clone for antecedent_design::program_search::selection::procedure::SelectionRepetitionValue
+impl core::clone::Clone for antecedent_design::program_search::selection::procedure::SelectionStage
 impl core::clone::Clone for antecedent_design::proposal_receipt::Arrival
 impl core::clone::Clone for antecedent_design::proposal_receipt::ArrivalVerdict
 impl core::clone::Clone for antecedent_design::proposal_receipt::ArrivedEvidence
@@ -965,6 +973,7 @@ impl core::cmp::Eq for antecedent_design::program_search::certified::Certificate
 impl core::cmp::Eq for antecedent_design::program_search::continuous::ContinuousSearchStop
 impl core::cmp::Eq for antecedent_design::program_search::selection::ObservationalSpan
 impl core::cmp::Eq for antecedent_design::program_search::selection::ProgramHoldoutPartition
+impl core::cmp::Eq for antecedent_design::program_search::selection::procedure::SelectionStage
 impl core::cmp::Eq for antecedent_design::proposal_receipt::ArrivalVerdict
 impl core::cmp::Eq for antecedent_design::proposal_receipt::BaseFailureBinding
 impl core::cmp::Eq for antecedent_design::proposal_receipt::ChangedPremise
@@ -1497,12 +1506,18 @@ impl core::cmp::PartialEq for antecedent_design::program_search::certified::Cert
 impl core::cmp::PartialEq for antecedent_design::program_search::certified::CertifiedControl
 impl core::cmp::PartialEq for antecedent_design::program_search::certified::CertifiedRegion
 impl core::cmp::PartialEq for antecedent_design::program_search::certified::CertifiedRestriction
+impl core::cmp::PartialEq for antecedent_design::program_search::certified::ConcaveDualBound
+impl core::cmp::PartialEq for antecedent_design::program_search::certified::MonotoneReduction
 impl core::cmp::PartialEq for antecedent_design::program_search::certified::ObjectiveInterval
+impl core::cmp::PartialEq for antecedent_design::program_search::certified::SeparableBlockBound
+impl core::cmp::PartialEq for antecedent_design::program_search::certified::SeparableBound
 impl core::cmp::PartialEq for antecedent_design::program_search::continuous::ContinuousSearchOptions
 impl core::cmp::PartialEq for antecedent_design::program_search::continuous::ContinuousSearchStop
 impl core::cmp::PartialEq for antecedent_design::program_search::selection::CandidateEstimates
 impl core::cmp::PartialEq for antecedent_design::program_search::selection::ObservationalSpan
 impl core::cmp::PartialEq for antecedent_design::program_search::selection::ProgramHoldoutPartition
+impl core::cmp::PartialEq for antecedent_design::program_search::selection::procedure::HeldoutProgramValue
+impl core::cmp::PartialEq for antecedent_design::program_search::selection::procedure::SelectionStage
 impl core::cmp::PartialEq for antecedent_design::proposal_receipt::Arrival
 impl core::cmp::PartialEq for antecedent_design::proposal_receipt::ArrivalVerdict
 impl core::cmp::PartialEq for antecedent_design::proposal_receipt::ArrivedEvidence
@@ -2281,9 +2296,13 @@ impl core::fmt::Debug for antecedent_design::program_search::certified::Certific
 impl core::fmt::Debug for antecedent_design::program_search::certified::CertifiedControl
 impl core::fmt::Debug for antecedent_design::program_search::certified::CertifiedRegion
 impl core::fmt::Debug for antecedent_design::program_search::certified::CertifiedRestriction
+impl core::fmt::Debug for antecedent_design::program_search::certified::ConcaveDualBound
 impl core::fmt::Debug for antecedent_design::program_search::certified::GlobalProgramCertificate
+impl core::fmt::Debug for antecedent_design::program_search::certified::MonotoneReduction
 impl core::fmt::Debug for antecedent_design::program_search::certified::ObjectiveInterval
 impl core::fmt::Debug for antecedent_design::program_search::certified::PreparedCertifiedSearch
+impl core::fmt::Debug for antecedent_design::program_search::certified::SeparableBlockBound
+impl core::fmt::Debug for antecedent_design::program_search::certified::SeparableBound
 impl core::fmt::Debug for antecedent_design::program_search::continuous::CompiledContinuousCandidate
 impl core::fmt::Debug for antecedent_design::program_search::continuous::ContinuousProgramSearchResult
 impl core::fmt::Debug for antecedent_design::program_search::continuous::ContinuousSearchAttempt
@@ -2294,6 +2313,10 @@ impl core::fmt::Debug for antecedent_design::program_search::selection::Candidat
 impl core::fmt::Debug for antecedent_design::program_search::selection::ObservationalSpan
 impl core::fmt::Debug for antecedent_design::program_search::selection::ProgramHoldoutPartition
 impl core::fmt::Debug for antecedent_design::program_search::selection::SimultaneousProgramIntervals
+impl core::fmt::Debug for antecedent_design::program_search::selection::procedure::HeldoutProgramValue
+impl core::fmt::Debug for antecedent_design::program_search::selection::procedure::SelectionRepetition
+impl core::fmt::Debug for antecedent_design::program_search::selection::procedure::SelectionRepetitionValue
+impl core::fmt::Debug for antecedent_design::program_search::selection::procedure::SelectionStage
 impl core::fmt::Debug for antecedent_design::proposal_receipt::Arrival
 impl core::fmt::Debug for antecedent_design::proposal_receipt::ArrivalVerdict
 impl core::fmt::Debug for antecedent_design::proposal_receipt::ArrivedEvidence
@@ -2706,6 +2729,7 @@ impl core::marker::Copy for antecedent_design::program_search::certified::Certif
 impl core::marker::Copy for antecedent_design::program_search::certified::CertificateStop
 impl core::marker::Copy for antecedent_design::program_search::certified::ObjectiveInterval
 impl core::marker::Copy for antecedent_design::program_search::continuous::ContinuousSearchStop
+impl core::marker::Copy for antecedent_design::program_search::selection::procedure::SelectionStage
 impl core::marker::Copy for antecedent_design::proposal_receipt::EvidenceState
 impl core::marker::Copy for antecedent_design::ranking::DesignRankingBasis
 impl core::marker::Copy for antecedent_design::repair::RepairCancelled
@@ -3247,9 +3271,13 @@ impl core::marker::Freeze for antecedent_design::program_search::certified::Cert
 impl core::marker::Freeze for antecedent_design::program_search::certified::CertifiedControl [auto]
 impl core::marker::Freeze for antecedent_design::program_search::certified::CertifiedRegion [auto]
 impl core::marker::Freeze for antecedent_design::program_search::certified::CertifiedRestriction [auto]
+impl core::marker::Freeze for antecedent_design::program_search::certified::ConcaveDualBound [auto]
 impl core::marker::Freeze for antecedent_design::program_search::certified::GlobalProgramCertificate [auto]
+impl core::marker::Freeze for antecedent_design::program_search::certified::MonotoneReduction [auto]
 impl core::marker::Freeze for antecedent_design::program_search::certified::ObjectiveInterval [auto]
 impl core::marker::Freeze for antecedent_design::program_search::certified::PreparedCertifiedSearch [auto]
+impl core::marker::Freeze for antecedent_design::program_search::certified::SeparableBlockBound [auto]
+impl core::marker::Freeze for antecedent_design::program_search::certified::SeparableBound [auto]
 impl core::marker::Freeze for antecedent_design::program_search::continuous::CompiledContinuousCandidate [auto]
 impl core::marker::Freeze for antecedent_design::program_search::continuous::ContinuousProgramSearchResult [auto]
 impl core::marker::Freeze for antecedent_design::program_search::continuous::ContinuousSearchAttempt [auto]
@@ -3260,6 +3288,10 @@ impl core::marker::Freeze for antecedent_design::program_search::selection::Cand
 impl core::marker::Freeze for antecedent_design::program_search::selection::ObservationalSpan [auto]
 impl core::marker::Freeze for antecedent_design::program_search::selection::ProgramHoldoutPartition [auto]
 impl core::marker::Freeze for antecedent_design::program_search::selection::SimultaneousProgramIntervals [auto]
+impl core::marker::Freeze for antecedent_design::program_search::selection::procedure::HeldoutProgramValue [auto]
+impl core::marker::Freeze for antecedent_design::program_search::selection::procedure::SelectionRepetition [auto]
+impl core::marker::Freeze for antecedent_design::program_search::selection::procedure::SelectionRepetitionValue [auto]
+impl core::marker::Freeze for antecedent_design::program_search::selection::procedure::SelectionStage [auto]
 impl core::marker::Freeze for antecedent_design::proposal_receipt::Arrival [auto]
 impl core::marker::Freeze for antecedent_design::proposal_receipt::ArrivalVerdict [auto]
 impl core::marker::Freeze for antecedent_design::proposal_receipt::ArrivedEvidence [auto]
@@ -3939,9 +3971,13 @@ impl core::marker::Send for antecedent_design::program_search::certified::Certif
 impl core::marker::Send for antecedent_design::program_search::certified::CertifiedControl [auto]
 impl core::marker::Send for antecedent_design::program_search::certified::CertifiedRegion [auto]
 impl core::marker::Send for antecedent_design::program_search::certified::CertifiedRestriction [auto]
+impl core::marker::Send for antecedent_design::program_search::certified::ConcaveDualBound [auto]
 impl core::marker::Send for antecedent_design::program_search::certified::GlobalProgramCertificate [auto]
+impl core::marker::Send for antecedent_design::program_search::certified::MonotoneReduction [auto]
 impl core::marker::Send for antecedent_design::program_search::certified::ObjectiveInterval [auto]
 impl core::marker::Send for antecedent_design::program_search::certified::PreparedCertifiedSearch [auto]
+impl core::marker::Send for antecedent_design::program_search::certified::SeparableBlockBound [auto]
+impl core::marker::Send for antecedent_design::program_search::certified::SeparableBound [auto]
 impl core::marker::Send for antecedent_design::program_search::continuous::CompiledContinuousCandidate [auto]
 impl core::marker::Send for antecedent_design::program_search::continuous::ContinuousProgramSearchResult [auto]
 impl core::marker::Send for antecedent_design::program_search::continuous::ContinuousSearchAttempt [auto]
@@ -3952,6 +3988,10 @@ impl core::marker::Send for antecedent_design::program_search::selection::Candid
 impl core::marker::Send for antecedent_design::program_search::selection::ObservationalSpan [auto]
 impl core::marker::Send for antecedent_design::program_search::selection::ProgramHoldoutPartition [auto]
 impl core::marker::Send for antecedent_design::program_search::selection::SimultaneousProgramIntervals [auto]
+impl core::marker::Send for antecedent_design::program_search::selection::procedure::HeldoutProgramValue [auto]
+impl core::marker::Send for antecedent_design::program_search::selection::procedure::SelectionRepetition [auto]
+impl core::marker::Send for antecedent_design::program_search::selection::procedure::SelectionRepetitionValue [auto]
+impl core::marker::Send for antecedent_design::program_search::selection::procedure::SelectionStage [auto]
 impl core::marker::Send for antecedent_design::proposal_receipt::Arrival [auto]
 impl core::marker::Send for antecedent_design::proposal_receipt::ArrivalVerdict [auto]
 impl core::marker::Send for antecedent_design::proposal_receipt::ArrivedEvidence [auto]
@@ -4562,12 +4602,18 @@ impl core::marker::StructuralPartialEq for antecedent_design::program_search::ce
 impl core::marker::StructuralPartialEq for antecedent_design::program_search::certified::CertifiedControl
 impl core::marker::StructuralPartialEq for antecedent_design::program_search::certified::CertifiedRegion
 impl core::marker::StructuralPartialEq for antecedent_design::program_search::certified::CertifiedRestriction
+impl core::marker::StructuralPartialEq for antecedent_design::program_search::certified::ConcaveDualBound
+impl core::marker::StructuralPartialEq for antecedent_design::program_search::certified::MonotoneReduction
 impl core::marker::StructuralPartialEq for antecedent_design::program_search::certified::ObjectiveInterval
+impl core::marker::StructuralPartialEq for antecedent_design::program_search::certified::SeparableBlockBound
+impl core::marker::StructuralPartialEq for antecedent_design::program_search::certified::SeparableBound
 impl core::marker::StructuralPartialEq for antecedent_design::program_search::continuous::ContinuousSearchOptions
 impl core::marker::StructuralPartialEq for antecedent_design::program_search::continuous::ContinuousSearchStop
 impl core::marker::StructuralPartialEq for antecedent_design::program_search::selection::CandidateEstimates
 impl core::marker::StructuralPartialEq for antecedent_design::program_search::selection::ObservationalSpan
 impl core::marker::StructuralPartialEq for antecedent_design::program_search::selection::ProgramHoldoutPartition
+impl core::marker::StructuralPartialEq for antecedent_design::program_search::selection::procedure::HeldoutProgramValue
+impl core::marker::StructuralPartialEq for antecedent_design::program_search::selection::procedure::SelectionStage
 impl core::marker::StructuralPartialEq for antecedent_design::proposal_receipt::Arrival
 impl core::marker::StructuralPartialEq for antecedent_design::proposal_receipt::ArrivalVerdict
 impl core::marker::StructuralPartialEq for antecedent_design::proposal_receipt::ArrivedEvidence
@@ -5228,9 +5274,13 @@ impl core::marker::Sync for antecedent_design::program_search::certified::Certif
 impl core::marker::Sync for antecedent_design::program_search::certified::CertifiedControl [auto]
 impl core::marker::Sync for antecedent_design::program_search::certified::CertifiedRegion [auto]
 impl core::marker::Sync for antecedent_design::program_search::certified::CertifiedRestriction [auto]
+impl core::marker::Sync for antecedent_design::program_search::certified::ConcaveDualBound [auto]
 impl core::marker::Sync for antecedent_design::program_search::certified::GlobalProgramCertificate [auto]
+impl core::marker::Sync for antecedent_design::program_search::certified::MonotoneReduction [auto]
 impl core::marker::Sync for antecedent_design::program_search::certified::ObjectiveInterval [auto]
 impl core::marker::Sync for antecedent_design::program_search::certified::PreparedCertifiedSearch [auto]
+impl core::marker::Sync for antecedent_design::program_search::certified::SeparableBlockBound [auto]
+impl core::marker::Sync for antecedent_design::program_search::certified::SeparableBound [auto]
 impl core::marker::Sync for antecedent_design::program_search::continuous::CompiledContinuousCandidate [auto]
 impl core::marker::Sync for antecedent_design::program_search::continuous::ContinuousProgramSearchResult [auto]
 impl core::marker::Sync for antecedent_design::program_search::continuous::ContinuousSearchAttempt [auto]
@@ -5241,6 +5291,10 @@ impl core::marker::Sync for antecedent_design::program_search::selection::Candid
 impl core::marker::Sync for antecedent_design::program_search::selection::ObservationalSpan [auto]
 impl core::marker::Sync for antecedent_design::program_search::selection::ProgramHoldoutPartition [auto]
 impl core::marker::Sync for antecedent_design::program_search::selection::SimultaneousProgramIntervals [auto]
+impl core::marker::Sync for antecedent_design::program_search::selection::procedure::HeldoutProgramValue [auto]
+impl core::marker::Sync for antecedent_design::program_search::selection::procedure::SelectionRepetition [auto]
+impl core::marker::Sync for antecedent_design::program_search::selection::procedure::SelectionRepetitionValue [auto]
+impl core::marker::Sync for antecedent_design::program_search::selection::procedure::SelectionStage [auto]
 impl core::marker::Sync for antecedent_design::proposal_receipt::Arrival [auto]
 impl core::marker::Sync for antecedent_design::proposal_receipt::ArrivalVerdict [auto]
 impl core::marker::Sync for antecedent_design::proposal_receipt::ArrivedEvidence [auto]
@@ -5921,9 +5975,13 @@ impl core::marker::Unpin for antecedent_design::program_search::certified::Certi
 impl core::marker::Unpin for antecedent_design::program_search::certified::CertifiedControl [auto]
 impl core::marker::Unpin for antecedent_design::program_search::certified::CertifiedRegion [auto]
 impl core::marker::Unpin for antecedent_design::program_search::certified::CertifiedRestriction [auto]
+impl core::marker::Unpin for antecedent_design::program_search::certified::ConcaveDualBound [auto]
 impl core::marker::Unpin for antecedent_design::program_search::certified::GlobalProgramCertificate [auto]
+impl core::marker::Unpin for antecedent_design::program_search::certified::MonotoneReduction [auto]
 impl core::marker::Unpin for antecedent_design::program_search::certified::ObjectiveInterval [auto]
 impl core::marker::Unpin for antecedent_design::program_search::certified::PreparedCertifiedSearch [auto]
+impl core::marker::Unpin for antecedent_design::program_search::certified::SeparableBlockBound [auto]
+impl core::marker::Unpin for antecedent_design::program_search::certified::SeparableBound [auto]
 impl core::marker::Unpin for antecedent_design::program_search::continuous::CompiledContinuousCandidate [auto]
 impl core::marker::Unpin for antecedent_design::program_search::continuous::ContinuousProgramSearchResult [auto]
 impl core::marker::Unpin for antecedent_design::program_search::continuous::ContinuousSearchAttempt [auto]
@@ -5934,6 +5992,10 @@ impl core::marker::Unpin for antecedent_design::program_search::selection::Candi
 impl core::marker::Unpin for antecedent_design::program_search::selection::ObservationalSpan [auto]
 impl core::marker::Unpin for antecedent_design::program_search::selection::ProgramHoldoutPartition [auto]
 impl core::marker::Unpin for antecedent_design::program_search::selection::SimultaneousProgramIntervals [auto]
+impl core::marker::Unpin for antecedent_design::program_search::selection::procedure::HeldoutProgramValue [auto]
+impl core::marker::Unpin for antecedent_design::program_search::selection::procedure::SelectionRepetition [auto]
+impl core::marker::Unpin for antecedent_design::program_search::selection::procedure::SelectionRepetitionValue [auto]
+impl core::marker::Unpin for antecedent_design::program_search::selection::procedure::SelectionStage [auto]
 impl core::marker::Unpin for antecedent_design::proposal_receipt::Arrival [auto]
 impl core::marker::Unpin for antecedent_design::proposal_receipt::ArrivalVerdict [auto]
 impl core::marker::Unpin for antecedent_design::proposal_receipt::ArrivedEvidence [auto]
@@ -6608,9 +6670,13 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_sear
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::certified::CertifiedControl [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::certified::CertifiedRegion [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::certified::CertifiedRestriction [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::certified::ConcaveDualBound [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::certified::GlobalProgramCertificate [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::certified::MonotoneReduction [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::certified::ObjectiveInterval [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::certified::PreparedCertifiedSearch [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::certified::SeparableBlockBound [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::certified::SeparableBound [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::continuous::CompiledContinuousCandidate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::continuous::ContinuousProgramSearchResult [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::continuous::ContinuousSearchAttempt [auto]
@@ -6621,6 +6687,10 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_sear
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::selection::ObservationalSpan [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::selection::ProgramHoldoutPartition [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::selection::SimultaneousProgramIntervals [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::selection::procedure::HeldoutProgramValue [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::selection::procedure::SelectionRepetition [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::selection::procedure::SelectionRepetitionValue [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::selection::procedure::SelectionStage [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::proposal_receipt::Arrival [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::proposal_receipt::ArrivalVerdict [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::proposal_receipt::ArrivedEvidence [auto]
@@ -7293,9 +7363,13 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search:
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::certified::CertifiedControl [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::certified::CertifiedRegion [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::certified::CertifiedRestriction [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::certified::ConcaveDualBound [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::certified::GlobalProgramCertificate [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::certified::MonotoneReduction [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::certified::ObjectiveInterval [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::certified::PreparedCertifiedSearch [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::certified::SeparableBlockBound [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::certified::SeparableBound [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::continuous::CompiledContinuousCandidate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::continuous::ContinuousProgramSearchResult [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::continuous::ContinuousSearchAttempt [auto]
@@ -7306,6 +7380,10 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search:
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::selection::ObservationalSpan [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::selection::ProgramHoldoutPartition [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::selection::SimultaneousProgramIntervals [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::selection::procedure::HeldoutProgramValue [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::selection::procedure::SelectionRepetition [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::selection::procedure::SelectionRepetitionValue [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::selection::procedure::SelectionStage [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::proposal_receipt::Arrival [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::proposal_receipt::ArrivalVerdict [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::proposal_receipt::ArrivedEvidence [auto]
@@ -7622,10 +7700,18 @@ impl serde_core::ser::Serialize for antecedent_design::program_search::certified
 impl serde_core::ser::Serialize for antecedent_design::program_search::certified::CertificateStop
 impl serde_core::ser::Serialize for antecedent_design::program_search::certified::CertifiedRegion
 impl serde_core::ser::Serialize for antecedent_design::program_search::certified::CertifiedRestriction
+impl serde_core::ser::Serialize for antecedent_design::program_search::certified::ConcaveDualBound
+impl serde_core::ser::Serialize for antecedent_design::program_search::certified::MonotoneReduction
 impl serde_core::ser::Serialize for antecedent_design::program_search::certified::ObjectiveInterval
+impl serde_core::ser::Serialize for antecedent_design::program_search::certified::SeparableBlockBound
+impl serde_core::ser::Serialize for antecedent_design::program_search::certified::SeparableBound
 impl serde_core::ser::Serialize for antecedent_design::program_search::selection::CandidateEstimates
 impl serde_core::ser::Serialize for antecedent_design::program_search::selection::ObservationalSpan
 impl serde_core::ser::Serialize for antecedent_design::program_search::selection::ProgramHoldoutPartition
+impl serde_core::ser::Serialize for antecedent_design::program_search::selection::procedure::HeldoutProgramValue
+impl serde_core::ser::Serialize for antecedent_design::program_search::selection::procedure::SelectionRepetition
+impl serde_core::ser::Serialize for antecedent_design::program_search::selection::procedure::SelectionRepetitionValue
+impl serde_core::ser::Serialize for antecedent_design::program_search::selection::procedure::SelectionStage
 impl serde_core::ser::Serialize for antecedent_design::repair_artifact::AssumptionWire
 impl serde_core::ser::Serialize for antecedent_design::repair_artifact::BackdoorPremisesWire
 impl serde_core::ser::Serialize for antecedent_design::repair_artifact::DerivationWire
@@ -7918,10 +8004,18 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::program_search
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::program_search::certified::CertificateStop
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::program_search::certified::CertifiedRegion
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::program_search::certified::CertifiedRestriction
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::program_search::certified::ConcaveDualBound
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::program_search::certified::MonotoneReduction
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::program_search::certified::ObjectiveInterval
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::program_search::certified::SeparableBlockBound
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::program_search::certified::SeparableBound
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::program_search::selection::CandidateEstimates
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::program_search::selection::ObservationalSpan
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::program_search::selection::ProgramHoldoutPartition
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::program_search::selection::procedure::HeldoutProgramValue
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::program_search::selection::procedure::SelectionRepetition
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::program_search::selection::procedure::SelectionRepetitionValue
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::program_search::selection::procedure::SelectionStage
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::repair_artifact::AssumptionWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::repair_artifact::BackdoorPremisesWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::repair_artifact::DerivationWire
@@ -7980,6 +8074,36 @@ impl<A, O> core::marker::Sync for antecedent_design::DecisionProblem<A, O> where
 impl<A, O> core::marker::Sync for antecedent_design::DecisionRegistry<A, O> where A: core::marker::Sync, O: core::marker::Sync [auto]
 impl<A, O> core::marker::Unpin for antecedent_design::DecisionProblem<A, O> where A: core::marker::Unpin [auto]
 impl<A, O> core::marker::Unpin for antecedent_design::DecisionRegistry<A, O> where A: core::marker::Unpin, O: core::marker::Unpin [auto]
+impl<A: core::clone::Clone> core::clone::Clone for antecedent_design::program_search::selection::procedure::RankedProgram<A>
+impl<A: core::fmt::Debug> core::fmt::Debug for antecedent_design::program_search::selection::procedure::HeldoutSelection<A>
+impl<A: core::fmt::Debug> core::fmt::Debug for antecedent_design::program_search::selection::procedure::RankedProgram<A>
+impl<A: core::fmt::Debug> core::fmt::Debug for antecedent_design::program_search::selection::procedure::WholeProcedureSelection<A>
+impl<A> core::marker::Freeze for antecedent_design::program_search::selection::procedure::HeldoutSelection<A> where A: core::marker::Freeze [auto]
+impl<A> core::marker::Freeze for antecedent_design::program_search::selection::procedure::RankedProgram<A> where A: core::marker::Freeze [auto]
+impl<A> core::marker::Freeze for antecedent_design::program_search::selection::procedure::WholeProcedureSelection<A> where A: core::marker::Freeze [auto]
+impl<A> core::marker::Send for antecedent_design::program_search::selection::procedure::HeldoutSelection<A> where A: core::marker::Send [auto]
+impl<A> core::marker::Send for antecedent_design::program_search::selection::procedure::RankedProgram<A> where A: core::marker::Send [auto]
+impl<A> core::marker::Send for antecedent_design::program_search::selection::procedure::WholeProcedureSelection<A> where A: core::marker::Send [auto]
+impl<A> core::marker::Sync for antecedent_design::program_search::selection::procedure::HeldoutSelection<A> where A: core::marker::Sync [auto]
+impl<A> core::marker::Sync for antecedent_design::program_search::selection::procedure::RankedProgram<A> where A: core::marker::Sync [auto]
+impl<A> core::marker::Sync for antecedent_design::program_search::selection::procedure::WholeProcedureSelection<A> where A: core::marker::Sync [auto]
+impl<A> core::marker::Unpin for antecedent_design::program_search::selection::procedure::HeldoutSelection<A> where A: core::marker::Unpin [auto]
+impl<A> core::marker::Unpin for antecedent_design::program_search::selection::procedure::RankedProgram<A> where A: core::marker::Unpin [auto]
+impl<A> core::marker::Unpin for antecedent_design::program_search::selection::procedure::WholeProcedureSelection<A> where A: core::marker::Unpin [auto]
+impl<A> core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::selection::procedure::HeldoutSelection<A> where A: core::panic::unwind_safe::RefUnwindSafe [auto]
+impl<A> core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::selection::procedure::RankedProgram<A> where A: core::panic::unwind_safe::RefUnwindSafe [auto]
+impl<A> core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::selection::procedure::WholeProcedureSelection<A> where A: core::panic::unwind_safe::RefUnwindSafe [auto]
+impl<A> core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::selection::procedure::HeldoutSelection<A> where A: core::panic::unwind_safe::UnwindSafe [auto]
+impl<A> core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::selection::procedure::RankedProgram<A> where A: core::panic::unwind_safe::UnwindSafe [auto]
+impl<A> core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::selection::procedure::WholeProcedureSelection<A> where A: core::panic::unwind_safe::UnwindSafe [auto]
+impl<D: core::clone::Clone> core::clone::Clone for antecedent_design::program_search::selection::procedure::SelectionDataBlock<D>
+impl<D: core::fmt::Debug> core::fmt::Debug for antecedent_design::program_search::selection::procedure::SelectionDataBlock<D>
+impl<D> core::marker::Freeze for antecedent_design::program_search::selection::procedure::SelectionDataBlock<D> where D: core::marker::Freeze [auto]
+impl<D> core::marker::Send for antecedent_design::program_search::selection::procedure::SelectionDataBlock<D> where D: core::marker::Send [auto]
+impl<D> core::marker::Sync for antecedent_design::program_search::selection::procedure::SelectionDataBlock<D> where D: core::marker::Sync [auto]
+impl<D> core::marker::Unpin for antecedent_design::program_search::selection::procedure::SelectionDataBlock<D> where D: core::marker::Unpin [auto]
+impl<D> core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::selection::procedure::SelectionDataBlock<D> where D: core::panic::unwind_safe::RefUnwindSafe [auto]
+impl<D> core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::selection::procedure::SelectionDataBlock<D> where D: core::panic::unwind_safe::UnwindSafe [auto]
 impl<O: core::clone::Clone> core::clone::Clone for antecedent_design::DecisionPrior<O>
 impl<O: core::cmp::PartialEq> core::cmp::PartialEq for antecedent_design::DecisionPrior<O>
 impl<O: core::fmt::Debug> core::fmt::Debug for antecedent_design::DecisionPrior<O>
@@ -8345,6 +8469,7 @@ pub enum antecedent_design::program_search::ProgramSearchError
 pub enum antecedent_design::program_search::ProgramSearchSource<'a>
 pub enum antecedent_design::program_search::certified::CertificateStop
 pub enum antecedent_design::program_search::continuous::ContinuousSearchStop
+pub enum antecedent_design::program_search::selection::procedure::SelectionStage
 pub enum antecedent_design::proposal_receipt::ArrivalVerdict
 pub enum antecedent_design::proposal_receipt::ArrivedEvidence
 pub enum antecedent_design::proposal_receipt::ChangedPremise
@@ -9921,18 +10046,37 @@ pub field antecedent_design::program_search::certified::CertifiedRegion::bounds:
 pub field antecedent_design::program_search::certified::CertifiedRegion::upper: f64
 pub field antecedent_design::program_search::certified::CertifiedRestriction::bound: f64
 pub field antecedent_design::program_search::certified::CertifiedRestriction::coefficients: alloc::vec::Vec<f64>
+pub field antecedent_design::program_search::certified::ConcaveDualBound::at: alloc::vec::Vec<f64>
+pub field antecedent_design::program_search::certified::ConcaveDualBound::gradient: alloc::vec::Vec<antecedent_design::program_search::certified::ObjectiveInterval>
+pub field antecedent_design::program_search::certified::ConcaveDualBound::multipliers: alloc::vec::Vec<f64>
+pub field antecedent_design::program_search::certified::ConcaveDualBound::upper: f64
 pub field antecedent_design::program_search::certified::GlobalProgramCertificate::controls: alloc::vec::Vec<f64>
 pub field antecedent_design::program_search::certified::GlobalProgramCertificate::dominated_regions: usize
+pub field antecedent_design::program_search::certified::GlobalProgramCertificate::dual_bound: core::option::Option<antecedent_design::program_search::certified::ConcaveDualBound>
 pub field antecedent_design::program_search::certified::GlobalProgramCertificate::frontier: alloc::vec::Vec<antecedent_design::program_search::certified::CertifiedRegion>
 pub field antecedent_design::program_search::certified::GlobalProgramCertificate::gap: f64
 pub field antecedent_design::program_search::certified::GlobalProgramCertificate::global_upper: f64
 pub field antecedent_design::program_search::certified::GlobalProgramCertificate::identity: antecedent_core::identity::SemanticDigest
 pub field antecedent_design::program_search::certified::GlobalProgramCertificate::incumbent: antecedent_design::program_search::certified::ObjectiveInterval
 pub field antecedent_design::program_search::certified::GlobalProgramCertificate::infeasible_regions: usize
+pub field antecedent_design::program_search::certified::GlobalProgramCertificate::monotone_reductions: alloc::vec::Vec<antecedent_design::program_search::certified::MonotoneReduction>
+pub field antecedent_design::program_search::certified::GlobalProgramCertificate::separable_bound: core::option::Option<antecedent_design::program_search::certified::SeparableBound>
 pub field antecedent_design::program_search::certified::GlobalProgramCertificate::splits: usize
 pub field antecedent_design::program_search::certified::GlobalProgramCertificate::stop: antecedent_design::program_search::certified::CertificateStop
+pub field antecedent_design::program_search::certified::MonotoneReduction::axis: usize
+pub field antecedent_design::program_search::certified::MonotoneReduction::derivative: antecedent_design::program_search::certified::ObjectiveInterval
+pub field antecedent_design::program_search::certified::MonotoneReduction::fixed_value: f64
 pub field antecedent_design::program_search::certified::ObjectiveInterval::lower: f64
 pub field antecedent_design::program_search::certified::ObjectiveInterval::upper: f64
+pub field antecedent_design::program_search::certified::SeparableBlockBound::axis: usize
+pub field antecedent_design::program_search::certified::SeparableBlockBound::control: f64
+pub field antecedent_design::program_search::certified::SeparableBlockBound::identity: alloc::string::String
+pub field antecedent_design::program_search::certified::SeparableBlockBound::incumbent: antecedent_design::program_search::certified::ObjectiveInterval
+pub field antecedent_design::program_search::certified::SeparableBlockBound::splits: usize
+pub field antecedent_design::program_search::certified::SeparableBlockBound::upper: f64
+pub field antecedent_design::program_search::certified::SeparableBound::blocks: alloc::vec::Vec<antecedent_design::program_search::certified::SeparableBlockBound>
+pub field antecedent_design::program_search::certified::SeparableBound::constant: antecedent_design::program_search::certified::ObjectiveInterval
+pub field antecedent_design::program_search::certified::SeparableBound::upper: f64
 pub field antecedent_design::program_search::continuous::CompiledContinuousCandidate::candidate: antecedent_design::program_search::ProgramCandidate
 pub field antecedent_design::program_search::continuous::CompiledContinuousCandidate::source: antecedent_design::scientific_source::ScientificDecisionSource
 pub field antecedent_design::program_search::continuous::ContinuousProgramSearchResult::attempts: alloc::vec::Vec<antecedent_design::program_search::continuous::ContinuousSearchAttempt>
@@ -9968,6 +10112,33 @@ pub field antecedent_design::program_search::selection::SimultaneousProgramInter
 pub field antecedent_design::program_search::selection::SimultaneousProgramIntervals::roots: alloc::vec::Vec<f64>
 pub field antecedent_design::program_search::selection::SimultaneousProgramIntervals::selected_id: alloc::string::String
 pub field antecedent_design::program_search::selection::SimultaneousProgramIntervals::selected_index: usize
+pub field antecedent_design::program_search::selection::procedure::HeldoutProgramValue::standard_error: f64
+pub field antecedent_design::program_search::selection::procedure::HeldoutProgramValue::target: alloc::string::String
+pub field antecedent_design::program_search::selection::procedure::HeldoutProgramValue::value: f64
+pub field antecedent_design::program_search::selection::procedure::HeldoutSelection::action: A
+pub field antecedent_design::program_search::selection::procedure::HeldoutSelection::heldout: antecedent_design::program_search::selection::procedure::HeldoutProgramValue
+pub field antecedent_design::program_search::selection::procedure::HeldoutSelection::runner_up_gap: core::option::Option<f64>
+pub field antecedent_design::program_search::selection::procedure::HeldoutSelection::selected_id: alloc::string::String
+pub field antecedent_design::program_search::selection::procedure::HeldoutSelection::training_value: f64
+pub field antecedent_design::program_search::selection::procedure::RankedProgram::action: A
+pub field antecedent_design::program_search::selection::procedure::RankedProgram::id: alloc::string::String
+pub field antecedent_design::program_search::selection::procedure::RankedProgram::training_value: f64
+pub field antecedent_design::program_search::selection::procedure::SelectionDataBlock::observations: D
+pub field antecedent_design::program_search::selection::procedure::SelectionDataBlock::span: antecedent_design::program_search::selection::ObservationalSpan
+pub field antecedent_design::program_search::selection::procedure::SelectionRepetition::failure: core::option::Option<(antecedent_design::program_search::selection::procedure::SelectionStage, alloc::string::String)>
+pub field antecedent_design::program_search::selection::procedure::SelectionRepetition::result: core::option::Option<antecedent_design::program_search::selection::procedure::SelectionRepetitionValue>
+pub field antecedent_design::program_search::selection::procedure::SelectionRepetition::training_indices: alloc::vec::Vec<usize>
+pub field antecedent_design::program_search::selection::procedure::SelectionRepetition::validation_indices: alloc::vec::Vec<usize>
+pub field antecedent_design::program_search::selection::procedure::SelectionRepetitionValue::heldout: antecedent_design::program_search::selection::procedure::HeldoutProgramValue
+pub field antecedent_design::program_search::selection::procedure::SelectionRepetitionValue::runner_up_gap: core::option::Option<f64>
+pub field antecedent_design::program_search::selection::procedure::SelectionRepetitionValue::selected_id: alloc::string::String
+pub field antecedent_design::program_search::selection::procedure::SelectionRepetitionValue::training_value: f64
+pub field antecedent_design::program_search::selection::procedure::WholeProcedureSelection::changed_selection: usize
+pub field antecedent_design::program_search::selection::procedure::WholeProcedureSelection::mean_optimism: core::option::Option<f64>
+pub field antecedent_design::program_search::selection::procedure::WholeProcedureSelection::near_ties: usize
+pub field antecedent_design::program_search::selection::procedure::WholeProcedureSelection::observed: antecedent_design::program_search::selection::procedure::HeldoutSelection<A>
+pub field antecedent_design::program_search::selection::procedure::WholeProcedureSelection::partition: antecedent_design::program_search::selection::ProgramHoldoutPartition
+pub field antecedent_design::program_search::selection::procedure::WholeProcedureSelection::repetitions: alloc::vec::Vec<antecedent_design::program_search::selection::procedure::SelectionRepetition>
 pub field antecedent_design::proposal_receipt::Arrival::evidence: antecedent_design::proposal_receipt::ArrivedEvidence
 pub field antecedent_design::proposal_receipt::Arrival::sample_size: u64
 pub field antecedent_design::proposal_receipt::Arrival::snapshot_id: alloc::string::String
@@ -11152,13 +11323,19 @@ pub fn <antecedent_design::program_search::PreparedFiniteProgramSearch>::fn with
 pub fn <antecedent_design::program_search::certified::GlobalProgramCertificate>::fn admitted_bytes(&self) -> u64
 pub fn <antecedent_design::program_search::certified::PreparedCertifiedSearch>::fn bounds(&self, bounds: &[antecedent_design::program_search::certified::ObjectiveInterval]) -> core::result::Result<antecedent_design::program_search::certified::ObjectiveInterval, antecedent_design::program_search::ProgramSearchError>
 pub fn <antecedent_design::program_search::certified::PreparedCertifiedSearch>::fn compile(expression: antecedent_core::value_expr::ValueExpr, controls: alloc::vec::Vec<antecedent_design::program_search::certified::CertifiedControl>, restrictions: alloc::vec::Vec<antecedent_design::program_search::certified::CertifiedRestriction>) -> core::result::Result<Self, antecedent_design::program_search::ProgramSearchError>
+pub fn <antecedent_design::program_search::certified::PreparedCertifiedSearch>::fn concave_dual_bound(&self, at: &[f64], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<core::option::Option<antecedent_design::program_search::certified::ConcaveDualBound>, antecedent_design::program_search::ProgramSearchError>
 pub fn <antecedent_design::program_search::certified::PreparedCertifiedSearch>::fn execute(&self, initial: alloc::vec::Vec<f64>, options: antecedent_design::program_search::certified::CertificateOptions, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_design::program_search::certified::GlobalProgramCertificate, antecedent_design::program_search::ProgramSearchError>
+pub fn <antecedent_design::program_search::certified::PreparedCertifiedSearch>::fn export_replay(&self, initial: alloc::vec::Vec<f64>, options: antecedent_design::program_search::certified::CertificateOptions, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_design::program_search::ProgramSearchError>
+pub fn <antecedent_design::program_search::certified::PreparedCertifiedSearch>::fn identity(&self) -> antecedent_core::identity::SemanticDigest
+pub fn <antecedent_design::program_search::certified::PreparedCertifiedSearch>::fn replay(bytes: &[u8], expected: core::option::Option<antecedent_core::identity::SemanticDigest>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(Self, antecedent_design::program_search::certified::GlobalProgramCertificate), antecedent_design::program_search::ProgramSearchError>
+pub fn <antecedent_design::program_search::certified::PreparedCertifiedSearch>::fn verify_expression(&self, expression: antecedent_core::value_expr::ValueExpr) -> core::result::Result<(), antecedent_design::program_search::ProgramSearchError>
 pub fn <antecedent_design::program_search::continuous::ContinuousProgramSearchResult>::fn admitted_bytes(&self) -> u64
 pub fn <antecedent_design::program_search::continuous::PreparedContinuousProgramSearch>::fn compile(contract: antecedent_design::decision_contract::ProgramSearchContract, domain: antecedent_design::program_search::FiniteProgramDomain, scope: antecedent_design::program_search::ProgramSearchScope, scientific_scope: antecedent_design::scientific_source::ScientificConsumptionScope, options: antecedent_design::program_search::continuous::ContinuousSearchOptions, initial: alloc::vec::Vec<f64>) -> core::result::Result<Self, antecedent_design::program_search::ProgramSearchError>
 pub fn <antecedent_design::program_search::continuous::PreparedContinuousProgramSearch>::fn execute(&self, evaluator: &impl antecedent_design::program_search::continuous::CompiledProgramEvaluator, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_design::program_search::continuous::ContinuousProgramSearchResult, antecedent_design::program_search::ProgramSearchError>
 pub fn <antecedent_design::program_search::continuous::PreparedContinuousProgramSearch>::fn with_objective(&self, contract: antecedent_design::decision_contract::ProgramSearchContract) -> core::result::Result<Self, antecedent_design::program_search::ProgramSearchError>
 pub fn <antecedent_design::program_search::selection::ProgramHoldoutPartition>::fn validate(&self) -> core::result::Result<(), antecedent_design::program_search::ProgramSearchError>
 pub fn <antecedent_design::program_search::selection::SimultaneousProgramIntervals>::fn admitted_bytes(&self) -> u64
+pub fn <antecedent_design::program_search::selection::procedure::WholeProcedureSelection<A>>::fn admitted_bytes(&self) -> u64
 pub fn <antecedent_design::proposal_receipt::ProposalBundle>::fn build(repair: &antecedent_design::RepairReportArtifact, ranking: &antecedent_design::design_ranking_artifact::DesignRankingArtifactWire) -> core::result::Result<Self, antecedent_design::proposal_receipt::ProposalReceiptError>
 pub fn <antecedent_design::proposal_receipt::ProposalBundle>::fn compute_identity(&self) -> alloc::string::String
 pub fn <antecedent_design::proposal_receipt::ProposalBundle>::fn from_receipts(receipts: alloc::vec::Vec<antecedent_design::proposal_receipt::ProposalReceipt>) -> core::result::Result<Self, antecedent_design::proposal_receipt::ProposalReceiptError>
@@ -11440,6 +11617,7 @@ pub fn antecedent_design::planning::plan_analytic(request: &antecedent_design::p
 pub fn antecedent_design::preposterior::evsi_replicate_rng(rng: &antecedent_core::execution::RngFactory, replicate: u64) -> antecedent_core::execution::CausalRng
 pub fn antecedent_design::preposterior::update_finite_belief(prior: &[f64], log_likelihood: &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_design::DesignError>
 pub fn antecedent_design::prior_signal::adapt_prior_to_signal(catalog: &antecedent_io_core::prior_bank::PriorCatalog, target: &antecedent_io_core::prior_bank::TargetDesign, request: &antecedent_design::prior_signal::PriorSignalRequest) -> core::result::Result<antecedent_design::prior_signal::CandidateSignalPrior, antecedent_design::prior_signal::PriorSignalError>
+pub fn antecedent_design::program_search::selection::procedure::execute_heldout_selection<D, P: antecedent_design::program_search::selection::procedure::ProgramSelectionProcedure<D>>(owner: &P, training: &[antecedent_design::program_search::selection::procedure::SelectionDataBlock<D>], validation: &[antecedent_design::program_search::selection::procedure::SelectionDataBlock<D>], required_gap: u64, repetitions: usize, tie_tolerance: f64, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_design::program_search::selection::procedure::WholeProcedureSelection<<P as antecedent_design::program_search::selection::procedure::ProgramSelectionProcedure>::Action>, antecedent_design::program_search::ProgramSearchError>
 pub fn antecedent_design::program_search::selection::simultaneous_program_intervals(observed: &antecedent_design::program_search::selection::CandidateEstimates, bootstrap: &[core::option::Option<antecedent_design::program_search::selection::CandidateEstimates>], level: f64, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_design::program_search::selection::SimultaneousProgramIntervals, antecedent_design::program_search::ProgramSearchError>
 pub fn antecedent_design::proposal_receipt::on_arrival(receipt: &antecedent_design::proposal_receipt::ProposalReceipt, family: antecedent_design::RepairFamilyRef<'_>, candidate: &antecedent_design::DurableStudyCandidate, arrival: &antecedent_design::proposal_receipt::Arrival, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_design::proposal_receipt::ArrivalVerdict, antecedent_design::proposal_receipt::ProposalReceiptError>
 pub fn antecedent_design::proposal_receipt::verify(bundle: &antecedent_design::proposal_receipt::ProposalBundle, repair: &antecedent_design::RepairReportArtifact, ranking: &antecedent_design::design_ranking_artifact::DesignRankingArtifactWire) -> core::result::Result<(), antecedent_design::proposal_receipt::ProposalReceiptError>
@@ -11527,8 +11705,10 @@ pub mod antecedent_design::preposterior
 pub mod antecedent_design::prior_signal
 pub mod antecedent_design::program_search
 pub mod antecedent_design::program_search::certified
+pub mod antecedent_design::program_search::certified::artifact
 pub mod antecedent_design::program_search::continuous
 pub mod antecedent_design::program_search::selection
+pub mod antecedent_design::program_search::selection::procedure
 pub mod antecedent_design::proposal_receipt
 pub mod antecedent_design::ranker
 pub mod antecedent_design::ranking
@@ -11947,11 +12127,15 @@ pub struct antecedent_design::program_search::certified::CertificateOptions
 pub struct antecedent_design::program_search::certified::CertifiedControl
 pub struct antecedent_design::program_search::certified::CertifiedRegion
 pub struct antecedent_design::program_search::certified::CertifiedRestriction
+pub struct antecedent_design::program_search::certified::ConcaveDualBound
 pub struct antecedent_design::program_search::certified::GlobalProgramCertificate
 pub struct antecedent_design::program_search::certified::GlobalProgramCertificate has private fields
+pub struct antecedent_design::program_search::certified::MonotoneReduction
 pub struct antecedent_design::program_search::certified::ObjectiveInterval
 pub struct antecedent_design::program_search::certified::PreparedCertifiedSearch
 pub struct antecedent_design::program_search::certified::PreparedCertifiedSearch has private fields
+pub struct antecedent_design::program_search::certified::SeparableBlockBound
+pub struct antecedent_design::program_search::certified::SeparableBound
 pub struct antecedent_design::program_search::continuous::CompiledContinuousCandidate
 pub struct antecedent_design::program_search::continuous::ContinuousProgramSearchResult
 pub struct antecedent_design::program_search::continuous::ContinuousProgramSearchResult has private fields
@@ -11964,6 +12148,14 @@ pub struct antecedent_design::program_search::selection::ObservationalSpan
 pub struct antecedent_design::program_search::selection::ProgramHoldoutPartition
 pub struct antecedent_design::program_search::selection::SimultaneousProgramIntervals
 pub struct antecedent_design::program_search::selection::SimultaneousProgramIntervals has private fields
+pub struct antecedent_design::program_search::selection::procedure::HeldoutProgramValue
+pub struct antecedent_design::program_search::selection::procedure::HeldoutSelection<A>
+pub struct antecedent_design::program_search::selection::procedure::RankedProgram<A>
+pub struct antecedent_design::program_search::selection::procedure::SelectionDataBlock<D>
+pub struct antecedent_design::program_search::selection::procedure::SelectionRepetition
+pub struct antecedent_design::program_search::selection::procedure::SelectionRepetitionValue
+pub struct antecedent_design::program_search::selection::procedure::WholeProcedureSelection has private fields
+pub struct antecedent_design::program_search::selection::procedure::WholeProcedureSelection<A>
 pub struct antecedent_design::proposal_receipt::Arrival
 pub struct antecedent_design::proposal_receipt::BaseFailureBinding
 pub struct antecedent_design::proposal_receipt::CostBinding
@@ -12119,6 +12311,7 @@ pub trait antecedent_design::RepairFamily
 pub trait antecedent_design::Utility<A, O>: core::marker::Send + core::marker::Sync
 pub trait antecedent_design::composition_bundle::NodeVerifier
 pub trait antecedent_design::program_search::continuous::CompiledProgramEvaluator: core::marker::Sync
+pub trait antecedent_design::program_search::selection::procedure::ProgramSelectionProcedure<D>
 pub trait antecedent_design::signal::SignalProvider: core::marker::Send + core::marker::Sync
 pub trait fn fn antecedent_design::DecisionConstraint::name(&self) -> &str
 pub trait fn fn antecedent_design::DecisionConstraint::satisfaction_batch(&self, actions: &[A], outcomes: &[O], out: &mut [f64])
@@ -12139,7 +12332,15 @@ pub trait fn fn antecedent_design::Utility::evaluate_batch(&self, actions: &[A],
 pub trait fn fn antecedent_design::composition_bundle::NodeVerifier::kind(&self) -> antecedent_design::composition_bundle::NodeKind
 pub trait fn fn antecedent_design::composition_bundle::NodeVerifier::verify(&self, node_id: &str, bytes: &[u8], upstream: &[antecedent_design::composition_bundle::UpstreamNode<'_>]) -> core::result::Result<antecedent_design::composition_bundle::VerifiedNode, antecedent_design::composition_bundle::NodeFailure>
 pub trait fn fn antecedent_design::program_search::continuous::CompiledProgramEvaluator::evaluate_program(&self, controls: &[f64], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_design::program_search::continuous::CompiledContinuousCandidate, antecedent_design::program_search::ProgramSearchError>
+pub trait fn fn antecedent_design::program_search::selection::procedure::ProgramSelectionProcedure::evaluate(&self, validation: &[&D], action: &<Self as antecedent_design::program_search::selection::procedure::ProgramSelectionProcedure>::Action, replicate: usize, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_design::program_search::selection::procedure::HeldoutProgramValue, antecedent_design::program_search::ProgramSearchError>
+pub trait fn fn antecedent_design::program_search::selection::procedure::ProgramSelectionProcedure::feasible(&self, fit: &<Self as antecedent_design::program_search::selection::procedure::ProgramSelectionProcedure>::Fit, candidates: <Self as antecedent_design::program_search::selection::procedure::ProgramSelectionProcedure>::Candidates, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<<Self as antecedent_design::program_search::selection::procedure::ProgramSelectionProcedure>::Candidates, antecedent_design::program_search::ProgramSearchError>
+pub trait fn fn antecedent_design::program_search::selection::procedure::ProgramSelectionProcedure::fit(&self, training: &[&D], candidates: &<Self as antecedent_design::program_search::selection::procedure::ProgramSelectionProcedure>::Candidates, replicate: usize, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<<Self as antecedent_design::program_search::selection::procedure::ProgramSelectionProcedure>::Fit, antecedent_design::program_search::ProgramSearchError>
+pub trait fn fn antecedent_design::program_search::selection::procedure::ProgramSelectionProcedure::generate(&self, training: &[&D], replicate: usize, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<<Self as antecedent_design::program_search::selection::procedure::ProgramSelectionProcedure>::Candidates, antecedent_design::program_search::ProgramSearchError>
+pub trait fn fn antecedent_design::program_search::selection::procedure::ProgramSelectionProcedure::search(&self, fit: &<Self as antecedent_design::program_search::selection::procedure::ProgramSelectionProcedure>::Fit, candidates: <Self as antecedent_design::program_search::selection::procedure::ProgramSelectionProcedure>::Candidates, replicate: usize, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_design::program_search::selection::procedure::RankedProgram<<Self as antecedent_design::program_search::selection::procedure::ProgramSelectionProcedure>::Action>>, antecedent_design::program_search::ProgramSearchError>
 pub trait fn fn antecedent_design::signal::SignalProvider::prepare(&self, request: &antecedent_design::signal::SignalRequest) -> core::result::Result<antecedent_design::signal::PreparedSignal, antecedent_design::signal::SignalError>
+pub trait type antecedent_design::program_search::selection::procedure::ProgramSelectionProcedure::Action
+pub trait type antecedent_design::program_search::selection::procedure::ProgramSelectionProcedure::Candidates
+pub trait type antecedent_design::program_search::selection::procedure::ProgramSelectionProcedure::Fit
 pub type antecedent_design::sequential_evaluation::SequentialResult<T> = core::result::Result<T, antecedent_design::sequential_evaluation::SequentialEvaluationError>
 pub use antecedent_design::StudyPlan = antecedent_identify::StudyPlan
 pub use antecedent_design::StudyPlanLimits = antecedent_identify::StudyPlanLimits
@@ -13163,6 +13364,12 @@ pub variant antecedent_design::program_search::certified::CertificateStop::Split
 pub variant antecedent_design::program_search::continuous::ContinuousSearchStop::EvaluationLimit
 pub variant antecedent_design::program_search::continuous::ContinuousSearchStop::IterationLimit
 pub variant antecedent_design::program_search::continuous::ContinuousSearchStop::StepTolerance
+pub variant antecedent_design::program_search::selection::procedure::SelectionStage::Evaluation
+pub variant antecedent_design::program_search::selection::procedure::SelectionStage::Feasibility
+pub variant antecedent_design::program_search::selection::procedure::SelectionStage::Fitting
+pub variant antecedent_design::program_search::selection::procedure::SelectionStage::Generation
+pub variant antecedent_design::program_search::selection::procedure::SelectionStage::Search
+pub variant antecedent_design::program_search::selection::procedure::SelectionStage::Selection
 pub variant antecedent_design::proposal_receipt::ArrivalVerdict::Invalidated { changed: antecedent_design::proposal_receipt::ChangedPremise }
 pub variant antecedent_design::proposal_receipt::ArrivalVerdict::StillInsufficient { reasons: alloc::vec::Vec<alloc::string::String> }
 pub variant antecedent_design::proposal_receipt::ArrivalVerdict::Verified { checker: alloc::string::String, steps: alloc::vec::Vec<alloc::string::String>, exact: bool, snapshot_id: alloc::string::String }

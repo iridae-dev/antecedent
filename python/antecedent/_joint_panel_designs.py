@@ -101,6 +101,24 @@ class JointDesignResult:
             self._handle.decompose_population_reference(_json(declaration), **execution)
         )
 
+    def export_reference_decomposition(
+        self, declaration: Mapping[str, Any], **execution: Any
+    ) -> bytes:
+        """Retain an explicit hybrid component recipe and the original native design."""
+        return bytes(
+            self._handle.export_reference_decomposition(_json(dict(declaration)), **execution)
+        )
+
+    def consume_reference_decomposition_current(
+        self, artifact: bytes, declaration: Mapping[str, Any], **execution: Any
+    ) -> dict[str, Any]:
+        """Recheck a reference artifact against current data, bindings and scope."""
+        return json.loads(
+            self._handle.consume_reference_decomposition_current(
+                artifact, _json(dict(declaration)), **execution
+            )
+        )
+
     def export_population_reference(
         self, declaration: Mapping[str, Any], **execution: Any
     ) -> bytes:
@@ -185,6 +203,46 @@ class NativeJointDesignResult:
     def report(self) -> dict[str, Any]:
         return json.loads(self._handle.report())
 
+    def experiment_quantity(
+        self,
+        *,
+        coefficients: list[float],
+        outcome_units: str,
+        local_ratio_regularization: dict[str, Any] | None = None,
+    ) -> Any:
+        """The exact native target projection, retaining structural/cohort/donor meaning."""
+        from ._joint_panel_experiment import native_quantity
+
+        return native_quantity(
+            self._handle,
+            {
+                "coefficients": coefficients,
+                "outcome_units": outcome_units,
+                "local_ratio_regularization": local_ratio_regularization,
+            },
+        )
+
+    def condition_experiment(
+        self,
+        *,
+        coefficients: list[float],
+        outcome_units: str,
+        local_ratio_regularization: dict[str, Any] | None = None,
+        **declaration: Any,
+    ) -> Any:
+        """Condition the actual native posterior without relabelling its target."""
+        from ._joint_panel_experiment import condition_native
+
+        return condition_native(
+            self._handle,
+            binding={
+                "coefficients": coefficients,
+                "outcome_units": outcome_units,
+                "local_ratio_regularization": local_ratio_regularization,
+            },
+            **declaration,
+        )
+
     def export(self) -> bytes:
         return bytes(self._handle.export())
 
@@ -213,8 +271,8 @@ def prepare_native_joint_design(
 ) -> PreparedNativeJointDesign:
     """Compile any supported joint design through its actual native method owner.
 
-    ``kind`` selects randomized, switchback, longitudinal, instrumented,
-    difference_in_differences or synthetic_control. Source records and all
+    ``kind`` selects randomized, switchback, longitudinal, gaussian_longitudinal,
+    instrumented, instrumented_local, difference_in_differences or synthetic_control. Source records and all
     design premises are explicit. Native targets preserve population, history,
     cohort and structural-feature meanings instead of converting them to ATEs.
     """
@@ -231,3 +289,8 @@ def replay_native_joint_design(artifact: bytes, **execution: Any) -> dict[str, A
 def replay_population_reference(artifact: bytes, **execution: Any) -> dict[str, Any]:
     """Independently replay historical population-reference numbers without current authority."""
     return json.loads(_native.replay_population_reference(artifact, **execution))
+
+
+def replay_reference_decomposition(artifact: bytes, **execution: Any) -> dict[str, Any]:
+    """Independently replay historical component numbers without current authority."""
+    return json.loads(_native.replay_reference_decomposition(artifact, **execution))

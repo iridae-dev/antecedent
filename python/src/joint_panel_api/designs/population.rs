@@ -120,7 +120,7 @@ fn report(result: &PopulationReferenceDecomposition) -> PyResult<String> {
             serde_json::json!({"estimate":format!("{:?}",means.estimate)})
         }
     };
-    serde_json::to_string(&serde_json::json!({"decomposition":{"point":result.decomposition.point,"draws":result.decomposition.draws,"weights":result.decomposition.weights},"covariance":result.covariance,"joint_uncertainty":result.decomposition.joint_uncertainty(),"transport":{"identity":result.transport.identity().to_hex(),"functional":result.transport.functional(),"graph":graph,"selection_targets":result.transport.diagram().selection_targets().iter().map(|id|id.raw()).collect::<Vec<_>>(),"baseline":result.bindings.baseline.raw(),"strata":result.bindings.strata,"before_weights":result.bindings.before_weights,"after_weights":result.bindings.after_weights},"source_question":result.source.question_identity().to_hex(),"identification":result.source.identification().identity().to_hex(),"dependency":result.source.dependency_identity().to_hex(),"scope":if result.scope==ScientificConsumptionScope::IdentifiedCausal{"identified_population_reference"}else{"model_conditional_population_reference"},"uncertainty":uncertainty,"calibration":"unmeasured","grants_unique_causal_attribution":false})).map_err(|error|crate::serialization_err(error.to_string()))
+    serde_json::to_string(&serde_json::json!({"decomposition":{"point":result.decomposition.point,"draws":result.decomposition.draws,"weights":result.decomposition.weights},"covariance":result.covariance,"joint_uncertainty":result.decomposition.joint_uncertainty(),"procedure_failures":result.procedure_failures,"full_procedure_bootstrap":!result.procedure_failures.is_empty(),"transport":{"identity":result.transport.identity().to_hex(),"functional":result.transport.functional(),"graph":graph,"selection_targets":result.transport.diagram().selection_targets().iter().map(|id|id.raw()).collect::<Vec<_>>(),"baseline":result.bindings.baseline.raw(),"strata":result.bindings.strata,"before_weights":result.bindings.before_weights,"after_weights":result.bindings.after_weights},"source_question":result.source.question_identity().to_hex(),"identification":result.source.identification().identity().to_hex(),"dependency":result.source.dependency_identity().to_hex(),"scope":if result.scope==ScientificConsumptionScope::IdentifiedCausal{"identified_population_reference"}else{"model_conditional_population_reference"},"uncertainty":uncertainty,"calibration":"unmeasured","grants_unique_causal_attribution":false})).map_err(|error|crate::serialization_err(error.to_string()))
 }
 pub(super) fn execute(
     result: &JointDesignResult,
@@ -170,9 +170,80 @@ fn replay_population_reference(
         antecedent::analysis::joint_panel::replay_population_reference(artifact, &ctx)
             .map_err(panel_error)
     })?;
-    serde_json::to_string(&serde_json::json!({"decomposition":{"point":result.decomposition.point,"draws":result.decomposition.draws,"weights":result.decomposition.weights},"covariance":result.covariance,"transport_identity":result.transport_identity.to_hex(),"current_authorization":false})).map_err(|error|crate::serialization_err(error.to_string()))
+    serde_json::to_string(&serde_json::json!({"decomposition":{"point":result.decomposition.point,"draws":result.decomposition.draws,"weights":result.decomposition.weights},"covariance":result.covariance,"procedure_failures":result.procedure_failures,"transport_identity":result.transport_identity.to_hex(),"current_authorization":false})).map_err(|error|crate::serialization_err(error.to_string()))
 }
 pub(super) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add_function(wrap_pyfunction!(replay_reference_decomposition, module)?)?;
     module.add_function(wrap_pyfunction!(replay_population_reference, module)?)?;
     Ok(())
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Components {
+    exposure: Vec<u32>,
+    saturation: Vec<u32>,
+    mechanism: Vec<u32>,
+    hybrids: [u32; 16],
+    order: [ChangeComponent; 4],
+    #[serde(default = "identified_default")]
+    require_identified: bool,
+}
+fn components(text: &str) -> PyResult<(ReferenceComponentBindings, ScientificConsumptionScope)> {
+    bounded_json(text, "scientific component reference artifact")?;
+    let declaration: Components =
+        serde_json::from_str(text).map_err(|error| crate::value_err(error.to_string()))?;
+    let variables =
+        |values: Vec<u32>| values.into_iter().map(antecedent_core::VariableId::from_raw).collect();
+    Ok((
+        ReferenceComponentBindings {
+            exposure: variables(declaration.exposure),
+            saturation: variables(declaration.saturation),
+            mechanism: variables(declaration.mechanism),
+            hybrids: declaration.hybrids.map(antecedent_core::ScientificWorldId::from_raw),
+            order: declaration.order,
+        },
+        if declaration.require_identified {
+            ScientificConsumptionScope::IdentifiedCausal
+        } else {
+            ScientificConsumptionScope::ModelConditional
+        },
+    ))
+}
+pub(super) fn export_components(
+    result: &JointDesignResult,
+    text: &str,
+    ctx: &antecedent_core::ExecutionContext,
+) -> PyResult<Vec<u8>> {
+    let (bindings, scope) = components(text)?;
+    result.export_reference_decomposition(&bindings, scope, ctx).map_err(panel_error)
+}
+pub(super) fn consume_components(
+    result: &JointDesignResult,
+    artifact: &[u8],
+    text: &str,
+    ctx: &antecedent_core::ExecutionContext,
+) -> PyResult<String> {
+    let (bindings, scope) = components(text)?;
+    let result = result
+        .consume_reference_decomposition_current(artifact, &bindings, scope, ctx)
+        .map_err(panel_error)?;
+    serde_json::to_string(&serde_json::json!({"decomposition":{"point":result.decomposition.point,"draws":result.decomposition.draws,"weights":result.decomposition.weights},"covariance":result.covariance,"joint_uncertainty":result.decomposition.joint_uncertainty(),"procedure_failures":result.procedure_failures,"full_procedure_bootstrap":!result.procedure_failures.is_empty(),"question_identity":result.question_identity.to_hex(),"scope":if scope==ScientificConsumptionScope::IdentifiedCausal{"identified"}else{"model_conditional"}})).map_err(|error|crate::serialization_err(error.to_string()))
+}
+#[pyfunction]
+#[pyo3(signature=(artifact,*,seed=0,threads=1,max_bytes=None,cancel=None))]
+fn replay_reference_decomposition(
+    py: Python<'_>,
+    artifact: &[u8],
+    seed: u64,
+    threads: u32,
+    max_bytes: Option<u64>,
+    cancel: Option<crate::PyCancellationToken>,
+) -> PyResult<String> {
+    let ctx = context(seed, threads, max_bytes, cancel)?;
+    let result = crate::detach_catch(py, || {
+        antecedent::analysis::joint_panel::replay_reference_decomposition(artifact, &ctx)
+            .map_err(panel_error)
+    })?;
+    serde_json::to_string(&serde_json::json!({"decomposition":{"point":result.decomposition.point,"draws":result.decomposition.draws,"weights":result.decomposition.weights},"covariance":result.covariance,"procedure_failures":result.procedure_failures,"question_identity":result.question_identity.to_hex(),"current_authorization":false})).map_err(|error|crate::serialization_err(error.to_string()))
 }

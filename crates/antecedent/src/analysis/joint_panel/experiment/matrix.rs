@@ -23,6 +23,10 @@ pub struct JointExperimentAcceptanceRow {
     pub required_outcome: String,
     /// Outstanding implementation promises, distinct from a scientific refusal.
     pub implementation_gaps: Vec<String>,
+    /// Declared statistical limits, kept separate from implementation obligations.
+    pub statistical_limitations: Vec<String>,
+    /// Stable-candidate measurement status; passing implementation tests grants no license.
+    pub calibration: String,
     /// Complete procedure stages that the positive case must execute and independently check.
     pub stages: Vec<String>,
 }
@@ -75,8 +79,8 @@ pub fn joint_experiment_acceptance_matrix() -> JointExperimentAcceptanceMatrix {
                             .iter()
                             .map(|s| (*s).to_owned())
                             .collect::<Vec<_>>();
-                        if !capability.compiled_world_port {
-                            gaps.push("experiment bridge needs the actual design target/source compiler port; an incompatible world-mean facade does not satisfy this row".into());
+                        if !capability.compiled_world_port && !capability.compiled_native_port {
+                            gaps.push("experiment bridge needs the actual typed design target/source compiler port; an incompatible world-mean facade does not satisfy this row".into());
                         }
                         if inference == "bayesian" && capability.bayesian_owner.is_none() {
                             gaps.push("proper native design likelihood/prior and aligned posterior law must be implemented".into());
@@ -99,6 +103,12 @@ pub fn joint_experiment_acceptance_matrix() -> JointExperimentAcceptanceMatrix {
                             decision: decision.into(),
                             required_outcome: required_outcome.into(),
                             implementation_gaps: gaps,
+                            statistical_limitations: capability
+                                .statistical_limitations
+                                .iter()
+                                .map(|s| (*s).into())
+                                .collect(),
+                            calibration: capability.calibration.into(),
                             stages: stages.iter().map(|s| (*s).into()).collect(),
                         });
                     }
@@ -126,6 +136,10 @@ pub fn joint_experiment_acceptance_matrix() -> JointExperimentAcceptanceMatrix {
                             "conditional_full_chain_execution_and_independent_stage_references"
                                 .into(),
                         implementation_gaps: vec![],
+                        statistical_limitations: vec![
+                            "frozen modular conditional update; not a joint refit".into(),
+                        ],
+                        calibration: "registered_unmeasured_candidate_bound".into(),
                         stages: stages.iter().map(|s| (*s).into()).collect(),
                     });
                 }
@@ -145,6 +159,13 @@ mod tests {
     #[test]
     fn matrix_includes_every_advertised_combination_and_preserves_implementation_gaps() {
         let matrix = joint_experiment_acceptance_matrix();
+        if let Ok(directory) = std::env::var("ANTECEDENT_X05_ACCEPTANCE_DIR") {
+            std::fs::write(
+                std::path::Path::new(&directory).join("protocol.json"),
+                serde_json::to_vec_pretty(&matrix).unwrap(),
+            )
+            .unwrap();
+        }
         assert_eq!(
             matrix.rows.len(),
             JOINT_DESIGN_CAPABILITIES.len() * 2 * 2 * 5 * 3 + 3 * 2 * 5 * 3

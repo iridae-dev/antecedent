@@ -1,8 +1,8 @@
 //! Versioned executable design proofs retaining identifying functionals and source data.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 use super::{
-    JointDesignEstimate, JointDesignPosterior, instrumented::*, longitudinal::*, randomized::*,
-    rollout::*, switchback::*, synthetic::*,
+    JointDesignEstimate, JointDesignPosterior, gaussian_longitudinal::*, instrumented::*,
+    local_instrument::*, longitudinal::*, randomized::*, rollout::*, switchback::*, synthetic::*,
 };
 
 /// Versioned design-native execution recipe. Old panel artifacts retain their own decoder.
@@ -36,6 +36,20 @@ pub enum JointDesignRecipe {
         design: LongitudinalJointDesign,
         /// Original independent longitudinal episodes.
         episodes: Vec<LongitudinalEpisode>,
+    },
+    /// Continuous full-history conditional Gaussian g-computation with explicit policy support.
+    GaussianLongitudinal {
+        /// Physical schedules, full history mechanisms and sequential premises.
+        design: GaussianLongitudinalDesign,
+        /// Original independent continuous episodes.
+        episodes: Vec<GaussianLongitudinalEpisode>,
+    },
+    /// Encouragement-specific complier target under weaker exclusion/monotonicity assumptions.
+    InstrumentedLocal {
+        /// Encouragement and local target restrictions.
+        design: LocalInstrumentDesign,
+        /// Original independently encouraged units.
+        units: Vec<LocalInstrumentUnit>,
     },
     /// Joint structural-feature IV, whose homogeneous moment target is explicit.
     Instrumented {
@@ -75,10 +89,29 @@ pub enum JointDesignInference {
         /// Maximum whole-schedule combinations to enumerate; partial mass remains explicit.
         max_cases: usize,
     },
+    /// Full-procedure independent-episode bootstrap for continuous longitudinal mechanisms.
+    GaussianLongitudinalBootstrap {
+        /// Complete refits, including policy support checks.
+        replicates: usize,
+        /// Resampling seed.
+        seed: u64,
+    },
+    /// Proper conditional Gaussian/inverse-gamma full-mechanism posterior.
+    GaussianLongitudinalBayesian {
+        /// Proper mechanism priors and aligned draws.
+        prior: GaussianLongitudinalPrior,
+    },
     /// Gaussian history means with known within-sequence AR1 residual covariance.
     SwitchbackGaussian {
         /// Proper mean priors and complete known covariance.
         prior: SwitchbackGaussianPrior,
+    },
+    /// Paired Bayesian-bootstrap score-law posterior for an encouragement-specific local ratio.
+    LocalComplierBayesian {
+        /// Retained paired ratio/numerator/denominator draw count.
+        draws: usize,
+        /// Retained score-law weight seed, independent of replay context.
+        seed: u64,
     },
     /// Proper joint triangular raw-dose/outcome likelihood and all coefficient priors.
     InstrumentedGaussian {
@@ -113,6 +146,15 @@ pub enum JointDesignInference {
 pub enum JointDesignLaw {
     /// Frequentist whole-unit uncertainty, retaining its actual method meaning.
     Frequentist(JointDesignEstimate),
+    /// Complete independent-unit bootstrap realizations; failure slots are never discarded.
+    FrequentistBootstrap {
+        /// Original point and complete covariance when available.
+        estimate: JointDesignEstimate,
+        /// Paired regime responses or original failed slots.
+        realizations: Vec<Option<Vec<f64>>>,
+        /// Original failure reason per failed slot.
+        failures: Vec<Option<String>>,
+    },
     /// Aligned posterior world functionals under the explicit likelihood and prior.
     Bayesian(JointDesignPosterior),
 }
@@ -122,7 +164,24 @@ impl JointDesignLaw {
     pub fn estimate(&self) -> &JointDesignEstimate {
         match self {
             Self::Frequentist(e) => e,
+            Self::FrequentistBootstrap { estimate, .. } => estimate,
             Self::Bayesian(p) => &p.estimate,
+        }
+    }
+    /// Original paired complete-procedure frequentist realizations, including failed slots.
+    #[must_use]
+    pub fn frequentist_realizations(&self) -> Option<&[Option<Vec<f64>>]> {
+        match self {
+            Self::FrequentistBootstrap { realizations, .. } => Some(realizations),
+            _ => None,
+        }
+    }
+    /// Per-slot full-procedure failure diagnostics, without silently conditioning on success.
+    #[must_use]
+    pub fn frequentist_failures(&self) -> Option<&[Option<String>]> {
+        match self {
+            Self::FrequentistBootstrap { failures, .. } => Some(failures),
+            _ => None,
         }
     }
 }
@@ -140,8 +199,14 @@ impl JointDesignRecipe {
             Self::SyntheticControl { .. } => {
                 "treated rollout mean minus unaffected donor-weighted reference mean, weights fitted on preperiods under persistent counterfactual model"
             }
+            Self::GaussianLongitudinal { .. } => {
+                "integrate all fitted full-history initial and treatment-affected covariate mechanisms under each exact continuous joint regime; analytic Gaussian conditional-mean recursion with fitted full-rank joint policy density"
+            }
             Self::Longitudinal { .. } => {
                 "sum_l0..lT E[Y | L_0:T=l_0:T, A_0:T=a_0:T] P(L0=l0) product_t P(L_t | L_0:t-1, A_0:t-1=a_0:t-1)"
+            }
+            Self::InstrumentedLocal { .. } => {
+                "E[Z Y/p-(1-Z)Y/(1-p)] / E[Z D/p-(1-Z)D/(1-p)] under encouragement exclusion and monotonicity; target is this encouragement complier population"
             }
             Self::Instrumented { .. } => {
                 "c' beta where E[Z (Y-F(D)' beta-X'gamma)]=0 and rank(E[Z(F(D),X)']) is sufficient"
@@ -157,8 +222,10 @@ impl JointDesignRecipe {
         match self {
             Self::Randomized { .. } => "joint_design.whole_program_ht",
             Self::Longitudinal { .. } => "joint_design.full_history_gformula",
+            Self::GaussianLongitudinal { .. } => "joint_design.gaussian_full_history_gformula",
             Self::Switchback { .. } => "joint_design.finite_carryover_switchback",
             Self::SyntheticControl { .. } => "joint_design.synthetic_rollout",
+            Self::InstrumentedLocal { .. } => "joint_design.encouragement_complier_iv",
             Self::Instrumented { .. } => "joint_design.structural_feature_iv",
             Self::DifferenceInDifferences { .. } => "joint_design.regime_cohort_did",
         }
@@ -176,6 +243,7 @@ impl JointDesignRecipe {
             (Self::Instrumented{design,units},JointDesignInference::InstrumentedGaussian{prior})=>instrumented_joint_posterior(design,units,prior).map(JointDesignLaw::Bayesian),
             (Self::DifferenceInDifferences{design,units},JointDesignInference::RolloutGaussian{prior})=>rollout_joint_posterior(design,units,prior).map(JointDesignLaw::Bayesian),
             (Self::SyntheticControl{design,observations},JointDesignInference::SyntheticBayesian{prior})=>synthetic_joint_posterior(design,observations,prior).map(JointDesignLaw::Bayesian),
+            (Self::GaussianLongitudinal{..},_)=>Err("continuous longitudinal execution requires the admitted context-aware native compiler".into()),
             (Self::Longitudinal{design,episodes},JointDesignInference::Frequentist)=>longitudinal_joint_means(design,episodes).map(JointDesignLaw::Frequentist),
             (Self::Longitudinal{design,episodes},JointDesignInference::LongitudinalDirichlet{prior})=>longitudinal_joint_posterior(design,episodes,prior).map(JointDesignLaw::Bayesian),
             (Self::Instrumented{design,units},JointDesignInference::Frequentist)=>instrumented_joint_contrasts(design,units).map(JointDesignLaw::Frequentist),
@@ -190,6 +258,8 @@ impl JointDesignRecipe {
 pub enum JointNativeDesignLaw {
     /// Native joint moments or a genuine aligned Bayesian mechanism law.
     Moments(JointDesignLaw),
+    /// Local encouragement ratio, preserving its actual complier target and ratio uncertainty.
+    LocalComplier(LocalInstrumentResult),
     /// Supported donor-world point functionals with retained weights and fit evidence.
     SyntheticPoint(Vec<JointSyntheticCoordinate>),
     /// Exhaustive or explicitly partial sharp-null history randomization inference.
@@ -210,6 +280,47 @@ impl JointDesignRecipe {
             return Err("joint-design execution cancelled".into());
         }
         let result = match (self, inference) {
+            (Self::InstrumentedLocal { design, units }, JointDesignInference::Frequentist) => {
+                local_instrument_effect(design, units, None, ctx)
+                    .map(JointNativeDesignLaw::LocalComplier)
+            }
+            (
+                Self::InstrumentedLocal { design, units },
+                JointDesignInference::LocalComplierBayesian { draws, seed },
+            ) => {
+                let mut posterior_ctx = ctx.clone();
+                posterior_ctx.rng = antecedent_core::execution::RngFactory::from_seed(*seed);
+                local_instrument_effect(design, units, Some(*draws), &posterior_ctx)
+                    .map(JointNativeDesignLaw::LocalComplier)
+            }
+            (
+                Self::GaussianLongitudinal { design, episodes },
+                JointDesignInference::Frequentist,
+            ) => gaussian_longitudinal_bootstrap(design, episodes, 64, 0, ctx).map(|b| {
+                JointNativeDesignLaw::Moments(JointDesignLaw::FrequentistBootstrap {
+                    estimate: b.estimate,
+                    realizations: b.realizations,
+                    failures: b.failures,
+                })
+            }),
+            (
+                Self::GaussianLongitudinal { design, episodes },
+                JointDesignInference::GaussianLongitudinalBootstrap { replicates, seed },
+            ) => gaussian_longitudinal_bootstrap(design, episodes, *replicates, *seed, ctx).map(
+                |b| {
+                    JointNativeDesignLaw::Moments(JointDesignLaw::FrequentistBootstrap {
+                        estimate: b.estimate,
+                        realizations: b.realizations,
+                        failures: b.failures,
+                    })
+                },
+            ),
+            (
+                Self::GaussianLongitudinal { design, episodes },
+                JointDesignInference::GaussianLongitudinalBayesian { prior },
+            ) => gaussian_longitudinal_posterior(design, episodes, prior, ctx)
+                .map(|p| JointNativeDesignLaw::Moments(JointDesignLaw::Bayesian(p))),
+
             (
                 Self::Switchback { design, sequences },
                 JointDesignInference::SwitchbackExactRandomization { contrast, max_cases },
@@ -245,7 +356,10 @@ impl JointDesignRecipe {
         match self {
             Self::Randomized { .. } => "whole_program_population_mean",
             Self::Switchback { .. } => "eligible_period_joint_history_mean",
-            Self::Longitudinal { .. } => "longitudinal_regime_population_mean",
+            Self::Longitudinal { .. } | Self::GaussianLongitudinal { .. } => {
+                "longitudinal_regime_population_mean"
+            }
+            Self::InstrumentedLocal { .. } => "encouragement_specific_complier_average_effect",
             Self::Instrumented { .. } => "homogeneous_structural_feature_contrast",
             Self::DifferenceInDifferences { .. } => "joint_regime_cohort_time_att",
             Self::SyntheticControl { .. } => "treated_unit_rollout_synthetic_reference_contrast",

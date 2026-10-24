@@ -1,0 +1,65 @@
+schema = 1
+owner = "X07"
+closure_kind = "implementation_evidence_pending_aggregate_checks"
+release_calibration = "registered_unmeasured_candidate_bound"
+proof = "JointPanelDesignProof::V1; JointDesignProof v1 and NativeJointIdentification v1"
+artifact = "Versioned full source recipe, identification, inference/prior/seed and retained law; original-data replay; independently supplied current recipe checks"
+public_rust = ["PreparedJointDesign", "PreparedNativeJointDesign"]
+public_python = ["antecedent.joint_panel.prepare_joint_design", "antecedent.joint_panel.prepare_native_joint_design"]
+source = "crates/antecedent/src/analysis/joint_panel/designs/native/tests.rs"
+
+[[design]]
+name = "factorial_multi_arm"
+target = "whole-program joint means and arbitrary prespecified linear contrasts"
+frequentist = "known-probability complete-program HT; independent-unit sandwich"
+bayesian = "proper Gaussian arm likelihood; latent finite-population potential-response likelihood for unequal weights"
+premises = ["consistency", "known positive joint assignment probabilities", "independent units; no interference", "fixed preassignment population weights"]
+reference = "Independent analytic HT/conjugate moments and full chain matrix"
+
+[[design]]
+name = "switchback"
+target = "finite-carryover joint-history means and main/interaction contrasts"
+frequentist = "whole-schedule joint inclusion covariance; exhaustive or partial-mass sharp-null randomization test"
+bayesian = "proper Gaussian conditional-history likelihood; declared known sequence AR1 covariance"
+premises = ["finite carryover", "no anticipation", "independent sequences", "positive complete-history inclusion probabilities", "first-history washout exclusion"]
+reference = "Independent conjugate conditional-history moments; sharp-null exhaustive assignment enumeration"
+
+[[design]]
+name = "geo_experiment"
+target = "preassignment population-weighted complete-program cluster means"
+frequentist = "known cluster assignment probabilities; original-cluster covariance"
+bayesian = "proper latent unit-by-arm Gaussian potential-response posterior retaining unequal weights"
+premises = ["complete-program cluster assignment", "fixed population weights", "no between-cluster interference", "independent assigned geos"]
+reference = "Independent weighted conditional Gaussian moments; unequal-weight chain fixture"
+
+[[design]]
+name = "sequential_observational"
+target = "finite or continuous joint-regime means integrating treatment-affected histories"
+frequentist = "finite full-history g-formula whole-episode deletion; continuous full conditional mechanism fitting and full episode bootstrap"
+bayesian = "proper finite-support Dirichlet full-history tables; continuous proper Gaussian/inverse-gamma conditional mechanisms"
+premises = ["sequential exchangeability", "consistency", "complete histories", "positive requested complete-history support", "explicit continuous model and full-rank joint assignment density"]
+reference = "Independent finite-state enumeration and continuous analytic four-world means [7,16,9.2,23.6]"
+
+[[design]]
+name = "instrumented_dose"
+target = "joint homogeneous structural-feature contrasts; separately typed encouragement-specific complier effects under weaker assumptions"
+frequentist = "actual-feature joint 2SLS full rank with whole-unit deletion; distinct local Wald ratio influence variance with weak-stage interval refusal"
+bayesian = "proper joint triangular raw-dose/outcome likelihood; distinct paired Bayesian-bootstrap local score-ratio draws without finite-moment assertion"
+premises = ["structural feature model and excluded moments with sufficient rank for structural route", "known randomized encouragement plus exclusion and monotonicity for local route", "local target cannot become population ATE"]
+reference = "Independent polynomial-feature 2SLS and Gaussian posterior algebra; local constant complier truth and paired ratio identity"
+
+[[design]]
+name = "difference_in_differences"
+target = "joint-regime cohort-time ATT"
+frequentist = "never/not-yet-treated comparison cohorts; full original-unit deletion"
+bayesian = "proper saturated unit/time/cohort-treatment Gaussian likelihood with declared AR1 covariance"
+premises = ["no anticipation", "parallel untreated trends", "consistent joint regimes", "supported untreated comparisons", "all observed treated cells modeled"]
+reference = "Independent cohort differences and Gaussian shared-control covariance"
+
+[[design]]
+name = "synthetic_control"
+target = "treated rollout versus explicit unaffected donor worlds"
+frequentist = "native simplex weights and prefit; joint Bonferroni conformal region under exchangeable residuals"
+bayesian = "proper convergence-gated simplex/AR1 likelihood; independent treated residual factors conditional on common donors"
+premises = ["persistent declared donor counterfactual model", "unaffected donors", "no treated unit used as donor", "separate exchangeability/statistical likelihood restrictions"]
+reference = "Independent planted donor weights and true rollout contrasts; joint interval projection; convergence checks"

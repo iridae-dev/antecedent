@@ -1,6 +1,7 @@
 //! Certified search with an executable best-found fallback for unsupported expressions.
 // SPDX-License-Identifier: MIT OR Apache-2.0
-use super::*;
+use super::{CertificateDeclaration, PyJointPanelResult, context, facade, panel_error};
+use antecedent_core::ScientificWorldId;
 use antecedent_design::{
     decision_contract::{ProgramObjective, ProgramSearchContract, ProgramSearchSpace, UtilityExpr},
     program_search::{
@@ -8,6 +9,8 @@ use antecedent_design::{
         continuous::ContinuousSearchOptions,
     },
 };
+use pyo3::prelude::*;
+use serde::Deserialize;
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct PollOptions {
@@ -22,10 +25,23 @@ struct PollOptions {
 struct Declaration {
     certificate: CertificateDeclaration,
     poll_options: PollOptions,
+    #[serde(default)]
+    uncertainty: SearchUncertainty,
+}
+#[derive(Default, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum SearchUncertainty {
+    #[default]
+    PointMeans,
+    AlignedLaw,
 }
 #[pymethods]
 impl PyJointPanelResult {
     #[pyo3(signature=(declaration_json,*,seed=0,threads=1,max_bytes=None,cancel=None))]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "assembles one checked search declaration and serializes its two typed execution routes"
+    )]
     fn search_program(
         &self,
         py: Python<'_>,
@@ -43,7 +59,12 @@ impl PyJointPanelResult {
         let ctx = context(seed, threads, max_bytes, cancel)?;
         let _input = ctx
             .acquire_admission(0, (declaration_json.len() as u64).saturating_mul(8))
-            .map_err(|e| crate::CausalResourceError::new_err(e.to_string()))?;
+            .map_err(|e| match e {
+                antecedent_core::execution::AdmissionError::Cancelled => {
+                    crate::CausalCancelledError::new_err(e.to_string())
+                }
+                _ => crate::CausalResourceError::new_err(e.to_string()),
+            })?;
         let d: Declaration =
             serde_json::from_str(declaration_json).map_err(|e| crate::value_err(e.to_string()))?;
         let c = d.certificate;
@@ -71,7 +92,10 @@ impl PyJointPanelResult {
             base_world: ScientificWorldId::from_raw(c.base_world),
             scope: facade::JointPanelScientificScope::ModelConditional,
             functional: c.functional.native(),
-            uncertainty: facade::JointPanelSearchUncertainty::PointMeans,
+            uncertainty: match d.uncertainty {
+                SearchUncertainty::PointMeans => facade::JointPanelSearchUncertainty::PointMeans,
+                SearchUncertainty::AlignedLaw => facade::JointPanelSearchUncertainty::AlignedLaw,
+            },
             contract: ProgramSearchContract {
                 space: ProgramSearchSpace {
                     id: "compiled_panel_response".into(),
@@ -128,6 +152,11 @@ impl PyJointPanelResult {
                             "feasibility":format!("{:?}",b.feasibility)})),
                     "stop":format!("{:?}",result.search.stop),"gap":result.search.gap,
                     "global_certificate":result.search.global_certificate,"scope":"model_conditional",
+                    "selected_action_law":result.best_source.as_ref().and_then(|source|match source.as_numerical_source(){
+                        antecedent_design::scientific_source::ScientificSourcePayload::Law(law)=>Some(serde_json::json!({
+                            "metadata":law.metadata(),"draws":law.draws(),"frequentist_selected_value_coverage":false})),
+                        antecedent_design::scientific_source::ScientificSourcePayload::Means(_)=>None,
+                    }),
                     "selected_value_reliability":result.search.reliability }),
             }.to_string())
         })

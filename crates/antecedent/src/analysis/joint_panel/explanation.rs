@@ -1,9 +1,9 @@
 //! Execute the next coarser response attempt after unique change attribution fails.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 use super::{
-    Arc, ExecutionContext, JointPanelError, JointPanelFunctional, JointPanelResponseFunctional,
-    JointPanelResult, JointPanelWorld, PanelResponse, ScientificTarget, ScientificWorldId,
-    SemanticDigest, contracts, engine, joint_panel_target, source,
+    contracts, engine, joint_panel_target, source, Arc, ExecutionContext, JointPanelError,
+    JointPanelFunctional, JointPanelResponseFunctional, JointPanelResult, JointPanelWorld,
+    PanelResponse, ScientificTarget, ScientificWorldId, SemanticDigest,
 };
 use antecedent_design::scientific_source::{ScientificDecisionSource, ScientificSourcePayload};
 use engine::time_varying::{CoarserPanelContrast, PanelExplanation};
@@ -426,7 +426,8 @@ impl JointPanelResult {
         let groups = self.prepared().model_data().groups.len();
         let empirical = 1.0 / groups as f64;
         let terminal = request.time_weights.iter().enumerate().all(|(index, weight)| {
-            *weight == if index + 1 == request.time_weights.len() { 1.0 } else { 0.0 }
+            weight.to_bits()
+                == if index + 1 == request.time_weights.len() { 1.0_f64 } else { 0.0_f64 }.to_bits()
         });
         let mut hybrids = Vec::with_capacity(16);
         for mask in 0_u8..16 {
@@ -514,9 +515,9 @@ impl JointPanelResult {
 
 mod scientific;
 pub use scientific::{
-    HistoricalPopulationReference, HistoricalReferenceDecomposition, PopulationReferenceAttempt,
-    PopulationReferenceBindings, PopulationReferenceDecomposition,
-    PopulationReferenceTransportProof, ReferenceComponentBindings,
-    ScientificReferenceDecomposition, decompose_population_reference,
-    decompose_scientific_reference, replay_population_reference, replay_reference_decomposition,
+    decompose_population_reference, decompose_scientific_reference, replay_population_reference,
+    replay_reference_decomposition, HistoricalPopulationReference,
+    HistoricalReferenceDecomposition, PopulationReferenceAttempt, PopulationReferenceBindings,
+    PopulationReferenceDecomposition, PopulationReferenceTransportProof,
+    ReferenceComponentBindings, ScientificReferenceDecomposition,
 };

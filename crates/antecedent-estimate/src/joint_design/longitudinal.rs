@@ -410,7 +410,11 @@ mod posterior_tests {
                 id: i.to_string(),
                 covariates: vec![0],
                 assignments: vec![i % 2],
-                outcome: if i % 2 == 0 { if i < 10 {1.0} else {0.0} } else { if i < 30 {1.0} else {0.0} },
+                outcome: if i % 2 == 0 {
+                    if i < 10 { 1.0 } else { 0.0 }
+                } else {
+                    if i < 30 { 1.0 } else { 0.0 }
+                },
             })
             .collect::<Vec<_>>();
         let prior = LongitudinalDirichletPrior {

@@ -241,7 +241,7 @@ pub fn rollout_joint_posterior(
         || !prior.ar1_rho.is_finite()
         || prior.ar1_rho.abs() >= 1.0
         || prior.draws < 2
-        || prior.draws > 100000
+        || prior.draws > 100_000
     {
         return Err("joint rollout posterior needs proper priors, known nonsingular residual covariance and bounded parameter dimensions".into());
     }
