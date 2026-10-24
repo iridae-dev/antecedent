@@ -17,10 +17,14 @@
 
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
-use antecedent_core::measurement_record::{AllocationSample, PeakRss, ResourceProbe};
+use antecedent_core::ExecutionContext;
+use antecedent_core::measurement_record::{
+    AllocationSample, MeasurementRecord, MeasurementSummary, PeakRss, ResourceProbe, measure,
+};
 
+static COUNTING: AtomicBool = AtomicBool::new(true);
 static TOTAL_BYTES: AtomicU64 = AtomicU64::new(0);
 static CALLS: AtomicU64 = AtomicU64::new(0);
 static LIVE_BYTES: AtomicU64 = AtomicU64::new(0);
@@ -34,6 +38,9 @@ pub const PEAK_RSS_NO_GETRUSAGE: &str =
 pub const PEAK_RSS_GETRUSAGE_FAILED: &str = "peak RSS is unsupported: getrusage failed";
 
 fn note_allocation(bytes: usize) {
+    if !COUNTING.load(Ordering::Relaxed) {
+        return;
+    }
     let bytes = bytes as u64;
     TOTAL_BYTES.fetch_add(bytes, Ordering::Relaxed);
     CALLS.fetch_add(1, Ordering::Relaxed);
@@ -42,10 +49,21 @@ fn note_allocation(bytes: usize) {
 }
 
 fn note_release(bytes: usize) {
+    if !COUNTING.load(Ordering::Relaxed) {
+        return;
+    }
     let bytes = bytes as u64;
     let _ = LIVE_BYTES.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |live| {
         Some(live.saturating_sub(bytes))
     });
+}
+
+/// Turn counting on or off. It is on by default. A Criterion bench that installs the
+/// allocator switches it off for its timed loops, so the timing is not perturbed, and on again
+/// around the measured pass. Objects freed under a different setting than they were allocated
+/// under make the live-byte figure approximate (it saturates at zero).
+pub fn set_counting(enabled: bool) {
+    COUNTING.store(enabled, Ordering::Relaxed);
 }
 
 /// The system allocator plus process-wide byte and call counters.
@@ -176,4 +194,42 @@ pub fn write_measurement(root: &Path, bench: &str, json: &str) -> std::io::Resul
     let path = dir.join("measurement.json");
     std::fs::write(&path, json)?;
     Ok(path)
+}
+
+/// Name of the environment variable that gives the directory measured passes write to.
+pub const MEASUREMENT_OUT_ENV: &str = "ANTECEDENT_MEASUREMENT_OUT";
+
+/// Run `work` `repeats` times under [`measure`] with [`NativeProbe`], print and (when
+/// [`MEASUREMENT_OUT_ENV`] is set) write the summary as `<dir>/<name>/measurement.json`.
+///
+/// This is the measured pass a bench `main` runs after its Criterion groups. Counting is on
+/// only for the passes, so the timed loops are not perturbed.
+///
+/// # Panics
+///
+/// When `work` returns an error or the summary cannot be written: a measured pass of work
+/// that fails is not a measurement.
+pub fn measured_pass<T, E: std::fmt::Debug>(
+    name: &str,
+    repeats: usize,
+    ctx: &ExecutionContext,
+    mut work: impl FnMut() -> Result<T, E>,
+) -> MeasurementSummary {
+    set_counting(true);
+    let records: Vec<MeasurementRecord> = (0..repeats)
+        .map(|_| {
+            let (result, record) = measure(ctx, &NativeProbe, &mut work);
+            result.unwrap_or_else(|error| panic!("measured pass {name} failed: {error:?}"));
+            record
+        })
+        .collect();
+    set_counting(false);
+    let summary = MeasurementSummary::from_repeats(&records);
+    let json = summary.to_json();
+    println!("measurement {name} {json}");
+    if let Some(root) = std::env::var_os(MEASUREMENT_OUT_ENV) {
+        write_measurement(Path::new(&root), name, &json)
+            .unwrap_or_else(|error| panic!("cannot write measurement for {name}: {error}"));
+    }
+    summary
 }

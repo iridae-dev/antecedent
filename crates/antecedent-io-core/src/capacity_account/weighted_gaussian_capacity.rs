@@ -924,11 +924,35 @@ fn plan_run(
         });
     }
     Ok(RunPlan {
-        choice: streamed_choice(charges.total_bytes)?,
+        choice: run_choice(ncols, options.batch_rows)?,
         ncols,
         batch_rows: options.batch_rows,
         charges,
     })
+}
+
+/// The costed choice of one run: the streamed reduction is the only alternative this route
+/// implements, and the run reads its source twice (the cross-product pass and the
+/// diagnostic pass) through one batch window. The ceiling was enforced on the full charge
+/// before this choice, so the choice itself is not budget limited.
+fn run_choice(
+    ncols: usize,
+    batch_rows: usize,
+) -> Result<antecedent_core::physical_choice::PhysicalChoice, WeightedCapacityError> {
+    use antecedent_core::physical_choice::{
+        BackendSupport, PhysicalAlternative, RouteChoice, RouteChoiceError, RouteWork,
+    };
+    let columns = u64::try_from(ncols).unwrap_or(u64::MAX);
+    let rows = u64::try_from(batch_rows).unwrap_or(u64::MAX);
+    let support = BackendSupport::none().with(PhysicalAlternative::StreamedReduction, true);
+    let budget = antecedent_core::route_memory::RouteBudget::new(u64::MAX);
+    match RouteChoice::select(RouteWork::new(rows, columns, 2).batch_rows(rows), support, budget) {
+        Ok(routed) => Ok(*routed.choice()),
+        Err(RouteChoiceError::NoneAdmitted(refusal)) => {
+            Err(WeightedCapacityError::BackendChoice(Box::new(refusal)))
+        }
+        Err(_) => Err(WeightedCapacityError::BatchBound),
+    }
 }
 
 fn streamed_choice(
@@ -2332,6 +2356,92 @@ mod tests {
         assert_declared(&bayes);
         same_science(&glm, &bayes);
         assert_eq!(glm.charges.total_bytes, bayes.charges.total_bytes);
+    }
+
+    /// One control's four outputs on the same rows: resident source and file
+    /// source, each kept resident and spilled then read back.
+    struct ControlRuns {
+        kept: [WeightedCapacityResult; 2],
+        spilled: [WeightedCapacityResult; 2],
+        frame_bytes: [u64; 2],
+        spill_charges: [super::CeilingCharges; 2],
+    }
+
+    fn control_runs(
+        control: CapacityControl,
+        rows: (&[f64], &[f64], &[f64]),
+        file: &std::path::Path,
+        batch_rows: usize,
+        dir: &TempDir,
+    ) -> ControlRuns {
+        let (x, y, weights) = rows;
+        let summary = CapacityOptions::new(batch_rows, u64::MAX, OutputRetention::SummaryOnly);
+        let disk = disk_options(batch_rows, dir, "controls.spill");
+        let mut resident = ResidentWeightedRows::try_new(x, y, weights).expect("resident");
+        let kept_resident =
+            run_weighted_capacity(control, &mut resident, &summary).expect("resident summary");
+        let mut rows_file = FileWeightedRows::open(file).expect("open");
+        let kept_file =
+            run_weighted_capacity(control, &mut rows_file, &summary).expect("file summary");
+        let spill = |source: &mut dyn WeightedRowSource| {
+            let spilled = run_spilled(control, source, &disk).expect("spill");
+            let back = read_spilled_summary(&spilled.handle).expect("read back");
+            let facts = (spilled.handle.frame_bytes(), spilled.charges);
+            spilled.handle.remove().expect("remove");
+            (back, facts)
+        };
+        let mut resident = ResidentWeightedRows::try_new(x, y, weights).expect("resident");
+        let (back_resident, resident_facts) = spill(&mut resident);
+        let mut rows_file = FileWeightedRows::open(file).expect("open");
+        let (back_file, file_facts) = spill(&mut rows_file);
+        ControlRuns {
+            kept: [kept_resident, kept_file],
+            spilled: [back_resident, back_file],
+            frame_bytes: [resident_facts.0, file_facts.0],
+            spill_charges: [resident_facts.1, file_facts.1],
+        }
+    }
+
+    #[test]
+    fn both_controls_agree_in_results_diagnostics_charges_and_retention() {
+        let (x, y, weights) = wide_design(23);
+        let bytes = encode_weighted_row_file(&x, &y, &weights).expect("encode");
+        let file_guard = write_rows("controls", &bytes);
+        let dir = TempDir::new("controls");
+        for batch_rows in [1, 7, 23] {
+            let rows = (&x[..], &y[..], &weights[..]);
+            let glm = control_runs(CapacityControl::Glm, rows, &file_guard.0, batch_rows, &dir);
+            let bayes =
+                control_runs(CapacityControl::GaussianBayes, rows, &file_guard.0, batch_rows, &dir);
+            for source in 0..2 {
+                // Resident retention.
+                let (left, right) = (&glm.kept[source], &bayes.kept[source]);
+                assert_eq!(left.control, CapacityControl::Glm);
+                assert_eq!(right.control, CapacityControl::GaussianBayes);
+                same_science(left, right);
+                assert_eq!(left.charges, right.charges);
+                assert_eq!(left.batches, right.batches);
+                assert_eq!(left.physical_choice().selected(), right.physical_choice().selected());
+                assert_eq!(left.physical_choice().rejected(), right.physical_choice().rejected());
+                // Disk-backed retention, read back.
+                let (left, right) = (&glm.spilled[source], &bayes.spilled[source]);
+                assert_eq!(left.retention, OutputRetention::DiskBacked);
+                same_science(left, right);
+                assert_eq!(left.charges, right.charges);
+                assert_eq!(left.batches, right.batches);
+                assert_eq!(glm.frame_bytes[source], bayes.frame_bytes[source]);
+                assert_eq!(glm.spill_charges[source], bayes.spill_charges[source]);
+                // The two retentions carry the same numbers, so retention changes
+                // only where the summary lives, in both controls.
+                same_numbers(&glm.kept[source], &glm.spilled[source]);
+                same_numbers(&bayes.kept[source], &bayes.spilled[source]);
+            }
+            // The source kind changes only the input and decoder charges.
+            same_numbers(&glm.kept[0], &glm.kept[1]);
+            same_numbers(&bayes.spilled[0], &bayes.spilled[1]);
+            assert_eq!(glm.spill_charges[0].spill_bytes, glm.spill_charges[1].spill_bytes);
+            assert!(dir.entries().is_empty(), "no spill file survives its handle");
+        }
     }
 
     #[test]

@@ -1,4 +1,4 @@
-//! Internal source and snapshot contract over owned storage.
+//! Source and snapshot contract over owned storage.
 //!
 //! A snapshot binds modality, cohort order, validity policy, units, splits, an
 //! optional time index, and the existing full-content digest (columns, mask,
@@ -7,23 +7,20 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-// A materialized file-backed table (`file_source`) is snapshotted here with
-// `from_storage` and addresses row ranges with `chunk`. The other modalities and
-// setters are part of the contract; their preparation call sites are not wired
-// yet, and only the unit tests use them.
-#![allow(dead_code)]
-
 use std::ops::Range;
 use std::sync::Arc;
 
+use crate::dataset::{TabularData, TimeSeriesData};
 use crate::error::DataError;
+use crate::multi_env::MultiEnvironmentData;
+use crate::panel::PanelData;
 use crate::storage::OwnedColumnarStorage;
 use crate::table::TableView;
 use crate::temporal::TimeIndex;
 
 /// How the rows are organized. This does not change the stored columns.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum SourceModality {
+pub enum SourceModality {
     /// One row per unit, no time index on the snapshot.
     Tabular,
     /// Panel units.
@@ -36,7 +33,7 @@ pub(crate) enum SourceModality {
 
 /// What invalid means for the values this snapshot points at.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum ValidityPolicy {
+pub enum ValidityPolicy {
     /// Current f64 rule: a value is invalid exactly when it is NaN.
     F64InvalidIffNan,
     /// Declared so a later adapter can tell null from NaN. Not a kernel view.
@@ -45,7 +42,7 @@ pub(crate) enum ValidityPolicy {
 
 /// Row order relative to storage.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum CohortOrder {
+pub enum CohortOrder {
     /// Dense row `i` is storage row `i`.
     Storage,
     /// Named order. The label is part of the snapshot; the columns are not permuted here.
@@ -54,7 +51,7 @@ pub(crate) enum CohortOrder {
 
 /// A named row span that belongs to the snapshot (a split, not a chunk).
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct SplitSpan {
+pub struct SplitSpan {
     /// Split name.
     pub label: Arc<str>,
     /// Half-open row range in storage order.
@@ -63,7 +60,7 @@ pub(crate) struct SplitSpan {
 
 /// Full-source digest, or a projection that must not be compared as that digest.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum SourceIdentity {
+pub enum SourceIdentity {
     /// [`OwnedColumnarStorage::content_digest`] of the original columns, mask, and weights.
     Full([u8; 32]),
     /// Columns drawn from `parent`. Not a full-source identity.
@@ -77,7 +74,7 @@ pub(crate) enum SourceIdentity {
 
 /// Scientific description of one immutable source.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct SnapshotContract {
+pub struct SnapshotContract {
     /// Table, panel, environment, or series.
     pub modality: SourceModality,
     /// Invalid-value rule.
@@ -103,21 +100,21 @@ pub(crate) struct SnapshotContract {
 
 /// Owned immutable source.
 #[derive(Clone, Debug)]
-pub(crate) struct OwnedSource {
+pub struct OwnedSource {
     storage: OwnedColumnarStorage,
     contract: SnapshotContract,
 }
 
 /// Borrow of an owned source. The borrow does not expose mutation.
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct BorrowedSource<'a> {
+pub struct BorrowedSource<'a> {
     storage: &'a OwnedColumnarStorage,
     contract: &'a SnapshotContract,
 }
 
 /// A row range of a source. Empty and tail ranges are allowed.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct RowChunk {
+pub struct RowChunk {
     parent: [u8; 32],
     start: usize,
     end: usize,
@@ -126,33 +123,63 @@ pub(crate) struct RowChunk {
 impl OwnedSource {
     /// Snapshot `storage` under the current f64 validity rule and storage order.
     #[must_use]
-    pub(crate) fn from_storage(storage: OwnedColumnarStorage, modality: SourceModality) -> Self {
+    pub fn from_storage(storage: OwnedColumnarStorage, modality: SourceModality) -> Self {
         let contract = contract_for(&storage, modality, ValidityPolicy::F64InvalidIffNan);
         Self { storage, contract }
     }
 
+    /// Snapshot a table with no time axis.
+    ///
+    /// The storage digest is computed on `data` first, so the snapshot carries it and
+    /// `data` keeps its cached copy.
+    #[must_use]
+    pub fn from_tabular(data: &TabularData) -> Self {
+        let _ = data.storage().content_digest();
+        Self::from_storage(data.storage().clone(), SourceModality::Tabular)
+    }
+
+    /// Snapshot a time series under `modality`, binding the series time index.
+    ///
+    /// The index is the one the series carries, so a series and the same storage
+    /// given [`Self::with_time_index`] have equal contracts.
+    ///
+    /// # Errors
+    ///
+    /// `modality` is [`SourceModality::Tabular`], which declares no time axis.
+    pub fn from_time_series(
+        series: &TimeSeriesData,
+        modality: SourceModality,
+    ) -> Result<Self, DataError> {
+        if matches!(modality, SourceModality::Tabular) {
+            return Err(DataError::InvalidArgument {
+                message: "a time series is not a tabular source; it carries a time index".into(),
+            });
+        }
+        Ok(series_source(series, modality))
+    }
+
     /// Borrow the snapshot.
     #[must_use]
-    pub(crate) fn borrow(&self) -> BorrowedSource<'_> {
+    pub fn borrow(&self) -> BorrowedSource<'_> {
         BorrowedSource { storage: &self.storage, contract: &self.contract }
     }
 
     /// Contract.
     #[must_use]
-    pub(crate) fn contract(&self) -> &SnapshotContract {
+    pub fn contract(&self) -> &SnapshotContract {
         &self.contract
     }
 
     /// Replace cohort order. Content digest is unchanged.
     #[must_use]
-    pub(crate) fn with_cohort(mut self, cohort: CohortOrder) -> Self {
+    pub fn with_cohort(mut self, cohort: CohortOrder) -> Self {
         self.contract.cohort = cohort;
         self
     }
 
     /// Replace the unit label.
     #[must_use]
-    pub(crate) fn with_unit(mut self, unit: impl Into<Arc<str>>) -> Self {
+    pub fn with_unit(mut self, unit: impl Into<Arc<str>>) -> Self {
         self.contract.unit = Some(unit.into());
         self
     }
@@ -162,7 +189,7 @@ impl OwnedSource {
     /// # Errors
     ///
     /// A split endpoint past the row count.
-    pub(crate) fn with_splits(mut self, splits: Vec<SplitSpan>) -> Result<Self, DataError> {
+    pub fn with_splits(mut self, splits: Vec<SplitSpan>) -> Result<Self, DataError> {
         for split in &splits {
             if split.rows.end > self.contract.rows || split.rows.start > split.rows.end {
                 return Err(DataError::InvalidArgument {
@@ -179,7 +206,7 @@ impl OwnedSource {
     /// # Errors
     ///
     /// [`TimeIndex::length`] is not the source row count.
-    pub(crate) fn with_time_index(mut self, time_index: TimeIndex) -> Result<Self, DataError> {
+    pub fn with_time_index(mut self, time_index: TimeIndex) -> Result<Self, DataError> {
         if time_index.length != self.contract.rows {
             return Err(DataError::InvalidArgument {
                 message: format!(
@@ -198,7 +225,7 @@ impl OwnedSource {
     ///
     /// [`ValidityPolicy::NullDistinctFromNan`] is named but not adopted: f64 columns are
     /// invalid exactly when the value is NaN. The snapshot contract refuses it too.
-    pub(crate) fn with_validity(mut self, validity: ValidityPolicy) -> Result<Self, DataError> {
+    pub fn with_validity(mut self, validity: ValidityPolicy) -> Result<Self, DataError> {
         if matches!(validity, ValidityPolicy::NullDistinctFromNan) {
             return Err(DataError::InvalidArgument {
                 message: "null-distinct-from-NaN validity is declared but not adopted; f64 columns are invalid exactly when the value is NaN".into(),
@@ -213,7 +240,7 @@ impl OwnedSource {
     /// # Errors
     ///
     /// An empty list, a repeated column, or a column id past the schema.
-    pub(crate) fn project(&self, columns: &[u32]) -> Result<SnapshotContract, DataError> {
+    pub fn project(&self, columns: &[u32]) -> Result<SnapshotContract, DataError> {
         if columns.is_empty() {
             return Err(DataError::InvalidArgument {
                 message: "a column projection names no variables and is not the full source".into(),
@@ -247,7 +274,7 @@ impl OwnedSource {
     /// # Errors
     ///
     /// A range outside the source, or a source that is not a full identity.
-    pub(crate) fn chunk(&self, start: usize, end: usize) -> Result<RowChunk, DataError> {
+    pub fn chunk(&self, start: usize, end: usize) -> Result<RowChunk, DataError> {
         let SourceIdentity::Full(parent) = self.contract.identity else {
             return Err(DataError::InvalidArgument {
                 message: "chunks address a full source".into(),
@@ -257,10 +284,108 @@ impl OwnedSource {
     }
 }
 
+/// Panel units or environments, each its own owned source with its own time
+/// index, in declared order.
+///
+/// The parts are not concatenated into one table. Order, the part labels and
+/// each part's contract are part of the identity (`SegmentedIdentity`).
+#[derive(Clone, Debug)]
+pub struct SegmentedSource {
+    modality: SourceModality,
+    parts: Vec<OwnedSource>,
+    /// Panel unit id of each part. `None` for an environment.
+    unit_ids: Vec<Option<u32>>,
+}
+
+impl SegmentedSource {
+    /// One part per panel unit, labeled by `unit_id`.
+    #[must_use]
+    pub fn from_panel(panel: &PanelData) -> Self {
+        let parts = panel
+            .units()
+            .iter()
+            .map(|unit| {
+                series_source(&unit.series, SourceModality::Panel)
+                    .with_unit(format!("unit:{}", unit.unit_id))
+            })
+            .collect();
+        let unit_ids = panel.units().iter().map(|unit| Some(unit.unit_id)).collect();
+        Self { modality: SourceModality::Panel, parts, unit_ids }
+    }
+
+    /// One part per environment, labeled by its position.
+    #[must_use]
+    pub fn from_multi_environment(environments: &MultiEnvironmentData) -> Self {
+        let parts: Vec<OwnedSource> = environments
+            .environments()
+            .iter()
+            .enumerate()
+            .map(|(index, series)| {
+                series_source(series, SourceModality::MultiEnvironment)
+                    .with_unit(format!("env:{index}"))
+            })
+            .collect();
+        let unit_ids = vec![None; parts.len()];
+        Self { modality: SourceModality::MultiEnvironment, parts, unit_ids }
+    }
+
+    /// Modality shared by every part.
+    #[must_use]
+    pub fn modality(&self) -> SourceModality {
+        self.modality
+    }
+
+    /// Parts in declared order.
+    #[must_use]
+    pub fn parts(&self) -> &[OwnedSource] {
+        &self.parts
+    }
+
+    /// Panel unit id of part `index`; `None` for an environment or an index past the parts.
+    #[must_use]
+    pub fn unit_id(&self, index: usize) -> Option<u32> {
+        self.unit_ids.get(index).copied().flatten()
+    }
+
+    /// Total rows across the parts.
+    #[must_use]
+    pub fn rows(&self) -> usize {
+        self.parts.iter().map(|part| part.contract().rows).sum()
+    }
+
+    /// Replace part `index` (a setter on one unit or environment).
+    ///
+    /// # Errors
+    ///
+    /// `index` is past the parts, or `part` has another modality.
+    pub fn with_part(mut self, index: usize, part: OwnedSource) -> Result<Self, DataError> {
+        if part.contract().modality != self.modality {
+            return Err(DataError::InvalidArgument {
+                message: "a replacement part must keep the segmented modality".into(),
+            });
+        }
+        let Some(slot) = self.parts.get_mut(index) else {
+            return Err(DataError::InvalidArgument {
+                message: format!("segment {index} is past {} parts", self.parts.len()),
+            });
+        };
+        *slot = part;
+        Ok(self)
+    }
+}
+
+fn series_source(series: &TimeSeriesData, modality: SourceModality) -> OwnedSource {
+    // Digest the original first so the clone below carries it.
+    let _ = series.storage().content_digest();
+    let mut source = OwnedSource::from_storage(series.storage().clone(), modality);
+    source.contract.time_index = Some(series.time_index().clone());
+    source
+}
+
 impl SnapshotContract {
     /// Full-source digest, when this contract is not a projection.
     #[must_use]
-    pub(crate) fn full_digest(&self) -> Option<[u8; 32]> {
+    pub fn full_digest(&self) -> Option<[u8; 32]> {
         match self.identity {
             SourceIdentity::Full(digest) => Some(digest),
             SourceIdentity::Projected { .. } => None,
@@ -280,13 +405,13 @@ impl RowChunk {
 
     /// Parent full-source digest.
     #[must_use]
-    pub(crate) fn parent(&self) -> [u8; 32] {
+    pub fn parent(&self) -> [u8; 32] {
         self.parent
     }
 
     /// Half-open row range.
     #[must_use]
-    pub(crate) fn rows(&self) -> Range<usize> {
+    pub fn rows(&self) -> Range<usize> {
         self.start..self.end
     }
 }
@@ -294,13 +419,13 @@ impl RowChunk {
 impl BorrowedSource<'_> {
     /// Same contract the owner holds.
     #[must_use]
-    pub(crate) fn contract(&self) -> &SnapshotContract {
+    pub fn contract(&self) -> &SnapshotContract {
         self.contract
     }
 
     /// Borrowed storage.
     #[must_use]
-    pub(crate) fn storage(&self) -> &OwnedColumnarStorage {
+    pub fn storage(&self) -> &OwnedColumnarStorage {
         self.storage
     }
 }

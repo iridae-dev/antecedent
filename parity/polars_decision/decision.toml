@@ -8,6 +8,7 @@ preparation_path = "direct_arrow"
 polars_feature = "retired"
 feature_retired = "The empty polars feature of antecedent-data and its crate-private seam and pool-refusal modules were removed. File-backed Parquet and Arrow IPC sources use the arrow-rs parquet and arrow-ipc crates behind the parquet and ipc features (crates/antecedent-data/src/file_source); direct Arrow remains the preparation path."
 dependency_added = false
+direct_arrow_workloads = "parity/polars_decision/direct_arrow_workloads.toml"
 polars_internal_contract_backend = false
 workspace_rust = "1.85"
 inspected = "2026-10-19"

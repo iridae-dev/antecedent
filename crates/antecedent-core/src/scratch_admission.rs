@@ -396,4 +396,34 @@ mod tests {
         assert_eq!(taken, 10);
         assert_eq!(pool.available().threads(), 4);
     }
+
+    #[test]
+    fn pipeline_scratch_is_built_once_per_worker_and_reused_across_items() {
+        let (ctx, pool) = pooled(4, 1 << 20);
+        let built = AtomicUsize::new(0);
+        let mut total = 0usize;
+        let receipt = ctx
+            .pipeline_indexed_with_scratch(
+                100,
+                4,
+                || {
+                    built.fetch_add(1, Ordering::SeqCst);
+                    0usize
+                },
+                |index, _, uses: &mut usize| {
+                    *uses += 1;
+                    Ok::<_, ()>((index, *uses))
+                },
+                |index, (seen, uses)| {
+                    assert_eq!(index, seen);
+                    assert!(uses >= 1);
+                    total += 1;
+                    Ok(PipelineStep::Continue)
+                },
+            )
+            .unwrap();
+        assert_eq!(total, 100);
+        assert_eq!(built.load(Ordering::SeqCst), receipt.workers, "one scratch per worker");
+        assert_eq!(pool.available().threads(), 4);
+    }
 }

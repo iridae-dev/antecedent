@@ -9,6 +9,14 @@
 //! receipt names that copy. A cast of a noncontiguous selection is still one
 //! copy: the cast is the owned buffer.
 //!
+//! A keep-mask selects the same way ([`DesignLayout::from_mask`],
+//! [`TabularData::float64_selected`]): a mask whose kept rows form one contiguous
+//! run borrows that run, and any other mask gathers once, straight into the
+//! destination the caller names ([`TabularData::float64_selected_into`] fills a
+//! caller-owned design slice, [`TabularData::float64_selected_arc`] fills the one
+//! shared allocation that is kept), so no gathered temporary is copied a second
+//! time into a design.
+//!
 //! `NumPy` is outside this crate. This module does not read Arrow arrays. A
 //! float64 column that already borrows a foreign buffer is reused through its
 //! contiguous `f64` slice. A nanosecond-epoch column is not cast into that
@@ -16,9 +24,16 @@
 
 use std::borrow::Cow;
 use std::fmt;
+use std::sync::Arc;
+
+use antecedent_core::VariableId;
+use antecedent_core::execution_attempt::{PhysicalEvent, record_physical};
 
 use crate::column::{ColumnView, ValidityBitmap};
+use crate::dataset::TabularData;
+use crate::error::DataError;
 use crate::global_index::GlobalId;
+use crate::table::TableView;
 
 /// Empty `f64` slice borrowed when a numeric column contributes no rows.
 const EMPTY_F64: &[f64] = &[];
@@ -82,6 +97,11 @@ enum LayoutFailure {
     /// A selected time-index row is invalid.
     InvalidEpoch {
         id: GlobalId,
+    },
+    /// A keep-mask is not as long as the column it selects from.
+    MaskLength {
+        mask: usize,
+        len: usize,
     },
 }
 
@@ -163,6 +183,10 @@ impl LayoutError {
         Self { column: 0, kind: LayoutFailure::InvalidEpoch { id } }
     }
 
+    const fn mask_length(column: usize, mask: usize, len: usize) -> Self {
+        Self { column, kind: LayoutFailure::MaskLength { mask, len } }
+    }
+
     /// The `i64` value that is not an exact `f64`, when that is the refusal.
     #[must_use]
     pub const fn inexact_value(self) -> Option<i64> {
@@ -172,7 +196,8 @@ impl LayoutError {
             | LayoutFailure::NotNumeric
             | LayoutFailure::EpochColumn
             | LayoutFailure::NotAnEpoch
-            | LayoutFailure::InvalidEpoch { .. } => None,
+            | LayoutFailure::InvalidEpoch { .. }
+            | LayoutFailure::MaskLength { .. } => None,
         }
     }
 
@@ -195,7 +220,8 @@ impl LayoutError {
             LayoutFailure::NotNumeric
             | LayoutFailure::InexactInteger { .. }
             | LayoutFailure::EpochColumn
-            | LayoutFailure::NotAnEpoch => None,
+            | LayoutFailure::NotAnEpoch
+            | LayoutFailure::MaskLength { .. } => None,
         }
     }
 
@@ -208,7 +234,8 @@ impl LayoutError {
             | LayoutFailure::InexactInteger { .. }
             | LayoutFailure::EpochColumn
             | LayoutFailure::NotAnEpoch
-            | LayoutFailure::InvalidEpoch { .. } => None,
+            | LayoutFailure::InvalidEpoch { .. }
+            | LayoutFailure::MaskLength { .. } => None,
         }
     }
 }
@@ -252,6 +279,13 @@ impl fmt::Display for LayoutError {
                     formatter,
                     "time-index row {id} is invalid; DesignLayout::with_time_index does not cast \
                      a missing epoch"
+                )
+            }
+            LayoutFailure::MaskLength { mask, len } => {
+                let column = self.column;
+                write!(
+                    formatter,
+                    "keep mask of length {mask} does not select from column {column} of length {len}"
                 )
             }
         }
@@ -358,6 +392,300 @@ impl<'a> DesignLayout<'a> {
     #[must_use]
     pub fn time_index_ns(&self) -> Option<&[i64]> {
         self.time_index_ns.as_deref()
+    }
+}
+
+/// Rows a keep-mask selects.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MaskSelection {
+    /// No row is kept.
+    Empty,
+    /// The kept rows are `start..start + len`, in order. A full mask is `start == 0`.
+    Run {
+        /// First kept row.
+        start: usize,
+        /// Kept row count.
+        len: usize,
+    },
+    /// The kept rows are not one contiguous run. Any column gathers `count` values.
+    Scatter {
+        /// Kept row count.
+        count: usize,
+    },
+}
+
+impl MaskSelection {
+    /// Kept row count.
+    #[must_use]
+    pub const fn count(self) -> usize {
+        match self {
+            Self::Empty => 0,
+            Self::Run { len, .. } => len,
+            Self::Scatter { count } => count,
+        }
+    }
+
+    /// Whether an `f64` column can be borrowed rather than gathered.
+    #[must_use]
+    pub const fn is_borrowable(self) -> bool {
+        !matches!(self, Self::Scatter { .. })
+    }
+}
+
+/// Classify `keep` in one pass, without allocating.
+#[must_use]
+pub fn classify_mask(keep: &[bool]) -> MaskSelection {
+    let mut first = None;
+    let mut last = 0;
+    let mut count = 0_usize;
+    for (index, &kept) in keep.iter().enumerate() {
+        if kept {
+            first.get_or_insert(index);
+            last = index;
+            count += 1;
+        }
+    }
+    match first {
+        None => MaskSelection::Empty,
+        Some(start) if last - start + 1 == count => MaskSelection::Run { start, len: count },
+        Some(_) => MaskSelection::Scatter { count },
+    }
+}
+
+fn record_gather(values: usize) {
+    record_physical(PhysicalEvent::Scan, 1);
+    record_physical(PhysicalEvent::Copy, 1);
+    record_physical(PhysicalEvent::CopiedBytes, (values * size_of::<f64>()) as u64);
+}
+
+/// A zero-filled shared slice that is still unique, so the caller fills it in place
+/// with [`Arc::get_mut`] and keeps that one allocation (no `Vec` copied into an `Arc`).
+#[must_use]
+pub fn zeroed_shared(len: usize) -> Arc<[f64]> {
+    std::iter::repeat_n(0.0_f64, len).collect()
+}
+
+fn float_values(table: &TabularData, id: VariableId) -> Result<&[f64], DataError> {
+    match table.column(id)? {
+        ColumnView::Float64(column) => Ok(column.values.as_slice()),
+        _ => Err(DataError::TypeMismatch { id, expected: "float64" }),
+    }
+}
+
+fn check_keep(table: &TabularData, keep: &[bool]) -> Result<(), DataError> {
+    if keep.len() == table.row_count() {
+        return Ok(());
+    }
+    Err(DataError::LengthMismatch {
+        expected: table.row_count(),
+        actual: keep.len(),
+        context: "complete-case keep mask",
+    })
+}
+
+fn fill_selected(
+    values: &[f64],
+    keep: &[bool],
+    selection: MaskSelection,
+    dest: &mut [f64],
+) -> Result<(), DataError> {
+    if dest.len() != selection.count() {
+        return Err(DataError::LengthMismatch {
+            expected: selection.count(),
+            actual: dest.len(),
+            context: "selected design destination",
+        });
+    }
+    match selection {
+        MaskSelection::Empty => {}
+        MaskSelection::Run { start, len } => dest.copy_from_slice(&values[start..start + len]),
+        MaskSelection::Scatter { .. } => {
+            let kept = keep.iter().zip(values).filter(|(kept, _)| **kept).map(|(_, value)| *value);
+            for (slot, value) in dest.iter_mut().zip(kept) {
+                *slot = value;
+            }
+        }
+    }
+    record_gather(dest.len());
+    Ok(())
+}
+
+impl TabularData {
+    /// Float64 values of the rows `keep` selects, borrowed when they are one contiguous run.
+    ///
+    /// A full mask or any contiguous run borrows the column and copies nothing. Any other
+    /// mask gathers one owned buffer and records one scan, one copy and its bytes.
+    ///
+    /// # Errors
+    ///
+    /// Unknown or non-float64 column, or a `keep` that is not the table's row count.
+    pub fn float64_selected(
+        &self,
+        id: VariableId,
+        keep: &[bool],
+    ) -> Result<Cow<'_, [f64]>, DataError> {
+        check_keep(self, keep)?;
+        let values = float_values(self, id)?;
+        match classify_mask(keep) {
+            MaskSelection::Empty => Ok(Cow::Borrowed(&values[..0])),
+            MaskSelection::Run { start, len } => Ok(Cow::Borrowed(&values[start..start + len])),
+            selection @ MaskSelection::Scatter { count } => {
+                let mut owned = vec![0.0; count];
+                fill_selected(values, keep, selection, &mut owned)?;
+                Ok(Cow::Owned(owned))
+            }
+        }
+    }
+
+    /// Write the selected float64 values straight into `dest`, a slice of the final design.
+    ///
+    /// This is the only copy: no gathered temporary exists. `dest` must hold exactly the
+    /// kept rows. It records one scan, one copy and its bytes.
+    ///
+    /// # Errors
+    ///
+    /// Unknown or non-float64 column, a `keep` that is not the table's row count, or a
+    /// `dest` of another length.
+    pub fn float64_selected_into(
+        &self,
+        id: VariableId,
+        keep: &[bool],
+        dest: &mut [f64],
+    ) -> Result<(), DataError> {
+        check_keep(self, keep)?;
+        let values = float_values(self, id)?;
+        fill_selected(values, keep, classify_mask(keep), dest)
+    }
+
+    /// The selected float64 values as the one shared allocation the caller keeps.
+    ///
+    /// The shared slice is filled in place, so the retained copy is the only copy. It
+    /// records one scan, one copy and its bytes.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::float64_selected_into`].
+    pub fn float64_selected_arc(
+        &self,
+        id: VariableId,
+        keep: &[bool],
+    ) -> Result<Arc<[f64]>, DataError> {
+        check_keep(self, keep)?;
+        let values = float_values(self, id)?;
+        let selection = classify_mask(keep);
+        let mut shared = zeroed_shared(selection.count());
+        let Some(dest) = Arc::get_mut(&mut shared) else {
+            return Err(DataError::InvalidArgument {
+                message: "a freshly built shared slice is not unique".into(),
+            });
+        };
+        fill_selected(values, keep, selection, dest)?;
+        Ok(shared)
+    }
+}
+
+impl<'a> DesignLayout<'a> {
+    /// Place `columns` at the rows `keep` selects, with no row-id list.
+    ///
+    /// The mask is classified once. A contiguous run of an `f64` column is borrowed. A
+    /// scattered mask gathers one owned column named [`OwnershipCopy::GATHER`]. An `i64` or
+    /// boolean column is cast into one owned column named [`OwnershipCopy::CAST`]. The
+    /// receipt lists exactly those copies.
+    ///
+    /// # Errors
+    ///
+    /// [`LayoutError`] when a column is not `f64`, `i64`, or boolean, a timestamp column is
+    /// passed, `keep` is not as long as a column, or a valid `i64` value has magnitude
+    /// above 2^53.
+    #[must_use = "a refused mask is reported before any layout allocation"]
+    pub fn from_mask(columns: &[ColumnView<'a>], keep: &[bool]) -> Result<Self, LayoutError> {
+        for (index, view) in columns.iter().copied().enumerate() {
+            ensure_numeric(view, index)?;
+            if view.len() != keep.len() {
+                return Err(LayoutError::mask_length(index, keep.len(), view.len()));
+            }
+        }
+        let selection = classify_mask(keep);
+        let mut stored = Vec::with_capacity(columns.len());
+        let mut copies = Vec::new();
+        for (index, view) in columns.iter().copied().enumerate() {
+            stored.push(place_masked(view, keep, selection, index, &mut copies)?);
+        }
+        Ok(Self {
+            n_rows: selection.count(),
+            columns: stored,
+            receipt: OwnershipReceipt { copies },
+            time_index_ns: None,
+        })
+    }
+}
+
+fn place_masked<'a>(
+    view: ColumnView<'a>,
+    keep: &[bool],
+    selection: MaskSelection,
+    column_index: usize,
+    copies: &mut Vec<OwnershipCopy>,
+) -> Result<Cow<'a, [f64]>, LayoutError> {
+    match view {
+        ColumnView::Float64(column) => {
+            let values = column.values.as_slice();
+            match selection {
+                MaskSelection::Empty => Ok(Cow::Borrowed(&values[..0])),
+                MaskSelection::Run { start, len } => Ok(Cow::Borrowed(&values[start..start + len])),
+                MaskSelection::Scatter { count } => {
+                    let mut owned = Vec::with_capacity(count);
+                    owned.extend(
+                        keep.iter().zip(values).filter(|(kept, _)| **kept).map(|(_, v)| *v),
+                    );
+                    record_gather(count);
+                    copies.push(OwnershipCopy::gather(column_index));
+                    Ok(Cow::Owned(owned))
+                }
+            }
+        }
+        ColumnView::Int64(column) => {
+            let mut owned = Vec::with_capacity(selection.count());
+            let values = column.values.as_ref();
+            for (index, kept) in keep.iter().enumerate() {
+                if !*kept {
+                    continue;
+                }
+                owned.push(match values.get(index) {
+                    Some(value) if column.validity.is_valid(index) => {
+                        if value.unsigned_abs() > EXACT_F64_INTEGER {
+                            return Err(
+                                LayoutError::inexact_integer(*value).in_column(column_index)
+                            );
+                        }
+                        *value as f64
+                    }
+                    Some(_) | None => f64::NAN,
+                });
+            }
+            record_gather(owned.len());
+            copies.push(OwnershipCopy::cast(column_index));
+            Ok(Cow::Owned(owned))
+        }
+        ColumnView::Boolean(column) => {
+            let mut owned = Vec::with_capacity(selection.count());
+            let values = column.values.as_ref();
+            for (index, kept) in keep.iter().enumerate() {
+                if *kept {
+                    owned.push(match values.get(index) {
+                        Some(value) if column.validity.is_valid(index) => f64::from(*value),
+                        Some(_) | None => f64::NAN,
+                    });
+                }
+            }
+            record_gather(owned.len());
+            copies.push(OwnershipCopy::cast(column_index));
+            Ok(Cow::Owned(owned))
+        }
+        ColumnView::Timestamp(_) => Err(LayoutError::epoch_column(column_index)),
+        ColumnView::Categorical(_) | ColumnView::FixedVector(_) => {
+            Err(LayoutError::not_numeric(column_index))
+        }
     }
 }
 
@@ -822,5 +1150,129 @@ mod tests {
         let wrong = DesignLayout::with_time_index(&[], &int_rows, ColumnView::Float64(&floats))
             .expect_err("float is not an epoch");
         assert!(wrong.to_string().contains("DesignLayout::with_time_index"));
+    }
+
+    #[test]
+    fn mask_classification_separates_runs_from_scatter() {
+        use super::{MaskSelection, classify_mask};
+
+        assert_eq!(classify_mask(&[]), MaskSelection::Empty);
+        assert_eq!(classify_mask(&[false, false]), MaskSelection::Empty);
+        assert_eq!(classify_mask(&[true, true, true]), MaskSelection::Run { start: 0, len: 3 });
+        assert_eq!(
+            classify_mask(&[false, true, true, false]),
+            MaskSelection::Run { start: 1, len: 2 }
+        );
+        let scattered = classify_mask(&[true, false, true]);
+        assert_eq!(scattered, MaskSelection::Scatter { count: 2 });
+        assert!(!scattered.is_borrowable());
+        assert_eq!(scattered.count(), 2);
+    }
+
+    #[test]
+    fn a_mask_run_borrows_and_a_scattered_mask_names_one_copy_per_column() {
+        let x = float_column(&[1.0, 2.0, 3.0, 4.0]);
+        let y = float_column(&[5.0, 6.0, 7.0, 8.0]);
+        let views = [ColumnView::Float64(&x), ColumnView::Float64(&y)];
+        let run = DesignLayout::from_mask(&views, &[false, true, true, false]).expect("run");
+        assert!(run.receipt().is_empty());
+        assert_eq!(run.n_rows(), 2);
+        assert_eq!(run.column(0).expect("x").as_ptr(), x.values.as_slice()[1..].as_ptr());
+        assert_eq!(run.column(1).expect("y"), &[6.0, 7.0]);
+        let full = DesignLayout::from_mask(&views, &[true; 4]).expect("full");
+        assert!(full.receipt().is_empty());
+        assert_eq!(full.column(0).expect("x").as_ptr(), x.values.as_slice().as_ptr());
+
+        let scattered =
+            DesignLayout::from_mask(&views, &[true, false, true, true]).expect("gather");
+        let copies = scattered.receipt().copies();
+        assert_eq!(copies.len(), 2);
+        assert!(copies.iter().all(|copy| copy.name() == OwnershipCopy::GATHER));
+        assert_eq!(scattered.column(1).expect("y"), &[5.0, 7.0, 8.0]);
+
+        let short = DesignLayout::from_mask(&views, &[true, false]).expect_err("short mask");
+        assert!(short.to_string().contains("keep mask of length 2"));
+        assert_eq!(short.column_index(), 0);
+    }
+
+    #[test]
+    fn a_masked_cast_is_one_named_copy_and_refuses_inexact_integers() {
+        let exact = 1_i64 << 53;
+        let ints = Int64Column::new(
+            VariableId::from_raw(1),
+            vec![1, exact + 1, 3],
+            ValidityBitmap::all_valid(3),
+        )
+        .expect("ints");
+        let flags = BooleanColumn::new(
+            VariableId::from_raw(2),
+            vec![1_u8, 0, 1],
+            ValidityBitmap::all_valid(3),
+        )
+        .expect("flags");
+        let kept = DesignLayout::from_mask(
+            &[ColumnView::Int64(&ints), ColumnView::Boolean(&flags)],
+            &[true, false, true],
+        )
+        .expect("the inexact value is not selected");
+        assert_eq!(kept.column(0).expect("ints"), &[1.0, 3.0]);
+        assert_eq!(kept.column(1).expect("flags"), &[1.0, 1.0]);
+        assert!(kept.receipt().copies().iter().all(|copy| copy.name() == OwnershipCopy::CAST));
+        assert_eq!(kept.receipt().copies().len(), 2);
+        let refused = DesignLayout::from_mask(&[ColumnView::Int64(&ints)], &[true, true, true])
+            .expect_err("selected 2^53 + 1");
+        assert_eq!(refused.inexact_value(), Some(exact + 1));
+    }
+
+    #[test]
+    fn selected_table_columns_borrow_runs_and_gather_once_into_their_destination() {
+        use std::borrow::Cow;
+
+        use crate::dataset::TabularData;
+        use crate::table::TableView;
+
+        let data = TabularData::from_f64_columns([
+            ("a", &[1.0, 2.0, 3.0, 4.0, 5.0][..]),
+            ("b", &[10.0, 20.0, 30.0, 40.0, 50.0][..]),
+        ])
+        .expect("table");
+        let a = VariableId::from_raw(0);
+        let source = data.column(a).expect("column");
+        let ColumnView::Float64(source) = source else { panic!("float column") };
+        let base = source.values.as_slice().as_ptr();
+
+        let full = data.float64_selected(a, &[true; 5]).expect("full");
+        assert!(matches!(full, Cow::Borrowed(_)));
+        assert_eq!(full.as_ptr(), base);
+        let run = data.float64_selected(a, &[false, true, true, true, false]).expect("run");
+        assert!(matches!(run, Cow::Borrowed(_)));
+        assert_eq!(&*run, &[2.0, 3.0, 4.0]);
+        let scattered = data.float64_selected(a, &[true, false, true, false, true]).expect("g");
+        assert!(matches!(scattered, Cow::Owned(_)));
+        assert_eq!(&*scattered, &[1.0, 3.0, 5.0]);
+        let reference = data.float64_masked(a, &[true, false, true, false, true]).expect("ref");
+        assert_eq!(&*scattered, reference.as_slice());
+
+        // The gather lands in the destination slice of a larger design, with no temporary.
+        let mut design = vec![0.0; 6];
+        let (head, tail) = design.split_at_mut(3);
+        data.float64_selected_into(a, &[true, false, true, false, true], head).expect("into");
+        data.float64_selected_into(
+            VariableId::from_raw(1),
+            &[true, false, true, false, true],
+            tail,
+        )
+        .expect("into");
+        assert_eq!(design, [1.0, 3.0, 5.0, 10.0, 30.0, 50.0]);
+        let mut wrong = vec![0.0; 2];
+        assert!(
+            data.float64_selected_into(a, &[true, false, true, false, true], &mut wrong).is_err()
+        );
+        assert!(data.float64_selected(a, &[true, false]).is_err());
+
+        let shared = data.float64_selected_arc(a, &[true, false, true, false, true]).expect("arc");
+        assert_eq!(&*shared, &[1.0, 3.0, 5.0]);
+        let empty = data.float64_selected_arc(a, &[false; 5]).expect("empty arc");
+        assert!(empty.is_empty());
     }
 }

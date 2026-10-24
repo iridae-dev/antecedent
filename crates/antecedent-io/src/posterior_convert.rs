@@ -126,6 +126,9 @@ pub fn encode_causal_posterior_with_payload(
             route_bound: p.route_bound.clone(),
             rows_admitted: p.rows_admitted,
             receipt_digest: p.receipt_digest.clone(),
+            admitted_bytes: p.admitted_bytes,
+            budget_bytes: p.budget_bytes,
+            delivery: p.delivery.clone(),
         }),
     };
     encode_posterior_artifact(&meta, draws, artifact_id, VERSION)
@@ -220,6 +223,9 @@ mod tests {
             route_bound: "rows_only".into(),
             rows_admitted: Some(4),
             receipt_digest: "ab12".into(),
+            admitted_bytes: Some(64),
+            budget_bytes: None,
+            delivery: Some("finite".into()),
         });
         let artifact = encode_posterior_artifact(&meta, &draws, "with", VERSION).unwrap();
         let mut bytes = Vec::new();

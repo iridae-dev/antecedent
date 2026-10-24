@@ -27,7 +27,8 @@ use antecedent_core::measurement_record::{
     MeasurementRecord, MeasurementSummary, PeakRss, PeakRssSummary, measure,
 };
 use antecedent_kernels::native_probe::{
-    CountingAllocator, NativeProbe, allocation_sample, peak_rss_bytes, write_measurement,
+    CountingAllocator, NativeProbe, allocation_sample, measured_pass, peak_rss_bytes,
+    write_measurement,
 };
 use antecedent_kernels::{F64VectorView, gather};
 
@@ -139,4 +140,11 @@ fn the_probe_reads_the_allocator_and_the_resident_set_around_real_work() {
                 .unwrap();
         assert!(path.is_file());
     }
+
+    // The measured pass a bench main runs: repeats under the probe, summary printed, and
+    // written when the output directory is set. It switches counting off afterwards.
+    let pass = measured_pass("native_probe_pass", 3, &context(), || build_buffer(words));
+    assert_eq!(pass.repeats, 3);
+    assert!(pass.allocation_bytes.min >= 4 * MIB);
+    assert!(pass.peak_live_bytes.min >= 4 * MIB);
 }

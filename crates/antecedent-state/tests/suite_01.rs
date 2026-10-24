@@ -9,5 +9,7 @@ mod conjugate_refresh_oracle;
 mod ols_refresh_contract;
 #[path = "particle_filter_oracle.rs"]
 mod particle_filter_oracle;
+#[path = "refresh_families_oracle.rs"]
+mod refresh_families_oracle;
 #[path = "rolling_mechanism_oracle.rs"]
 mod rolling_mechanism_oracle;

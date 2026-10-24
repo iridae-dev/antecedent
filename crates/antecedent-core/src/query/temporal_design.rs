@@ -103,6 +103,15 @@ pub enum TemporalAssignment {
         /// Survival horizon in periods.
         horizon: u32,
     },
+    /// Observational decisions: a binary treatment whose assignment law is not recorded and
+    /// is estimated from the measured decision-time history. The excursion contrast is
+    /// identified by declared sequential exchangeability given that history, not by design.
+    ObservationalExcursion {
+        /// Binary treatment indicator column, coded exactly 0 or 1.
+        treatment: VariableId,
+        /// History columns measured at each decision that the assignment model reads.
+        history: Arc<[VariableId]>,
+    },
 }
 
 /// Validation-sample counts of a misclassified binary outcome whose error is the same in every
@@ -217,6 +226,11 @@ impl CanonicalEncode for TemporalAssignment {
                 encode_variables(writer, confounders);
                 writer.word(u64::from(*horizon));
             }
+            Self::ObservationalExcursion { treatment, history } => {
+                writer.word(7);
+                treatment.encode(writer);
+                encode_variables(writer, history);
+            }
         }
     }
 }
@@ -290,11 +304,16 @@ impl TemporalDesignQuery {
             columns.push(*censored);
             columns.extend(confounders.iter().copied());
         }
+        if let TemporalAssignment::ObservationalExcursion { treatment, history } = &self.assignment
+        {
+            columns.push(*treatment);
+            columns.extend(history.iter().copied());
+        }
         columns
     }
 
     /// A short design name: `two_arm`, `multi_arm`, `categorical`, `factorial`,
-    /// `interference`, `dose` or `regime_survival`.
+    /// `interference`, `dose`, `regime_survival` or `observational_excursion`.
     #[must_use]
     pub const fn design_name(&self) -> &'static str {
         match &self.assignment {
@@ -305,6 +324,7 @@ impl TemporalDesignQuery {
             TemporalAssignment::Interference { .. } => "interference",
             TemporalAssignment::Dose { .. } => "dose",
             TemporalAssignment::RegimeSurvival { .. } => "regime_survival",
+            TemporalAssignment::ObservationalExcursion { .. } => "observational_excursion",
         }
     }
 
@@ -480,6 +500,23 @@ impl TemporalDesignQuery {
                 if sorted.len() != columns.len() {
                     return Err(invalid(
                         "event, treatment, censoring and confounder columns must be distinct",
+                    ));
+                }
+            }
+            TemporalAssignment::ObservationalExcursion { treatment, history } => {
+                if self.outcome_misclassification.is_some() {
+                    return Err(invalid(
+                        "an outcome misclassification correction applies to the recorded-law arm designs",
+                    ));
+                }
+                let mut columns = vec![self.outcome, *treatment];
+                columns.extend(history.iter().copied());
+                let mut sorted = columns.clone();
+                sorted.sort_unstable();
+                sorted.dedup();
+                if sorted.len() != columns.len() {
+                    return Err(invalid(
+                        "outcome, treatment and history columns of an observational excursion must be distinct",
                     ));
                 }
             }

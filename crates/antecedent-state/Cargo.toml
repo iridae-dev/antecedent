@@ -32,5 +32,9 @@ name = "state_append"
 harness = false
 
 [[test]]
+name = "streaming_memory_bound"
+path = "tests/streaming_memory_bound.rs"
+
+[[test]]
 name = "suite_01"
 path = "tests/suite_01.rs"

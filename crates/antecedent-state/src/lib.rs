@@ -5,7 +5,10 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+pub mod conjugate_block_refresh;
 pub mod conjugate_refresh;
+pub mod covariance_refresh;
+pub mod disk_retention;
 pub mod error;
 pub mod event;
 pub mod graph_score;
@@ -18,15 +21,22 @@ pub mod retention;
 pub mod state;
 pub mod store;
 pub mod suff_stats;
+pub mod weighted_refresh;
 
+pub use conjugate_block_refresh::ConjugateBlockRefresh;
 pub use conjugate_refresh::{ConjugateOlsPosterior, ConjugateOlsPrior, ConjugateOlsSummary};
+pub use covariance_refresh::{CovarianceRefresh, CovarianceRow, CovarianceSnapshot};
+pub use disk_retention::{SpillHandle, SpillRegistry, SpillStats, Spillable};
 pub use error::StateError;
 pub use event::StateEvent;
 pub use graph_score::{
     GraphScoreCacheKey, GraphScoreData, GraphScoreFamily, LocalScoreCache, ParentSetOp,
     full_graph_score,
 };
-pub use invalidation::{ChangedInput, InvalidationEntry, InvalidationLog, InvalidationTarget};
+pub use invalidation::{
+    ChangedInput, InvalidationEntry, InvalidationLog, InvalidationTarget, TemporalDisposition,
+    TemporalFactor, TemporalProduct,
+};
 pub use mechanism_diag::{
     RollingMechanismDiagnostics, evict_mechanism_diag, insert_mechanism_diag,
 };
@@ -44,3 +54,4 @@ pub use suff_stats::{
     LagIndexCacheEntry, LagIndexCacheKey, LinearOlsDelta, LinearOlsSuffStats, MERGE_ABS_TOL,
     MERGE_REL_TOL, StreamingCovariance, merge_within_tolerance,
 };
+pub use weighted_refresh::{WeightedLedger, WeightedOlsRefresh, WeightedRow, WeightedSnapshot};

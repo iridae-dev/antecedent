@@ -5,7 +5,10 @@
 //! observations within [`crate::merge_within_tolerance`]), it is dropped and recomputed from
 //! the retained observations, or the change is refused because it breaks a premise of the
 //! route. A stale result is never a fifth way. The table below is the contract; the routes
-//! that carry a summary apply it in [`crate::OlsRefresh`] and [`crate::ConjugateOlsPosterior`].
+//! that carry a summary apply it in [`crate::OlsRefresh`] and [`crate::WeightedOlsRefresh`]
+//! (least squares with count and real weights), [`crate::CovarianceRefresh`] (streaming
+//! scatter) and [`crate::ConjugateBlockRefresh`] (conjugate posterior over labelled blocks).
+//! Each one checks its cached result against a fresh reconstruction from the retained rows.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

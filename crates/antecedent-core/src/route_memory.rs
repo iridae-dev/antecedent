@@ -154,6 +154,16 @@ impl RouteBudget {
     pub const fn bytes(self) -> u64 {
         self.bytes
     }
+
+    /// Budget from an optional caller limit. No limit is the largest budget,
+    /// which admits any sum that is representable.
+    #[must_use]
+    pub const fn from_limit(limit: Option<u64>) -> Self {
+        match limit {
+            Some(bytes) => Self::new(bytes),
+            None => Self::new(u64::MAX),
+        }
+    }
 }
 
 /// Refusal from route-memory estimation or admission.
@@ -262,12 +272,25 @@ impl RouteMemoryDeclaration {
     ///
     /// The column contributes [`EncodedWidth::bytes`], not a nominal eight.
     #[must_use]
-    pub const fn encoded_column(mut self, width: EncodedWidth) -> Self {
-        let count = self.column_count.checked_add(1);
-        let sum = self.width_sum.checked_add(width.bytes());
-        match (count, sum) {
-            (Some(count), Some(sum)) => {
-                self.column_count = count;
+    pub const fn encoded_column(self, width: EncodedWidth) -> Self {
+        self.encoded_columns(width, 1)
+    }
+
+    /// Add `count` columns at one declared encoded width.
+    ///
+    /// Each column contributes [`EncodedWidth::bytes`]. A count that is zero
+    /// declares no column, so encoded width stays absent until one is added.
+    #[must_use]
+    pub const fn encoded_columns(mut self, width: EncodedWidth, count: u64) -> Self {
+        let columns = self.column_count.checked_add(count);
+        let added = width.bytes().checked_mul(count);
+        let sum = match added {
+            Some(added) => self.width_sum.checked_add(added),
+            None => None,
+        };
+        match (columns, sum) {
+            (Some(columns), Some(sum)) => {
+                self.column_count = columns;
                 self.width_sum = sum;
             }
             _ => self.encoded_overflow = true,
@@ -504,6 +527,24 @@ impl RouteMemoryEstimate {
         self.concurrent_workers
     }
 
+    /// The eight components in declaration order, each with its name.
+    ///
+    /// Their sum is [`Self::total`]. Solver scratch is one copy and the
+    /// concurrent-worker component is every copy after it.
+    #[must_use]
+    pub const fn components(self) -> [(RouteMemoryComponent, u64); 8] {
+        [
+            (RouteMemoryComponent::EncodedWidth, self.encoded_width),
+            (RouteMemoryComponent::Masks, self.masks),
+            (RouteMemoryComponent::DesignExpansion, self.design_expansion),
+            (RouteMemoryComponent::LearnerFoldCopies, self.learner_fold_copies),
+            (RouteMemoryComponent::SolverScratch, self.solver_scratch),
+            (RouteMemoryComponent::RetainedScoresDraws, self.retained_scores_draws),
+            (RouteMemoryComponent::Output, self.output),
+            (RouteMemoryComponent::ConcurrentWorkers, self.concurrent_workers),
+        ]
+    }
+
     /// Declared learner and fold copy count.
     #[must_use]
     pub const fn copy_count(self) -> u64 {
@@ -579,6 +620,240 @@ impl AdmittedRouteMemory {
     }
 }
 
+/// Structure of one route, from which every memory component is quoted.
+///
+/// The profile holds what the route will actually hold: the rows and encoded
+/// columns of its design, whether the design is gathered through a
+/// materialized expansion, the cross-fitting folds and learners, the
+/// resampling replicates and posterior draws it retains, the workers it runs,
+/// and any byte estimates its physical operators declared. [`Self::declaration`]
+/// turns it into a complete [`RouteMemoryDeclaration`], so no component is
+/// left absent and none is a nominal row-by-column constant.
+///
+/// Components are quoted as follows, with `w` the declared element width:
+///
+/// * encoded width: `rows × columns × w`;
+/// * masks: one validity bit per cell, `⌈rows / 8⌉ × columns` bytes;
+/// * design expansion: a second `rows × columns × w` when the design is
+///   gathered through a materialized expansion, none when it is borrowed;
+/// * learner/fold copies: `folds × learners` copies of the training design,
+///   `(rows − ⌈rows / folds⌉) × columns × w` bytes each, none without folds;
+/// * solver scratch: a factorization copy of the design, the Gram matrix, the
+///   right-hand side and the residual, `(rows × columns + columns² + columns + rows) × w`;
+/// * retained scores and draws: out-of-fold predictions `rows × learners × w`
+///   when cross-fitting, `replicates × w`, and `draws × columns × w`;
+/// * output: the per-row scores, coefficients, replicates and draws published,
+///   `(rows + columns + replicates + draws) × w`;
+/// * workers: the declared count, each holding one scratch copy.
+///
+/// A byte estimate the physical operators declared raises its component to
+/// the declared figure when that figure is larger than the quote. A declared
+/// figure never lowers a quoted one.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub struct RouteMemoryProfile {
+    rows: u64,
+    columns: u64,
+    width: EncodedWidth,
+    expanded: bool,
+    folds: u64,
+    learners: u64,
+    replicates: u64,
+    draws: u64,
+    workers: u64,
+    declared_scratch: Option<u64>,
+    declared_retained: Option<u64>,
+    declared_output: Option<u64>,
+}
+
+impl RouteMemoryProfile {
+    /// A design of `rows` by `columns` binary64 columns, borrowed from its
+    /// source, with no cross-fitting, resampling or draws, on one worker.
+    #[must_use]
+    pub const fn design(rows: u64, columns: u64) -> Self {
+        Self {
+            rows,
+            columns,
+            width: EncodedWidth::float64(),
+            expanded: false,
+            folds: 0,
+            learners: 0,
+            replicates: 0,
+            draws: 0,
+            workers: 1,
+            declared_scratch: None,
+            declared_retained: None,
+            declared_output: None,
+        }
+    }
+
+    /// Encoded width of every design column.
+    #[must_use]
+    pub const fn width(mut self, width: EncodedWidth) -> Self {
+        self.width = width;
+        self
+    }
+
+    /// Whether the design is gathered through a materialized expansion that
+    /// holds the selected columns while the final design is assembled.
+    #[must_use]
+    pub const fn expanded(mut self, expanded: bool) -> Self {
+        self.expanded = expanded;
+        self
+    }
+
+    /// Cross-fit over `folds` folds, fitting `learners` nuisance learners on
+    /// each training split. Fewer than two folds is no cross-fitting.
+    #[must_use]
+    pub const fn cross_fitting(mut self, folds: u64, learners: u64) -> Self {
+        self.folds = folds;
+        self.learners = learners;
+        self
+    }
+
+    /// Retain one estimate per resampling replicate.
+    #[must_use]
+    pub const fn resampling(mut self, replicates: u64) -> Self {
+        self.replicates = replicates;
+        self
+    }
+
+    /// Retain `draws` posterior draws of every design coefficient.
+    #[must_use]
+    pub const fn posterior_draws(mut self, draws: u64) -> Self {
+        self.draws = draws;
+        self
+    }
+
+    /// Run on `workers` workers, each holding one scratch copy.
+    #[must_use]
+    pub const fn workers(mut self, workers: u64) -> Self {
+        self.workers = workers;
+        self
+    }
+
+    /// Byte estimates the physical operators declared in total. `None` is an
+    /// operator that declared nothing, which leaves the quoted figure alone.
+    #[must_use]
+    pub const fn declared_operator_bytes(
+        mut self,
+        scratch: Option<u64>,
+        retained: Option<u64>,
+        output: Option<u64>,
+    ) -> Self {
+        self.declared_scratch = scratch;
+        self.declared_retained = retained;
+        self.declared_output = output;
+        self
+    }
+
+    /// Rows of the design.
+    #[must_use]
+    pub const fn rows(self) -> u64 {
+        self.rows
+    }
+
+    /// Encoded columns of the design.
+    #[must_use]
+    pub const fn columns(self) -> u64 {
+        self.columns
+    }
+
+    /// Bytes of the final design: `rows × columns × w`.
+    ///
+    /// # Errors
+    ///
+    /// [`RouteMemoryError::Unrepresentable`] when the product overflows.
+    pub const fn design_bytes(self) -> Result<u64, RouteMemoryError> {
+        match self.width.table_bytes(self.rows, self.columns) {
+            Some(bytes) => Ok(bytes),
+            None => Err(RouteMemoryError::Unrepresentable),
+        }
+    }
+
+    /// The complete declaration this profile quotes.
+    ///
+    /// # Errors
+    ///
+    /// [`RouteMemoryError::Unrepresentable`] when a product or sum overflows
+    /// `u64`. [`RouteMemoryError::MissingComponent`] when the design has no
+    /// column, which leaves encoded width absent.
+    pub fn declaration(self) -> Result<RouteMemoryDeclaration, RouteMemoryError> {
+        let w = self.width.bytes();
+        let design = self.design_bytes()?;
+        let masks = checked(self.rows.div_ceil(8).checked_mul(self.columns))?;
+        let expansion = if self.expanded { design } else { 0 };
+        let (copies, per_copy) = if self.folds >= 2 {
+            let held_out = self.rows.div_ceil(self.folds);
+            let training = self.width.table_bytes(self.rows - held_out, self.columns);
+            (checked(self.folds.checked_mul(self.learners))?, checked(training)?)
+        } else {
+            (0, 0)
+        };
+        let gram = checked(self.columns.checked_mul(self.columns))?;
+        let solver_cells = sum_checked([
+            checked(self.rows.checked_mul(self.columns))?,
+            gram,
+            self.columns,
+            self.rows,
+        ])?;
+        let scratch = checked(solver_cells.checked_mul(w))?;
+        let predictions = if self.folds >= 2 {
+            checked(self.rows.checked_mul(self.learners).and_then(|cells| cells.checked_mul(w)))?
+        } else {
+            0
+        };
+        let draw_cells = checked(self.draws.checked_mul(self.columns))?;
+        let retained = sum_checked([
+            predictions,
+            checked(self.replicates.checked_mul(w))?,
+            checked(draw_cells.checked_mul(w))?,
+        ])?;
+        let output_cells = sum_checked([self.rows, self.columns, self.replicates, self.draws])?;
+        let output = checked(output_cells.checked_mul(w))?;
+        Ok(RouteMemoryDeclaration::new()
+            .rows(self.rows)
+            .encoded_columns(self.width, self.columns)
+            .masks(masks)
+            .design_expansion(expansion)
+            .learner_fold_copies(copies, per_copy)
+            .solver_scratch(self.declared_scratch.map_or(scratch, |declared| declared.max(scratch)))
+            .retained_scores_draws(
+                self.declared_retained.map_or(retained, |declared| declared.max(retained)),
+            )
+            .output(self.declared_output.map_or(output, |declared| declared.max(output)))
+            .workers(self.workers))
+    }
+
+    /// The estimate of [`Self::declaration`].
+    ///
+    /// # Errors
+    ///
+    /// The errors of [`Self::declaration`] and [`RouteMemoryDeclaration::estimate`].
+    pub fn estimate(self) -> Result<RouteMemoryEstimate, RouteMemoryError> {
+        self.declaration()?.estimate()
+    }
+
+    /// Estimate, then admit under `budget`. Returns before any buffer is allocated.
+    ///
+    /// # Errors
+    ///
+    /// The errors of [`Self::estimate`], and [`RouteMemoryError::ExceedsBudget`].
+    pub fn admit(self, budget: RouteBudget) -> Result<AdmittedRouteMemory, RouteMemoryError> {
+        self.declaration()?.admit(budget)
+    }
+}
+
+fn checked(value: Option<u64>) -> Result<u64, RouteMemoryError> {
+    value.ok_or(RouteMemoryError::Unrepresentable)
+}
+
+fn sum_checked<const N: usize>(parts: [u64; N]) -> Result<u64, RouteMemoryError> {
+    parts
+        .into_iter()
+        .try_fold(0u64, |total, part| total.checked_add(part))
+        .ok_or(RouteMemoryError::Unrepresentable)
+}
+
 const fn missing(component: RouteMemoryComponent) -> RouteMemoryError {
     RouteMemoryError::MissingComponent { component }
 }
@@ -600,8 +875,110 @@ const fn component_sum(parts: [u64; 8]) -> Option<u64> {
 mod tests {
     use super::{
         AdmittedRouteMemory, EncodedWidth, RouteBudget, RouteMemoryComponent,
-        RouteMemoryDeclaration, RouteMemoryError, RouteMemoryEstimate,
+        RouteMemoryDeclaration, RouteMemoryError, RouteMemoryEstimate, RouteMemoryProfile,
     };
+
+    fn cross_fitted_profile() -> RouteMemoryProfile {
+        RouteMemoryProfile::design(100, 4)
+            .expanded(true)
+            .cross_fitting(5, 2)
+            .resampling(10)
+            .posterior_draws(50)
+            .workers(3)
+    }
+
+    #[test]
+    fn profile_quotes_each_component_from_the_route_structure() {
+        let estimate = cross_fitted_profile().estimate().expect("complete profile");
+        assert_eq!(estimate.encoded_width(), 100 * 4 * 8);
+        assert_eq!(estimate.masks(), 13 * 4, "one validity bit per cell");
+        assert_eq!(estimate.design_expansion(), 100 * 4 * 8, "materialized expansion");
+        assert_eq!(estimate.copy_count(), 5 * 2);
+        assert_eq!(estimate.learner_fold_copies(), 10 * (80 * 4 * 8), "training split per copy");
+        assert_eq!(estimate.solver_scratch(), (400 + 16 + 4 + 100) * 8);
+        assert_eq!(estimate.retained_scores_draws(), 100 * 2 * 8 + 10 * 8 + 50 * 4 * 8);
+        assert_eq!(estimate.output(), (100 + 4 + 10 + 50) * 8);
+        assert_eq!(estimate.concurrent_workers(), 2 * estimate.solver_scratch());
+        assert_eq!(estimate.worker_count(), 3);
+        assert_eq!(estimate.total(), 49_124);
+        let summed: u64 = estimate.components().iter().map(|(_, bytes)| *bytes).sum();
+        assert_eq!(summed, estimate.total());
+        assert_eq!(estimate.components()[0].0, RouteMemoryComponent::EncodedWidth);
+    }
+
+    #[test]
+    fn a_borrowed_design_without_cross_fitting_holds_no_expansion_or_fold_copies() {
+        let borrowed = RouteMemoryProfile::design(100, 4).estimate().expect("complete profile");
+        assert_eq!(borrowed.design_expansion(), 0);
+        assert_eq!(borrowed.learner_fold_copies(), 0);
+        assert_eq!(borrowed.copy_count(), 0);
+        assert_eq!(borrowed.retained_scores_draws(), 0);
+        assert_eq!(borrowed.concurrent_workers(), 0);
+        let expanded =
+            RouteMemoryProfile::design(100, 4).expanded(true).estimate().expect("complete profile");
+        assert_eq!(expanded.total() - borrowed.total(), 100 * 4 * 8);
+        let narrow = RouteMemoryProfile::design(100, 4)
+            .width(EncodedWidth::float32())
+            .estimate()
+            .expect("complete profile");
+        assert_eq!(narrow.encoded_width(), 100 * 4 * 4, "a binary32 design is not widened");
+        assert!(narrow.total() < borrowed.total());
+    }
+
+    #[test]
+    fn declared_operator_bytes_raise_a_component_and_never_lower_it() {
+        let quoted = RouteMemoryProfile::design(100, 4).estimate().expect("complete profile");
+        let raised = RouteMemoryProfile::design(100, 4)
+            .declared_operator_bytes(Some(1 << 20), Some(1 << 21), Some(1 << 22))
+            .estimate()
+            .expect("complete profile");
+        assert_eq!(raised.solver_scratch(), 1 << 20);
+        assert_eq!(raised.retained_scores_draws(), 1 << 21);
+        assert_eq!(raised.output(), 1 << 22);
+        let lowered = RouteMemoryProfile::design(100, 4)
+            .declared_operator_bytes(Some(1), Some(0), Some(1))
+            .estimate()
+            .expect("complete profile");
+        assert_eq!(lowered, quoted, "a declared figure below the quote leaves the quote");
+    }
+
+    #[test]
+    fn profile_admission_refuses_by_sum_and_a_lower_declared_copy_set_admits() {
+        let profile = cross_fitted_profile();
+        let estimate = profile.estimate().expect("complete profile");
+        let refused = profile.admit(RouteBudget::new(estimate.total() - 1));
+        assert_eq!(
+            refused,
+            Err(RouteMemoryError::ExceedsBudget {
+                estimated_bytes: estimate.total(),
+                budget_bytes: estimate.total() - 1,
+            })
+        );
+        assert!(profile.admit(RouteBudget::new(estimate.total())).is_ok());
+        let fewer_workers = profile.workers(1).estimate().expect("complete profile");
+        let fewer_folds = profile.cross_fitting(2, 1).estimate().expect("complete profile");
+        let fewer_draws = profile.posterior_draws(0).estimate().expect("complete profile");
+        for lower in [fewer_workers, fewer_folds, fewer_draws] {
+            assert!(lower.total() < estimate.total());
+            assert!(profile.admit(RouteBudget::new(lower.total())).is_err());
+        }
+        assert_eq!(RouteBudget::from_limit(None).bytes(), u64::MAX);
+        assert_eq!(RouteBudget::from_limit(Some(7)).bytes(), 7);
+    }
+
+    #[test]
+    fn a_design_without_columns_is_not_a_zero_byte_design() {
+        assert_eq!(
+            RouteMemoryProfile::design(100, 0).estimate(),
+            Err(RouteMemoryError::MissingComponent {
+                component: RouteMemoryComponent::EncodedWidth,
+            })
+        );
+        assert_eq!(
+            RouteMemoryProfile::design(u64::MAX, 2).estimate(),
+            Err(RouteMemoryError::Unrepresentable)
+        );
+    }
 
     fn fully_declared() -> RouteMemoryEstimate {
         RouteMemoryDeclaration::new()

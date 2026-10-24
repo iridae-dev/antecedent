@@ -468,7 +468,7 @@ impl LinearOlsSuffStats {
 }
 
 /// `XᵀX β = Xᵀy` from a Cholesky factor. `None` of an inverse is formed.
-fn solve_gram(xtx: &[f64], xty: &[f64], ncols: usize) -> Result<Vec<f64>, StateError> {
+pub(crate) fn solve_gram(xtx: &[f64], xty: &[f64], ncols: usize) -> Result<Vec<f64>, StateError> {
     let singular = StateError::Numerical("singular XtX".into());
     let Some(nn) = ncols.checked_mul(ncols) else {
         return Err(StateError::Shape("ols gram dimension overflow".into()));

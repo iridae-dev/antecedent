@@ -1,0 +1,64 @@
+{
+ "routes": [
+  {
+   "id": "licensed.AverageEffect.Dag",
+   "status": "licensed",
+   "design_time_model": "static; structure=explicit,accepted,graph_posterior",
+   "inference": "Frequentist,Bayesian"
+  },
+  {
+   "id": "licensed.AnomalyAttribution.TemporalDag",
+   "status": "licensed",
+   "design_time_model": "temporal; structure=explicit",
+   "inference": "Frequentist,Bayesian"
+  },
+  {
+   "id": "licensed.InterventionResponse.CoDetermined",
+   "status": "licensed",
+   "design_time_model": "static; structure=explicit",
+   "inference": "Frequentist,Bayesian (executing unlicensed)"
+  },
+  {
+   "id": "closed.AnomalyAttribution.Admg",
+   "status": "closed",
+   "design_time_model": "static; refused structure=explicit,accepted,graph_posterior",
+   "inference": "refused:Frequentist,Bayesian"
+  },
+  {
+   "id": "gcm.simulate",
+   "status": "execution_only",
+   "design_time_model": "supplied or accepted static Dag; targets=interventional_sample,policy_value,unit_effects,noise_sample,noise_replay,counterfactual,temporal_rollout,temporal_counterfactual",
+   "inference": "Frequentist"
+  },
+  {
+   "id": "gcm.attribute.temporal.bayesian",
+   "status": "execution_only",
+   "design_time_model": "supplied TemporalDag unfolded to its lag-aligned static graph; one dependent series; refits resample or weight blocks of consecutive times (at least the lag span plus one rows)",
+   "inference": "Bayesian"
+  },
+  {
+   "id": "gcm.model.intervention_programs",
+   "status": "execution_only",
+   "design_time_model": "fitted SCM; static sampling, counterfactual replay, or temporal rollout window",
+   "inference": "unlisted"
+  },
+  {
+   "id": "gcm.model.mechanism_selection",
+   "status": "fitting_gap",
+   "design_time_model": "per-node mechanism on a fitted graphical causal model; splits=shuffled|time_ordered|clustered",
+   "inference": "unlisted"
+  },
+  {
+   "id": "graphless.randomized_effect.complete.neyman_difference_in_means",
+   "status": "graphless",
+   "design_time_model": "complete",
+   "inference": "pointwise_95_normal_interval"
+  },
+  {
+   "id": "temporal_design.regime_survival",
+   "status": "execution_only",
+   "design_time_model": "graphless subject trajectories with time-varying confounders; static always-treat versus never-treat regimes; survival at a declared horizon",
+   "inference": "Frequentist"
+  }
+ ]
+}

@@ -190,6 +190,35 @@ impl<'a> SearchBudget<'a> {
         Ok(())
     }
 
+    /// Lease `bytes` of storage for the search's context on its admission pool, to be held
+    /// while the caller allocates it. Nothing is allocated here, and a refusal charges nothing.
+    ///
+    /// # Errors
+    ///
+    /// [`SearchStop::Cancelled`] when the context is cancelled, [`SearchStop::Memory`] when
+    /// `bytes` exceeds the effective cap or the pool cannot fund it.
+    pub fn lease_storage(
+        &self,
+        bytes: u64,
+    ) -> Result<crate::execution::AdmissionLease, SearchStop> {
+        if self.ctx.cancellation.is_cancelled() {
+            return Err(SearchStop::Cancelled);
+        }
+        if bytes > self.memory_limit_bytes {
+            return Err(SearchStop::Memory);
+        }
+        self.ctx.acquire_admission(0, bytes).map_err(|error| match error {
+            crate::execution::AdmissionError::Cancelled => SearchStop::Cancelled,
+            _ => SearchStop::Memory,
+        })
+    }
+
+    /// Operations the limits still allow.
+    #[must_use]
+    pub const fn operations_remaining(&self) -> usize {
+        self.limits.operations.saturating_sub(self.operations)
+    }
+
     /// Limits in force.
     #[must_use]
     pub const fn limits(&self) -> SearchLimits {

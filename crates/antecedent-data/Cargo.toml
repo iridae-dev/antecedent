@@ -58,6 +58,15 @@ path = "tests/file_source.rs"
 required-features = ["parquet", "ipc"]
 
 [[test]]
+name = "selected_columns_allocation"
+path = "tests/selected_columns_allocation.rs"
+
+[[test]]
+name = "direct_arrow_workloads"
+path = "tests/direct_arrow_workloads.rs"
+required-features = ["parquet", "ipc"]
+
+[[test]]
 name = "ipc_admission"
 path = "tests/ipc_admission.rs"
 required-features = ["ipc"]

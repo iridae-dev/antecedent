@@ -136,6 +136,9 @@ struct ProgramWire {
     kernel: [bool; 3],
     strict: bool,
     frozen: FrozenPanelFit,
+    /// Canonical digest and serialized length, computed once for this immutable program.
+    #[serde(skip)]
+    canonical: std::sync::OnceLock<([u8; 32], usize)>,
 }
 impl Serialize for PanelExecutionProgram {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
@@ -293,6 +296,7 @@ impl PanelExecutionProgram {
                 ],
                 strict: matches!(source.context.determinism, Determinism::Strict),
                 frozen: source.frozen,
+                canonical: std::sync::OnceLock::new(),
             }),
             retention: Some(retention),
         };
@@ -303,10 +307,23 @@ impl PanelExecutionProgram {
     /// # Errors
     /// Encoding or size overflow.
     pub fn identity(&self) -> Result<[u8; 32], PanelArtifactError> {
-        Ok(antecedent_core::CanonicalWriter::digest_bytes(
-            "antecedent.joint_panel.frozen_program.v1",
-            &serde_json::to_vec(self).map_err(invalid)?,
-        ))
+        Ok(self.canonical()?.0)
+    }
+    /// The program is immutable, so its serialization (dominated by the frozen draws) is
+    /// digested and measured once however many consumers ask for identity or a quote.
+    fn canonical(&self) -> Result<([u8; 32], usize), PanelArtifactError> {
+        if let Some(cached) = self.inner.canonical.get() {
+            return Ok(*cached);
+        }
+        let bytes = serde_json::to_vec(self).map_err(invalid)?;
+        let value = (
+            antecedent_core::CanonicalWriter::digest_bytes(
+                "antecedent.joint_panel.frozen_program.v1",
+                &bytes,
+            ),
+            bytes.len(),
+        );
+        Ok(*self.inner.canonical.get_or_init(|| value))
     }
     /// Complete stored scientific target, without current permission.
     /// # Errors
@@ -385,12 +402,11 @@ impl PanelExecutionProgram {
         if let Some(retention) = &self.retention {
             retention.observe_current();
         }
-        let mut count = Counter(0);
-        serde_json::to_writer(&mut count, self).map_err(invalid)?;
         // The numerical engine admits its own retained output. This quote covers
         // only the replay's retained serialized program storage.
-        let bytes = count
-            .0
+        let bytes = self
+            .canonical()?
+            .1
             .checked_mul(4)
             .and_then(|n| u64::try_from(n).ok())
             .ok_or_else(|| invalid("panel replay quote overflow"))?;
@@ -527,28 +543,56 @@ pub fn encode_panel_execution(
 ) -> Result<Vec<u8>, PanelArtifactError> {
     cancelled(ctx)?;
     program.validate()?;
-    let record = Record {
-        version: JOINT_PANEL_ARTIFACT_VERSION,
-        identity: program.identity()?,
-        program,
-        point: point.to_vec(),
-        draws: draws.to_vec(),
-    };
-    encode_record(&record, ctx)
+    let identity = program.identity()?;
+    encode_record(
+        &RecordRef {
+            version: JOINT_PANEL_ARTIFACT_VERSION,
+            identity,
+            program: &program,
+            point,
+            draws,
+        },
+        ctx,
+    )
 }
-fn encode_record(record: &Record, ctx: &ExecutionContext) -> Result<Vec<u8>, PanelArtifactError> {
-    let mut counter = Counter(0);
-    serde_json::to_writer(&mut counter, record).map_err(invalid)?;
-    if counter.0 > MAX_JOINT_PANEL_ARTIFACT_BYTES {
-        return Err(invalid("panel payload exceeds byte ceiling"));
-    }
+/// Borrowed form of `Record` with the same wire layout, so encoding never copies the draws.
+#[derive(Serialize)]
+struct RecordRef<'a> {
+    version: u16,
+    identity: [u8; 32],
+    program: &'a PanelExecutionProgram,
+    point: &'a [PanelResponse],
+    draws: &'a [Option<Vec<PanelResponse>>],
+}
+fn encode_record(
+    record: &RecordRef<'_>,
+    ctx: &ExecutionContext,
+) -> Result<Vec<u8>, PanelArtifactError> {
+    // One serialization pass: the quote is 4x the payload, so a payload larger than a
+    // quarter of the memory limit is refused as soon as the writer reaches it.
+    let limit = ctx.memory_limit_bytes().map_or(MAX_JOINT_PANEL_ARTIFACT_BYTES, |bytes| {
+        usize::try_from(bytes / 4).unwrap_or(usize::MAX).min(MAX_JOINT_PANEL_ARTIFACT_BYTES)
+    });
+    let mut payload = Vec::new();
+    serde_json::to_writer(&mut Limited { bytes: &mut payload, limit }, record).map_err(
+        |error| {
+            if error.is_io() {
+                if limit < MAX_JOINT_PANEL_ARTIFACT_BYTES {
+                    PanelArtifactError::Resource("configured memory limit".into())
+                } else {
+                    invalid("panel payload exceeds byte ceiling")
+                }
+            } else {
+                invalid(error)
+            }
+        },
+    )?;
     let _lease = admit(
         ctx,
-        (counter.0 as u64)
+        (payload.len() as u64)
             .checked_mul(4)
             .ok_or_else(|| invalid("panel serialization quote overflow"))?,
     )?;
-    let payload = serde_json::to_vec(record).map_err(invalid)?;
     cancelled(ctx)?;
     crate::encode_container(
         &crate::ArtifactContainer {
@@ -565,6 +609,22 @@ fn encode_record(record: &Record, ctx: &ExecutionContext) -> Result<Vec<u8>, Pan
         }],
     )
     .map_err(|error| PanelArtifactError::Io(error.into_io("panel encoding")))
+}
+struct Limited<'a> {
+    bytes: &'a mut Vec<u8>,
+    limit: usize,
+}
+impl std::io::Write for Limited<'_> {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        if self.bytes.len().saturating_add(buf.len()) > self.limit {
+            return Err(std::io::Error::other("payload exceeds limit"));
+        }
+        self.bytes.extend_from_slice(buf);
+        Ok(buf.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
 }
 /// Independently replay the same engine and verify every original response/draw slot.
 /// # Errors

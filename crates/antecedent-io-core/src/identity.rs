@@ -1812,6 +1812,12 @@ pub struct ImputationSpecWire {
     pub assumption: String,
     /// Sampling unit the parameter draws resample (`row`, `group`).
     pub unit: String,
+    /// Digest (hex) of the model and design assumptions the imputation rests on: the model,
+    /// tables, sweeps, seed, missingness assumption, resampling unit, declared sampling design,
+    /// the neighbouring steps of a series and every variable's kind and imputed-cell count.
+    /// Absent on older artifacts, and when the data cannot be imputed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub assumptions_digest: Option<String>,
 }
 
 /// Data-snapshot payload binding contents and ordered unit/environment partitions.

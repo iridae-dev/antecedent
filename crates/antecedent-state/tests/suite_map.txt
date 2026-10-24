@@ -1,1 +1,1 @@
-suite_01: conjugate_refresh_oracle, ols_refresh_contract, particle_filter_oracle, rolling_mechanism_oracle
+suite_01: conjugate_refresh_oracle, ols_refresh_contract, particle_filter_oracle, refresh_families_oracle, rolling_mechanism_oracle

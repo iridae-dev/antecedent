@@ -148,6 +148,15 @@ pub struct PreparationWire {
     pub rows_admitted: Option<u64>,
     /// Lower-case hex digest of the preparation plan.
     pub receipt_digest: String,
+    /// Payload bytes the preparation admitted; absent when the writer recorded none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub admitted_bytes: Option<u64>,
+    /// Byte budget the payload was compared with; absent when none was.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub budget_bytes: Option<u64>,
+    /// What the estimator was given (`finite`, `materialized_from_scan`, `scan`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub delivery: Option<String>,
 }
 
 /// Screen / estimate split recorded on a batch estimate artifact.
@@ -376,6 +385,9 @@ pub fn effect_estimate_to_wire(e: &EffectEstimate) -> EffectEstimateWire {
             route_bound: p.route_bound.clone(),
             rows_admitted: p.rows_admitted,
             receipt_digest: p.receipt_digest.clone(),
+            admitted_bytes: p.admitted_bytes,
+            budget_bytes: p.budget_bytes,
+            delivery: p.delivery.clone(),
         }),
         candidate_selection: e.family.candidate_selection.as_ref().map(|s| {
             CandidateSelectionWire {
@@ -544,12 +556,15 @@ pub fn effect_estimate_from_wire(w: &EffectEstimateWire) -> Result<EffectEstimat
     estimate.diagnostics.evalue = w.evalue;
     estimate.diagnostics.evalue_threshold = w.evalue_threshold;
     estimate.provenance.preparation = w.preparation.as_ref().map(|p| {
-        std::sync::Arc::new(antecedent_estimate::PreparationSummary::from_parts(
-            p.backend.clone(),
-            p.route_bound.clone(),
-            p.rows_admitted,
-            p.receipt_digest.clone(),
-        ))
+        std::sync::Arc::new(
+            antecedent_estimate::PreparationSummary::from_parts(
+                p.backend.clone(),
+                p.route_bound.clone(),
+                p.rows_admitted,
+                p.receipt_digest.clone(),
+            )
+            .with_resources(p.admitted_bytes, p.budget_bytes, p.delivery.clone()),
+        )
     });
     estimate.family.candidate_selection =
         w.candidate_selection.as_ref().map(candidate_selection_from_wire).transpose()?;
@@ -1141,12 +1156,29 @@ mod tests {
                 route_bound: "rows_only".into(),
                 rows_admitted: Some(100),
                 receipt_digest: "ab".repeat(32),
+                admitted_bytes: Some(2_400),
+                budget_bytes: Some(1 << 20),
+                delivery: Some("finite".into()),
             }),
         };
         let domain = effect_estimate_from_wire(&wire).unwrap();
         assert_eq!(effect_estimate_to_wire(&domain), wire);
         let summary = domain.provenance.preparation.as_ref().unwrap();
         assert_eq!(summary.rows_admitted, Some(100));
+        assert_eq!(summary.admitted_bytes, Some(2_400));
+        assert_eq!(summary.budget_bytes, Some(1 << 20));
+        assert_eq!(summary.delivery.as_deref(), Some("finite"));
+        // A writer that recorded no resource facts round-trips as none, never as zero.
+        let mut bare = wire.clone();
+        if let Some(p) = bare.preparation.as_mut() {
+            p.admitted_bytes = None;
+            p.budget_bytes = None;
+            p.delivery = None;
+        }
+        let bare_domain = effect_estimate_from_wire(&bare).unwrap();
+        assert_eq!(effect_estimate_to_wire(&bare_domain), bare);
+        let bare_json = serde_json::to_string(&bare).unwrap();
+        assert!(!bare_json.contains("admitted_bytes") && !bare_json.contains("delivery"));
 
         let mut without = wire;
         without.preparation = None;

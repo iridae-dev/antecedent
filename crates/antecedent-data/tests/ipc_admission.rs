@@ -310,3 +310,44 @@ fn concurrent_readers_share_one_pool_and_none_decodes_a_batch_the_pool_cannot_ho
     assert!(completed.load(Ordering::SeqCst) >= 1, "at least one reader owns the batch");
     assert_eq!(pool.available().bytes(), pool.byte_budget(), "every refusal and finish returned");
 }
+
+#[test]
+fn an_arrow_c_stream_batch_larger_than_the_pool_is_refused_with_the_producer_remedy() {
+    use antecedent_data::arrow_ffi::ArrowCStream;
+    use antecedent_data::column_closure::{ClosureInputs, ColumnRole};
+    use antecedent_data::file_source::TableStream;
+    use arrow_array::RecordBatchIterator;
+
+    let closure = ClosureInputs::new([ColumnRole::new("x")]).close();
+
+    let batch = numeric(200_000);
+    let schema = batch.schema();
+    let big = RecordBatchIterator::new(vec![Ok(batch.clone())], Arc::clone(&schema));
+    let table = TableStream::new(ArrowCStream::from_reader(Box::new(big))).unwrap();
+    let plan = table.plan(&closure, ReadOptions::with_chunk_rows(1000)).unwrap();
+    let pool = AdmissionPool::fixed(1, 1 << 20);
+    let mut reader = table.reader(&plan, &study(&pool)).unwrap();
+    let refused = reader.next_chunk().unwrap_err();
+    let (stage, required, _) = refusal(&refused);
+    assert_eq!(stage, MemoryStage::DecodedBatch);
+    assert!(required >= 200_000 * 16);
+    let remedy = refused.next_attempt().unwrap();
+    assert!(
+        remedy.contains("from the producer") && remedy.contains("max_chunksize=1000"),
+        "{remedy}"
+    );
+    drop(reader);
+    assert_eq!(pool.available().bytes(), pool.byte_budget());
+
+    // The same rows re-batched at the producer fit the same pool.
+    let small: Vec<_> = (0..200).map(|i| Ok(batch.slice(i * 1000, 1000))).collect();
+    let rebatched = RecordBatchIterator::new(small, schema);
+    let table = TableStream::new(ArrowCStream::from_reader(Box::new(rebatched))).unwrap();
+    let plan = table.plan(&closure, ReadOptions::with_chunk_rows(1000)).unwrap();
+    let mut reader = table.reader(&plan, &study(&pool)).unwrap();
+    let mut rows = 0;
+    while let Some(chunk) = reader.next_chunk().unwrap() {
+        rows += chunk.rows();
+    }
+    assert_eq!(rows, 200_000);
+}

@@ -1,0 +1,53 @@
+# Workloads the refused Polars adapter was meant to serve, delivered through the
+# accepted direct-Arrow preparation path. This file declares the workload shapes
+# and the budgets the executable checks enforce; measured latency and peak bytes
+# are produced by the test run (set ANTECEDENT_WORKLOAD_EVIDENCE to a path to
+# collect them), so no timings are stored here. The Polars refusal in
+# decision.toml is unchanged.
+
+schema = 1
+preparation_path = "direct_arrow"
+polars_refused = "parity/polars_decision/decision.toml"
+checks = "crates/antecedent-data/tests/direct_arrow_workloads.rs"
+
+# One adjusted effect over a wide covariate set: Arrow batch to owned columns
+# (one copy), then a design layout that borrows every column, or gathers exactly
+# one named copy per column for a strided cohort. Identity is equal across the
+# Arrow batch, Parquet and Arrow IPC routes.
+[wide_adjustment]
+rows = 40_000
+covariates = 48
+# Peak allocation of the Arrow load as a percentage of the input bytes.
+load_peak_percent_of_input = 250
+# Load latency as a multiple of a plain per-column copy (best of three runs).
+load_latency_factor = 40
+# A borrowed layout allocates only its column table.
+borrowed_layout_peak_bytes_per_column = 256
+
+# Lag windows over panel units and over environments: each unit is its own Arrow
+# batch, the pooled frame stacks per-unit windows, and no lag reads another unit.
+[panel_environment_window]
+units = 120
+rows_per_unit = 300
+variables = 4
+max_lag = 3
+# Peak allocation as a percentage of the bytes the stacked frame owns.
+peak_percent_of_owned = 220
+
+# One layout read by many consumers, with no allocation per consumer.
+[shared_design]
+rows = 50_000
+columns = 24
+consumers = 16
+build_peak_bytes_per_column = 256
+
+[packaging]
+# Polars packages in Cargo.lock. The wheel's runtime requirements are numpy and pydantic.
+polars_crates_locked = 0
+parquet_feature = "parquet = [\"arrow\", \"dep:parquet\"]"
+ipc_feature = "ipc = [\"arrow\", \"dep:arrow-ipc\"]"
+# Measured on the host wheel built by maturin in python/dist (zip listing and METADATA).
+wheel_requires_dist = ["numpy>=1.26", "pydantic>=2.13.5"]
+wheel_members_naming_polars = 0
+host_wheel_bytes = 38_956_381
+host_native_extension_bytes = 98_245_376

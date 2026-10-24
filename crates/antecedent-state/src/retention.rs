@@ -6,8 +6,11 @@
 //! mode is full reusable state, which is the existing result requirement.
 //! Summary-only and disk-backed output are reduced modes. Each reports the
 //! later operations it can no longer serve. Disk-backed output is a declared
-//! mode: the variant carries no path and no byte count, and nothing here spills
-//! to disk. [`RetentionMode::require`] refuses an operation the mode cannot serve.
+//! mode: the variant carries no path and no byte count. The spill itself is
+//! [`crate::SpillRegistry`], which writes prepared results under one byte budget,
+//! evicts the least recently used, and hands back a [`crate::SpillHandle`] that serves
+//! only [`RetainedOperation::ReadDiskArtifact`]. [`RetentionMode::require`] refuses an
+//! operation the mode cannot serve.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -104,7 +107,8 @@ pub enum RetentionMode {
     ///
     /// This variant is the declaration. It stores no path and no byte count.
     /// Selecting it does not write, and no other mode spills to disk when memory
-    /// is short.
+    /// is short. The write is [`crate::SpillRegistry::spill`], and
+    /// [`crate::SpillHandle::mode`] is this mode.
     DiskBacked,
 }
 

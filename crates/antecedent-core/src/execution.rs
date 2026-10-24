@@ -96,6 +96,24 @@ impl KernelPolicy {
         Self { allow_portable_optimized: true, allow_arch_simd: true, force_scalar: false }
     }
 
+    /// Environment variable that makes a production context run the scalar reference kernels.
+    ///
+    /// The performance lanes set it to `1` to measure the current tree's scalar baseline in
+    /// the same process shape as the optimized run. Any other value, or no value, leaves the
+    /// default policy. The policy in force is recorded with the run as always.
+    pub const SCALAR_BASELINE_ENV: &'static str = "ANTECEDENT_BASELINE_SCALAR_KERNELS";
+
+    /// The policy a production context starts with: [`Self::default_policy`], or
+    /// [`Self::scalar_only`] when [`Self::SCALAR_BASELINE_ENV`] is `1`.
+    #[must_use]
+    pub fn production_policy() -> Self {
+        if std::env::var(Self::SCALAR_BASELINE_ENV).is_ok_and(|value| value == "1") {
+            Self::scalar_only()
+        } else {
+            Self::default_policy()
+        }
+    }
+
     /// Force scalar kernels only.
     #[must_use]
     pub const fn scalar_only() -> Self {
@@ -1910,7 +1928,7 @@ impl ExecutionContext {
             admission: AdmissionPool::fixed(threads.get(), u64::MAX),
             cancellation: CancellationToken::new(),
             progress: None,
-            kernel_policy: KernelPolicy::default_policy(),
+            kernel_policy: KernelPolicy::production_policy(),
             cache_policy: CachePolicy::enabled(None),
             adaptive_bootstrap: AdaptiveBootstrapBudget::disabled(),
             adaptive_draws: AdaptiveDrawBudget::disabled(),
@@ -2140,17 +2158,19 @@ impl ExecutionContext {
         clippy::too_many_lines,
         reason = "one function owns the claim window, the ordered hand-off and the shutdown"
     )]
-    pub fn pipeline_indexed<T, E, P, C>(
+    pub fn pipeline_indexed_with_scratch<T, S, E, P, C>(
         &self,
         n: usize,
         window: usize,
+        make_scratch: impl Fn() -> S + Sync,
         produce: P,
         mut consume: C,
     ) -> Result<PipelineReceipt, MapExecutionError<E>>
     where
         T: Send,
+        S: Send,
         E: Send,
-        P: Fn(usize, &Self) -> Result<T, E> + Sync,
+        P: Fn(usize, &Self, &mut S) -> Result<T, E> + Sync,
         C: FnMut(usize, T) -> Result<PipelineStep, E>,
     {
         let window = window.max(1);
@@ -2168,11 +2188,12 @@ impl ExecutionContext {
             None
         };
         let Some((granted, lease)) = granted else {
+            let mut scratch = make_scratch();
             for index in 0..n {
                 if self.cancellation.is_cancelled() {
                     return Err(MapExecutionError::Admission(AdmissionError::Cancelled));
                 }
-                let item = produce(index, &inner).map_err(MapExecutionError::Work)?;
+                let item = produce(index, &inner, &mut scratch).map_err(MapExecutionError::Work)?;
                 let step = consume(index, item).map_err(MapExecutionError::Work)?;
                 if step == PipelineStep::Stop {
                     return Ok(PipelineReceipt {
@@ -2206,6 +2227,7 @@ impl ExecutionContext {
         let mut outcome: Result<(), MapExecutionError<E>> = Ok(());
         std::thread::scope(|scope| {
             let produce = &produce;
+            let make_scratch = &make_scratch;
             let inner = &inner;
             let observation = &observation;
             let numerical = &numerical;
@@ -2215,6 +2237,7 @@ impl ExecutionContext {
                 scope.spawn(move || {
                     observation.execute(|| {
                         let _exit = PipelineWorkerExit { shared: shared_ref, wake: wake_ref };
+                        let mut scratch = make_scratch();
                         loop {
                             let claimed = {
                                 let mut state =
@@ -2236,7 +2259,8 @@ impl ExecutionContext {
                                 }
                             };
                             let Some(index) = claimed else { break };
-                            let result = numerical.execute(inner, || produce(index, inner));
+                            let result =
+                                numerical.execute(inner, || produce(index, inner, &mut scratch));
                             shared_ref
                                 .lock()
                                 .unwrap_or_else(PoisonError::into_inner)
@@ -2302,6 +2326,35 @@ impl ExecutionContext {
         drop(lease);
         let peak_live = lock().peak_live;
         outcome.map(|()| PipelineReceipt { items_consumed: consumed, peak_live, workers })
+    }
+}
+
+impl ExecutionContext {
+    /// [`Self::pipeline_indexed_with_scratch`] without per-worker scratch.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::pipeline_indexed_with_scratch`].
+    pub fn pipeline_indexed<T, E, P, C>(
+        &self,
+        n: usize,
+        window: usize,
+        produce: P,
+        consume: C,
+    ) -> Result<PipelineReceipt, MapExecutionError<E>>
+    where
+        T: Send,
+        E: Send,
+        P: Fn(usize, &Self) -> Result<T, E> + Sync,
+        C: FnMut(usize, T) -> Result<PipelineStep, E>,
+    {
+        self.pipeline_indexed_with_scratch(
+            n,
+            window,
+            || (),
+            |index, ctx, ()| produce(index, ctx),
+            consume,
+        )
     }
 }
 

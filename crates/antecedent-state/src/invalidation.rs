@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use antecedent_core::recalc::{ChangeKind, Revalidation, Stage, StageIdentity};
@@ -50,6 +51,124 @@ pub enum InvalidationTarget {
     ParticleFilters,
     /// Rolling mechanism-diagnostics slots.
     MechanismDiagnostics,
+    /// One prepared product of a temporal window (see [`TemporalProduct`]).
+    TemporalProduct(TemporalProduct),
+}
+
+/// A factor of a temporal window whose change moves the products that read it.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum TemporalFactor {
+    /// The observation period moved.
+    Period,
+    /// The observed population drifted.
+    Population,
+    /// The tick cadence changed.
+    Cadence,
+    /// The horizon changed, including an appended slice.
+    Horizon,
+    /// The initial-state law changed.
+    InitialLaw,
+    /// The lag alignment of the coordinates or the intervention history changed.
+    History,
+    /// The selection targets changed.
+    Selection,
+    /// The intervention regimes changed.
+    Regime,
+    /// The graph or the proof premises changed.
+    Premise,
+}
+
+/// A prepared product of a temporal window, in dependency order.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum TemporalProduct {
+    /// Identification of the window's query, with its proof premises and initial law.
+    Identification,
+    /// Sampling design: period, population, cadence, horizon, selection and regimes.
+    Design,
+    /// Mechanism fit and initial law. Period-bound unless invariance was declared.
+    Model,
+    /// Observations bound to a period, population, cadence and regime.
+    Evidence,
+    /// The prior of the next period's Bayesian fit, built from the earlier periods'
+    /// posterior. It reads exactly what the model reads: a posterior carried forward as a
+    /// prior is a stationarity statement, so wherever the model does not survive the prior
+    /// restarts at the originally stated one.
+    PriorRefresh,
+}
+
+impl TemporalProduct {
+    /// Every product, in dependency order.
+    pub const ALL: [Self; 5] =
+        [Self::Identification, Self::Design, Self::Model, Self::Evidence, Self::PriorRefresh];
+
+    /// Whether this product reads `factor`. `period_invariant` is the caller's declaration that
+    /// the mechanism is the same law across the periods compared; a temporal index never
+    /// supplies it.
+    #[must_use]
+    pub const fn reads(self, factor: TemporalFactor, period_invariant: bool) -> bool {
+        use TemporalFactor as F;
+        match self {
+            Self::Identification => matches!(
+                factor,
+                F::Horizon | F::InitialLaw | F::History | F::Selection | F::Regime | F::Premise
+            ),
+            Self::Design => matches!(
+                factor,
+                F::Period | F::Population | F::Cadence | F::Horizon | F::Selection | F::Regime
+            ),
+            Self::Model | Self::PriorRefresh => match factor {
+                F::Population
+                | F::Cadence
+                | F::Horizon
+                | F::InitialLaw
+                | F::History
+                | F::Regime => true,
+                F::Period => !period_invariant,
+                F::Selection | F::Premise => false,
+            },
+            Self::Evidence => {
+                matches!(factor, F::Period | F::Population | F::Cadence | F::Regime)
+            }
+        }
+    }
+
+    /// Stable label, for example `prior_refresh`.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Identification => "identification",
+            Self::Design => "design",
+            Self::Model => "model",
+            Self::Evidence => "evidence",
+            Self::PriorRefresh => "prior_refresh",
+        }
+    }
+}
+
+/// Which products a set of factor changes invalidates and which it leaves in place.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TemporalDisposition {
+    /// Products that read at least one changed factor.
+    pub invalidated: BTreeSet<TemporalProduct>,
+    /// Products that read none of them and are reused.
+    pub retained: BTreeSet<TemporalProduct>,
+}
+
+impl TemporalDisposition {
+    /// The exact affected set of `changes`.
+    #[must_use]
+    pub fn of(changes: &BTreeSet<TemporalFactor>, period_invariant: bool) -> Self {
+        let mut invalidated = BTreeSet::new();
+        let mut retained = BTreeSet::new();
+        for product in TemporalProduct::ALL {
+            if changes.iter().any(|factor| product.reads(*factor, period_invariant)) {
+                invalidated.insert(product);
+            } else {
+                retained.insert(product);
+            }
+        }
+        Self { invalidated, retained }
+    }
 }
 
 /// One invalidation record.
@@ -119,6 +238,47 @@ impl InvalidationLog {
         });
     }
 
+    /// Record a change of temporal window factors for every family at once.
+    ///
+    /// Every product that reads a changed factor gets one entry, and the cached results that
+    /// rest on those products are recomputed (a result entry for all queries) whenever any
+    /// product moved. Products that read none of the changed factors get no entry: they are
+    /// reused. Returns the exact disposition.
+    pub fn push_temporal_change(
+        &mut self,
+        at_version: StateVersion,
+        changes: &BTreeSet<TemporalFactor>,
+        period_invariant: bool,
+        reason: &str,
+    ) -> TemporalDisposition {
+        let disposition = TemporalDisposition::of(changes, period_invariant);
+        for product in &disposition.invalidated {
+            self.push(
+                at_version,
+                InvalidationTarget::TemporalProduct(*product),
+                format!("{reason}: {} reads a changed factor", product.label()),
+            );
+        }
+        if !disposition.invalidated.is_empty() {
+            self.push(at_version, InvalidationTarget::AllResults, reason);
+        }
+        disposition
+    }
+
+    /// Whether `product` may still be used after `since`: no change after it moved a factor the
+    /// product reads.
+    #[must_use]
+    pub fn temporal_product_reusable_since(
+        &self,
+        product: TemporalProduct,
+        since: StateVersion,
+    ) -> bool {
+        !self.entries.iter().any(|e| {
+            e.at_version.raw() > since.raw()
+                && e.target == InvalidationTarget::TemporalProduct(product)
+        })
+    }
+
     /// The most severe class of the entries after `since` that concern `query` (an entry for
     /// the query itself or for all results). `still_valid` when none does.
     #[must_use]
@@ -139,5 +299,93 @@ impl InvalidationLog {
     #[must_use]
     pub fn query_stale_since(&self, query: QueryId, since: StateVersion) -> bool {
         self.revalidation_since(query, since) != Revalidation::StillValid
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn set(factors: &[TemporalFactor]) -> BTreeSet<TemporalFactor> {
+        factors.iter().copied().collect()
+    }
+
+    fn products(items: &[TemporalProduct]) -> BTreeSet<TemporalProduct> {
+        items.iter().copied().collect()
+    }
+
+    #[test]
+    fn each_factor_invalidates_exactly_the_products_that_read_it() {
+        use TemporalFactor as F;
+        use TemporalProduct as P;
+        let cases: Vec<(F, bool, Vec<P>)> = vec![
+            (F::Period, false, vec![P::Design, P::Model, P::Evidence, P::PriorRefresh]),
+            (F::Period, true, vec![P::Design, P::Evidence]),
+            (F::Population, true, vec![P::Design, P::Model, P::Evidence, P::PriorRefresh]),
+            (F::Cadence, true, vec![P::Design, P::Model, P::Evidence, P::PriorRefresh]),
+            (F::Horizon, true, vec![P::Identification, P::Design, P::Model, P::PriorRefresh]),
+            (F::InitialLaw, true, vec![P::Identification, P::Model, P::PriorRefresh]),
+            (F::History, true, vec![P::Identification, P::Model, P::PriorRefresh]),
+            (F::Selection, true, vec![P::Identification, P::Design]),
+            (F::Regime, true, P::ALL.to_vec()),
+            (F::Premise, true, vec![P::Identification]),
+            (F::InitialLaw, false, vec![P::Identification, P::Model, P::PriorRefresh]),
+        ];
+        for (factor, invariant, expected) in cases {
+            let disposition = TemporalDisposition::of(&set(&[factor]), invariant);
+            assert_eq!(
+                disposition.invalidated,
+                products(&expected),
+                "{factor:?} invariant={invariant}"
+            );
+            let all: BTreeSet<_> = P::ALL.into_iter().collect();
+            let union: BTreeSet<_> =
+                disposition.invalidated.union(&disposition.retained).copied().collect();
+            assert_eq!(union, all);
+            assert!(disposition.invalidated.is_disjoint(&disposition.retained));
+        }
+        assert!(TemporalDisposition::of(&BTreeSet::new(), false).invalidated.is_empty());
+    }
+
+    #[test]
+    fn the_log_records_one_entry_per_affected_product_and_reuses_the_rest() {
+        let mut log = InvalidationLog::new();
+        let v1 = StateVersion::from_raw(1);
+        let v2 = StateVersion::from_raw(2);
+        let disposition =
+            log.push_temporal_change(v2, &set(&[TemporalFactor::Cadence]), true, "cadence changed");
+        assert_eq!(
+            disposition.invalidated,
+            products(&[
+                TemporalProduct::Design,
+                TemporalProduct::Model,
+                TemporalProduct::Evidence,
+                TemporalProduct::PriorRefresh
+            ])
+        );
+        let targets: Vec<_> = log
+            .entries
+            .iter()
+            .filter_map(|e| match e.target {
+                InvalidationTarget::TemporalProduct(p) => Some(p),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(targets.len(), 4);
+        assert!(!targets.contains(&TemporalProduct::Identification));
+        assert!(log.temporal_product_reusable_since(TemporalProduct::Identification, v1));
+        assert!(!log.temporal_product_reusable_since(TemporalProduct::Model, v1));
+        assert!(log.temporal_product_reusable_since(TemporalProduct::Model, v2));
+        assert!(log.query_stale_since(QueryId::from_raw(3), v1));
+        // A change nothing reads leaves the log and every cached result alone.
+        let before = log.entries.len();
+        let none = log.push_temporal_change(
+            StateVersion::from_raw(3),
+            &BTreeSet::new(),
+            false,
+            "no change",
+        );
+        assert!(none.invalidated.is_empty());
+        assert_eq!(log.entries.len(), before);
     }
 }

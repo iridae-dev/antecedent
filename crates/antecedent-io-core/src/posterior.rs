@@ -92,6 +92,15 @@ pub struct PosteriorPreparationWire {
     pub rows_admitted: Option<u64>,
     /// Lower-case hex digest of the preparation plan.
     pub receipt_digest: String,
+    /// Payload bytes the preparation admitted; absent when the writer recorded none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub admitted_bytes: Option<u64>,
+    /// Byte budget the payload was compared with; absent when none was.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub budget_bytes: Option<u64>,
+    /// What the estimator was given (`finite`, `materialized_from_scan`, `scan`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub delivery: Option<String>,
 }
 
 #[allow(clippy::trivially_copy_pass_by_ref, reason = "serde's skip_serializing_if passes `&T`")]

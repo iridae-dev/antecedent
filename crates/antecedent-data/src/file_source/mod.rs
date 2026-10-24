@@ -1254,7 +1254,10 @@ impl TableChunkReader {
         let mut leases = vec![decode];
         if actual > reserve {
             let extra = actual - reserve;
-            leases.push(self.lease(MemoryStage::DecodedBatch, extra)?);
+            leases.push(
+                self.lease(MemoryStage::DecodedBatch, extra)
+                    .map_err(|error| self.producer_remedy(error, actual))?,
+            );
             held = actual;
         }
         self.pending = Some(Pending { batch, offset: 0, held_bytes: held, _leases: leases });
@@ -1275,6 +1278,35 @@ impl TableChunkReader {
         self.cursor.advance(rows as u64)?;
         self.chunks += 1;
         Ok(FileChunk { start, rows, columns, names: Arc::clone(&self.names), lease })
+    }
+
+    /// An Arrow C stream's batch was sized by its producer, so the remedy names the producer.
+    fn producer_remedy(&self, error: FileSourceError, batch_bytes: u64) -> FileSourceError {
+        match (&self.origin, error) {
+            (
+                Origin::Stream,
+                FileSourceError::MemoryRefused {
+                    stage: MemoryStage::DecodedBatch,
+                    required_bytes,
+                    available_bytes,
+                    chunk_rows,
+                    ..
+                },
+            ) => FileSourceError::MemoryRefused {
+                stage: MemoryStage::DecodedBatch,
+                required_bytes,
+                available_bytes,
+                chunk_rows,
+                next_attempt: format!(
+                    "the producer sent a {batch_bytes}-byte batch; request batches of at most \
+                     {chunk_rows} rows from the producer before export (for example pyarrow \
+                     `to_reader(max_chunksize={chunk_rows})`), or raise the admission pool by {} \
+                     bytes",
+                    required_bytes.saturating_sub(available_bytes)
+                ),
+            },
+            (_, error) => error,
+        }
     }
 
     fn lease(&self, stage: MemoryStage, bytes: u64) -> Result<AdmissionLease, FileSourceError> {

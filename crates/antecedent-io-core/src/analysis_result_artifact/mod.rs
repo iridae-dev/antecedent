@@ -136,6 +136,9 @@ pub enum IdentifiedSetIntervalMethodWire {
     /// Product-posterior envelope quantiles at Imbens–Manski tails.
     #[serde(alias = "imbens_manski_posterior_draws")]
     ProductPosteriorEnvelopeQuantile,
+    /// Frequentist Imbens–Manski interval whose SDs come from the completions' joint
+    /// row influence.
+    ImbensManskiInfluence,
 }
 
 /// Interval for the identified set of a class-aware scalar effect. Frequentist
@@ -191,6 +194,7 @@ impl IdentifiedSetIntervalMethodWire {
         match method {
             Method::ImbensManskiSharedBlock => Ok(Self::ImbensManskiSharedBlock),
             Method::ProductPosteriorEnvelopeQuantile => Ok(Self::ProductPosteriorEnvelopeQuantile),
+            Method::ImbensManskiInfluence => Ok(Self::ImbensManskiInfluence),
             other => Err(IoError::Convert(format!(
                 "identified-set interval construction {other:?} has no wire tag"
             ))),
@@ -204,6 +208,7 @@ impl IdentifiedSetIntervalMethodWire {
         match self {
             Self::ImbensManskiSharedBlock => Method::ImbensManskiSharedBlock,
             Self::ProductPosteriorEnvelopeQuantile => Method::ProductPosteriorEnvelopeQuantile,
+            Self::ImbensManskiInfluence => Method::ImbensManskiInfluence,
         }
     }
 }

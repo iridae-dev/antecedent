@@ -112,6 +112,13 @@ pub enum TemporalAssignmentWire {
         /// Horizon in periods.
         horizon: u32,
     },
+    /// Observational excursion with a fitted assignment law.
+    ObservationalExcursion {
+        /// Treatment column.
+        treatment: u32,
+        /// History columns of the assignment model.
+        history: Vec<u32>,
+    },
 }
 
 /// Wire form of [`TemporalDesignQuery`].
@@ -229,6 +236,12 @@ impl TemporalDesignQueryWire {
                     horizon: *horizon,
                 }
             }
+            TemporalAssignment::ObservationalExcursion { treatment, history } => {
+                TemporalAssignmentWire::ObservationalExcursion {
+                    treatment: treatment.raw(),
+                    history: vars_to_raw(history),
+                }
+            }
         };
         Ok(Self {
             outcome: query.outcome.raw(),
@@ -341,6 +354,12 @@ impl TemporalDesignQueryWire {
                 confounders: vars_from_raw(confounders),
                 horizon: *horizon,
             },
+            TemporalAssignmentWire::ObservationalExcursion { treatment, history } => {
+                TemporalAssignment::ObservationalExcursion {
+                    treatment: VariableId::from_raw(*treatment),
+                    history: vars_from_raw(history),
+                }
+            }
         };
         let query = TemporalDesignQuery {
             outcome: VariableId::from_raw(self.outcome),
@@ -376,6 +395,12 @@ impl TemporalDesignQueryWire {
             ids.push(*censored);
             ids.extend(confounders.iter().copied());
         }
+        if let TemporalAssignmentWire::ObservationalExcursion { treatment, history } =
+            &self.assignment
+        {
+            ids.push(*treatment);
+            ids.extend(history.iter().copied());
+        }
         ids
     }
 
@@ -390,6 +415,7 @@ impl TemporalDesignQueryWire {
             TemporalAssignmentWire::Interference { .. } => "interference",
             TemporalAssignmentWire::Dose { .. } => "dose",
             TemporalAssignmentWire::RegimeSurvival { .. } => "regime_survival",
+            TemporalAssignmentWire::ObservationalExcursion { .. } => "observational_excursion",
         }
     }
 }
@@ -417,5 +443,26 @@ mod tests {
         assert_eq!(wire.to_domain().unwrap(), query);
         assert_eq!(wire.variable_ids(), vec![1]);
         assert_eq!(wire.design_name(), "two_arm");
+    }
+
+    #[test]
+    fn an_observational_excursion_round_trips_with_its_columns() {
+        let query = TemporalDesignQuery {
+            outcome: VariableId::from_raw(1),
+            units: arcs(&["a".into(), "a".into(), "b".into(), "b".into()]),
+            periods: Arc::from([0_i64, 1, 0, 1]),
+            lag: 1,
+            assignment: TemporalAssignment::ObservationalExcursion {
+                treatment: VariableId::from_raw(2),
+                history: Arc::from([VariableId::from_raw(3), VariableId::from_raw(4)]),
+            },
+            functional: TemporalDesignFunctional::Mean,
+            min_probability: 0.05,
+            outcome_misclassification: None,
+        };
+        let wire = TemporalDesignQueryWire::from_domain(&query).unwrap();
+        assert_eq!(wire.to_domain().unwrap(), query);
+        assert_eq!(wire.variable_ids(), vec![1, 2, 3, 4]);
+        assert_eq!(wire.design_name(), "observational_excursion");
     }
 }

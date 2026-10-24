@@ -112,7 +112,7 @@ impl TabularData {
             }
             let col = Float64Column::new(
                 var.id,
-                Arc::<[f64]>::from(values.to_vec()),
+                Arc::<[f64]>::from(values),
                 ValidityBitmap::all_valid(n),
             )?;
             owned.push(OwnedColumn::Float64(col));

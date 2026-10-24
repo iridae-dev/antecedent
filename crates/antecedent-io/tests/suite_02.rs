@@ -15,6 +15,8 @@ mod predictive_assessment_artifact;
 mod recalc_receipt_artifact;
 #[path = "recovery_chain_artifact.rs"]
 mod recovery_chain_artifact;
+#[path = "release_migration_consumers.rs"]
+mod release_migration_consumers;
 #[path = "sampled_recovery_artifact.rs"]
 mod sampled_recovery_artifact;
 #[path = "scenario_covariance_artifact.rs"]

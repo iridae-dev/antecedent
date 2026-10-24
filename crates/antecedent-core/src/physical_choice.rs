@@ -11,8 +11,11 @@
 //! costs keep the earlier alternative in [`PhysicalAlternative::ALL`]. A later
 //! alternative with the same cost is rejected because its cost is not lower.
 //!
-//! The costs are declared quotes. This module does not execute the plan, scan
-//! rows, build a design, or run a lazy backend.
+//! The costs are declared quotes. [`RouteChoice::select`] derives them from a
+//! route's own work and shape: the cells each backend reads and the bytes it
+//! holds, with a backend ineligible when the route does not implement it or its
+//! resident bytes exceed the route budget. This module does not execute the
+//! plan, scan rows, build a design, or run a lazy backend.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -573,6 +576,305 @@ impl fmt::Display for PhysicalChoiceRefusal {
 
 impl Error for PhysicalChoiceRefusal {}
 
+/// Rows a streamed reduction holds at once.
+pub const DEFAULT_STREAM_BATCH_ROWS: u64 = 1024;
+
+/// Cost of reading one source cell relative to loading one resident design cell.
+///
+/// A source cell is decoded and validated on every read. A resident cell is a
+/// plain load.
+const SOURCE_CELL_COST: u64 = 2;
+
+/// Work and shape of one route, from which every alternative is quoted.
+///
+/// `passes` is the number of times the numeric kernel reads the whole design:
+/// one for a closed-form reduction, more for each fit, fold or refit that
+/// re-reads it. Costs are counted in cells of `element_bytes` bytes: the cells
+/// an alternative touches, plus the cells it keeps resident.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub struct RouteWork {
+    rows: u64,
+    columns: u64,
+    passes: u64,
+    element_bytes: u64,
+    batch_rows: u64,
+}
+
+impl RouteWork {
+    /// A `rows` by `columns` binary64 design the kernel reads `passes` times.
+    /// Zero passes is read as one: a route that fits reads its design.
+    #[must_use]
+    pub const fn new(rows: u64, columns: u64, passes: u64) -> Self {
+        Self {
+            rows,
+            columns,
+            passes: if passes == 0 { 1 } else { passes },
+            element_bytes: 8,
+            batch_rows: DEFAULT_STREAM_BATCH_ROWS,
+        }
+    }
+
+    /// Bytes of one design cell. Zero is read as one.
+    #[must_use]
+    pub const fn element_bytes(mut self, bytes: u64) -> Self {
+        self.element_bytes = if bytes == 0 { 1 } else { bytes };
+        self
+    }
+
+    /// Rows a streamed reduction holds at once. Zero is read as one.
+    #[must_use]
+    pub const fn batch_rows(mut self, rows: u64) -> Self {
+        self.batch_rows = if rows == 0 { 1 } else { rows };
+        self
+    }
+
+    /// Rows of the design.
+    #[must_use]
+    pub const fn rows(self) -> u64 {
+        self.rows
+    }
+
+    /// Columns of the design.
+    #[must_use]
+    pub const fn columns(self) -> u64 {
+        self.columns
+    }
+
+    /// Reads of the whole design by the kernel.
+    #[must_use]
+    pub const fn passes(self) -> u64 {
+        self.passes
+    }
+}
+
+/// Which backends the route has an implementation for.
+///
+/// This is an operator declaration, not a preference: an alternative that is
+/// not declared here is rejected for its missing operator capability whatever
+/// it would cost.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub struct BackendSupport {
+    direct: bool,
+    streamed: bool,
+    materialized: bool,
+    lazy: bool,
+}
+
+impl BackendSupport {
+    /// No backend implemented.
+    #[must_use]
+    pub const fn none() -> Self {
+        Self { direct: false, streamed: false, materialized: false, lazy: false }
+    }
+
+    /// Only the materialized design is implemented.
+    #[must_use]
+    pub const fn materialized_only() -> Self {
+        Self::none().with(PhysicalAlternative::MaterializedDesign, true)
+    }
+
+    /// Declare whether `alternative` is implemented.
+    #[must_use]
+    pub const fn with(mut self, alternative: PhysicalAlternative, implemented: bool) -> Self {
+        match alternative {
+            PhysicalAlternative::DirectPreparedNumericViews => self.direct = implemented,
+            PhysicalAlternative::StreamedReduction => self.streamed = implemented,
+            PhysicalAlternative::MaterializedDesign => self.materialized = implemented,
+            PhysicalAlternative::OptionalLazyPreparation => self.lazy = implemented,
+        }
+        self
+    }
+
+    /// Whether `alternative` is implemented.
+    #[must_use]
+    pub const fn implements(self, alternative: PhysicalAlternative) -> bool {
+        match alternative {
+            PhysicalAlternative::DirectPreparedNumericViews => self.direct,
+            PhysicalAlternative::StreamedReduction => self.streamed,
+            PhysicalAlternative::MaterializedDesign => self.materialized,
+            PhysicalAlternative::OptionalLazyPreparation => self.lazy,
+        }
+    }
+}
+
+/// Quote of one alternative: the cells it touches and the bytes it keeps resident.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub struct AlternativeQuote {
+    alternative: PhysicalAlternative,
+    work_cells: u64,
+    resident_bytes: u64,
+    cost: DeclaredCost,
+}
+
+impl AlternativeQuote {
+    /// Alternative quoted.
+    #[must_use]
+    pub const fn alternative(self) -> PhysicalAlternative {
+        self.alternative
+    }
+
+    /// Cells the alternative reads or writes.
+    #[must_use]
+    pub const fn work_cells(self) -> u64 {
+        self.work_cells
+    }
+
+    /// Bytes the alternative holds while it runs.
+    #[must_use]
+    pub const fn resident_bytes(self) -> u64 {
+        self.resident_bytes
+    }
+
+    /// Declared cost compared in the choice: work cells plus resident cells.
+    #[must_use]
+    pub const fn cost(self) -> DeclaredCost {
+        self.cost
+    }
+}
+
+/// A route quote did not fit, or no alternative was admitted.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, thiserror::Error)]
+#[non_exhaustive]
+pub enum RouteChoiceError {
+    /// A work or resident quote overflows `u64`.
+    #[error(
+        "physical alternative quote overflows u64 before allocation; next attempt: lower the \
+         rows, columns or passes"
+    )]
+    Unrepresentable,
+    /// Every alternative lacked an implementation or the memory to run in.
+    #[error("{0}")]
+    NoneAdmitted(PhysicalChoiceRefusal),
+}
+
+/// The costed choice of one route, with the quote behind each alternative.
+///
+/// An alternative is eligible when the route implements it and its resident
+/// bytes fit the route budget. Among eligible alternatives the lowest cost
+/// wins ([`PhysicalChoice::choose`]); every other alternative is rejected with
+/// the reason, and its quote stays readable.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub struct RouteChoice {
+    choice: PhysicalChoice,
+    quotes: [AlternativeQuote; 4],
+    budget_bytes: u64,
+}
+
+impl RouteChoice {
+    /// Quote every alternative for `work` and choose among those `support`
+    /// implements and `budget` can hold.
+    ///
+    /// Direct views read the source once into the final design and then the
+    /// resident design on each pass. A materialized design stages the selected
+    /// columns before the final design, so it touches and holds a second
+    /// copy. A streamed reduction holds one batch and the Gram matrix, and
+    /// re-reads the source on every pass. Lazy preparation costs what direct
+    /// views cost.
+    ///
+    /// # Errors
+    ///
+    /// [`RouteChoiceError::Unrepresentable`] when a quote overflows `u64`.
+    /// [`RouteChoiceError::NoneAdmitted`] when no alternative is both
+    /// implemented and within the budget; the refusal names the missing
+    /// capability of each.
+    #[allow(
+        clippy::result_large_err,
+        reason = "the refusal is the four-alternative report; boxing it would hide that fixed record"
+    )]
+    pub fn select(
+        work: RouteWork,
+        support: BackendSupport,
+        budget: crate::route_memory::RouteBudget,
+    ) -> Result<Self, RouteChoiceError> {
+        let overflow = || RouteChoiceError::Unrepresentable;
+        let cells = work.rows.checked_mul(work.columns).ok_or_else(overflow)?;
+        let design_bytes = cells.checked_mul(work.element_bytes).ok_or_else(overflow)?;
+        let resident_reads = cells.checked_mul(work.passes).ok_or_else(overflow)?;
+        let gather = |copies: u64| cells.checked_mul(copies).ok_or_else(overflow);
+        let batch = work.batch_rows.min(work.rows.max(1));
+        let gram_cells = work.columns.checked_mul(work.columns).ok_or_else(overflow)?;
+        let streamed_bytes = batch
+            .checked_mul(work.columns)
+            .and_then(|window| window.checked_add(gram_cells))
+            .and_then(|held| held.checked_mul(work.element_bytes))
+            .ok_or_else(overflow)?;
+        let streamed_work = resident_reads.checked_mul(SOURCE_CELL_COST).ok_or_else(overflow)?;
+        let direct_work = gather(1)?.checked_add(resident_reads).ok_or_else(overflow)?;
+        let materialized_work = gather(2)?.checked_add(resident_reads).ok_or_else(overflow)?;
+        let materialized_bytes = design_bytes.checked_mul(2).ok_or_else(overflow)?;
+        let raw = [
+            (PhysicalAlternative::DirectPreparedNumericViews, direct_work, design_bytes),
+            (PhysicalAlternative::StreamedReduction, streamed_work, streamed_bytes),
+            (PhysicalAlternative::MaterializedDesign, materialized_work, materialized_bytes),
+            (PhysicalAlternative::OptionalLazyPreparation, direct_work, design_bytes),
+        ];
+        let mut quotes = [None; 4];
+        for (slot, (alternative, work_cells, resident_bytes)) in raw.into_iter().enumerate() {
+            let cost = work_cells
+                .checked_add(resident_bytes.div_ceil(work.element_bytes))
+                .ok_or_else(overflow)?;
+            quotes[slot] = Some(AlternativeQuote {
+                alternative,
+                work_cells,
+                resident_bytes,
+                cost: DeclaredCost::from_raw(cost),
+            });
+        }
+        let quotes = quotes.map(|quote| quote.expect("every alternative is quoted"));
+        let mut available = AvailableCapabilities::empty();
+        for quote in quotes {
+            let alternative = quote.alternative;
+            if support.implements(alternative) {
+                available = available.with_operator(alternative.required_operator());
+            }
+            if quote.resident_bytes <= budget.bytes() {
+                available = available.with_resource(alternative.required_resource());
+            }
+        }
+        let costs = CostQuotes::new(quotes[0].cost, quotes[1].cost, quotes[2].cost, quotes[3].cost);
+        let choice =
+            PhysicalChoice::choose(costs, available).map_err(RouteChoiceError::NoneAdmitted)?;
+        Ok(Self { choice, quotes, budget_bytes: budget.bytes() })
+    }
+
+    /// The choice: selected alternative, its cost, and every rejection.
+    #[must_use]
+    pub const fn choice(&self) -> &PhysicalChoice {
+        &self.choice
+    }
+
+    /// Alternative that was selected.
+    #[must_use]
+    pub const fn selected(&self) -> PhysicalAlternative {
+        self.choice.selected()
+    }
+
+    /// Quote of every alternative, in [`PhysicalAlternative::ALL`] order.
+    #[must_use]
+    pub const fn quotes(&self) -> &[AlternativeQuote; 4] {
+        &self.quotes
+    }
+
+    /// Quote of `alternative`.
+    #[must_use]
+    pub const fn quote(&self, alternative: PhysicalAlternative) -> AlternativeQuote {
+        let mut index = 0usize;
+        while index < self.quotes.len() {
+            if self.quotes[index].alternative as u8 == alternative as u8 {
+                return self.quotes[index];
+            }
+            index += 1;
+        }
+        self.quotes[0]
+    }
+
+    /// Byte budget the resident bytes were compared with.
+    #[must_use]
+    pub const fn budget_bytes(&self) -> u64 {
+        self.budget_bytes
+    }
+}
+
 #[derive(Clone, Copy)]
 struct Classified {
     eligible: [bool; 4],
@@ -662,9 +964,123 @@ const fn rejections_except(
 #[cfg(test)]
 mod tests {
     use super::{
-        AvailableCapabilities, CostQuotes, DeclaredCost, OperatorCapability, PhysicalAlternative,
-        PhysicalChoice, RejectionReason, ResourceCapability,
+        AvailableCapabilities, BackendSupport, CostQuotes, DeclaredCost, OperatorCapability,
+        PhysicalAlternative, PhysicalChoice, RejectionReason, ResourceCapability, RouteChoice,
+        RouteChoiceError, RouteWork,
     };
+    use crate::route_memory::RouteBudget;
+
+    fn everything() -> BackendSupport {
+        PhysicalAlternative::ALL
+            .into_iter()
+            .fold(BackendSupport::none(), |support, alternative| support.with(alternative, true))
+    }
+
+    fn work(passes: u64) -> RouteWork {
+        RouteWork::new(100_000, 4, passes).batch_rows(1024)
+    }
+
+    #[test]
+    fn a_single_pass_reduction_streams_instead_of_holding_the_design() {
+        let routed = RouteChoice::select(work(1), everything(), RouteBudget::new(u64::MAX))
+            .expect("admitted");
+        assert_eq!(routed.selected(), PhysicalAlternative::StreamedReduction);
+        let streamed = routed.quote(PhysicalAlternative::StreamedReduction);
+        assert_eq!(streamed.work_cells(), 800_000, "one source scan at the decode cost");
+        assert_eq!(streamed.resident_bytes(), (1024 * 4 + 16) * 8, "one batch and the Gram matrix");
+        assert_eq!(streamed.cost(), cost(804_112));
+        let direct = routed.quote(PhysicalAlternative::DirectPreparedNumericViews);
+        assert_eq!(direct.work_cells(), 800_000);
+        assert_eq!(direct.resident_bytes(), 100_000 * 4 * 8);
+        assert_eq!(direct.cost(), cost(1_200_000));
+        assert_eq!(
+            reason(routed.choice(), PhysicalAlternative::DirectPreparedNumericViews),
+            RejectionReason::NotLowerCost { cost: cost(1_200_000), selected_cost: cost(804_112) },
+        );
+        let materialized = routed.quote(PhysicalAlternative::MaterializedDesign);
+        assert_eq!(materialized.resident_bytes(), 2 * direct.resident_bytes());
+        assert_eq!(materialized.cost(), cost(2_000_000));
+        assert_eq!(routed.choice().rejected().len(), 3);
+    }
+
+    #[test]
+    fn a_route_that_reads_its_design_repeatedly_reads_it_in_place() {
+        let routed = RouteChoice::select(work(4), everything(), RouteBudget::new(u64::MAX))
+            .expect("admitted");
+        assert_eq!(routed.selected(), PhysicalAlternative::DirectPreparedNumericViews);
+        assert_eq!(routed.choice().selected_cost(), cost(2_400_000));
+        assert!(
+            routed.quote(PhysicalAlternative::StreamedReduction).cost()
+                > routed.quote(PhysicalAlternative::DirectPreparedNumericViews).cost()
+        );
+    }
+
+    #[test]
+    fn an_unimplemented_backend_is_ineligible_however_cheap() {
+        let routed = RouteChoice::select(
+            work(1),
+            BackendSupport::materialized_only(),
+            RouteBudget::new(u64::MAX),
+        )
+        .expect("the materialized design is implemented");
+        assert_eq!(routed.selected(), PhysicalAlternative::MaterializedDesign);
+        assert!(
+            routed.quote(PhysicalAlternative::StreamedReduction).cost()
+                < routed.quote(PhysicalAlternative::MaterializedDesign).cost(),
+            "streaming would be cheaper"
+        );
+        assert_missing_operator(routed.choice(), PhysicalAlternative::StreamedReduction);
+        assert_missing_operator(routed.choice(), PhysicalAlternative::DirectPreparedNumericViews);
+        assert_missing_operator(routed.choice(), PhysicalAlternative::OptionalLazyPreparation);
+    }
+
+    #[test]
+    fn a_budget_that_cannot_hold_the_design_leaves_only_the_streamed_reduction() {
+        let routed = RouteChoice::select(work(4), everything(), RouteBudget::new(1_000_000))
+            .expect("the streamed reduction fits");
+        assert_eq!(routed.selected(), PhysicalAlternative::StreamedReduction);
+        assert_eq!(routed.budget_bytes(), 1_000_000);
+        assert_eq!(
+            reason(routed.choice(), PhysicalAlternative::DirectPreparedNumericViews),
+            RejectionReason::MissingResourceCapability {
+                capability: ResourceCapability::PreparedColumns,
+            },
+        );
+        assert_eq!(
+            reason(routed.choice(), PhysicalAlternative::MaterializedDesign),
+            RejectionReason::MissingResourceCapability {
+                capability: ResourceCapability::DesignMemory,
+            },
+        );
+    }
+
+    #[test]
+    fn nothing_is_chosen_when_the_only_implemented_backend_does_not_fit() {
+        let refused = RouteChoice::select(
+            work(1),
+            BackendSupport::materialized_only(),
+            RouteBudget::new(1_000_000),
+        )
+        .expect_err("the materialized design does not fit and nothing else is implemented");
+        let RouteChoiceError::NoneAdmitted(refusal) = refused else {
+            panic!("unexpected refusal: {refused}");
+        };
+        assert_eq!(refusal.rejected().len(), 4);
+        let text = refused.to_string();
+        assert!(text.contains("missing resource capability design_memory"), "{text}");
+        assert!(text.contains("missing operator capability streamed_reduction"), "{text}");
+        assert!(text.contains("next attempt"), "{text}");
+    }
+
+    #[test]
+    fn a_quote_that_overflows_is_refused() {
+        let overflow = RouteChoice::select(
+            RouteWork::new(u64::MAX, 2, 1),
+            everything(),
+            RouteBudget::new(u64::MAX),
+        );
+        assert_eq!(overflow, Err(RouteChoiceError::Unrepresentable));
+    }
 
     const fn cost(raw: u64) -> DeclaredCost {
         DeclaredCost::from_raw(raw)

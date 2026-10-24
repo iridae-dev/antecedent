@@ -260,6 +260,8 @@ pub struct MeasuredExecution {
     status: ExecutionFactStatus,
     copied_bytes: Option<u64>,
     retained_bytes: Option<u64>,
+    allocations: Option<u64>,
+    allocated_bytes: Option<u64>,
 }
 
 impl MeasuredExecution {
@@ -280,7 +282,24 @@ impl MeasuredExecution {
             status,
             copied_bytes: None,
             retained_bytes: None,
+            allocations: None,
+            allocated_bytes: None,
         }
+    }
+
+    /// Store measured owned-buffer allocations: how many buffers were allocated at
+    /// instrumented constructors and the bytes they requested. `None` means the
+    /// boundary was unmeasured, which is not zero. Requested bytes are not allocator
+    /// usage, peak live memory or process RSS.
+    #[must_use]
+    pub const fn with_observed_allocations(
+        mut self,
+        allocations: Option<u64>,
+        allocated_bytes: Option<u64>,
+    ) -> Self {
+        self.allocations = allocations;
+        self.allocated_bytes = allocated_bytes;
+        self
     }
 
     /// Store measured numeric buffer volumes. `None` means the boundary was unmeasured.
@@ -473,6 +492,16 @@ impl ExecutionFacts {
     pub fn observed_retained_bytes(&self) -> Option<u64> {
         self.covered(4).then_some(self.measured.retained_bytes).flatten()
     }
+    /// Owned numeric buffers allocated at instrumented constructors, or unknown.
+    #[must_use]
+    pub fn observed_allocations(&self) -> Option<u64> {
+        self.covered(13).then_some(self.measured.allocations).flatten()
+    }
+    /// Bytes requested by those allocations, or unknown. A request, not allocator usage.
+    #[must_use]
+    pub fn observed_allocated_bytes(&self) -> Option<u64> {
+        self.covered(14).then_some(self.measured.allocated_bytes).flatten()
+    }
     /// Completed enclosing model fits at instrumented engine boundaries.
     #[must_use]
     pub fn observed_model_fits(&self) -> Option<u64> {
@@ -493,8 +522,57 @@ impl ExecutionFacts {
     pub fn observed_spill_bytes(&self) -> Option<u64> {
         self.covered(5).then_some(self.resources().spill_bytes())
     }
+    /// Conditional-independence tests observed at instrumented boundaries.
+    #[must_use]
+    pub fn observed_tests(&self) -> Option<u64> {
+        self.covered(8).then_some(self.counts().tests())
+    }
+    /// Cache entries served, when the cache boundary was observed.
+    #[must_use]
+    pub fn observed_cache_hits(&self) -> Option<u64> {
+        self.covered(3).then_some(self.counts().cache_hits())
+    }
     fn covered(&self, bit: u32) -> bool {
         self.native_coverage.is_some_and(|mask| mask & (1 << bit) != 0)
+    }
+
+    /// Every reported quantity labelled with what backs it.
+    ///
+    /// A measured fact was counted at an instrumented boundary. An admission
+    /// reservation is what the admission pool granted or what a handoff
+    /// reserved; it bounds the run but is neither allocator usage nor RSS. An
+    /// estimate is a plan quote passed in as `planned`; it was not observed.
+    /// A boundary that was not instrumented is `None`, never zero.
+    #[must_use]
+    pub fn accounting(&self, planned: Option<PlannedResources>) -> ExecutionAccounting {
+        let measured = |name, value| AccountedQuantity::new(name, AccountingBasis::Measured, value);
+        let reserved = |name, value| {
+            AccountedQuantity::new(name, AccountingBasis::AdmissionReservation, value)
+        };
+        let estimate = |name, value| AccountedQuantity::new(name, AccountingBasis::Estimate, value);
+        let planned = planned.unwrap_or_default();
+        ExecutionAccounting {
+            status: self.status(),
+            retention: self.retention(),
+            quantities: vec![
+                measured("scans", self.observed_scans()),
+                measured("copies", self.observed_copies()),
+                measured("copied_bytes", self.observed_copied_bytes()),
+                measured("allocations", self.observed_allocations()),
+                measured("allocated_bytes", self.observed_allocated_bytes()),
+                measured("model_fits", self.observed_model_fits()),
+                measured("conditional_independence_tests", self.observed_tests()),
+                measured("cache_hits", self.observed_cache_hits()),
+                measured("spill_bytes", self.observed_spill_bytes()),
+                reserved("peak_admitted_bytes", self.peak_admitted_bytes()),
+                reserved("peak_admitted_threads", self.peak_admitted_threads()),
+                reserved("retained_output_bytes", self.observed_retained_bytes()),
+                estimate("planned_peak_memory_bytes", planned.peak_memory_bytes),
+                estimate("planned_copy_bytes", planned.copy_bytes),
+                estimate("planned_workspace_bytes", planned.workspace_bytes),
+                estimate("planned_worker_threads", planned.worker_threads),
+            ],
+        }
     }
 
     /// Replace the measurements.
@@ -632,6 +710,127 @@ impl ExecutionFacts {
     }
 }
 
+/// What backs a reported quantity.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[non_exhaustive]
+pub enum AccountingBasis {
+    /// Counted at an instrumented source boundary while the run executed.
+    Measured,
+    /// Granted by the admission pool or reserved at an output handoff. It
+    /// bounds what the run may hold; it is not what the allocator handed out.
+    AdmissionReservation,
+    /// Quoted by the planner before execution. It was not observed.
+    Estimate,
+}
+
+impl AccountingBasis {
+    /// Stable `snake_case` name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Measured => "measured",
+            Self::AdmissionReservation => "admission_reservation",
+            Self::Estimate => "estimate",
+        }
+    }
+}
+
+impl fmt::Display for AccountingBasis {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+/// Plan quotes reported beside the measurements. Each is an estimate.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash)]
+pub struct PlannedResources {
+    /// Estimated peak memory.
+    pub peak_memory_bytes: Option<u64>,
+    /// Estimated bytes copied for materializations.
+    pub copy_bytes: Option<u64>,
+    /// Declared workspace bytes.
+    pub workspace_bytes: Option<u64>,
+    /// Worker threads the plan assigned.
+    pub worker_threads: Option<u64>,
+}
+
+/// One reported quantity and the basis it stands on.
+///
+/// `None` is a quantity nobody observed or quoted. It is not zero.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub struct AccountedQuantity {
+    name: &'static str,
+    basis: AccountingBasis,
+    value: Option<u64>,
+}
+
+impl AccountedQuantity {
+    const fn new(name: &'static str, basis: AccountingBasis, value: Option<u64>) -> Self {
+        Self { name, basis, value }
+    }
+
+    /// Stable `snake_case` name.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        self.name
+    }
+
+    /// What backs the value.
+    #[must_use]
+    pub const fn basis(self) -> AccountingBasis {
+        self.basis
+    }
+
+    /// The value, or `None` when its boundary was not instrumented or quoted.
+    #[must_use]
+    pub const fn value(self) -> Option<u64> {
+        self.value
+    }
+}
+
+/// Measured facts, admission reservations and estimates of one run, each
+/// labelled with its basis so none is read as another.
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub struct ExecutionAccounting {
+    status: ExecutionFactStatus,
+    retention: OutputRetention,
+    quantities: Vec<AccountedQuantity>,
+}
+
+impl ExecutionAccounting {
+    /// How the run ended.
+    #[must_use]
+    pub const fn status(&self) -> ExecutionFactStatus {
+        self.status
+    }
+
+    /// How output was retained.
+    #[must_use]
+    pub const fn retention(&self) -> OutputRetention {
+        self.retention
+    }
+
+    /// Every quantity, in reporting order.
+    #[must_use]
+    pub fn quantities(&self) -> &[AccountedQuantity] {
+        &self.quantities
+    }
+
+    /// The quantities with `basis`.
+    pub fn with_basis(
+        &self,
+        basis: AccountingBasis,
+    ) -> impl Iterator<Item = AccountedQuantity> + '_ {
+        self.quantities.iter().copied().filter(move |quantity| quantity.basis == basis)
+    }
+
+    /// The quantity called `name`.
+    #[must_use]
+    pub fn get(&self, name: &str) -> Option<AccountedQuantity> {
+        self.quantities.iter().copied().find(|quantity| quantity.name == name)
+    }
+}
+
 fn checked_add(left: u64, right: u64) -> Result<u64, ExecutionFactError> {
     left.checked_add(right).ok_or(ExecutionFactError::Overflow)
 }
@@ -662,6 +861,13 @@ fn physical_digest(measured: &MeasuredExecution) -> PhysicalExecutionIdentity {
         writer.word(measured.copied_bytes.unwrap_or(0));
         writer.word(u64::from(measured.retained_bytes.is_some()));
         writer.word(measured.retained_bytes.unwrap_or(0));
+    }
+    if measured.allocations.is_some() || measured.allocated_bytes.is_some() {
+        writer.text("allocations.v1");
+        writer.word(u64::from(measured.allocations.is_some()));
+        writer.word(measured.allocations.unwrap_or(0));
+        writer.word(u64::from(measured.allocated_bytes.is_some()));
+        writer.word(measured.allocated_bytes.unwrap_or(0));
     }
     PhysicalExecutionIdentity { digest: SemanticDigest::from_bytes(writer.finish()) }
 }
@@ -913,6 +1119,70 @@ mod tests {
         assert_eq!(explicit.physical_identity(), original.physical_identity());
         assert_eq!(explicit.scientific_identity(), original.scientific_identity());
     }
+    #[test]
+    fn accounting_labels_measurements_reservations_and_estimates_apart() {
+        use super::{AccountingBasis, PlannedResources};
+        let values = measured(
+            counts(),
+            OutputRetention::SummaryOnly,
+            resources(),
+            KernelPolicy::default_policy(),
+            ExecutionFactStatus::Completed,
+        )
+        .with_observed_buffer_bytes(Some(96), Some(128));
+        // Scans, copies, copied bytes, cache hits, retained bytes, spill, peak bytes,
+        // peak threads, tests and fits were all instrumented.
+        let all = (1 << 10) - 1;
+        let facts = ExecutionFacts::from_artifact(values, all);
+        let planned = PlannedResources {
+            peak_memory_bytes: Some(4096),
+            copy_bytes: Some(512),
+            workspace_bytes: None,
+            worker_threads: Some(2),
+        };
+        let accounting = facts.accounting(Some(planned));
+        let value = |name: &str| accounting.get(name).unwrap().value();
+        assert_eq!(value("scans"), Some(2));
+        assert_eq!(value("copies"), Some(3));
+        assert_eq!(value("copied_bytes"), Some(96));
+        assert_eq!(value("model_fits"), Some(5));
+        assert_eq!(value("conditional_independence_tests"), Some(7));
+        assert_eq!(value("cache_hits"), Some(11));
+        assert_eq!(value("allocations"), None, "an unobserved allocation boundary is unknown");
+        assert_eq!(value("spill_bytes"), Some(64));
+        assert_eq!(value("peak_admitted_bytes"), Some(1024));
+        assert_eq!(value("peak_admitted_threads"), Some(4));
+        assert_eq!(value("retained_output_bytes"), Some(128));
+        assert_eq!(value("planned_peak_memory_bytes"), Some(4096));
+        assert_eq!(value("planned_workspace_bytes"), None, "an unquoted estimate is not zero");
+        let basis = |name: &str| accounting.get(name).unwrap().basis();
+        assert_eq!(basis("scans"), AccountingBasis::Measured);
+        assert_eq!(basis("peak_admitted_bytes"), AccountingBasis::AdmissionReservation);
+        assert_eq!(basis("retained_output_bytes"), AccountingBasis::AdmissionReservation);
+        assert_eq!(basis("planned_peak_memory_bytes"), AccountingBasis::Estimate);
+        assert_eq!(accounting.with_basis(AccountingBasis::Estimate).count(), 4);
+        assert_eq!(accounting.retention(), OutputRetention::SummaryOnly);
+
+        // A boundary that was not instrumented is unknown, not a measured zero, and a
+        // plan quote never fills a measurement.
+        let uninstrumented = ExecutionFacts::from_artifact(
+            measured(
+                ExecutionCounts::new(0, 0, 0, 0, 0),
+                OutputRetention::Unmeasured,
+                ExecutionResources::new(0, 0, 0),
+                KernelPolicy::default_policy(),
+                ExecutionFactStatus::Failed,
+            ),
+            1,
+        )
+        .accounting(Some(planned));
+        assert_eq!(uninstrumented.get("scans").unwrap().value(), Some(0));
+        assert_eq!(uninstrumented.get("copies").unwrap().value(), None);
+        assert_eq!(uninstrumented.get("peak_admitted_bytes").unwrap().value(), None);
+        assert_eq!(uninstrumented.get("planned_copy_bytes").unwrap().value(), Some(512));
+        assert_eq!(uninstrumented.status(), ExecutionFactStatus::Failed);
+    }
+
     #[test]
     fn measured_buffer_volumes_affect_physical_identity_without_becoming_caller_authority() {
         let values = measured(

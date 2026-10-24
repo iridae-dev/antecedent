@@ -6,24 +6,37 @@ Family interchange, previous-release goldens, and fresh-process consumers are no
 
 The durable container format is unchanged. Readers that already migrate container sources 0.1 through 0.5 still do that work. This note does not add a container rewrite.
 
-## Route axes
+## Route records
 
-Migration children are the four axes, one child each. A geometric cell is not a child.
+The public route manifest is `parity/capabilities/route_manifest.toml`. Its `[[route]]` records are the inventory of the previous release: one per query and graph class, with a status, a design/time model and an inference text. Its `[[method]]` records are the current inventory: one per licensed (query, graph class, estimator, inference), and one per graphless, execution-only or fitting-gap route, plus the facade methods that have no previous route. A method names the previous route it carries in `route`, its time frame in `design`, and its realization in `inference`.
 
-| Axis | Standing |
+`antecedent_io::release_migration::migrate_route_record` carries one previous record onto the current methods. The method records decide the mapping; the previous text is read only to say which axes it named.
+
+| Previous record | Outcome |
 | --- | --- |
-| Static frequentist | Still unmigrated |
-| Static Bayesian | Still unmigrated |
-| Temporal frequentist | Still unmigrated |
-| Temporal Bayesian | Still unmigrated |
+| Closed, no current method | `RefusalKept`: the recorded reason is kept as written |
+| One current method carries the route | `OneToOne`: the method, its estimator, status and axes |
+| Several methods carry the route | `Split`: one `MethodAssignment` per method, in inventory order |
+| Not licensed, no current method | `Retired`: the route left the inventory; stop requesting it |
+| Licensed, no current method | Error `RouteWithoutCurrentMethod`: request the query through the method that replaced it |
+| Licensed, no carrying method is licensed | Error `LicenseNotCarried`: license one of the methods, or accept its execution-only standing |
+| Status outside the manifest vocabulary | Error `UnknownStatus` |
 
-Licensed and graphless routes are not yet on the current contracts. Closed, execution-only, and fitting-gap routes are not relabelled as migrated. Asking to migrate an axis returns an error that names the axis.
+An axis is a time frame (static or temporal) crossed with a realization (frequentist or Bayesian). Each assignment lists the axes its method occupies. A previous record that names an axis none of its methods occupies reports it in `unserved_axes`; the method record is the authority for its time frame, so this is a correction of an over-named text and not a break. A method that keeps less than a licensed route (an execution-only Bayesian response beside a licensed frequentist one) has `narrowed` set. Methods that name no previous route are additions and are listed by `added_methods`.
 
-The public route manifest is `parity/capabilities/route_manifest.toml`, the inventory of the published 2.4.1 tree. Its header is:
+The mapping over the current manifest:
 
-> Public route manifest for the published 2.4.1 tree.
+| Previous status | Records | Outcome |
+| --- | --- | --- |
+| Licensed | 92 | split by estimator and realization (two or more methods each); none is a break |
+| Execution-only | 83 | one-to-one |
+| Graphless | 38 | one-to-one |
+| Fitting gap | 1 | one-to-one |
+| Closed | 71 | refusal kept |
 
-No route record in that file names a changed identity, a changed refusal reason, or a break. The fields on each record are target, graph class, design/time model, inference, uncertainty, decision ports, artifact consumer, status, owning module, and notes.
+A licensed route splits across its estimators: the average-effect Dag route is fourteen methods. Four execution-only records name an axis their method does not occupy (the temporal attribution routes name the static graph their lag-aligned fit unfolds to, the simulator names temporal rollouts, and the regime-survival route names static regimes); each reports it in `unserved_axes`. One method, the joint Bayesian response of the co-determined intervention-response route, is `narrowed`. Forty-three facade methods have no previous route and are additions. No record is a break.
+
+`consume_previous_route_records` reads a previous-release route artifact, `{"routes":[{"id","status","design_time_model","inference"}]}`, and returns one outcome or error per record, in order, so one break does not hide the others. `crates/antecedent-io/tests/release_migration_consumers.rs` reads the manifest as plain text and carries every route through the migration; it also loads the frozen artifact `tests/fixtures/previous_release_routes_v1.json`.
 
 ## Changed identities
 
@@ -79,9 +92,23 @@ Summary-only keeps reuse of the summary. It can no longer serve:
 
 It also refuses a read of the declared disk artifact. That read is not a loss relative to full reusable state, which never served one.
 
-Disk-backed output is a declaration. It stores no path and spills nothing. It serves only a read of the declared disk artifact. It can no longer serve the six operations above, and it can no longer serve reuse of the summary.
+Disk-backed output is `antecedent_state::SpillRegistry::spill`, which writes a prepared result (the retained rows and source identity of a refresh summary) as a digest-checked frame under one byte budget. The returned `SpillHandle` serves only a read of the declared disk artifact (`reload`). It can no longer serve the six operations above, and it can no longer serve reuse of the summary; each refusal names the reload that reaches the same end. A spill that does not fit the whole budget is refused and evicts nothing. A spill that fits evicts the least recently used results, and reloading an evicted result is refused with the rebuild from the source rows. A file that was changed or truncated is refused.
 
 The refusal text is `{mode} cannot serve {operation}`, with the mode names `full reusable state`, `summary-only`, and `disk-backed output`.
+
+## Break inventory and paths
+
+Every intentional break has one explicit path, `antecedent_io::release_migration::break_path`. Each path names the error a retained value gets, and a test calls the function that enforces it.
+
+| Break | Path | Error |
+| --- | --- | --- |
+| Score-row ids are eight bytes | Recompute the digest from the eight-byte row ids | `MigrationError::ScoreRowDigestNotTranslated` |
+| Scientific-target digest at the current payload format | Recompute the digest from the target | `MigrationError::CarriedTargetDigestNotTranslated` |
+| World identities are content-based | Recompute the digest from the target; world ids and the reference flag do not enter | `MigrationError::CarriedTargetDigestNotTranslated` |
+| Reduced retention refuses later operations | Reload the rows or the disk artifact, and run the operation on the resident state | `antecedent_state::retention::RetentionRefusal` |
+| A licensed route has no current method | Request the query through the method that replaced it | `RouteRecordError::RouteWithoutCurrentMethod` |
+| A licensed route is carried only by unlicensed methods | License one of the methods, or accept its execution-only standing | `RouteRecordError::LicenseNotCarried` |
+| Refusal reasons | None changed | none |
 
 ## What the route inventory does not list
 

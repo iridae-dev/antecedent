@@ -24,6 +24,7 @@ use std::sync::Arc;
 
 use antecedent_core::CanonicalWriter;
 
+use crate::disk_retention::{SpillDecoder, SpillEncoder, SpillHandle, SpillRegistry, Spillable};
 use crate::error::StateError;
 use crate::retention::{RetainedOperation, RetentionMode};
 use crate::suff_stats::{LinearOlsSuffStats, merge_within_tolerance};
@@ -338,6 +339,19 @@ impl OlsRefresh {
         self.rebuild()
     }
 
+    /// Keep the most recently appended `max_rows` rows and drop the rest, then rebuild.
+    ///
+    /// # Errors
+    /// Rows are not retained.
+    pub fn retain_last(&mut self, max_rows: usize) -> Result<RefreshOutcome, StateError> {
+        self.require(RetainedOperation::ExactRowEviction)?;
+        let drop_count = self.rows.len().saturating_sub(max_rows);
+        for row in self.rows.drain(..drop_count) {
+            self.ids.remove(&row.id);
+        }
+        self.rebuild()
+    }
+
     /// Change the count weight of one retained row and rebuild the summary.
     ///
     /// # Errors
@@ -399,6 +413,18 @@ impl OlsRefresh {
         self.rows = if self.retention == RetentionMode::FullReusable { rows } else { Vec::new() };
         self.recomputes = self.recomputes.saturating_add(1);
         Ok(RefreshOutcome::Recomputed)
+    }
+
+    /// Write the retained rows under `registry` as a disk-backed result.
+    ///
+    /// # Errors
+    /// Rows are not retained, or the errors of [`SpillRegistry::spill`].
+    pub fn spill(
+        &self,
+        registry: &Arc<SpillRegistry>,
+        key: &str,
+    ) -> Result<SpillHandle, StateError> {
+        registry.spill(key, self)
     }
 
     /// A column was inserted. Refused: the retained rows carry no values for it.
@@ -557,5 +583,44 @@ fn optional_scalar_close(left: Option<f64>, right: Option<f64>) -> bool {
         (None, None) => true,
         (Some(a), Some(b)) => merge_within_tolerance(a, b),
         _ => false,
+    }
+}
+
+impl Spillable for OlsRefresh {
+    const KIND: &'static str = "antecedent.state.ols_refresh";
+
+    fn encode(&self) -> Result<Vec<u8>, StateError> {
+        self.require(RetainedOperation::RowReconstruction)?;
+        let mut encoder = SpillEncoder::new();
+        encoder.text(&self.source).word(self.ncols as u64).word(self.rows.len() as u64);
+        for row in &self.rows {
+            encoder
+                .word(row.id)
+                .reals(&row.x)
+                .real(row.y)
+                .word(u64::from(row.count))
+                .flag(row.masked);
+        }
+        Ok(encoder.finish())
+    }
+
+    fn decode(bytes: &[u8]) -> Result<Self, StateError> {
+        let mut decoder = SpillDecoder::new(bytes);
+        let source = decoder.text()?;
+        let ncols = usize::try_from(decoder.word()?)
+            .map_err(|_| StateError::StaleCache("spilled column count is too large".into()))?;
+        let count = decoder.count(8)?;
+        let mut rows = Vec::with_capacity(count);
+        for _ in 0..count {
+            let id = decoder.word()?;
+            let x = decoder.reals()?;
+            let y = decoder.real()?;
+            let weight = u32::try_from(decoder.word()?)
+                .map_err(|_| StateError::StaleCache("spilled count is too large".into()))?;
+            let masked = decoder.flag()?;
+            rows.push(RefreshRow { id, x, y, count: weight, masked });
+        }
+        decoder.finish()?;
+        Self::from_rows(source, ncols, rows)
     }
 }

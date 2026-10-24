@@ -89,7 +89,7 @@ impl OperationCounts {
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct AttemptReport {
     counts: [OperationCounts; 18],
-    physical: [u64; 13],
+    physical: [u64; 15],
     physical_seen: u64,
 }
 impl AttemptReport {
@@ -140,6 +140,10 @@ pub enum PhysicalEvent {
     RetainedSummary = 11,
     /// One disk-backed output handoff.
     RetainedDisk = 12,
+    /// One owned numeric buffer allocated at an instrumented constructor.
+    Allocation = 13,
+    /// Bytes requested for owned numeric buffers at instrumented constructors.
+    AllocatedBytes = 14,
 }
 
 fn checked_increment(counter: &AtomicU64, amount: u64) -> u64 {
@@ -304,6 +308,10 @@ impl AttemptReport {
             .with_observed_buffer_bytes(
                 self.physical(PhysicalEvent::CopiedBytes),
                 self.physical(PhysicalEvent::RetainedBytes),
+            )
+            .with_observed_allocations(
+                self.physical(PhysicalEvent::Allocation),
+                self.physical(PhysicalEvent::AllocatedBytes),
             ),
             self.physical_seen,
         )
@@ -322,7 +330,7 @@ pub struct ExecutionAttempt<T, E> {
 }
 #[derive(Default, Debug)]
 struct Counters {
-    physical: [AtomicU64; 13],
+    physical: [AtomicU64; 15],
     physical_seen: AtomicU64,
     admitted: Mutex<(u128, u128)>,
     physical_unavailable: AtomicU64,
