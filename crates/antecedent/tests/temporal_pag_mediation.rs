@@ -283,7 +283,7 @@ fn a_lagged_window_matches_the_structural_decomposition_of_the_series() {
 }
 
 #[test]
-fn uncertainty_resamples_blocks_never_shorter_than_the_window_and_pairs_the_components() {
+fn uncertainty_resamples_blocks_never_shorter_than_the_window_into_an_identified_set_interval() {
     let ctx = ExecutionContext::for_tests(73);
     let series = lagged_series(6_000, 23);
     let result = study(
@@ -297,18 +297,24 @@ fn uncertainty_resamples_blocks_never_shorter_than_the_window_and_pairs_the_comp
     .unwrap();
     let window = diagnostic(&result, "estimate.temporal_pag.window").expect("window disclosure");
     assert!(field(window, "block_length") >= 2.0, "{}", field(window, "block_length"));
-    let joint = diagnostic(&result, "estimate.mediation.joint").expect("joint disclosure");
-    assert!(field(joint, "draws") >= 40.0);
-    assert!(field(joint, "indirect_sd") > 0.0);
-    assert!(field(joint, "total_sd") > 0.0);
-    let correlation = field(joint, "corr_direct_indirect");
-    assert!((-1.0..=1.0).contains(&correlation), "{correlation}");
-    let se = result.estimate.as_effect().unwrap().se_bootstrap().expect("a bootstrap SE");
-    assert!((se - field(joint, "indirect_sd")).abs() <= 0.05 * se + 1e-9);
+    // The window MAG has two candidate ADMGs whose functionals differ, so the indirect effect
+    // is an identified set: the interval comes from the block-bootstrap refits of every
+    // candidate on the same resampled windows.
+    let mixture = result.structural_response.as_ref().expect("the identified-set mixture");
+    let interval = mixture.identified_set_interval.as_ref().expect("an identified-set interval");
+    assert!(interval.lower <= interval.bound_lower && interval.bound_upper <= interval.upper);
+    assert!(
+        interval.lower - 0.02 <= structural_indirect()
+            && structural_indirect() <= interval.upper + 0.02,
+        "[{}, {}] against {}",
+        interval.lower,
+        interval.upper,
+        structural_indirect()
+    );
 }
 
 #[test]
-fn the_bayesian_bootstrap_shares_one_weight_per_block_and_pairs_the_posteriors() {
+fn the_bayesian_bootstrap_shares_one_weight_per_block_into_an_identified_set_interval() {
     let ctx = ExecutionContext::for_tests(74);
     let series = lagged_series(20_000, 29);
     let inference = InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(200));
@@ -316,14 +322,21 @@ fn the_bayesian_bootstrap_shares_one_weight_per_block_and_pairs_the_posteriors()
         study(series, lagged_template(), query(MediationContrast::NaturalDirect), inference, 0)
             .run(&ctx)
             .unwrap();
-    let posterior = result.posterior.as_ref().expect("a posterior");
-    assert_eq!(posterior.draws.n_draws, 200);
     assert!((result.effect() - structural_direct()).abs() < 0.03, "{}", result.effect());
-    let joint = diagnostic(&result, "estimate.mediation.joint").expect("joint disclosure");
-    assert_eq!(field(joint, "draws"), 200.0);
-    assert!((field(joint, "total_mean") - structural_total()).abs() < 0.04);
-    assert!((field(joint, "indirect_mean") - structural_indirect()).abs() < 0.04);
-    assert!(field(joint, "direct_sd") > 0.0);
+    // Two candidate ADMGs identify the direct effect by different functionals, so the result is
+    // an identified set whose interval comes from the Dirichlet draws of every candidate,
+    // each draw shared across a block of consecutive windows.
+    let mixture = result.structural_response.as_ref().expect("the identified-set mixture");
+    let interval = mixture.identified_set_interval.as_ref().expect("an identified-set interval");
+    assert!(interval.lower <= interval.bound_lower && interval.bound_upper <= interval.upper);
+    assert!(
+        interval.lower - 0.03 <= structural_direct()
+            && structural_direct() <= interval.upper + 0.03,
+        "[{}, {}] against {}",
+        interval.lower,
+        interval.upper,
+        structural_direct()
+    );
 }
 
 #[test]

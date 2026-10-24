@@ -51,7 +51,7 @@ Calibration is read from a claim; none is attached.
 ### Support slot
 
 - **Matrix status:** refused
-- **Matrix coordinate:** PathSpecificEffect:Admg:explicit:Frequentist:full
+- **Matrix coordinate:** PathSpecificEffect:Admg:explicit:Frequentist:cheap
 - **Empirical support:** unavailable:not\_evaluated
 
 ## Refusals and limits
@@ -59,7 +59,7 @@ Calibration is read from a claim; none is attached.
 - **Operation:** inspect
 - **Applicability:** unlicensed
 - **Readiness:** none
-- **Coordinate:** PathSpecificEffect:Admg:explicit:Frequentist:full
+- **Coordinate:** PathSpecificEffect:Admg:explicit:Frequentist:cheap
 
 No limit is recorded beyond the blockers below.
 
@@ -67,7 +67,7 @@ No limit is recorded beyond the blockers below.
 
 | Id | Scientific impossibility | Reason |
 | --- | --- | --- |
-| support.refused | yes | Path-specific queries execute only on a supplied static Dag; a directly supplied Admg, TemporalAdmg, or Pag hits the same static-Dag requirement (accepted/graph-posterior Admg and Pag are already refused above). |
+| support.refused | yes | Query-native functional validation requires a Dag. |
 
 ### Next actions
 
@@ -83,14 +83,14 @@ A neighbour changes the stated premises; it is not a fallback.
 
 | Coordinate | Changed premises | Required action |
 | --- | --- | --- |
-| AverageEffect:Admg:explicit:Frequentist:full | query: PathSpecificEffect to AverageEffect | change the query; do not relabel the graph class |
-| InterventionResponse:Admg:explicit:Frequentist:full | query: PathSpecificEffect to InterventionResponse | change the query; do not relabel the graph class |
-| AverageEffect:Admg:accepted:Frequentist:full | query: PathSpecificEffect to AverageEffect; structure: explicit to accepted | change the listed premises; do not relabel the graph class |
-| AverageEffect:Admg:explicit:Bayesian:full | query: PathSpecificEffect to AverageEffect; inference: Frequentist to Bayesian | change the listed premises; do not relabel the graph class |
-| AverageEffect:Admg:explicit:Frequentist:cheap | query: PathSpecificEffect to AverageEffect; validation: full to cheap | change the listed premises; do not relabel the graph class |
-| AverageEffect:Admg:explicit:Frequentist:none | query: PathSpecificEffect to AverageEffect; validation: full to none | change the listed premises; do not relabel the graph class |
-| AverageEffect:Admg:graph\_posterior:Frequentist:full | query: PathSpecificEffect to AverageEffect; structure: explicit to graph\_posterior | change the listed premises; do not relabel the graph class |
-| ConditionalEffect:Admg:explicit:Frequentist:none | query: PathSpecificEffect to ConditionalEffect; validation: full to none | change the listed premises; do not relabel the graph class |
+| AverageEffect:Admg:explicit:Frequentist:cheap | query: PathSpecificEffect to AverageEffect | change the query; do not relabel the graph class |
+| InterventionResponse:Admg:explicit:Frequentist:cheap | query: PathSpecificEffect to InterventionResponse | change the query; do not relabel the graph class |
+| AverageEffect:Admg:accepted:Frequentist:cheap | query: PathSpecificEffect to AverageEffect; structure: explicit to accepted | change the listed premises; do not relabel the graph class |
+| AverageEffect:Admg:explicit:Bayesian:cheap | query: PathSpecificEffect to AverageEffect; inference: Frequentist to Bayesian | change the listed premises; do not relabel the graph class |
+| AverageEffect:Admg:explicit:Frequentist:full | query: PathSpecificEffect to AverageEffect; validation: cheap to full | change the listed premises; do not relabel the graph class |
+| AverageEffect:Admg:explicit:Frequentist:none | query: PathSpecificEffect to AverageEffect; validation: cheap to none | change the listed premises; do not relabel the graph class |
+| AverageEffect:Admg:graph\_posterior:Frequentist:cheap | query: PathSpecificEffect to AverageEffect; structure: explicit to graph\_posterior | change the listed premises; do not relabel the graph class |
+| ConditionalEffect:Admg:explicit:Frequentist:none | query: PathSpecificEffect to ConditionalEffect; validation: cheap to none | change the listed premises; do not relabel the graph class |
 
 - **Layers the premises preserve:** target
 - **Layers the premises invalidate:** support, identification, results
@@ -103,7 +103,7 @@ This report restates the contract. It computes no estimate, grants no licence, a
 - **Identification:** 29e49e714b185af8a7299d26ea3f1427f16b3c4ef30b34868938a1b02cff9ec4
 - **Identification product:** none
 - **Program:** none
-- **Inference binding:** dfbaf4691a9aed9b74147e09af2c59cfaf3d9fd478889631a5173f0bac005f66
+- **Inference binding:** 1825cf17c03045cb5c87a63ed282be6ed4d3d5e0649ca76a0a270d758eaa63f6
 - **Observation:** cc659f942a090ca3046701bc26734487d0de84af65e670e49bc5abe48aef151c
 - **Data snapshot:** d3f991cc994df9d7757ec98159b5f3dbf5ed8e580cc3eaba9c79184522cf72f2
 - **Score reuse:** none

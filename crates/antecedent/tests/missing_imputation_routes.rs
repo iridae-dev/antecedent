@@ -19,7 +19,7 @@ use std::sync::Arc;
 
 use antecedent::result::ImputationReport;
 use antecedent::{
-    BayesianConfig, CausalError, EstimatorId, IdentifierId, InferenceMode, RandomizedEffectQuery,
+    BayesianConfig, CausalError, DesignPosteriorModel, EstimatorId, IdentifierId, InferenceMode, RandomizedEffectQuery,
     RefuteSuite, Study, StudyResult,
 };
 use antecedent_core::{
@@ -33,6 +33,7 @@ use antecedent_data::{
     ImputationModel, ImputationSpec, MissingDeclaration, MissingPolicy, TabularData, TimeSeriesData,
 };
 use antecedent_estimate::multiple_imputation::{self, ImputationColumn, ImputationUnits, Imputer};
+use antecedent_estimate::randomized_posterior::{ArmNormalPrior, ArmOutcomeModel};
 use antecedent_graph::{Dag, DenseNodeId, TemporalDag, ensure_lagged};
 
 const IMPUTATIONS: u32 = 6;
@@ -284,8 +285,11 @@ fn refusal(error: &CausalError) -> String {
 
 const MODIFIER_EFFECT: f64 = 0.5;
 
-/// `y = 1 + 2 t + 0.5 t w + 0.8 w + e`; `y` goes missing with probability rising in `w`, and
-/// `w` is missing completely at random for one row in ten.
+/// `y = 1 + 2 t + 0.5 t w + 0.8 w + e`; `y` goes missing with probability rising in the arm `t`
+/// (at random given the imputation model's variables), and `w` is missing completely at random
+/// for one row in ten. The missingness is kept off `w`: an additive imputation model cannot carry
+/// the `t w` interaction into the rows it fills, so missingness that selects on `w` would bias
+/// the effect at any modifier value by the model's misspecification, not by the route.
 fn conditional_columns(n: usize, seed: u64) -> Columns {
     let mut rng = Stream(seed);
     let (mut t, mut y, mut w) = (vec![], vec![], vec![]);
@@ -293,7 +297,7 @@ fn conditional_columns(n: usize, seed: u64) -> Columns {
         let wi = rng.normal();
         let ti = f64::from(u8::from(rng.bernoulli(0.5)));
         let yi = 1.0 + 2.0 * ti + MODIFIER_EFFECT * ti * wi + 0.8 * wi + rng.normal();
-        y.push(if rng.bernoulli(logistic(1.2 * wi - 0.4)) { f64::NAN } else { yi });
+        y.push(if rng.bernoulli(logistic(0.8 * ti - 0.4)) { f64::NAN } else { yi });
         w.push(if i % 10 == 3 { f64::NAN } else { wi });
         t.push(ti);
     }
@@ -372,7 +376,7 @@ fn a_conditional_effect_pools_to_the_hand_pooled_reference() {
         assert!(close(effect.uncertainty.analytic.se, vector.total[0].sqrt(), 1e-12));
         assert!(result.interval.is_none(), "the pooled interval stays closed");
         // The marginal effect is 2 + 0.5 E[w] = 2; imputation recovers it where the missing
-        // outcomes depend on the modifier.
+        // outcomes depend on the arm.
         assert!((effect.ate - 2.0).abs() < 0.3, "pooled conditional effect {}", effect.ate);
         assert!(vector.between[0] > 0.0 && vector.within[0] > 0.0);
         assert!(report.imputed_cells.iter().find(|(n, _)| n.as_ref() == "y").unwrap().1 > 100);
@@ -934,7 +938,20 @@ fn a_bayesian_randomized_trial_stacks_the_arm_contrast_posteriors() {
             names: vec!["outcome", "baseline"],
             values: vec![t.outcome.clone(), t.baseline.clone()],
         };
-        let bayes = || InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(200));
+        // The outcome is real, so each arm is declared Gaussian with a weak Normal-Inverse-Gamma
+        // prior; a prior alone does not identify the contrast.
+        let bayes = || {
+            InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(200).design_model(
+                DesignPosteriorModel::ArmOutcome {
+                    model: ArmOutcomeModel::Gaussian(ArmNormalPrior {
+                        mean: 0.0,
+                        pseudo_units: 1.0e-3,
+                        variance_shape: 1.0,
+                        variance_scale: 1.0,
+                    }),
+                },
+            ))
+        };
         let result = t.run(&data, bayes(), Some(declaration(spec()))).unwrap();
         let report = report_of(&result);
         assert_eq!(report.pooling.as_ref(), "stacked_posterior");

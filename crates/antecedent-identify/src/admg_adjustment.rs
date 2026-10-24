@@ -38,7 +38,7 @@ use antecedent_expr::EstimandMethod;
 use crate::envelope::IdentificationEnvelope;
 use crate::error::IdentificationError;
 use crate::generalized::{
-    GeneralizedAdjustmentIdentifier, directed_closure, mag_dense_to_var, mag_to_confounded_admg,
+    GeneralizedAdjustmentIdentifier, directed_closure, mag_dense_to_var, mag_to_admg, mag_to_confounded_admg,
     not_identified, pag_var_to_dense,
 };
 use crate::response::{append_observation_assumptions, response_pairs};
@@ -175,11 +175,14 @@ pub fn identify_cpdag_derivative_pairs(
 
 /// Identify a derivative or Jacobian over every MAG completion of a PAG.
 ///
-/// A completion is read as the most-confounded ADMG its MAG allows (an invisible directed
-/// edge also carries a latent common cause), so a set that adjusts there is valid in every
-/// DAG the MAG represents. A completion with no such set is reported as not identified by
-/// adjustment; that is a refusal of this route, not a proof that general ID cannot
-/// identify it.
+/// Each completion is read through the generalized adjustment criterion of Perkovic et al.
+/// (2018): the MAG is amenable to adjustment for a pair only when every causal path from the
+/// treatment starts with a visible edge, and a set is then valid when it m-separates the pair
+/// in the proper back-door graph of the MAG and holds no forbidden node. One set valid for
+/// every pair the functional names is searched exactly as on an ADMG. A completion with an
+/// invisible first edge of a causal path, or with no common set, is reported as not
+/// identified by adjustment; that is a refusal of this route, not a proof that general ID
+/// cannot identify it.
 ///
 /// # Errors
 ///
@@ -189,7 +192,7 @@ pub fn identify_pag_derivative_pairs(
     query: &ResponseQuery,
 ) -> Result<IdentificationEnvelope<Pag>, IdentificationError> {
     GeneralizedAdjustmentIdentifier::new().pag_envelope_with(pag, |mag| {
-        let Some(admg) = mag_to_confounded_admg(mag) else {
+        let Some(admg) = mag_to_admg(mag) else {
             return Ok(not_identified(
                 CausalQuery::Response(query.clone()),
                 "completion is not a directed/bidirected MAG; adjustment was not attempted",
@@ -197,6 +200,19 @@ pub fn identify_pag_derivative_pairs(
         };
         let dense = |variable: VariableId| pag_var_to_dense(mag, variable);
         let variable = |node: DenseNodeId| mag_dense_to_var(mag, node);
+        for (treatment, outcome) in response_pairs(&query.functional)? {
+            let t = dense(treatment)?;
+            let ancestors_of_y = directed_closure(&admg, &[dense(outcome)?], true);
+            if admg.children(t).iter().any(|&child| {
+                ancestors_of_y.contains(child) && !crate::joint_response::visible(mag, t, child)
+            }) {
+                return Ok(not_identified(
+                    CausalQuery::Response(query.clone()),
+                    "MAG is not adjustment amenable: a causal path starts with an invisible \
+                     edge; no adjustment set identifies this effect",
+                ));
+            }
+        }
         adjustment_on(&admg, query, &NodeMap { dense: &dense, variable: &variable })
     })
 }

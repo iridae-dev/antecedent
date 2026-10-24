@@ -322,7 +322,7 @@ fn frequentist_class_and_latent_confounded_derivatives_match_the_structural_refe
                 let label = format!("{structure:?} {key} accepted={accepted}");
                 let built =
                     study(&data, structure, accepted, &functional, InferenceMode::Frequentist);
-                let fresh = built.run(&ctx).unwrap();
+                let fresh = built.run(&ctx).unwrap_or_else(|e| panic!("{label}: {e}"));
                 let got = published(&fresh, &label);
                 assert_eq!(got.len(), want.len(), "{label}");
                 for (got, want) in got.iter().zip(&want) {
@@ -336,6 +336,26 @@ fn frequentist_class_and_latent_confounded_derivatives_match_the_structural_refe
                         got[0],
                         reference.naive_y
                     );
+                }
+                // A single-model additive-GAM gradient (Jacobian, directional derivative) keeps
+                // its frequentist band withheld until its coverage is measured: the point is
+                // published and the withholding is disclosed.
+                if matches!(structure, Structure::Admg) && matches!(key, "jacobian" | "directional")
+                {
+                    let response = fresh.response().unwrap();
+                    assert!(
+                        matches!(response.uncertainty, ResponseUncertainty::None),
+                        "{label}: a withheld band is not published"
+                    );
+                    assert!(
+                        response
+                            .support
+                            .warnings
+                            .iter()
+                            .any(|w| w.code.as_ref() == "response.derivative_interval_withheld"),
+                        "{label}: the withheld interval is disclosed"
+                    );
+                    continue;
                 }
                 let (lower, upper) = interval(&fresh, &label);
                 assert_eq!(lower.len(), got.len(), "{label}");
@@ -383,7 +403,7 @@ fn bayesian_class_and_latent_confounded_derivatives_publish_credible_intervals()
                 &functional,
                 InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(64)),
             );
-            let result = built.run(&ctx).unwrap();
+            let result = built.run(&ctx).unwrap_or_else(|e| panic!("{label}: {e}"));
             let got = published(&result, &label);
             assert_eq!(got.len(), want.len(), "{label}");
             for (got, want) in got.iter().zip(&want) {
@@ -489,6 +509,10 @@ fn completions_that_disagree_publish_the_identified_set_of_the_independent_refer
     let result = Study::tabular(data)
         .graph(two_completion_cpdag())
         .query(CausalQuery::Response(ResponseQuery::new(functional)))
+        .response_options(ContinuousResponseOptions {
+            bandwidth: Some(0.8),
+            ..ContinuousResponseOptions::default()
+        })
         .refute(RefuteSuite::None)
         .bootstrap_replicates(0)
         .build()

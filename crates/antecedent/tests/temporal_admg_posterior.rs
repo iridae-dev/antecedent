@@ -146,10 +146,11 @@ fn true_atom() -> TemporalAdmgAtom {
     }
 }
 
-/// The truth without `z -> y`: the confounding path through `z` is invisible to it.
+/// The truth without `z -> y` and `z -> x`: the confounding path through `z` is invisible to
+/// it, so the treatment has no parent to adjust for and the contrast is the observational one.
 fn omitting_atom() -> TemporalAdmgAtom {
     TemporalAdmgAtom {
-        contemporaneous: contemporaneous(&[(Z, X)], 3),
+        contemporaneous: AdjacencyMask::EMPTY,
         lagged_directed: lagged(&[(1, Z, Z), (1, X, Y)], 3),
         lagged_bidirected: 0,
     }

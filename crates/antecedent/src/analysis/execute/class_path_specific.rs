@@ -182,6 +182,7 @@ impl super::Study {
         let mut outcomes = vec![ClassAtomOutcome::NotEvaluated; envelope.cases.len()];
         let mut evaluated = Vec::new();
         let mut prepared_completions = Vec::new();
+        let mut first_estimand = None;
         let mut assumptions = antecedent_core::AssumptionSet::default();
         for (index, case) in envelope.cases.iter().enumerate() {
             if !identification_status_ok_for_case(case.result.status)
@@ -190,6 +191,7 @@ impl super::Study {
                 continue;
             }
             let estimand = select_estimand(&case.result, estimator_id)?;
+            first_estimand.get_or_insert_with(|| estimand.clone());
             let (estimate, posterior) = match resampling {
                 Some(resampling) => self.estimate_functional_effect_resampled(
                     data,
@@ -301,7 +303,13 @@ impl super::Study {
         };
         diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
 
-        let estimand = select_estimand(&identification, estimator_id)?;
+        // Completions that identify different functionals list one estimand each in the combined
+        // identification; the result names the first evaluated completion's functional, the
+        // others are disclosed through the structural mixture.
+        let estimand = match first_estimand {
+            Some(estimand) if identification.estimands.len() > 1 => estimand,
+            _ => select_estimand(&identification, estimator_id)?,
+        };
         let result = self.finish_identified_execute(
             IdentifiedExecuteFinish::new(
                 physical,

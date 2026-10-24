@@ -350,16 +350,22 @@ mod tests {
         (0..12).map(|_| uniform()).sum::<f64>() - 6.0
     }
 
-    /// `T` persistent, `M = 0.8 T + e1`, `Y = 0.5 T + 0.7 M + 0.6 e1 + w`: the two mechanisms'
-    /// innovations are correlated, so the mediator slope and the direct effect are too.
+    /// `T` persistent, `M = 0.8 T + e1`, `Y = 0.5 T + 0.7 M + 1.5 e1[-1] + w`: the outcome
+    /// carries the mediator mechanism's previous innovation, which the contemporaneous
+    /// regressors do not contain, so the two mechanisms' scores are correlated across one lag
+    /// and the mediator slope and the direct effect are too. (An innovation shared at the same
+    /// time would sit in the span of the outcome's regressors and leave the estimates
+    /// uncorrelated.)
     fn series(n: usize, seed: u64) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
         let mut state = seed.wrapping_mul(2_654_435_761).wrapping_add(5);
         let (mut t, mut m, mut y) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
+        let mut previous = 0.0;
         for i in 0..n {
             t[i] = if i == 0 { 0.0 } else { 0.5 * t[i - 1] } + normal(&mut state);
             let e1 = normal(&mut state);
             m[i] = 0.8 * t[i] + e1;
-            y[i] = 0.5 * t[i] + 0.7 * m[i] + 0.6 * e1 + 0.5 * normal(&mut state);
+            y[i] = 0.5 * t[i] + 0.7 * m[i] + 1.5 * previous + 0.3 * normal(&mut state);
+            previous = e1;
         }
         (t, m, y)
     }
@@ -410,22 +416,11 @@ mod tests {
         cov / (va * vb).sqrt()
     }
 
-    #[test]
-    fn coupled_mechanisms_carry_the_dependence_the_repeated_simulation_shows() {
-        // Independent reference: the correlation of the mediator slope and the direct effect
-        // over fresh simulated series.
-        let (mut slopes, mut directs) = (Vec::new(), Vec::new());
-        for seed in 1..=400 {
-            let (t, m, y) = series(250, 500 + seed);
-            let (a, direct) = ols(&t, &m, &y);
-            slopes.push(a);
-            directs.push(direct);
-        }
-        let reference = corr(&slopes, &directs);
-        assert!(reference.abs() > 0.3, "the design must carry dependence: {reference}");
-
+    /// Correlation of the two mechanisms' slope draws before and after coupling, for the series
+    /// of `seed`; each mechanism keeps its own marginal spread through the coupling.
+    fn coupled_series_correlations(seed: u64) -> (f64, f64) {
         let ctx = ExecutionContext::for_tests(9);
-        let (t, m, y) = series(250, 3);
+        let (t, m, y) = series(250, seed);
         let mediator_id = VariableId::from_raw(1);
         let preparations = [problem(&t, None, &m), problem(&t, Some((&m, mediator_id)), &y)];
         let estimator = BayesianGComputationAte::conjugate();
@@ -457,19 +452,11 @@ mod tests {
         let (a, c) = (column(&fitted[0], 1), column(&fitted[1], 1));
         let n = a.len().min(c.len());
         let independent = corr(&a[..n], &c[..n]);
-        assert!(
-            independent.abs() < 0.1,
-            "separately fitted mechanisms are independent: {independent}"
-        );
 
         let coupled = couple_mediation_mechanisms(&preparations, fitted.clone(), 1, 17, &ctx);
         assert!(coupled[0].diagnostics.notes.iter().any(|n| n.starts_with(MEDIATION_JOINT_NOTE)));
         let (a, c) = (column(&coupled[0], 1), column(&coupled[1], 1));
         let joint = corr(&a, &c);
-        assert!(
-            (joint - reference).abs() < 0.2,
-            "joint correlation {joint} vs simulated {reference}"
-        );
         // Each mechanism keeps its own marginal spread.
         for (before, after) in [(&fitted[0], &coupled[0]), (&fitted[1], &coupled[1])] {
             let sd = |v: &[f64]| {
@@ -479,5 +466,39 @@ mod tests {
             let ratio = sd(&column(after, 1)) / sd(&column(before, 1));
             assert!((ratio - 1.0).abs() < 0.1, "marginal spread ratio {ratio}");
         }
+        (independent, joint)
+    }
+
+    #[test]
+    fn coupled_mechanisms_carry_the_dependence_the_repeated_simulation_shows() {
+        // Independent reference: the correlation of the mediator slope and the direct effect
+        // over fresh simulated series.
+        let (mut slopes, mut directs) = (Vec::new(), Vec::new());
+        for seed in 1..=400 {
+            let (t, m, y) = series(250, 500 + seed);
+            let (a, direct) = ols(&t, &m, &y);
+            slopes.push(a);
+            directs.push(direct);
+        }
+        let reference = corr(&slopes, &directs);
+        assert!(reference.abs() > 0.3, "the design must carry dependence: {reference}");
+
+        // One series gives one realisation of the joint correlation, which is itself an
+        // estimate with a spread of about 0.15 around the repeated-simulation value; the claim
+        // is that the coupling reproduces that value, so it is read on average over series.
+        let mut joints = Vec::new();
+        for seed in 1..=12 {
+            let (independent, joint) = coupled_series_correlations(seed);
+            assert!(
+                independent.abs() < 0.1,
+                "separately fitted mechanisms are independent (seed {seed}): {independent}"
+            );
+            joints.push(joint);
+        }
+        let joint = joints.iter().sum::<f64>() / joints.len() as f64;
+        assert!(
+            (joint - reference).abs() < 0.1,
+            "mean joint correlation {joint} vs simulated {reference}"
+        );
     }
 }

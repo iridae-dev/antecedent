@@ -76,6 +76,11 @@ pub(in crate::contract_section) fn note_linear_fit_replay(
     }
 }
 
+fn functional_effect_over_class(contract: &AnalysisResultContractWire) -> bool {
+    is_scalar_functional_effect_contract(contract)
+        && matches!(contract.graph_class.as_str(), "Cpdag" | "Pag")
+}
+
 pub(in crate::contract_section) fn note_checked_program_targets(
     contract: &AnalysisResultContractWire,
     unresolved: &mut Vec<ContractReason>,
@@ -116,6 +121,7 @@ pub(in crate::contract_section) fn note_checked_program_targets(
                     CausalQueryWire::AverageEffect { .. }
                         | CausalQueryWire::ConditionalEffect { .. }
                         | CausalQueryWire::PathSpecific(_)
+                        | CausalQueryWire::NestedCounterfactual { .. }
                 ))
                 || (estimator_matches(&["functional.distribution"])
                     && matches!(contract.target.query, CausalQueryWire::Distribution(_))))
@@ -677,14 +683,18 @@ pub(in crate::contract_section) fn note_functional_and_nested_replay(
             .as_ref()
             .is_some_and(|binding| binding.inference == "bayesian" || binding.bayesian.is_some()));
     let functional_effect = is_scalar_functional_effect_contract(contract);
-    let graph_posterior_functional_effect = contract.structure_source == "graph_posterior"
+    let graph_posterior_functional_effect = (contract.structure_source == "graph_posterior"
         && matches!(contract.graph_class.as_str(), "Admg" | "TemporalAdmg")
         && contract
             .program
             .as_ref()
             .and_then(|program| program.commitments.resolved_estimator.as_deref())
             .or(contract.estimator.as_deref())
-            == Some("functional.effect");
+            == Some("functional.effect"))
+        // An effect over an equivalence class is published per completion: no single
+        // program and provider law reproduces the class-level result, so the replay is
+        // that of the class's own identification, not of one functional.
+        || (functional_effect_over_class(contract));
     let posterior_functional_effect = functional_effect
         && (contract.program.as_ref().is_some_and(|program| {
             program.commitments.inference == "bayesian" || program.commitments.prior_required
@@ -828,7 +838,9 @@ pub(in crate::contract_section) fn note_functional_and_nested_replay(
             (None, Some(_)) => unresolved.push(ContractReason::ProgramFunctionalProgram),
         }
     }
-    if matches!(contract.target.query, crate::CausalQueryWire::NestedCounterfactual { .. }) {
+    if matches!(contract.target.query, crate::CausalQueryWire::NestedCounterfactual { .. })
+        && !functional_effect
+    {
         if matches!(contract.graph_class.as_str(), "TemporalDag" | "TemporalCpdag" | "TemporalPag")
         {
             if let Err(reason) = verify_temporal_nested_point(contract, body) {
@@ -1207,14 +1219,18 @@ pub(in crate::contract_section) fn verify_stored_payloads(
         Some(&contract.identities.program),
         program_digest,
     );
-    let graph_posterior_functional_effect = contract.structure_source == "graph_posterior"
+    let graph_posterior_functional_effect = (contract.structure_source == "graph_posterior"
         && matches!(contract.graph_class.as_str(), "Admg" | "TemporalAdmg")
         && contract
             .program
             .as_ref()
             .and_then(|program| program.commitments.resolved_estimator.as_deref())
             .or(contract.estimator.as_deref())
-            == Some("functional.effect");
+            == Some("functional.effect"))
+        // An effect over an equivalence class is published per completion: no single
+        // program and provider law reproduces the class-level result, so the replay is
+        // that of the class's own identification, not of one functional.
+        || (functional_effect_over_class(contract));
     let functional = contract
         .program
         .as_ref()
@@ -1271,7 +1287,8 @@ pub(in crate::contract_section) fn verify_stored_payloads(
             && matches!(contract.target.query, crate::CausalQueryWire::Distribution(_));
         let effect_method = match &contract.target.query {
             crate::CausalQueryWire::AverageEffect { .. } => Some("general.id"),
-            crate::CausalQueryWire::PathSpecific(_) => Some("path_specific.natural"),
+            crate::CausalQueryWire::PathSpecific(_)
+            | crate::CausalQueryWire::NestedCounterfactual { .. } => Some("path_specific.natural"),
             _ => None,
         };
         let effect_binding = is_scalar_functional_effect_contract(contract)

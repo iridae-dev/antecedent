@@ -351,39 +351,48 @@ pub(super) fn functional_program(
     let wire = |program: &antecedent_expr::FunctionalProgram| {
         functional_program_to_wire(program).map_err(|error| io_err(&error))
     };
+    let derived = |estimator: EstimatorId| {
+        cached
+            .map(|identification| {
+                let estimand =
+                    crate::strategy_table::select_estimand(identification, estimator)?;
+                let program_schema = antecedent_expr::ProgramSchema::new(
+                    data_schema(&study.data).variables().iter().map(|variable| {
+                        (
+                            variable.id,
+                            antecedent_expr::ProgramVariable { name: Arc::clone(&variable.name) },
+                        )
+                    }),
+                );
+                let program = antecedent_expr::FunctionalProgram::new(
+                    identification.arena.clone(),
+                    program_schema,
+                    estimand.functional,
+                    estimand.functional,
+                    antecedent_expr::ProgramLimits::default(),
+                )?;
+                wire(&program)
+            })
+            .transpose()
+    };
     match selected {
         Some(EstimatorId::FunctionalEffect) => match binding {
             CheckedProgramBinding::FunctionalEffect(program) => wire(program).map(Some),
+            // A path-restricted effect executed through the lowered route retains no
+            // operation of its own; its program is the identified functional.
+            CheckedProgramBinding::None
+                if matches!(
+                    study.query,
+                    CausalQuery::PathSpecific(_) | CausalQuery::NestedCounterfactual(_)
+                ) =>
+            {
+                derived(EstimatorId::FunctionalEffect)
+            }
             _ => Ok(None),
         },
         Some(EstimatorId::FunctionalDistribution) => match binding {
             CheckedProgramBinding::Distribution(program) => wire(program).map(Some),
-            _ => cached
-                .map(|identification| {
-                    let estimand = crate::strategy_table::select_estimand(
-                        identification,
-                        EstimatorId::FunctionalDistribution,
-                    )?;
-                    let program_schema = antecedent_expr::ProgramSchema::new(
-                        data_schema(&study.data).variables().iter().map(|variable| {
-                            (
-                                variable.id,
-                                antecedent_expr::ProgramVariable {
-                                    name: Arc::clone(&variable.name),
-                                },
-                            )
-                        }),
-                    );
-                    let program = antecedent_expr::FunctionalProgram::new(
-                        identification.arena.clone(),
-                        program_schema,
-                        estimand.functional,
-                        estimand.functional,
-                        antecedent_expr::ProgramLimits::default(),
-                    )?;
-                    wire(&program)
-                })
-                .transpose(),
+            _ => derived(EstimatorId::FunctionalDistribution),
         },
         _ => Ok(None),
     }

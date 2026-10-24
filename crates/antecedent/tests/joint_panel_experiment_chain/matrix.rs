@@ -18,7 +18,7 @@ pub(super) fn exercise(
     let horizon = original.request().worlds[0].program.horizon();
     let functionals = [
         JointPanelResponseFunctional::TerminalMean,
-        JointPanelResponseFunctional::WindowAverage { from: horizon - 3, until: horizon - 1 },
+        JointPanelResponseFunctional::WindowAverage { from: 0, until: horizon - 1 },
         JointPanelResponseFunctional::WeightedSum {
             coefficients: (0..horizon).map(|t| if t + 2 >= horizon { 0.5 } else { 0.0 }).collect(),
         },
@@ -105,7 +105,12 @@ fn translated_fixture(
     bridge.mapping = BridgeMapping::Affine { intercept: mean(&intercepts), slope: mean(&slopes) };
     let uncertainty = bridge.mapping_uncertainty.as_mut().unwrap();
     uncertainty.intercept_variance = cov(&intercepts, &intercepts);
-    uncertainty.intercept_slope_covariance = cov(&intercepts, &slopes);
+    // Both are affine in the same state, so the sample correlation is exactly one and the
+    // covariance sits on the Cauchy-Schwarz bound, where rounding can put its square one ulp
+    // above the product of the variances. State it strictly inside the bound.
+    let bound = (uncertainty.intercept_variance * uncertainty.slope_variance).sqrt();
+    uncertainty.intercept_slope_covariance =
+        cov(&intercepts, &slopes).clamp(-bound, bound) * (1.0 - 1e-9);
     let horizon = original.request().worlds[0].program.horizon();
     let (from, until) = match &functional {
         JointPanelResponseFunctional::TerminalMean => (horizon - 1, horizon - 1),

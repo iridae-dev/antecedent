@@ -574,8 +574,11 @@ impl WeightedRowSource for FileWeightedRows<'_> {
         }
         self.plan
             .with_chunk_rows(batch_rows)
-            .and_then(|plan| plan.chunk_quote())
-            .map(ChunkQuote::total_bytes)
+            .and_then(|plan| {
+                // The reader keeps its parsed footer for the whole stream, beside
+                // the chunk it decodes.
+                plan.chunk_quote().map(|quote| quote.total_bytes().saturating_add(plan.reader_bytes()))
+            })
             .map_err(|error| WeightedCapacityError::RowSource { message: error.to_string() })
     }
 

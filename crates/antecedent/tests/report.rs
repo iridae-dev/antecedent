@@ -153,8 +153,9 @@ fn unlicensed_executing_route() -> Scenario {
     executed("unlicensed_executing_route", &prepared, &result)
 }
 
-/// A path-specific effect on an explicit mixed graph: a cell the support matrix
-/// refuses, so the study cannot be built and only its contract can be read.
+/// A path-specific effect on an explicit mixed graph under cheap validation: the
+/// query-native refuters need a Dag, so the support matrix refuses the cell, the
+/// study cannot be built and only its contract can be read.
 fn refused_cell() -> Scenario {
     let mut t = Vec::new();
     let mut m = Vec::new();
@@ -191,6 +192,7 @@ fn refused_cell() -> Scenario {
         .query(CausalQuery::PathSpecific(query))
         .identifier(IdentifierId::PathSpecificNatural)
         .estimator(EstimatorId::FunctionalEffect)
+        .refute(RefuteSuite::Cheap)
         .bootstrap_replicates(0);
     assert!(matches!(builder.clone().build(), Err(CausalError::Support { .. })));
     Scenario {

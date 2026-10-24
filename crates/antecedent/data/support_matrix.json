@@ -483,6 +483,23 @@
         "MediationEffect"
       ],
       "graph_classes": [
+        "TemporalAdmg"
+      ],
+      "structures": [
+        "graph_posterior"
+      ],
+      "inferences": null,
+      "validations": [
+        "none"
+      ],
+      "reason": "A MediationEffect on a series under a graph posterior over lagged TemporalAdmg atoms identifies the requested component on each atom's unrolled window (the path-specific identifier over the window ADMG) and mixes the components by posterior weight over the atoms that identify them; an atom whose recanting district leaves the contrast unidentified keeps its mass as unidentified mass and the result is graph-dependent. The result keeps support status refused: no evidence row or coverage record names the cell.",
+      "executes_unlicensed": true
+    },
+    {
+      "queries": [
+        "MediationEffect"
+      ],
+      "graph_classes": [
         "Admg",
         "TemporalAdmg",
         "Cpdag",
@@ -491,7 +508,7 @@
       "structures": null,
       "inferences": null,
       "validations": null,
-      "reason": "MediationEffect on an Admg, TemporalAdmg, Cpdag or Pag runs at validation none over a supplied or accepted structure (the rule above); cheap and full have no cross-world refuter suite on a mixed graph or a class, and a graph posterior is not a single estimand across atoms."
+      "reason": "MediationEffect on an Admg, TemporalAdmg, Cpdag or Pag runs at validation none over a supplied or accepted structure (the rule above); cheap and full have no cross-world refuter suite on a mixed graph or a class, and a graph posterior over Admg, Cpdag or Pag atoms is not a single estimand across atoms, and a lagged TemporalAdmg posterior runs the decomposition at validation none only."
     },
     {
       "queries": [
@@ -1178,8 +1195,31 @@
         "graph_posterior"
       ],
       "inferences": null,
-      "validations": null,
-      "reason": "The window contrast on a TemporalAdmg (the rule above) reads one supplied or accepted template. A graph posterior over TemporalAdmg atoms is a posterior over contemporaneous adjacency and has no lagged-template atoms to unroll, so it has no window route. Next attempts: a supplied or accepted TemporalAdmg, or a TemporalDag when the lag structure has no latent confounding."
+      "validations": [
+        "none"
+      ],
+      "reason": "A graph posterior over lagged TemporalAdmg atoms (each atom a lag-masked template) identifies the window contrast once per atom (the rule above) and mixes the identified atoms by posterior weight; an atom the identifier refuses keeps its mass as unidentified mass and the result is graph-dependent. Frequentist uncertainty resamples circular blocks of consecutive windows at one shared table and Bayesian uncertainty shares one Dirichlet weight per block. The result keeps support status refused and discloses estimate.graph_posterior.temporal_admg_window; no evidence row or coverage record names the cell. Discrete data only.",
+      "executes_unlicensed": true
+    },
+    {
+      "queries": [
+        "PulseEffect",
+        "SustainedEffect",
+        "TemporalConditionalPulse",
+        "TemporalConditionalSustained"
+      ],
+      "graph_classes": [
+        "TemporalAdmg"
+      ],
+      "structures": [
+        "graph_posterior"
+      ],
+      "inferences": null,
+      "validations": [
+        "cheap",
+        "full"
+      ],
+      "reason": "A graph posterior over lagged TemporalAdmg atoms runs the window contrast at validation none (the rule above); cheap and full have no window-native refuter suite across atoms. A posterior without per-atom lag masks is contemporaneous and reads tabular rows, so it has no window route. Next attempts: validation none, a supplied or accepted TemporalAdmg, or a TemporalDag when the lag structure has no latent confounding."
     },
     {
       "queries": [

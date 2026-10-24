@@ -1222,8 +1222,16 @@ fn temporal_admg_contrasts_execute_unlicensed_at_validation_none_only() {
                 }
             }
         }
-        let posterior = cell(query, "TemporalAdmg", "graph_posterior", "Frequentist", "none");
-        assert!(!super::executes_unlicensed(posterior), "{posterior:?}");
+        // A posterior over lagged template atoms runs the window per atom at validation none.
+        for inference in ["Frequentist", "Bayesian"] {
+            let posterior = cell(query, "TemporalAdmg", "graph_posterior", inference, "none");
+            assert_eq!(classify(posterior), CellStatus::Refused, "{posterior:?}");
+            assert!(super::executes_unlicensed(posterior), "{posterior:?}");
+            for validation in ["cheap", "full"] {
+                let posterior = cell(query, "TemporalAdmg", "graph_posterior", inference, validation);
+                assert!(!super::executes_unlicensed(posterior), "{posterior:?}");
+            }
+        }
     }
     let mediation =
         cell("TemporalMediationEffect", "TemporalAdmg", "explicit", "Frequentist", "none");

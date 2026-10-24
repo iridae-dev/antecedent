@@ -315,7 +315,6 @@ impl super::Study {
         // published atoms are the members' own estimates (and, where they disagree, their
         // envelope), so the result is labelled by the first identified member's estimand.
         let estimand = match identification.estimands.as_slice() {
-            [only] => only.clone(),
             [first, ..] => first.clone(),
             [] => select_estimand(&identification, estimator_id)?,
         };

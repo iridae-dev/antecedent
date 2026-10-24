@@ -541,6 +541,41 @@ impl PreparedStudy {
                 .map(Some)
                 .map_err(CausalError::from);
         }
+        // A path-restricted effect executed through the lowered route keeps no operation:
+        // its factor laws are those of the identified functional on `data`.
+        let route_roles = match &self.analysis.query {
+            CausalQuery::PathSpecific(query) => {
+                let mut roles = vec![query.treatment, query.outcome];
+                roles.extend(query.path_nodes.iter().copied());
+                Some(roles)
+            }
+            CausalQuery::NestedCounterfactual(query) => {
+                Some(vec![query.treatment, query.mediator, query.outcome])
+            }
+            _ => None,
+        };
+        if let (PreparedExecution::EstimatorRoute(_), Some(extra), Some(cache)) =
+            (&self.execution, route_roles, self.analysis.identification_cache.as_ref())
+        {
+            if cache.estimand.method_kind().ok()
+                == Some(antecedent_expr::EstimandMethod::PathSpecificNatural)
+            {
+                let mut fitter = antecedent_estimate::FunctionalEffect::new();
+                (fitter.row_resampling, fitter.sampling_design) =
+                    self.analysis.functional_row_resampling()?;
+                return fitter
+                    .prepare(
+                        data,
+                        &cache.estimand,
+                        &cache.identification.arena,
+                        cache.identification.required_assumptions.clone(),
+                        &extra,
+                    )?
+                    .factor_snapshot()
+                    .map(Some)
+                    .map_err(CausalError::from);
+            }
+        }
         Ok(None)
     }
 

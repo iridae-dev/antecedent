@@ -1036,6 +1036,15 @@ fn repeated_measures_refuses_one_measurement_and_reduces_to_independence_at_zero
 // Temporal GLM contrast and ridge propensity: independent trajectories only.
 // ---------------------------------------------------------------------------
 
+/// A serially independent uniform draw for row `i` on the stream `salt` (splitmix64). Unlike a
+/// low-discrepancy sequence it populates every joint cell of several assignments at once.
+fn independent_unit(i: usize, salt: u64) -> f64 {
+    let mut z = (i as u64).wrapping_add(salt.wrapping_mul(0x1000_0000_0001)).wrapping_mul(0x9E37_79B9_7F4A_7C15);
+    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    ((z ^ (z >> 31)) >> 11) as f64 / (1_u64 << 53) as f64
+}
+
 fn fractional(value: f64) -> f64 {
     value - value.floor()
 }
@@ -1664,7 +1673,7 @@ fn one_decision_interference_reproduces_the_partial_interference_exposure_contra
     let nf = n as f64;
     let probability: Vec<f64> = (0..n).map(|i| 0.35 + 0.3 * fractional(i as f64 * 0.382)).collect();
     let assigned: Vec<bool> = (0..n)
-        .map(|i| fractional(i as f64 * 0.618_033_988_749_894_9 + 0.11) < probability[i])
+        .map(|i| independent_unit(i, 11) < probability[i])
         .collect();
     let outcomes: Vec<f64> = (0..n)
         .map(|i| {

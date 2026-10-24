@@ -2300,12 +2300,25 @@ impl super::Study {
                 // each execution: its checked operation is the lowered route itself.
                 let class_distribution = matches!(self.query, CausalQuery::Distribution(_))
                     && matches!(self.graph.graph_ref(), GraphRef::Cpdag(_) | GraphRef::Pag(_));
+                // A path-specific or nested effect on a mixed graph or an equivalence
+                // class is likewise answered by the lowered route itself.
+                let mixed_effect = matches!(
+                    self.query,
+                    CausalQuery::PathSpecific(_) | CausalQuery::NestedCounterfactual(_)
+                ) && matches!(
+                    self.graph.graph_ref(),
+                    GraphRef::Admg(_)
+                        | GraphRef::TemporalAdmg(_)
+                        | GraphRef::Cpdag(_)
+                        | GraphRef::Pag(_)
+                );
                 return self.admit_sealed_tabular(
                     data,
                     ctx,
                     |prepared| {
                         prepared.has_complete_program_operation(&self.query)
-                            || (class_distribution && prepared.retains(ExecutionKind::EstimatorRoute))
+                            || ((class_distribution || mixed_effect)
+                                && prepared.retains(ExecutionKind::EstimatorRoute))
                     },
                     "one-shot route did not retain its complete checked operation",
                 );

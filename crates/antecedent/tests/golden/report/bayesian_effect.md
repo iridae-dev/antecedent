@@ -19,7 +19,7 @@
 
 ## Claim
 
-- **Claim id:** db561b6b74ac66dd4b6999728b52e18e225e1f498eb78080cb5fc6182f121881
+- **Claim id:** 15136bc597e8134567177018b9481071a0447d18c3e196bbd6865b88efbe2d10
 - **Kind:** point
 - **Value:** 2.0322712926
 - **Outcome units:** none
@@ -166,7 +166,7 @@ This report restates the contract. It computes no estimate, grants no licence, a
 - **Family:** static\_effect
 - **Stage:** prepared
 - **Depth:** complete
-- **Program identity:** bbbc0f65ca872d1f681f723f06bbf34ff0749b1498ee8f1958643f809bf7cd8a
+- **Program identity:** 29dc309662efe1f5ea644d45c073d1b691c26cc890864bb23a510eea40d5a06a
 - **Sealed operation:** bayesian\_gcomp
 
 ### Scientific problem
@@ -190,11 +190,13 @@ This report restates the contract. It computes no estimate, grants no licence, a
 
 ### Statistical program
 
-- **design.reason:** the estimator fits its propensity, outcome, instrument or learner models on their own bases, sized at execution; no single adjustment design is quoted
-- **design.source:** not\_design\_based
+- **design.columns:** 3
+- **design.direct:** yes
+- **design.rows:** 512
+- **design.source:** quoted
 - **estimator:** bayesian.gcomp
 - **identifier:** backdoor.adjustment
-- **identity:** 6258550cb51193da39ec3ba441a7d8e941c1e543d43fdb69f70cf10a167804f9
+- **identity:** c60e345cc2025733e74355b99dff0a2c6222b32eec6f3f3916da86b5f488f632
 - **models\[0\].family:** ols.faer
 - **models\[0\].inputs:** t, z
 - **models\[0\].output:** y
@@ -213,8 +215,53 @@ This report restates the contract. It computes no estimate, grants no licence, a
 
 ### Physical plan
 
-- **design.reason:** the estimator fits its propensity, outcome, instrument or learner models on their own bases, sized at execution; no single adjustment design is quoted
-- **design.source:** not\_design\_based
+- **backend.quotes\[0\].alternative:** direct\_prepared\_numeric\_views
+- **backend.quotes\[0\].cost:** 4608
+- **backend.quotes\[0\].resident\_bytes:** 12288
+- **backend.quotes\[0\].work\_cells:** 3072
+- **backend.quotes\[1\].alternative:** streamed\_reduction
+- **backend.quotes\[1\].cost:** 4617
+- **backend.quotes\[1\].resident\_bytes:** 12360
+- **backend.quotes\[1\].work\_cells:** 3072
+- **backend.quotes\[2\].alternative:** materialized\_design
+- **backend.quotes\[2\].cost:** 7680
+- **backend.quotes\[2\].resident\_bytes:** 24576
+- **backend.quotes\[2\].work\_cells:** 4608
+- **backend.quotes\[3\].alternative:** optional\_lazy\_preparation
+- **backend.quotes\[3\].cost:** 4608
+- **backend.quotes\[3\].resident\_bytes:** 12288
+- **backend.quotes\[3\].work\_cells:** 3072
+- **backend.rejected\[0\].alternative:** direct\_prepared\_numeric\_views
+- **backend.rejected\[0\].reason:** missing operator capability prepared\_numeric\_view
+- **backend.rejected\[1\].alternative:** streamed\_reduction
+- **backend.rejected\[1\].reason:** missing operator capability streamed\_reduction
+- **backend.rejected\[2\].alternative:** optional\_lazy\_preparation
+- **backend.rejected\[2\].reason:** missing operator capability lazy\_preparation
+- **backend.selected:** materialized\_design
+- **backend.selected\_cost:** 7680
+- **design.columns:** 3
+- **design.direct:** yes
+- **design.rows:** 512
+- **design.source:** quoted
+- **memory.components\[0\].bytes:** 12288
+- **memory.components\[0\].component:** encoded\_width
+- **memory.components\[1\].bytes:** 192
+- **memory.components\[1\].component:** masks
+- **memory.components\[2\].bytes:** 0
+- **memory.components\[2\].component:** design\_expansion
+- **memory.components\[3\].bytes:** 0
+- **memory.components\[3\].component:** learner\_fold\_copies
+- **memory.components\[4\].bytes:** 16480
+- **memory.components\[4\].component:** solver\_scratch
+- **memory.components\[5\].bytes:** 0
+- **memory.components\[5\].component:** retained\_scores\_draws
+- **memory.components\[6\].bytes:** 4120
+- **memory.components\[6\].component:** output
+- **memory.components\[7\].bytes:** 0
+- **memory.components\[7\].component:** concurrent\_workers
+- **memory.learner\_fold\_copies:** 0
+- **memory.total:** 33080
+- **memory.workers:** 1
 - **operators\[0\].capability:** cpu
 - **operators\[0\].designs:** 1
 - **operators\[0\].device\_work:** no
@@ -229,7 +276,7 @@ This report restates the contract. It computes no estimate, grants no licence, a
 - **operators\[1\].effect:** fit
 - **operators\[1\].output\_bytes:** 8
 - **operators\[1\].retained\_bytes:** 12288
-- **operators\[1\].scratch\_bytes:** 24576
+- **operators\[1\].scratch\_bytes:** 16480
 - **operators\[1\].sources:** 1
 - **operators\[2\].capability:** cpu
 - **operators\[2\].designs:** 1
@@ -239,9 +286,25 @@ This report restates the contract. It computes no estimate, grants no licence, a
 - **operators\[2\].retained\_bytes:** 0
 - **operators\[2\].scratch\_bytes:** 0
 - **operators\[2\].sources:** 1
+- **operators\[3\].capability:** cpu
+- **operators\[3\].designs:** 0
+- **operators\[3\].device\_work:** no
+- **operators\[3\].effect:** select
+- **operators\[3\].output\_bytes:** 0
+- **operators\[3\].retained\_bytes:** 0
+- **operators\[3\].scratch\_bytes:** 12288
+- **operators\[3\].sources:** 1
+- **operators\[4\].capability:** cpu
+- **operators\[4\].designs:** 1
+- **operators\[4\].device\_work:** no
+- **operators\[4\].effect:** scan
+- **operators\[4\].output\_bytes:** 0
+- **operators\[4\].retained\_bytes:** 0
+- **operators\[4\].scratch\_bytes:** 36864
+- **operators\[4\].sources:** 1
 - **output\_bytes:** 12296
 - **retained\_bytes:** 12288
-- **scratch\_bytes:** 24576
+- **scratch\_bytes:** 65632
 
 ## Identities
 

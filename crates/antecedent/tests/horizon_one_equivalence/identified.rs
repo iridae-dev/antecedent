@@ -84,7 +84,8 @@ fn ols_standard_error(columns: &[&[f64]], y: &[f64], index: usize) -> f64 {
 /// A temporal CPDAG whose window is the contemporaneous projection of a static CPDAG has the same
 /// compiled adjustment: the effect of `x` on `y` adjusting for the lagged cause `z`, the least
 /// squares coefficient of `y ~ 1 + x + z_lag` on the aligned rows. The static cell is licensed and
-/// publishes the homoskedastic standard error of that fit. The temporal `AverageEffect` is the
+/// publishes the influence-function standard error of that fit (within a percent of the
+/// homoskedastic one). The temporal `AverageEffect` is the
 /// lag-zero pulse: it executes unlicensed (refused status), discloses the reading, and does not
 /// publish the iid standard error for a dependent series.
 #[test]
@@ -111,7 +112,14 @@ fn horizon_one_cpdag_average_effect_has_the_static_estimate_and_envelope_but_not
     let static_effect = static_result.estimate.as_effect().unwrap();
     assert!(close(static_effect.ate, coefficients[1]), "{}", static_effect.ate);
     assert!(close(temporal_effect.ate, coefficients[1]), "{}", temporal_effect.ate);
-    assert!(close(static_effect.se_analytic(), reference_se), "{}", static_effect.se_analytic());
+    // A class envelope publishes the standard error of the mixed influence function, the
+    // heteroskedasticity-consistent form of the same fit: it matches the homoskedastic
+    // reference to the finite-sample factor, not to rounding.
+    assert!(
+        (static_effect.se_analytic() / reference_se - 1.0).abs() < 0.01,
+        "{} vs {reference_se}",
+        static_effect.se_analytic()
+    );
     // The same single completion on both sides.
     if let (Some(temporal_mix), Some(static_mix)) =
         (temporal.structural_response.as_ref(), static_result.structural_response.as_ref())
@@ -259,7 +267,17 @@ fn horizon_one_change_attribution_reproduces_the_static_decomposition_with_block
     let (a, b) =
         (temporal.change_attribution().unwrap(), static_result.change_attribution().unwrap());
     assert!((a.total_change - 5.0).abs() < 0.5, "the window mean shifts by 5: {}", a.total_change);
-    assert!(close(a.total_change, b.total_change), "{} vs {}", a.total_change, b.total_change);
+    // The fitted mechanisms are the same, but the unfolded graph holds one more root (the
+    // unused lag-zero treatment column), so the two Monte Carlo outcome laws draw their
+    // exogenous noise on different streams: the totals and contributions agree to Monte Carlo
+    // accuracy, while the observed change is a deterministic functional of the rows.
+    let monte_carlo = |left: f64, right: f64| (left - right).abs() <= 0.05;
+    assert!(
+        monte_carlo(a.total_change, b.total_change),
+        "{} vs {}",
+        a.total_change,
+        b.total_change
+    );
     assert_eq!(a.contributions.len(), b.contributions.len());
     let sorted = |result: &antecedent_attribution::ChangeAttributionResult| {
         let mut values: Vec<f64> = result.contributions.iter().map(|c| c.contribution).collect();
@@ -267,7 +285,7 @@ fn horizon_one_change_attribution_reproduces_the_static_decomposition_with_block
         values
     };
     for (left, right) in sorted(a).iter().zip(sorted(b)) {
-        assert!(close(*left, right), "{left} vs {right}");
+        assert!(monte_carlo(*left, right), "{left} vs {right}");
     }
     assert_eq!(a.observed_change.is_some(), b.observed_change.is_some());
     if let (Some(left), Some(right)) = (a.observed_change, b.observed_change) {
@@ -309,13 +327,17 @@ fn horizon_one_change_attribution_reproduces_the_static_decomposition_with_block
 /// `a, y, trial, s, e`: an arm coin, an outcome with effect 1 and independent noise, a trial coin and
 /// the recorded 0.5 selection and treatment probabilities.
 fn transport_rows(n: usize) -> TabularData {
-    let a: Vec<f64> = (0..n)
-        .map(|i| f64::from(fractional(i as f64 * 0.618_033_988_749_894_9 + 0.1) < 0.5))
-        .collect();
-    let y: Vec<f64> = (0..n).map(|i| a[i] + 0.5 * disturbance(i)).collect();
-    let trial: Vec<f64> = (0..n)
-        .map(|i| f64::from(fractional(i as f64 * 0.754_877_666_246_692_7 + 0.3) < 0.5))
-        .collect();
+    // Serially independent draws (splitmix64 of the row and a stream salt): the rows of this
+    // fixture must carry no autocorrelation for the two uncertainty products to be comparable.
+    let unit = |i: usize, salt: u64| -> f64 {
+        let mut z = (i as u64).wrapping_add(salt).wrapping_mul(0x9E37_79B9_7F4A_7C15);
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        ((z ^ (z >> 31)) >> 11) as f64 / (1_u64 << 53) as f64
+    };
+    let a: Vec<f64> = (0..n).map(|i| f64::from(unit(i, 1) < 0.5)).collect();
+    let y: Vec<f64> = (0..n).map(|i| a[i] + 0.5 * (unit(i, 2) - 0.5) * 2.0).collect();
+    let trial: Vec<f64> = (0..n).map(|i| f64::from(unit(i, 3) < 0.5)).collect();
     let half = vec![0.5; n];
     table(&[("a", &a), ("y", &y), ("trial", &trial), ("s", &half), ("e", &half)])
 }

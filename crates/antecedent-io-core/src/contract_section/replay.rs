@@ -277,7 +277,9 @@ pub(in crate::contract_section) fn is_scalar_functional_effect_contract(
     is_functional_effect_estimator_contract(contract)
         && matches!(
             contract.target.query,
-            crate::CausalQueryWire::AverageEffect { .. } | crate::CausalQueryWire::PathSpecific(_)
+            crate::CausalQueryWire::AverageEffect { .. }
+                | crate::CausalQueryWire::PathSpecific(_)
+                | crate::CausalQueryWire::NestedCounterfactual { .. }
         )
 }
 

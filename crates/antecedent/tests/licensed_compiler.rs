@@ -2150,11 +2150,7 @@ fn the_wald_and_two_stage_iv_routes_match_the_instrumental_variable_algebra() {
     let (mz, mt, my) = (mean(&z), mean(&t), mean(&y));
     let szy: f64 = (0..n).map(|i| (z[i] - mz) * (y[i] - my)).sum();
     let szt: f64 = (0..n).map(|i| (z[i] - mz) * (t[i] - mt)).sum();
-    let szz: f64 = (0..n).map(|i| (z[i] - mz) * (z[i] - mz)).sum();
     let wald = szy / szt;
-    let intercept = my - wald * mt;
-    let rss: f64 = (0..n).map(|i| (y[i] - intercept - wald * t[i]).powi(2)).sum();
-    let reference_se = (rss / (n as f64 - 2.0) * szz).sqrt() / szt.abs();
     for estimator in ["iv.wald", "iv.2sls"] {
         let id = estimator.parse::<EstimatorId>().expect("estimator id");
         let cell = cell_licensing(estimator);
@@ -2165,11 +2161,10 @@ fn the_wald_and_two_stage_iv_routes_match_the_instrumental_variable_algebra() {
             "{estimator}: route {} vs IV algebra {wald}",
             observed.effect
         );
-        // Strong instrument: the published standard error is in the range any
-        // standard homoskedastic or robust formula gives for the same estimator.
-        assert!(observed.analytic_se.is_finite() && observed.analytic_se > 0.0, "{estimator}");
-        let ratio = observed.analytic_se / reference_se;
-        assert!((0.5..2.0).contains(&ratio), "{estimator}: {} vs {reference_se}", observed.analytic_se);
+        // Licensed instrumental-variable uncertainty is the weak-instrument-robust
+        // Anderson-Rubin set on the first-stage diagnostics; a Wald or bootstrap standard
+        // error is withheld, so the point carries none.
+        assert!(!observed.analytic_se.is_finite(), "{estimator}: {}", observed.analytic_se);
     }
 }
 

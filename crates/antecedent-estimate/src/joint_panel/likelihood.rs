@@ -174,7 +174,9 @@ pub(super) fn validate_parameters(data: &PanelData, p: &PanelParameters) -> Resu
             // w = (1, theta, theta^2) / (1 + theta + theta^2) with theta in (0,1).
             let tolerance = 1e-9 * weights[0] * weights[2];
             if (weights[1] * weights[1] - weights[0] * weights[2]).abs() > tolerance
-                || weights[1] >= weights[0]
+                // The decay reaches one in floating point when its logit is large: the
+                // uniform weights are the closed limit of the family, not a different law.
+                || weights[1] > weights[0] * (1.0 + 1e-12)
             {
                 return Err(invalid("lag weights must be a decaying geometric adstock"));
             }
@@ -242,6 +244,14 @@ pub(super) fn geometric(logit: f64) -> [f64; 3] {
     let sum = u.iter().sum::<f64>();
     u.map(|value| value / sum)
 }
+/// `exp` of a log-scale coordinate as a positive finite scale. The optimizer may run a flat
+/// direction (a variance component at its boundary) past the range where `exp` underflows
+/// to zero or overflows to infinity; those coordinates decode to the smallest normal and the
+/// largest finite scale, which are the representable boundary values of the same flat
+/// likelihood, instead of making the whole parameter vector invalid.
+fn positive_exp(log_scale: f64) -> f64 {
+    log_scale.exp().clamp(f64::MIN_POSITIVE, f64::MAX)
+}
 pub(super) fn decode(data: &PanelData, x: &[f64]) -> Option<PanelParameters> {
     let layout = layout(data);
     if x.len() != layout.total || x.iter().any(|v| !v.is_finite()) {
@@ -281,20 +291,20 @@ pub(super) fn decode(data: &PanelData, x: &[f64]) -> Option<PanelParameters> {
             .collect(),
         confounder: x[1 + d + i],
         season_effects,
-        half_saturation: x[layout.k0].exp(),
+        half_saturation: positive_exp(x[layout.k0]),
         rho: layout.rho.map_or(0.0, |index| x[index].tanh()),
-        innovation_sd: x[layout.sigma].exp(),
-        group_sd: x[layout.tau].exp(),
+        innovation_sd: positive_exp(x[layout.sigma]),
+        group_sd: positive_exp(x[layout.tau]),
         family: PanelFamilyParameters {
             hill_shape: x[layout.shape..layout.shape + layout.shape_len]
                 .iter()
-                .map(|value| value.exp())
+                .map(|value| positive_exp(*value))
                 .collect(),
             class_half_saturation: x[layout.class..layout.class + layout.class_len]
                 .iter()
-                .map(|value| value.exp())
+                .map(|value| positive_exp(*value))
                 .collect(),
-            spatial_range: layout.range.map_or(0.0, |index| x[index].exp()),
+            spatial_range: layout.range.map_or(0.0, |index| positive_exp(x[index])),
         },
     };
     validate_parameters(data, &p).ok().map(|()| p)
@@ -548,7 +558,8 @@ pub(super) fn ar1_random_intercept(
     let one_one = (stationary + (r.len() - 1) as f64 * (1.0 - rho).powi(2)) / variance;
     one_r /= variance;
     let tau2 = tau * tau;
-    let conditional_variance = tau2 / (1.0 + tau2 * one_one);
+    let shrinkage = 1.0 + tau2 * one_one;
+    let conditional_variance = tau2 / shrinkage;
     let intercept_mean = conditional_variance * one_r;
     // Completing the square avoids subtracting two large nearly equal quadratic
     // forms when an intercept explains most of a group's residual mean.
@@ -556,12 +567,12 @@ pub(super) fn ar1_random_intercept(
     for pair in r.windows(2) {
         centered_quad += ((pair[1] - intercept_mean) - rho * (pair[0] - intercept_mean)).powi(2);
     }
-    let quad = centered_quad / variance + (intercept_mean / tau).powi(2);
+    let quad = centered_quad / variance + (tau * one_r / shrinkage).powi(2);
     let log_det = r.len() as f64 * variance.ln() - stationary.ln() + (tau2 * one_one).ln_1p();
     let log_likelihood = -0.5 * (r.len() as f64 * std::f64::consts::TAU.ln() + log_det + quad);
     if !log_likelihood.is_finite()
         || !conditional_variance.is_finite()
-        || conditional_variance <= 0.0
+        || conditional_variance < 0.0
     {
         return None;
     }
@@ -720,10 +731,16 @@ fn spatial_marginal(
     let vb: Vec<f64> = apply(&kernel, &cross).into_iter().map(|value| tau2 * value).collect();
     let w: Vec<f64> = vb.iter().zip(&root).map(|(v, r)| v * r).collect();
     let y = antecedent_stats::chol_solve(&factor, groups, &w)?;
-    let btvb: f64 = cross.iter().zip(&vb).map(|(a, b)| a * b).sum();
-    let wmw: f64 = w.iter().zip(&y).map(|(a, b)| a * b).sum();
+    // `b'Vb - w'M^-1 w` equals `c'(I - M^-1)c` for `c = D^(-1/2) b` (since
+    // `G (I + G)^-1 = I - (I + G)^-1` for `G = D^(1/2) V D^(1/2)`). That form stays bounded
+    // by `|c|^2` as the intercept scale grows, where the difference of the two large
+    // quadratic forms loses every digit.
+    let scaled: Vec<f64> = cross.iter().zip(&root).map(|(b, r)| b / r).collect();
+    let solved_scaled = antecedent_stats::chol_solve(&factor, groups, &scaled)?;
+    let between: f64 = scaled.iter().map(|c| c * c).sum::<f64>()
+        - scaled.iter().zip(&solved_scaled).map(|(a, b)| a * b).sum::<f64>();
     let log_likelihood =
-        -0.5 * (rows * std::f64::consts::TAU.ln() + (log_det + log_det_m) + (quad - (btvb - wmw)));
+        -0.5 * (rows * std::f64::consts::TAU.ln() + (log_det + log_det_m) + (quad - between));
     if !log_likelihood.is_finite() {
         return None;
     }

@@ -267,10 +267,53 @@ th, td { border: 1px solid var(--rule); padding: 0.25rem 0.5rem; text-align: lef
 </dl>
 <h3>Physical plan</h3>
 <dl class="facts">
+<dt>backend.quotes[0].alternative</dt><dd>direct_prepared_numeric_views</dd>
+<dt>backend.quotes[0].cost</dt><dd>1152</dd>
+<dt>backend.quotes[0].resident_bytes</dt><dd>3072</dd>
+<dt>backend.quotes[0].work_cells</dt><dd>768</dd>
+<dt>backend.quotes[1].alternative</dt><dd>streamed_reduction</dd>
+<dt>backend.quotes[1].cost</dt><dd>1161</dd>
+<dt>backend.quotes[1].resident_bytes</dt><dd>3144</dd>
+<dt>backend.quotes[1].work_cells</dt><dd>768</dd>
+<dt>backend.quotes[2].alternative</dt><dd>materialized_design</dd>
+<dt>backend.quotes[2].cost</dt><dd>1920</dd>
+<dt>backend.quotes[2].resident_bytes</dt><dd>6144</dd>
+<dt>backend.quotes[2].work_cells</dt><dd>1152</dd>
+<dt>backend.quotes[3].alternative</dt><dd>optional_lazy_preparation</dd>
+<dt>backend.quotes[3].cost</dt><dd>1152</dd>
+<dt>backend.quotes[3].resident_bytes</dt><dd>3072</dd>
+<dt>backend.quotes[3].work_cells</dt><dd>768</dd>
+<dt>backend.rejected[0].alternative</dt><dd>streamed_reduction</dd>
+<dt>backend.rejected[0].reason</dt><dd>missing operator capability streamed_reduction</dd>
+<dt>backend.rejected[1].alternative</dt><dd>materialized_design</dd>
+<dt>backend.rejected[1].reason</dt><dd>cost 1920 is not lower than selected cost 1152</dd>
+<dt>backend.rejected[2].alternative</dt><dd>optional_lazy_preparation</dd>
+<dt>backend.rejected[2].reason</dt><dd>missing operator capability lazy_preparation</dd>
+<dt>backend.selected</dt><dd>direct_prepared_numeric_views</dd>
+<dt>backend.selected_cost</dt><dd>1152</dd>
 <dt>design.columns</dt><dd>3</dd>
 <dt>design.direct</dt><dd>yes</dd>
 <dt>design.rows</dt><dd>128</dd>
 <dt>design.source</dt><dd>quoted</dd>
+<dt>memory.components[0].bytes</dt><dd>3072</dd>
+<dt>memory.components[0].component</dt><dd>encoded_width</dd>
+<dt>memory.components[1].bytes</dt><dd>48</dd>
+<dt>memory.components[1].component</dt><dd>masks</dd>
+<dt>memory.components[2].bytes</dt><dd>0</dd>
+<dt>memory.components[2].component</dt><dd>design_expansion</dd>
+<dt>memory.components[3].bytes</dt><dd>0</dd>
+<dt>memory.components[3].component</dt><dd>learner_fold_copies</dd>
+<dt>memory.components[4].bytes</dt><dd>4192</dd>
+<dt>memory.components[4].component</dt><dd>solver_scratch</dd>
+<dt>memory.components[5].bytes</dt><dd>0</dd>
+<dt>memory.components[5].component</dt><dd>retained_scores_draws</dd>
+<dt>memory.components[6].bytes</dt><dd>1048</dd>
+<dt>memory.components[6].component</dt><dd>output</dd>
+<dt>memory.components[7].bytes</dt><dd>0</dd>
+<dt>memory.components[7].component</dt><dd>concurrent_workers</dd>
+<dt>memory.learner_fold_copies</dt><dd>0</dd>
+<dt>memory.total</dt><dd>8360</dd>
+<dt>memory.workers</dt><dd>1</dd>
 <dt>operators[0].capability</dt><dd>cpu</dd>
 <dt>operators[0].designs</dt><dd>1</dd>
 <dt>operators[0].device_work</dt><dd>no</dd>
@@ -295,9 +338,25 @@ th, td { border: 1px solid var(--rule); padding: 0.25rem 0.5rem; text-align: lef
 <dt>operators[2].retained_bytes</dt><dd>0</dd>
 <dt>operators[2].scratch_bytes</dt><dd>0</dd>
 <dt>operators[2].sources</dt><dd>1</dd>
+<dt>operators[3].capability</dt><dd>cpu</dd>
+<dt>operators[3].designs</dt><dd>0</dd>
+<dt>operators[3].device_work</dt><dd>no</dd>
+<dt>operators[3].effect</dt><dd>select</dd>
+<dt>operators[3].output_bytes</dt><dd>0</dd>
+<dt>operators[3].retained_bytes</dt><dd>0</dd>
+<dt>operators[3].scratch_bytes</dt><dd>3072</dd>
+<dt>operators[3].sources</dt><dd>1</dd>
+<dt>operators[4].capability</dt><dd>cpu</dd>
+<dt>operators[4].designs</dt><dd>1</dd>
+<dt>operators[4].device_work</dt><dd>no</dd>
+<dt>operators[4].effect</dt><dd>scan</dd>
+<dt>operators[4].output_bytes</dt><dd>0</dd>
+<dt>operators[4].retained_bytes</dt><dd>0</dd>
+<dt>operators[4].scratch_bytes</dt><dd>9216</dd>
+<dt>operators[4].sources</dt><dd>1</dd>
 <dt>output_bytes</dt><dd>10632</dd>
 <dt>retained_bytes</dt><dd>10624</dd>
-<dt>scratch_bytes</dt><dd>215296</dd>
+<dt>scratch_bytes</dt><dd>227584</dd>
 </dl>
 </section>
 <section id="identities">

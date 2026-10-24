@@ -235,22 +235,25 @@ fn derivative_at(horizons: Vec<u32>) -> CausalQuery {
 
 #[test]
 fn several_horizons_publish_one_slope_each_and_a_horizon_without_a_path_is_zero() {
-    // `x(t-1)` reaches `y(t)` (horizon 1) and has no path to `y(t+1)` (horizon 2), whose
-    // parents in the template are `x(t)` and `z(t)`. The independent reference for each
+    // `x(t-1)` reaches `y(t)` (horizon 1) and has no path to `y(t+2)` (horizon 3), whose
+    // parents in the template are `x(t+1)` and `z(t+1)`. The independent reference for each
     // horizon is the regression of `y` at that horizon on the treatment and the confounders.
+    // Horizon 3 sits past the first lag of the periodic regressors, whose serial correlation
+    // would otherwise load a lag-1 horizon's regression with an association the template
+    // does not draw.
     let [x, y, z, w] = columns();
     let slope = |horizon: usize| {
         let rows = N - horizon;
         let regress = |c: &Vec<f64>| c[..rows].to_vec();
         ols(&[regress(&x), regress(&z), regress(&w)], &y[horizon..])[1]
     };
-    let (first, second) = (slope(1), slope(2));
+    let (first, second) = (slope(1), slope(3));
     assert!((first - 2.0).abs() < 0.2 && second.abs() < 1.0, "{first} {second}");
     let result = Study::series(series())
         .graph(template())
-        .query(derivative_at(vec![1, 2]))
+        .query(derivative_at(vec![1, 3]))
         .refute(RefuteSuite::None)
-        .bootstrap_replicates(32)
+        .bootstrap_replicates(48)
         .build()
         .unwrap()
         .run(&ExecutionContext::for_tests(14))

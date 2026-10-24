@@ -76,7 +76,7 @@ th, td { border: 1px solid var(--rule); padding: 0.25rem 0.5rem; text-align: lef
 <h3>Support slot</h3>
 <dl class="facts">
 <dt>Matrix status</dt><dd>refused</dd>
-<dt>Matrix coordinate</dt><dd>PathSpecificEffect:Admg:explicit:Frequentist:full</dd>
+<dt>Matrix coordinate</dt><dd>PathSpecificEffect:Admg:explicit:Frequentist:cheap</dd>
 <dt>Empirical support</dt><dd>unavailable:not_evaluated</dd>
 </dl>
 </section>
@@ -86,14 +86,14 @@ th, td { border: 1px solid var(--rule); padding: 0.25rem 0.5rem; text-align: lef
 <dt>Operation</dt><dd>inspect</dd>
 <dt>Applicability</dt><dd>unlicensed</dd>
 <dt>Readiness</dt><dd>none</dd>
-<dt>Coordinate</dt><dd>PathSpecificEffect:Admg:explicit:Frequentist:full</dd>
+<dt>Coordinate</dt><dd>PathSpecificEffect:Admg:explicit:Frequentist:cheap</dd>
 </dl>
 <p>No limit is recorded beyond the blockers below.</p>
 <h3>Blockers and refusals</h3>
 <table>
 <thead><tr><th>Id</th><th>Scientific impossibility</th><th>Reason</th></tr></thead>
 <tbody>
-<tr><td>support.refused</td><td>yes</td><td>Path-specific queries execute only on a supplied static Dag; a directly supplied Admg, TemporalAdmg, or Pag hits the same static-Dag requirement (accepted/graph-posterior Admg and Pag are already refused above).</td></tr>
+<tr><td>support.refused</td><td>yes</td><td>Query-native functional validation requires a Dag.</td></tr>
 </tbody>
 </table>
 <h3>Next actions</h3>
@@ -109,14 +109,14 @@ th, td { border: 1px solid var(--rule); padding: 0.25rem 0.5rem; text-align: lef
 <table>
 <thead><tr><th>Coordinate</th><th>Changed premises</th><th>Required action</th></tr></thead>
 <tbody>
-<tr><td>AverageEffect:Admg:explicit:Frequentist:full</td><td>query: PathSpecificEffect to AverageEffect</td><td>change the query; do not relabel the graph class</td></tr>
-<tr><td>InterventionResponse:Admg:explicit:Frequentist:full</td><td>query: PathSpecificEffect to InterventionResponse</td><td>change the query; do not relabel the graph class</td></tr>
-<tr><td>AverageEffect:Admg:accepted:Frequentist:full</td><td>query: PathSpecificEffect to AverageEffect; structure: explicit to accepted</td><td>change the listed premises; do not relabel the graph class</td></tr>
-<tr><td>AverageEffect:Admg:explicit:Bayesian:full</td><td>query: PathSpecificEffect to AverageEffect; inference: Frequentist to Bayesian</td><td>change the listed premises; do not relabel the graph class</td></tr>
-<tr><td>AverageEffect:Admg:explicit:Frequentist:cheap</td><td>query: PathSpecificEffect to AverageEffect; validation: full to cheap</td><td>change the listed premises; do not relabel the graph class</td></tr>
-<tr><td>AverageEffect:Admg:explicit:Frequentist:none</td><td>query: PathSpecificEffect to AverageEffect; validation: full to none</td><td>change the listed premises; do not relabel the graph class</td></tr>
-<tr><td>AverageEffect:Admg:graph_posterior:Frequentist:full</td><td>query: PathSpecificEffect to AverageEffect; structure: explicit to graph_posterior</td><td>change the listed premises; do not relabel the graph class</td></tr>
-<tr><td>ConditionalEffect:Admg:explicit:Frequentist:none</td><td>query: PathSpecificEffect to ConditionalEffect; validation: full to none</td><td>change the listed premises; do not relabel the graph class</td></tr>
+<tr><td>AverageEffect:Admg:explicit:Frequentist:cheap</td><td>query: PathSpecificEffect to AverageEffect</td><td>change the query; do not relabel the graph class</td></tr>
+<tr><td>InterventionResponse:Admg:explicit:Frequentist:cheap</td><td>query: PathSpecificEffect to InterventionResponse</td><td>change the query; do not relabel the graph class</td></tr>
+<tr><td>AverageEffect:Admg:accepted:Frequentist:cheap</td><td>query: PathSpecificEffect to AverageEffect; structure: explicit to accepted</td><td>change the listed premises; do not relabel the graph class</td></tr>
+<tr><td>AverageEffect:Admg:explicit:Bayesian:cheap</td><td>query: PathSpecificEffect to AverageEffect; inference: Frequentist to Bayesian</td><td>change the listed premises; do not relabel the graph class</td></tr>
+<tr><td>AverageEffect:Admg:explicit:Frequentist:full</td><td>query: PathSpecificEffect to AverageEffect; validation: cheap to full</td><td>change the listed premises; do not relabel the graph class</td></tr>
+<tr><td>AverageEffect:Admg:explicit:Frequentist:none</td><td>query: PathSpecificEffect to AverageEffect; validation: cheap to none</td><td>change the listed premises; do not relabel the graph class</td></tr>
+<tr><td>AverageEffect:Admg:graph_posterior:Frequentist:cheap</td><td>query: PathSpecificEffect to AverageEffect; structure: explicit to graph_posterior</td><td>change the listed premises; do not relabel the graph class</td></tr>
+<tr><td>ConditionalEffect:Admg:explicit:Frequentist:none</td><td>query: PathSpecificEffect to ConditionalEffect; validation: cheap to none</td><td>change the listed premises; do not relabel the graph class</td></tr>
 </tbody>
 </table>
 <dl class="facts">
@@ -132,7 +132,7 @@ th, td { border: 1px solid var(--rule); padding: 0.25rem 0.5rem; text-align: lef
 <dt>Identification</dt><dd>29e49e714b185af8a7299d26ea3f1427f16b3c4ef30b34868938a1b02cff9ec4</dd>
 <dt>Identification product</dt><dd>none</dd>
 <dt>Program</dt><dd>none</dd>
-<dt>Inference binding</dt><dd>dfbaf4691a9aed9b74147e09af2c59cfaf3d9fd478889631a5173f0bac005f66</dd>
+<dt>Inference binding</dt><dd>1825cf17c03045cb5c87a63ed282be6ed4d3d5e0649ca76a0a270d758eaa63f6</dd>
 <dt>Observation</dt><dd>cc659f942a090ca3046701bc26734487d0de84af65e670e49bc5abe48aef151c</dd>
 <dt>Data snapshot</dt><dd>d3f991cc994df9d7757ec98159b5f3dbf5ed8e580cc3eaba9c79184522cf72f2</dd>
 <dt>Score reuse</dt><dd>none</dd>

@@ -199,7 +199,7 @@ th, td { border: 1px solid var(--rule); padding: 0.25rem 0.5rem; text-align: lef
 <dt>Family</dt><dd>temporal</dd>
 <dt>Stage</dt><dd>prepared</dd>
 <dt>Depth</dt><dd>complete</dd>
-<dt>Program identity</dt><dd>a8f8dc9728b29da8de6e7a82ccb0fae5317df40b69db7525acb1190b3b54ac8b</dd>
+<dt>Program identity</dt><dd>bd108d6124639209f5a80508778b963874711f4f5a11b1bf81db842f9508606a</dd>
 <dt>Sealed operation</dt><dd>temporal_dag_effect</dd>
 </dl>
 <h3>Scientific problem</h3>
@@ -229,12 +229,12 @@ th, td { border: 1px solid var(--rule); padding: 0.25rem 0.5rem; text-align: lef
 <dt>design.source</dt><dd>not_design_based</dd>
 <dt>estimator</dt><dd>temporal.linear.adjustment</dd>
 <dt>identifier</dt><dd>temporal.backdoor.unfolded</dd>
-<dt>identity</dt><dd>781ea7fc6a52ba7ce53d5d50d7f0d9a374d0927b2cc3021b1f074ffc55ff70ea</dd>
+<dt>identity</dt><dd>63032769ca83000b939a652ce86ca71471aa80dc437a8ddadb069990f3a97db2</dd>
 <dt>models[0].family</dt><dd>temporal.linear.adjustment</dd>
 <dt>models[0].inputs</dt><dd>t</dd>
 <dt>models[0].output</dt><dd>y</dd>
 <dt>models[0].role</dt><dd>outcome</dd>
-<dt>operators</dt><dd>3</dd>
+<dt>operators</dt><dd>9</dd>
 <dt>realization</dt><dd>frequentist</dd>
 </dl>
 <h3>Evidence and decision program</h3>
@@ -245,8 +245,51 @@ th, td { border: 1px solid var(--rule); padding: 0.25rem 0.5rem; text-align: lef
 </dl>
 <h3>Physical plan</h3>
 <dl class="facts">
+<dt>backend.quotes[0].alternative</dt><dd>direct_prepared_numeric_views</dd>
+<dt>backend.quotes[0].cost</dt><dd>1920</dd>
+<dt>backend.quotes[0].resident_bytes</dt><dd>5120</dd>
+<dt>backend.quotes[0].work_cells</dt><dd>1280</dd>
+<dt>backend.quotes[1].alternative</dt><dd>streamed_reduction</dd>
+<dt>backend.quotes[1].cost</dt><dd>1924</dd>
+<dt>backend.quotes[1].resident_bytes</dt><dd>5152</dd>
+<dt>backend.quotes[1].work_cells</dt><dd>1280</dd>
+<dt>backend.quotes[2].alternative</dt><dd>materialized_design</dd>
+<dt>backend.quotes[2].cost</dt><dd>3200</dd>
+<dt>backend.quotes[2].resident_bytes</dt><dd>10240</dd>
+<dt>backend.quotes[2].work_cells</dt><dd>1920</dd>
+<dt>backend.quotes[3].alternative</dt><dd>optional_lazy_preparation</dd>
+<dt>backend.quotes[3].cost</dt><dd>1920</dd>
+<dt>backend.quotes[3].resident_bytes</dt><dd>5120</dd>
+<dt>backend.quotes[3].work_cells</dt><dd>1280</dd>
+<dt>backend.rejected[0].alternative</dt><dd>direct_prepared_numeric_views</dd>
+<dt>backend.rejected[0].reason</dt><dd>missing operator capability prepared_numeric_view</dd>
+<dt>backend.rejected[1].alternative</dt><dd>streamed_reduction</dd>
+<dt>backend.rejected[1].reason</dt><dd>missing operator capability streamed_reduction</dd>
+<dt>backend.rejected[2].alternative</dt><dd>optional_lazy_preparation</dd>
+<dt>backend.rejected[2].reason</dt><dd>missing operator capability lazy_preparation</dd>
+<dt>backend.selected</dt><dd>materialized_design</dd>
+<dt>backend.selected_cost</dt><dd>3200</dd>
 <dt>design.reason</dt><dd>the lagged adjustment design is assembled from the unfolded sample at execution</dd>
 <dt>design.source</dt><dd>not_design_based</dd>
+<dt>memory.components[0].bytes</dt><dd>5120</dd>
+<dt>memory.components[0].component</dt><dd>encoded_width</dd>
+<dt>memory.components[1].bytes</dt><dd>80</dd>
+<dt>memory.components[1].component</dt><dd>masks</dd>
+<dt>memory.components[2].bytes</dt><dd>0</dd>
+<dt>memory.components[2].component</dt><dd>design_expansion</dd>
+<dt>memory.components[3].bytes</dt><dd>0</dd>
+<dt>memory.components[3].component</dt><dd>learner_fold_copies</dd>
+<dt>memory.components[4].bytes</dt><dd>7728</dd>
+<dt>memory.components[4].component</dt><dd>solver_scratch</dd>
+<dt>memory.components[5].bytes</dt><dd>0</dd>
+<dt>memory.components[5].component</dt><dd>retained_scores_draws</dd>
+<dt>memory.components[6].bytes</dt><dd>2576</dd>
+<dt>memory.components[6].component</dt><dd>output</dd>
+<dt>memory.components[7].bytes</dt><dd>0</dd>
+<dt>memory.components[7].component</dt><dd>concurrent_workers</dd>
+<dt>memory.learner_fold_copies</dt><dd>0</dd>
+<dt>memory.total</dt><dd>15504</dd>
+<dt>memory.workers</dt><dd>1</dd>
 <dt>operators[0].capability</dt><dd>cpu</dd>
 <dt>operators[0].designs</dt><dd>1</dd>
 <dt>operators[0].device_work</dt><dd>no</dd>
@@ -261,7 +304,7 @@ th, td { border: 1px solid var(--rule); padding: 0.25rem 0.5rem; text-align: lef
 <dt>operators[1].effect</dt><dd>fit</dd>
 <dt>operators[1].output_bytes</dt><dd>8</dd>
 <dt>operators[1].retained_bytes</dt><dd>5120</dd>
-<dt>operators[1].scratch_bytes</dt><dd>10240</dd>
+<dt>operators[1].scratch_bytes</dt><dd>7728</dd>
 <dt>operators[1].sources</dt><dd>1</dd>
 <dt>operators[2].capability</dt><dd>cpu</dd>
 <dt>operators[2].designs</dt><dd>1</dd>
@@ -271,9 +314,25 @@ th, td { border: 1px solid var(--rule); padding: 0.25rem 0.5rem; text-align: lef
 <dt>operators[2].retained_bytes</dt><dd>0</dd>
 <dt>operators[2].scratch_bytes</dt><dd>0</dd>
 <dt>operators[2].sources</dt><dd>1</dd>
+<dt>operators[3].capability</dt><dd>cpu</dd>
+<dt>operators[3].designs</dt><dd>0</dd>
+<dt>operators[3].device_work</dt><dd>no</dd>
+<dt>operators[3].effect</dt><dd>select</dd>
+<dt>operators[3].output_bytes</dt><dd>0</dd>
+<dt>operators[3].retained_bytes</dt><dd>0</dd>
+<dt>operators[3].scratch_bytes</dt><dd>5120</dd>
+<dt>operators[3].sources</dt><dd>1</dd>
+<dt>operators[4].capability</dt><dd>cpu</dd>
+<dt>operators[4].designs</dt><dd>1</dd>
+<dt>operators[4].device_work</dt><dd>no</dd>
+<dt>operators[4].effect</dt><dd>scan</dd>
+<dt>operators[4].output_bytes</dt><dd>0</dd>
+<dt>operators[4].retained_bytes</dt><dd>0</dd>
+<dt>operators[4].scratch_bytes</dt><dd>15360</dd>
+<dt>operators[4].sources</dt><dd>1</dd>
 <dt>output_bytes</dt><dd>5128</dd>
 <dt>retained_bytes</dt><dd>5120</dd>
-<dt>scratch_bytes</dt><dd>10240</dd>
+<dt>scratch_bytes</dt><dd>28208</dd>
 </dl>
 </section>
 <section id="identities">

@@ -420,7 +420,10 @@ fn both_controls_agree_through_the_file_route_in_both_retentions() {
         let run = |control: CapacityControl| {
             let pool = AdmissionPool::fixed(1, budget);
             let study = ExecutionContext::for_tests(1).with_admission(pool.clone());
-            let spill = scratch.0.join(format!("{control:?}.spill"));
+            // The output charge includes the spill handle's path bytes, so the two
+            // controls spill to paths of equal length to compare their charges.
+            let tag = if control == CapacityControl::Glm { "a" } else { "b" };
+            let spill = scratch.0.join(format!("control-{tag}.spill"));
             let options = options_for(retention, 256, 1 << 22, &spill);
             let summary =
                 summarize_weighted_gaussian(&table, &spec(), control, &options, &study).unwrap();

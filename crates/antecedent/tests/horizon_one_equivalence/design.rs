@@ -124,8 +124,9 @@ fn horizon_one_lagged_instrument_reproduces_the_static_two_stage_ratio_with_a_di
         .identifier(IdentifierId::TemporalIvUnfolded)
         .estimator(EstimatorId::TemporalLaggedInstrument),
     ));
-    let static_result = run(frequentist(
-        Study::tabular(table(&[("z", &zs), ("x", &xs), ("y", &ys)]))
+    // The replicate count lives on the configured estimator, so this study does not set it on
+    // the builder as well.
+    let static_result = run(Study::tabular(table(&[("z", &zs), ("x", &xs), ("y", &ys)]))
             .graph(dag(3, &[(0, 1), (1, 2)]))
             .query(CausalQuery::AverageEffect(AverageEffectQuery::with_levels(
                 id(1),
@@ -134,8 +135,11 @@ fn horizon_one_lagged_instrument_reproduces_the_static_two_stage_ratio_with_a_di
                 1.0,
             )))
             .identifier(IdentifierId::Iv)
-            .estimator(TwoStageLeastSquares::new().with_bootstrap_replicates(0)),
-    ));
+            .estimator(TwoStageLeastSquares::new().with_bootstrap_replicates(0))
+            .inference(InferenceMode::Frequentist)
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap());
 
     let temporal_effect = temporal.estimate.as_effect().unwrap();
     let static_effect = static_result.estimate.as_effect().unwrap();

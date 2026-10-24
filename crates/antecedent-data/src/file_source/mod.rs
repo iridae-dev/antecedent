@@ -341,9 +341,19 @@ pub struct ReadPlan {
     chunk_rows: usize,
     decode_bytes_per_row: u64,
     owned_bytes_per_row: u64,
+    /// Bytes the reader holds for the whole stream beside its chunks (the
+    /// parsed Parquet footer).
+    reader_bytes: u64,
 }
 
 impl ReadPlan {
+    /// Bytes the file reader holds for the whole stream beside any chunk: the
+    /// parsed footer of a Parquet file, which grows with its row groups.
+    #[must_use]
+    pub const fn reader_bytes(&self) -> u64 {
+        self.reader_bytes
+    }
+
     /// The required-column closure this plan reads.
     #[must_use]
     pub fn closure(&self) -> &ColumnClosure {
@@ -502,10 +512,11 @@ struct SchemaView {
     schema: SchemaRef,
     columns: Vec<FileColumn>,
     decode_per_row: Vec<Option<u64>>,
+    reader_bytes: u64,
 }
 
 impl SchemaView {
-    fn new(schema: SchemaRef, decode_per_row: Vec<Option<u64>>) -> Self {
+    fn new(schema: SchemaRef, decode_per_row: Vec<Option<u64>>, reader_bytes: u64) -> Self {
         let columns = schema
             .fields()
             .iter()
@@ -516,7 +527,7 @@ impl SchemaView {
                 arrow_type: Arc::from(field.data_type().to_string()),
             })
             .collect();
-        Self { schema, columns, decode_per_row }
+        Self { schema, columns, decode_per_row, reader_bytes }
     }
 
     fn plan(
@@ -582,6 +593,7 @@ impl SchemaView {
             chunk_rows: options.chunk_rows,
             decode_bytes_per_row,
             owned_bytes_per_row,
+            reader_bytes: self.reader_bytes,
         })
     }
 }
@@ -715,6 +727,8 @@ impl TableFile {
         let first = provider::inspect(&paths[0], format)?;
         let mut rows = first.rows;
         let mut decode_per_row = first.decode_per_row;
+        // Files of a dataset are opened one after another, so the largest footer bounds it.
+        let mut reader_bytes = first.reader_bytes;
         for other in &paths[1..] {
             let next = provider::inspect(other, format)?;
             same_schema(&first.schema, &next.schema, other)?;
@@ -726,6 +740,7 @@ impl TableFile {
                 ),
                 _ => None,
             };
+            reader_bytes = reader_bytes.max(next.reader_bytes);
             for (slot, more) in decode_per_row.iter_mut().zip(next.decode_per_row) {
                 *slot = match (*slot, more) {
                     (Some(left), Some(right)) => Some(left.max(right)),
@@ -736,7 +751,7 @@ impl TableFile {
         Ok(Self {
             format,
             paths,
-            view: SchemaView::new(first.schema, decode_per_row),
+            view: SchemaView::new(first.schema, decode_per_row, reader_bytes),
             declared_rows: rows.map(GlobalId::new),
         })
     }
@@ -919,7 +934,7 @@ impl TableStream {
         let reader = stream.into_reader()?;
         let schema = reader.schema();
         let width = schema.fields().len();
-        Ok(Self { view: SchemaView::new(schema, vec![None; width]), reader })
+        Ok(Self { view: SchemaView::new(schema, vec![None; width], 0), reader })
     }
 
     /// Every column of the stream schema.

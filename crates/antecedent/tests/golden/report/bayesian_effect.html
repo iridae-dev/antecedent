@@ -45,7 +45,7 @@ th, td { border: 1px solid var(--rule); padding: 0.25rem 0.5rem; text-align: lef
 <section id="claim">
 <h2>Claim</h2>
 <dl class="facts">
-<dt>Claim id</dt><dd>db561b6b74ac66dd4b6999728b52e18e225e1f498eb78080cb5fc6182f121881</dd>
+<dt>Claim id</dt><dd>15136bc597e8134567177018b9481071a0447d18c3e196bbd6865b88efbe2d10</dd>
 <dt>Kind</dt><dd>point</dd>
 <dt>Value</dt><dd>2.0322712926</dd>
 <dt>Outcome units</dt><dd>none</dd>
@@ -207,7 +207,7 @@ th, td { border: 1px solid var(--rule); padding: 0.25rem 0.5rem; text-align: lef
 <dt>Family</dt><dd>static_effect</dd>
 <dt>Stage</dt><dd>prepared</dd>
 <dt>Depth</dt><dd>complete</dd>
-<dt>Program identity</dt><dd>bbbc0f65ca872d1f681f723f06bbf34ff0749b1498ee8f1958643f809bf7cd8a</dd>
+<dt>Program identity</dt><dd>29dc309662efe1f5ea644d45c073d1b691c26cc890864bb23a510eea40d5a06a</dd>
 <dt>Sealed operation</dt><dd>bayesian_gcomp</dd>
 </dl>
 <h3>Scientific problem</h3>
@@ -233,11 +233,13 @@ th, td { border: 1px solid var(--rule); padding: 0.25rem 0.5rem; text-align: lef
 </table>
 <h3>Statistical program</h3>
 <dl class="facts">
-<dt>design.reason</dt><dd>the estimator fits its propensity, outcome, instrument or learner models on their own bases, sized at execution; no single adjustment design is quoted</dd>
-<dt>design.source</dt><dd>not_design_based</dd>
+<dt>design.columns</dt><dd>3</dd>
+<dt>design.direct</dt><dd>yes</dd>
+<dt>design.rows</dt><dd>512</dd>
+<dt>design.source</dt><dd>quoted</dd>
 <dt>estimator</dt><dd>bayesian.gcomp</dd>
 <dt>identifier</dt><dd>backdoor.adjustment</dd>
-<dt>identity</dt><dd>6258550cb51193da39ec3ba441a7d8e941c1e543d43fdb69f70cf10a167804f9</dd>
+<dt>identity</dt><dd>c60e345cc2025733e74355b99dff0a2c6222b32eec6f3f3916da86b5f488f632</dd>
 <dt>models[0].family</dt><dd>ols.faer</dd>
 <dt>models[0].inputs</dt><dd>t, z</dd>
 <dt>models[0].output</dt><dd>y</dd>
@@ -256,8 +258,53 @@ th, td { border: 1px solid var(--rule); padding: 0.25rem 0.5rem; text-align: lef
 </dl>
 <h3>Physical plan</h3>
 <dl class="facts">
-<dt>design.reason</dt><dd>the estimator fits its propensity, outcome, instrument or learner models on their own bases, sized at execution; no single adjustment design is quoted</dd>
-<dt>design.source</dt><dd>not_design_based</dd>
+<dt>backend.quotes[0].alternative</dt><dd>direct_prepared_numeric_views</dd>
+<dt>backend.quotes[0].cost</dt><dd>4608</dd>
+<dt>backend.quotes[0].resident_bytes</dt><dd>12288</dd>
+<dt>backend.quotes[0].work_cells</dt><dd>3072</dd>
+<dt>backend.quotes[1].alternative</dt><dd>streamed_reduction</dd>
+<dt>backend.quotes[1].cost</dt><dd>4617</dd>
+<dt>backend.quotes[1].resident_bytes</dt><dd>12360</dd>
+<dt>backend.quotes[1].work_cells</dt><dd>3072</dd>
+<dt>backend.quotes[2].alternative</dt><dd>materialized_design</dd>
+<dt>backend.quotes[2].cost</dt><dd>7680</dd>
+<dt>backend.quotes[2].resident_bytes</dt><dd>24576</dd>
+<dt>backend.quotes[2].work_cells</dt><dd>4608</dd>
+<dt>backend.quotes[3].alternative</dt><dd>optional_lazy_preparation</dd>
+<dt>backend.quotes[3].cost</dt><dd>4608</dd>
+<dt>backend.quotes[3].resident_bytes</dt><dd>12288</dd>
+<dt>backend.quotes[3].work_cells</dt><dd>3072</dd>
+<dt>backend.rejected[0].alternative</dt><dd>direct_prepared_numeric_views</dd>
+<dt>backend.rejected[0].reason</dt><dd>missing operator capability prepared_numeric_view</dd>
+<dt>backend.rejected[1].alternative</dt><dd>streamed_reduction</dd>
+<dt>backend.rejected[1].reason</dt><dd>missing operator capability streamed_reduction</dd>
+<dt>backend.rejected[2].alternative</dt><dd>optional_lazy_preparation</dd>
+<dt>backend.rejected[2].reason</dt><dd>missing operator capability lazy_preparation</dd>
+<dt>backend.selected</dt><dd>materialized_design</dd>
+<dt>backend.selected_cost</dt><dd>7680</dd>
+<dt>design.columns</dt><dd>3</dd>
+<dt>design.direct</dt><dd>yes</dd>
+<dt>design.rows</dt><dd>512</dd>
+<dt>design.source</dt><dd>quoted</dd>
+<dt>memory.components[0].bytes</dt><dd>12288</dd>
+<dt>memory.components[0].component</dt><dd>encoded_width</dd>
+<dt>memory.components[1].bytes</dt><dd>192</dd>
+<dt>memory.components[1].component</dt><dd>masks</dd>
+<dt>memory.components[2].bytes</dt><dd>0</dd>
+<dt>memory.components[2].component</dt><dd>design_expansion</dd>
+<dt>memory.components[3].bytes</dt><dd>0</dd>
+<dt>memory.components[3].component</dt><dd>learner_fold_copies</dd>
+<dt>memory.components[4].bytes</dt><dd>16480</dd>
+<dt>memory.components[4].component</dt><dd>solver_scratch</dd>
+<dt>memory.components[5].bytes</dt><dd>0</dd>
+<dt>memory.components[5].component</dt><dd>retained_scores_draws</dd>
+<dt>memory.components[6].bytes</dt><dd>4120</dd>
+<dt>memory.components[6].component</dt><dd>output</dd>
+<dt>memory.components[7].bytes</dt><dd>0</dd>
+<dt>memory.components[7].component</dt><dd>concurrent_workers</dd>
+<dt>memory.learner_fold_copies</dt><dd>0</dd>
+<dt>memory.total</dt><dd>33080</dd>
+<dt>memory.workers</dt><dd>1</dd>
 <dt>operators[0].capability</dt><dd>cpu</dd>
 <dt>operators[0].designs</dt><dd>1</dd>
 <dt>operators[0].device_work</dt><dd>no</dd>
@@ -272,7 +319,7 @@ th, td { border: 1px solid var(--rule); padding: 0.25rem 0.5rem; text-align: lef
 <dt>operators[1].effect</dt><dd>fit</dd>
 <dt>operators[1].output_bytes</dt><dd>8</dd>
 <dt>operators[1].retained_bytes</dt><dd>12288</dd>
-<dt>operators[1].scratch_bytes</dt><dd>24576</dd>
+<dt>operators[1].scratch_bytes</dt><dd>16480</dd>
 <dt>operators[1].sources</dt><dd>1</dd>
 <dt>operators[2].capability</dt><dd>cpu</dd>
 <dt>operators[2].designs</dt><dd>1</dd>
@@ -282,9 +329,25 @@ th, td { border: 1px solid var(--rule); padding: 0.25rem 0.5rem; text-align: lef
 <dt>operators[2].retained_bytes</dt><dd>0</dd>
 <dt>operators[2].scratch_bytes</dt><dd>0</dd>
 <dt>operators[2].sources</dt><dd>1</dd>
+<dt>operators[3].capability</dt><dd>cpu</dd>
+<dt>operators[3].designs</dt><dd>0</dd>
+<dt>operators[3].device_work</dt><dd>no</dd>
+<dt>operators[3].effect</dt><dd>select</dd>
+<dt>operators[3].output_bytes</dt><dd>0</dd>
+<dt>operators[3].retained_bytes</dt><dd>0</dd>
+<dt>operators[3].scratch_bytes</dt><dd>12288</dd>
+<dt>operators[3].sources</dt><dd>1</dd>
+<dt>operators[4].capability</dt><dd>cpu</dd>
+<dt>operators[4].designs</dt><dd>1</dd>
+<dt>operators[4].device_work</dt><dd>no</dd>
+<dt>operators[4].effect</dt><dd>scan</dd>
+<dt>operators[4].output_bytes</dt><dd>0</dd>
+<dt>operators[4].retained_bytes</dt><dd>0</dd>
+<dt>operators[4].scratch_bytes</dt><dd>36864</dd>
+<dt>operators[4].sources</dt><dd>1</dd>
 <dt>output_bytes</dt><dd>12296</dd>
 <dt>retained_bytes</dt><dd>12288</dd>
-<dt>scratch_bytes</dt><dd>24576</dd>
+<dt>scratch_bytes</dt><dd>65632</dd>
 </dl>
 </section>
 <section id="identities">

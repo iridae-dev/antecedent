@@ -750,7 +750,27 @@ pub(crate) fn min_norm_on_column_major(
     }
     let view = MatRef::from_column_major_slice(&design[..cells], nrows, ncols);
     record_traffic(|traffic| traffic.in_place_views = traffic.in_place_views.saturating_add(1));
-    let svd = thin_svd_in_scope(view, scope, scratch).map_err(|_| {
+    // A tall or square design is reduced by an unpivoted QR first, exactly as `faer`'s own
+    // tall SVD does, so the SVD sees the `ncols x ncols` triangular factor and the right-hand
+    // side is reduced to `Q^T y`. Memory: the QR factor lives in the one scratch buffer (a
+    // design-sized phase), and that phase ends, leaving only the small triangular factor and
+    // `Q^T y`, before the SVD of the triangular factor takes the same buffer. The peak is
+    // therefore the caller's vectors plus one design-sized scratch, never the design-sized left
+    // factor `U` beside the SVD's own design-sized workspace. The singular values of the
+    // triangular factor are those of the design, so the rank test and the solution are the same.
+    let reduced;
+    let (svd_input, rhs): (MatRef<'_, f64>, &[f64]);
+    let triangular;
+    if nrows >= ncols {
+        reduced = qr_reduce(view, y, scope, scratch)?;
+        triangular = reduced.0;
+        svd_input = triangular.as_ref();
+        rhs = &reduced.1;
+    } else {
+        svd_input = view;
+        rhs = y;
+    }
+    let svd = thin_svd_in_scope(svd_input, scope, scratch).map_err(|_| {
         StatsError::Backend("minimum-norm least squares: SVD did not converge".into())
     })?;
     let (u, s, v) = (svd.u.as_ref(), svd.s.as_ref().column_vector(), svd.v.as_ref());
@@ -767,7 +787,7 @@ pub(crate) fn min_norm_on_column_major(
         }
         rank += 1;
         s_min = s_min.min(singular);
-        let projection: f64 = (0..nrows).map(|row| u[(row, index)] * y[row]).sum();
+        let projection: f64 = (0..u.nrows()).map(|row| u[(row, index)] * rhs[row]).sum();
         let weight = projection / s[index];
         for (column, coefficient) in coefficients.iter_mut().enumerate() {
             *coefficient += v[(column, index)] * weight;
@@ -783,6 +803,58 @@ pub(crate) fn min_norm_on_column_major(
         rss,
         diagnostics: FitDiagnostics::new(rank, rcond, "faer-svd", grow_count),
     })
+}
+
+/// Unpivoted QR of a tall or square column-major design held in `scratch`: the
+/// `ncols x ncols` upper-triangular factor and the first `ncols` entries of `Q^T y`.
+///
+/// The design-sized factor, its Householder coefficients and the transformed right-hand side
+/// are all carved from the one scratch buffer, so the phase's memory is that buffer and the two
+/// small owned results.
+fn qr_reduce(
+    design: MatRef<'_, f64>,
+    y: &[f64],
+    scope: FaerScope,
+    scratch: &mut FactorScratch,
+) -> Result<(Mat<f64>, Vec<f64>), StatsError> {
+    use faer::linalg::householder::{
+        apply_block_householder_sequence_transpose_on_the_left_in_place_scratch as apply_scratch,
+        apply_block_householder_sequence_transpose_on_the_left_in_place_with_conj as apply_transpose,
+    };
+    use faer::linalg::qr::no_pivoting::factor as plain;
+    use faer::linalg::{temp_mat_scratch, temp_mat_zeroed};
+    use faer::mat::AsMatMut;
+    use faer::reborrow::{Reborrow, ReborrowMut};
+
+    let (nrows, ncols) = design.shape();
+    let par = scope.parallelism();
+    let block_size = plain::recommended_block_size::<f64>(nrows, ncols);
+    let required = temp_mat_scratch::<f64>(nrows, ncols)
+        .and(temp_mat_scratch::<f64>(block_size, ncols))
+        .and(temp_mat_scratch::<f64>(nrows, 1))
+        .and(
+            plain::qr_in_place_scratch::<f64>(nrows, ncols, block_size, par, Spec::default())
+                .or(apply_scratch::<f64>(nrows, block_size, 1)),
+        );
+    scratch.ensure(scope, required)?;
+    let stack = MemStack::new(scratch.buffer_mut()?);
+    let (mut qr, stack) = temp_mat_zeroed::<f64, _, _>(nrows, ncols, stack);
+    let mut qr = qr.as_mat_mut();
+    let (mut coeff, stack) = temp_mat_zeroed::<f64, _, _>(block_size, ncols, stack);
+    let mut coeff = coeff.as_mat_mut();
+    let (mut rhs, stack) = temp_mat_zeroed::<f64, _, _>(nrows, 1, stack);
+    let mut rhs = rhs.as_mat_mut();
+    qr.rb_mut().copy_from(design);
+    let _ = plain::qr_in_place(qr.rb_mut(), coeff.rb_mut(), par, stack, Spec::default());
+    for (row, value) in y.iter().enumerate() {
+        rhs[(row, 0)] = *value;
+    }
+    apply_transpose(qr.rb(), coeff.rb(), Conj::No, rhs.rb_mut(), par, stack);
+    let triangular = Mat::<f64>::from_fn(ncols, ncols, |row, column| {
+        if row <= column { qr[(row, column)] } else { 0.0 }
+    });
+    let reduced = (0..ncols).map(|row| rhs[(row, 0)]).collect();
+    Ok((triangular, reduced))
 }
 
 fn column_pivoted_qr(

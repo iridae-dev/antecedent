@@ -54,6 +54,9 @@ pub(crate) struct Inspected {
     /// Largest uncompressed bytes per row of each top-level column, when the
     /// format records column sizes.
     pub decode_per_row: Vec<Option<u64>>,
+    /// Bytes the reader of this file holds beside its chunks for the whole
+    /// stream: the parsed footer, which grows with the row groups and columns.
+    pub reader_bytes: u64,
 }
 
 pub(crate) fn inspect(path: &Path, format: TableFileFormat) -> Result<Inspected, FileSourceError> {
@@ -198,7 +201,32 @@ fn parquet_inspect(path: &Path) -> Result<Inspected, FileSourceError> {
             *slot = Some(slot.map_or(estimate, |seen| seen.max(estimate)));
         }
     }
-    Ok(Inspected { schema, rows: Some(rows), decode_per_row })
+    // Opening a reader parses the footer again. While it is parsed the reader
+    // holds the encoded footer, its decoded thrift form and the parsed metadata
+    // together, and the parsed metadata then stays for the whole stream. The
+    // thrift form is the same row groups and columns in owned structs, measured
+    // at about 1.2 times the parsed metadata, so the reservation charges three
+    // times the parsed size (resident copy, thrift form, and slack for the
+    // conversion) plus the encoded bytes. This is a reservation, not a measured
+    // allocation, and it is the reader overhead no chunk quote covers.
+    let parsed = u64::try_from(metadata.memory_size()).unwrap_or(u64::MAX);
+    let reader_bytes = parsed
+        .saturating_mul(3)
+        .saturating_add(parquet_footer_len(path).map_err(|error| format_error(path, &error))?);
+    Ok(Inspected { schema, rows: Some(rows), decode_per_row, reader_bytes })
+}
+
+/// Encoded length of the footer metadata, from the fixed eight-byte file tail
+/// (a little-endian `u32` length, then the `PAR1` magic).
+#[cfg(feature = "parquet")]
+fn parquet_footer_len(path: &Path) -> Result<u64, std::io::Error> {
+    use std::io::{Read, Seek, SeekFrom};
+
+    let mut file = File::open(path)?;
+    file.seek(SeekFrom::End(-8))?;
+    let mut tail = [0_u8; 8];
+    file.read_exact(&mut tail)?;
+    Ok(u64::from(u32::from_le_bytes([tail[0], tail[1], tail[2], tail[3]])))
 }
 
 #[cfg(not(feature = "parquet"))]
@@ -258,7 +286,7 @@ fn ipc_inspect(path: &Path, stream: bool) -> Result<Inspected, FileSourceError> 
         FileReader::try_new(reader, None).map_err(|error| format_error(path, &error))?.schema()
     };
     let width = schema.fields().len();
-    Ok(Inspected { schema, rows: None, decode_per_row: vec![None; width] })
+    Ok(Inspected { schema, rows: None, decode_per_row: vec![None; width], reader_bytes: 0 })
 }
 
 #[cfg(not(feature = "ipc"))]

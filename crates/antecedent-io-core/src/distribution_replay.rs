@@ -229,6 +229,7 @@ pub(crate) fn replay_functional_scalar(
         query,
         CausalQueryWire::AverageEffect { .. }
             | CausalQueryWire::PathSpecific(_)
+            | CausalQueryWire::NestedCounterfactual { .. }
             | CausalQueryWire::Response(_)
     ) {
         return Err(ContractReason::FunctionalEffectQueryKind);

@@ -182,7 +182,10 @@ impl Study {
             (graph, CausalQuery::NestedCounterfactual(_))
                 if matches!(
                     graph.class(),
-                    GraphClass::Admg | GraphClass::TemporalAdmg | GraphClass::Cpdag
+                    GraphClass::Admg
+                        | GraphClass::TemporalAdmg
+                        | GraphClass::Cpdag
+                        | GraphClass::Pag
                 ) =>
             {
                 None

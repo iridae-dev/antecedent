@@ -245,8 +245,10 @@ fn a_bayesian_vector_run_stacks_joint_draws() {
     let ctx = ExecutionContext::for_tests(1);
     let (x, y, z) = simulate(300, 8);
     let imp = imputer(&x, &y, &z, ImputationSpec::new().with_imputations(5).with_seed(2));
+    let fitted = std::cell::RefCell::new(Vec::new());
     let run = multiple_imputation::run_vector(&imp, &ctx, |table, _| {
         let (beta, cov, _) = ols(&table.columns()[0], &table.columns()[1]);
+        fitted.borrow_mut().push((beta.clone(), cov.clone()));
         let mut rng = CausalRng::from_seed(u64::from(table.index()));
         // Joint normal draws through the Cholesky factor of the 2 x 2 covariance.
         let l00 = cov[0].sqrt();
@@ -265,7 +267,25 @@ fn a_bayesian_vector_run_stacks_joint_draws() {
     let PooledVectorEstimate::Stacked(stacked) = &run.pooled else { panic!("stacked") };
     assert_eq!(stacked.quantities.len(), 2);
     assert_eq!(stacked.quantities[1].draws.len(), 1_500);
-    assert!(stacked.covariance[1] < 0.0, "intercept and slope draws are negatively dependent");
+    // The sign of the intercept-slope covariance follows the mean of the imputed regressor, so
+    // it is checked against the law of total covariance on the per-imputation fits instead:
+    // the mean within-imputation covariance plus the covariance of the per-imputation means.
+    let fitted = fitted.into_inner();
+    let m = fitted.len() as f64;
+    let within = fitted.iter().map(|(_, cov)| cov[1]).sum::<f64>() / m;
+    let (mean_a, mean_b) = (
+        fitted.iter().map(|(beta, _)| beta[0]).sum::<f64>() / m,
+        fitted.iter().map(|(beta, _)| beta[1]).sum::<f64>() / m,
+    );
+    let between = fitted.iter().map(|(beta, _)| (beta[0] - mean_a) * (beta[1] - mean_b)).sum::<f64>()
+        / m;
+    let expected = within + between;
+    assert!(
+        (stacked.covariance[1] - expected).abs() <= 0.1 * expected.abs(),
+        "stacked intercept-slope covariance {} vs the law of total covariance {expected}",
+        stacked.covariance[1]
+    );
+    assert_eq!(stacked.covariance[1], stacked.covariance[2], "the covariance is symmetric");
     assert!(stacked.quantities[1].variance > stacked.quantities[1].within);
     assert_eq!(run.pooled.point().len(), 2);
 }

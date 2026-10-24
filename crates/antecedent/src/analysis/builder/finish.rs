@@ -1026,6 +1026,9 @@ fn apply_design_contract(
     carry: &Carry,
 ) -> Result<(), CausalError> {
     refuse_estimator_design_mismatch(query, carry.estimator)?;
+    if let CausalQuery::Association(association) = query {
+        association.validate()?;
+    }
     if graph.class() != GraphClass::RandomizedTrial {
         return Err(CausalError::Unsupported {
             message: "design-based queries carry their own identification contract and must not be combined with graph= or discovery=",
