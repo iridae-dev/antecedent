@@ -7,18 +7,40 @@
 
 mod artifact;
 mod contracts;
+/// Native design-specific joint functionals and retained Bayesian laws.
+pub mod designs;
+pub use designs::{
+    JointDesignProof, JointDesignResult, JointDesignWorldBinding, PreparedJointDesign,
+    replay_joint_design_artifact,
+};
 mod experiment;
 mod explanation;
-pub use explanation::{JointPanelExplanationAttempt, JointPanelExplanationRequest};
+pub use explanation::{
+    ChangeComponent, CheckedReferenceDecomposition, DecompositionEndpoint,
+    DecompositionJointUncertainty, HistoricalPopulationReference, HistoricalReferenceDecomposition,
+    HybridReferenceSupport, IdentifiedReferenceAttempt, JointPanelExplanationAttempt,
+    JointPanelExplanationRequest, MechanismPeriodMap, PanelDecomposition,
+    PanelDecompositionRequest, PopulationReferenceAttempt, PopulationReferenceBindings,
+    PopulationReferenceDecomposition, PopulationReferenceTransportProof,
+    ReferenceComponentBindings, ReferenceDecomposition, ReferenceDecompositionCovariance,
+    ScientificReferenceDecomposition, decompose_population_reference,
+    decompose_scientific_reference, replay_population_reference, replay_reference_decomposition,
+};
 mod ports;
 mod projection;
 mod search;
+/// Held-out observational selection through actual whole-program randomized designs.
+pub mod selection;
 mod source;
 mod static_source;
 pub use experiment::{
+    HistoricalJointLawExperiment, HistoricalNativeJointExperiment, JointExperimentAcceptanceMatrix,
+    JointExperimentAcceptanceRow, JointLawExperimentRequest, JointLawExperimentResult,
+    NativeExperimentBinding, NativeExperimentDecision, NativeJointExperimentResult,
     PanelExperimentDecisionSource, PanelExperimentDecisionState, PanelExperimentEvidence,
     PanelExperimentMapping, PanelExperimentModularPolicy, PanelExperimentResult,
     PanelExperimentState, PanelExperimentUpdate, PanelFutureSample, PanelFutureSampleValue,
+    joint_experiment_acceptance_matrix,
 };
 #[cfg(test)]
 mod tests;
@@ -44,13 +66,14 @@ pub use ports::{
     JointPanelScientificScope,
 };
 pub use search::{
-    JointPanelContinuousSearch, JointPanelContinuousSearchRequest,
-    JointPanelContinuousSearchResult, JointPanelSearch, JointPanelSearchRequest,
-    JointPanelSearchUncertainty,
+    JointPanelCertifiedSearch, JointPanelCertifiedSearchResult, JointPanelContinuousSearch,
+    JointPanelContinuousSearchRequest, JointPanelContinuousSearchResult,
+    JointPanelProgramSearchResult, JointPanelSearch, JointPanelSearchRequest,
+    JointPanelSearchUncertainty, replay_panel_certificate,
 };
 
 pub use contracts::{
-    JointPanelDesignAttempt, JointPanelDesignOutcome, JointPanelFunctional, JointPanelWorldSupport,
+    JointPanelDesignAttempt, JointPanelDesignOutcome, JointPanelDesignProof, JointPanelDesignTheorem, JointPanelFunctional, JointPanelWorldSupport,
     declare_joint_panel_exogenous_context, joint_panel_target,
 };
 

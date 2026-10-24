@@ -14,6 +14,19 @@ use antecedent_io::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionTrust,
 };
 
+mod law;
+mod matrix;
+mod native;
+pub use law::{HistoricalJointLawExperiment, JointLawExperimentRequest, JointLawExperimentResult};
+pub use matrix::{
+    JointExperimentAcceptanceMatrix, JointExperimentAcceptanceRow,
+    joint_experiment_acceptance_matrix,
+};
+pub use native::{
+    HistoricalNativeJointExperiment, NativeExperimentBinding, NativeExperimentDecision,
+    NativeJointExperimentResult,
+};
+
 /// Current ledger origins of every likelihood/prior/mapping used by an update.
 #[derive(Clone, Debug)]
 pub struct PanelExperimentEvidence {
@@ -82,7 +95,6 @@ pub struct PanelExperimentResult {
     law: DistributionArtifact,
     prior_means: Vec<f64>,
     posterior_means: Vec<f64>,
-    weights: Vec<f64>,
     dependency: SemanticDigest,
     retention: Arc<antecedent_core::execution::AdmissionLease>,
 }
@@ -141,6 +153,11 @@ impl PanelExperimentDecisionSource {
         self.retention.observe_current();
         validate_update(&self.update, ledger)?;
         validate_model_dependency(self.original_dependency, &self.update, ledger)?;
+        if scope
+            == antecedent_design::scientific_source::ScientificConsumptionScope::IdentifiedCausal
+        {
+            return Err(JointPanelError::Unsupported("the frozen modular experiment update requires its additional likelihood and transport model; causal authority for that combined model is not inferred from the original identification proof".into()));
+        }
         self.source.authorize(scope).map_err(super::search::map_scientific_error)
     }
     /// Evaluate a decision only under current caller-supplied ledger authority.
@@ -172,6 +189,26 @@ impl PanelExperimentDecisionSource {
 }
 
 impl JointPanelResult {
+    /// Condition this retained posterior on an independent experiment without refitting.
+    ///
+    /// The supplied paired mapping remains attached to the original draw slots. This
+    /// is the same frozen modular update as `with_experiment`, with caller-current
+    /// bridge and evidence checks repeated before every scientific consumption.
+    ///
+    /// # Errors
+    /// A sampling distribution, unsupported translation, stale evidence, mismatched
+    /// mapping dependency or invalid likelihood cannot become a posterior update.
+    pub fn condition_experiment(
+        &self,
+        update: PanelExperimentUpdate,
+        ledger: &EvidenceLedger,
+        ctx: &ExecutionContext,
+    ) -> Result<PanelExperimentResult, JointPanelError> {
+        validate_update(&update, ledger)?;
+        source::check_cancelled(ctx)?;
+        update_result(self.clone(), update, ledger, ctx)
+    }
+
     /// Exact assembled contrast coordinate for an experiment-to-model bridge.
     ///
     /// # Errors
@@ -550,7 +587,6 @@ fn update_result(
         law,
         prior_means,
         posterior_means,
-        weights,
         dependency,
         retention,
     })
@@ -793,103 +829,151 @@ impl PanelExperimentResult {
         ledger: &EvidenceLedger,
         ctx: &ExecutionContext,
     ) -> Result<Vec<PanelFutureSampleValue>, JointPanelError> {
-        let scientific = self.law_source(ledger)?;
         self.retention.observe_current();
-        source::check_cancelled(ctx)?;
-        validate_future_sample_catalog(candidates, replicates)?;
-        let projection_bytes =
-            projection_retained_bytes(scientific.projection())?.checked_add(64).ok_or_else(
-                || JointPanelError::compile("future-study shared ownership quote overflow"),
-            )?;
-        let output_bytes = candidates
-            .iter()
-            .try_fold(projection_bytes, |bytes, candidate| {
-                bytes
-                    .checked_add(std::mem::size_of::<PanelFutureSampleValue>())?
-                    .checked_add(candidate.id.len())
-            })
-            .and_then(|bytes| u64::try_from(bytes).ok())
-            .ok_or_else(|| JointPanelError::compile("future-study output quote overflow"))?;
-        let output_retention = Arc::new(admit(ctx, output_bytes)?);
-        let projection = scientific.projection().cloned().map(Arc::new);
-        let width = self.posterior_means.len();
+        let scientific = self.law_source(ledger)?;
         let coefficients = contrast_weights(self.original.request())?;
-        // The existing decision owner retains both its action-by-state utility table
-        // and the corresponding regret gaps, in addition to aligned response states.
-        let action_cells = problem
-            .actions
-            .len()
-            .checked_mul(self.weights.len())
-            .and_then(|cells| cells.checked_mul(3))
-            .ok_or_else(|| JointPanelError::compile("preposterior action table quote overflow"))?;
-        let bytes = self
-            .law
-            .draws()
-            .len()
-            .checked_mul(3)
-            .and_then(|cells| cells.checked_add(action_cells))
-            .and_then(|cells| cells.checked_add(self.weights.len().checked_mul(16)?))
-            .and_then(|cells| cells.checked_mul(8))
-            .and_then(|n| u64::try_from(n).ok())
-            .ok_or_else(|| JointPanelError::compile("preposterior quote overflow"))?;
-        let _lease = admit(ctx, bytes)?;
-        let states = self
-            .law
-            .draws()
-            .chunks_exact(width)
-            .enumerate()
-            .map(|(slot, row)| {
-                let target = row
-                    .iter()
-                    .zip(&coefficients)
-                    .map(|(value, weight)| value * weight)
-                    .sum::<f64>();
-                PanelExperimentDecisionState {
-                    responses: row.to_vec(),
-                    experiment_mean: (target - self.update.mapping.intercepts[slot])
-                        / self.update.mapping.slopes[slot],
-                }
-            })
-            .collect::<Vec<_>>();
-        if states.iter().any(|state| !state.experiment_mean.is_finite()) {
-            return Err(JointPanelError::compile("future experiment mapped mean overflow"));
-        }
-        let mut rows = Vec::with_capacity(candidates.len());
-        for candidate in candidates {
-            source::check_cancelled(ctx)?;
-            let signal = PanelExperimentSignal { variance: candidate.observation_variance };
-            let analysis =
-                PreposteriorAnalysis::new_weighted(problem, &states, &self.weights, &signal)
-                    .map_err(JointPanelError::compile)?;
-            let mut samples = antecedent_stats::Welford::new();
-            for replicate in 0..replicates {
-                source::check_cancelled(ctx)?;
-                let mut rng =
-                    antecedent_design::preposterior::evsi_replicate_rng(&ctx.rng, replicate as u64);
-                samples.push(
-                    analysis
-                        .sample_evsi(candidate.sample_size, &mut rng)
-                        .map_err(JointPanelError::compile)?,
-                );
-            }
-            rows.push(PanelFutureSampleValue{scope:antecedent_design::scientific_source::ScientificConsumptionScope::ModelConditional,
-                target_identity:scientific.target().identity(),identification_identity:scientific.identification().identity(),
-                dependency_identity:self.dependency,question_identity:scientific.question_identity(),projection:projection.clone(),retention:Arc::clone(&output_retention),id:candidate.id.clone(),gross_evsi:samples.mean(),standard_error:samples.stderr_of_mean(),
-                net_value:candidate.cost_utility.map(|cost|samples.mean()-cost)});
-        }
-        // A net ranking is meaningful only when every candidate declares a comparable cost.
-        let net = rows.iter().all(|row| row.net_value.is_some());
-        rows.sort_by(|left, right| {
-            right
-                .net_value
-                .filter(|_| net)
-                .unwrap_or(right.gross_evsi)
-                .total_cmp(&left.net_value.filter(|_| net).unwrap_or(left.gross_evsi))
-                .then_with(|| left.id.cmp(&right.id))
-        });
-        Ok(rows)
+        rank_law_next_samples(
+            &ExperimentRankingReceipt::from(&scientific),
+            &self.law,
+            &self.update,
+            &coefficients,
+            problem,
+            candidates,
+            replicates,
+            ctx,
+        )
     }
 }
+struct ExperimentRankingReceipt {
+    target_identity: SemanticDigest,
+    identification_identity: SemanticDigest,
+    dependency_identity: SemanticDigest,
+    question_identity: SemanticDigest,
+    projection: Option<Arc<antecedent_design::scientific_source::ScientificSourceProjection>>,
+}
+impl From<&PanelExperimentDecisionSource> for ExperimentRankingReceipt {
+    fn from(source: &PanelExperimentDecisionSource) -> Self {
+        Self {
+            target_identity: source.target().identity(),
+            identification_identity: source.identification().identity(),
+            dependency_identity: source.dependency_identity(),
+            question_identity: source.question_identity(),
+            projection: source.projection().cloned().map(Arc::new),
+        }
+    }
+}
+#[allow(clippy::too_many_arguments)]
+fn rank_law_next_samples<A>(
+    receipt: &ExperimentRankingReceipt,
+    law: &DistributionArtifact,
+    update: &PanelExperimentUpdate,
+    coefficients: &[f64],
+    problem: &DecisionProblem<A, PanelExperimentDecisionState>,
+    candidates: &[PanelFutureSample],
+    replicates: usize,
+    ctx: &ExecutionContext,
+) -> Result<Vec<PanelFutureSampleValue>, JointPanelError> {
+    source::check_cancelled(ctx)?;
+    validate_future_sample_catalog(candidates, replicates)?;
+    let projection_bytes = projection_retained_bytes(receipt.projection.as_deref())?
+        .checked_add(64)
+        .ok_or_else(|| JointPanelError::compile("future-study shared ownership quote overflow"))?;
+    let output_bytes = candidates
+        .iter()
+        .try_fold(projection_bytes, |bytes, candidate| {
+            bytes
+                .checked_add(std::mem::size_of::<PanelFutureSampleValue>())?
+                .checked_add(candidate.id.len())
+        })
+        .and_then(|bytes| u64::try_from(bytes).ok())
+        .ok_or_else(|| JointPanelError::compile("future-study output quote overflow"))?;
+    let output_retention = Arc::new(admit(ctx, output_bytes)?);
+    let projection = receipt.projection.clone();
+    let width = coefficients.len();
+    let weights =
+        law.metadata().weights.as_ref().ok_or_else(|| {
+            JointPanelError::compile("conditional law must retain posterior weights")
+        })?;
+    // The existing decision owner retains both its action-by-state utility table
+    // and the corresponding regret gaps, in addition to aligned response states.
+    let action_cells = problem
+        .actions
+        .len()
+        .checked_mul(weights.len())
+        .and_then(|cells| cells.checked_mul(3))
+        .ok_or_else(|| JointPanelError::compile("preposterior action table quote overflow"))?;
+    let bytes = law
+        .draws()
+        .len()
+        .checked_mul(3)
+        .and_then(|cells| cells.checked_add(action_cells))
+        .and_then(|cells| cells.checked_add(weights.len().checked_mul(16)?))
+        .and_then(|cells| cells.checked_mul(8))
+        .and_then(|n| u64::try_from(n).ok())
+        .ok_or_else(|| JointPanelError::compile("preposterior quote overflow"))?;
+    let _lease = admit(ctx, bytes)?;
+    let states = law
+        .draws()
+        .chunks_exact(width)
+        .enumerate()
+        .map(|(slot, row)| {
+            let target =
+                row.iter().zip(coefficients).map(|(value, weight)| value * weight).sum::<f64>();
+            PanelExperimentDecisionState {
+                responses: row.to_vec(),
+                experiment_mean: (target - update.mapping.intercepts[slot])
+                    / update.mapping.slopes[slot],
+            }
+        })
+        .collect::<Vec<_>>();
+    if states.iter().any(|state| !state.experiment_mean.is_finite()) {
+        return Err(JointPanelError::compile("future experiment mapped mean overflow"));
+    }
+    let mut rows = Vec::with_capacity(candidates.len());
+    for candidate in candidates {
+        source::check_cancelled(ctx)?;
+        let signal = PanelExperimentSignal { variance: candidate.observation_variance };
+        let analysis = PreposteriorAnalysis::new_weighted(problem, &states, weights, &signal)
+            .map_err(JointPanelError::compile)?;
+        let mut samples = antecedent_stats::Welford::new();
+        for replicate in 0..replicates {
+            source::check_cancelled(ctx)?;
+            let mut rng =
+                antecedent_design::preposterior::evsi_replicate_rng(&ctx.rng, replicate as u64);
+            samples.push(
+                analysis
+                    .sample_evsi(candidate.sample_size, &mut rng)
+                    .map_err(JointPanelError::compile)?,
+            );
+        }
+        rows.push(PanelFutureSampleValue {
+            scope:
+                antecedent_design::scientific_source::ScientificConsumptionScope::ModelConditional,
+            target_identity: receipt.target_identity,
+            identification_identity: receipt.identification_identity,
+            dependency_identity: receipt.dependency_identity,
+            question_identity: receipt.question_identity,
+            projection: projection.clone(),
+            retention: Arc::clone(&output_retention),
+            id: candidate.id.clone(),
+            gross_evsi: samples.mean(),
+            standard_error: samples.stderr_of_mean(),
+            net_value: candidate.cost_utility.map(|cost| samples.mean() - cost),
+        });
+    }
+    // A net ranking is meaningful only when every candidate declares a comparable cost.
+    let net = rows.iter().all(|row| row.net_value.is_some());
+    rows.sort_by(|left, right| {
+        right
+            .net_value
+            .filter(|_| net)
+            .unwrap_or(right.gross_evsi)
+            .total_cmp(&left.net_value.filter(|_| net).unwrap_or(left.gross_evsi))
+            .then_with(|| left.id.cmp(&right.id))
+    });
+    Ok(rows)
+}
+
 fn admit(
     ctx: &ExecutionContext,
     bytes: u64,

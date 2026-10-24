@@ -7,7 +7,8 @@ from pathlib import Path
 
 import pytest
 from antecedent import joint_panel
-from antecedent.intervention_programs import minimum, var
+from antecedent.errors import CausalResourceError
+from antecedent.intervention_programs import clip, minimum, var
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -56,7 +57,7 @@ def declarations():
     return groups, worlds
 
 
-def request(groups, worlds, functional=None):
+def request(groups, worlds, functional=None, interactions=None):
     return joint_panel.prepare(
         groups,
         channels=["a", "b", "c"],
@@ -66,7 +67,9 @@ def request(groups, worlds, functional=None):
         seasons=4,
         interval_ns=604_800_000_000_000,
         worlds=worlds,
-        interactions={"programmable": var("a") * var("b") * var("c") + minimum(var("c"), 0.25)},
+        interactions=interactions
+        if interactions is not None
+        else {"programmable": var("a") * var("b") * var("c") + minimum(var("c"), 0.25)},
         options={
             "optimizer": {"max_iterations": 1, "gradient_tolerance": 1e-12},
             "inference": {"kind": "frequentist", "draws": 4},
@@ -152,6 +155,191 @@ def test_python_panel_refuses_foreign_expression_read_without_fitting():
         )
 
 
+def test_compiler_derived_program_certificate_replays_current_fit_and_domain():
+    groups, worlds = declarations()
+    prepared = request(groups, worlds)
+    result = prepared.estimate(seed=20261021)
+    controls = []
+    for offset in range(24):
+        for name in ("a", "b", "c"):
+            controls.append(
+                {
+                    "channel": name,
+                    "offset": offset,
+                    "lower": 0.0,
+                    "upper": 2.0 if offset == 23 and name == "a" else 0.0,
+                    "unit_cost": 1.0 if offset == 23 and name == "a" else 0.0,
+                }
+            )
+    certificate = result.certify_program(
+        base_world=0,
+        controls=controls,
+        initial=[0.0] * len(controls),
+        absolute_gap=1e-3,
+        max_splits=2000,
+        seed=20261021,
+    )
+    report = certificate.report()
+    assert report["stop"] == "Certified"
+    assert report["gap"] <= 1e-3
+    assert report["scope"] == "model_conditional"
+    assert report["selected_value_reliability"] == "unmeasured"
+    assert len(report["controls"]) == len(controls)
+    artifact = certificate.export(seed=20261021)
+    certificate.verify_current(artifact, seed=17)
+    historical = joint_panel.consume_program_certificate(artifact, seed=99)
+    assert historical["domain_identity"] == report["domain_identity"]
+    assert historical["gap"] == report["gap"]
+    assert historical["grants_current_authority"] is False
+    changed = result.certify_program(
+        base_world=0,
+        controls=controls,
+        initial=[0.0] * len(controls),
+        utility_scale=2.0,
+        absolute_gap=1e-3,
+        max_splits=2000,
+        seed=20261021,
+    )
+    with pytest.raises(Exception, match="dependencies changed"):
+        changed.verify_current(artifact, seed=17)
+    assert prepared.inspect()["fits_performed"] == 1
+
+
+def test_randomized_program_selection_uses_original_heldout_units_and_replays():
+    design = {
+        "worlds": ["a", "b", "over_budget"],
+        "sampling_unit": "independent randomized cluster",
+        "population": "common cluster sampling frame",
+        "consistency": "complete program and common outcome measure",
+        "between_unit_isolation": "no cross-cluster interference",
+    }
+
+    def units(stage):
+        return [
+            {
+                "id": f"{stage}:{i}",
+                "arm": i % 3,
+                "probabilities": [1 / 3] * 3,
+                "outcome": [1.0, 1.1, 3.0][i % 3],
+                "population_weight": 1.0,
+            }
+            for i in range(240)
+        ]
+
+    policy = {
+        "independent_sampling_frame": "independent draws from the declared common frame",
+        "utility_units": "outcome units",
+        "benefit_multiplier": 1.0,
+        "utility_costs": [0.0] * 3,
+        "resource_costs": [1.0, 1.0, 10.0],
+        "budget": 2.0,
+        "generation": {"kind": "all"},
+    }
+    prepared = joint_panel.prepare_randomized_selection(
+        design=design, training=units("train"), validation=units("holdout"), policy=policy
+    )
+    result = prepared.execute(repetitions=20, seed=13)
+    report = result.report()
+    assert report["selected_program"] == "b"
+    assert report["heldout"]["value"] == pytest.approx(1.1)
+    assert len(report["repetitions"]) == 20
+    artifact = result.export()
+    result.verify_current(artifact, seed=99)
+    replay = joint_panel.consume_randomized_selection(artifact, seed=99)
+    assert replay["report"] == report
+    assert replay["grants_current_authority"] is False
+    intervals = prepared.simultaneous_intervals(repetitions=99, seed=13)
+    assert intervals["ids"] == ["a", "b"]
+    assert len(intervals["roots"]) == 99
+    with pytest.raises(Exception, match="share original observational units"):
+        joint_panel.prepare_randomized_selection(
+            design=design, training=units("train"), validation=units("train"), policy=policy
+        )
+
+
+def test_continuous_instrumented_selection_fits_searches_holds_out_and_replays():
+    def units(stage):
+        result = []
+        for i in range(40):
+            z = -1.0 + 2.0 * i / 39
+            dose = 1.5 + z
+            result.append(
+                {
+                    "id": f"{stage}:{i}",
+                    "endogenous": [dose, dose * dose],
+                    "instruments": [z, z * z],
+                    "exogenous": [1.0],
+                    "outcome": 4 * dose - dose * dose,
+                }
+            )
+        return result
+
+    declaration = {
+        "design": {
+            "contrasts": [["dose_increment", [1.0, 1.0]]],
+            "structural_model": "homogeneous Y = beta1*d + beta2*d^2 + intercept + error",
+            "moment_restrictions": "randomized Z; E[Z error]=E[Z^2 error]=0; exclusion",
+            "population": "common independent unit population",
+        },
+        "features": {"raw_feature_indices": [0], "powers": [[1], [2]]},
+        "training": units("training"),
+        "validation": units("validation"),
+        "independent_sampling_frame": "independent original units reserved before fitting",
+        "controls": [{"lower": 0.0, "upper": 3.0, "unit_cost": 1.0, "utility_cost": 0.0}],
+        "restrictions": [],
+        "budget": 1.75,
+        "reference": [0.0],
+        "initial": [1.0],
+        "benefit_multiplier": 1.0,
+        "utility_units": "outcome units",
+        "generation": {"kind": "prespecified"},
+        "certificate": {"absolute_gap": 0.002, "max_splits": 256},
+    }
+    selected = joint_panel.select_instrumented_program(declaration, repetitions=3, seed=17)
+    report = selected.report()
+    assert report["selected"]["controls"] == pytest.approx([1.75], abs=0.002)
+    assert report["heldout"]["value"] == pytest.approx(7 - 1.75**2, abs=0.005)
+    assert len(report["repetitions"]) == 3
+    artifact = selected.export()
+    selected.verify_current(artifact, seed=99)
+    replay = joint_panel.consume_instrumented_selection(artifact, seed=99)
+    assert replay["report"] == report
+    assert replay["grants_current_authority"] is False
+    with pytest.raises(CausalResourceError):
+        joint_panel.select_instrumented_program(declaration, repetitions=0, max_bytes=1)
+
+
+def test_unsupported_certificate_expression_executes_actual_best_found_search():
+    groups, worlds = declarations()
+    prepared = request(groups, worlds, interactions={"clipped": clip(var("a"), 0.0, 0.5)})
+    result = prepared.estimate(seed=20261021)
+    controls = [
+        {
+            "channel": name,
+            "offset": offset,
+            "lower": 0.0,
+            "upper": 2.0 if offset == 23 and name == "a" else 0.0,
+            "unit_cost": 0.0,
+        }
+        for offset in range(24)
+        for name in ("a", "b", "c")
+    ]
+    searched = result.search_program(
+        base_world=0,
+        controls=controls,
+        initial=[0.0] * len(controls),
+        max_evaluations=32,
+        max_iterations=4,
+        seed=20261021,
+    )
+    assert searched["route"] == "best_found"
+    assert searched["gap"] is None
+    assert searched["global_certificate"] is False
+    assert "interval evaluator" in searched["certificate_refusal"]
+    assert searched["best"]["value"] is not None
+    assert prepared.inspect()["fits_performed"] == 1
+
+
 def test_scheduled_contrast_assembles_on_the_shared_draws_and_refuses_separate_worlds():
     groups, worlds = declarations()
     separate = request(groups, worlds).estimate(seed=20261021)
@@ -170,3 +358,31 @@ def test_scheduled_contrast_assembles_on_the_shared_draws_and_refuses_separate_w
     assert contrast["level"] == 0.9
     with pytest.raises(Exception, match="level"):
         result.scheduled_contrast("terminal_mean", level=1.5)
+
+
+def test_reference_decomposition_uses_joint_fit_and_preserves_failed_slots():
+    groups, worlds = declarations()
+    prepared = request(groups, worlds)
+    result = prepared.estimate(seed=20261021)
+    declaration = {
+        "before_world": 0,
+        "after_world": 1,
+        "before_population_weights": [0.25] * 4,
+        "after_population_weights": [0.25] * 4,
+        "time_weights": [0.0] * 23 + [1.0],
+        "order": ["exposure", "saturation", "population", "mechanism"],
+        "periods": {"before": [0] * 24, "after": [0] * 24},
+    }
+    decomposition = result.decompose_reference(declaration)
+    report = result.report()
+    expected = report["point"][1]["means"][-1] - report["point"][0]["means"][-1]
+    assert decomposition["point"]["total"] == pytest.approx(expected, abs=1e-12)
+    assert decomposition["point"]["shapley"] == pytest.approx([expected, 0.0, 0.0, 0.0])
+    assert len(decomposition["point"]["hybrids"]) == 16
+    assert len(decomposition["point"]["by_order"]) == 24
+    assert decomposition["draws"] == [None] * 4
+    assert decomposition["scope"] == "model_conditional_reference_decomposition"
+    assert decomposition["grants_unique_causal_attribution"] is False
+    assert prepared.inspect()["fits_performed"] == 1
+    with pytest.raises(CausalResourceError):
+        result.decompose_reference(declaration, max_bytes=1)

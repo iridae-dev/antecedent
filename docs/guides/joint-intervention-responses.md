@@ -180,6 +180,29 @@ diagnostics do not assert coverage at ties. The evaluation owner's justified sam
 law supplies fixed-action uncertainty; independent RNG seeds cannot replace reserved
 observational data.
 
+`prepare_randomized_selection` applies this procedure to the native joint randomized
+estimator. It enforces hard per-program costs before choosing a winner and supports
+training-only screening or fixed-family simultaneous intervals. Reserved evaluation
+units have distinct original identities and an explicit common sampling frame.
+`select_instrumented_program` fits the native joint structural-feature IV model,
+generates a prespecified or training-dependent raw-dose domain, derives and searches
+its actual polynomial response under hard restrictions, and independently refits the
+held-out units to evaluate the selected structural contrast. The target remains the
+declared homogeneous structural moment population; it does not turn local IV effects
+into population effects. Both interfaces retain every resampling failure, instability
+and training optimism and replay from the original observations.
+
+`PanelResult.search_program` attempts the compiler-derived certificate and executes
+the existing bounded best-found search if the expression has no supported interval
+evaluator. Reports retain the concrete refusal and omit a global gap for that route.
+Cancellation, invalid scopes and inadequate admission remain typed execution errors.
+
+The complete calibration procedures are registered in
+`parity/joint_response_calibration.toml`; `scripts/joint_response_calibration.py`
+lists their actual Cargo commands. Final measurement requires the exact clean stable
+candidate and at least 400 complete data sets per registered cell. Implementation
+checks and registered procedures grant no release calibration license.
+
 Experimental updates require a licensed estimand bridge, declared mapping
 uncertainty/dependence and evidence origins. The supported modular update
 reweights a frozen Bayesian joint law; next-study ranking supports additional
@@ -243,3 +266,11 @@ cases, and includes the panel's three advertised time projections. An outstandin
 implementation stays in its row as an implementation gap. A frequentist sampling
 law being offered as a Bayesian prior is recorded separately as a scientific
 refusal. Matrix rows state what must execute; they are not test results.
+
+Experimental translation can also carry different source and target population
+and horizon coordinates themselves. This route requires a
+`ParameterInterventionResponse` bridge, a complete `EstimandBridge` binding the
+actual experimental population, and an explicit transport premise applying to
+the target. A same-population horizon extrapolation still requires that premise.
+Removing the estimand translation, naming another experimental population or
+supplying a transport premise for another target refuses the update.

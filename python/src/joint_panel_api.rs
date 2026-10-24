@@ -16,6 +16,10 @@ use antecedent_estimate::joint_panel::{
 use pyo3::{prelude::*, types::PyBytes};
 use serde::Deserialize;
 use std::{collections::BTreeMap, sync::Arc};
+mod designs;
+mod experiment;
+mod search;
+mod selection;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -50,6 +54,48 @@ struct Feature {
 struct Functional {
     terms: Vec<(u32, f64)>,
     reference: u32,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DecompositionDeclaration {
+    #[serde(default)]
+    require_identified_reference: bool,
+    before_world: u32,
+    after_world: u32,
+    before_population_weights: Vec<f64>,
+    after_population_weights: Vec<f64>,
+    time_weights: Vec<f64>,
+    order: [facade::ChangeComponent; 4],
+    periods: facade::MechanismPeriodMap,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CertificateControlDeclaration {
+    channel: String,
+    offset: i32,
+    lower: f64,
+    upper: f64,
+    unit_cost: f64,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CertificateRestrictionDeclaration {
+    id: String,
+    coefficients: Vec<f64>,
+    bound: f64,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CertificateDeclaration {
+    base_world: u32,
+    controls: Vec<CertificateControlDeclaration>,
+    initial: Vec<f64>,
+    budget: Option<f64>,
+    restrictions: Vec<CertificateRestrictionDeclaration>,
+    functional: ContrastFunctional,
+    utility_offset: f64,
+    utility_scale: f64,
+    options: antecedent_design::program_search::certified::CertificateOptions,
 }
 /// Time functional applied identically to every scheduled program before contrasting.
 #[derive(Deserialize)]
@@ -344,6 +390,168 @@ pub(crate) struct PyJointPanelResult {
 }
 #[pymethods]
 impl PyJointPanelResult {
+    #[pyo3(signature=(declaration_json,*,seed=0,threads=1,max_bytes=None,cancel=None))]
+    fn certify_program(
+        &self,
+        py: Python<'_>,
+        declaration_json: &str,
+        seed: u64,
+        threads: u32,
+        max_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<PyPanelProgramCertificate> {
+        use antecedent_design::decision_contract::{
+            ProgramObjective, ProgramSearchContract, ProgramSearchSpace, UtilityExpr,
+        };
+        use antecedent_design::program_search::{
+            FiniteProgramDomain, ProgramControl, ProgramRestriction,
+            continuous::ContinuousSearchOptions,
+        };
+        crate::bridge::check_declared_size(
+            declaration_json,
+            crate::bridge::MAX_SPEC_DECLARATION_BYTES,
+            "panel program certificate",
+        )?;
+        let ctx = context(seed, threads, max_bytes, cancel)?;
+        let _input = ctx
+            .acquire_admission(0, (declaration_json.len() as u64).saturating_mul(8))
+            .map_err(|e| match e {
+                antecedent_core::execution::AdmissionError::Cancelled => {
+                    crate::CausalCancelledError::new_err(e.to_string())
+                }
+                _ => crate::CausalResourceError::new_err(e.to_string()),
+            })?;
+        let declaration: CertificateDeclaration = serde_json::from_str(declaration_json)
+            .map_err(|error| crate::value_err(error.to_string()))?;
+        let controls = declaration
+            .controls
+            .into_iter()
+            .map(|c| {
+                Ok(ProgramControl {
+                    variable: self
+                        .inner
+                        .prepared()
+                        .source_data()
+                        .schema()
+                        .id_of(&c.channel)
+                        .map_err(|e| crate::value_err(e.to_string()))?,
+                    offset: c.offset,
+                    lower: c.lower,
+                    upper: c.upper,
+                    unit_cost: c.unit_cost,
+                })
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        let request = facade::JointPanelContinuousSearchRequest {
+            base_world: ScientificWorldId::from_raw(declaration.base_world),
+            scope: facade::JointPanelScientificScope::ModelConditional,
+            functional: declaration.functional.native(),
+            uncertainty: facade::JointPanelSearchUncertainty::PointMeans,
+            contract: ProgramSearchContract {
+                space: ProgramSearchSpace {
+                    id: "compiled_panel_response".into(),
+                    variables: vec!["response".into()],
+                },
+                objective: ProgramObjective::ExpectedUtility(UtilityExpr::sum(
+                    UtilityExpr::Const(declaration.utility_offset),
+                    UtilityExpr::product(
+                        UtilityExpr::Const(declaration.utility_scale),
+                        UtilityExpr::Input(0),
+                    ),
+                )),
+                constraints: vec![],
+            },
+            domain: FiniteProgramDomain {
+                controls,
+                budget: declaration.budget,
+                restrictions: declaration
+                    .restrictions
+                    .into_iter()
+                    .map(|r| ProgramRestriction {
+                        id: r.id,
+                        coefficients: r.coefficients,
+                        bound: r.bound,
+                    })
+                    .collect(),
+            },
+            utility_units: "declared_utility".into(),
+            initial: declaration.initial,
+            options: ContinuousSearchOptions {
+                max_evaluations: 1,
+                max_iterations: 1,
+                initial_step: 0.5,
+                step_tolerance: 1e-6,
+                objective_tolerance: 0.0,
+            },
+        };
+        crate::detach_catch(py, || {
+            let plan = self.inner.compile_certified_search(request, &ctx).map_err(panel_error)?;
+            let inner = plan.execute(declaration.options, &ctx).map_err(panel_error)?;
+            Ok(PyPanelProgramCertificate { plan, inner, options: declaration.options })
+        })
+    }
+    #[pyo3(signature=(declaration_json,*,seed=0,threads=1,max_bytes=None,cancel=None))]
+    fn decompose_reference(
+        &self,
+        py: Python<'_>,
+        declaration_json: &str,
+        seed: u64,
+        threads: u32,
+        max_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<String> {
+        crate::bridge::check_declared_size(
+            declaration_json,
+            crate::bridge::MAX_SPEC_DECLARATION_BYTES,
+            "panel reference decomposition",
+        )?;
+        let ctx = context(seed, threads, max_bytes, cancel)?;
+        let declaration: DecompositionDeclaration = serde_json::from_str(declaration_json)
+            .map_err(|error| crate::value_err(error.to_string()))?;
+        let endpoint = |id, weights| {
+            self.inner
+                .request()
+                .worlds
+                .iter()
+                .find(|world| world.world.raw() == id)
+                .map(|world| facade::DecompositionEndpoint {
+                    program: world.program.clone(),
+                    population_weights: weights,
+                })
+                .ok_or_else(|| crate::value_err("decomposition names an absent compiled world"))
+        };
+        let request = facade::PanelDecompositionRequest {
+            before: endpoint(declaration.before_world, declaration.before_population_weights)?,
+            after: endpoint(declaration.after_world, declaration.after_population_weights)?,
+            time_weights: declaration.time_weights,
+            order: declaration.order,
+        };
+        crate::detach_catch(py, || {
+            let checked = self
+                .inner
+                .decompose_reference_checked(&request, &declaration.periods, &ctx)
+                .map_err(panel_error)?;
+            if declaration.require_identified_reference {
+                checked.require_identified_reference().map_err(panel_error)?;
+            }
+            let result = &checked.decomposition;
+            let joint_uncertainty = match result.joint_uncertainty() {
+                Some(summary) => serde_json::json!({"available":true,"summary":summary}),
+                None => {
+                    serde_json::json!({"available":false,"reason":"fewer than two complete retained law slots"})
+                }
+            };
+            Ok(serde_json::json!({"point":result.point,"draws":result.draws,"weights":result.weights,
+                "joint_uncertainty":joint_uncertainty,
+                "identified_reference":checked.is_identified_reference(),
+                "identification_identity":checked.identification_identity.to_hex(),
+                "hybrid_support":checked.hybrids.iter().map(|h|serde_json::json!({"mask":h.mask,
+                    "source_world":h.source_world.map(|w|w.raw()),"unresolved":h.unresolved})).collect::<Vec<_>>(),
+                "scope":"model_conditional_reference_decomposition",
+                "calibration":"unmeasured", "grants_unique_causal_attribution":false})
+            .to_string())
+        })
+    }
     #[getter]
     fn execution_facts(&self, py: Python<'_>) -> Py<crate::inspect_receipt_api::PyExecutionFacts> {
         self.facts.clone_ref(py)
@@ -394,6 +602,60 @@ impl PyJointPanelResult {
         Ok(PyBytes::new(py, &bytes).unbind())
     }
 }
+
+#[pyclass(name = "_PanelProgramCertificate", frozen)]
+pub(crate) struct PyPanelProgramCertificate {
+    plan: facade::JointPanelCertifiedSearch,
+    inner: facade::JointPanelCertifiedSearchResult,
+    options: antecedent_design::program_search::certified::CertificateOptions,
+}
+#[pymethods]
+impl PyPanelProgramCertificate {
+    #[pyo3(signature=(*,seed=0,threads=1,max_bytes=None,cancel=None))]
+    fn export(
+        &self,
+        py: Python<'_>,
+        seed: u64,
+        threads: u32,
+        max_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<Py<PyBytes>> {
+        let ctx = context(seed, threads, max_bytes, cancel)?;
+        let bytes =
+            crate::detach_catch(py, || self.plan.export(self.options, &ctx).map_err(panel_error))?;
+        Ok(PyBytes::new(py, &bytes).unbind())
+    }
+    #[pyo3(signature=(bytes,*,seed=0,threads=1,max_bytes=None,cancel=None))]
+    fn verify_current(
+        &self,
+        py: Python<'_>,
+        bytes: &[u8],
+        seed: u64,
+        threads: u32,
+        max_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<()> {
+        let ctx = context(seed, threads, max_bytes, cancel)?;
+        crate::detach_catch(py, || {
+            self.plan.consume_current(bytes, &ctx).map(|_| ()).map_err(panel_error)
+        })
+    }
+    fn report(&self) -> String {
+        let certificate = &self.inner.certificate;
+        serde_json::json!({"controls":certificate.controls,"incumbent":certificate.incumbent,
+            "domain_identity":certificate.identity.to_hex(),
+            "global_certificate":matches!(certificate.stop, antecedent_design::program_search::certified::CertificateStop::Certified),
+            "assumptions":["retained fitted point response","declared bounded controls and hard linear restrictions","outward-rounded supported arithmetic"],
+            "global_upper":certificate.global_upper,"gap":certificate.gap,"stop":certificate.stop,
+            "splits":certificate.splits,"infeasible_regions":certificate.infeasible_regions,
+            "dominated_regions":certificate.dominated_regions,"monotone_reductions":certificate.monotone_reductions,
+            "dual_bound":certificate.dual_bound,"separable_bound":certificate.separable_bound,"frontier":certificate.frontier,
+            "fitted_dependency":self.inner.fitted_dependency.to_hex(),
+            "parent_target":self.inner.parent_target.to_hex(),
+            "scope":"model_conditional","selected_value_reliability":"unmeasured"})
+        .to_string()
+    }
+}
 #[pyfunction]
 #[pyo3(signature=(declaration_json,*,seed=0,threads=1,max_bytes=None,cancel=None))]
 fn prepare_joint_panel(
@@ -442,11 +704,40 @@ fn consume_joint_panel(
         Ok(serde_json::json!({"point":replay.point(),"draws":replay.draws(),"grants_current_authority":replay.grants_current_authority()}).to_string())
     })
 }
+#[pyfunction]
+#[pyo3(signature=(bytes,*,seed=0,threads=1,max_bytes=None,cancel=None))]
+fn consume_panel_program_certificate(
+    py: Python<'_>,
+    bytes: &[u8],
+    seed: u64,
+    threads: u32,
+    max_bytes: Option<u64>,
+    cancel: Option<crate::PyCancellationToken>,
+) -> PyResult<String> {
+    let ctx = context(seed, threads, max_bytes, cancel)?;
+    crate::detach_catch(py, || {
+        let (panel, certificate) =
+            facade::replay_panel_certificate(bytes, &ctx).map_err(panel_error)?;
+        Ok(serde_json::json!({"panel_identity":panel.to_hex(),
+            "domain_identity":certificate.identity.to_hex(),"controls":certificate.controls,
+            "incumbent":certificate.incumbent,"global_upper":certificate.global_upper,
+            "gap":certificate.gap,"stop":certificate.stop,"splits":certificate.splits,
+            "infeasible_regions":certificate.infeasible_regions,"dominated_regions":certificate.dominated_regions,
+            "frontier":certificate.frontier,"monotone_reductions":certificate.monotone_reductions,
+            "dual_bound":certificate.dual_bound,"separable_bound":certificate.separable_bound,
+            "grants_current_authority":false}).to_string())
+    })
+}
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    selection::register(module)?;
+    experiment::register(module)?;
+    designs::register(module)?;
+    module.add_class::<PyPanelProgramCertificate>()?;
     module.add_class::<PyPreparedJointPanel>()?;
     module.add_class::<PyJointPanelResult>()?;
     module.add_function(wrap_pyfunction!(prepare_joint_panel, module)?)?;
     module.add_function(wrap_pyfunction!(consume_joint_panel, module)?)?;
+    module.add_function(wrap_pyfunction!(consume_panel_program_certificate, module)?)?;
     Ok(())
 }
 

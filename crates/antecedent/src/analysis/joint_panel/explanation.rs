@@ -8,6 +8,42 @@ use super::{
 use antecedent_design::scientific_source::{ScientificDecisionSource, ScientificSourcePayload};
 use engine::time_varying::{CoarserPanelContrast, PanelExplanation};
 
+pub use engine::decomposition::{
+    ChangeComponent, DecompositionEndpoint, DecompositionJointUncertainty, MechanismPeriodMap,
+    PanelDecomposition, PanelDecompositionRequest, ReferenceDecomposition,
+    ReferenceDecompositionCovariance,
+};
+
+impl JointPanelResult {
+    /// Execute all sixteen reference-world hybrids on this exact jointly fitted law.
+    ///
+    /// This is a model-conditional reference decomposition, not a claim of uniquely
+    /// identified causal attribution. Endpoints explicitly bind exposure/history,
+    /// saturation, population and remaining mechanism blocks. Temporal mechanism
+    /// indices refer to this one fitted path, preserving selection and draw coupling.
+    /// A stationary fit cannot manufacture a distinct after mechanism.
+    ///
+    /// # Errors
+    /// Invalid endpoints, paths, resources, cancellation or numerical failure.
+    pub fn decompose_reference(
+        &self,
+        request: &PanelDecompositionRequest,
+        periods: &MechanismPeriodMap,
+        ctx: &ExecutionContext,
+    ) -> Result<PanelDecomposition, JointPanelError> {
+        source::check_cancelled(ctx)?;
+        let data = self.prepared().model_data();
+        Ok(match &self.fit {
+            super::JointPanelFit::Invariant(fit) => engine::decomposition::decompose_invariant_law(
+                data, request, periods, &fit.point, &fit.draws, ctx,
+            )?,
+            super::JointPanelFit::Varying(fit) => engine::decomposition::decompose_temporal_law(
+                data, request, periods, &fit.point, &fit.draws, ctx,
+            )?,
+        })
+    }
+}
+
 /// Explicit comparison periods/programs; a fitted change curve supplies no attribution proof.
 #[derive(Clone, Debug)]
 pub struct JointPanelExplanationRequest {
@@ -314,3 +350,173 @@ fn coarse_target(
         generated.inference(),
     ))
 }
+
+/// A checked identifying premise for one of the sixteen reference worlds.
+#[derive(Clone, Debug, PartialEq)]
+pub struct HybridReferenceSupport {
+    /// Exposure/saturation/population/mechanism bit mask.
+    pub mask: u8,
+    /// Original identified intervention that exactly supplies this hybrid.
+    pub source_world: Option<ScientificWorldId>,
+    /// Concrete missing transport or identification obligation, if any.
+    pub unresolved: Vec<String>,
+}
+/// Reference-world decomposition together with separately checked causal support.
+/// A model-conditional decomposition remains useful when a causal premise is missing.
+#[derive(Clone, Debug)]
+pub struct CheckedReferenceDecomposition {
+    /// Complete numerical execution and its original aligned law slots.
+    pub decomposition: PanelDecomposition,
+    /// Exact compiler identification product whose world permissions were consumed.
+    pub identification_identity: SemanticDigest,
+    /// Every hybrid is checked; endpoint support is not substituted for hybrid support.
+    pub hybrids: Vec<HybridReferenceSupport>,
+}
+impl CheckedReferenceDecomposition {
+    /// Whether all reference responses follow from retained identifying premises.
+    /// This does not establish uniquely determined attribution or interval coverage.
+    #[must_use]
+    pub fn is_identified_reference(&self) -> bool {
+        self.hybrids.len() == 16 && self.hybrids.iter().all(|world| world.unresolved.is_empty())
+    }
+    /// Require the checked reference-world claim, preserving individual missing premises.
+    /// # Errors
+    /// At least one hybrid lacks an identifying or transport premise.
+    pub fn require_identified_reference(&self) -> Result<(), JointPanelError> {
+        if self.is_identified_reference() {
+            return Ok(());
+        }
+        Err(JointPanelError::Unsupported(format!(
+            "reference-world identification obligations: {:?}",
+            self.hybrids.iter().filter(|world| !world.unresolved.is_empty()).collect::<Vec<_>>()
+        )))
+    }
+}
+/// Executed finer decomposition or an actually evaluated coarser response contrast.
+#[derive(Clone, Debug)]
+pub enum IdentifiedReferenceAttempt {
+    /// Every hybrid inherits an authentic exact-world identification result.
+    Supported(CheckedReferenceDecomposition),
+    /// Finer identification failed; retain its numerical result and execute the fallback.
+    Coarser {
+        /// Concrete per-hybrid missing premises, with the conditional numbers.
+        requested: CheckedReferenceDecomposition,
+        /// Actual next coarser response execution from the same fitted law.
+        executed: JointPanelExplanationAttempt,
+    },
+}
+impl JointPanelResult {
+    /// Evaluate the reference worlds and check their identification and transport.
+    ///
+    /// Exact already identified interventions with unchanged fitted mechanism and
+    /// empirical population inherit their original world proof. Changed parameter
+    /// periods, population weights or context require independent transport evidence;
+    /// a fitted curve or a matching dose range cannot supply that evidence. These
+    /// obligations do not prevent the model-conditional reference calculation.
+    ///
+    /// # Errors
+    /// Numerical request validation, cancellation, admission or response failure.
+    pub fn decompose_reference_checked(
+        &self,
+        request: &PanelDecompositionRequest,
+        periods: &MechanismPeriodMap,
+        ctx: &ExecutionContext,
+    ) -> Result<CheckedReferenceDecomposition, JointPanelError> {
+        let decomposition = self.decompose_reference(request, periods, ctx)?;
+        let groups = self.prepared().model_data().groups.len();
+        let empirical = 1.0 / groups as f64;
+        let terminal = request.time_weights.iter().enumerate().all(|(index, weight)| {
+            *weight == if index + 1 == request.time_weights.len() { 1.0 } else { 0.0 }
+        });
+        let mut hybrids = Vec::with_capacity(16);
+        for mask in 0_u8..16 {
+            source::check_cancelled(ctx)?;
+            let exposure = if mask & 1 == 0 { &request.before } else { &request.after };
+            let population = if mask & 4 == 0 { &request.before } else { &request.after };
+            let mut program = exposure.program.clone();
+            for scenario in &mut program.scenarios {
+                let context = population
+                    .program
+                    .scenarios
+                    .iter()
+                    .find(|context| context.group == scenario.group)
+                    .ok_or_else(|| {
+                        JointPanelError::compile("hybrid population omits a source group")
+                    })?;
+                scenario.confounder.clone_from(&context.confounder);
+                scenario.season.clone_from(&context.season);
+            }
+            let source_world = self
+                .request()
+                .worlds
+                .iter()
+                .find(|world| {
+                    world.program.channels == program.channels
+                        && world.program.scenarios == program.scenarios
+                })
+                .map(|world| world.world);
+            let mut unresolved = Vec::new();
+            if !self.identification().is_identified_claim() {
+                unresolved
+                    .push("the source target has no retained causal identification proof".into());
+            }
+            if source_world.is_none() {
+                unresolved.push("the assembled hybrid is not an intervention/context world in the retained identification product".into());
+            }
+            if periods.before != periods.after
+                || periods.before.iter().enumerate().any(|(index, period)| {
+                    *period
+                        != match &self.fit {
+                            super::JointPanelFit::Invariant(_) => 0,
+                            super::JointPanelFit::Varying(_) => index,
+                        }
+                })
+            {
+                unresolved.push("cross-period saturation/mechanism transport requires a separately identified parameter intervention; time variation alone supplies no such proof".into());
+            }
+            if population
+                .population_weights
+                .iter()
+                .any(|weight| (*weight - empirical).abs() > 1e-12)
+            {
+                unresolved.push("changed population weights require identified conditional responses and an explicit population transport law".into());
+            }
+            if !terminal {
+                unresolved.push("the retained final-horizon target does not identify the requested intermediate/time-weighted functional".into());
+            }
+            hybrids.push(HybridReferenceSupport { mask, source_world, unresolved });
+        }
+        Ok(CheckedReferenceDecomposition {
+            decomposition,
+            identification_identity: self.identification().identity(),
+            hybrids,
+        })
+    }
+    /// Execute an identified reference decomposition, or the supplied next coarser target.
+    /// Resource/cancellation/numerical errors propagate and are never called scientific refusal.
+    /// # Errors
+    /// Invalid finer request, invalid fallback target, cancellation or resource failure.
+    pub fn attempt_identified_reference_decomposition(
+        &self,
+        request: &PanelDecompositionRequest,
+        periods: &MechanismPeriodMap,
+        fallback: JointPanelExplanationRequest,
+        ctx: &ExecutionContext,
+    ) -> Result<IdentifiedReferenceAttempt, JointPanelError> {
+        let requested = self.decompose_reference_checked(request, periods, ctx)?;
+        if requested.is_identified_reference() {
+            return Ok(IdentifiedReferenceAttempt::Supported(requested));
+        }
+        let executed = self.attempt_explanation(fallback, ctx)?;
+        Ok(IdentifiedReferenceAttempt::Coarser { requested, executed })
+    }
+}
+
+mod scientific;
+pub use scientific::{
+    HistoricalPopulationReference, HistoricalReferenceDecomposition, PopulationReferenceAttempt,
+    PopulationReferenceBindings, PopulationReferenceDecomposition,
+    PopulationReferenceTransportProof, ReferenceComponentBindings,
+    ScientificReferenceDecomposition, decompose_population_reference,
+    decompose_scientific_reference, replay_population_reference, replay_reference_decomposition,
+};

@@ -27,6 +27,13 @@ path = "crates/antecedent-estimate/src/switchback.rs"
 gates = ["inventory", "named"]
 
 [[test]]
+id = "joint-population-reference-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_joint_panel_reference_decomposition.py"
+gates = ["inventory"]
+
+[[test]]
 id = "joint-scientific-component-law"
 crate = "antecedent"
 cargo_target = "lib"
@@ -1310,3 +1317,10 @@ crate = "python"
 cargo_target = "script"
 path = "python/tests/test_scientific_bridge_draws.py"
 gates = ["inventory"]
+
+[[test]]
+id = "joint-panel-continuous-structural-selection"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/joint_panel/selection/instrumented.rs"
+gates = ["inventory", "named"]

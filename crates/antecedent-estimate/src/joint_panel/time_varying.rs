@@ -635,7 +635,9 @@ fn fit_temporal_inner(
     let rows = data.groups.iter().map(|group| group.outcome.len()).sum::<usize>();
     let path_parameters = spec.varying.len() * (spec.smooth_knots.len() - 1);
     let slots = match &options.inference {
-        PanelInference::Frequentist { draws } => *draws,
+        PanelInference::Frequentist { draws } | PanelInference::FrequentistBootstrap { draws } => {
+            *draws
+        }
         PanelInference::Bayesian { sampler, .. } => sampler
             .chains
             .checked_mul(sampler.draws)
@@ -690,16 +692,13 @@ fn fit_temporal_inner(
     let mut posterior_diagnostics = None;
     let mut posterior_converged = None;
     let (draws, uncertainty) = match &options.inference {
-        PanelInference::Frequentist { draws } => {
+        PanelInference::Frequentist { draws } | PanelInference::FrequentistBootstrap { draws } => {
             let mut output = Vec::with_capacity(*draws);
             for replicate in 0..*draws {
                 check_cancelled(ctx)?;
                 let simulated = bootstrap_data(data, &point, ctx, replicate)?;
                 let compiled_simulated = likelihood::CompiledPanel::new(&simulated)?;
-                let mut replicate_options = options.clone();
-                replicate_options.initial = Some(point.baseline.parameters.clone());
-                let draw = match fit_candidates(&compiled_simulated, spec, &replicate_options, ctx)
-                {
+                let draw = match fit_candidates(&compiled_simulated, spec, options, ctx) {
                     Ok(fit) => {
                         let mut rng = ctx.rng.stream(antecedent_core::derive_stream(
                             0x5830_3352_414e_444f,

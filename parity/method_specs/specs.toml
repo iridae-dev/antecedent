@@ -2484,6 +2484,7 @@ failure_policy = "Refuse this axis. This axis has no time-varying estimand. Chan
 references = [
   "Release scope and gates",
   "X03 — Infer time-varying structural effectiveness",
+  "parity/fixtures/joint_panel_decomposition.toml (X03.2 reference-world component bindings, transport, all16hybrids, joint uncertainty and actual coarser fallback)",
 ]
 
 [[spec]]
@@ -2502,6 +2503,7 @@ failure_policy = "Refuse this axis. This axis has no time-varying estimand. Chan
 references = [
   "Release scope and gates",
   "X03 — Infer time-varying structural effectiveness",
+  "parity/fixtures/joint_panel_decomposition.toml (X03.2 reference-world component bindings, transport, all16hybrids, joint uncertainty and actual coarser fallback)",
 ]
 
 [[spec]]
@@ -2520,6 +2522,7 @@ failure_policy = "Unique exposure/saturation/composition/mechanism attribution r
 references = [
   "Release scope and gates",
   "X03 — Infer time-varying structural effectiveness",
+  "parity/fixtures/joint_panel_decomposition.toml (X03.2 reference-world component bindings, transport, all16hybrids, joint uncertainty and actual coarser fallback)",
   "Verification and release evidence",
 ]
 
@@ -2539,6 +2542,7 @@ failure_policy = "Unique exposure/saturation/composition/mechanism attribution r
 references = [
   "Release scope and gates",
   "X03 — Infer time-varying structural effectiveness",
+  "parity/fixtures/joint_panel_decomposition.toml (X03.2 reference-world component bindings, transport, all16hybrids, joint uncertainty and actual coarser fallback)",
   "Verification and release evidence",
 ]
 

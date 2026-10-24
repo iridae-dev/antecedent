@@ -18,10 +18,42 @@ from dataclasses import dataclass
 from typing import Any
 
 from . import _native
+from ._joint_panel_designs import (
+    JointDesignResult,
+    PreparedJointDesign,
+    prepare_joint_design,
+    prepare_joint_design_for_panel,
+    replay_joint_design,
+    replay_population_reference,
+)
+from ._joint_panel_experiment import PanelExperiment
+from ._joint_panel_experiment import acceptance_matrix as experiment_acceptance_matrix
 from .errors import CausalValueError
 from .intervention_programs import Expr
 
-__all__ = ["PanelResult", "PreparedPanel", "consume", "prepare"]
+__all__ = [
+    "PanelProgramCertificate",
+    "PanelExperiment",
+    "experiment_acceptance_matrix",
+    "JointDesignResult",
+    "PreparedJointDesign",
+    "prepare_joint_design",
+    "prepare_joint_design_for_panel",
+    "replay_joint_design",
+    "replay_population_reference",
+    "PanelResult",
+    "PreparedPanel",
+    "PreparedRandomizedProgramSelection",
+    "RandomizedProgramSelection",
+    "InstrumentedProgramSelection",
+    "select_instrumented_program",
+    "consume_instrumented_selection",
+    "consume_program_certificate",
+    "consume",
+    "consume_randomized_selection",
+    "prepare",
+    "prepare_randomized_selection",
+]
 
 
 def _json(value: Any) -> str:
@@ -32,10 +64,200 @@ def _json(value: Any) -> str:
 
 
 @dataclass(frozen=True, slots=True)
+class PanelProgramCertificate:
+    """Global numerical bounds derived from an actual retained fitted response."""
+
+    _handle: Any
+
+    def report(self) -> dict[str, Any]:
+        """Return feasible controls, global gap, shape proofs and fitted source identity.
+
+        A bound certifies the declared fitted scalar objective. Statistical
+        selected-value reliability requires its separate procedure validation.
+        """
+        return json.loads(self._handle.report())
+
+    def export(self, **execution: Any) -> bytes:
+        """Export the frozen response, control bindings and replayable bound proof."""
+        return self._handle.export(**execution)
+
+    def verify_current(self, artifact: bytes, **execution: Any) -> None:
+        """Replay and verify against this exact fitted response and search domain."""
+        self._handle.verify_current(artifact, **execution)
+
+
+@dataclass(frozen=True, slots=True)
+class RandomizedProgramSelection:
+    """Selected complete program evaluated on reserved original experimental units."""
+
+    _handle: Any
+
+    def report(self) -> dict[str, Any]:
+        """Return held-out value/error, original split and whole-procedure diagnostics."""
+        return json.loads(self._handle.report())
+
+    def export(self) -> bytes:
+        """Export original observations, procedure and independently replayable results."""
+        return self._handle.export()
+
+    def verify_current(self, artifact: bytes, **execution: Any) -> None:
+        """Replay against this exact current observational source and policy."""
+        self._handle.verify_current(artifact, **execution)
+
+
+@dataclass(frozen=True, slots=True)
+class PreparedRandomizedProgramSelection:
+    """A complete experimental selection procedure with a genuine observational split."""
+
+    _handle: Any
+
+    def execute(
+        self, *, repetitions: int = 199, tie_tolerance: float = 0.0, **execution: Any
+    ) -> RandomizedProgramSelection:
+        """Repeat generation, fitting, feasibility, search, selection and held-out evaluation.
+
+        Resampling repeats the actual native estimators on whole original units;
+        failed slots, ties, instability and training optimism remain visible.
+        The selected value's uncertainty uses independent held-out observations.
+        Bootstrap diagnostics grant no ordinary-bootstrap coverage claim at ties.
+        """
+        return RandomizedProgramSelection(
+            self._handle.execute(repetitions=repetitions, tie_tolerance=tie_tolerance, **execution)
+        )
+
+    def simultaneous_intervals(
+        self, *, repetitions: int = 199, level: float = 0.95, **execution: Any
+    ) -> dict[str, Any]:
+        """Joint bootstrap max-statistic intervals over the fixed feasible program set.
+
+        Each complete resample refits all candidates together. Data-dependent
+        screening is refused here and must use the held-out execution instead.
+        Statistical coverage requires the declared independent-unit bootstrap model.
+        """
+        return json.loads(
+            self._handle.simultaneous_intervals(repetitions=repetitions, level=level, **execution)
+        )
+
+
+def prepare_randomized_selection(
+    *,
+    design: Mapping[str, Any],
+    training: Sequence[Mapping[str, Any]],
+    validation: Sequence[Mapping[str, Any]],
+    policy: Mapping[str, Any],
+    **execution: Any,
+) -> PreparedRandomizedProgramSelection:
+    """Compile complete-program selection with known randomization and reserved data.
+
+    Design declares ``worlds``, ``sampling_unit``, ``population``, ``consistency``
+    and ``between_unit_isolation``. Each unit declares original ``id``, assigned
+    ``arm``, all known ``probabilities``, ``outcome`` and fixed preassignment
+    ``population_weight``. Training and validation must have disjoint original IDs.
+
+    Policy declares ``independent_sampling_frame``, ``utility_units``,
+    ``benefit_multiplier``, per-world ``utility_costs`` and ``resource_costs``, a
+    hard ``budget`` and ``generation`` (``kind: all`` or ``kind: training_screen``
+    with ``top_k``). Common sampling and interference premises remain explicit;
+    known random assignment alone does not establish population transport.
+    """
+    return PreparedRandomizedProgramSelection(
+        _native.prepare_randomized_program_selection(
+            _json(
+                {
+                    "design": dict(design),
+                    "training": list(training),
+                    "validation": list(validation),
+                    "policy": dict(policy),
+                }
+            ),
+            **execution,
+        )
+    )
+
+
+def consume_program_certificate(artifact: bytes, **execution: Any) -> dict[str, Any]:
+    """Independently reconstruct the frozen response and repeat its numerical bound proof."""
+    return json.loads(_native.consume_panel_program_certificate(artifact, **execution))
+
+
+def consume_randomized_selection(artifact: bytes, **execution: Any) -> dict[str, Any]:
+    """Replay the original observational selection procedure without current authorization."""
+    return json.loads(_native.consume_randomized_program_selection(artifact, **execution))
+
+
+@dataclass(frozen=True, slots=True)
+class InstrumentedProgramSelection:
+    """Continuous structural-dose selection evaluated on reserved original observations."""
+
+    _handle: Any
+
+    def report(self) -> dict[str, Any]:
+        """Selected doses, training search bounds, held-out value and resampling diagnostics."""
+        return json.loads(self._handle.report())
+
+    def export(self) -> bytes:
+        """Retain original data and the complete procedure for independent replay."""
+        return self._handle.export()
+
+    def verify_current(self, artifact: bytes, **execution: Any) -> None:
+        """Reject changed data, structural premises, domain or algorithm."""
+        self._handle.verify_current(artifact, **execution)
+
+
+def select_instrumented_program(
+    declaration: Mapping[str, Any],
+    *,
+    repetitions: int = 199,
+    tie_tolerance: float = 0.0,
+    **execution: Any,
+) -> InstrumentedProgramSelection:
+    """Fit joint structural features, search raw doses, and evaluate on held-out units.
+
+    The declaration supplies the actual instrumented ``design``, ``features``
+    binding (``raw_feature_indices`` and monomial ``powers``), original disjoint
+    ``training`` and ``validation`` units, common ``independent_sampling_frame``,
+    bounded ``controls``, linear ``restrictions``, optional ``budget``, explicit
+    ``reference`` and ``initial`` programs, ``benefit_multiplier``, ``utility_units``,
+    ``generation`` and search ``certificate`` options. Every unit supplies ``id``,
+    ``endogenous``, ``instruments``, ``exogenous`` and ``outcome``.
+
+    The target is population improvement under the declared homogeneous structural
+    moment model. Held-out joint IV covariance is asymptotic and requires sufficient
+    instrument strength. Search bounds concern fitted training utility; bootstrap
+    diagnostics do not establish coverage at ties or grant a calibration license.
+    """
+    return InstrumentedProgramSelection(
+        _native.select_instrumented_program(
+            _json(dict(declaration)),
+            repetitions=repetitions,
+            tie_tolerance=tie_tolerance,
+            **execution,
+        )
+    )
+
+
+def consume_instrumented_selection(artifact: bytes, **execution: Any) -> dict[str, Any]:
+    """Replay the complete structural selection procedure without current authorization."""
+    return json.loads(_native.consume_instrumented_selection(artifact, **execution))
+
+
+@dataclass(frozen=True, slots=True)
 class PanelResult:
     """One native shared-draw execution, retaining its compiled scientific scope."""
 
     _handle: Any
+
+    def experiment_quantity(self, functional: Mapping[str, Any] | str = "terminal_mean") -> Any:
+        """Return the exact compiled response quantity for an experimental bridge."""
+        from ._joint_panel_experiment import quantity
+
+        return quantity(self._handle, functional)
+
+    def condition_experiment(self, **declaration: Any) -> PanelExperiment:
+        """Condition this retained posterior using explicit bridge, mapping and evidence."""
+        from ._joint_panel_experiment import condition
+
+        return condition(self._handle, **declaration)
 
     @property
     def execution_facts(self) -> Any:
@@ -62,6 +284,110 @@ class PanelResult:
     def export(self, **execution: Any) -> bytes:
         """Encode the actual frozen compiler product; performs no second fit."""
         return bytes(self._handle.export(**execution))
+
+    def certify_program(
+        self,
+        *,
+        base_world: int,
+        controls: Sequence[Mapping[str, Any]],
+        initial: Sequence[float],
+        budget: float | None = None,
+        restrictions: Sequence[Mapping[str, Any]] = (),
+        functional: Mapping[str, Any] | str = "terminal_mean",
+        utility_offset: float = 0.0,
+        utility_scale: float = 1.0,
+        absolute_gap: float = 1e-4,
+        max_splits: int = 10_000,
+        **execution: Any,
+    ) -> PanelProgramCertificate:
+        """Optimize a compiler-derived fitted response with rigorous global bounds.
+
+        Declare every channel/period control using ``channel``, ``offset``,
+        ``lower``, ``upper`` and ``unit_cost``. Fix a coordinate explicitly by
+        setting equal bounds. The response expression is derived in Rust from
+        the retained lag, saturation, interaction and context mechanisms.
+        ``SplitLimit`` retains a valid bound without claiming the requested gap.
+        """
+        declaration = {
+            "base_world": base_world,
+            "controls": list(controls),
+            "initial": list(initial),
+            "budget": budget,
+            "restrictions": list(restrictions),
+            "functional": functional,
+            "utility_offset": utility_offset,
+            "utility_scale": utility_scale,
+            "options": {"absolute_gap": absolute_gap, "max_splits": max_splits},
+        }
+        return PanelProgramCertificate(
+            self._handle.certify_program(_json(declaration), **execution)
+        )
+
+    def decompose_reference(
+        self, declaration: Mapping[str, Any], **execution: Any
+    ) -> dict[str, Any]:
+        """Decompose a response change on the retained joint mechanism law.
+
+        Declare ``before_world``/``after_world`` using compiled numeric world IDs,
+        population weights in source group order, explicit ``time_weights``, and
+        an ``order`` permutation of exposure, saturation, population, mechanism.
+        ``periods`` maps before/after response periods to parameter indices in
+        the same fitted path (all zero for an invariant fit).
+
+        Returns all 16 hybrids, exact Shapley averages over 24 orders, sequential
+        contributions and paired uncertainty slots. ``order_range`` describes
+        order sensitivity and is not a confidence interval. This model-conditional
+        reference decomposition does not establish unique causal attribution.
+        """
+        return json.loads(self._handle.decompose_reference(_json(declaration), **execution))
+
+    def search_program(
+        self,
+        *,
+        base_world: int,
+        controls: Sequence[Mapping[str, Any]],
+        initial: Sequence[float],
+        budget: float | None = None,
+        restrictions: Sequence[Mapping[str, Any]] = (),
+        functional: Mapping[str, Any] | str = "terminal_mean",
+        utility_offset: float = 0.0,
+        utility_scale: float = 1.0,
+        absolute_gap: float = 1e-4,
+        max_splits: int = 10_000,
+        max_evaluations: int = 512,
+        max_iterations: int = 128,
+        initial_step: float = 0.5,
+        step_tolerance: float = 1e-6,
+        objective_tolerance: float = 0.0,
+        **execution: Any,
+    ) -> dict[str, Any]:
+        """Execute certified search when supported, otherwise bounded best-found search.
+
+        Both routes evaluate this actual frozen fitted response and preserve its
+        scientific scope. The best-found route retains its certificate refusal
+        and stopping reason; an unavailable global gap remains absent.
+        """
+        declaration = {
+            "certificate": {
+                "base_world": base_world,
+                "controls": list(controls),
+                "initial": list(initial),
+                "budget": budget,
+                "restrictions": list(restrictions),
+                "functional": functional,
+                "utility_offset": utility_offset,
+                "utility_scale": utility_scale,
+                "options": {"absolute_gap": absolute_gap, "max_splits": max_splits},
+            },
+            "poll_options": {
+                "max_evaluations": max_evaluations,
+                "max_iterations": max_iterations,
+                "initial_step": initial_step,
+                "step_tolerance": step_tolerance,
+                "objective_tolerance": objective_tolerance,
+            },
+        }
+        return json.loads(self._handle.search_program(_json(declaration), **execution))
 
 
 @dataclass(frozen=True, slots=True)

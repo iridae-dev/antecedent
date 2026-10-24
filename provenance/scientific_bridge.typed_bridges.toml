@@ -25,6 +25,7 @@ implementation_deviations = [
  "Only a declared point mean is carried across a bridge. A nonlinear map of that mean is refused: the square is checked against E[X^2] = (E[X])^2 + Var(X), and the exponential against the normal moment-generating function exp(mu + sigma^2 / 2). Neither check is a general nonlinear bridge, and neither produces a posterior.",
  "An affine map may declare the variance of its intercept and slope and the dependence of the slope estimator on the source estimator. The propagated variance is Var(a) + mu^2 Var(b) + b^2 Var(mu) + 2 mu b Cov(b, mu), and the propagated mean adds Cov(b, mu) to a + b mu. Absent uncertainty is not independence.",
  "An experimental prior is imported only with an estimand bridge that names population, time window, dose, duration, and exposure regime on both sides, plus recency and spend differences. The prior's mapping uncertainty, source dependence, and assumptions are retained. No transport theorem is derived.",
+ "An explicit ParameterInterventionResponse experimental estimand translation can name actual source/target population and horizon differences only with a transport premise for the exact target scope. Same-population horizon extrapolation also requires this premise. This extends declaration checking, not transport identification or a dose/duration scaling law.",
  "No posterior, predictive law, identified set, or joint outcome law is produced by the bridge.",
 ]
 

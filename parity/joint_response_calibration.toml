@@ -7,6 +7,19 @@ grants_release_license = false
 # These are executable procedures, not measurements or inherited licenses from
 # the frozen 2.4.1 family. Q08/E14 run them against the final stable candidate.
 [[procedure]]
+id = "continuous_structural_selected_program_value"
+owner = "X04.3"
+cargo_package = "antecedent"
+cargo_target = "lib"
+test = "analysis::joint_panel::selection::instrumented::tests::whole_procedure_continuous_structural_selection_calibration_l95"
+source = "crates/antecedent/src/analysis/joint_panel/selection/instrumented.rs"
+stages = ["original_observations", "training_range_generation", "joint_structural_iv_fitting", "hard_feasibility", "compiler_derived_certified_search", "selection", "independent_heldout_iv_fitting", "whole_procedure_unit_resampling"]
+cells = ["weak_decision_separation_continuous_quadratic_structural_response"]
+quantities = ["selected_value_coverage", "training_optimism", "heldout_bias", "failed_repetitions", "selection_instability"]
+inference = "frequentist_independent_heldout_joint_iv_delete_unit_covariance"
+minimum_replicates = 400
+
+[[procedure]]
 id = "randomized_selected_program_value"
 owner = "X04.3"
 cargo_package = "antecedent"
@@ -26,10 +39,10 @@ cargo_package = "antecedent"
 cargo_target = "lib"
 test = "analysis::joint_panel::explanation::scientific::tests::calibration_compiled_reference_decomposition_full_procedure"
 source = "crates/antecedent/src/analysis/joint_panel/explanation/scientific.rs"
-stages = ["data_generation", "identification", "fitting", "sixteen_compiled_hybrids", "twenty_four_orderings", "joint_uncertainty", "independent_truth_comparison"]
+stages = ["data_generation", "identification", "fitting", "root_stratum_population_transport", "sixteen_compiled_hybrids", "twenty_four_orderings", "joint_uncertainty", "independent_truth_comparison"]
 cells = ["static_frequentist", "static_bayesian", "two_period_frequentist", "two_period_bayesian"]
 quantities = ["joint_shapley_coverage", "interval_width", "failed_slots", "ordering_sensitivity"]
-inference = "native_frequentist_and_bayesian_randomized_parameter_experiment"
+inference = "native_frequentist_and_bayesian_randomized_parameter_and_baseline_population_experiment"
 minimum_replicates = 400
 
 [[procedure]]

@@ -9,6 +9,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+/// Aligned four-component reference-world decompositions of panel responses.
+pub mod decomposition;
+/// Scalar expressions derived from retained fitted panel mechanisms and schedules.
+pub mod expression;
 mod inference;
 mod likelihood;
 #[cfg(test)]
@@ -251,6 +255,13 @@ pub enum PanelInference {
     /// Local group-cluster sandwich parameter approximation, not a posterior or licensed interval.
     Frequentist {
         /// Requested approximate draws; invalid transformed slots remain None.
+        draws: usize,
+    },
+    /// Hierarchical Gaussian/AR parametric bootstrap, repeating the complete
+    /// fitting procedure. Temporal fits also repeat change and smoothing selection.
+    /// This is model-based sampling uncertainty, not a posterior or a calibrated interval.
+    FrequentistBootstrap {
+        /// Requested complete-procedure replicate slots; failed fits remain None.
         draws: usize,
     },
     /// Same likelihood with explicit priors and conditional Gaussian group effects.
@@ -626,6 +637,9 @@ impl PanelFitOptions {
         match &self.inference {
             PanelInference::Frequentist { draws } => {
                 writer.word(0).word(*draws as u64);
+            }
+            PanelInference::FrequentistBootstrap { draws } => {
+                writer.word(2).word(*draws as u64);
             }
             PanelInference::Bayesian { prior, sampler } => {
                 writer

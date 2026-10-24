@@ -93,6 +93,7 @@ pub mod iv_bounds;
 pub mod joint_bayesian_transport;
 pub mod joint_if;
 pub mod joint_panel;
+pub mod joint_design;
 pub mod lagged_instrument;
 pub mod latent_class_effects;
 mod learn_nuisance;

@@ -18,7 +18,8 @@
 //! 6. the mapping's own binding (the measurement model's variables, identity
 //!    and population) agrees with the contract;
 //! 7. the source and target agree in population, regime (where it may not
-//!    change), horizon and conditioning;
+//!    change), horizon and conditioning. An explicit experimental estimand
+//!    translation may change population/horizon under its target transport premise;
 //! 8. a bridge whose evidence was established for another population or regime
 //!    than the claim's carries a transportability premise for exactly that
 //!    transport;

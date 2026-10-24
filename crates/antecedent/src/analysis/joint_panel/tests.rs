@@ -403,6 +403,82 @@ fn continuous_three_channel_search_reuses_fit_and_improves_a_budget_feasible_non
     ));
 }
 
+#[test]
+fn certified_panel_search_derives_its_objective_and_preserves_the_actual_source() {
+    use antecedent_design::decision_contract::{
+        ProgramObjective, ProgramSearchContract, ProgramSearchSpace, UtilityExpr,
+    };
+    use antecedent_design::program_search::{
+        FiniteProgramDomain, ProgramControl,
+        certified::{CertificateOptions, CertificateStop},
+        continuous::ContinuousSearchOptions,
+    };
+    let ctx = ExecutionContext::for_tests(1);
+    let prepared = three_channel_prepared();
+    let result = prepared.estimate(&ctx).unwrap();
+    let search = result
+        .compile_certified_search(
+            JointPanelContinuousSearchRequest {
+                base_world: ScientificWorldId::from_raw(0),
+                scope: JointPanelScientificScope::ModelConditional,
+                functional: JointPanelResponseFunctional::TerminalMean,
+                uncertainty: JointPanelSearchUncertainty::PointMeans,
+                contract: ProgramSearchContract {
+                    space: ProgramSearchSpace {
+                        id: "actual_fitted_response".into(),
+                        variables: vec!["response".into()],
+                    },
+                    objective: ProgramObjective::ExpectedUtility(UtilityExpr::Input(0)),
+                    constraints: vec![],
+                },
+                domain: FiniteProgramDomain {
+                    controls: (0..6)
+                        .flat_map(|offset| {
+                            (0..3).map(move |channel| ProgramControl {
+                                variable: VariableId::from_raw(channel),
+                                offset,
+                                lower: 0.0,
+                                upper: if offset == 5 && channel == 0 { 2.5 } else { 0.0 },
+                                unit_cost: if offset == 5 && channel == 0 { 1.0 } else { 0.0 },
+                            })
+                        })
+                        .collect(),
+                    budget: Some(2.0),
+                    restrictions: vec![],
+                },
+                utility_units: "response".into(),
+                initial: vec![0.0; 18],
+                options: ContinuousSearchOptions {
+                    max_evaluations: 10,
+                    max_iterations: 2,
+                    initial_step: 0.5,
+                    step_tolerance: 1e-6,
+                    objective_tolerance: 1e-10,
+                },
+            },
+            &ctx,
+        )
+        .unwrap();
+    let output = search
+        .execute(CertificateOptions { absolute_gap: 1e-3, max_splits: 10_000 }, &ctx)
+        .unwrap();
+    assert_eq!(output.certificate.stop, CertificateStop::Certified);
+    assert!(output.certificate.gap <= 1e-3);
+    assert!(output.certificate.controls[15] <= 2.0);
+    assert_eq!(output.fitted_dependency, result.dependency_identity());
+    assert_eq!(output.parent_target, result.request().target.identity());
+    assert!(output.best_source.authorize(JointPanelScientificScope::IdentifiedCausal).is_err());
+    let bytes =
+        search.export(CertificateOptions { absolute_gap: 1e-3, max_splits: 10_000 }, &ctx).unwrap();
+    let replay = search.consume_current(&bytes, &ctx).unwrap();
+    assert_eq!(replay.identity, output.certificate.identity);
+    assert_eq!(replay.global_upper.to_bits(), output.certificate.global_upper.to_bits());
+    let (_, historical) =
+        replay_panel_certificate(&bytes, &ExecutionContext::for_tests(99)).unwrap();
+    assert_eq!(historical.controls, output.certificate.controls);
+    assert_eq!(prepared.fits_performed(), 1);
+}
+
 fn static_source_data() -> (PanelData, antecedent_data::TabularData) {
     use antecedent_data::TabularData;
     let mut all = [vec![], vec![], vec![], vec![], vec![]];
@@ -720,4 +796,94 @@ fn dose_time_refuses_implicit_extra_channel_and_unassigned_exposure_continuation
             Err(JointPanelError::Unsupported(_))
         ));
     }
+}
+
+#[test]
+fn reference_decomposition_inherits_exact_hybrid_proofs_and_refuses_unearned_transport() {
+    use super::explanation::{ChangeComponent, DecompositionEndpoint, MechanismPeriodMap, PanelDecompositionRequest};
+    let (panel, proof, data) = static_source_fixture();
+    let ctx = ExecutionContext::for_tests(71);
+    let result = panel.with_static_source_proof(proof, &data, &ctx).unwrap().estimate(&ctx).unwrap();
+    let worlds = &result.request().worlds;
+    let groups = result.prepared().model_data().groups.len();
+    let mut request = PanelDecompositionRequest {
+        before: DecompositionEndpoint { program: worlds[0].program.clone(), population_weights: vec![1.0 / groups as f64; groups] },
+        after: DecompositionEndpoint { program: worlds[worlds.len()-1].program.clone(), population_weights: vec![1.0 / groups as f64; groups] },
+        time_weights: vec![1.0],
+        order: [ChangeComponent::Exposure, ChangeComponent::Saturation, ChangeComponent::Population, ChangeComponent::Mechanism],
+    };
+    let periods = MechanismPeriodMap { before: vec![0], after: vec![0] };
+    let checked = result.decompose_reference_checked(&request, &periods, &ctx).unwrap();
+    checked.require_identified_reference().unwrap();
+    assert_eq!(checked.hybrids.len(), 16);
+    assert!(checked.hybrids.iter().all(|world| world.source_world.is_some()));
+    assert!((checked.decomposition.point.shapley[0] - checked.decomposition.point.total).abs() < 1e-10);
+    for index in [1, 2, 3] { assert!(checked.decomposition.point.shapley[index].abs() < 1e-10); }
+    request.after.population_weights.fill(0.0);
+    request.after.population_weights[0] = 1.0;
+    let unsupported = result.decompose_reference_checked(&request, &periods, &ctx).unwrap();
+    assert!(!unsupported.is_identified_reference());
+    assert!(unsupported.require_identified_reference().is_err());
+    assert!(unsupported.hybrids.iter().filter(|world| world.mask & 4 != 0).all(|world| world.unresolved.iter().any(|premise| premise.contains("population transport"))));
+}
+
+#[test]
+fn compiled_component_bindings_consume_identified_worlds_and_reject_hybrid_and_overlap_errors() {
+    use super::explanation::{ChangeComponent, ReferenceComponentBindings};
+    use antecedent_design::scientific_source::ScientificConsumptionScope;
+    let (panel, proof, data) = static_source_fixture();
+    let ctx = ExecutionContext::for_tests(72);
+    let result = panel.with_static_source_proof(proof, &data, &ctx).unwrap().estimate(&ctx).unwrap();
+    let worlds = &result.request().worlds;
+    let before = worlds[0].world;
+    let after = worlds[worlds.len()-1].world;
+    let mut bindings = ReferenceComponentBindings {
+        exposure: result.request().columns.channels.clone(), saturation: vec![], mechanism: vec![],
+        hybrids: std::array::from_fn(|mask| if mask & 1 == 0 { before } else { after }),
+        order: [ChangeComponent::Exposure, ChangeComponent::Saturation, ChangeComponent::Population, ChangeComponent::Mechanism],
+    };
+    let checked = result.decompose_compiled_components(&bindings,ScientificConsumptionScope::IdentifiedCausal,false,&ctx).unwrap();
+    assert_eq!(checked.question_identity,checked.source.question_identity());
+    let bytes=result.export(&ctx).unwrap();
+    let current=result.consume_current(&bytes,&ctx).unwrap();
+    let replayed=current.decompose_compiled_components(&bindings,ScientificConsumptionScope::IdentifiedCausal,false,&ctx).unwrap();
+    assert_eq!(checked.decomposition.point,replayed.decomposition.point);
+    let historical=antecedent_io::joint_panel_artifact::consume_panel_execution(&bytes,&ctx).unwrap();
+    let historical_values=std::array::from_fn(|mask| {
+        let index=worlds.iter().position(|world| world.world==bindings.hybrids[mask]).unwrap();
+        *historical.point()[index].means.last().unwrap()
+    });
+    let independent=engine::decomposition::decompose_values(historical_values,bindings.order).unwrap();
+    assert_eq!(checked.decomposition.point,independent);
+
+    assert!((checked.decomposition.point.shapley[0]-checked.decomposition.point.total).abs()<1e-10);
+    for index in [1,2,3] { assert!(checked.decomposition.point.shapley[index].abs()<1e-10); }
+    bindings.hybrids[1]=before;
+    assert!(result.decompose_compiled_components(&bindings,ScientificConsumptionScope::IdentifiedCausal,false,&ctx).is_err());
+    bindings.hybrids[1]=after;
+    bindings.mechanism.push(bindings.exposure[0]);
+    assert!(result.decompose_compiled_components(&bindings,ScientificConsumptionScope::IdentifiedCausal,false,&ctx).is_err());
+}
+
+#[test]
+fn unidentified_finer_decomposition_executes_actual_coarser_response_and_preserves_refusal() {
+    use super::explanation::{ChangeComponent, DecompositionEndpoint, IdentifiedReferenceAttempt, JointPanelExplanationRequest, MechanismPeriodMap, PanelDecompositionRequest};
+    let (data, request) = fixture();
+    let ctx=ExecutionContext::for_tests(73);
+    let result=Study::prepare_joint_panel(data,request,&ctx).unwrap().estimate(&ctx).unwrap();
+    let worlds=&result.request().worlds;
+    let request=PanelDecompositionRequest {
+        before:DecompositionEndpoint { program:worlds[0].program.clone(),population_weights:vec![0.25;4] },
+        after:DecompositionEndpoint { program:worlds[3].program.clone(),population_weights:vec![0.25;4] },
+        time_weights:vec![1.0/6.0;6],
+        order:[ChangeComponent::Exposure,ChangeComponent::Saturation,ChangeComponent::Population,ChangeComponent::Mechanism],
+    };
+    let fallback=JointPanelExplanationRequest { explanation:engine::time_varying::PanelExplanation::Mechanism, world:worlds[3].world,reference_world:worlds[0].world,before:(0,1),after:(4,5) };
+    let attempt=result.attempt_identified_reference_decomposition(&request,&MechanismPeriodMap { before:vec![0;6],after:vec![0;6] },fallback,&ctx).unwrap();
+    let IdentifiedReferenceAttempt::Coarser { requested, executed }=attempt else { panic!("unidentified finer claim was accepted"); };
+    assert!(!requested.is_identified_reference());
+    assert!(executed.point.is_finite());
+    assert!(executed.require_unique_attribution().is_err());
+    assert_eq!(executed.compiled_response().dependency_identity(),result.dependency_identity());
+    assert_eq!(result.prepared().fits_performed(),1);
 }

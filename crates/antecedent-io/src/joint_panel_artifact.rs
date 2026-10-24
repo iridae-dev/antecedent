@@ -176,6 +176,82 @@ pub struct PanelExecutionSource<'a> {
 }
 
 impl PanelExecutionProgram {
+    /// Reconstruct the controlled point-response expression from the actual frozen
+    /// panel law. Historical numerical replay grants no current causal permission.
+    /// # Errors
+    /// Missing world, invalid controls/time functional, numerical or resource failure.
+    pub fn controlled_response_expression(
+        &self,
+        world: u32,
+        controls: &[engine::expression::PanelExpressionControl],
+        time_weights: &[f64],
+        ctx: &ExecutionContext,
+    ) -> Result<engine::expression::CompiledPanelExpression, PanelArtifactError> {
+        self.validate()?;
+        let index = self
+            .inner
+            .world_ids
+            .iter()
+            .position(|id| *id == world)
+            .ok_or_else(|| invalid("missing certificate base world"))?;
+        let path = match &self.inner.frozen.law {
+            FrozenLaw::Invariant { point, .. } => vec![point.clone()],
+            FrozenLaw::Varying { point, .. } => point
+                .parameters
+                .iter()
+                .map(|parameters| engine::PanelDraw {
+                    parameters: parameters.clone(),
+                    group_intercepts: point.baseline.group_intercepts.clone(),
+                })
+                .collect(),
+        };
+        Ok(engine::expression::compile_panel_expression(
+            &self.inner.data,
+            &path,
+            &self.inner.programs[index],
+            controls,
+            time_weights,
+            ctx,
+        )?)
+    }
+    /// Evaluate a reference decomposition from this exact frozen shared law.
+    ///
+    /// Mechanism maps refer to parameter periods in the original joint fit;
+    /// separately fitted marginal laws are never zipped together. This historical
+    /// numerical projection grants no current causal authorization.
+    ///
+    /// # Errors
+    /// Invalid program, parameter map, endpoints, resources or cancellation.
+    pub fn decompose_reference(
+        &self,
+        request: &engine::decomposition::PanelDecompositionRequest,
+        periods: &engine::decomposition::MechanismPeriodMap,
+        ctx: &ExecutionContext,
+    ) -> Result<engine::decomposition::PanelDecomposition, PanelArtifactError> {
+        self.validate()?;
+        Ok(match &self.inner.frozen.law {
+            FrozenLaw::Invariant { point, draws, .. } => {
+                engine::decomposition::decompose_invariant_law(
+                    &self.inner.data,
+                    request,
+                    periods,
+                    point,
+                    draws,
+                    ctx,
+                )?
+            }
+            FrozenLaw::Varying { point, draws, .. } => {
+                engine::decomposition::decompose_temporal_law(
+                    &self.inner.data,
+                    request,
+                    periods,
+                    point,
+                    draws,
+                    ctx,
+                )?
+            }
+        })
+    }
     /// Retain exact compiled inputs and the actual fitted law; performs no fit or identification.
     /// # Errors
     /// Incoherent target/proof, source metadata or numerical policy.

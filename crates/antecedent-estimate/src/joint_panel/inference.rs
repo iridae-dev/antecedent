@@ -295,7 +295,7 @@ pub(super) fn log_prior(data: &PanelData, x: &[f64], prior: &PanelPrior) -> f64 
 
 pub(super) fn validate_options(options: &PanelFitOptions) -> Result<usize, PanelError> {
     match &options.inference {
-        PanelInference::Frequentist { draws } => {
+        PanelInference::Frequentist { draws } | PanelInference::FrequentistBootstrap { draws } => {
             if *draws > 100_000 {
                 return Err(invalid("at most 100000 frequentist draw slots"));
             }
@@ -383,6 +383,14 @@ pub(super) fn fit(
             PanelInference::Frequentist { draws } => {
                 frequentist_draws(data, &local, inverse.as_deref(), *draws, &mut diagnostics, ctx)?
             }
+            PanelInference::FrequentistBootstrap { draws } => {
+                diagnostics.uncertainty = "hierarchical model-based Gaussian/AR parametric bootstrap repeating the original likelihood fitting procedure, plus conditional group-effect draws; shared complete realizations across all reference worlds; not calibrated coverage or a posterior".into();
+                if local.converged {
+                    bootstrap_draws(data, options, &point, *draws, ctx)?
+                } else {
+                    vec![None; *draws]
+                }
+            }
             PanelInference::Bayesian { prior, sampler } => posterior_draws(
                 data,
                 &local,
@@ -405,6 +413,48 @@ pub(super) fn fit(
             retained_volume: retained,
         })
     })
+}
+
+fn bootstrap_draws(
+    data: &likelihood::CompiledPanel<'_>,
+    options: &PanelFitOptions,
+    fitted: &PanelDraw,
+    draws: usize,
+    ctx: &ExecutionContext,
+) -> Result<Vec<Option<PanelDraw>>, PanelError> {
+    let mut output = Vec::with_capacity(draws);
+    for replicate in 0..draws {
+        check_cancelled(ctx)?;
+        let mut rng =
+            ctx.rng.stream(antecedent_core::derive_stream(0x5830_3242_4f4f_5453, replicate as u64));
+        let mut simulated = data.source.clone();
+        let p = &fitted.parameters;
+        for group in &mut simulated.groups {
+            let intercept = p.group_sd * standard_normal(&mut rng);
+            let mut error =
+                p.innovation_sd / (1.0 - p.rho.powi(2)).sqrt() * standard_normal(&mut rng);
+            for time in 0..group.outcome.len() {
+                error = p.rho * error + p.innovation_sd * standard_normal(&mut rng);
+                group.outcome[time] =
+                    likelihood::observed_response(data, p, group, time) + intercept + error;
+            }
+        }
+        let compiled = likelihood::CompiledPanel::new(&simulated)?;
+        // Repeat the declared initialization as well as the optimizer. A warm
+        // start at the original optimum would be a different fitted procedure.
+        let initial = options.initial.clone().unwrap_or_else(|| likelihood::initial(&compiled));
+        let start = likelihood::encode(&compiled, &initial)?;
+        let fit = optimize_target(start, options.optimizer, ctx, &|x| {
+            likelihood::log_likelihood(&compiled, x)
+        });
+        let draw = match fit {
+            Ok(fit) if fit.converged => conditional_draw(&compiled, &fit.values, &mut rng),
+            Err(PanelError::Cancelled) => return Err(PanelError::Cancelled),
+            _ => None,
+        };
+        output.push(draw);
+    }
+    Ok(output)
 }
 
 fn frequentist_draws(
@@ -556,4 +606,69 @@ fn fit_memory(
         .ok_or_else(|| invalid("fit workspace size overflow"))?;
     let retained = u64::try_from(retained).map_err(|_| invalid("retained fit size overflow"))?;
     Ok((scratch, retained))
+}
+
+#[cfg(test)]
+mod bootstrap_tests {
+    use super::*;
+    #[test]
+    fn full_procedure_replicates_match_an_independent_static_gaussian_reference() {
+        let (mut source, mut truth, _) = super::super::tests::fixture();
+        source.lag_order = 0;
+        truth.parameters.rho = 0.0;
+        for channel in &mut truth.parameters.channels {
+            channel.lag = [1.0, 0.0, 0.0];
+        }
+        let options = PanelFitOptions {
+            // A permissive declared stopping rule fixes global coordinates,
+            // isolating a closed-form check of simulation and group uncertainty.
+            optimizer: PanelOptimizerOptions { max_iterations: 2, gradient_tolerance: 1e100 },
+            initial: Some(truth.parameters.clone()),
+            inference: PanelInference::FrequentistBootstrap { draws: 3 },
+        };
+        let ctx = ExecutionContext::for_tests(123);
+        let compiled = likelihood::CompiledPanel::new(&source).unwrap();
+        let draws = bootstrap_draws(&compiled, &options, &truth, 3, &ctx).unwrap();
+        for (replicate, draw) in draws.into_iter().enumerate() {
+            let draw = draw.unwrap();
+            let decoded_initial = likelihood::decode(
+                &compiled,
+                &likelihood::encode(&compiled, &truth.parameters).unwrap(),
+            )
+            .unwrap();
+            assert_eq!(draw.parameters, decoded_initial);
+            let p = &truth.parameters;
+            let mut rng = ctx
+                .rng
+                .stream(antecedent_core::derive_stream(0x5830_3242_4f4f_5453, replicate as u64));
+            let mut expected = Vec::new();
+            let mut variances = Vec::new();
+            for group in &source.groups {
+                let latent = p.group_sd * standard_normal(&mut rng);
+                let _initial_error = p.innovation_sd * standard_normal(&mut rng);
+                let residual_sum = (0..group.outcome.len())
+                    .map(|_| latent + p.innovation_sd * standard_normal(&mut rng))
+                    .sum::<f64>();
+                let variance = 1.0
+                    / (1.0 / p.group_sd.powi(2)
+                        + (group.outcome.len() as f64) / p.innovation_sd.powi(2));
+                expected.push(variance * residual_sum / p.innovation_sd.powi(2));
+                variances.push(variance);
+            }
+            for ((actual, mean), variance) in
+                draw.group_intercepts.iter().zip(expected).zip(variances)
+            {
+                let reference = mean + variance.sqrt() * standard_normal(&mut rng);
+                assert!((actual - reference).abs() < 1e-12);
+            }
+        }
+        let old = PanelFitOptions {
+            inference: PanelInference::Frequentist { draws: 3 },
+            ..options.clone()
+        };
+        assert_ne!(options.identity(&source).unwrap(), old.identity(&source).unwrap());
+        let fitted = fit(&source, &options, &ctx).unwrap();
+        assert!(fitted.draws.iter().all(Option::is_some));
+        assert!(fitted.diagnostics.uncertainty.contains("bootstrap"));
+    }
 }

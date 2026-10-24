@@ -12,6 +12,12 @@ use antecedent_design::scientific_source::{
 };
 use std::sync::Arc;
 
+mod certified;
+pub use certified::{
+    JointPanelCertifiedSearch, JointPanelCertifiedSearchResult, JointPanelProgramSearchResult,
+    replay_panel_certificate,
+};
+
 /// Numerical representation requested by the existing decision engine.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum JointPanelSearchUncertainty {

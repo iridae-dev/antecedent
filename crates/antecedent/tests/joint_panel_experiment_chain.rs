@@ -10,6 +10,9 @@ use antecedent_design::decision_contract::*;
 use antecedent_design::scientific_source::{ScientificConsumptionScope, ScientificSourcePayload};
 use std::sync::Arc;
 
+#[path = "joint_panel_experiment_chain/matrix.rs"]
+mod matrix;
+
 struct ExperimentFixture {
     update: PanelExperimentUpdate,
     ledger: EvidenceLedger,
@@ -25,10 +28,12 @@ pub fn exercise(
     original: &JointPanelResult,
     ctx: &ExecutionContext,
 ) {
+    matrix::exercise(prepared, original, ctx);
     let mut fixture = experiment_fixture(original);
     verify_target_refusals(prepared, &fixture, ctx);
     let program = prepared.with_experiment(fixture.update.clone(), &fixture.ledger).unwrap();
     let updated = program.estimate(&fixture.ledger, ctx).unwrap();
+    verify_independent_likelihood_reference(original, &updated, &fixture);
     let artifact = verify_experiment_artifacts(prepared, &updated, &fixture, ctx);
     assert_eq!(
         prepared.fits_performed(),
@@ -45,6 +50,66 @@ pub fn exercise(
         ),
         "original panel remains an independent retained result"
     );
+}
+
+fn verify_independent_likelihood_reference(
+    original: &JointPanelResult,
+    updated: &PanelExperimentResult,
+    fixture: &ExperimentFixture,
+) {
+    // Independent arithmetic for the declared modular finite-law update. Do not
+    // call production conditioning, bridge propagation or decision helpers.
+    let prior = original.numerical_project_law_source(&fixture.update.functional).unwrap();
+    let posterior = updated.numerical_law_source(&fixture.ledger).unwrap();
+    let width = fixture.coefficients.len();
+    let experiment = &fixture.update;
+    let variance = experiment.observation_variance / experiment.sample_size as f64;
+    let means = prior
+        .draws()
+        .chunks_exact(width)
+        .enumerate()
+        .map(|(slot, row)| {
+            let target = row.iter().zip(&fixture.coefficients).map(|(v, c)| v * c).sum::<f64>();
+            (target - experiment.mapping.intercepts[slot]) / experiment.mapping.slopes[slot]
+        })
+        .collect::<Vec<_>>();
+    // Likelihood ratios relative to the best-supported state avoid underflow.
+    // Expanding the difference of squares also differs from production's direct
+    // log-density construction while retaining the same exact mathematical law.
+    let anchor = *means
+        .iter()
+        .min_by(|a, b| {
+            (experiment.observed_mean - **a)
+                .abs()
+                .total_cmp(&(experiment.observed_mean - **b).abs())
+        })
+        .unwrap();
+    let default_mass = 1.0 / means.len() as f64;
+    let unnormalized = means
+        .iter()
+        .enumerate()
+        .map(|(slot, m)| {
+            let prior_mass = prior.metadata().weights.as_ref().map_or(default_mass, |w| w[slot]);
+            let exponent =
+                (m - anchor) * (2.0 * experiment.observed_mean - m - anchor) / (2.0 * variance);
+            prior_mass * exponent.exp()
+        })
+        .collect::<Vec<_>>();
+    let normalizer = unnormalized.iter().sum::<f64>();
+    let weights = posterior.metadata().weights.as_ref().unwrap();
+    for (reference, actual) in unnormalized.iter().zip(weights) {
+        assert!((reference / normalizer - actual).abs() < 1e-10);
+    }
+    let (_, updated_means) = updated.response_means(&fixture.ledger).unwrap();
+    for (coordinate, actual) in updated_means.iter().enumerate() {
+        let reference = prior
+            .draws()
+            .chunks_exact(width)
+            .zip(&unnormalized)
+            .map(|(row, weight)| row[coordinate] * weight / normalizer)
+            .sum::<f64>();
+        assert!((reference - actual).abs() < 1e-9);
+    }
 }
 
 fn experiment_fixture(original: &JointPanelResult) -> ExperimentFixture {
@@ -334,7 +399,70 @@ fn verify_decision_and_next_study(
     assert_eq!(ranking[0].id, "cheap");
     assert_eq!(ranking[0].gross_evsi.to_bits(), ranking[1].gross_evsi.to_bits());
     assert!((ranking[0].net_value.unwrap() - (ranking[0].gross_evsi - 0.1)).abs() < 1e-12);
+    let (reference, quadrature_error) = reference_next_study_value(updated, fixture, threshold);
+    for candidate in &ranking {
+        let tolerance = quadrature_error + 6.0 * candidate.standard_error + 1e-9;
+        assert!(
+            (candidate.gross_evsi - reference).abs() <= tolerance,
+            "{}: production EVSI {}, independent reference {reference} +/- {tolerance}",
+            candidate.id,
+            candidate.gross_evsi
+        );
+        let cost = if candidate.id == "cheap" { 0.1 } else { 0.3 };
+        assert!((candidate.net_value.unwrap() - (reference - cost)).abs() <= tolerance);
+    }
     DecisionWitness { contract, source: updated_source }
+}
+
+fn reference_next_study_value(
+    updated: &PanelExperimentResult,
+    fixture: &ExperimentFixture,
+    threshold: f64,
+) -> (f64, f64) {
+    // Independent one-dimensional predictive-mixture integration. For the two
+    // terminal actions the shared baseline utility cancels, and the integrand is
+    // max(0, sum_i w_i Normal(y; mapped_i, variance/n) * (target_i - threshold)).
+    // No production signal, update, utility, integration or EVSI helper is called.
+    let law = updated.numerical_law_source(&fixture.ledger).unwrap();
+    let weights = law.metadata().weights.as_ref().unwrap();
+    let width = fixture.coefficients.len();
+    let sigma = (1.0_f64 / 4.0).sqrt(); // The independently declared next study above.
+    let states = law
+        .draws()
+        .chunks_exact(width)
+        .enumerate()
+        .map(|(slot, row)| {
+            let target = row.iter().zip(&fixture.coefficients).map(|(v, c)| v * c).sum::<f64>();
+            let mapped = (target - fixture.update.mapping.intercepts[slot])
+                / fixture.update.mapping.slopes[slot];
+            (mapped, weights[slot] * (target - threshold))
+        })
+        .collect::<Vec<_>>();
+    let lower = states.iter().map(|(m, _)| *m).fold(f64::INFINITY, f64::min) - 8.0 * sigma;
+    let upper = states.iter().map(|(m, _)| *m).fold(f64::NEG_INFINITY, f64::max) + 8.0 * sigma;
+    let step = (upper - lower) / 1024.0;
+    let density_scale = 1.0 / (sigma * (2.0 * std::f64::consts::PI).sqrt());
+    let mut future_value = 0.0;
+    for cell in 0..1024 {
+        let y = lower + (f64::from(cell) + 0.5) * step;
+        let advantage = states
+            .iter()
+            .map(|(m, weighted_gain)| {
+                weighted_gain * density_scale * (-0.5 * ((y - m) / sigma).powi(2)).exp()
+            })
+            .sum::<f64>();
+        future_value += step * advantage.max(0.0);
+    }
+    let current_value = states.iter().map(|(_, gain)| gain).sum::<f64>().max(0.0);
+    let absolute_gain = states.iter().map(|(_, gain)| gain.abs()).sum::<f64>();
+    // Midpoint error <= h/2 * total variation. Positive-part is Lipschitz,
+    // and the L1 norm of a Normal density's derivative is sqrt(2/pi)/sigma.
+    let variation_error = step / 2.0 * absolute_gain * (2.0 / std::f64::consts::PI).sqrt() / sigma;
+    // The finite integration interval contains +/-8 sigma around every mixture
+    // mean. Mills' inequality bounds both omitted tails independently.
+    let tail_error =
+        absolute_gain * 2.0 * (-32.0_f64).exp() / (8.0 * (2.0 * std::f64::consts::PI).sqrt());
+    (future_value - current_value, variation_error + tail_error + 1e-10)
 }
 
 fn verify_origin_refusals(

@@ -72,6 +72,32 @@ pub struct JointPanelWorldSupport {
     /// Support meaning and missing premise.
     pub reason: String,
 }
+/// Versioned proof representation shared by legacy and design-native compilers.
+/// Historical randomized panel artifacts retain their existing v1 numerical decoder.
+#[derive(Clone, Debug, PartialEq)]
+pub enum JointPanelDesignProof {
+    /// First typed design-proof representation.
+    V1(JointPanelDesignTheorem),
+}
+/// Actual theorem and target retained by a checked method owner.
+#[derive(Clone, Debug, PartialEq)]
+pub enum JointPanelDesignTheorem {
+    /// Existing complete-program randomization proof, preserved without semantic changes.
+    RandomizedWholeProgram(RandomizedEffectQuery),
+    /// Native joint-history, structural-feature, cohort or donor target proof, retaining
+    /// the distinct target rather than silently converting it into a population effect.
+    Native {
+        /// Design-specific identifying functional, assumptions and original target keys.
+        identification: super::designs::NativeJointIdentification,
+        /// Independently retained source/design identity, not itself a causal assertion.
+        source_dependency: SemanticDigest,
+    },
+}
+impl JointPanelDesignProof {
+    pub(super) fn randomized(query: RandomizedEffectQuery) -> Self {
+        Self::V1(JointPanelDesignTheorem::RandomizedWholeProgram(query))
+    }
+}
 /// Retained ordered design attempt with its exact source contract when accepted.
 #[derive(Clone, Debug, PartialEq)]
 pub struct JointPanelDesignAttempt {
@@ -88,7 +114,7 @@ pub struct JointPanelDesignAttempt {
     /// Exact per-world joint design support.
     pub worlds: Vec<JointPanelWorldSupport>,
     /// Validated existing randomization contract retained as the proof premise.
-    pub proof: Option<RandomizedEffectQuery>,
+    pub proof: Option<JointPanelDesignProof>,
 }
 pub(super) fn history_identity(program: &PanelProgram) -> SemanticDigest {
     let mut writer = CanonicalWriter::new("antecedent.compiler.panel.initial_history.v1");
@@ -537,7 +563,7 @@ pub(super) fn compile_support(
     let attempts=vec![
         JointPanelDesignAttempt{id:"b04.gaussian_panel".into(),outcome:JointPanelDesignOutcome::Unsupported,detail:match &admission {Err(error)=>error.to_string(),Ok(())=>"static target admitted by the production joint Gaussian owner; source lacks its required retained exact joint-adjustment proof, and nonlinear mechanism/AR inference is a different numerical realization".into()},next_attempt:Some("test exact joint intervention design".into()),target_identity:request.target.identity(),worlds:support.clone(),proof:None},
         JointPanelDesignAttempt{id:"joint_adjustment.observational".into(),outcome:JointPanelDesignOutcome::Unsupported,detail:"no matching temporal joint-adjustment or independent mechanism certificate is supplied; a static ATE or marginal dose range cannot identify this complete panel target".into(),next_attempt:Some("known randomized assignment of complete multi-channel programs over independent groups".into()),target_identity:request.target.identity(),worlds:support.clone(),proof:None},
-        JointPanelDesignAttempt{id:"randomized.multi_arm_itt.whole_program".into(),outcome:if identified {JointPanelDesignOutcome::Identified} else if request.assignment.is_some(){JointPanelDesignOutcome::Rejected}else{JointPanelDesignOutcome::Unsupported},detail:match &evidence {Ok(_)=>"existing multi-arm ITT theorem applied to exact complete programs, independent group units and fixed observed context; nonlinear fitting and uncertainty remain model-conditional and unmeasured".into(),Err(e)=>e.clone()},next_attempt:if identified {None}else{Some("collect known positive-probability whole-program randomized arm assignments with exact prehistory and pretreatment context".into())},target_identity:request.target.identity(),worlds:support,proof:evidence.as_ref().ok().cloned()},
+        JointPanelDesignAttempt{id:"randomized.multi_arm_itt.whole_program".into(),outcome:if identified {JointPanelDesignOutcome::Identified} else if request.assignment.is_some(){JointPanelDesignOutcome::Rejected}else{JointPanelDesignOutcome::Unsupported},detail:match &evidence {Ok(_)=>"existing multi-arm ITT theorem applied to exact complete programs, independent group units and fixed observed context; nonlinear fitting and uncertainty remain model-conditional and unmeasured".into(),Err(e)=>e.clone()},next_attempt:if identified {None}else{Some("collect known positive-probability whole-program randomized arm assignments with exact prehistory and pretreatment context".into())},target_identity:request.target.identity(),worlds:support,proof:evidence.as_ref().ok().cloned().map(JointPanelDesignProof::randomized)},
     ];
     let outcome = if identified {
         IdentificationOutcome::Identified

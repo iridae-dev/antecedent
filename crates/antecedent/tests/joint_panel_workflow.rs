@@ -40,7 +40,109 @@ fn actual_frequentist_panel_fit_retains_aligned_worlds_and_reuses_after_builder_
     assert_eq!(prepared.fits_performed(), 1);
     assert_eq!(next.fits_performed(), 1);
     assert!(!prepared.inspect().identification.is_identified_claim());
+    exercise_reference_decomposition(&result, &ctx);
     assert_fresh_panel_replay(&result, &ctx);
+}
+
+fn exercise_reference_decomposition(
+    result: &antecedent::analysis::joint_panel::JointPanelResult,
+    ctx: &ExecutionContext,
+) {
+    use antecedent::analysis::joint_panel::{
+        ChangeComponent, DecompositionEndpoint, MechanismPeriodMap, PanelDecompositionRequest,
+    };
+    let worlds = &result.request().worlds;
+    let horizon = worlds[0].horizon();
+    let weights = vec![
+        1.0 / result.prepared().model_data().groups.len() as f64;
+        result.prepared().model_data().groups.len()
+    ];
+    let request = PanelDecompositionRequest {
+        before: DecompositionEndpoint {
+            program: worlds[0].program.clone(),
+            population_weights: weights.clone(),
+        },
+        after: DecompositionEndpoint {
+            program: worlds[3].program.clone(),
+            population_weights: weights,
+        },
+        time_weights: vec![1.0 / horizon as f64; horizon],
+        order: [
+            ChangeComponent::Exposure,
+            ChangeComponent::Saturation,
+            ChangeComponent::Population,
+            ChangeComponent::Mechanism,
+        ],
+    };
+    let parameter_periods = match &result.fit {
+        JointPanelFit::Invariant(_) => vec![0; horizon],
+        JointPanelFit::Varying(_) => (0..horizon).collect(),
+    };
+    let periods =
+        MechanismPeriodMap { before: parameter_periods.clone(), after: parameter_periods };
+    let decomposition = result.decompose_reference(&request, &periods, ctx).unwrap();
+    let expected = result.point[3]
+        .means
+        .iter()
+        .zip(&result.point[0].means)
+        .map(|(a, b)| (a - b) / horizon as f64)
+        .sum::<f64>();
+    assert!((decomposition.point.total - expected).abs() < 1e-10);
+    assert!((decomposition.point.shapley[0] - expected).abs() < 1e-10);
+    for j in 1..4 {
+        assert!(decomposition.point.shapley[j].abs() < 1e-10);
+    }
+    for (draw, parent) in decomposition.draws.iter().zip(&result.draws) {
+        assert_eq!(draw.is_some(), parent.is_some());
+        if let Some(draw) = draw {
+            assert!((draw.shapley.iter().sum::<f64>() - draw.total).abs() < 1e-10);
+        }
+    }
+    let bytes = result.export(ctx).unwrap();
+    let independent =
+        antecedent_io::joint_panel_artifact::consume_panel_execution(&bytes, ctx).unwrap();
+    let replay = independent.program().decompose_reference(&request, &periods, ctx).unwrap();
+    assert_eq!(decomposition.point, replay.point);
+    assert_eq!(decomposition.draws, replay.draws);
+    assert_eq!(result.prepared().fits_performed(), 1);
+}
+
+#[test]
+fn static_full_procedure_bootstrap_decomposition_executes_and_replays_publicly() {
+    use antecedent::analysis::joint_panel::{JointPanelFunctional, joint_panel_target};
+    use antecedent_core::{InferenceSelection, ScientificWorldId};
+    let ctx = cached_context(20261024);
+    let data = fixture::source_static();
+    let mut request =
+        fixture::request(&data, false, PanelInference::FrequentistBootstrap { draws: 3 });
+    request.lag_order = 0;
+    request.target = joint_panel_target(
+        data.schema(),
+        &request.columns,
+        0,
+        &request.worlds,
+        JointPanelFunctional::Interaction {
+            joint: ScientificWorldId::from_raw(3),
+            a_at_reference: ScientificWorldId::from_raw(1),
+            b_at_reference: ScientificWorldId::from_raw(2),
+            reference: ScientificWorldId::from_raw(0),
+        },
+        InferenceSelection::Frequentist,
+    )
+    .unwrap();
+    let prepared = Study::prepare_joint_panel(data, request, &ctx).unwrap();
+    let result = prepared.estimate(&ctx).unwrap();
+    let JointPanelFit::Invariant(fit) = &result.fit else {
+        panic!("invariant bootstrap");
+    };
+    assert!(fit.diagnostics.optimizer_converged, "{:?}", fit.diagnostics);
+    assert_eq!(fit.draws.len(), 3);
+    assert!(
+        fit.draws.iter().any(Option::is_some),
+        "full-procedure bootstrap needs successful refits"
+    );
+    assert!(fit.diagnostics.uncertainty.contains("parametric bootstrap"));
+    exercise_reference_decomposition(&result, &ctx);
 }
 
 #[test]
@@ -77,6 +179,7 @@ fn actual_bayesian_panel_fit_preserves_mixing_diagnostics_and_shared_draw_axes()
     assert_eq!(prepared.estimate(&ctx).unwrap().point, result.point);
     assert_eq!(prepared.fits_performed(), 1);
     assert!(!prepared.inspect().identification.is_identified_claim());
+    exercise_reference_decomposition(&result, &ctx);
     experiment_chain::exercise(&prepared, &result, &ctx);
 }
 
@@ -268,6 +371,7 @@ fn temporal_panel_bootstrap_reruns_mechanism_selection_per_replicate() {
     let successful = fit.draws.iter().flatten().count();
     assert!(successful > 0, "bootstrap must retain successful replicates");
     assert_eq!(selected, successful, "every retained replicate records its own selected model");
+    exercise_reference_decomposition(&result, &ctx);
 }
 
 fn assert_fresh_panel_replay(
