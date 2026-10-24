@@ -15,6 +15,7 @@ reported; the harness never selects the fastest run and never writes a measureme
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import hashlib
 import json
 import sys
@@ -51,7 +52,10 @@ def arguments(description: str) -> argparse.Namespace:
 def require_build(role: str) -> str:
     """The installed build must match the role: control is v2.4.1, candidate is not."""
     version = str(antecedent.__version__)
-    frozen = version.startswith(PREDECESSOR)
+    # The development branch keeps the predecessor's version string until release, so the
+    # current build is told apart by a module only it ships.
+    current = importlib.util.find_spec("antecedent.host") is not None
+    frozen = version.startswith(PREDECESSOR) and not current
     if role == "control" and not frozen:
         sys.exit(f"role control needs the published {PREDECESSOR} build, found {version}")
     if role == "candidate" and frozen:

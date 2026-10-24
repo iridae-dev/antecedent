@@ -100,7 +100,13 @@ def main() -> None:
         ),
         section,
         fields,
-        required=("policy_value_interval", "incremental_value_interval", "prediction_ownership"),
+        # The 95% intervals are published only inside a measured coverage record; the row-score
+        # standard errors are the uncertainty the section always produces.
+        required=(
+            "policy_value_standard_error",
+            "incremental_value_standard_error",
+            "prediction_ownership",
+        ),
     )
 
 
