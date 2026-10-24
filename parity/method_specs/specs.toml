@@ -746,7 +746,7 @@ provenance = [
   "discovery.class_posterior",
   "discovery.graph_mcmc",
 ]
-api_review = "parity/public_api/antecedent-discovery.txt: 39 of 39 public items reviewed"
+api_review = "parity/public_api/antecedent-discovery.txt: 39 of 42 public items reviewed"
 identifying_result = "Discover"
 assumptions = "the identification premises of Discover on the recorded route; the module documents no further premise"
 sampling_units = "tabular rows; methods=pc,fci,rfci,ges,direct_lingam,notears (frequentist) and exact_dag_posterior,exact_dag_marginals,order_mcmc,structure_mcmc,ci_screened_posterior (Bayesian); bootstrap_stability over a frequentist method (independent rows) and class_posterior over a DAG or bounded-lag template posterior; order_mcmc under the Laplace-noise score; exact_pag_posterior over the Gaussian maximal ancestral graphs of at most four variables and pag_mcmc over two to eight"
@@ -864,8 +864,8 @@ gap = "none"
 route = "closed.AverageEffect.TemporalCpdag"
 target = "AverageEffect"
 review_status = "admitted"
-admission = "licensed"
-decision_basis = "licensed per the counterpart inventory; execution crates/antecedent/tests/lag_zero_average_effect.rs; consumer crates/antecedent/src/analysis/query_license.rs; uncertainty analytic (estimator_records)"
+admission = "executing_unlicensed"
+decision_basis = "executing_unlicensed per the counterpart inventory; execution crates/antecedent/tests/lag_zero_average_effect.rs; consumer crates/antecedent/src/analysis/query_license.rs; uncertainty design_aware_resampling (declared_and_corroborated)"
 provenance = [
   "not_applicable: assembles the lag-zero AverageEffect study from the temporal linear adjustment and its Bayesian counterpart; no estimator of its own",
 ]
@@ -889,8 +889,8 @@ gap = "none"
 route = "closed.AverageEffect.TemporalCpdag"
 target = "AverageEffect"
 review_status = "admitted"
-admission = "licensed"
-decision_basis = "licensed per the counterpart inventory; execution crates/antecedent/tests/lag_zero_average_effect.rs; consumer crates/antecedent/src/analysis/query_license.rs; uncertainty design_aware_resampling (asserted_in_test)"
+admission = "executing_unlicensed"
+decision_basis = "executing_unlicensed per the counterpart inventory; execution crates/antecedent/tests/lag_zero_average_effect.rs; consumer crates/antecedent/src/analysis/query_license.rs; uncertainty design_aware_resampling (declared_and_corroborated)"
 provenance = [
   "not_applicable: assembles the lag-zero AverageEffect study from the temporal linear adjustment and its Bayesian counterpart; no estimator of its own",
 ]
@@ -1584,7 +1584,7 @@ decision_basis = "licensed per the counterpart inventory; execution crates/antec
 provenance = [
   "estimate.bayesian_temporal_mediation",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 5 of 5 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 5 of 6 public items reviewed"
 identifying_result = "TemporalMediationEffect identified by temporal.mediation"
 assumptions = "the identification premises of TemporalMediationEffect on the recorded route; the module documents no further premise"
 sampling_units = "ordered observations of the declared series or panel; serial dependence is handled by block resampling or block weights"
@@ -3220,7 +3220,7 @@ provenance = [
   "stats.response.local_polynomial",
   "support.coordinate",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 19 of 20 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 19 of 23 public items reviewed"
 identifying_result = "InterventionResponse identified by response.backdoor"
 assumptions = "Least-squares nuisances require finite outcome moments; a heavy-tailed outcome is reported on the support diagnostic axis rather than by demoting overlap or matrix-cell licensing."
 sampling_units = "Complete-observation estimators for continuous causal responses."
@@ -3425,7 +3425,7 @@ decision_basis = "licensed per the counterpart inventory; execution crates/antec
 provenance = [
   "attribution.basic",
 ]
-api_review = "parity/public_api/antecedent-attribution.txt: 7 of 7 public items reviewed"
+api_review = "parity/public_api/antecedent-attribution.txt: 7 of 8 public items reviewed"
 identifying_result = "AnomalyAttribution"
 assumptions = "ChangeAttribution.Dag is the same pattern. intrinsic_influence is execution_only (whole-procedure bootstrap interval, uncalibrated). MechanismChange and UnitChange are execution_only and off-axis."
 sampling_units = "A density is not a probability: it is unbounded, it carries the units of 1/y, and it moves under any rescaling of the target."
@@ -3450,7 +3450,7 @@ decision_basis = "licensed per the counterpart inventory; execution crates/antec
 provenance = [
   "attribution.basic",
 ]
-api_review = "parity/public_api/antecedent-attribution.txt: 7 of 7 public items reviewed"
+api_review = "parity/public_api/antecedent-attribution.txt: 7 of 8 public items reviewed"
 identifying_result = "AnomalyAttribution"
 assumptions = "the identification premises of AnomalyAttribution on the recorded route; the module documents no further premise"
 sampling_units = "A density is not a probability: it is unbounded, it carries the units of 1/y, and it moves under any rescaling of the target."
@@ -3475,7 +3475,7 @@ decision_basis = "licensed per the counterpart inventory; execution crates/antec
 provenance = [
   "attribution.basic",
 ]
-api_review = "parity/public_api/antecedent-attribution.txt: 7 of 7 public items reviewed"
+api_review = "parity/public_api/antecedent-attribution.txt: 7 of 8 public items reviewed"
 identifying_result = "AnomalyAttribution"
 assumptions = "Closed Admg/Cpdag/Pag/TemporalAdmg: engine has no lagged latent slice. That is a target boundary."
 sampling_units = "A density is not a probability: it is unbounded, it carries the units of 1/y, and it moves under any rescaling of the target."
@@ -3500,7 +3500,7 @@ decision_basis = "licensed per the counterpart inventory; execution crates/antec
 provenance = [
   "attribution.basic",
 ]
-api_review = "parity/public_api/antecedent-attribution.txt: 7 of 7 public items reviewed"
+api_review = "parity/public_api/antecedent-attribution.txt: 7 of 8 public items reviewed"
 identifying_result = "AnomalyAttribution"
 assumptions = "the identification premises of AnomalyAttribution on the recorded route; the module documents no further premise"
 sampling_units = "A density is not a probability: it is unbounded, it carries the units of 1/y, and it moves under any rescaling of the target."
@@ -3866,7 +3866,7 @@ provenance = [
   "estimate.functional_distribution",
   "estimate.functional_effect",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 37 of 37 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 37 of 39 public items reviewed"
 identifying_result = "AverageEffect identified by general.id"
 assumptions = "The estimators here evaluate the functional at each observed value r of its free variables and report Σ_r P̂(r) θ̂(r) / Σ_r P̂(r) over the values at which every required empirical cell exists."
 sampling_units = "P̂(r) comes from the same row law as the other factors, so bootstrap and Bayesian-bootstrap draws reweight it consistently."
@@ -3891,7 +3891,7 @@ provenance = [
   "estimate.functional_distribution",
   "estimate.functional_effect",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 37 of 37 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 37 of 39 public items reviewed"
 identifying_result = "AverageEffect"
 assumptions = "The estimators here evaluate the functional at each observed value r of its free variables and report Σ_r P̂(r) θ̂(r) / Σ_r P̂(r) over the values at which every required empirical cell exists."
 sampling_units = "P̂(r) comes from the same row law as the other factors, so bootstrap and Bayesian-bootstrap draws reweight it consistently."
@@ -3917,7 +3917,7 @@ provenance = [
   "estimate.functional_distribution",
   "estimate.functional_effect",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 37 of 37 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 37 of 39 public items reviewed"
 identifying_result = "TemporalAdmg functional.effect is the contemporaneous projection, not Pulse or Sustained"
 assumptions = "Same projection note on InterventionResponse.TemporalAdmg and ResponseCurve.TemporalAdmg."
 sampling_units = "P̂(r) comes from the same row law as the other factors, so bootstrap and Bayesian-bootstrap draws reweight it consistently."
@@ -4371,7 +4371,7 @@ decision_basis = "executing_unlicensed per the counterpart inventory; execution 
 provenance = [
   "state.ols_refresh",
 ]
-api_review = "parity/public_api/antecedent-state.txt: 25 of 25 public items reviewed"
+api_review = "parity/public_api/antecedent-state.txt: 25 of 27 public items reviewed"
 identifying_result = "LinearModelRefresh"
 assumptions = "the identification premises of LinearModelRefresh on the recorded route; the module documents no further premise"
 sampling_units = "independent rows of the declared sample; the study's sampling design may declare clusters or weights"
@@ -4421,7 +4421,7 @@ decision_basis = "executing_unlicensed per the counterpart inventory; execution 
 provenance = [
   "state.period_refresh",
 ]
-api_review = "parity/public_api/antecedent.txt: 38 of 38 public items reviewed"
+api_review = "parity/public_api/antecedent.txt: 38 of 41 public items reviewed"
 identifying_result = "Both are one target: the lag coefficients and the innovation variance of one mechanism."
 assumptions = "Route unlisted."
 sampling_units = "A new observation period is applied with the products-that-read-it rules of antecedent_estimate::temporal_refresh::refresh_survival: the model reads the period unless the caller declared the mechanism invariant across periods (MechanismStanding::DeclaredInvariant); it always reads the population, the cadence, the horizon, the initial law, the lag alignment, the intervention history and the regimes."
@@ -4446,7 +4446,7 @@ decision_basis = "executing_unlicensed per the counterpart inventory; execution 
 provenance = [
   "state.period_refresh",
 ]
-api_review = "parity/public_api/antecedent.txt: 38 of 38 public items reviewed"
+api_review = "parity/public_api/antecedent.txt: 38 of 41 public items reviewed"
 identifying_result = "Both are one target: the lag coefficients and the innovation variance of one mechanism."
 assumptions = "The earlier posterior is never the prior of a period whose mechanism was not declared the same, because that would assume the stationarity a temporal index does not give; a period that overlaps the summarized one, or reuses its snapshot, is refused: the same observations would enter twice. The gap is not filled and not assumed stationary: the rows that would span it are not formed, and the new period contributes its own rows only."
 sampling_units = "A new observation period is applied with the products-that-read-it rules of antecedent_estimate::temporal_refresh::refresh_survival: the model reads the period unless the caller declared the mechanism invariant across periods (MechanismStanding::DeclaredInvariant); it always reads the population, the cadence, the horizon, the initial law, the lag alignment, the intervention history and the regimes."
@@ -4706,7 +4706,7 @@ decision_basis = "licensed per the counterpart inventory; execution crates/antec
 provenance = [
   "estimate.response.bayesian",
 ]
-api_review = "parity/public_api/antecedent.txt: 36 of 36 public items reviewed"
+api_review = "parity/public_api/antecedent.txt: 37 of 37 public items reviewed"
 identifying_result = "Delta_AB = E[Y(a,b)] - E[Y(a,0)] - E[Y(0,b)] + E[Y(0,0)], one functional"
 assumptions = "0 is a declared reference intervention. The four worlds share population, outcome, units, conditioning, and reference regime. Mediation keeps its own cross-world premises."
 sampling_units = "Each query draws its own crossfit_fold_plan from that shared seed."
@@ -4832,7 +4832,7 @@ route = "method.inference.temporal.frequentist"
 target = "finite-lag group-time response"
 review_status = "not_admitted"
 admission = "not_admitted"
-decision_basis = "executing_unlicensed per the counterpart inventory; reconciled from the children and route manifest by scripts/reconcile_method_specs.py"
+decision_basis = "executing_unlicensed per the counterpart inventory; execution crates/antecedent/tests/joint_panel_workflow.rs::actual_frequentist_panel_fit_retains_aligned_worlds_and_reuses_after_builder_disposal; consumer crates/antecedent-io/src/joint_panel_artifact.rs::FrozenPanelFit; uncertainty design_aware_resampling (declared_and_corroborated)"
 provenance = [
   "not_applicable: no method executes on this axis",
 ]
@@ -4858,7 +4858,7 @@ route = "method.inference.temporal.bayesian"
 target = "finite-lag group-time response"
 review_status = "not_admitted"
 admission = "not_admitted"
-decision_basis = "executing_unlicensed per the counterpart inventory; reconciled from the children and route manifest by scripts/reconcile_method_specs.py"
+decision_basis = "executing_unlicensed per the counterpart inventory; execution crates/antecedent/tests/joint_panel_workflow.rs::actual_bayesian_panel_fit_preserves_mixing_diagnostics_and_shared_draw_axes; consumer crates/antecedent-io/src/joint_panel_artifact.rs::FrozenPanelFit; uncertainty posterior (declared_and_corroborated)"
 provenance = [
   "not_applicable: no method executes on this axis",
 ]
@@ -4884,7 +4884,7 @@ route = "method.family.static.frequentist"
 target = "L=0 Hill, group-specific saturation and spatial-residual response"
 review_status = "not_admitted"
 admission = "not_admitted"
-decision_basis = "executing_unlicensed per the counterpart inventory; reconciled from the children and route manifest by scripts/reconcile_method_specs.py"
+decision_basis = "executing_unlicensed per the counterpart inventory; execution crates/antecedent-estimate/src/joint_panel/family_tests.rs::static_hill_and_group_classes_recover_curves_and_beat_shared_saturation; consumer crates/antecedent-io/src/joint_panel_artifact.rs::FrozenPanelFit; uncertainty analytic (declared_and_corroborated)"
 provenance = [
   "not_applicable: no method executes on this axis",
 ]
@@ -4910,7 +4910,7 @@ route = "method.family.static.bayesian"
 target = "L=0 Hill, group-specific saturation and spatial-residual response"
 review_status = "not_admitted"
 admission = "not_admitted"
-decision_basis = "executing_unlicensed per the counterpart inventory; reconciled from the children and route manifest by scripts/reconcile_method_specs.py"
+decision_basis = "executing_unlicensed per the counterpart inventory; execution crates/antecedent-estimate/src/joint_panel/family_tests.rs::static_hill_and_group_classes_recover_curves_and_beat_shared_saturation; consumer crates/antecedent-io/src/joint_panel_artifact.rs::FrozenPanelFit; uncertainty posterior (declared_and_corroborated)"
 provenance = [
   "not_applicable: no method executes on this axis",
 ]
@@ -4936,7 +4936,7 @@ route = "method.family.temporal.frequentist"
 target = "finite-lag group-time response under geometric adstock, Hill and group-specific saturation"
 review_status = "not_admitted"
 admission = "not_admitted"
-decision_basis = "executing_unlicensed per the counterpart inventory; reconciled from the children and route manifest by scripts/reconcile_method_specs.py"
+decision_basis = "executing_unlicensed per the counterpart inventory; execution crates/antecedent-estimate/src/joint_panel/family_tests.rs::geometric_hill_family_recovers_the_response_curves_of_a_simulated_panel; consumer crates/antecedent-io/src/joint_panel_artifact.rs::FrozenPanelFit; uncertainty design_aware_resampling (declared_and_corroborated)"
 provenance = [
   "not_applicable: no method executes on this axis",
 ]
@@ -4962,7 +4962,7 @@ route = "method.family.temporal.bayesian"
 target = "finite-lag group-time response under geometric adstock, Hill and group-specific saturation"
 review_status = "not_admitted"
 admission = "not_admitted"
-decision_basis = "executing_unlicensed per the counterpart inventory; reconciled from the children and route manifest by scripts/reconcile_method_specs.py"
+decision_basis = "executing_unlicensed per the counterpart inventory; execution crates/antecedent-estimate/src/joint_panel/time_varying.rs::broader_family_posterior_selects_jointly_with_the_family_coordinates_and_group_axes; consumer crates/antecedent-io/src/joint_panel_artifact.rs::FrozenPanelFit; uncertainty posterior (declared_and_corroborated)"
 provenance = [
   "not_applicable: no method executes on this axis",
 ]

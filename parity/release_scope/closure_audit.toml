@@ -4,9 +4,9 @@
 # (python3 scripts/closure_audit.py --require-zero).
 
 schema = 1
-missing_attempts = 152
+missing_attempts = 140
 missing_consumers = 0
-adjusted_claims = 210
+adjusted_claims = 204
 unresolved_mandatorys = 0
 families = 28
 
@@ -140,13 +140,13 @@ gaps = "none = 4"
 id = "X02"
 children = 4
 unresolved_evidence = 0
-gaps = "implementation = 2, temporal-identification = 2"
+gaps = "implementation = 2, validation = 2"
 
 [[family]]
 id = "X02.broader"
 children = 4
 unresolved_evidence = 0
-gaps = "theory = 4"
+gaps = "validation = 4"
 
 [[family]]
 id = "X03"
@@ -177,48 +177,6 @@ id = "X06"
 children = 4
 unresolved_evidence = 0
 gaps = "target = 2, validation = 2"
-
-[[missing_attempt]]
-id = "X02.temporal.frequentist"
-method = "X02"
-side = "temporal.frequentist"
-route = "unlisted"
-next_attempt = "prove identification under the declared temporal assumptions or record the counterexample as the boundary"
-
-[[missing_attempt]]
-id = "X02.temporal.bayesian"
-method = "X02"
-side = "temporal.bayesian"
-route = "unlisted"
-next_attempt = "prove identification under the declared temporal assumptions or record the counterexample as the boundary"
-
-[[missing_attempt]]
-id = "X02.broader.static.frequentist"
-method = "X02.broader"
-side = "static.frequentist"
-route = "unlisted"
-next_attempt = "derive the identification result for this counterpart or record the boundary proof"
-
-[[missing_attempt]]
-id = "X02.broader.static.bayesian"
-method = "X02.broader"
-side = "static.bayesian"
-route = "unlisted"
-next_attempt = "derive the identification result for this counterpart or record the boundary proof"
-
-[[missing_attempt]]
-id = "X02.broader.temporal.frequentist"
-method = "X02.broader"
-side = "temporal.frequentist"
-route = "unlisted"
-next_attempt = "derive the identification result for this counterpart or record the boundary proof"
-
-[[missing_attempt]]
-id = "X02.broader.temporal.bayesian"
-method = "X02.broader"
-side = "temporal.bayesian"
-route = "unlisted"
-next_attempt = "derive the identification result for this counterpart or record the boundary proof"
 
 [[missing_attempt]]
 id = "X03.temporal.frequentist"
@@ -386,48 +344,6 @@ id = "closed.AverageDerivative.TemporalAdmg#temporal.bayesian"
 method = "AverageDerivative"
 side = "temporal.bayesian"
 route = "closed.AverageDerivative.TemporalAdmg"
-next_attempt = "identify the target on this graph class and lower it through the compiler, or keep the typed refusal with the boundary proof"
-
-[[missing_attempt]]
-id = "closed.AverageEffect.TemporalCpdag#temporal.frequentist"
-method = "AverageEffect"
-side = "temporal.frequentist"
-route = "closed.AverageEffect.TemporalCpdag"
-next_attempt = "identify the target on this graph class and lower it through the compiler, or keep the typed refusal with the boundary proof"
-
-[[missing_attempt]]
-id = "closed.AverageEffect.TemporalDag#temporal.frequentist"
-method = "AverageEffect"
-side = "temporal.frequentist"
-route = "closed.AverageEffect.TemporalDag"
-next_attempt = "identify the target on this graph class and lower it through the compiler, or keep the typed refusal with the boundary proof"
-
-[[missing_attempt]]
-id = "closed.AverageEffect.TemporalPag#temporal.frequentist"
-method = "AverageEffect"
-side = "temporal.frequentist"
-route = "closed.AverageEffect.TemporalPag"
-next_attempt = "identify the target on this graph class and lower it through the compiler, or keep the typed refusal with the boundary proof"
-
-[[missing_attempt]]
-id = "closed.AverageEffect.TemporalCpdag#temporal.bayesian"
-method = "AverageEffect"
-side = "temporal.bayesian"
-route = "closed.AverageEffect.TemporalCpdag"
-next_attempt = "identify the target on this graph class and lower it through the compiler, or keep the typed refusal with the boundary proof"
-
-[[missing_attempt]]
-id = "closed.AverageEffect.TemporalDag#temporal.bayesian"
-method = "AverageEffect"
-side = "temporal.bayesian"
-route = "closed.AverageEffect.TemporalDag"
-next_attempt = "identify the target on this graph class and lower it through the compiler, or keep the typed refusal with the boundary proof"
-
-[[missing_attempt]]
-id = "closed.AverageEffect.TemporalPag#temporal.bayesian"
-method = "AverageEffect"
-side = "temporal.bayesian"
-route = "closed.AverageEffect.TemporalPag"
 next_attempt = "identify the target on this graph class and lower it through the compiler, or keep the typed refusal with the boundary proof"
 
 [[missing_attempt]]
@@ -1550,49 +1466,49 @@ next_attempt = "build the missing route through the compiler with the same uncer
 id = "X02.temporal.frequentist"
 method = "X02"
 side = "temporal.frequentist"
-status = "closed_with_next_attempt"
-reason = "Whole-procedure calibration and release acceptance; arbitrary observational temporal support is not established by fitting."
-next_attempt = "prove identification under the declared temporal assumptions or record the counterexample as the boundary"
+status = "executing_unlicensed"
+reason = "Whole-procedure calibration and release acceptance. Identification is design-based: the declared whole-program randomized assignment earns each world, a per-period randomization and a confounded panel are refused, and the fitted mechanism only carries parameter uncertainty inside the worlds."
+next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
 id = "X02.temporal.bayesian"
 method = "X02"
 side = "temporal.bayesian"
-status = "closed_with_next_attempt"
-reason = "Whole-procedure calibration and release acceptance; arbitrary observational temporal support is not established by fitting."
-next_attempt = "prove identification under the declared temporal assumptions or record the counterexample as the boundary"
+status = "executing_unlicensed"
+reason = "Whole-procedure calibration and release acceptance. Identification is design-based: the declared whole-program randomized assignment earns each world, a per-period randomization and a confounded panel are refused, and the fitted mechanism only carries parameter uncertainty inside the worlds."
+next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
 id = "X02.broader.static.frequentist"
 method = "X02.broader"
 side = "static.frequentist"
-status = "closed_with_next_attempt"
-reason = "broader mechanism families have no identification proof and no module"
-next_attempt = "derive the identification result for this counterpart or record the boundary proof"
+status = "executing_unlicensed"
+reason = "Whole-procedure calibration and release acceptance. The family changes the fitted mechanism only; causal support of a world comes from the declared whole-program randomized assignment, never from the family or its fit."
+next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
 id = "X02.broader.static.bayesian"
 method = "X02.broader"
 side = "static.bayesian"
-status = "closed_with_next_attempt"
-reason = "broader mechanism families have no identification proof and no module"
-next_attempt = "derive the identification result for this counterpart or record the boundary proof"
+status = "executing_unlicensed"
+reason = "Whole-procedure calibration and release acceptance. The family changes the fitted mechanism only; causal support of a world comes from the declared whole-program randomized assignment, never from the family or its fit."
+next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
 id = "X02.broader.temporal.frequentist"
 method = "X02.broader"
 side = "temporal.frequentist"
-status = "closed_with_next_attempt"
-reason = "broader mechanism families have no identification proof and no module"
-next_attempt = "derive the identification result for this counterpart or record the boundary proof"
+status = "executing_unlicensed"
+reason = "Whole-procedure calibration and release acceptance. The family changes the fitted mechanism only; causal support of a world comes from the declared whole-program randomized assignment, never from the family or its fit."
+next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
 id = "X02.broader.temporal.bayesian"
 method = "X02.broader"
 side = "temporal.bayesian"
-status = "closed_with_next_attempt"
-reason = "broader mechanism families have no identification proof and no module"
-next_attempt = "derive the identification result for this counterpart or record the boundary proof"
+status = "executing_unlicensed"
+reason = "Whole-procedure calibration and release acceptance. The family changes the fitted mechanism only; causal support of a world comes from the declared whole-program randomized assignment, never from the family or its fit."
+next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
 id = "X03.temporal.frequentist"
@@ -1872,54 +1788,6 @@ method = "AverageDerivative"
 side = "temporal.bayesian"
 status = "closed_with_next_attempt"
 reason = "Denoting coordinates refused: 18. n_a coordinates: 0. Derivatives require a supplied static Dag."
-next_attempt = "identify the target on this graph class and lower it through the compiler, or keep the typed refusal with the boundary proof"
-
-[[adjusted_claim]]
-id = "closed.AverageEffect.TemporalCpdag#temporal.frequentist"
-method = "AverageEffect"
-side = "temporal.frequentist"
-status = "closed_with_next_attempt"
-reason = "Executing unlicensed coordinates (12): explicit and accepted, Frequentist and Bayesian, validation none/cheap/full (the default suite downgrades to none; an explicit cheap/full runs the PulseEffect refuter state). graph_posterior coordinates refused (next attempt: PulseEffect over the graph posterior). The result keeps support status refused and carries estimate.temporal_class.lag_zero_average_effect. Effect modifiers, a non-mean functional and a population other than AllObserved are refused. Python: analyze(series, graph=TemporalDag|TemporalCpdag|TemporalPag, query=AverageEffect(x, y))."
-next_attempt = "identify the target on this graph class and lower it through the compiler, or keep the typed refusal with the boundary proof"
-
-[[adjusted_claim]]
-id = "closed.AverageEffect.TemporalDag#temporal.frequentist"
-method = "AverageEffect"
-side = "temporal.frequentist"
-status = "closed_with_next_attempt"
-reason = "Executing unlicensed coordinates (12): explicit and accepted, Frequentist and Bayesian, validation none/cheap/full (the default suite downgrades to none; an explicit cheap/full runs the PulseEffect refuter state). graph_posterior coordinates refused (next attempt: PulseEffect over the graph posterior). The result keeps support status refused and carries estimate.temporal_class.lag_zero_average_effect. Effect modifiers, a non-mean functional and a population other than AllObserved are refused. Python: analyze(series, graph=TemporalDag|TemporalCpdag|TemporalPag, query=AverageEffect(x, y))."
-next_attempt = "identify the target on this graph class and lower it through the compiler, or keep the typed refusal with the boundary proof"
-
-[[adjusted_claim]]
-id = "closed.AverageEffect.TemporalPag#temporal.frequentist"
-method = "AverageEffect"
-side = "temporal.frequentist"
-status = "closed_with_next_attempt"
-reason = "Executing unlicensed coordinates (12): explicit and accepted, Frequentist and Bayesian, validation none/cheap/full (the default suite downgrades to none; an explicit cheap/full runs the PulseEffect refuter state). graph_posterior coordinates refused (next attempt: PulseEffect over the graph posterior). The result keeps support status refused and carries estimate.temporal_class.lag_zero_average_effect. Effect modifiers, a non-mean functional and a population other than AllObserved are refused. Python: analyze(series, graph=TemporalDag|TemporalCpdag|TemporalPag, query=AverageEffect(x, y))."
-next_attempt = "identify the target on this graph class and lower it through the compiler, or keep the typed refusal with the boundary proof"
-
-[[adjusted_claim]]
-id = "closed.AverageEffect.TemporalCpdag#temporal.bayesian"
-method = "AverageEffect"
-side = "temporal.bayesian"
-status = "closed_with_next_attempt"
-reason = "Executing unlicensed coordinates (12): explicit and accepted, Frequentist and Bayesian, validation none/cheap/full (the default suite downgrades to none; an explicit cheap/full runs the PulseEffect refuter state). graph_posterior coordinates refused (next attempt: PulseEffect over the graph posterior). The result keeps support status refused and carries estimate.temporal_class.lag_zero_average_effect. Effect modifiers, a non-mean functional and a population other than AllObserved are refused. Python: analyze(series, graph=TemporalDag|TemporalCpdag|TemporalPag, query=AverageEffect(x, y))."
-next_attempt = "identify the target on this graph class and lower it through the compiler, or keep the typed refusal with the boundary proof"
-
-[[adjusted_claim]]
-id = "closed.AverageEffect.TemporalDag#temporal.bayesian"
-method = "AverageEffect"
-side = "temporal.bayesian"
-status = "closed_with_next_attempt"
-reason = "Executing unlicensed coordinates (12): explicit and accepted, Frequentist and Bayesian, validation none/cheap/full (the default suite downgrades to none; an explicit cheap/full runs the PulseEffect refuter state). graph_posterior coordinates refused (next attempt: PulseEffect over the graph posterior). The result keeps support status refused and carries estimate.temporal_class.lag_zero_average_effect. Effect modifiers, a non-mean functional and a population other than AllObserved are refused. Python: analyze(series, graph=TemporalDag|TemporalCpdag|TemporalPag, query=AverageEffect(x, y))."
-next_attempt = "identify the target on this graph class and lower it through the compiler, or keep the typed refusal with the boundary proof"
-
-[[adjusted_claim]]
-id = "closed.AverageEffect.TemporalPag#temporal.bayesian"
-method = "AverageEffect"
-side = "temporal.bayesian"
-status = "closed_with_next_attempt"
-reason = "Executing unlicensed coordinates (12): explicit and accepted, Frequentist and Bayesian, validation none/cheap/full (the default suite downgrades to none; an explicit cheap/full runs the PulseEffect refuter state). graph_posterior coordinates refused (next attempt: PulseEffect over the graph posterior). The result keeps support status refused and carries estimate.temporal_class.lag_zero_average_effect. Effect modifiers, a non-mean functional and a population other than AllObserved are refused. Python: analyze(series, graph=TemporalDag|TemporalCpdag|TemporalPag, query=AverageEffect(x, y))."
 next_attempt = "identify the target on this graph class and lower it through the compiler, or keep the typed refusal with the boundary proof"
 
 [[adjusted_claim]]

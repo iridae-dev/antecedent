@@ -151,6 +151,11 @@ for _design in (
     DECLARED_KIND[f"bayesian.temporal_design.excursion.{_design}"] = "posterior"
 DECLARED_KIND["temporal_design.excursion.quantile"] = "design_aware_resampling"
 DECLARED_KIND["bayesian.temporal_design.excursion.quantile"] = "posterior"
+# The lag-0 average effect on a temporal graph reads the pulse at offset 0: its frequentist interval
+# is the circular-block bootstrap of the pulse and its Bayesian reading is the per-completion
+# posterior, so the route's procedure is the block resampling.
+for _class in ("TemporalDag", "TemporalCpdag", "TemporalPag"):
+    DECLARED_KIND[f"closed.AverageEffect.{_class}"] = "design_aware_resampling"
 DECLARED_KIND["temporal_design.regime_survival"] = "design_aware_resampling"
 DECLARED_KIND["bayesian.temporal_design.regime_survival"] = "posterior"
 # Public methods that have no route record: reached through a facade or a library entry. Keyed by

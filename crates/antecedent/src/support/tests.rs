@@ -1239,7 +1239,7 @@ fn temporal_admg_contrasts_execute_unlicensed_at_validation_none_only() {
     assert!(super::executes_unlicensed(mediation));
     let posterior =
         cell("TemporalMediationEffect", "TemporalAdmg", "graph_posterior", "Frequentist", "none");
-    assert!(!super::executes_unlicensed(posterior));
+    assert!(super::executes_unlicensed(posterior), "{posterior:?}");
     for validation in ["cheap", "full"] {
         let c = cell("TemporalMediationEffect", "TemporalAdmg", "explicit", "Frequentist", validation);
         assert!(!super::executes_unlicensed(c), "{c:?}");

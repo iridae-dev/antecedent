@@ -1940,6 +1940,9 @@ struct Observed {
     analytic_se: f64,
     se_kind: Option<AnalyticSeKind>,
     estimator: String,
+    /// First-stage F statistic and Anderson-Rubin set `(lower, upper, level)`, when published.
+    first_stage_f: Option<f64>,
+    anderson_rubin: Option<(f64, f64, f64)>,
 }
 
 fn observe(setup: CellSetup) -> Result<Observed, String> {
@@ -1961,6 +1964,16 @@ fn observe(setup: CellSetup) -> Result<Observed, String> {
         analytic_se,
         se_kind,
         estimator: result.logical_plan.estimator.as_deref().unwrap_or("-").to_owned(),
+        first_stage_f: result
+            .estimate
+            .as_effect()
+            .and_then(|e| e.diagnostics.first_stage.as_ref())
+            .map(|d| d.f_statistic),
+        anderson_rubin: result
+            .estimate
+            .as_effect()
+            .and_then(|e| e.diagnostics.first_stage.as_ref())
+            .and_then(|d| d.anderson_rubin),
     })
 }
 
@@ -2151,6 +2164,30 @@ fn the_wald_and_two_stage_iv_routes_match_the_instrumental_variable_algebra() {
     let szy: f64 = (0..n).map(|i| (z[i] - mz) * (y[i] - my)).sum();
     let szt: f64 = (0..n).map(|i| (z[i] - mz) * (t[i] - mt)).sum();
     let wald = szy / szt;
+    let (syy, syt, stt): (f64, f64, f64) = (
+        (0..n).map(|i| (y[i] - my) * (y[i] - my)).sum(),
+        (0..n).map(|i| (y[i] - my) * (t[i] - mt)).sum(),
+        (0..n).map(|i| (t[i] - mt) * (t[i] - mt)).sum(),
+    );
+    let szz: f64 = (0..n).map(|i| (z[i] - mz) * (z[i] - mz)).sum();
+    // First stage `t ~ 1 + z`: the F statistic of the instrument.
+    let slope = szt / szz;
+    let first_stage_rss: f64 =
+        (0..n).map(|i| (t[i] - mt - slope * (z[i] - mz)).powi(2)).sum();
+    let df = n as f64 - 2.0;
+    let first_stage_f = slope * slope * szz / (first_stage_rss / df);
+    // Anderson-Rubin set at 95%: beta0 is kept when the F test of `z` in `y - beta0 t ~ 1 + z`
+    // does not reject, `df * szu^2 / szz / (suu - szu^2 / szz) <= c` with `c` the 0.95 quantile
+    // of F(1, 118) (the square of the 0.975 quantile of t(118)). That is the quadratic
+    // `(df + c) (szy - b szt)^2 - c szz (syy - 2 b syt + b^2 stt) <= 0` in `b`.
+    let critical = 1.980_272_249_272_974_f64.powi(2);
+    let q_a = (df + critical) * szt * szt - critical * szz * stt;
+    let q_b = -2.0 * (df + critical) * szy * szt + 2.0 * critical * szz * syt;
+    let q_c = (df + critical) * szy * szy - critical * szz * syy;
+    assert!(q_a > 0.0, "the fixture needs a strong instrument: a bounded set");
+    let root = (q_b * q_b - 4.0 * q_a * q_c).sqrt();
+    let (ar_lower, ar_upper) = ((-q_b - root) / (2.0 * q_a), (-q_b + root) / (2.0 * q_a));
+    assert!(ar_lower < wald && wald < ar_upper, "the set contains the Wald ratio");
     for estimator in ["iv.wald", "iv.2sls"] {
         let id = estimator.parse::<EstimatorId>().expect("estimator id");
         let cell = cell_licensing(estimator);
@@ -2165,6 +2202,19 @@ fn the_wald_and_two_stage_iv_routes_match_the_instrumental_variable_algebra() {
         // Anderson-Rubin set on the first-stage diagnostics; a Wald or bootstrap standard
         // error is withheld, so the point carries none.
         assert!(!observed.analytic_se.is_finite(), "{estimator}: {}", observed.analytic_se);
+        // The published set is the independently inverted Anderson-Rubin test.
+        let (lower, upper, level) = observed.anderson_rubin.expect("an Anderson-Rubin set");
+        assert!((level - 0.95).abs() < 1e-12, "{estimator}: level {level}");
+        assert!(
+            (lower - ar_lower).abs() < 1e-5 * (1.0 + ar_lower.abs())
+                && (upper - ar_upper).abs() < 1e-5 * (1.0 + ar_upper.abs()),
+            "{estimator}: published [{lower}, {upper}] vs independent [{ar_lower}, {ar_upper}]"
+        );
+        let f = observed.first_stage_f.expect("a first-stage F");
+        assert!(
+            (f - first_stage_f).abs() < 1e-6 * first_stage_f,
+            "{estimator}: first-stage F {f} vs {first_stage_f}"
+        );
     }
 }
 

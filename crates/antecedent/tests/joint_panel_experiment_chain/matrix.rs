@@ -18,7 +18,7 @@ pub(super) fn exercise(
     let horizon = original.request().worlds[0].program.horizon();
     let functionals = [
         JointPanelResponseFunctional::TerminalMean,
-        JointPanelResponseFunctional::WindowAverage { from: 0, until: horizon - 1 },
+        JointPanelResponseFunctional::WindowAverage { from: horizon - 3, until: horizon - 1 },
         JointPanelResponseFunctional::WeightedSum {
             coefficients: (0..horizon).map(|t| if t + 2 >= horizon { 0.5 } else { 0.0 }).collect(),
         },
@@ -91,13 +91,18 @@ fn translated_fixture(
         x.iter().zip(y).map(|(a, b)| (a - mx) * (b - my)).sum::<f64>() / n
     };
     let state_mean = mean(&states);
+    // Each translation case is its own measurement scale. The interaction contrast is flat in
+    // time once the adstock has filled, so a regime that differs only by window predicts the
+    // same observations; a regime is distinguished by its paired mapping.
+    let slope_base = 1.2 + 0.1 * translation_case as f64;
+    let intercept_base = 0.15 + 0.01 * translation_case as f64;
     let slopes = states
         .iter()
-        .map(|v| if uncertain { 1.2 + 0.04 * (v - state_mean).tanh() } else { 1.2 })
+        .map(|v| slope_base + if uncertain { 0.04 * (v - state_mean).tanh() } else { 0.0 })
         .collect::<Vec<_>>();
     let intercepts = states
         .iter()
-        .map(|v| if uncertain { 0.15 + 0.02 * (v - state_mean).tanh() } else { 0.15 })
+        .map(|v| intercept_base + if uncertain { 0.02 * (v - state_mean).tanh() } else { 0.0 })
         .collect::<Vec<_>>();
     let target = original.experiment_quantity(&functional).unwrap();
     let mut bridge =
