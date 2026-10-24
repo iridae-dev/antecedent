@@ -541,7 +541,28 @@ def main() -> None:
          "changed_inputs_refit_and_execution_policy_refuses_before_fitting"),
         ("cyclic_compiled_reuse_replay", "crates/antecedent/src/analysis/cyclic.rs",
          "common_prepared_handle_retains_fit_retargets_and_independently_replays"),
+        ("gaussian_compiled_compile_cancellation", gaussian_tests,
+         "compile_observes_cancellation_and_a_refused_compile_holds_no_lease"),
     ])
+    # The finite-discrete cells plan a supplied table under the pool, observe cancellation
+    # between plans and survive an independent consumer of the exported joint.
+    discrete = "crates/antecedent/src/analysis/finite_discrete.rs"
+    rows.extend([
+        ("discrete_supplied_table", discrete,
+         "a_supplied_table_and_its_posterior_draws_plan_to_the_hand_expectation"),
+        ("discrete_independent_consumer", discrete,
+         "the_supplied_table_survives_an_independent_consumer"),
+        ("discrete_cancellation", discrete,
+         "cancellation_stops_planning_before_and_between_plans"),
+        ("discrete_resource_refusal", discrete,
+         "a_table_the_pool_cannot_hold_is_refused_before_it_is_built"),
+    ])
+    # Layer five declares a projection and a cancellable scan for every route that reads a table.
+    rows.append(("lowered_scan_operators", "crates/antecedent/src/analysis/lowering/scan.rs",
+                 "the_scan_declares_a_projection_and_a_cancellable_scan"))
+    # An association counterpart retains its own operation, not the program-only wrapper.
+    rows.append(("association_retained_operations", "crates/antecedent/tests/association_route.rs",
+                 "every_association_counterpart_retains_its_own_operation_and_executes_its_program"))
     # Every licensed route dispatches the lowered program compile attached.
     lowered_dispatch = "crates/antecedent/tests/lowered_dispatch.rs"
     rows.extend([

@@ -3159,7 +3159,7 @@ artifact_consumer = "unlisted"
 status = "execution_only"
 owning_module = "crates/antecedent/src/analysis/execute/checked_association.rs"
 retained_operation = "association"
-retained_route_test = "crates/antecedent/tests/association_route.rs::a_temporal_association_resamples_blocks_under_the_declared_design"
+retained_route_test = "crates/antecedent/tests/association_route.rs::every_association_counterpart_retains_its_own_operation_and_executes_its_program"
 counterpart_design = "temporal"
 notes = "CausalQuery::Association (append-only tag 31); route cell AssociationTemporal lowered by crates/antecedent/src/analysis/lowering/associational.rs to a complete program keyed by the query digest; identification layer not claimed, retaining the reason code of a refused causal query when the association follows one; sealed operation association, executed only from the retained lowered program (public_builder_reentry refusal, lowered_identity stamp). The declared selection rule (association_selection_rule) picks the analysis from the outcome scale (the declared scale, else a schema binary column, else a column whose observed values are exactly 0 and 1, else a count column of non-negative integers, else continuous) and the functional: a stratified mean or probability, linear, logistic or Poisson regression, a Pearson or distance correlation, or a linear, logistic or Poisson model scored out of fold with the predictive-assessment proper scores. The claim kind is associational with identification not claimed: it is never an intervention effect, ranks no action, is refused as a causal bridge source (association_as_intervention), and carries the descriptive assumptions beside every number. Frequentist uncertainty: the Newey-West sandwich, replaced by the circular-block bootstrap standard error under the declared dependent-time-series design when bootstrap_replicates is set; held-out folds of a predictive model are consecutive blocks. Explicitly unlicensed: calibration unmeasured, no coverage record, no licensed_routes.toml row."
 
@@ -3175,7 +3175,7 @@ artifact_consumer = "unlisted"
 status = "execution_only"
 owning_module = "crates/antecedent/src/analysis/execute/checked_association.rs"
 retained_operation = "association"
-retained_route_test = "crates/antecedent/tests/association_route.rs::a_bayesian_association_is_conjugate_for_a_gaussian_outcome_and_a_bootstrap_otherwise"
+retained_route_test = "crates/antecedent/tests/association_route.rs::every_association_counterpart_retains_its_own_operation_and_executes_its_program"
 counterpart_design = "static"
 notes = "CausalQuery::Association (append-only tag 31); route cell AssociationStatic lowered by crates/antecedent/src/analysis/lowering/associational.rs to a complete program keyed by the query digest; identification layer not claimed, retaining the reason code of a refused causal query when the association follows one; sealed operation association, executed only from the retained lowered program (public_builder_reentry refusal, lowered_identity stamp). The declared selection rule (association_selection_rule) picks the analysis from the outcome scale (the declared scale, else a schema binary column, else a column whose observed values are exactly 0 and 1, else a count column of non-negative integers, else continuous) and the functional: a stratified mean or probability, linear, logistic or Poisson regression, a Pearson or distance correlation, or a linear, logistic or Poisson model scored out of fold with the predictive-assessment proper scores. The claim kind is associational with identification not claimed: it is never an intervention effect, ranks no action, is refused as a causal bridge source (association_as_intervention), and carries the descriptive assumptions beside every number. Bayesian uncertainty: Student-t marginals of a conjugate Gaussian model with a weakly informative prior scaled to the outcome, or the Bayesian bootstrap (Dirichlet row weights) for every other analysis and for a weighted study; the prior supplies no identifying premise. Explicitly unlicensed: calibration unmeasured, no coverage record, no licensed_routes.toml row."
 
@@ -3191,7 +3191,7 @@ artifact_consumer = "unlisted"
 status = "execution_only"
 owning_module = "crates/antecedent/src/analysis/execute/checked_association.rs"
 retained_operation = "association"
-retained_route_test = "crates/antecedent/tests/association_route.rs::a_bayesian_series_association_draws_block_weights"
+retained_route_test = "crates/antecedent/tests/association_route.rs::every_association_counterpart_retains_its_own_operation_and_executes_its_program"
 counterpart_design = "temporal"
 notes = "CausalQuery::Association (append-only tag 31); route cell AssociationTemporal lowered by crates/antecedent/src/analysis/lowering/associational.rs to a complete program keyed by the query digest; identification layer not claimed, retaining the reason code of a refused causal query when the association follows one; sealed operation association, executed only from the retained lowered program (public_builder_reentry refusal, lowered_identity stamp). The declared selection rule (association_selection_rule) picks the analysis from the outcome scale (the declared scale, else a schema binary column, else a column whose observed values are exactly 0 and 1, else a count column of non-negative integers, else continuous) and the functional: a stratified mean or probability, linear, logistic or Poisson regression, a Pearson or distance correlation, or a linear, logistic or Poisson model scored out of fold with the predictive-assessment proper scores. The claim kind is associational with identification not claimed: it is never an intervention effect, ranks no action, is refused as a causal bridge source (association_as_intervention), and carries the descriptive assumptions beside every number. Bayesian uncertainty: Dirichlet weights on contiguous blocks, because the independent-error conjugate likelihood does not describe a dependent series. Explicitly unlicensed: calibration unmeasured, no coverage record, no licensed_routes.toml row."
 
@@ -3786,9 +3786,10 @@ inference = "Frequentist,Bayesian"
 uncertainty = "Frequentist: the lag-0 pulse's circular-block interval (an Imbens-Manski identified-set interval over several completions); Bayesian: per-completion conjugate posteriors with draw-wise identified-set bounds; no coverage record"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
-status = "closed"
+status = "execution_only"
+counterpart_design = "temporal"
 owning_module = "crates/antecedent/src/analysis/builder/finish.rs"
-notes = "Executing unlicensed coordinates (12): explicit and accepted, Frequentist and Bayesian, validation none/cheap/full (the default suite downgrades to none; an explicit cheap/full runs the PulseEffect refuter state). graph_posterior coordinates refused (next attempt: PulseEffect over the graph posterior). The result keeps support status refused and carries estimate.temporal_class.lag_zero_average_effect. Effect modifiers, a non-mean functional and a population other than AllObserved are refused. Python: analyze(series, graph=TemporalDag|TemporalCpdag|TemporalPag, query=AverageEffect(x, y))."
+notes = "Executing unlicensed coordinates (18): explicit, accepted and graph_posterior, Frequentist and Bayesian, validation none/cheap/full (the default suite downgrades to none; an explicit cheap/full runs the PulseEffect refuter state). Over a graph posterior the same pulse is compiled and the per-atom proofs mix as for any temporal pulse. The result keeps support status refused and carries estimate.temporal_class.lag_zero_average_effect. Effect modifiers, a non-mean functional and a population other than AllObserved are refused. Python: analyze(series, graph=TemporalDag|TemporalCpdag|TemporalPag, query=AverageEffect(x, y))."
 
 [[route]]
 id = "closed.AverageEffect.TemporalCpdag"
@@ -3799,9 +3800,10 @@ inference = "Frequentist,Bayesian"
 uncertainty = "Frequentist: the lag-0 pulse's circular-block interval (an Imbens-Manski identified-set interval over several completions); Bayesian: per-completion conjugate posteriors with draw-wise identified-set bounds; no coverage record"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
-status = "closed"
+status = "execution_only"
+counterpart_design = "temporal"
 owning_module = "crates/antecedent/src/analysis/builder/finish.rs"
-notes = "Executing unlicensed coordinates (12): explicit and accepted, Frequentist and Bayesian, validation none/cheap/full (the default suite downgrades to none; an explicit cheap/full runs the PulseEffect refuter state). graph_posterior coordinates refused (next attempt: PulseEffect over the graph posterior). The result keeps support status refused and carries estimate.temporal_class.lag_zero_average_effect. Effect modifiers, a non-mean functional and a population other than AllObserved are refused. Python: analyze(series, graph=TemporalDag|TemporalCpdag|TemporalPag, query=AverageEffect(x, y))."
+notes = "Executing unlicensed coordinates (18): explicit, accepted and graph_posterior, Frequentist and Bayesian, validation none/cheap/full (the default suite downgrades to none; an explicit cheap/full runs the PulseEffect refuter state). Over a graph posterior the same pulse is compiled and the per-atom proofs mix as for any temporal pulse. The result keeps support status refused and carries estimate.temporal_class.lag_zero_average_effect. Effect modifiers, a non-mean functional and a population other than AllObserved are refused. Python: analyze(series, graph=TemporalDag|TemporalCpdag|TemporalPag, query=AverageEffect(x, y))."
 
 [[route]]
 id = "closed.AverageEffect.TemporalPag"
@@ -3812,9 +3814,10 @@ inference = "Frequentist,Bayesian"
 uncertainty = "Frequentist: the lag-0 pulse's circular-block interval (an Imbens-Manski identified-set interval over several completions); Bayesian: per-completion conjugate posteriors with draw-wise identified-set bounds; no coverage record"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
-status = "closed"
+status = "execution_only"
+counterpart_design = "temporal"
 owning_module = "crates/antecedent/src/analysis/builder/finish.rs"
-notes = "Executing unlicensed coordinates (12): explicit and accepted, Frequentist and Bayesian, validation none/cheap/full (the default suite downgrades to none; an explicit cheap/full runs the PulseEffect refuter state). graph_posterior coordinates refused (next attempt: PulseEffect over the graph posterior). The result keeps support status refused and carries estimate.temporal_class.lag_zero_average_effect. Effect modifiers, a non-mean functional and a population other than AllObserved are refused. Python: analyze(series, graph=TemporalDag|TemporalCpdag|TemporalPag, query=AverageEffect(x, y))."
+notes = "Executing unlicensed coordinates (18): explicit, accepted and graph_posterior, Frequentist and Bayesian, validation none/cheap/full (the default suite downgrades to none; an explicit cheap/full runs the PulseEffect refuter state). Over a graph posterior the same pulse is compiled and the per-atom proofs mix as for any temporal pulse. The result keeps support status refused and carries estimate.temporal_class.lag_zero_average_effect. Effect modifiers, a non-mean functional and a population other than AllObserved are refused. Python: analyze(series, graph=TemporalDag|TemporalCpdag|TemporalPag, query=AverageEffect(x, y))."
 
 [[route]]
 id = "bayesian.complier_effect"
@@ -11493,7 +11496,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_association.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_association.rs", "crates/antecedent-estimate/src/association.rs"]
 provenance = []
-evidence = ["crates/antecedent/tests/association_route.rs::a_temporal_association_resamples_blocks_under_the_declared_design"]
+evidence = ["crates/antecedent/tests/association_route.rs::every_association_counterpart_retains_its_own_operation_and_executes_its_program"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/association_route.rs::every_association_counterpart_publishes_an_artifact_a_consumer_reads_the_terms_from"]
 
 [[method]]
@@ -11521,7 +11524,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_association.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_association.rs", "crates/antecedent-estimate/src/association.rs"]
 provenance = []
-evidence = ["crates/antecedent/tests/association_route.rs::a_bayesian_association_is_conjugate_for_a_gaussian_outcome_and_a_bootstrap_otherwise"]
+evidence = ["crates/antecedent/tests/association_route.rs::every_association_counterpart_retains_its_own_operation_and_executes_its_program"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/association_route.rs::every_association_counterpart_publishes_an_artifact_a_consumer_reads_the_terms_from"]
 
 [[method]]
@@ -11549,7 +11552,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_association.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_association.rs", "crates/antecedent-estimate/src/association.rs"]
 provenance = []
-evidence = ["crates/antecedent/tests/association_route.rs::a_bayesian_series_association_draws_block_weights"]
+evidence = ["crates/antecedent/tests/association_route.rs::every_association_counterpart_retains_its_own_operation_and_executes_its_program"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/association_route.rs::every_association_counterpart_publishes_an_artifact_a_consumer_reads_the_terms_from"]
 
 [[method]]

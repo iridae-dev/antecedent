@@ -50,22 +50,42 @@ imputation_estimators = ["bayesian.gcomp"]
 [[route]]
 query = "ConditionalEffect"
 modality = "tabular"
-inference = ["frequentist", "bayesian"]
+inference = ["frequentist"]
 family = "static"
 default = "complete_case"
-supported = ["error", "complete_case"]
-next_attempt = "complete_case"
-imputation_estimators = []
+supported = ["error", "complete_case", "multiple_imputation"]
+next_attempt = "multiple_imputation"
+imputation_estimators = ["conditional.linear.adjustment", "aipw"]
+
+[[route]]
+query = "ConditionalEffect"
+modality = "tabular"
+inference = ["bayesian"]
+family = "static"
+default = "complete_case"
+supported = ["error", "complete_case", "multiple_imputation"]
+next_attempt = "multiple_imputation"
+imputation_estimators = ["conditional.bayesian"]
 
 [[route]]
 query = "Response"
 modality = "tabular"
-inference = ["frequentist", "bayesian"]
+inference = ["frequentist"]
 family = "static"
 default = "complete_case"
-supported = ["error", "complete_case"]
-next_attempt = "complete_case"
-imputation_estimators = []
+supported = ["error", "complete_case", "multiple_imputation"]
+next_attempt = "multiple_imputation"
+imputation_estimators = ["response.intervention_gcomp", "response.kennedy_dr", "response.gam_derivative", "response.riesz_ade"]
+
+[[route]]
+query = "Response"
+modality = "tabular"
+inference = ["bayesian"]
+family = "static"
+default = "complete_case"
+supported = ["error", "complete_case", "multiple_imputation"]
+next_attempt = "multiple_imputation"
+imputation_estimators = ["response.bayesian"]
 
 [[route]]
 query = "Distribution"
@@ -73,9 +93,9 @@ modality = "tabular"
 inference = ["frequentist", "bayesian"]
 family = "static"
 default = "complete_case"
-supported = ["error", "complete_case"]
-next_attempt = "complete_case"
-imputation_estimators = []
+supported = ["error", "complete_case", "multiple_imputation"]
+next_attempt = "multiple_imputation"
+imputation_estimators = ["functional.distribution"]
 
 [[route]]
 query = "Mediation"
@@ -83,19 +103,29 @@ modality = "tabular"
 inference = ["frequentist", "bayesian"]
 family = "static"
 default = "complete_case"
-supported = ["error", "complete_case"]
-next_attempt = "complete_case"
-imputation_estimators = []
+supported = ["error", "complete_case", "multiple_imputation"]
+next_attempt = "multiple_imputation"
+imputation_estimators = ["mediation.linear"]
 
 [[route]]
 query = "RandomizedEffect"
 modality = "tabular"
-inference = ["frequentist", "bayesian"]
+inference = ["frequentist"]
 family = "randomized"
 default = "error"
-supported = ["error", "complete_case", "inverse_probability"]
+supported = ["error", "complete_case", "inverse_probability", "multiple_imputation"]
 next_attempt = "inverse_probability"
-imputation_estimators = []
+imputation_estimators = ["randomized.ht_itt", "randomized.neyman_itt", "randomized.ancova_itt", "randomized.fixed_cuped_ht_itt", "randomized.switchback_ht_itt", "randomized.wald_cace_late"]
+
+[[route]]
+query = "RandomizedEffect"
+modality = "tabular"
+inference = ["bayesian"]
+family = "randomized"
+default = "error"
+supported = ["error", "complete_case", "inverse_probability", "multiple_imputation"]
+next_attempt = "inverse_probability"
+imputation_estimators = ["bayesian.randomized_finite_population", "bayesian.randomized_superpopulation", "bayesian.switchback_effect", "bayesian.complier_effect"]
 
 [[route]]
 query = "PanelDid"
@@ -110,19 +140,39 @@ imputation_estimators = []
 [[route]]
 query = "TemporalEffect"
 modality = "series"
-inference = ["frequentist", "bayesian"]
+inference = ["frequentist"]
 family = "temporal"
 default = "error"
-supported = ["error", "complete_case"]
+supported = ["error", "complete_case", "multiple_imputation"]
 next_attempt = "complete_case"
-imputation_estimators = []
+imputation_estimators = ["temporal.linear.adjustment"]
+
+[[route]]
+query = "TemporalEffect"
+modality = "series"
+inference = ["bayesian"]
+family = "temporal"
+default = "error"
+supported = ["error", "complete_case", "multiple_imputation"]
+next_attempt = "complete_case"
+imputation_estimators = ["bayesian.temporal.gcomp"]
 
 [[route]]
 query = "Mediation"
 modality = "series"
-inference = ["frequentist", "bayesian"]
+inference = ["frequentist"]
 family = "temporal"
 default = "error"
-supported = ["error", "complete_case"]
+supported = ["error", "complete_case", "multiple_imputation"]
 next_attempt = "complete_case"
-imputation_estimators = []
+imputation_estimators = ["temporal.mediation"]
+
+[[route]]
+query = "Mediation"
+modality = "series"
+inference = ["bayesian"]
+family = "temporal"
+default = "error"
+supported = ["error", "complete_case", "multiple_imputation"]
+next_attempt = "complete_case"
+imputation_estimators = ["temporal.mediation.bayesian"]

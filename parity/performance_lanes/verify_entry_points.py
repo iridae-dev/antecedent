@@ -38,6 +38,7 @@ from pathlib import Path
 from lanes_common import (
     BENCH,
     EXAMPLE,
+    MEASURED_COMPANIONS,
     command_kind,
     entries_by_control,
     lane_rows,
@@ -119,6 +120,19 @@ def check_static(layout: Layout, lanes: dict, workloads: dict[str, dict]) -> lis
                         problems.append(
                             f"{where}: bench {match['bench']} is not registered in {manifest}"
                         )
+        companion = MEASURED_COMPANIONS.get(control)
+        if companion is not None:
+            manifest = layout.repo / "crates" / companion[0] / "Cargo.toml"
+            if f'name = "{companion[1]}"' not in manifest.read_text(encoding="utf-8"):
+                problems.append(
+                    f"{control}: bench {companion[1]} is not registered in {manifest}"
+                )
+            if not (
+                layout.repo / "crates" / companion[0] / "benches" / f"{companion[1]}.rs"
+            ).is_file():
+                problems.append(
+                    f"{control}: companion bench file {companion[1]}.rs is missing"
+                )
         wanted = workloads[control].get("command")
         if not any(row["frozen_command"] == wanted for row in rows):
             problems.append(
@@ -188,28 +202,39 @@ def check_import(layout: Layout, lanes: dict) -> list[str]:
 def check_build(layout: Layout, lanes: dict) -> list[str]:
     problems: list[str] = []
     built: set[tuple[str, ...]] = set()
-    for _control, rows in sorted(entries_by_control(lanes).items()):
+
+    def compile_once(argv: tuple[str, ...], root: Path, env: dict, label: str) -> None:
+        if (argv, str(root)) in built:
+            return
+        built.add((argv, str(root)))
+        print("+ " + " ".join(argv) + f"   # {root}", flush=True)
+        if subprocess.run(argv, cwd=root, env=env, check=False).returncode != 0:
+            problems.append(f"{label}: `{' '.join(argv)}` failed in {root}")
+
+    for control, rows in sorted(entries_by_control(lanes).items()):
         for entry in rows:
-            for label, root, target in (
-                ("candidate_command", layout.repo, layout.candidate_target),
-                ("frozen_command", layout.frozen_root, layout.frozen_target),
+            for key, root in (
+                ("candidate_command", layout.repo),
+                ("frozen_command", layout.frozen_root),
             ):
-                command = parse_command(entry[label])
+                command = parse_command(entry[key])
                 argv = prebuild_argv(command)
-                if argv is None or (argv, str(root)) in built:
+                if argv is None:
                     continue
-                built.add((argv, str(root)))
-                env = {
-                    **os.environ,
-                    **command.environment,
-                    "CARGO_TARGET_DIR": str(target),
-                }
-                print("+ " + " ".join(argv) + f"   # {root}", flush=True)
-                run = subprocess.run(argv, cwd=root, env=env, check=False)
-                if run.returncode != 0:
-                    problems.append(
-                        f"{entry['control']}: `{' '.join(argv)}` failed in {root}"
-                    )
+                if root == layout.repo:
+                    env = {**layout.candidate_environment(), **command.environment}
+                else:
+                    env = {
+                        **os.environ,
+                        **command.environment,
+                        "CARGO_TARGET_DIR": str(layout.frozen_target),
+                    }
+                compile_once(argv, root, env, control)
+        companion = MEASURED_COMPANIONS.get(control)
+        if companion is not None:
+            crate, bench, _ = companion
+            argv = ("cargo", "bench", "-p", crate, "--bench", bench, "--no-run")
+            compile_once(argv, layout.repo, layout.candidate_environment(), control)
     return problems
 
 

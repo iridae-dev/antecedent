@@ -112,12 +112,12 @@ class CheckLanes(unittest.TestCase):
 
     def test_commands_that_differ_without_a_role_fail(self) -> None:
         def diverge(text: str) -> str:
-            block = entry_block(text, "adjustment", "python")
+            block = entry_block(text, "refresh", "python")
             return text.replace(
                 block,
                 block.replace(
-                    'candidate_command = "python examples/python/propensity_weighting.py"',
                     'candidate_command = "python examples/python/analysis_workflow.py"',
+                    'candidate_command = "python examples/python/propensity_weighting.py"',
                 ),
             )
 
@@ -136,6 +136,18 @@ class CheckLanes(unittest.TestCase):
             return text.replace(block, block.replace("--bench fci_search", "--bench fci_absent"))
 
         self.assertIn("not registered", self.run_checker(lanes=rename))
+
+    def test_a_missing_scalar_direct_baseline_fails(self) -> None:
+        def drop(text: str) -> str:
+            return re.sub(r"\[scalar_direct\].*?(?=\n\[\[lane\]\])", "", text, flags=re.S)
+
+        self.assertIn("scalar_direct table is missing", self.run_checker(lanes=drop))
+
+    def test_a_switch_the_library_does_not_read_fails(self) -> None:
+        def rename(text: str) -> str:
+            return text.replace("ANTECEDENT_BASELINE_SCALAR_KERNELS", "ANTECEDENT_NO_SUCH_SWITCH")
+
+        self.assertIn("does not read", self.run_checker(lanes=rename))
 
     def test_a_control_outside_every_lane_fails(self) -> None:
         def orphan(text: str) -> str:

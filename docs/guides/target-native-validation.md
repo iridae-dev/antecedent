@@ -104,9 +104,10 @@ on every refit.
 - **Derivative diagnostics.** The study's mean-curve query on the same data and
   graph is compiled and run at the five points the checks read (the derivative's
   own estimator when it serves a curve, otherwise the compiler's choice), and
-  the reported point derivative is checked against it. First derivatives on the
-  identity scale; an average derivative, a directional derivative or a Jacobian
-  is refused with the next attempt.
+  the reported derivative is checked against it. First derivatives on the
+  identity scale; an average derivative is read at seven nodes of its weighting
+  law, and a directional derivative or a Jacobian entry along a direction is
+  read off the study's own intervention-response query at the shifted points.
 - **Bayesian prior sensitivity.** The study is compiled under each alternative
   isotropic prior scale (`prior_scale_factors` times its own) and the posterior
   of the whole target is read back. An explicit coefficient prior set has no
@@ -147,6 +148,27 @@ several controls use the separable approximation of Gastwirth, Krieger and
 Rosenbaum (2000). `validation.amplify(Γ, Λ)` returns the outcome effect `Δ` an
 unobserved covariate with treatment effect `Λ` needs to produce `Γ`
 (Rosenbaum and Silber 2009).
+
+### Vector targets and posteriors
+
+A claim about a conditional effect (one coordinate per stratum), a temporal
+effect (one per horizon) or a joint contrast is explained away as soon as any
+coordinate is, so its range is read at the **weakest coordinate**: the break-even
+value is the smallest across coordinates and each tested value reports the
+weakest coordinate's adjusted effect.
+
+| Function | Reads | Weakest-coordinate rule |
+| --- | --- | --- |
+| `validation.evalue_vector` | one estimate and interval per label | smallest E-value; tested target is the smallest adjusted risk ratio oriented away from the null |
+| `validation.omitted_variable_bias_vector` | one coefficient, standard error and degrees of freedom per label | smallest `RV_q` and `RV_{q,α}`; tested target is the smallest share of an estimate left |
+| `validation.rosenbaum_bounds_vector` | matched-pair differences per label | smallest `Γ*` (absent when a coordinate does not reject at `Γ = 1`); tested value is the largest upper-bound p-value |
+| `validation.evalue_posterior` | posterior draws per label | each draw is bias-adjusted at every strength; `test` is the joint posterior probability that every coordinate keeps its reported side, `break_even` the smallest E-value of a posterior median |
+| `validation.omitted_variable_bias_posterior` | coefficient draws and the per-draw bias scale `sd(Y|D,X)/sd(D|X)` | each draw moves toward the null by `scale * sqrt(R²yz R²dz / (1 - R²dz))`; the break-even is the equal partial R² at which the posterior median (and the credible limit) reaches zero |
+
+The confounding structure stays an assumption of the analysis; the posterior
+variants carry uncertainty about the effect through it and do not make the
+confounding assumption testable. A range is bound to its target, so a scalar
+range cannot be cited for a vector claim.
 
 The marginal sensitivity model (`msm_sensitivity`) and the decision
 sensitivity grid are unchanged; they remain the analyses for bounded

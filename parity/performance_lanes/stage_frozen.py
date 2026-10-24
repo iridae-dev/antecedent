@@ -27,11 +27,22 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from lanes_common import BENCH, EXAMPLE, REPO, entries_by_control, load_tables
+from lanes_common import (
+    BENCH,
+    EXAMPLE,
+    REPO,
+    ROW_AWARE_RUST,
+    ROWS_ENV,
+    entries_by_control,
+    load_tables,
+)
 
 TAG = "v2.4.1"
 PUBLISHED_VERSION = "2.4.1"
 DEFAULT_ROOT = REPO / "target" / "performance_lanes"
+# The second candidate build: the same source compiled for the host CPU, so the kernels the
+# compiler can vectorize use the full instruction set of the machine the lane runs on.
+DISPATCH_RUSTFLAGS = "-C target-cpu=native"
 
 
 @dataclass(frozen=True)
@@ -44,18 +55,41 @@ class Layout:
     candidate_python: Path
     frozen_target: Path
     candidate_target: Path
+    build: str = "portable"
+    rustflags: str | None = None
 
     @classmethod
-    def under(cls, work: Path, repo: Path = REPO) -> Layout:
+    def under(
+        cls,
+        work: Path,
+        repo: Path = REPO,
+        build: str = "portable",
+        rustflags: str | None = None,
+    ) -> Layout:
+        """The `portable` build is the default compile. `runtime_dispatched` is the same source
+        compiled with `rustflags` (see DISPATCH_RUSTFLAGS) into its own environment and target
+        directory, so both candidate builds can sit side by side against one frozen build."""
         bindir = "Scripts" if os.name == "nt" else "bin"
+        suffix = "" if build == "portable" else f"_{build}"
         return cls(
             repo=repo,
             frozen_root=work / "frozen",
             frozen_python=work / "frozen_venv" / bindir / "python",
-            candidate_python=work / "candidate_venv" / bindir / "python",
+            candidate_python=work / f"candidate_venv{suffix}" / bindir / "python",
             frozen_target=work / "frozen_target",
-            candidate_target=work / "candidate_target",
+            candidate_target=work / f"candidate_target{suffix}",
+            build=build,
+            rustflags=rustflags if build != "portable" else None,
         )
+
+    def candidate_environment(self) -> dict[str, str]:
+        """Environment for compiling or running the candidate."""
+        env = {**os.environ, "CARGO_TARGET_DIR": str(self.candidate_target)}
+        if self.rustflags:
+            env["RUSTFLAGS"] = " ".join(
+                filter(None, [os.environ.get("RUSTFLAGS"), self.rustflags])
+            )
+        return env
 
 
 def bench_stanza(name: str) -> str:
@@ -70,7 +104,22 @@ def missing_in_frozen(layout: Layout, lanes: dict) -> list[dict]:
         for entry in entries:
             command = entry["frozen_command"]
             for name in entry["files"]:
-                if name.startswith("parity/") or (layout.frozen_root / name).is_file():
+                frozen_file = layout.frozen_root / name
+                if (
+                    name in ROW_AWARE_RUST.values()
+                    and frozen_file.is_file()
+                    and ROWS_ENV not in frozen_file.read_text(encoding="utf-8")
+                ):
+                    # Same control, same registered size; the file only learns to read the row
+                    # tier from the environment, so both builds run the same row sweep.
+                    key = ("replace", name)
+                    if key not in seen:
+                        seen.add(key)
+                        actions.append(
+                            {"action": "copy", "file": name, "control": control}
+                        )
+                    continue
+                if name.startswith("parity/") or frozen_file.is_file():
                     continue
                 key = ("copy", name)
                 if key not in seen:
@@ -191,7 +240,7 @@ def stage(
             json.dumps(record, indent=2) + "\n", encoding="utf-8"
         )
 
-    env = {**os.environ, "CARGO_TARGET_DIR": str(layout.candidate_target)}
+    env = layout.candidate_environment()
     record["frozen_venv_created"] = ensure_venv(
         layout.frozen_python, base_python, dry_run
     )

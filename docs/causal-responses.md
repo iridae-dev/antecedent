@@ -489,9 +489,13 @@ at export rather than published.
 The six derivative query types are licensed on explicit or accepted DAGs at
 validation `none`, under Frequentist and Bayesian inference; see the
 [support matrix](support-matrix.md), which carries each cell's evidence.
-PAG/ADMG/CPDAG derivative, graph-posterior, observation-adjusted, and
-cheap/full coordinates remain refused. Mean curves on `Cpdag` / `Pag` are a
-separate class-aware cell, not a derivative license. The definitions below are the
+Derivatives on a `Cpdag`, `Pag`, latent-confounded `Admg` or `TemporalAdmg` (the
+contemporaneous projection over rows, or the unrolled window of its template over
+a series) execute through the compiler and stay unlicensed: each identified
+completion, or the ADMG itself, is identified by one adjustment set valid for every
+treatment/outcome pair, and a pair with a hedge is refused with its certificate.
+Graph-posterior, observation-adjusted, and cheap/full coordinates remain refused.
+Mean curves on `Cpdag` / `Pag` are a separate class-aware cell. The definitions below are the
 licensed forms, not a license to run every constructor argument. Repeated-
 sampling coverage of every published derivative interval is gated in
 `crates/antecedent/tests/derivative_calibration.rs`.

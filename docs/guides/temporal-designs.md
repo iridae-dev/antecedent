@@ -2,8 +2,8 @@
 
 `CausalQuery::TemporalDesign` (Rust) and `antecedent.temporal_designs.estimate_temporal_design`
 (Python) read one table row per unit and period. The recorded assignment law identifies the
-target by design; regime survival reads observational trajectories under declared sequential
-exchangeability. Every route here executes and is **unlicensed**: no coverage record exists,
+target by design; regime survival and the observational excursion read observational data under
+declared sequential exchangeability. Every route here executes and is **unlicensed**: no coverage record exists,
 every interval and posterior carries `calibration = "unmeasured"`, and no support-matrix cell
 is implied.
 
@@ -55,6 +55,7 @@ unpaired and counted.
 | `dose` (`local_quadratic`) | local-quadratic level or derivative of the dose response | bias-aware interval and band under a declared `curvature_bound` | posterior of the bandwidth projection; the bias bound is reported beside it |
 | `two_arm` with `quantile_level` | quantile of the outcome law under the excursion, per arm, and its difference | whole-procedure cluster bootstrap (`bootstrap=` at least 99) | Bayesian bootstrap over units |
 | `regime_survival` | survival at `horizon` under always-treat and never-treat, and the difference | inverse-probability weighted hazards; the subject bootstrap refits the treatment and censoring models (`bootstrap=` at least 99) | joint-likelihood parametric g-formula |
+| `observational_excursion` | the excursion effect and arm means of an observed decision with no recorded assignment law | pooled logistic assignment model on the `history` columns; the unit bootstrap refits it in every replicate (`bootstrap=` at least 99) | weighted-likelihood bootstrap: Dirichlet unit weights, the assignment model refitted per draw |
 
 The arm and dose estimators are ratios of Horvitz-Thompson scores summed within independent
 units, so serial dependence inside a unit is unrestricted. The Bayesian counterpart reweights
@@ -90,6 +91,20 @@ frequentist covariance adds the validation counts' delta-method contribution (th
 dropped); the posterior draws `se` and `sp` from Beta posteriors per draw. A Youden index
 below 0.1 is refused.
 
+## The observational excursion
+
+`ObservationalExcursion` keeps the excursion target of the sequentially randomized designs and
+changes only what identifies it. No assignment probability is recorded; the decision is modelled
+on the measured decision-time `history` columns (including lagged outcomes and earlier
+treatment) by a pooled logistic regression, and the contrast is the same Horvitz-Thompson ratio
+with the fitted probability in place of the recorded one. Identification is sequential
+exchangeability given `history`, positivity of both arms given it (a fitted probability under
+`min_probability` is refused as `positivity_violated`), consistency and no interference between
+units. The history is declared, not checked, and a single-decision excursion with a known law
+does not substitute for it: this route is the one that corrects confounding of the decision.
+The nuisance fit is inside every interval, so the interval carries the cost of estimating the
+assignment law; coverage has not been measured.
+
 ## Regime survival
 
 Rows per subject run `0, 1, 2, ...` while at risk: confounders at the start of the period,
@@ -110,10 +125,11 @@ the positivity floor.
 | --- | --- | --- |
 | A realized assignment probability below `min_probability` | `positivity_violated` | A design whose arms keep the floor at every decision, or a lower floor |
 | An arm, cell or exposure no paired decision realized | `arm_not_populated` | More units or periods, or probabilities away from the boundary |
-| `bootstrap=` on a design whose interval is analytic, or under Bayesian inference | `option_not_applicable` | Omit it; only the quantile functional and frequentist regime survival resample |
-| The quantile functional or regime survival without `bootstrap=` of at least 99 | `required_option_missing` | Set `bootstrap=99` or more |
+| `bootstrap=` on a design whose interval is analytic, or under Bayesian inference | `option_not_applicable` | Omit it; only the quantile functional, frequentist regime survival and the frequentist observational excursion resample |
+| The quantile functional, regime survival or the observational excursion without `bootstrap=` of at least 99 | `required_option_missing` | Set `bootstrap=99` or more |
 | A local-quadratic grid without `curvature_bound` | `required_option_missing` | Declare the bound, or use `smoothed_curve` |
 | A dose outside the observed range, or with local effective sample size below 10 | `cell_not_licensed` | A wider bandwidth or a dose inside the supported range |
 | An interference decision with no other cluster member that period | `invalid_argument` | Record every member of the cluster each period |
 | A Youden index below 0.1 | `route_not_supported` | A more accurate measurement or a larger validation sample |
+| An observational excursion with no history column, a treatment not coded 0/1, or a history column equal to the outcome or treatment | `invalid_argument` | Name the decision-time covariates, code the treatment 0/1, and keep the columns distinct |
 | A static switchback | n/a | Switchback assignment is a sequence of periods; there is no static switchback. Use the graphless switchback route or this design |

@@ -49,6 +49,12 @@ Execution checks cancellation and resource admission. Retained numerical and
 scientific outputs keep their admission until their final owner is dropped.
 Failed draws remain failed slots on the shared uncertainty axis.
 
+The retained result keeps every draw by every world by every period. Callers that need
+one prespecified functional per world and draw can use `PreparedStudy::estimate_projected`,
+`JointPanelResult::project_streamed` or `project_frozen_streamed`: the same shared plan runs
+over the same aligned draws in bounded tiles, the tile's rows are reduced and dropped,
+failed slots stay in place, and every reduced value equals projecting the full output.
+
 ## Contrasts, time windows and surfaces
 
 General linear contrasts retain finite nonzero world coefficients and an explicit
@@ -125,6 +131,25 @@ The conditional calculation still executes when these finer causal obligations r
 `attempt_identified_reference_decomposition` accepts an explicit coarser request and
 actually evaluates it if finer identification fails, preserving the per-hybrid reasons.
 Identified reference responses do not establish unique causal attribution among factors.
+
+`attempt_design_adaptive_reference` runs the finest decomposition the retained design
+supports. A component step (one of exposure, saturation, population or mechanism moved
+from its before to its after value, the other three held at a stated context) is
+executed on every aligned law slot exactly when both hybrids it differences are
+identified. Components with no identified step are listed; each missing premise is
+returned as a typed obligation together with the design or analysis that would earn it:
+a design that identifies the base worlds, an explicit hybrid world, a period-specific
+mechanism intervention, a population transport proof or a retargeted time functional.
+When the full decomposition is not identified and a coarser request is supplied, the
+total-response contrast is executed on the same fit as well. Executed steps can be
+rebuilt by an independent consumer from the stored fit alone.
+
+For temporal fits the same call splits the decomposed law by the specification each
+draw selected (`decomposition_selection`): mass on each change period, on smooth paths
+and on no change, the mean and variance of every contribution within a specification, and
+the variance owed to the selection itself. The split is descriptive and grants no
+coverage. `decompose_reference_streamed` returns the point decomposition and the law's
+joint moments without holding any per-draw table or paired path.
 
 For broader scientific sources, `decompose_scientific_reference` consumes one actual
 `ScientificDecisionSource` with all required world responses and joint uncertainty.
@@ -231,8 +256,17 @@ checks and registered procedures grant no release calibration license.
 
 Experimental updates require a licensed estimand bridge, declared mapping
 uncertainty/dependence and evidence origins. The supported modular update
-reweights a frozen Bayesian joint law; next-study ranking supports additional
-independent Gaussian sampling of the same mapped estimand. Extracted experimental
+reweights a frozen Bayesian joint law. `rank_next_studies` values candidate studies,
+each optionally in its own regime: another population, window, dose, duration,
+exposure regime, recency or spend, with its own licensed bridge (including the transport
+premise that regime needs), its own paired per-draw mapping and its own cost. The current
+posterior is reweighted by that study's likelihood, the caller's terminal utility is
+evaluated on every whole response row, and the net value is the gain over deciding now
+minus the declared cost. `update_for_future_study` executes the update a candidate would
+cause for a stated outcome, so the moved response and the changed decision are
+observable. An unlicensed, unaligned or stale regime refuses the ranking; it is never
+replaced by the observed estimand. `rank_next_samples` remains the additional-sample
+case of the observed estimand. Extracted experimental
 sources require caller-current ledger authority for authorization, decisions and
 search. Withdrawal or supersession can refuse current use.
 

@@ -7,8 +7,21 @@ schema = 1
 predecessor_tag = "v2.4.1"
 measured = false
 
+# The current tree's scalar/direct baseline, registered once for every lane. An entry point's
+# candidate command runs with the environment assignment below (scalar reference kernels in
+# the production context), and the prepared query family control also runs `--mode solo`
+# (independent calls, nothing prepared and reused). The assignment is read in
+# `KernelPolicy::production_policy`.
+[scalar_direct]
+environment_name = "ANTECEDENT_BASELINE_SCALAR_KERNELS"
+environment_value = "1"
+direct_arguments = "--mode solo"
+direct_controls = ["prepared_query_families"]
+source = "crates/antecedent-core/src/execution.rs"
+
 [[lane]]
 id = "first_answer"
+scalar_direct = "first answer of each control with scalar kernels and no reuse, in this tree"
 status = "registered_not_measured"
 predecessor = "v2.4.1"
 proposal = "proposed 2-5x faster first answer on selected complete workloads"
@@ -52,6 +65,7 @@ disk = "spill and retained outputs are required fields; this lane adds no disk b
 
 [[lane]]
 id = "reuse_throughput"
+scalar_direct = "compatible query, retarget and refresh as independent scalar-kernel calls in this tree, with the prepared family run as independent calls"
 status = "registered_not_measured"
 predecessor = "v2.4.1"
 proposal = "proposed 10x throughput for compatible query, retarget, and refresh"
@@ -92,6 +106,7 @@ disk = "declared retention of prepared state; spill is a required field"
 
 [[lane]]
 id = "row_capacity"
+scalar_direct = "the same row tiers with scalar kernels in this tree"
 status = "registered_not_measured"
 predecessor = "v2.4.1"
 proposal = "proposed 10x rows on named fixed-width lanes"
@@ -130,6 +145,7 @@ disk = "complete results under the v2.4.1 retention requirements; spill is a req
 
 [[lane]]
 id = "exact_capacity"
+scalar_direct = "the same row tiers with scalar kernels in this tree"
 status = "registered_not_measured"
 predecessor = "v2.4.1"
 proposal = "proposed exact 100x on one streaming reduction"
@@ -169,11 +185,11 @@ disk = "declared disk for the source scan, spill, and outputs whose retention ma
 [[entry_point]]
 control = "adjustment"
 surface = "python"
-frozen_command = "python examples/python/propensity_weighting.py"
-candidate_command = "python examples/python/propensity_weighting.py"
+frozen_command = "python parity/performance_lanes/entry_points/adjustment.py --role control"
+candidate_command = "python parity/performance_lanes/entry_points/adjustment.py --role candidate"
 frozen_build = "v2.4.1 tag or published wheel on the same host"
 candidate_build = "current build on the same host"
-files = ["examples/python/propensity_weighting.py"]
+files = ["parity/performance_lanes/entry_points/adjustment.py"]
 uncertainty = "30 bootstrap replicates for the propensity-weighted effect"
 diagnostics = "overlap ESS and minimum propensity"
 
@@ -191,11 +207,11 @@ diagnostics = "MAP convergence and workspace-reuse assertion"
 [[entry_point]]
 control = "aipw"
 surface = "python"
-frozen_command = "python examples/python/ihdp_propensity_e2e.py"
-candidate_command = "python examples/python/ihdp_propensity_e2e.py"
+frozen_command = "python parity/performance_lanes/entry_points/aipw.py --role control"
+candidate_command = "python parity/performance_lanes/entry_points/aipw.py --role candidate"
 frozen_build = "v2.4.1 tag or published wheel on the same host"
 candidate_build = "current build on the same host"
-files = ["examples/python/ihdp_propensity_e2e.py"]
+files = ["parity/performance_lanes/entry_points/aipw.py"]
 uncertainty = "40 bootstrap replicates and the Wald interval"
 diagnostics = "IPW cheap refutation suite and overlap diagnostics"
 
@@ -279,11 +295,11 @@ diagnostics = "parent search and test count"
 [[entry_point]]
 control = "panel"
 surface = "python"
-frozen_command = "python examples/python/quasi_difference_in_differences.py"
-candidate_command = "python examples/python/quasi_difference_in_differences.py"
+frozen_command = "python parity/performance_lanes/entry_points/panel.py --role control"
+candidate_command = "python parity/performance_lanes/entry_points/panel.py --role candidate"
 frozen_build = "v2.4.1 tag or published wheel on the same host"
 candidate_build = "current build on the same host"
-files = ["examples/python/quasi_difference_in_differences.py"]
+files = ["parity/performance_lanes/entry_points/panel.py"]
 uncertainty = "subject-clustered standard error"
 diagnostics = "cluster count and repeated-cross-section uncertainty field"
 

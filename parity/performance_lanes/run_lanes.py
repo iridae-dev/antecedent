@@ -14,8 +14,11 @@
 3. `run`      each control, per lane, as one OS process per repeat and per arm, interleaved so
               both arms see the same host conditions. Arms: `frozen` (published v2.4.1),
               `candidate` (this tree), `frozen_solo` (reuse lane: independent calls, the prepared
-              family control only) and `scalar_direct` (recorded unsuccessful: no direct-baseline
-              entry point is registered). Every repeat is retained; none is dropped.
+              family control only) and `scalar_direct` (this tree with the scalar reference kernels,
+              registered in lanes.toml; the prepared family control also runs as independent
+              calls). Every repeat is retained; none is dropped. The Rust controls with a
+              measured companion bench (glm, bootstrap, transport) also run it once per candidate
+              cell for allocator, copy, scan, fit and spill figures.
 4. `report`   `summary.json`, `summary.md` and one `resource.json` per lane, control, arm,
               tier and thread count under `<run>/resource/`, in the format
               `scripts/bench_regression.py <criterion-dir> <run>/resource` reads.
@@ -49,7 +52,9 @@ import lane_verdicts as verdicts
 from lanes_common import (
     DEFAULT_TIER,
     ENTRY_DIR,
+    REPO,
     LANE_IDS,
+    MEASURED_COMPANIONS,
     TIERS,
     Command,
     command_kind,
@@ -62,11 +67,22 @@ from lanes_common import (
     with_rows,
 )
 from measure import run_measured
-from stage_frozen import DEFAULT_ROOT, Layout, stage
+from stage_frozen import DEFAULT_ROOT, DISPATCH_RUSTFLAGS, Layout, stage
 from verify_entry_points import verify
 
 THREADS = (1, 4, 16)
 ARMS = ("frozen", "candidate")
+NATIVE_COUNTERS = (
+    "allocation_bytes",
+    "allocation_count",
+    "peak_live_bytes",
+    "copy_bytes",
+    "source_passes",
+    "fit_count",
+    "test_count",
+    "retained_bytes",
+    "spill_bytes",
+)
 ENGINE_TO_MEASUREMENT = {
     "facts_observed_scans": "source_passes",
     "facts_observed_copied_bytes": "copy_bytes",
@@ -88,6 +104,7 @@ class Config:
     hardware_class: str
     build: str
     time_factor: float
+    scalar_direct: dict | None = None
 
 
 @dataclass(frozen=True)
@@ -123,11 +140,12 @@ def lane_tiers(config: Config, lane: str, command: Command) -> tuple[str, ...]:
 
 
 def arms_for(lane_row: dict, control: str) -> tuple[str, ...]:
+    arms = (*ARMS, "scalar_direct")
     if lane_row["id"] == "reuse_throughput" and control in lane_row.get(
         "prepared_controls", []
     ):
-        return (*ARMS, "frozen_solo")
-    return ARMS
+        return (*arms, "frozen_solo")
+    return arms
 
 
 def plan_cells(
@@ -182,11 +200,20 @@ def invocation(
             layout.frozen_target if frozen else layout.candidate_target
         ),
     }
+    if not frozen and layout.rustflags:
+        env["RUSTFLAGS"] = layout.candidate_environment().get("RUSTFLAGS", "")
+    direct = cell.arm == "scalar_direct"
+    table = config.scalar_direct or {}
+    if direct:
+        env[table["environment_name"]] = table["environment_value"]
     role = "control" if frozen else "candidate"
     tail = ["--threads", str(cell.threads), "--repeats", "1"]
     if kind == "entry":
         script = str(layout.repo / command.argv[1])
-        extra = ["--mode", "solo"] if cell.arm == "frozen_solo" else []
+        solo = cell.arm == "frozen_solo" or (
+            direct and cell.control in table.get("direct_controls", [])
+        )
+        extra = table.get("direct_arguments", "--mode solo").split() if solo else []
         return [python, script, *command.argv[2:], *tail, *extra], env, root, kind
     if kind == "example":
         wrapper = str(layout.repo / ENTRY_DIR / "run_example.py")
@@ -292,6 +319,49 @@ def prebuild(config: Config, entries: dict, cells: list[Cell]) -> None:
         done.add((build, str(cwd)))
         print("+ " + " ".join(build), flush=True)
         subprocess.run(build, cwd=cwd, env=env, check=True)
+        companion = companion_argv(cell.control)
+        if companion is not None and not cell.arm.startswith("frozen"):
+            built = (*companion, "--no-run")
+            if (built, str(cwd)) not in done:
+                done.add((built, str(cwd)))
+                print("+ " + " ".join(built), flush=True)
+                subprocess.run(built, cwd=cwd, env=env, check=True)
+
+
+def companion_argv(control: str) -> list[str] | None:
+    found = MEASURED_COMPANIONS.get(control)
+    if found is None:
+        return None
+    crate, bench, _ = found
+    return ["cargo", "bench", "-p", crate, "--bench", bench]
+
+
+def run_companion(config: Config, entries: dict, cell: Cell) -> dict | None:
+    """Run the measured companion of a Rust control once for `cell`; its summary or None."""
+    argv = companion_argv(cell.control)
+    if argv is None or cell.arm.startswith("frozen"):
+        return None
+    _, env, cwd, kind = invocation(config, entries, cell)
+    if kind not in ("cargo_bench", "cargo_run"):
+        return None
+    out = config.run_dir / "native" / cell.key
+    env = {**env, "ANTECEDENT_MEASUREMENT_OUT": str(out)}
+    raw = config.run_dir / "raw" / cell.key
+    measured = run_measured(
+        argv,
+        env=env,
+        cwd=cwd,
+        stdout_path=raw / "companion.stdout",
+        stderr_path=raw / "companion.stderr",
+        timeout=config.timeout,
+    )
+    name = MEASURED_COMPANIONS[cell.control][2]
+    path = out / name / "measurement.json"
+    if measured["outcome"] != "completed" or not path.is_file():
+        return {
+            "error": measured["stderr_tail"][-400:] or "no measurement.json written"
+        }
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def group_key(cell: Cell) -> tuple:
@@ -338,6 +408,10 @@ def run_cells(
                 if any(r["outcome"] == "oom" for r in reps)
                 else "unsuccessful"
             )
+            if cells[cell.key]["outcome"] == "completed":
+                native = run_companion(config, entries, cell)
+                if native is not None:
+                    cells[cell.key]["native"] = native
             results[cell.key] = cells[cell.key]
         if tier != DEFAULT_TIER and all(
             cells[c.key]["outcome"] != "completed" for c in arms
@@ -381,7 +455,19 @@ def measurement_of(cell: dict) -> dict:
         "cancelled": False,
         "failed": len(reps) != len(cell["repeats"]),
     }
+    native = cell.get("native")
+    if native and "error" not in native:
+        missing = set(native.get("unobserved", []))
+        for key in NATIVE_COUNTERS:
+            if key in native and key not in missing:
+                fields[key] = native[key]
+        for key, spread in native.get("variability", {}).items():
+            if key in NATIVE_COUNTERS and key not in missing:
+                fields["variability"][key] = spread
+        fields["native_unobserved"] = sorted(missing)
     for source, target in ENGINE_TO_MEASUREMENT.items():
+        if target in fields:
+            continue
         values = [
             r["engine_performance"][source]
             for r in reps
@@ -438,6 +524,28 @@ def reproducible(cell: dict) -> bool | None:
     None when the control prints no result digest (a Criterion bench)."""
     digests = {r["fields_digest"] for r in cell["repeats"] if r.get("fields_digest")}
     return None if not digests else len(digests) == 1
+
+
+def baseline_summary(scalar: dict | None, candidate: dict) -> dict:
+    """The current tree's scalar/direct baseline beside the candidate: its outcome and
+    measurements, and the candidate's median speedup over it when both ran the same work."""
+    if scalar is None:
+        return {
+            "outcome": "unsuccessful",
+            "reason": "the scalar/direct arm has no cell",
+        }
+    summary = {
+        "outcome": scalar["outcome"],
+        "repeats": scalar["repeats"],
+        **measurement_of(scalar),
+    }
+    if verdicts.completed(scalar) and verdicts.completed(candidate):
+        same, why = verdicts.same_work(scalar, candidate)
+        summary["same_work"] = same
+        summary["reason"] = why
+        if same:
+            summary["candidate_speedup"] = verdicts.speedup(scalar, candidate)
+    return summary
 
 
 def write_records(
@@ -501,10 +609,18 @@ def write_records(
                     "repeats": frozen["repeats"],
                     **measurement_of(frozen),
                 }
-            record["scalar_direct"] = {
-                "outcome": "unsuccessful",
-                "reason": "no scalar/direct baseline entry point is registered for this control",
-            }
+            record["scalar_direct"] = baseline_summary(
+                cells.get(
+                    Cell(
+                        cell.control,
+                        cell.surface,
+                        "scalar_direct",
+                        cell.tier,
+                        cell.threads,
+                    ).key
+                ),
+                candidate,
+            )
             target = (
                 config.run_dir / "resource" / lane / f"{cell.key}" / "resource.json"
             )
@@ -633,7 +749,7 @@ def plan_text(config: Config, entries: dict, membership: dict[str, list[Cell]]) 
     return "\n".join(out)
 
 
-def parse_args(argv: list[str] | None) -> tuple[argparse.Namespace, Config]:
+def parse_args(argv: list[str] | None) -> tuple[argparse.Namespace, list[Config]]:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawTextHelpFormatter
     )
@@ -661,7 +777,16 @@ def parse_args(argv: list[str] | None) -> tuple[argparse.Namespace, Config]:
     )
     parser.add_argument("--hardware-class", default=None)
     parser.add_argument(
-        "--build", choices=("portable", "runtime_dispatched"), default="portable"
+        "--build",
+        choices=("portable", "runtime_dispatched", "both"),
+        default="portable",
+        help="'both' runs the whole grid twice, once per candidate build, each in its own "
+        "environment, target directory and run subdirectory",
+    )
+    parser.add_argument(
+        "--dispatch-rustflags",
+        default=DISPATCH_RUSTFLAGS,
+        help="compiler flags that define the runtime_dispatched candidate build",
     )
     parser.add_argument(
         "--time-factor",
@@ -678,27 +803,35 @@ def parse_args(argv: list[str] | None) -> tuple[argparse.Namespace, Config]:
         parser.error(f"unknown lanes {unknown} or repeats < 1")
     work = args.work_dir.resolve()
     run_dir = (args.run_dir or work / "runs" / time.strftime("%Y%m%dT%H%M%S")).resolve()
-    config = Config(
-        layout=Layout.under(work),
-        run_dir=run_dir,
-        lanes=lanes,
-        tiers=tuple(args.tiers.split(",")),
-        threads=tuple(int(t) for t in args.threads.split(",")),
-        repeats=args.repeats,
-        timeout=args.timeout or None,
-        hardware_class=args.hardware_class or detect_hardware_class(),
-        build=args.build,
-        time_factor=args.time_factor,
+    builds = (
+        ("portable", "runtime_dispatched") if args.build == "both" else (args.build,)
     )
-    return args, config
+    scalar = load_tables(REPO)[0]["scalar_direct"]
+    configs = [
+        Config(
+            layout=Layout.under(work, build=build, rustflags=args.dispatch_rustflags),
+            run_dir=run_dir / build if len(builds) > 1 else run_dir,
+            lanes=lanes,
+            tiers=tuple(args.tiers.split(",")),
+            threads=tuple(int(t) for t in args.threads.split(",")),
+            repeats=args.repeats,
+            timeout=args.timeout or None,
+            hardware_class=args.hardware_class or detect_hardware_class(),
+            build=build,
+            time_factor=args.time_factor,
+            scalar_direct=scalar,
+        )
+        for build in builds
+    ]
+    return args, configs
 
 
-def main(argv: list[str] | None = None) -> int:
-    args, config = parse_args(argv)
+def run_build(args: argparse.Namespace, config: Config) -> int:
     lanes, workloads = load_tables(config.layout.repo)
     entries = primary_entries(lanes, workloads)
     membership = plan_cells(config, lanes, workloads)
     if args.step == "plan":
+        print(f"# build {config.build}")
         print(plan_text(config, entries, membership))
         return 0
     if args.step in ("all", "prepare"):
@@ -726,6 +859,11 @@ def main(argv: list[str] | None = None) -> int:
         summary = write_records(config, lanes, workloads, membership, cells)
         write_report(config, summary, cells)
     return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    args, configs = parse_args(argv)
+    return max(run_build(args, config) for config in configs)
 
 
 if __name__ == "__main__":

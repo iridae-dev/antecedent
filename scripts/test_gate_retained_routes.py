@@ -19,6 +19,8 @@ COPIED_FILES = (
     "parity/licensed_routes.toml",
     "parity/reason_codes.toml",
     "parity/estimator_route_residual.toml",
+    "parity/support_graphless.toml",
+    "crates/antecedent-estimate/src/lib.rs",
 )
 LOWERING = f"{ANALYSIS}/lowering"
 SEALERS = f"{ANALYSIS}/prepared/sealers"
@@ -114,6 +116,33 @@ CASES = {
         "no_such_test_function"),
     "executing route with no lowered program entry": lambda d: replace(
         d, MANIFEST, 'id = "bayesian.piecewise_survival"', 'id = "bayesian.unmapped_zz"'),
+    "family operation click no longer requires its program": lambda d: replace(
+        d, f"{ANALYSIS}/prepared/sealed/static_route.rs",
+        "        self.require_program(&handle.plan)?;\n        let mut result = handle.analysis.execute_association_tabular",
+        "        let mut result = handle.analysis.execute_association_tabular"),
+    "family operation wraps the generic dispatcher": lambda d: append(
+        d, f"{ANALYSIS}/execute/checked_panel_did.rs",
+        "\nfn wrap(study: &Study) {\n    study.execute_on();\n}\n"),
+    "cited test lost its retained-program assertion": lambda d: replace(
+        d, "crates/antecedent/tests/interference_interval_route.rs",
+        "retained_graphless::assert_retained_graphless_program(",
+        "retained_graphless::skip_retained_program("),
+    "axis names a route that does not exist": lambda d: replace(
+        d, "parity/support_graphless.toml",
+        'routes = ["interference.cluster_bayesian_bootstrap"]',
+        'routes = ["interference.no_such_route"]'),
+    "family lost its temporal axis row": lambda d: replace(
+        d, "parity/support_graphless.toml",
+        'family = "survival"\naxis = "temporal"', 'family = "survival"\naxis = "temporal_gone"'),
+    "license cites a test no graphless route records": lambda d: replace(
+        d, "parity/support_graphless.toml",
+        'retained_route_test = "crates/antecedent/tests/survival_route.rs::'
+        'licensed_survival_scalar_intervals_round_trip_and_refuse_forgery"',
+        'retained_route_test = "crates/antecedent/tests/survival_route.rs::unrecorded_test"'),
+    "graphless route owned by a module its operation never reaches": lambda d: replace(
+        d, MANIFEST,
+        'owning_module = "crates/antecedent-estimate/src/interference.rs"',
+        'owning_module = "crates/antecedent-estimate/src/ols_gone_module.rs"'),
     "licensed route lost its manifest record": lambda d: replace(
         d, MANIFEST, 'id = "licensed.TransportQuery.Admg"\ntarget = "TransportQuery"',
         'id = "licensed.TransportQuery.Admg"\ntarget = "TransportQueryGone"'),

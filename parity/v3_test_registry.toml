@@ -721,6 +721,27 @@ path = "python/tests/test_missing_imputation.py"
 gates = ["inventory"]
 
 [[test]]
+id = "multiple-imputation-lagged-series"
+crate = "antecedent-estimate"
+cargo_target = "multiple_imputation_dynamics"
+path = "crates/antecedent-estimate/tests/multiple_imputation_dynamics.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "multiple-imputation-routes-facade"
+crate = "antecedent"
+cargo_target = "missing_imputation_routes"
+path = "crates/antecedent/tests/missing_imputation_routes.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "multiple-imputation-routes-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_missing_imputation_routes.py"
+gates = ["inventory"]
+
+[[test]]
 id = "structure-compiler-routes"
 crate = "antecedent"
 cargo_target = "structure_compiler_routes"
@@ -1428,4 +1449,81 @@ id = "joint-design-continuous-longitudinal-native"
 crate = "antecedent-estimate"
 cargo_target = "lib"
 path = "crates/antecedent-estimate/src/joint_design/gaussian_longitudinal.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "recovery-held-out-regimes"
+crate = "antecedent-estimate"
+cargo_target = "recovery_held_out_regimes"
+path = "crates/antecedent-estimate/tests/recovery_held_out_regimes.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "solver-workspace-ownership"
+crate = "antecedent-stats"
+cargo_target = "solver_workspace_ownership"
+path = "crates/antecedent-stats/tests/solver_workspace_ownership.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "solver-layout-measured-crossover"
+crate = "antecedent-stats"
+cargo_target = "lib"
+path = "crates/antecedent-stats/src/layout_rules.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "solver-gather-and-scratch-traffic"
+crate = "antecedent-stats"
+cargo_target = "lib"
+path = "crates/antecedent-stats/src/faer_backend.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "matching-bounding-box-index-exact"
+crate = "antecedent-stats"
+cargo_target = "lib"
+path = "crates/antecedent-stats/src/matching_boxtree.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "gpdc-exact-kernel-budget-quote"
+crate = "antecedent-stats"
+cargo_target = "lib"
+path = "crates/antecedent-stats/src/ci/advanced.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "matching-pass-budget-quote"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/propensity/matching.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "exact-summation-budget-quote"
+crate = "antecedent-identify"
+cargo_target = "lib"
+path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "class-derivative-response-structural-reference"
+crate = "antecedent"
+cargo_target = "class_derivative_response"
+path = "crates/antecedent/tests/class_derivative_response.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "temporal-admg-derivative-window-adjustment"
+crate = "antecedent"
+cargo_target = "temporal_admg_derivative"
+path = "crates/antecedent/tests/temporal_admg_derivative.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "admg-response-adjustment-criterion"
+crate = "antecedent-identify"
+cargo_target = "lib"
+path = "crates/antecedent-identify/src/admg_adjustment.rs"
 gates = ["inventory", "named"]

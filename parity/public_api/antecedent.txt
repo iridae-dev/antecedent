@@ -18959,7 +18959,9 @@ pub variant antecedent::planner::PlanRoute::PanelTemporalEffectClass
 pub variant antecedent::planner::PlanRoute::PanelTemporalEffectDag
 pub variant antecedent::planner::PlanRoute::PanelTemporalResponseClass
 pub variant antecedent::planner::PlanRoute::PanelTemporalResponseDag
+pub variant antecedent::planner::PlanRoute::PathSpecificCpdag
 pub variant antecedent::planner::PlanRoute::PathSpecificDag
+pub variant antecedent::planner::PlanRoute::PathSpecificMixed
 pub variant antecedent::planner::PlanRoute::Planning(&'static str)
 pub variant antecedent::planner::PlanRoute::PolicyValue
 pub variant antecedent::planner::PlanRoute::PropagationChain(&'static str)
@@ -18984,6 +18986,7 @@ pub variant antecedent::planner::PlanRoute::TemporalEffectDag
 pub variant antecedent::planner::PlanRoute::TemporalMediationCpdag
 pub variant antecedent::planner::PlanRoute::TemporalMediationDag
 pub variant antecedent::planner::PlanRoute::TemporalMediationPag
+pub variant antecedent::planner::PlanRoute::TemporalResponseAdmg
 pub variant antecedent::planner::PlanRoute::TemporalResponseClass
 pub variant antecedent::planner::PlanRoute::TemporalResponseDag
 pub variant antecedent::planner::PlanRoute::TransportMixed

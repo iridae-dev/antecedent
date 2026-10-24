@@ -24,11 +24,13 @@ The route set is derived from three records and the sources that implement them:
   `route_not_lowered` refusal that a caller swallows.
 """
 
+import datetime
 import re
 import tomllib
 from pathlib import Path
 
 from _rust_source import lex, rust_mask
+from retained_computation import retained_computation_problems
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = "crates/antecedent/src"
@@ -555,6 +557,13 @@ def retained_route_problems(root: Path = ROOT) -> list[str]:
                 "OrdinaryDispatch (the ordinary dispatcher) and not a retained operation"
             )
     problems.extend(manifest_problems(root, cells, posterior, set(kinds), variants, served))
+    manifest_text = _read(root, MANIFEST)
+    routes = tomllib.loads(manifest_text).get("route", []) if manifest_text else []
+    problems.extend(
+        retained_computation_problems(
+            root, routes, route_cell, served, variants, datetime.date.today().isoformat()
+        )
+    )
     problems.extend(estimator_table_problems(root, served))
     problems.extend(ordinary_dispatch_problems(root))
     problems.extend(reentry_guard_problems(root))

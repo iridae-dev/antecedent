@@ -18,6 +18,20 @@ ENTRY_DIR = "parity/performance_lanes/entry_points/"
 LANE_IDS = ("first_answer", "reuse_throughput", "row_capacity", "exact_capacity")
 TIERS = ("1e4", "1e5", "1e6", "1e7")
 DEFAULT_TIER = "control_default"
+ROWS_ENV = "ANTECEDENT_LANE_ROWS"
+# Rust controls that read their row count from ROWS_ENV (their registered size when unset).
+ROW_AWARE_RUST = {
+    "laplace_glm": "crates/antecedent-prob/benches/laplace_glm.rs",
+    "propensity_bootstrap": "crates/antecedent-estimate/benches/propensity_bootstrap.rs",
+    "transport_statistical": "examples/rust/transport_statistical.rs",
+}
+# Control -> (crate, companion bench, measurement name). The companion repeats the control's
+# work under `measure` with the counting allocator and writes measurement.json.
+MEASURED_COMPANIONS = {
+    "glm": ("antecedent-prob", "laplace_glm_measured", "laplace_glm"),
+    "bootstrap": ("antecedent-estimate", "propensity_bootstrap_measured", "propensity_bootstrap"),
+    "transport": ("antecedent", "transport_measured", "transport"),
+}
 ENV_ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=.*")
 BENCH = re.compile(r"-p\s+(?P<crate>[\w-]+)\s+--bench\s+(?P<bench>[\w-]+)")
 EXAMPLE = re.compile(r"-p\s+(?P<crate>[\w-]+)\s+--example\s+(?P<example>[\w-]+)")
@@ -114,6 +128,10 @@ def rows_mechanism(command: Command) -> str | None:
     for name, _ in command.env:
         if name == "USER_PATH_N":
             return f"env:{name}"
+    if command_kind(command) in ("cargo_bench", "cargo_run") and any(
+        name in command.argv for name in ROW_AWARE_RUST
+    ):
+        return f"env:{ROWS_ENV}"
     return None
 
 
@@ -132,7 +150,7 @@ def with_rows(command: Command, tier: str) -> Command:
         return Command(command.env, command.argv + ("--rows", str(rows)))
     if mechanism and mechanism.startswith("env:"):
         name = mechanism[4:]
-        env = tuple((k, str(rows) if k == name else v) for k, v in command.env)
+        env = tuple((k, v) for k, v in command.env if k != name) + ((name, str(rows)),)
         return Command(env, command.argv)
     raise ValueError(f"{command.argv[0]} takes no row count; cannot run tier {tier}")
 

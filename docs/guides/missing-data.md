@@ -16,10 +16,10 @@ result.missing_data.accounting     # rows total / kept / dropped, per variable, 
 | Route | Without `missing=` | Policies it executes |
 | --- | --- | --- |
 | Average effect | complete case, reported | `error`, `complete_case`, `multiple_imputation` |
-| Conditional, response, distribution, static mediation | complete case, reported | `error`, `complete_case` |
-| Randomized two-arm ITT (every design except CUPED, ANCOVA and receipt-adjusted) | refuses at the first missing outcome | `error`, `complete_case`, `inverse_probability` |
+| Conditional, response, distribution, static mediation | complete case, reported | `error`, `complete_case`, `multiple_imputation` |
+| Randomized two-arm ITT (`complete_case` and `inverse_probability` for every design except CUPED, ANCOVA and receipt-adjusted) | refuses at the first missing outcome | `error`, `complete_case`, `inverse_probability`, `multiple_imputation` |
 | Panel difference-in-differences | refuses at the first missing outcome | `error`, `balanced_panel`, `available_case` |
-| Lagged temporal effect (single window) | refuses at the first missing time point | `error`, `complete_case` |
+| Lagged temporal effect and temporal mediation (one series) | refuses at the first missing time point | `error`, `complete_case`, `multiple_imputation` |
 | NOTEARS discovery | refuses at the first missing cell | `error`, `complete_case`, `pairwise_available` |
 
 A refusal is `missing_policy_required` and names the first missing cell (column and row) and
@@ -39,26 +39,37 @@ keeps this table equal to it. A cell that is not listed executes no policy.
 | --- | --- | --- | --- | --- |
 | `AverageEffect` | tabular | frequentist | `complete_case` | `error`, `complete_case`, `multiple_imputation` |
 | `AverageEffect` | tabular | bayesian | `complete_case` | `error`, `complete_case`, `multiple_imputation` |
-| `ConditionalEffect` | tabular | frequentist | `complete_case` | `error`, `complete_case` |
-| `ConditionalEffect` | tabular | bayesian | `complete_case` | `error`, `complete_case` |
-| `Response` | tabular | frequentist | `complete_case` | `error`, `complete_case` |
-| `Response` | tabular | bayesian | `complete_case` | `error`, `complete_case` |
-| `Distribution` | tabular | frequentist | `complete_case` | `error`, `complete_case` |
-| `Distribution` | tabular | bayesian | `complete_case` | `error`, `complete_case` |
-| `Mediation` | tabular | frequentist | `complete_case` | `error`, `complete_case` |
-| `Mediation` | tabular | bayesian | `complete_case` | `error`, `complete_case` |
-| `RandomizedEffect` | tabular | frequentist | `error` | `error`, `complete_case`, `inverse_probability` |
-| `RandomizedEffect` | tabular | bayesian | `error` | `error`, `complete_case`, `inverse_probability` |
+| `ConditionalEffect` | tabular | frequentist | `complete_case` | `error`, `complete_case`, `multiple_imputation` |
+| `ConditionalEffect` | tabular | bayesian | `complete_case` | `error`, `complete_case`, `multiple_imputation` |
+| `Response` | tabular | frequentist | `complete_case` | `error`, `complete_case`, `multiple_imputation` |
+| `Response` | tabular | bayesian | `complete_case` | `error`, `complete_case`, `multiple_imputation` |
+| `Distribution` | tabular | frequentist | `complete_case` | `error`, `complete_case`, `multiple_imputation` |
+| `Distribution` | tabular | bayesian | `complete_case` | `error`, `complete_case`, `multiple_imputation` |
+| `Mediation` | tabular | frequentist | `complete_case` | `error`, `complete_case`, `multiple_imputation` |
+| `Mediation` | tabular | bayesian | `complete_case` | `error`, `complete_case`, `multiple_imputation` |
+| `RandomizedEffect` | tabular | frequentist | `error` | `error`, `complete_case`, `inverse_probability`, `multiple_imputation` |
+| `RandomizedEffect` | tabular | bayesian | `error` | `error`, `complete_case`, `inverse_probability`, `multiple_imputation` |
 | `PanelDid` | tabular | frequentist | `error` | `error`, `balanced_panel`, `available_case` |
 | `PanelDid` | tabular | bayesian | `error` | `error`, `balanced_panel`, `available_case` |
-| `TemporalEffect` | series | frequentist | `error` | `error`, `complete_case` |
-| `TemporalEffect` | series | bayesian | `error` | `error`, `complete_case` |
-| `Mediation` | series | frequentist | `error` | `error`, `complete_case` |
-| `Mediation` | series | bayesian | `error` | `error`, `complete_case` |
+| `TemporalEffect` | series | frequentist | `error` | `error`, `complete_case`, `multiple_imputation` |
+| `TemporalEffect` | series | bayesian | `error` | `error`, `complete_case`, `multiple_imputation` |
+| `Mediation` | series | frequentist | `error` | `error`, `complete_case`, `multiple_imputation` |
+| `Mediation` | series | bayesian | `error` | `error`, `complete_case`, `multiple_imputation` |
 
-Multiple imputation pools `linear.adjustment.ate`, `glm.adjustment`, `aipw` and
-`propensity.weighting` under frequentist inference and `bayesian.gcomp` under Bayesian
-inference. Another estimator chosen with it is refused at build (next attempt: one of those, or
+Multiple imputation pools, per route cell:
+
+| Route | Frequentist | Bayesian |
+| --- | --- | --- |
+| Average effect | `linear.adjustment.ate`, `glm.adjustment`, `aipw`, `propensity.weighting` | `bayesian.gcomp` |
+| Conditional effect | `conditional.linear.adjustment`, `aipw` | `conditional.bayesian` |
+| Response | `response.intervention_gcomp`, `response.kennedy_dr`, `response.gam_derivative`, `response.riesz_ade` | `response.bayesian` |
+| Distribution | `functional.distribution` | `functional.distribution` |
+| Static mediation | `mediation.linear` | `mediation.linear` |
+| Randomized ITT | `randomized.ht_itt`, `randomized.neyman_itt`, `randomized.ancova_itt`, `randomized.fixed_cuped_ht_itt`, `randomized.switchback_ht_itt`, `randomized.wald_cace_late` | `bayesian.randomized_finite_population`, `bayesian.randomized_superpopulation`, `bayesian.switchback_effect`, `bayesian.complier_effect` |
+| Temporal effect | `temporal.linear.adjustment` | `bayesian.temporal.gcomp` |
+| Temporal mediation | `temporal.mediation` | `temporal.mediation.bayesian` |
+
+Another estimator chosen with it is refused at build (next attempt: one of those, or
 `complete_case`).
 
 ## Row accounting
@@ -189,12 +200,56 @@ depend on threads or scheduling, and every completed table is leased from the ex
 admission pool before it is allocated (a pool that cannot fund one table is refused before
 anything is drawn). The declared sampling design governs the unit of the parameter draw:
 rows for independent rows or subjects, whole clusters for a clustered panel (refused on the
-average-effect route, which binds no cluster labels; next attempt: supply cluster labels or
-`complete_case`), and a dependent time series is refused (next attempt: `complete_case` on the
-temporal route). The assumption is missing at random given the variables of the imputation
+static routes, which bind no cluster labels; next attempt: supply cluster labels or
+`complete_case`; a clustered randomized design takes its clusters from its assignment units),
+and contiguous blocks for a dependent time series, which the temporal routes impute by the
+lagged model described below. The assumption is missing at random given the variables of the imputation
 model, and a correctly specified imputation model. Declaring `missing_not_at_random` is
 refused with a sensitivity analysis (delta-adjusted or selection-model imputation over a grid
 of departures) named as the next attempt; that analysis is not shipped.
+
+**Routes with several coordinates, `multiple_imputation`.** A conditional effect's cells, a
+response curve, an interventional distribution, a mediation decomposition, a randomized
+design's arms and a series' horizons are pooled jointly, not one coordinate at a time. Every
+completed table's fit contributes its coordinates with the covariance the route published
+for them: the joint influence covariance where the estimator retains one (conditional grids,
+response curves), else each coordinate's own published variance on the diagonal
+(`vector.covariance_basis` says which: `joint_covariance`, `marginal_variances` or
+`posterior_draws`). Rubin's rules then give the within-, between- and total covariance, each
+coordinate's Student-t degrees of freedom and fraction of missing information, the average
+relative increase in variance and the pooled Wald test that every coordinate is zero (Li,
+Raghunathan and Rubin's `D1`). A Bayesian route stacks the joint draws of every table, so the
+dependence between coordinates is kept. A quantity with no published variance (a static
+mediation's total, direct and mediated components, which a bootstrap reports only for the
+requested contrast) is pooled by its mean over the tables and reported with its
+between-imputation variance in `vector.extras`; it never enters the covariance. The route
+reads the variance from its own resampled or analytic uncertainty, so a route whose fit
+publishes none (a distribution or static mediation without bootstrap replicates) refuses with
+the request for it as the next attempt.
+
+A randomized design adds the arm each row was assigned to the imputation model (the table does
+not hold it, and an outcome imputed without it would be drawn as if assignment did nothing);
+the arm enters as a main effect, so an arm-specific outcome relation the model omits biases the
+imputed effect toward zero. A clustered design draws its parameters by whole assignment-unit
+clusters. The design's own estimator and its declared assignment probabilities run unchanged
+on every completed table.
+
+A single series is imputed by a lagged model rather than by exchangeable rows: each incomplete
+variable is drawn given the other variables at the same step and every variable at the
+`lags` neighbouring steps on each side (the deepest lag the query reads), read from
+the current completed columns, with the parameters drawn by a Bayesian bootstrap of
+contiguous blocks (the cube root of the length, at least one neighbourhood). The assumption
+is missingness at random given the neighbouring steps and a stationary series whose
+dependence is no longer than the conditioned neighbourhood; the dependent time-series design
+is the only design a series accepts, and the model is `chained_equations`. The multi-horizon
+Bayesian mediation reports a separate posterior per horizon and defines no joint posterior to
+stack, so it is refused (next attempt: one horizon, or `complete_case`).
+
+Every pooled result carries `assumptions_digest`, the digest of the imputation model, tables,
+sweeps, seed, missingness assumption, resampling unit, declared sampling design, lagged
+neighbourhood and every variable's kind and imputed-cell count. The same digest enters the
+data-snapshot identity beside the specification, so two analyses that differ in any of them
+are different claims.
 
 **NOTEARS, `complete_case`.** Rows with a missing value in any discovery variable are dropped
 and reported in `result.row_accounting`. The graph equals the one learned on the complete rows
@@ -210,8 +265,10 @@ missingness completely at random and at least three rows on every pair.
 ## Claims
 
 A claim over a result whose policy differs from the route's default carries the policy, the
-assumption it needs and the digest of the dropped rows among its evidence references. Claims of
-default policies keep exactly the references they had.
+assumption it needs and the digest of the dropped rows among its evidence references; a
+multiple-imputation claim also names the specification, the pooled variance components and the
+imputation's assumptions digest. Claims of default policies keep exactly the references they
+had.
 
 ## Unbalanced panels
 

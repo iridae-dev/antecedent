@@ -29,10 +29,11 @@ MEASUREMENT_FIELDS = (
     "threads",
     "stage_times_ns",
 )
-TOP = frozenset({"schema", "predecessor_tag", "measured", "lane", "entry_point"})
+TOP = frozenset({"schema", "predecessor_tag", "measured", "lane", "entry_point", "scalar_direct"})
 COMMON = frozenset(
     {
         "id",
+        "scalar_direct",
         "status",
         "predecessor",
         "proposal",
@@ -226,6 +227,24 @@ def check_entry_points(
     return len(entries)
 
 
+def check_scalar_direct(document: dict, repo: Path) -> None:
+    """The scalar/direct baseline is registered, and the library reads its switch."""
+    table = document.get("scalar_direct")
+    if not isinstance(table, dict):
+        fail("scalar_direct table is missing")
+    wanted = ("environment_name", "environment_value", "direct_arguments", "direct_controls", "source")
+    if tuple(table) != wanted:
+        fail(f"scalar_direct keys must be {list(wanted)}")
+    for key in wanted[:3] + wanted[4:]:
+        require_text(table, key, "scalar_direct")
+    controls = string_list(table, "direct_controls", "scalar_direct", allow_empty=False)
+    source = repo / table["source"]
+    if not source.is_file() or table["environment_name"] not in source.read_text(encoding="utf-8"):
+        fail(f"scalar_direct: {table['source']} does not read {table['environment_name']}")
+    if "prepared_query_families" not in controls:
+        fail("scalar_direct.direct_controls must name prepared_query_families")
+
+
 def main(root: Path | None = None) -> None:
     root = root or Path(__file__).resolve().parent
     repo = root.parent.parent
@@ -247,6 +266,7 @@ def main(root: Path | None = None) -> None:
         fail("measured must be false")
     check_strings(document, "document")
 
+    check_scalar_direct(document, root.parent.parent)
     lanes = document.get("lane")
     if not isinstance(lanes, list) or len(lanes) != len(LANE_IDS):
         fail(f"expected {len(LANE_IDS)} lanes")
@@ -276,7 +296,7 @@ def main(root: Path | None = None) -> None:
             fail(f"{where}.status must be {STATUS}")
         if row.get("predecessor") != "v2.4.1":
             fail(f"{where}.predecessor must be v2.4.1")
-        for key in ("proposal", "comparison", "timed_section", "notes"):
+        for key in ("proposal", "comparison", "timed_section", "notes", "scalar_direct"):
             require_text(row, key, where)
         for key in EXTRA[ident] - {"shape", "solo_controls", "prepared_controls"}:
             require_text(row, key, where)

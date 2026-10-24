@@ -44,6 +44,10 @@ def cell(ns, rss, *, digest="d", accounting=None, outcome="completed"):
     return {"outcome": outcome, "repeats": repeats if outcome == "completed" else []}
 
 
+def lanes_row_controls(lanes):
+    return common.lane_rows(lanes)["row_capacity"]["controls"]
+
+
 class Commands(unittest.TestCase):
     def test_env_assignments_and_kinds(self) -> None:
         command = common.parse_command(
@@ -93,7 +97,7 @@ class Commands(unittest.TestCase):
             common.with_rows(bench, "1e6").environment["USER_PATH_N"], "1000000"
         )
         fixed = common.parse_command(
-            "cargo bench -p antecedent-prob --bench laplace_glm"
+            "cargo bench -p antecedent-discovery --bench pcmci"
         )
         with self.assertRaises(ValueError):
             common.with_rows(fixed, "1e5")
@@ -263,6 +267,7 @@ class Planning(unittest.TestCase):
             hardware_class="apple_silicon",
             build="portable",
             time_factor=1.0,
+            scalar_direct=common.load_tables()[0]["scalar_direct"],
         )
 
     def test_the_plan_covers_every_lane_control_for_both_builds(self) -> None:
@@ -285,8 +290,15 @@ class Planning(unittest.TestCase):
             c.tier for c in membership["row_capacity"] if c.control == "survival"
         }
         self.assertEqual(survival, set(common.TIERS))
-        fixed = {c.tier for c in membership["row_capacity"] if c.control == "glm"}
-        self.assertEqual(fixed, {common.DEFAULT_TIER})
+        for control in lanes_row_controls(lanes):
+            tiers = {c.tier for c in membership["row_capacity"] if c.control == control}
+            self.assertEqual(tiers, set(common.TIERS), control)
+        glm = common.parse_command("cargo bench -p antecedent-prob --bench laplace_glm")
+        self.assertEqual(
+            common.with_rows(glm, "1e5").environment[common.ROWS_ENV], "100000"
+        )
+        reuse = {c.tier for c in membership["reuse_throughput"]}
+        self.assertEqual(reuse, {common.DEFAULT_TIER})
 
     def test_invocations_pair_one_script_with_two_interpreters(self) -> None:
         lanes, workloads = common.load_tables()
@@ -338,6 +350,122 @@ class Planning(unittest.TestCase):
                 "fci_search",
                 {a.get("bench") for a in again if a["action"] == "register_bench"},
             )
+
+
+class ScalarDirectAndBuilds(unittest.TestCase):
+    def test_the_scalar_arm_is_the_candidate_with_the_registered_switch(self) -> None:
+        lanes, workloads = common.load_tables()
+        entries = common.primary_entries(lanes, workloads)
+        with tempfile.TemporaryDirectory() as scratch:
+            config = Planning().config(Path(scratch))
+            arm = lambda control, name: run_lanes.invocation(  # noqa: E731
+                config,
+                entries,
+                run_lanes.Cell(control, "python", name, "control_default", 1),
+            )
+            candidate = arm("survival", "candidate")
+            scalar = arm("survival", "scalar_direct")
+            prepared = arm("prepared_query_families", "scalar_direct")
+            rust = run_lanes.invocation(
+                config,
+                entries,
+                run_lanes.Cell("glm", "rust", "scalar_direct", "1e5", 1),
+            )
+        switch = lanes["scalar_direct"]["environment_name"]
+        self.assertEqual(scalar[0], candidate[0])
+        self.assertEqual(scalar[1][switch], "1")
+        self.assertNotIn(switch, candidate[1])
+        self.assertNotIn("--mode", scalar[0])
+        self.assertEqual(prepared[0][-2:], ["--mode", "solo"])
+        self.assertEqual(rust[1][switch], "1")
+        self.assertEqual(rust[1][common.ROWS_ENV], "100000")
+        self.assertEqual(rust[3], "cargo_bench")
+
+    def test_every_lane_plans_a_scalar_arm_for_every_control(self) -> None:
+        lanes, workloads = common.load_tables()
+        with tempfile.TemporaryDirectory() as scratch:
+            membership = run_lanes.plan_cells(
+                Planning().config(Path(scratch)), lanes, workloads
+            )
+        for lane, row in common.lane_rows(lanes).items():
+            planned = {(c.control, c.arm) for c in membership[lane]}
+            for control in row["controls"]:
+                self.assertIn((control, "scalar_direct"), planned, (lane, control))
+
+    def test_the_dispatched_build_has_its_own_environment_target_and_flags(
+        self,
+    ) -> None:
+        work = Path("/tmp/lane_work")
+        portable = stage_frozen.Layout.under(work)
+        dispatched = stage_frozen.Layout.under(
+            work, build="runtime_dispatched", rustflags=stage_frozen.DISPATCH_RUSTFLAGS
+        )
+        self.assertNotEqual(portable.candidate_python, dispatched.candidate_python)
+        self.assertNotEqual(portable.candidate_target, dispatched.candidate_target)
+        self.assertEqual(portable.frozen_python, dispatched.frozen_python)
+        self.assertNotIn(
+            "target-cpu", portable.candidate_environment().get("RUSTFLAGS", "")
+        )
+        self.assertIn("target-cpu", dispatched.candidate_environment()["RUSTFLAGS"])
+        config = Planning().config(Path("/tmp/lane_run"))
+        config = run_lanes.Config(
+            **{**config.__dict__, "layout": dispatched, "build": "runtime_dispatched"}
+        )
+        lanes, workloads = common.load_tables()
+        entries = common.primary_entries(lanes, workloads)
+        _, env, _, _ = run_lanes.invocation(
+            config,
+            entries,
+            run_lanes.Cell("glm", "rust", "candidate", "control_default", 1),
+        )
+        self.assertIn("target-cpu", env["RUSTFLAGS"])
+        self.assertEqual(env["CARGO_TARGET_DIR"], str(dispatched.candidate_target))
+        _, frozen_env, _, _ = run_lanes.invocation(
+            config,
+            entries,
+            run_lanes.Cell("glm", "rust", "frozen", "control_default", 1),
+        )
+        self.assertNotIn("target-cpu", frozen_env.get("RUSTFLAGS", ""))
+
+    def test_both_builds_are_two_configs_with_separate_run_directories(self) -> None:
+        with tempfile.TemporaryDirectory() as scratch:
+            _, configs = run_lanes.parse_args(
+                [
+                    "plan",
+                    "--build",
+                    "both",
+                    "--hardware-class",
+                    "apple_silicon",
+                    "--work-dir",
+                    scratch,
+                ]
+            )
+        self.assertEqual([c.build for c in configs], ["portable", "runtime_dispatched"])
+        self.assertNotEqual(configs[0].run_dir, configs[1].run_dir)
+        self.assertIsNotNone(configs[1].layout.rustflags)
+
+    def test_row_aware_rust_controls_are_replaced_in_the_frozen_tree(self) -> None:
+        lanes, _ = common.load_tables()
+        with tempfile.TemporaryDirectory() as scratch:
+            layout = stage_frozen.Layout.under(Path(scratch) / "work")
+            for name in common.ROW_AWARE_RUST.values():
+                path = layout.frozen_root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("// the tag's file, fixed size\n", encoding="utf-8")
+            copies = {
+                a["file"]
+                for a in stage_frozen.missing_in_frozen(layout, lanes)
+                if a["action"] == "copy"
+            }
+            self.assertTrue(set(common.ROW_AWARE_RUST.values()) <= copies)
+            for name in common.ROW_AWARE_RUST.values():
+                stage_frozen.apply_action(layout, {"action": "copy", "file": name})
+            again = {
+                a["file"]
+                for a in stage_frozen.missing_in_frozen(layout, lanes)
+                if a["action"] == "copy"
+            }
+            self.assertFalse(set(common.ROW_AWARE_RUST.values()) & again)
 
 
 class Records(unittest.TestCase):
