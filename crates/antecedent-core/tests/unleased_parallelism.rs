@@ -13,6 +13,11 @@
 //! file must keep so the reason cannot silently go stale.
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::Duration;
+
+use antecedent_core::ExecutionContext;
+use antecedent_core::execution::{AdmissionError, AdmissionPool, PipelineStep};
 
 /// Text that starts a thread or hands work to a parallel-iterator library.
 const FORBIDDEN: &[&str] = &[
@@ -41,6 +46,13 @@ const ALLOWLIST: &[Allowed] = &[
         marker: "acquire_map_lease",
         reason: "the admission pool's own parallel map: it takes the worker lease before it \
                  spawns and holds it until the workers join",
+    },
+    Allowed {
+        path: "crates/antecedent-core/src/cancellation_boundary.rs",
+        marker: "acquire_admission(1, call_bytes)",
+        reason: "an uninterruptible call runs on its own thread, which holds one worker slot \
+                 and the call's bytes from the admission pool until the call returns, even \
+                 after the caller stops waiting",
     },
     Allowed {
         path: "crates/antecedent-data/src/resample.rs",
@@ -175,4 +187,151 @@ fn production_code_starts_no_thread_outside_the_admission_pool() {
             allowed.path, allowed.reason
         );
     }
+}
+
+/// Runs `work` on `threads` plain test threads at once.
+fn concurrently(threads: usize, work: impl Fn(usize) + Sync) {
+    std::thread::scope(|scope| {
+        for id in 0..threads {
+            let work = &work;
+            scope.spawn(move || work(id));
+        }
+    });
+}
+
+#[test]
+fn concurrent_allocation_never_exceeds_the_pool_bytes_and_refusals_leave_it_whole() {
+    const POOL_BYTES: u64 = 1 << 20;
+    const HOLD: usize = 256 << 10;
+    let pool = AdmissionPool::fixed(4, POOL_BYTES);
+    let ctx = ExecutionContext::production(1, 4).with_admission(pool.clone());
+
+    // Four holds fill the pool exactly; the next is refused with the remainder it saw.
+    let held: Vec<_> = (0..4).map(|_| ctx.acquire_admission(0, HOLD as u64).unwrap()).collect();
+    let refused = ctx.acquire_admission(0, 1).unwrap_err();
+    assert!(
+        matches!(refused, AdmissionError::ExceedsRemainder { remaining_bytes: 0, .. }),
+        "{refused}"
+    );
+    drop(held);
+    assert_eq!(pool.available().bytes(), POOL_BYTES);
+
+    // Many threads race for the same bytes. Every grant allocates for real, and the sum of
+    // live allocations is observed from inside the holders.
+    let live = AtomicUsize::new(0);
+    let peak = AtomicUsize::new(0);
+    let granted = AtomicUsize::new(0);
+    let refusals = AtomicUsize::new(0);
+    concurrently(16, |_| {
+        for round in 0..40 {
+            match ctx.acquire_admission(0, HOLD as u64) {
+                Ok(lease) => {
+                    let buffer = vec![round as u8; HOLD];
+                    let now = live.fetch_add(buffer.len(), Ordering::SeqCst) + buffer.len();
+                    peak.fetch_max(now, Ordering::SeqCst);
+                    granted.fetch_add(1, Ordering::SeqCst);
+                    std::thread::sleep(Duration::from_micros(300));
+                    assert_eq!(buffer[HOLD - 1], round as u8);
+                    live.fetch_sub(buffer.len(), Ordering::SeqCst);
+                    drop(buffer);
+                    drop(lease);
+                }
+                Err(AdmissionError::ExceedsRemainder { .. }) => {
+                    refusals.fetch_add(1, Ordering::SeqCst);
+                }
+                Err(other) => panic!("unexpected admission error: {other}"),
+            }
+        }
+    });
+    let observed = peak.load(Ordering::SeqCst);
+    assert!(observed as u64 <= POOL_BYTES, "live allocation {observed} passed the pool");
+    assert!(granted.load(Ordering::SeqCst) > 0);
+    assert!(refusals.load(Ordering::SeqCst) > 0, "contention must produce refusals");
+    assert_eq!(live.load(Ordering::SeqCst), 0);
+    assert_eq!(pool.available().bytes(), POOL_BYTES, "refusals and drops leave the pool whole");
+    assert_eq!(pool.available().threads(), 4);
+}
+
+#[test]
+fn parallel_maps_run_no_more_workers_than_the_pool_and_scratch_stays_inside_its_bytes() {
+    let pool = AdmissionPool::fixed(3, 1 << 20);
+    let ctx = ExecutionContext::production(1, 8).with_admission(pool.clone());
+    let running = AtomicUsize::new(0);
+    let peak = AtomicUsize::new(0);
+    let scratch_live = AtomicUsize::new(0);
+    let scratch_peak = AtomicUsize::new(0);
+    let out = ctx
+        .map_indexed_with_scratch(
+            64,
+            || {
+                let now = scratch_live.fetch_add(64 << 10, Ordering::SeqCst) + (64 << 10);
+                scratch_peak.fetch_max(now, Ordering::SeqCst);
+                vec![0_u8; 64 << 10]
+            },
+            |index, _, scratch| {
+                let now = running.fetch_add(1, Ordering::SeqCst) + 1;
+                peak.fetch_max(now, Ordering::SeqCst);
+                scratch[0] = index as u8;
+                std::thread::sleep(Duration::from_micros(500));
+                running.fetch_sub(1, Ordering::SeqCst);
+                Ok::<_, ()>(index * 2)
+            },
+        )
+        .unwrap();
+    assert_eq!(out, (0..64).map(|i| i * 2).collect::<Vec<_>>());
+    assert!(peak.load(Ordering::SeqCst) <= 3, "workers ran past the pool: {peak:?}");
+    assert!(
+        scratch_peak.load(Ordering::SeqCst) <= 3 * (64 << 10),
+        "one scratch per leased worker: {scratch_peak:?}"
+    );
+    assert_eq!(pool.available().threads(), 3);
+
+    // Two studies share one pool: together they never run more workers than it holds.
+    let together = AtomicUsize::new(0);
+    let together_peak = AtomicUsize::new(0);
+    concurrently(4, |_| {
+        let study = ExecutionContext::production(2, 8).with_admission(pool.clone());
+        let _ = study.map_indexed(32, |_, _| {
+            let now = together.fetch_add(1, Ordering::SeqCst) + 1;
+            together_peak.fetch_max(now, Ordering::SeqCst);
+            std::thread::sleep(Duration::from_micros(300));
+            together.fetch_sub(1, Ordering::SeqCst);
+            Ok::<_, ()>(())
+        });
+    });
+    // Callers that find no free slot run on their own thread, so the pool's three workers
+    // plus at most one inline caller per study bound the concurrency.
+    assert!(together_peak.load(Ordering::SeqCst) <= 3 + 4, "{together_peak:?}");
+    assert_eq!(pool.available().threads(), 3);
+}
+
+#[test]
+fn a_pipeline_keeps_live_buffers_at_the_window_for_a_slow_consumer() {
+    let pool = AdmissionPool::fixed(4, 1 << 20);
+    let ctx = ExecutionContext::production(1, 4).with_admission(pool.clone());
+    let live = AtomicUsize::new(0);
+    let peak = AtomicUsize::new(0);
+    let mut total = 0_u64;
+    let receipt = ctx
+        .pipeline_indexed(
+            200,
+            5,
+            |index, _| {
+                let now = live.fetch_add(1, Ordering::SeqCst) + 1;
+                peak.fetch_max(now, Ordering::SeqCst);
+                Ok::<_, ()>(vec![index as u8; 4096])
+            },
+            |_, buffer| {
+                std::thread::sleep(Duration::from_micros(200));
+                total += buffer.iter().map(|&b| u64::from(b)).sum::<u64>();
+                live.fetch_sub(1, Ordering::SeqCst);
+                Ok(PipelineStep::Continue)
+            },
+        )
+        .unwrap();
+    assert!(peak.load(Ordering::SeqCst) <= 5, "{peak:?}");
+    assert!(receipt.peak_live <= 5);
+    assert_eq!(receipt.items_consumed, 200);
+    assert_eq!(total, (0..200_u64).map(|i| (i % 256) * 4096).sum::<u64>());
+    assert_eq!(pool.available().threads(), 4);
 }

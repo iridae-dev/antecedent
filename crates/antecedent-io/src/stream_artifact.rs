@@ -5,8 +5,13 @@
 //! limits and both the writer and the reader enforce them. A truncated stream, a checksum
 //! mismatch, and a format newer than [`STREAM_ARTIFACT_VERSION`] are refusals.
 //!
-//! Cancellation is a caller [`CancellationToken`] checked between sections, not inside a
-//! section. An accelerator-produced artifact is consumable on CPU when its device payload is
+//! [`StreamArtifact::open`] cancels between sections only. [`StreamArtifact::encode_to`] and
+//! [`StreamArtifact::read_to`] are the incremental forms: they lease a chunk-sized working set
+//! from the operation's admission pool before moving a byte, never hold the payload (logical
+//! or on-wire) whole, check cancellation between chunks, and bound decompression by the
+//! declared logical size as the bytes arrive. The writer sizes and checksums the payload in
+//! passes over a re-openable source and then streams it; the reader hashes the on-wire payload
+//! before it decodes it, so a sink only receives bytes whose checksum verified. An accelerator-produced artifact is consumable on CPU when its device payload is
 //! absent or already materialized as bytes; a live device pointer is refused.
 //! [`StreamArtifact::read_metadata`] does not retain the payload. A payload the caller still
 //! holds is borrowed (`Arc` clone), not copied.
@@ -18,15 +23,24 @@
 //! ```
 //!
 //! The checksum is the domain-separated BLAKE3 of the on-wire bytes
-//! (`antecedent.stream_artifact.section.v1`). The codec byte is `0`: the on-wire bytes are the
-//! logical bytes. Any other codec is refused. The first section is `meta`; an optional second
-//! section is `payload`.
+//! (`antecedent.stream_artifact.section.v1`). The codec byte is `0` (the on-wire bytes are the
+//! logical bytes) or `1` (a Zstandard frame of the logical bytes, written and read by the
+//! incremental forms; [`StreamArtifact::open`] borrows stored bytes and refuses it). Any other
+//! codec is refused. The first section is `meta`; an optional second section is `payload`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::sync::Arc;
 
 use antecedent_core::{CancellationToken, CanonicalWriter};
+use antecedent_io_core::container::{
+    DomainDigest, STREAM_BUDGET_REFUSED, STREAM_CANCELLED, stream_decoder_workspace_bytes,
+    stream_encoder_workspace_bytes, zstd_compress_chunked, zstd_decompress_chunked,
+};
+use antecedent_io_core::error::IoError;
+
+pub use antecedent_io_core::container::{LogicalSource, StreamReceipt, StreamWork};
 
 /// Magic bytes: `ASTREAM\0`.
 pub const STREAM_ARTIFACT_MAGIC: [u8; 8] = *b"ASTREAM\0";
@@ -40,6 +54,9 @@ const PAYLOAD_SECTION: &str = "payload";
 const MAX_SECTION_NAME_LEN: usize = 64;
 const MAX_ARTIFACT_ID_LEN: usize = 256;
 const STORED: u8 = 0;
+const CODEC_ZSTD: u8 = 1;
+/// Largest metadata section the incremental reader accepts; real ones are under 300 bytes.
+const MAX_META_SECTION_BYTES: u64 = 1024;
 const PRODUCER_CPU: u8 = 1;
 const PRODUCER_ACCELERATOR: u8 = 2;
 const DEVICE_ABSENT: u8 = 0;
@@ -188,6 +205,43 @@ pub enum StreamArtifactError {
     /// The bytes are not this format.
     #[error("malformed stream artifact: {0}")]
     Malformed(&'static str),
+    /// The admission pool refused the working set of an incremental operation.
+    #[error("stream artifact working set was refused by the operation budget")]
+    BudgetRefused,
+    /// The payload frame is corrupt or expands past its declared size.
+    #[error("stream artifact payload failed to decompress")]
+    Decompress,
+    /// A source, sink or reader failed.
+    #[error("stream artifact I/O failed: {kind:?}")]
+    Io {
+        /// Kind of the underlying failure.
+        kind: std::io::ErrorKind,
+    },
+}
+
+/// How an incremental encode stores the payload section.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PayloadCodec {
+    /// On-wire bytes are the logical bytes.
+    Stored,
+    /// On-wire bytes are a Zstandard frame of the logical bytes.
+    Zstd,
+}
+
+impl PayloadCodec {
+    const fn byte(self) -> u8 {
+        match self {
+            Self::Stored => STORED,
+            Self::Zstd => CODEC_ZSTD,
+        }
+    }
+
+    const fn workspace_bytes(self) -> u64 {
+        match self {
+            Self::Stored => 0,
+            Self::Zstd => stream_encoder_workspace_bytes(),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -559,7 +613,7 @@ fn read_section<'a>(
     let on_wire_len = reader.u64()?;
     check_section_size(logical_len, bounds)?;
     check_section_size(on_wire_len, bounds)?;
-    if codec != STORED {
+    if codec != STORED && codec != CODEC_ZSTD {
         return Err(StreamArtifactError::Malformed("codec"));
     }
     let checksum_bytes = reader.take(32)?;
@@ -606,6 +660,447 @@ fn decode_metadata(bytes: &[u8]) -> Result<StreamMetadata, StreamArtifactError> 
     let metadata = StreamMetadata { artifact_id, producer, device };
     validate_identity(&metadata)?;
     Ok(metadata)
+}
+
+fn from_io(error: IoError) -> StreamArtifactError {
+    match error {
+        IoError::Io(message) if message == STREAM_CANCELLED => StreamArtifactError::Cancelled,
+        IoError::Io(message) if message.starts_with(STREAM_BUDGET_REFUSED) => {
+            StreamArtifactError::BudgetRefused
+        }
+        IoError::ChecksumMismatch { .. } => {
+            StreamArtifactError::ChecksumMismatch { section: PAYLOAD_SECTION }
+        }
+        IoError::Decompress { .. } => StreamArtifactError::Decompress,
+        IoError::TooLarge => StreamArtifactError::Malformed("size"),
+        _ => StreamArtifactError::Io { kind: std::io::ErrorKind::Other },
+    }
+}
+
+fn from_std(error: &std::io::Error) -> StreamArtifactError {
+    if error.kind() == std::io::ErrorKind::UnexpectedEof {
+        StreamArtifactError::Truncated
+    } else {
+        StreamArtifactError::Io { kind: error.kind() }
+    }
+}
+
+fn tick(work: &StreamWork<'_>) -> Result<(), StreamArtifactError> {
+    work.tick().map_err(from_io)
+}
+
+/// Counts the bytes written through it and forwards them.
+struct CountWriter<W: Write> {
+    inner: W,
+    written: u64,
+}
+
+impl<W: Write> Write for CountWriter<W> {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        let taken = self.inner.write(buf)?;
+        self.written += u64_len_infallible(taken);
+        Ok(taken)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.inner.flush()
+    }
+}
+
+/// Feeds a [`DomainDigest`] with everything written through it, and forwards it.
+struct DigestWriter<W: Write> {
+    inner: W,
+    digest: DomainDigest,
+    written: u64,
+    largest: usize,
+}
+
+impl<W: Write> Write for DigestWriter<W> {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        let taken = self.inner.write(buf)?;
+        self.digest.update(&buf[..taken]);
+        self.written += u64_len_infallible(taken);
+        self.largest = self.largest.max(taken);
+        Ok(taken)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.inner.flush()
+    }
+}
+
+fn u64_len_infallible(len: usize) -> u64 {
+    u64::try_from(len).unwrap_or(u64::MAX)
+}
+
+/// Run `source` through `codec` into `sink`, a chunk at a time. Returns the logical bytes read.
+fn encode_payload_pass<W: Write>(
+    source: &dyn LogicalSource,
+    codec: PayloadCodec,
+    sink: &mut W,
+    buffer: &mut [u8],
+    work: &StreamWork<'_>,
+) -> Result<u64, StreamArtifactError> {
+    let mut reader = source.open().map_err(|e| from_std(&e))?;
+    let moved = match codec {
+        PayloadCodec::Zstd => {
+            zstd_compress_chunked(&mut reader, sink, buffer, work).map_err(from_io)?
+        }
+        PayloadCodec::Stored => {
+            let mut total = 0u64;
+            loop {
+                tick(work)?;
+                let taken = reader.read(buffer).map_err(|e| from_std(&e))?;
+                if taken == 0 {
+                    break total;
+                }
+                sink.write_all(&buffer[..taken]).map_err(|e| from_std(&e))?;
+                total += u64_len_infallible(taken);
+            }
+        }
+    };
+    if moved != source.logical_len() {
+        return Err(StreamArtifactError::Malformed("payload length"));
+    }
+    Ok(moved)
+}
+
+impl StreamArtifact<'_> {
+    /// Encode `metadata` and an optional payload into `w` without holding the payload.
+    ///
+    /// The payload is read from a re-openable source in chunks. The first passes only count
+    /// and checksum the on-wire bytes (the layout puts both before the payload); the last
+    /// pass writes them, and fails with [`StreamArtifactError::ChecksumMismatch`] if the
+    /// source changed between passes. The bytes are the same a buffered [`Self::encode`]
+    /// writes for a stored payload. The working set is leased from `work.ctx` before the
+    /// first byte is written, and the declared sizes are checked against `bounds` first.
+    ///
+    /// # Errors
+    ///
+    /// The declaration and bound errors of [`Self::encode`], [`StreamArtifactError::BudgetRefused`],
+    /// [`StreamArtifactError::Cancelled`] between chunks, and I/O failures.
+    pub fn encode_to<W: Write>(
+        metadata: &StreamMetadata,
+        payload: Option<(&dyn LogicalSource, PayloadCodec)>,
+        bounds: &StreamBounds,
+        work: &StreamWork<'_>,
+        mut w: W,
+    ) -> Result<StreamReceipt, StreamArtifactError> {
+        validate_declaration(metadata, payload.is_some())?;
+        let sections = if payload.is_some() { 2u32 } else { 1 };
+        if sections > bounds.max_sections {
+            return Err(StreamArtifactError::TooManySections { limit: bounds.max_sections });
+        }
+        let meta = encode_metadata(metadata)?;
+        check_section_size(u64_len(meta.len())?, bounds)?;
+        if let Some((source, _)) = payload {
+            check_section_size(source.logical_len(), bounds)?;
+            charge(0, source.logical_len(), bounds.max_retained_bytes)?;
+        }
+        let workspace = payload.map_or(0, |(_, codec)| codec.workspace_bytes());
+        let mut lease = work.admit(workspace).map_err(from_io)?;
+        let mut receipt = StreamReceipt {
+            leased_bytes: lease.bytes(),
+            chunk_bytes: work.chunk_bytes,
+            ..StreamReceipt::default()
+        };
+
+        let sized = match payload {
+            None => None,
+            Some((source, codec)) => {
+                let on_wire_len = match codec {
+                    PayloadCodec::Stored => source.logical_len(),
+                    PayloadCodec::Zstd => {
+                        let mut count = CountWriter { inner: std::io::sink(), written: 0 };
+                        encode_payload_pass(source, codec, &mut count, lease.buffer(), work)?;
+                        count.written
+                    }
+                };
+                check_section_size(on_wire_len, bounds)?;
+                let mut digest = DigestWriter {
+                    inner: std::io::sink(),
+                    digest: DomainDigest::new(CHECKSUM_TAG, on_wire_len),
+                    written: 0,
+                    largest: 0,
+                };
+                encode_payload_pass(source, codec, &mut digest, lease.buffer(), work)?;
+                let checksum = digest
+                    .digest
+                    .finish()
+                    .ok_or(StreamArtifactError::Malformed("payload length"))?;
+                Some((source, codec, on_wire_len, checksum))
+            }
+        };
+
+        let mut head = Vec::new();
+        head.extend_from_slice(&STREAM_ARTIFACT_MAGIC);
+        head.extend_from_slice(&STREAM_ARTIFACT_VERSION.to_le_bytes());
+        head.extend_from_slice(&sections.to_le_bytes());
+        write_section(&mut head, META_SECTION, STORED, &meta, &meta)?;
+        if let Some((source, codec, on_wire_len, checksum)) = &sized {
+            let name_len = u16::try_from(PAYLOAD_SECTION.len())
+                .map_err(|_| StreamArtifactError::Malformed("section name"))?;
+            head.extend_from_slice(&name_len.to_le_bytes());
+            head.extend_from_slice(PAYLOAD_SECTION.as_bytes());
+            head.push(codec.byte());
+            head.extend_from_slice(&source.logical_len().to_le_bytes());
+            head.extend_from_slice(&on_wire_len.to_le_bytes());
+            head.extend_from_slice(checksum);
+        }
+        w.write_all(&head).map_err(|e| from_std(&e))?;
+        if let Some((source, codec, on_wire_len, checksum)) = sized {
+            let mut out = DigestWriter {
+                inner: &mut w,
+                digest: DomainDigest::new(CHECKSUM_TAG, on_wire_len),
+                written: 0,
+                largest: 0,
+            };
+            let logical = encode_payload_pass(source, codec, &mut out, lease.buffer(), work)?;
+            if out.written != on_wire_len || out.digest.finish() != Some(checksum) {
+                return Err(StreamArtifactError::ChecksumMismatch { section: PAYLOAD_SECTION });
+            }
+            receipt.largest_write = receipt.largest_write.max(out.largest);
+            receipt.logical_bytes = logical;
+            receipt.on_wire_bytes = on_wire_len;
+        }
+        w.flush().map_err(|e| from_std(&e))?;
+        Ok(receipt)
+    }
+
+    /// Validate a seekable stream and hand its payload to `sink` in chunks.
+    ///
+    /// Header, metadata and payload sizes are checked against `bounds` before the payload
+    /// moves. The on-wire payload is checksummed in a first pass; only then is it decoded,
+    /// so `sink` never sees bytes of a corrupt payload. A Zstandard payload is cut at its
+    /// declared logical size as it decodes. Nothing but one chunk is held.
+    ///
+    /// # Errors
+    ///
+    /// The refusals of [`Self::open`], [`StreamArtifactError::BudgetRefused`],
+    /// [`StreamArtifactError::Cancelled`] between chunks, [`StreamArtifactError::Decompress`],
+    /// and the first error `sink` returns.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one function reads the header, the metadata and the payload in order"
+    )]
+    pub fn read_to<R: Read + Seek>(
+        mut r: R,
+        bounds: &StreamBounds,
+        work: &StreamWork<'_>,
+        mut sink: impl FnMut(&[u8]) -> Result<(), StreamArtifactError>,
+    ) -> Result<(StreamMetadata, StreamReceipt), StreamArtifactError> {
+        let mut lease = work.admit(0).map_err(from_io)?;
+        let mut receipt = StreamReceipt {
+            leased_bytes: lease.bytes(),
+            chunk_bytes: work.chunk_bytes,
+            ..StreamReceipt::default()
+        };
+        let mut fixed = [0u8; 8];
+        read_fixed(&mut r, &mut fixed)?;
+        if fixed != STREAM_ARTIFACT_MAGIC {
+            return Err(StreamArtifactError::Malformed("magic"));
+        }
+        let mut word = [0u8; 2];
+        read_fixed(&mut r, &mut word)?;
+        let version = u16::from_le_bytes(word);
+        if version > STREAM_ARTIFACT_VERSION {
+            return Err(StreamArtifactError::NewerFormat { version });
+        }
+        if version != STREAM_ARTIFACT_VERSION {
+            return Err(StreamArtifactError::UnsupportedFormat { version });
+        }
+        let mut count = [0u8; 4];
+        read_fixed(&mut r, &mut count)?;
+        let section_count = u32::from_le_bytes(count);
+        if section_count == 0 {
+            return Err(StreamArtifactError::Malformed("missing metadata"));
+        }
+        if section_count > bounds.max_sections {
+            return Err(StreamArtifactError::TooManySections { limit: bounds.max_sections });
+        }
+        if section_count > 2 {
+            return Err(StreamArtifactError::Malformed("section count"));
+        }
+        tick(work)?;
+        let head = read_head(&mut r, bounds)?;
+        if head.name != META_SECTION
+            || head.codec != STORED
+            || head.on_wire_len != head.logical_len
+            || head.on_wire_len > MAX_META_SECTION_BYTES
+        {
+            return Err(StreamArtifactError::Malformed("metadata section"));
+        }
+        let mut meta_bytes = vec![0u8; usize::try_from(head.on_wire_len).unwrap_or(0)];
+        read_fixed(&mut r, &mut meta_bytes)?;
+        if checksum(&meta_bytes) != head.checksum {
+            return Err(StreamArtifactError::ChecksumMismatch { section: META_SECTION });
+        }
+        let metadata = decode_metadata(&meta_bytes)?;
+
+        let declared_absent =
+            matches!(metadata.device, DevicePayload::Absent | DevicePayload::LivePointer { .. });
+        if (section_count == 2) == declared_absent {
+            return Err(StreamArtifactError::Malformed(
+                "payload does not match the device declaration",
+            ));
+        }
+        if section_count == 2 {
+            tick(work)?;
+            let head = read_head(&mut r, bounds)?;
+            if head.name != PAYLOAD_SECTION {
+                return Err(StreamArtifactError::Malformed("payload section"));
+            }
+            if head.codec == STORED && head.on_wire_len != head.logical_len {
+                return Err(StreamArtifactError::Malformed("stored length"));
+            }
+            charge(0, head.logical_len, bounds.max_retained_bytes)?;
+            // Only a compressed payload needs a decoder; a stored one is leased the chunk alone.
+            let _decoder_lease = if head.codec == CODEC_ZSTD {
+                let bytes = stream_decoder_workspace_bytes();
+                Some(
+                    work.ctx
+                        .acquire_admission(0, bytes)
+                        .map_err(|_| StreamArtifactError::BudgetRefused)?,
+                )
+            } else {
+                None
+            };
+            let start = r.stream_position().map_err(|e| from_std(&e))?;
+
+            // Pass one: the on-wire checksum, before any byte reaches the sink.
+            let mut digest = DomainDigest::new(CHECKSUM_TAG, head.on_wire_len);
+            let mut remaining = head.on_wire_len;
+            while remaining > 0 {
+                tick(work)?;
+                let want =
+                    usize::try_from(remaining).unwrap_or(usize::MAX).min(lease.buffer().len());
+                let buffer = lease.buffer();
+                read_fixed(&mut r, &mut buffer[..want])?;
+                digest.update(&buffer[..want]);
+                remaining -= u64_len_infallible(want);
+                receipt.chunks += 1;
+                receipt.largest_read = receipt.largest_read.max(want);
+            }
+            if digest.finish() != Some(head.checksum) {
+                return Err(StreamArtifactError::ChecksumMismatch { section: PAYLOAD_SECTION });
+            }
+            receipt.on_wire_bytes = head.on_wire_len;
+
+            // Pass two: decode the verified bytes into the sink.
+            r.seek(SeekFrom::Start(start)).map_err(|e| from_std(&e))?;
+            let mut failure: Option<StreamArtifactError> = None;
+            let mut delivered = 0u64;
+            let mut deliver = |chunk: &[u8]| -> Result<(), IoError> {
+                match sink(chunk) {
+                    Ok(()) => {
+                        delivered += u64_len_infallible(chunk.len());
+                        Ok(())
+                    }
+                    Err(error) => {
+                        failure = Some(error);
+                        Err(IoError::Io("stream artifact sink refused a chunk".into()))
+                    }
+                }
+            };
+            let on_wire = (&mut r).take(head.on_wire_len);
+            let decoded = if head.codec == CODEC_ZSTD {
+                zstd_decompress_chunked(
+                    on_wire,
+                    head.logical_len,
+                    lease.buffer(),
+                    work,
+                    &mut deliver,
+                )
+            } else {
+                stored_chunked(on_wire, head.logical_len, lease.buffer(), work, &mut deliver)
+            };
+            if let Some(error) = failure {
+                return Err(error);
+            }
+            let total = decoded.map_err(from_io)?;
+            if total != head.logical_len || delivered != head.logical_len {
+                return Err(StreamArtifactError::Decompress);
+            }
+            r.seek(SeekFrom::Start(start + head.on_wire_len)).map_err(|e| from_std(&e))?;
+            receipt.logical_bytes = delivered;
+            receipt.chunks += delivered.div_ceil(u64_len_infallible(work.chunk_bytes.max(1)));
+        }
+        let at = r.stream_position().map_err(|e| from_std(&e))?;
+        let end = r.seek(SeekFrom::End(0)).map_err(|e| from_std(&e))?;
+        if at != end {
+            return Err(StreamArtifactError::Malformed("trailing bytes"));
+        }
+        Ok((metadata, receipt))
+    }
+}
+
+/// Deliver a stored section in chunks, refusing more than `max_logical` bytes.
+fn stored_chunked<R: Read>(
+    mut on_wire: R,
+    max_logical: u64,
+    buffer: &mut [u8],
+    work: &StreamWork<'_>,
+    on_chunk: &mut impl FnMut(&[u8]) -> Result<(), IoError>,
+) -> Result<u64, IoError> {
+    let mut total = 0u64;
+    loop {
+        work.tick()?;
+        let taken = on_wire.read(buffer).map_err(|e| IoError::Io(e.to_string()))?;
+        if taken == 0 {
+            return Ok(total);
+        }
+        total += u64_len_infallible(taken);
+        if total > max_logical {
+            return Err(IoError::Decompress {
+                section: PAYLOAD_SECTION.into(),
+                message: "stored payload exceeds its declared size".into(),
+            });
+        }
+        on_chunk(&buffer[..taken])?;
+    }
+}
+
+fn read_fixed<R: Read>(r: &mut R, buf: &mut [u8]) -> Result<(), StreamArtifactError> {
+    r.read_exact(buf).map_err(|e| from_std(&e))
+}
+
+struct SectionHead {
+    name: String,
+    codec: u8,
+    logical_len: u64,
+    on_wire_len: u64,
+    checksum: [u8; 32],
+}
+
+fn read_head<R: Read>(
+    r: &mut R,
+    bounds: &StreamBounds,
+) -> Result<SectionHead, StreamArtifactError> {
+    let mut word = [0u8; 2];
+    read_fixed(r, &mut word)?;
+    let name_len = usize::from(u16::from_le_bytes(word));
+    if name_len == 0 || name_len > MAX_SECTION_NAME_LEN {
+        return Err(StreamArtifactError::Malformed("section name"));
+    }
+    let mut name = vec![0u8; name_len];
+    read_fixed(r, &mut name)?;
+    let name =
+        String::from_utf8(name).map_err(|_| StreamArtifactError::Malformed("section name"))?;
+    let mut codec = [0u8; 1];
+    read_fixed(r, &mut codec)?;
+    let mut long = [0u8; 8];
+    read_fixed(r, &mut long)?;
+    let logical_len = u64::from_le_bytes(long);
+    read_fixed(r, &mut long)?;
+    let on_wire_len = u64::from_le_bytes(long);
+    check_section_size(logical_len, bounds)?;
+    check_section_size(on_wire_len, bounds)?;
+    if codec[0] != STORED && codec[0] != CODEC_ZSTD {
+        return Err(StreamArtifactError::Malformed("codec"));
+    }
+    let mut checksum = [0u8; 32];
+    read_fixed(r, &mut checksum)?;
+    Ok(SectionHead { name, codec: codec[0], logical_len, on_wire_len, checksum })
 }
 
 fn observe(cancel: &CancellationToken) -> Result<(), StreamArtifactError> {
@@ -883,5 +1378,348 @@ mod tests {
         let payload_name =
             u16::from_le_bytes(bytes[at..at + 2].try_into().expect("payload name length"));
         at + 2 + usize::from(payload_name) + 1
+    }
+
+    mod incremental {
+        use std::io::{Cursor, Read, Write};
+
+        use antecedent_core::ExecutionContext;
+        use antecedent_core::execution::AdmissionPool;
+
+        use super::{
+            CpuPayload, DevicePayload, PayloadSource, Producer, STREAM_ARTIFACT_MAGIC,
+            StreamArtifact, StreamArtifactError, StreamBounds, StreamMetadata, metadata,
+            payload_logical_offset,
+        };
+        use crate::stream_artifact::{LogicalSource, PayloadCodec, StreamWork};
+
+        /// A compressible payload produced on demand.
+        struct Pattern {
+            len: u64,
+        }
+
+        struct PatternReader {
+            left: u64,
+            at: u64,
+        }
+
+        impl Read for PatternReader {
+            fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+                let n = usize::try_from(self.left).unwrap_or(usize::MAX).min(buf.len());
+                for byte in &mut buf[..n] {
+                    self.at += 1;
+                    *byte = b'a' + ((self.at / 100) % 11) as u8;
+                }
+                self.left -= n as u64;
+                Ok(n)
+            }
+        }
+
+        impl LogicalSource for Pattern {
+            fn logical_len(&self) -> u64 {
+                self.len
+            }
+
+            fn open(&self) -> std::io::Result<Box<dyn Read + '_>> {
+                Ok(Box::new(PatternReader { left: self.len, at: 0 }))
+            }
+        }
+
+        fn materialized() -> StreamMetadata {
+            metadata(Producer::Accelerator, DevicePayload::Materialized)
+        }
+
+        fn wide_bounds() -> StreamBounds {
+            StreamBounds {
+                max_section_bytes: 128 << 20,
+                max_retained_bytes: 128 << 20,
+                ..StreamBounds::default()
+            }
+        }
+
+        fn study(pool: &AdmissionPool) -> ExecutionContext {
+            ExecutionContext::for_tests(1).with_admission(pool.clone())
+        }
+
+        #[test]
+        fn a_stored_incremental_encode_is_byte_identical_and_reads_back_in_chunks() {
+            let payload: Vec<u8> = (0..50_000u32).map(|i| (i % 253) as u8).collect();
+            let buffered = StreamArtifact::encode(
+                &materialized(),
+                PayloadSource::Stored(&payload),
+                &StreamBounds::default(),
+            )
+            .unwrap();
+            let pool = AdmissionPool::fixed(1, 1 << 20);
+            let ctx = study(&pool);
+            let work = StreamWork::new(&ctx).with_chunk_bytes(1000);
+            let mut streamed = Vec::new();
+            let receipt = StreamArtifact::encode_to(
+                &materialized(),
+                Some((&payload, PayloadCodec::Stored)),
+                &StreamBounds::default(),
+                &work,
+                &mut streamed,
+            )
+            .unwrap();
+            assert_eq!(streamed, buffered);
+            assert_eq!(receipt.logical_bytes, payload.len() as u64);
+            assert_eq!(pool.available().bytes(), 1 << 20);
+
+            let mut got = Vec::new();
+            let mut largest = 0;
+            let (meta, read) = StreamArtifact::read_to(
+                Cursor::new(&streamed),
+                &StreamBounds::default(),
+                &work,
+                |chunk| {
+                    largest = largest.max(chunk.len());
+                    got.extend_from_slice(chunk);
+                    Ok(())
+                },
+            )
+            .unwrap();
+            assert_eq!(meta, materialized());
+            assert_eq!(got, payload);
+            assert!(largest <= 1000, "{largest}");
+            assert_eq!(read.logical_bytes, payload.len() as u64);
+
+            let absent = StreamArtifact::encode_to(
+                &metadata(Producer::Cpu, DevicePayload::Absent),
+                None,
+                &StreamBounds::default(),
+                &work,
+                Vec::new(),
+            );
+            assert!(absent.is_ok());
+        }
+
+        #[test]
+        fn a_compressed_payload_larger_than_the_budget_streams_both_ways() {
+            const BUDGET: u64 = 24 << 20;
+            let pool = AdmissionPool::fixed(1, BUDGET);
+            let ctx = study(&pool);
+            let work = StreamWork::new(&ctx).with_chunk_bytes(32 * 1024);
+            let source = Pattern { len: 64 << 20 };
+            let path = std::env::temp_dir()
+                .join(format!("antecedent-stream-artifact-{}", std::process::id()));
+            let file = std::fs::File::create(&path).unwrap();
+            let written = StreamArtifact::encode_to(
+                &materialized(),
+                Some((&source, PayloadCodec::Zstd)),
+                &wide_bounds(),
+                &work,
+                file,
+            )
+            .unwrap();
+            assert!(written.leased_bytes <= BUDGET);
+            assert!(
+                written.leased_bytes < source.len,
+                "the working set is smaller than the payload"
+            );
+            assert!(written.on_wire_bytes < source.len / 10);
+            assert!(written.largest_write <= 1 << 20, "{}", written.largest_write);
+            assert_eq!(pool.available().bytes(), BUDGET);
+
+            let mut hasher = blake3::Hasher::new();
+            let mut total = 0u64;
+            let mut largest = 0usize;
+            let (meta, read) = StreamArtifact::read_to(
+                std::fs::File::open(&path).unwrap(),
+                &wide_bounds(),
+                &work,
+                |chunk| {
+                    largest = largest.max(chunk.len());
+                    total += chunk.len() as u64;
+                    hasher.update(chunk);
+                    Ok(())
+                },
+            )
+            .unwrap();
+            assert_eq!(meta, materialized());
+            assert_eq!(total, source.len);
+            assert!(largest <= 32 * 1024, "{largest}");
+            assert!(read.leased_bytes <= BUDGET);
+            let mut expected = blake3::Hasher::new();
+            let mut again = source.open().unwrap();
+            let mut buf = vec![0u8; 8192];
+            loop {
+                let n = again.read(&mut buf).unwrap();
+                if n == 0 {
+                    break;
+                }
+                expected.update(&buf[..n]);
+            }
+            assert_eq!(hasher.finalize(), expected.finalize());
+            assert_eq!(pool.available().bytes(), BUDGET);
+
+            // The slice reader keeps its cheap metadata read and refuses to borrow a frame.
+            let bytes = std::fs::read(&path).unwrap();
+            let _ = std::fs::remove_file(&path);
+            let cancel = antecedent_core::CancellationToken::new();
+            let meta_only = StreamArtifact::read_metadata(&bytes, &wide_bounds(), &cancel).unwrap();
+            assert_eq!(meta_only, materialized());
+            let refused = StreamArtifact::open(&bytes, &wide_bounds(), &cancel, None).unwrap_err();
+            assert_eq!(refused, StreamArtifactError::Malformed("codec"));
+        }
+
+        #[test]
+        fn the_budget_is_leased_before_anything_is_written_and_cancellation_returns_it() {
+            let source = Pattern { len: 1 << 20 };
+            let chunk = 4096usize;
+            let need =
+                2 * chunk as u64 + antecedent_io_core::container::stream_encoder_workspace_bytes();
+            let pool = AdmissionPool::fixed(1, need - 1);
+            let ctx = study(&pool);
+            let work = StreamWork::new(&ctx).with_chunk_bytes(chunk);
+            let mut out = Vec::new();
+            let refused = StreamArtifact::encode_to(
+                &materialized(),
+                Some((&source, PayloadCodec::Zstd)),
+                &wide_bounds(),
+                &work,
+                &mut out,
+            )
+            .unwrap_err();
+            assert_eq!(refused, StreamArtifactError::BudgetRefused);
+            assert!(out.is_empty());
+            assert_eq!(pool.available().bytes(), need - 1);
+
+            struct CountSeen {
+                seen: usize,
+            }
+            impl Write for CountSeen {
+                fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+                    self.seen += buf.len();
+                    Ok(buf.len())
+                }
+
+                fn flush(&mut self) -> std::io::Result<()> {
+                    Ok(())
+                }
+            }
+            let big = AdmissionPool::fixed(1, 64 << 20);
+            let ctx = study(&big);
+            let work = StreamWork::new(&ctx).with_chunk_bytes(chunk);
+            let noise = Pattern { len: 8 << 20 };
+            let token = ctx.cancellation.clone();
+            let mut sink = CountSeen { seen: 0 };
+            // Cancel from a reader that has delivered a megabyte.
+            struct Cancelling<'a> {
+                inner: Pattern,
+                token: &'a antecedent_core::CancellationToken,
+                after: u64,
+            }
+            impl LogicalSource for Cancelling<'_> {
+                fn logical_len(&self) -> u64 {
+                    self.inner.len
+                }
+
+                fn open(&self) -> std::io::Result<Box<dyn Read + '_>> {
+                    struct R<'b> {
+                        inner: PatternReader,
+                        token: &'b antecedent_core::CancellationToken,
+                        after: u64,
+                        total: u64,
+                    }
+                    impl Read for R<'_> {
+                        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+                            let n = self.inner.read(buf)?;
+                            self.total += n as u64;
+                            if self.total >= self.after {
+                                self.token.cancel();
+                            }
+                            Ok(n)
+                        }
+                    }
+                    Ok(Box::new(R {
+                        inner: PatternReader { left: self.inner.len, at: 0 },
+                        token: self.token,
+                        after: self.after,
+                        total: 0,
+                    }))
+                }
+            }
+            let cancelling = Cancelling { inner: noise, token: &token, after: 1 << 20 };
+            let refused = StreamArtifact::encode_to(
+                &materialized(),
+                Some((&cancelling, PayloadCodec::Stored)),
+                &wide_bounds(),
+                &work,
+                &mut sink,
+            )
+            .unwrap_err();
+            assert_eq!(refused, StreamArtifactError::Cancelled);
+            assert!(sink.seen < 4 << 20, "{}", sink.seen);
+            assert_eq!(big.available().bytes(), 64 << 20);
+        }
+
+        #[test]
+        fn corrupt_truncated_newer_and_expanding_streams_never_reach_the_sink_wrongly() {
+            let pool = AdmissionPool::fixed(1, 64 << 20);
+            let ctx = study(&pool);
+            let work = StreamWork::new(&ctx).with_chunk_bytes(2048);
+            let source = Pattern { len: 1 << 20 };
+            let mut bytes = Vec::new();
+            StreamArtifact::encode_to(
+                &materialized(),
+                Some((&source, PayloadCodec::Zstd)),
+                &wide_bounds(),
+                &work,
+                &mut bytes,
+            )
+            .unwrap();
+
+            let mut calls = 0;
+            let mut corrupt = bytes.clone();
+            let last = corrupt.len() / 2 + 40;
+            corrupt[last] ^= 0x55;
+            let refused =
+                StreamArtifact::read_to(Cursor::new(&corrupt), &wide_bounds(), &work, |_| {
+                    calls += 1;
+                    Ok(())
+                })
+                .unwrap_err();
+            assert_eq!(refused, StreamArtifactError::ChecksumMismatch { section: "payload" });
+            assert_eq!(calls, 0, "the checksum is verified before the first chunk");
+
+            let refused = StreamArtifact::read_to(
+                Cursor::new(&bytes[..bytes.len() - 3]),
+                &wide_bounds(),
+                &work,
+                |_| Ok(()),
+            )
+            .unwrap_err();
+            assert_eq!(refused, StreamArtifactError::Truncated);
+
+            let mut newer = Vec::from(STREAM_ARTIFACT_MAGIC);
+            newer.extend_from_slice(&2u16.to_le_bytes());
+            newer.extend_from_slice(&u32::MAX.to_le_bytes());
+            let refused =
+                StreamArtifact::read_to(Cursor::new(&newer), &wide_bounds(), &work, |_| Ok(()))
+                    .unwrap_err();
+            assert_eq!(refused, StreamArtifactError::NewerFormat { version: 2 });
+
+            // The checksum covers the on-wire frame, so declaring a smaller logical size
+            // leaves it valid; the frame then expands past what the header allows.
+            let mut declared = bytes.clone();
+            let at = payload_logical_offset(&declared);
+            declared[at..at + 8].copy_from_slice(&1000u64.to_le_bytes());
+            let mut delivered = 0usize;
+            let refused =
+                StreamArtifact::read_to(Cursor::new(&declared), &wide_bounds(), &work, |chunk| {
+                    delivered += chunk.len();
+                    Ok(())
+                })
+                .unwrap_err();
+            assert_eq!(refused, StreamArtifactError::Decompress);
+            assert!(delivered <= 1000, "{delivered}");
+
+            let tight = StreamBounds { max_retained_bytes: 10, ..wide_bounds() };
+            let refused = StreamArtifact::read_to(Cursor::new(&bytes), &tight, &work, |_| Ok(()))
+                .unwrap_err();
+            assert_eq!(refused, StreamArtifactError::RetainedOutput { limit: 10 });
+            let _ = CpuPayload::Absent;
+        }
     }
 }

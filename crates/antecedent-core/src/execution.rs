@@ -2047,6 +2047,264 @@ impl ExecutionContext {
     }
 }
 
+/// What a pipeline consumer wants after taking an item.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum PipelineStep {
+    /// Take the next item.
+    Continue,
+    /// Stop after this item. Production above it is dropped.
+    Stop,
+}
+
+/// What a bounded pipeline did.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PipelineReceipt {
+    /// Items the consumer took, in index order.
+    pub items_consumed: usize,
+    /// Most items produced-or-being-produced and not yet consumed at one time. It
+    /// never exceeds the window, however long the consumer stalls.
+    pub peak_live: usize,
+    /// Workers that produced items; one means the caller produced inline.
+    pub workers: usize,
+}
+
+struct PipelineState<T, E> {
+    next_claim: usize,
+    next_consume: usize,
+    ready: std::collections::BTreeMap<usize, Result<T, E>>,
+    live: usize,
+    peak_live: usize,
+    stop: bool,
+    workers_alive: usize,
+}
+
+/// Marks a pipeline worker gone, including when it unwinds, so the consumer
+/// never waits for an item nobody will produce.
+struct PipelineWorkerExit<'a, T, E> {
+    shared: &'a Mutex<PipelineState<T, E>>,
+    wake: &'a Condvar,
+}
+
+impl<T, E> Drop for PipelineWorkerExit<'_, T, E> {
+    fn drop(&mut self) {
+        let mut state = self.shared.lock().unwrap_or_else(PoisonError::into_inner);
+        state.workers_alive = state.workers_alive.saturating_sub(1);
+        drop(state);
+        self.wake.notify_all();
+    }
+}
+
+/// Tells pipeline workers to stop and frees items nobody will consume.
+struct PipelineStop<'a, T, E> {
+    shared: &'a Mutex<PipelineState<T, E>>,
+    wake: &'a Condvar,
+}
+
+impl<T, E> Drop for PipelineStop<'_, T, E> {
+    fn drop(&mut self) {
+        let mut state = self.shared.lock().unwrap_or_else(PoisonError::into_inner);
+        state.stop = true;
+        state.ready.clear();
+        drop(state);
+        self.wake.notify_all();
+    }
+}
+
+impl ExecutionContext {
+    /// Produce `0..n` on leased workers and consume them in index order on the caller,
+    /// with at most `window` items produced and not yet consumed.
+    ///
+    /// A worker may claim index `i` only while `i < consumed + window`, so a consumer
+    /// that stalls stops the producers after `window` items and the live buffers stay at
+    /// `window` instead of growing to `n`. The consumer runs on the calling thread, one
+    /// item at a time, in index order, so folds and sinks need no synchronization. An
+    /// item stays live until its consumer call returns.
+    ///
+    /// Workers are leased like [`Self::map_indexed`], without waiting: when fewer than two
+    /// slots are free the caller produces and consumes inline, one item live at a time.
+    /// `produce` receives [`Self::serial_inner`].
+    ///
+    /// Cancellation is observed before each item is consumed; items produced beyond the
+    /// last consumed one are dropped, and the lease returns when the workers join. A
+    /// consumer that returns [`PipelineStep::Stop`] ends the run with a receipt.
+    ///
+    /// # Errors
+    ///
+    /// Cancellation, or the lowest-index error of `produce`, or the first error of
+    /// `consume`; production above a known failure is not consumed.
+    ///
+    /// # Panics
+    ///
+    /// A panic in `produce` or `consume` propagates after the workers stop.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one function owns the claim window, the ordered hand-off and the shutdown"
+    )]
+    pub fn pipeline_indexed<T, E, P, C>(
+        &self,
+        n: usize,
+        window: usize,
+        produce: P,
+        mut consume: C,
+    ) -> Result<PipelineReceipt, MapExecutionError<E>>
+    where
+        T: Send,
+        E: Send,
+        P: Fn(usize, &Self) -> Result<T, E> + Sync,
+        C: FnMut(usize, T) -> Result<PipelineStep, E>,
+    {
+        let window = window.max(1);
+        if n == 0 {
+            return Ok(PipelineReceipt { items_consumed: 0, peak_live: 0, workers: 0 });
+        }
+        if self.cancellation.is_cancelled() {
+            return Err(MapExecutionError::Admission(AdmissionError::Cancelled));
+        }
+        let inner = self.serial_inner();
+        let threads = self.map_worker_count(n).min(window);
+        let granted = if threads > 1 {
+            u32::try_from(threads).ok().and_then(|t| self.acquire_map_lease_if_free(t).ok())
+        } else {
+            None
+        };
+        let Some((granted, lease)) = granted else {
+            for index in 0..n {
+                if self.cancellation.is_cancelled() {
+                    return Err(MapExecutionError::Admission(AdmissionError::Cancelled));
+                }
+                let item = produce(index, &inner).map_err(MapExecutionError::Work)?;
+                let step = consume(index, item).map_err(MapExecutionError::Work)?;
+                if step == PipelineStep::Stop {
+                    return Ok(PipelineReceipt {
+                        items_consumed: index + 1,
+                        peak_live: 1,
+                        workers: 1,
+                    });
+                }
+            }
+            return Ok(PipelineReceipt { items_consumed: n, peak_live: 1, workers: 1 });
+        };
+        let workers = usize::try_from(granted).unwrap_or(threads).clamp(2, threads);
+        let lease = Arc::new(lease);
+        let observation = crate::execution_attempt::ObservationToken::capture();
+        let numerical = crate::numerical_admission::with_worker(
+            Arc::clone(&lease),
+            crate::numerical_admission::NumericalAdmissionToken::capture,
+        );
+        let shared = Mutex::new(PipelineState::<T, E> {
+            next_claim: 0,
+            next_consume: 0,
+            ready: std::collections::BTreeMap::new(),
+            live: 0,
+            peak_live: 0,
+            stop: false,
+            workers_alive: workers,
+        });
+        let wake = Condvar::new();
+        let lock = || shared.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut consumed = 0usize;
+        let mut outcome: Result<(), MapExecutionError<E>> = Ok(());
+        std::thread::scope(|scope| {
+            let produce = &produce;
+            let inner = &inner;
+            let observation = &observation;
+            let numerical = &numerical;
+            let shared_ref = &shared;
+            let wake_ref = &wake;
+            for _ in 0..workers {
+                scope.spawn(move || {
+                    observation.execute(|| {
+                        let _exit = PipelineWorkerExit { shared: shared_ref, wake: wake_ref };
+                        loop {
+                            let claimed = {
+                                let mut state =
+                                    shared_ref.lock().unwrap_or_else(PoisonError::into_inner);
+                                loop {
+                                    if state.stop || state.next_claim >= n {
+                                        break None;
+                                    }
+                                    if state.next_claim < state.next_consume + window {
+                                        let index = state.next_claim;
+                                        state.next_claim += 1;
+                                        state.live += 1;
+                                        state.peak_live = state.peak_live.max(state.live);
+                                        break Some(index);
+                                    }
+                                    state = wake_ref
+                                        .wait(state)
+                                        .unwrap_or_else(PoisonError::into_inner);
+                                }
+                            };
+                            let Some(index) = claimed else { break };
+                            let result = numerical.execute(inner, || produce(index, inner));
+                            shared_ref
+                                .lock()
+                                .unwrap_or_else(PoisonError::into_inner)
+                                .ready
+                                .insert(index, result);
+                            wake_ref.notify_all();
+                        }
+                    });
+                });
+            }
+            // Stops the workers on every exit from this closure, including a panic in
+            // `consume`, so the scope can join them.
+            let _stop = PipelineStop { shared: shared_ref, wake: wake_ref };
+            'items: for index in 0..n {
+                let item = {
+                    let mut state = lock();
+                    loop {
+                        if let Some(item) = state.ready.remove(&index) {
+                            break Ok(item);
+                        }
+                        if state.workers_alive == 0 {
+                            break Err(AdmissionError::Released);
+                        }
+                        if self.cancellation.is_cancelled() {
+                            break Err(AdmissionError::Cancelled);
+                        }
+                        state = wake
+                            .wait_timeout(state, Duration::from_millis(5))
+                            .unwrap_or_else(PoisonError::into_inner)
+                            .0;
+                    }
+                };
+                let step = match item {
+                    Err(refusal) => Err(MapExecutionError::Admission(refusal)),
+                    Ok(Err(error)) => Err(MapExecutionError::Work(error)),
+                    Ok(Ok(value)) => {
+                        if self.cancellation.is_cancelled() {
+                            Err(MapExecutionError::Admission(AdmissionError::Cancelled))
+                        } else {
+                            consume(index, value).map_err(MapExecutionError::Work)
+                        }
+                    }
+                };
+                match step {
+                    Err(error) => {
+                        outcome = Err(error);
+                        break 'items;
+                    }
+                    Ok(PipelineStep::Stop) => {
+                        consumed += 1;
+                        break 'items;
+                    }
+                    Ok(PipelineStep::Continue) => {}
+                }
+                consumed += 1;
+                let mut state = lock();
+                state.live = state.live.saturating_sub(1);
+                state.next_consume = index + 1;
+                drop(state);
+                wake.notify_all();
+            }
+        });
+        drop(lease);
+        let peak_live = lock().peak_live;
+        outcome.map(|()| PipelineReceipt { items_consumed: consumed, peak_live, workers })
+    }
+}
+
 /// Whether a parallel map waits for its worker slots.
 #[derive(Clone, Copy)]
 enum MapWait {

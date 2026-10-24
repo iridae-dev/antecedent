@@ -204,6 +204,9 @@ fn row_index_error() -> EstimationError {
 )]
 mod adaptive_resample {
     use antecedent_core::AdaptiveBootstrapBudget;
+    use antecedent_core::execution::{
+        AdmissionError, MapExecutionError, PipelineReceipt, PipelineStep,
+    };
     use antecedent_data::{DataError, GlobalId, ResamplingPlan};
 
     use super::retained_index_slots;
@@ -480,6 +483,224 @@ mod adaptive_resample {
         ))
     }
 
+    /// A finished pipelined wave and the live-buffer peak it kept.
+    #[derive(Clone, Debug, PartialEq)]
+    pub(crate) struct PipelinedWave {
+        /// The same result a serial wave of this request reports.
+        pub result: AdaptiveWaveResult,
+        /// Pipeline receipt: draws consumed, peak draws alive at once, and producers.
+        pub receipt: PipelineReceipt,
+    }
+
+    enum PipeDraw {
+        Rows(Vec<GlobalId>),
+        Weights(Vec<f64>),
+        Cancelled,
+    }
+
+    /// Rows one draw can hold at most. An unequal cluster draw can pass `n`.
+    fn draw_row_bound(design: AdaptiveDesign<'_>) -> usize {
+        match design {
+            AdaptiveDesign::Indexes {
+                plan: ResamplingPlan::ClusterBootstrap { .. },
+                cluster_ids: Some(ids),
+                n,
+            } => {
+                let mut counts = std::collections::BTreeMap::<u32, usize>::new();
+                for id in ids {
+                    *counts.entry(*id).or_insert(0) += 1;
+                }
+                let widest = counts.values().copied().max().unwrap_or(0);
+                counts.len().saturating_mul(widest).max(n)
+            }
+            other => other.n(),
+        }
+    }
+
+    /// [`run_adaptive_resample_wave`] with draws made by leased workers ahead of the
+    /// evaluator, at most `request.width` of them alive at once.
+    ///
+    /// Workers draw replicates (each from its own `derive_stream`, so the rows are the
+    /// serial rows) while the caller evaluates them in replicate order. A draw is alive
+    /// from the moment a worker claims its replicate until `estimate` returns, so a
+    /// stalled evaluator stops the producers after `width` draws instead of letting them
+    /// run ahead. The bytes of `width` draws are leased from the admission pool before the
+    /// first draw, and a pool that cannot hold them refuses the wave. The result equals
+    /// the serial wave's, including the early stop on the success floor.
+    ///
+    /// # Errors
+    ///
+    /// The errors of [`run_adaptive_resample_wave`], and a refusal of the draw window by
+    /// the admission pool.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one function owns the window lease, the producer and the ordered evaluator"
+    )]
+    pub(crate) fn run_pipelined_resample_wave(
+        request: &AdaptiveWaveRequest<'_>,
+        ctx: &antecedent_core::ExecutionContext,
+        mut estimate: impl FnMut(ResampleDraw<'_>) -> Result<Option<f64>, EstimationError>,
+    ) -> Result<PipelinedWave, EstimationError> {
+        let n = request.design.n();
+        let idle = PipelineReceipt { items_consumed: 0, peak_live: 0, workers: 0 };
+        if request.requested == 0 || n == 0 {
+            return Ok(PipelinedWave {
+                result: AdaptiveWaveResult::empty(request.requested, false, 0),
+                receipt: idle,
+            });
+        }
+        if request.width == 0 {
+            return Err(EstimationError::data_msg("resample wave needs a positive width"));
+        }
+        if ctx.cancellation.is_cancelled() {
+            return Ok(PipelinedWave {
+                result: AdaptiveWaveResult::empty(request.requested, true, 0),
+                receipt: idle,
+            });
+        }
+        let variable = request.design.variable_cluster();
+        let requested = usize::try_from(request.requested).unwrap_or(usize::MAX);
+        let window = request.width.min(requested).max(1);
+        let slots = retained_index_slots(draw_row_bound(request.design), window)?;
+        let bytes = u64::try_from(slots)
+            .ok()
+            .and_then(|slots| slots.checked_mul(8))
+            .ok_or_else(|| EstimationError::data_msg("resample window bytes overflow"))?;
+        let held = ctx.acquire_admission(0, bytes).map_err(|error| {
+            EstimationError::data_msg(format!(
+                "the resample window of {window} draws needs {bytes} bytes: {error}"
+            ))
+        })?;
+        let design = request.design;
+        let stream_base = request.stream_base;
+        let produce = |index: usize,
+                       inner: &antecedent_core::ExecutionContext|
+         -> Result<PipeDraw, EstimationError> {
+            let replicate = u64::try_from(index).map_err(|_| {
+                EstimationError::data_msg("bootstrap replicate id exceeds the wave index")
+            })?;
+            match design {
+                AdaptiveDesign::Bayesian { .. } => {
+                    let mut weights = Vec::new();
+                    match antecedent_data::resample::fill_resample_weight_replicate(
+                        ResamplingPlan::BayesianBootstrap,
+                        n,
+                        inner,
+                        stream_base,
+                        replicate,
+                        &mut weights,
+                    ) {
+                        Ok(()) if weights.len() == n => Ok(PipeDraw::Weights(weights)),
+                        Ok(()) => Err(EstimationError::data_msg(
+                            "Bayesian resample wave expected one weight per row",
+                        )),
+                        Err(DataError::Cancelled) => Ok(PipeDraw::Cancelled),
+                        Err(other) => Err(EstimationError::Data(other)),
+                    }
+                }
+                AdaptiveDesign::Indexes { plan, cluster_ids, .. } => {
+                    let mut rows = Vec::new();
+                    match antecedent_data::resample::fill_resample_index_replicate(
+                        plan,
+                        n,
+                        cluster_ids,
+                        inner,
+                        stream_base,
+                        replicate,
+                        &mut rows,
+                    ) {
+                        Ok(()) if variable || rows.len() == n => Ok(PipeDraw::Rows(rows)),
+                        Ok(()) => Err(EstimationError::data_msg(
+                            "fixed-length resample returned a variable row count",
+                        )),
+                        Err(DataError::Cancelled) => Ok(PipeDraw::Cancelled),
+                        Err(other) => Err(EstimationError::Data(other)),
+                    }
+                }
+            }
+        };
+        let mut successes = Vec::new();
+        let mut attempted = 0u32;
+        let mut cancelled = false;
+        let mut early_stopped = false;
+        let mut widest = 0usize;
+        let piped = ctx.pipeline_indexed(requested, window, produce, |index, draw| {
+            let replicate = u32::try_from(index).unwrap_or(u32::MAX);
+            let outcome = match &draw {
+                PipeDraw::Cancelled => {
+                    cancelled = true;
+                    return Ok(PipelineStep::Stop);
+                }
+                PipeDraw::Rows(rows) => {
+                    widest = widest.max(rows.len());
+                    estimate(ResampleDraw::Rows(rows))
+                }
+                PipeDraw::Weights(weights) => {
+                    widest = widest.max(weights.len());
+                    estimate(ResampleDraw::Weights(weights))
+                }
+            };
+            match outcome {
+                Err(EstimationError::Data(DataError::Cancelled)) => {
+                    cancelled = true;
+                    Ok(PipelineStep::Stop)
+                }
+                Err(error) => Err(error),
+                Ok(value) => {
+                    attempted += 1;
+                    let finite = value.filter(|item| item.is_finite());
+                    if let Some(item) = finite {
+                        successes.push(item);
+                    }
+                    if ctx.cancellation.is_cancelled() {
+                        cancelled = true;
+                        report(ctx, replicate, request.requested);
+                        return Ok(PipelineStep::Stop);
+                    }
+                    let more =
+                        replicate.checked_add(1).is_some_and(|next| next < request.requested);
+                    if finite.is_some() && more {
+                        let ok = u32::try_from(successes.len()).unwrap_or(u32::MAX);
+                        if adaptive_bootstrap_should_stop(request.budget, ok) {
+                            early_stopped = true;
+                            report(ctx, replicate, request.requested);
+                            return Ok(PipelineStep::Stop);
+                        }
+                    }
+                    report(ctx, replicate, request.requested);
+                    Ok(PipelineStep::Continue)
+                }
+            }
+        });
+        drop(held);
+        let receipt = match piped {
+            Ok(receipt) => receipt,
+            Err(MapExecutionError::Work(error)) => return Err(error),
+            Err(MapExecutionError::Admission(AdmissionError::Cancelled)) => {
+                cancelled = true;
+                PipelineReceipt { items_consumed: 0, peak_live: 0, workers: 0 }
+            }
+            Err(MapExecutionError::Admission(other)) => {
+                return Err(EstimationError::data_msg(format!(
+                    "resample pipeline was not admitted: {other}"
+                )));
+            }
+        };
+        let resident = receipt.peak_live.saturating_mul(widest);
+        Ok(PipelinedWave {
+            result: AdaptiveWaveResult::from_successes(
+                successes,
+                request.requested,
+                attempted,
+                cancelled,
+                early_stopped,
+                request.level,
+                resident,
+            ),
+            receipt,
+        })
+    }
+
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     enum Fill {
         Cancelled,
@@ -628,9 +849,11 @@ mod adaptive_resample {
         use super::{
             AdaptiveDesign, AdaptiveWaveRequest, AdaptiveWaveResult, ResampleDraw,
             normal_sd_relative_monte_carlo_error, run_adaptive_resample_wave,
+            run_pipelined_resample_wave,
         };
         use crate::error::EstimationError;
         use crate::statistical_transport::percentile_interval;
+        use antecedent_core::execution::AdmissionPool;
 
         const DATA: [f64; 8] = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0];
 
@@ -756,6 +979,86 @@ mod adaptive_resample {
             near(shi, hi + 3.0);
             near(shifted_run.se.unwrap(), stopped.se.unwrap());
             assert_eq!(full_sample_fits, 1);
+        }
+
+        fn pooled(bytes: u64) -> (ExecutionContext, AdmissionPool) {
+            let pool = AdmissionPool::fixed(4, bytes);
+            (ExecutionContext::production(99, 4).with_admission(pool.clone()), pool)
+        }
+
+        #[test]
+        fn pipelined_waves_reproduce_the_serial_wave_for_every_design() {
+            let (ctx, pool) = pooled(1 << 20);
+            let weights = AdaptiveDesign::Bayesian { n: DATA.len() };
+            for (design, early) in
+                [(iid(), true), (iid(), false), (weights, true), (weights, false)]
+            {
+                let budget =
+                    if early { floor_budget() } else { AdaptiveBootstrapBudget::disabled() };
+                let request = request(design, 40, 4, budget);
+                let evaluate = |draw: ResampleDraw<'_>| match draw {
+                    ResampleDraw::Rows(_) => mean_rows(&DATA, draw),
+                    ResampleDraw::Weights(w) => Ok(Some(
+                        w.iter().zip(DATA).map(|(weight, value)| weight * value).sum::<f64>()
+                            / w.iter().sum::<f64>(),
+                    )),
+                };
+                let serial = run_adaptive_resample_wave(&request, &ctx, evaluate).unwrap();
+                let piped = run_pipelined_resample_wave(&request, &ctx, evaluate).unwrap();
+                accounted(&piped.result);
+                bits_eq(&piped.result.successes, &serial.successes);
+                assert_eq!(piped.result.attempted, serial.attempted);
+                assert_eq!(piped.result.early_stopped, serial.early_stopped);
+                assert_eq!(piped.result.early_stopped, early);
+                assert_eq!(piped.result.interval, serial.interval);
+                assert_eq!(
+                    piped.receipt.items_consumed,
+                    usize::try_from(serial.attempted).unwrap()
+                );
+                assert!(piped.receipt.peak_live <= 4);
+                assert_eq!(pool.available().bytes(), 1 << 20, "the draw window is returned");
+                assert_eq!(pool.available().threads(), 4);
+            }
+        }
+
+        #[test]
+        fn a_stalled_evaluator_keeps_live_draws_at_the_window() {
+            let (ctx, pool) = pooled(1 << 20);
+            let request = request(iid(), 60, 3, AdaptiveBootstrapBudget::disabled());
+            let mut first = true;
+            let piped = run_pipelined_resample_wave(&request, &ctx, |draw| {
+                if std::mem::take(&mut first) {
+                    std::thread::sleep(std::time::Duration::from_millis(120));
+                }
+                mean_rows(&DATA, draw)
+            })
+            .unwrap();
+            assert_eq!(piped.result.attempted, 60);
+            assert!(piped.receipt.workers >= 2);
+            assert!(
+                piped.receipt.peak_live <= 3,
+                "producers ran past the window: {}",
+                piped.receipt.peak_live
+            );
+            assert!(piped.result.resident_entries <= 3 * DATA.len());
+            assert_eq!(pool.available().bytes(), 1 << 20);
+        }
+
+        #[test]
+        fn a_pool_short_of_the_draw_window_refuses_the_wave() {
+            let window_bytes = 4 * DATA.len() as u64 * 8;
+            let (ctx, pool) = pooled(window_bytes - 1);
+            let request = request(iid(), 40, 4, AdaptiveBootstrapBudget::disabled());
+            let refused =
+                run_pipelined_resample_wave(&request, &ctx, |draw| mean_rows(&DATA, draw))
+                    .unwrap_err();
+            assert!(refused.to_string().contains("draws needs"), "{refused}");
+            assert_eq!(pool.available().bytes(), window_bytes - 1);
+
+            let (ctx, _) = pooled(window_bytes);
+            let ran =
+                run_pipelined_resample_wave(&request, &ctx, |draw| mean_rows(&DATA, draw)).unwrap();
+            assert_eq!(ran.result.attempted, 40);
         }
 
         #[test]

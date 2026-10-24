@@ -10,12 +10,24 @@
 //! holds **logical** (decompressed) bytes after read and before write.
 //! BLAKE3 checksums cover the **on-wire** (possibly compressed) bytes.
 //!
+//! The streamed operations ([`describe_streaming`], [`write_streaming`],
+//! [`read_streaming`]) never hold a section's on-wire or logical bytes whole. They
+//! lease a fixed working set from the context's admission pool before the first
+//! byte moves, pass chunks through zstd, a BLAKE3 hasher and the caller's sink,
+//! and check cancellation between chunks. A section's descriptor is a pass over
+//! the source that keeps only the on-wire length and hash; the write pass
+//! compresses again into the output and fails if it does not reproduce them.
+//! A seekable read hashes a section before it decodes it, so a sink sees only
+//! bytes whose on-wire checksum has verified.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashSet;
-use std::io::{Read, Write};
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::sync::Arc;
 
+use antecedent_core::ExecutionContext;
+use antecedent_core::execution::AdmissionLease;
 use serde::{Deserialize, Serialize};
 
 use crate::error::IoError;
@@ -581,6 +593,653 @@ fn decode_zstd_bounded(
     Ok(out)
 }
 
+/// Chunk size of streamed artifact operations unless the caller chooses.
+pub const DEFAULT_STREAM_CHUNK_BYTES: usize = 64 * 1024;
+
+/// Largest Zstandard window (log2 bytes) a streamed decode accepts: 8 MiB.
+///
+/// A frame that declares a larger window is refused instead of sizing the decoder
+/// from untrusted input. Frames written at the default level use a 2 MiB window.
+pub const STREAM_DECODER_WINDOW_LOG_MAX: u32 = 23;
+
+/// Bytes leased for the Zstandard compression context and its output buffer.
+const STREAM_ENCODER_WORKSPACE_BYTES: u64 = 8 * 1024 * 1024;
+/// Bytes leased for the Zstandard decoding window and its input buffers.
+const STREAM_DECODER_WORKSPACE_BYTES: u64 = (1 << STREAM_DECODER_WINDOW_LOG_MAX) + (1 << 20);
+
+/// Message prefix of an [`IoError::Io`] raised when the context was cancelled.
+pub const STREAM_CANCELLED: &str = "artifact stream cancelled";
+/// Message prefix of an [`IoError::Io`] raised when the admission pool refused the working set.
+pub const STREAM_BUDGET_REFUSED: &str = "artifact stream refused by the operation budget";
+
+/// The operation a streamed artifact call runs under: its admission pool and
+/// cancellation token, and the chunk size every buffer is sized from.
+#[derive(Clone, Copy, Debug)]
+pub struct StreamWork<'a> {
+    /// Context whose admission pool funds the working set and whose token stops the call.
+    pub ctx: &'a ExecutionContext,
+    /// Bytes moved per read. At least one.
+    pub chunk_bytes: usize,
+}
+
+impl<'a> StreamWork<'a> {
+    /// Work under `ctx` with [`DEFAULT_STREAM_CHUNK_BYTES`].
+    #[must_use]
+    pub const fn new(ctx: &'a ExecutionContext) -> Self {
+        Self { ctx, chunk_bytes: DEFAULT_STREAM_CHUNK_BYTES }
+    }
+
+    /// The same work with `chunk_bytes` per read.
+    #[must_use]
+    pub const fn with_chunk_bytes(self, chunk_bytes: usize) -> Self {
+        Self { chunk_bytes, ..self }
+    }
+
+    /// Check cancellation. Called between chunks.
+    ///
+    /// # Errors
+    ///
+    /// [`IoError::Io`] starting with [`STREAM_CANCELLED`].
+    pub fn tick(&self) -> Result<(), IoError> {
+        if self.ctx.cancellation.is_cancelled() {
+            return Err(IoError::Io(STREAM_CANCELLED.into()));
+        }
+        Ok(())
+    }
+
+    /// Lease the working set for a call that needs `codec_bytes` for its codec, and
+    /// allocate the chunk buffer only after the lease is held.
+    ///
+    /// # Errors
+    ///
+    /// Cancellation, a zero chunk, or [`IoError::Io`] starting with [`STREAM_BUDGET_REFUSED`].
+    pub fn admit(&self, codec_bytes: u64) -> Result<StreamLease, IoError> {
+        self.tick()?;
+        if self.chunk_bytes == 0 {
+            return Err(IoError::Io("artifact stream chunk must be at least one byte".into()));
+        }
+        let chunk = u64::try_from(self.chunk_bytes).map_err(|_| IoError::TooLarge)?;
+        let bytes = chunk
+            .checked_mul(2)
+            .and_then(|buffers| buffers.checked_add(codec_bytes))
+            .ok_or(IoError::TooLarge)?;
+        let lease = self.ctx.acquire_admission(0, bytes).map_err(|error| {
+            IoError::Io(format!("{STREAM_BUDGET_REFUSED}: {bytes} bytes were needed: {error}"))
+        })?;
+        Ok(StreamLease { _lease: lease, buffer: vec![0; self.chunk_bytes], bytes })
+    }
+}
+
+/// The leased working set of one streamed call.
+#[derive(Debug)]
+pub struct StreamLease {
+    _lease: AdmissionLease,
+    buffer: Vec<u8>,
+    bytes: u64,
+}
+
+impl StreamLease {
+    /// Bytes the pool granted.
+    #[must_use]
+    pub const fn bytes(&self) -> u64 {
+        self.bytes
+    }
+
+    /// The reusable chunk buffer.
+    pub fn buffer(&mut self) -> &mut [u8] {
+        &mut self.buffer
+    }
+}
+
+/// What a streamed call moved, and the largest single transfer it made.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct StreamReceipt {
+    /// Bytes leased from the admission pool for the call.
+    pub leased_bytes: u64,
+    /// Chunk size the call was sized from.
+    pub chunk_bytes: usize,
+    /// Logical bytes read from sources or delivered to sinks.
+    pub logical_bytes: u64,
+    /// On-wire bytes written or read.
+    pub on_wire_bytes: u64,
+    /// Chunks moved across all passes.
+    pub chunks: u64,
+    /// Largest single read buffer used.
+    pub largest_read: usize,
+    /// Largest single write handed to the output.
+    pub largest_write: usize,
+}
+
+/// A section's logical bytes that can be read more than once.
+///
+/// Streaming a section is two passes (size and checksum, then write), so the source
+/// must reopen. A byte slice reopens for free; a file reopens by path.
+pub trait LogicalSource {
+    /// Logical length in bytes.
+    fn logical_len(&self) -> u64;
+
+    /// A reader positioned at the first byte.
+    ///
+    /// # Errors
+    ///
+    /// The source cannot be opened.
+    fn open(&self) -> std::io::Result<Box<dyn Read + '_>>;
+}
+
+impl LogicalSource for [u8] {
+    fn logical_len(&self) -> u64 {
+        crate::error::lossless_u64(self.len())
+    }
+
+    fn open(&self) -> std::io::Result<Box<dyn Read + '_>> {
+        Ok(Box::new(self))
+    }
+}
+
+impl LogicalSource for Vec<u8> {
+    fn logical_len(&self) -> u64 {
+        crate::error::lossless_u64(self.len())
+    }
+
+    fn open(&self) -> std::io::Result<Box<dyn Read + '_>> {
+        Ok(Box::new(self.as_slice()))
+    }
+}
+
+impl LogicalSource for Arc<[u8]> {
+    fn logical_len(&self) -> u64 {
+        crate::error::lossless_u64(self.len())
+    }
+
+    fn open(&self) -> std::io::Result<Box<dyn Read + '_>> {
+        Ok(Box::new(self.as_ref()))
+    }
+}
+
+/// Counts and hashes everything written through it, and forwards it.
+struct Tally<W: Write> {
+    inner: W,
+    hasher: blake3::Hasher,
+    written: u64,
+    largest_write: usize,
+}
+
+impl<W: Write> Tally<W> {
+    fn new(inner: W) -> Self {
+        Self { inner, hasher: blake3::Hasher::new(), written: 0, largest_write: 0 }
+    }
+}
+
+impl<W: Write> Write for Tally<W> {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        let taken = self.inner.write(buf)?;
+        self.hasher.update(&buf[..taken]);
+        self.written += crate::error::lossless_u64(taken);
+        self.largest_write = self.largest_write.max(taken);
+        Ok(taken)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.inner.flush()
+    }
+}
+
+/// Read `source` to its end in chunks into `sink`, ticking between chunks.
+///
+/// Returns the bytes moved; more than `cap` is refused as it arrives.
+fn pump<R: Read + ?Sized, W: Write>(
+    source: &mut R,
+    sink: &mut W,
+    buffer: &mut [u8],
+    work: &StreamWork<'_>,
+    cap: u64,
+    receipt: &mut StreamReceipt,
+) -> Result<u64, IoError> {
+    let mut total = 0u64;
+    loop {
+        work.tick()?;
+        let taken = source.read(buffer)?;
+        if taken == 0 {
+            return Ok(total);
+        }
+        total += crate::error::lossless_u64(taken);
+        if total > cap {
+            return Err(IoError::ManifestMismatch { message: "section logical size mismatch" });
+        }
+        sink.write_all(&buffer[..taken])?;
+        receipt.chunks += 1;
+        receipt.largest_read = receipt.largest_read.max(taken);
+    }
+}
+
+fn zstd_io(error: &std::io::Error) -> IoError {
+    IoError::Io(format!("zstd encode: {error}"))
+}
+
+/// Run one section's logical bytes through `compression` into `sink`.
+fn encode_pass<W: Write>(
+    source: &dyn LogicalSource,
+    compression: Option<&str>,
+    sink: &mut W,
+    buffer: &mut [u8],
+    work: &StreamWork<'_>,
+    receipt: &mut StreamReceipt,
+) -> Result<u64, IoError> {
+    let mut reader = source.open()?;
+    let cap = source.logical_len();
+    let moved = match compression {
+        None => pump(&mut reader, sink, buffer, work, cap, receipt)?,
+        Some(COMPRESSION_ZSTD) => {
+            let mut encoder = zstd::stream::write::Encoder::new(&mut *sink, ZSTD_LEVEL)
+                .map_err(|e| zstd_io(&e))?;
+            let moved = pump(&mut reader, &mut encoder, buffer, work, cap, receipt)?;
+            encoder.finish().map_err(|e| zstd_io(&e))?;
+            moved
+        }
+        Some(other) => return Err(IoError::UnsupportedCompression { algo: other.into() }),
+    };
+    if moved != cap {
+        return Err(IoError::ManifestMismatch { message: "section logical size mismatch" });
+    }
+    receipt.logical_bytes += moved;
+    Ok(moved)
+}
+
+/// On-wire length and BLAKE3 of one section under `compression`, without keeping any of it.
+fn measure_pass(
+    source: &dyn LogicalSource,
+    compression: Option<&str>,
+    buffer: &mut [u8],
+    work: &StreamWork<'_>,
+    receipt: &mut StreamReceipt,
+) -> Result<(u64, [u8; 32]), IoError> {
+    let mut tally = Tally::new(std::io::sink());
+    encode_pass(source, compression, &mut tally, buffer, work, receipt)?;
+    Ok((tally.written, *tally.hasher.finalize().as_bytes()))
+}
+
+/// Build a section descriptor from `source` in two bounded passes.
+///
+/// The descriptor equals [`section_descriptor_with_policy`] of the same bytes, but no
+/// on-wire or logical buffer larger than a chunk is held: the pass hashes and counts
+/// the compressed stream as zstd produces it. The working set is leased from
+/// `work.ctx` first.
+///
+/// # Errors
+///
+/// Cancellation, a refused lease, a source that fails or has the wrong length.
+pub fn describe_streaming(
+    id: impl Into<String>,
+    content_type: impl Into<String>,
+    source: &dyn LogicalSource,
+    policy: CompressPolicy,
+    work: &StreamWork<'_>,
+) -> Result<(SectionDescriptor, StreamReceipt), IoError> {
+    let mut lease = work.admit(STREAM_ENCODER_WORKSPACE_BYTES)?;
+    let mut receipt = StreamReceipt {
+        leased_bytes: lease.bytes(),
+        chunk_bytes: work.chunk_bytes,
+        ..StreamReceipt::default()
+    };
+    let logical_len = source.logical_len();
+    let wants_zstd = match policy {
+        CompressPolicy::Never => false,
+        CompressPolicy::Always => true,
+        CompressPolicy::Auto => logical_len >= crate::error::lossless_u64(AUTO_COMPRESS_MIN_BYTES),
+    };
+    let mut chosen = (None, None);
+    if wants_zstd {
+        let (len, hash) =
+            measure_pass(source, Some(COMPRESSION_ZSTD), lease.buffer(), work, &mut receipt)?;
+        let keep = policy == CompressPolicy::Always
+            || u128::from(len) * 100 < u128::from(logical_len) * 95;
+        if keep {
+            chosen = (Some(COMPRESSION_ZSTD.to_owned()), Some((len, hash)));
+        }
+    }
+    let (compression, (on_wire_len, hash)) = match chosen {
+        (Some(name), Some(measured)) => (Some(name), measured),
+        _ => (None, measure_pass(source, None, lease.buffer(), work, &mut receipt)?),
+    };
+    receipt.on_wire_bytes = on_wire_len;
+    let descriptor = SectionDescriptor {
+        id: id.into(),
+        content_type: content_type.into(),
+        encoding_version: 1,
+        required: true,
+        compression,
+        compressed_size: on_wire_len,
+        uncompressed_size: logical_len,
+        blake3: hash,
+        logical_schema: "cbor.v1".into(),
+    };
+    Ok((descriptor, receipt))
+}
+
+/// Write the container for `manifest`, streaming each section from its source.
+///
+/// Header and manifest are written first, then each section is compressed straight
+/// into `w` while its length and checksum are recomputed and compared with the
+/// descriptor. A section that does not reproduce its descriptor fails with
+/// [`IoError::ChecksumMismatch`] after its bytes were sent, so write to a target that
+/// can be discarded. Nothing is written when the lease is refused or the context is
+/// already cancelled.
+///
+/// # Errors
+///
+/// Count, size or checksum disagreement with the manifest, cancellation, a refused
+/// lease, or an output failure.
+pub fn write_streaming<W: Write>(
+    mut w: W,
+    manifest: &ArtifactManifest,
+    sources: &[&dyn LogicalSource],
+    work: &StreamWork<'_>,
+) -> Result<StreamReceipt, IoError> {
+    if manifest.sections.len() != sources.len() {
+        return Err(IoError::ManifestMismatch {
+            message: "section count != manifest section count",
+        });
+    }
+    for (desc, source) in manifest.sections.iter().zip(sources) {
+        if desc.uncompressed_size != source.logical_len() {
+            return Err(IoError::ManifestMismatch { message: "section logical size mismatch" });
+        }
+        u32::try_from(desc.compressed_size).map_err(|_| IoError::TooLarge)?;
+    }
+    let mut lease = work.admit(STREAM_ENCODER_WORKSPACE_BYTES)?;
+    let mut receipt = StreamReceipt {
+        leased_bytes: lease.bytes(),
+        chunk_bytes: work.chunk_bytes,
+        ..StreamReceipt::default()
+    };
+    let mut manifest_buf = Vec::new();
+    ciborium::into_writer(manifest, &mut manifest_buf).map_err(|e| IoError::Cbor(e.to_string()))?;
+    let manifest_len = u32::try_from(manifest_buf.len()).map_err(|_| IoError::TooLarge)?;
+    w.write_all(MAGIC)?;
+    w.write_all(&CONTAINER_VERSION.to_le_bytes())?;
+    w.write_all(&manifest_len.to_le_bytes())?;
+    w.write_all(&manifest_buf)?;
+    for (desc, source) in manifest.sections.iter().zip(sources) {
+        let len = u32::try_from(desc.compressed_size).map_err(|_| IoError::TooLarge)?;
+        w.write_all(&len.to_le_bytes())?;
+        let mut tally = Tally::new(&mut w);
+        encode_pass(
+            *source,
+            desc.compression.as_deref(),
+            &mut tally,
+            lease.buffer(),
+            work,
+            &mut receipt,
+        )?;
+        if tally.written != desc.compressed_size {
+            return Err(IoError::ManifestMismatch { message: "section compressed size mismatch" });
+        }
+        if tally.hasher.finalize().as_bytes() != &desc.blake3 {
+            return Err(IoError::ChecksumMismatch { section: desc.id.clone() });
+        }
+        receipt.largest_write = receipt.largest_write.max(tally.largest_write);
+        receipt.on_wire_bytes += tally.written;
+    }
+    w.flush()?;
+    Ok(receipt)
+}
+
+impl EncodedArtifact {
+    /// [`write_streaming`] of this artifact's logical sections.
+    ///
+    /// Unlike [`Self::write_to`] it holds no compressed copy of any section: each is
+    /// compressed into `w` chunk by chunk under `work`.
+    ///
+    /// # Errors
+    ///
+    /// The errors of [`write_streaming`], and a section id that differs from the manifest.
+    pub fn write_streaming<W: Write>(
+        &self,
+        w: W,
+        work: &StreamWork<'_>,
+    ) -> Result<StreamReceipt, IoError> {
+        for (desc, section) in self.manifest.sections.iter().zip(&self.sections) {
+            if desc.id != section.id {
+                return Err(IoError::ManifestMismatch { message: "section id mismatch" });
+            }
+        }
+        let sources: Vec<&dyn LogicalSource> =
+            self.sections.iter().map(|section| &section.data as &dyn LogicalSource).collect();
+        write_streaming(w, &self.manifest, &sources, work)
+    }
+}
+
+/// Read a container, handing the logical bytes of wanted sections to `on_chunk`.
+///
+/// Every section is hashed in chunks before it is decoded, so a wanted section is
+/// delivered only after its on-wire checksum verified, and an unwanted one is verified
+/// and skipped. Zstandard decoding is capped by the descriptor's `uncompressed_size`
+/// and by [`STREAM_DECODER_WINDOW_LOG_MAX`]. No section is held whole.
+///
+/// # Errors
+///
+/// Bad header or manifest, a size or checksum disagreement, a frame that expands past its
+/// declared size, cancellation, a refused lease, or an error from `on_chunk`.
+pub fn read_streaming<R: Read + Seek>(
+    mut r: R,
+    work: &StreamWork<'_>,
+    wants: impl Fn(&SectionDescriptor) -> bool,
+    mut on_chunk: impl FnMut(&SectionDescriptor, &[u8]) -> Result<(), IoError>,
+) -> Result<(ArtifactManifest, StreamReceipt), IoError> {
+    let mut lease = work.admit(STREAM_DECODER_WORKSPACE_BYTES)?;
+    let mut receipt = StreamReceipt {
+        leased_bytes: lease.bytes(),
+        chunk_bytes: work.chunk_bytes,
+        ..StreamReceipt::default()
+    };
+    let (manifest, _) = read_header_and_manifest(&mut r)?;
+    for desc in &manifest.sections {
+        let mut len_buf = [0u8; 4];
+        r.read_exact(&mut len_buf)?;
+        let len = u64::from(u32::from_le_bytes(len_buf));
+        if len != desc.compressed_size {
+            return Err(IoError::ManifestMismatch { message: "section size mismatch" });
+        }
+        if len > crate::error::lossless_u64(MAX_SECTION_BYTES) {
+            return Err(IoError::TooLarge);
+        }
+        let start = r.stream_position()?;
+        verify_pass(&mut r, desc, len, lease.buffer(), work, &mut receipt)?;
+        if wants(desc) {
+            r.seek(SeekFrom::Start(start))?;
+            let mut limited = (&mut r).take(len);
+            decode_pass(&mut limited, desc, lease.buffer(), work, &mut receipt, &mut on_chunk)?;
+            r.seek(SeekFrom::Start(start + len))?;
+        }
+    }
+    Ok((manifest, receipt))
+}
+
+/// Hash `len` on-wire bytes in chunks and compare with the descriptor.
+fn verify_pass<R: Read>(
+    r: &mut R,
+    desc: &SectionDescriptor,
+    len: u64,
+    buffer: &mut [u8],
+    work: &StreamWork<'_>,
+    receipt: &mut StreamReceipt,
+) -> Result<(), IoError> {
+    let mut hasher = blake3::Hasher::new();
+    let mut remaining = len;
+    while remaining > 0 {
+        work.tick()?;
+        let want = usize::try_from(remaining).unwrap_or(usize::MAX).min(buffer.len());
+        r.read_exact(&mut buffer[..want])?;
+        hasher.update(&buffer[..want]);
+        remaining -= crate::error::lossless_u64(want);
+        receipt.chunks += 1;
+        receipt.largest_read = receipt.largest_read.max(want);
+    }
+    receipt.on_wire_bytes += len;
+    if hasher.finalize().as_bytes() != &desc.blake3 {
+        return Err(IoError::ChecksumMismatch { section: desc.id.clone() });
+    }
+    Ok(())
+}
+
+fn decode_pass<R: Read>(
+    on_wire: &mut R,
+    desc: &SectionDescriptor,
+    buffer: &mut [u8],
+    work: &StreamWork<'_>,
+    receipt: &mut StreamReceipt,
+    on_chunk: &mut impl FnMut(&SectionDescriptor, &[u8]) -> Result<(), IoError>,
+) -> Result<(), IoError> {
+    let cap = desc.uncompressed_size;
+    let mut delivered = 0u64;
+    let decompress = |error: std::io::Error| IoError::Decompress {
+        section: desc.id.clone(),
+        message: error.to_string(),
+    };
+    let mut deliver = |source: &mut dyn Read| -> Result<(), IoError> {
+        loop {
+            work.tick()?;
+            let taken = source.read(buffer)?;
+            if taken == 0 {
+                return Ok(());
+            }
+            delivered += crate::error::lossless_u64(taken);
+            if delivered > cap {
+                return Err(IoError::Decompress {
+                    section: desc.id.clone(),
+                    message: format!("decompressed size exceeds declared uncompressed_size {cap}"),
+                });
+            }
+            on_chunk(desc, &buffer[..taken])?;
+            receipt.chunks += 1;
+            receipt.largest_read = receipt.largest_read.max(taken);
+            receipt.logical_bytes += crate::error::lossless_u64(taken);
+        }
+    };
+    match desc.compression.as_deref() {
+        None => deliver(on_wire)?,
+        Some(COMPRESSION_ZSTD) => {
+            let mut decoder = zstd::Decoder::new(on_wire).map_err(decompress)?;
+            decoder.window_log_max(STREAM_DECODER_WINDOW_LOG_MAX).map_err(decompress)?;
+            deliver(&mut decoder)?;
+        }
+        Some(other) => return Err(IoError::UnsupportedCompression { algo: other.into() }),
+    }
+    if delivered != cap {
+        return Err(IoError::Decompress {
+            section: desc.id.clone(),
+            message: format!("logical size {delivered} != uncompressed_size {cap}"),
+        });
+    }
+    Ok(())
+}
+
+/// BLAKE3 digest of a byte string under a domain `tag`, fed in pieces.
+///
+/// The framing is `CanonicalWriter::digest_bytes(tag, bytes)`: the tag and the byte
+/// count as length words, then the bytes, so the byte count must be known before the
+/// first piece. [`Self::finish`] refuses a stream that delivered a different count.
+#[derive(Clone, Debug)]
+pub struct DomainDigest {
+    hasher: blake3::Hasher,
+    expected: u64,
+    seen: u64,
+}
+
+impl DomainDigest {
+    /// Start a digest of exactly `len` bytes under `tag`.
+    #[must_use]
+    pub fn new(tag: &str, len: u64) -> Self {
+        let mut hasher = blake3::Hasher::new();
+        hasher.update(&crate::error::lossless_u64(tag.len()).to_le_bytes());
+        hasher.update(tag.as_bytes());
+        hasher.update(&len.to_le_bytes());
+        Self { hasher, expected: len, seen: 0 }
+    }
+
+    /// Feed the next piece.
+    pub fn update(&mut self, bytes: &[u8]) {
+        self.hasher.update(bytes);
+        self.seen += crate::error::lossless_u64(bytes.len());
+    }
+
+    /// The digest, or `None` when the pieces did not total the declared length.
+    #[must_use]
+    pub fn finish(&self) -> Option<[u8; 32]> {
+        (self.seen == self.expected).then(|| *self.hasher.finalize().as_bytes())
+    }
+}
+
+/// Compress `source` into `sink` in chunks with Zstandard at the container's level,
+/// ticking `work` between chunks. Returns the logical bytes read.
+///
+/// # Errors
+///
+/// Cancellation, a read failure, or a write failure.
+pub fn zstd_compress_chunked<R: Read, W: Write>(
+    source: &mut R,
+    sink: &mut W,
+    buffer: &mut [u8],
+    work: &StreamWork<'_>,
+) -> Result<u64, IoError> {
+    let mut receipt = StreamReceipt::default();
+    let mut encoder =
+        zstd::stream::write::Encoder::new(&mut *sink, ZSTD_LEVEL).map_err(|e| zstd_io(&e))?;
+    let moved = pump(source, &mut encoder, buffer, work, u64::MAX, &mut receipt)?;
+    encoder.finish().map_err(|e| zstd_io(&e))?;
+    Ok(moved)
+}
+
+/// Decompress a Zstandard stream into `on_chunk` in chunks, refusing more than
+/// `max_logical` bytes as they arrive and any window past
+/// [`STREAM_DECODER_WINDOW_LOG_MAX`]. Returns the logical bytes delivered.
+///
+/// # Errors
+///
+/// Cancellation, a corrupt frame, output past `max_logical`, or an error from `on_chunk`.
+pub fn zstd_decompress_chunked<R: Read>(
+    on_wire: R,
+    max_logical: u64,
+    buffer: &mut [u8],
+    work: &StreamWork<'_>,
+    mut on_chunk: impl FnMut(&[u8]) -> Result<(), IoError>,
+) -> Result<u64, IoError> {
+    let corrupt = |error: std::io::Error| IoError::Decompress {
+        section: "stream".into(),
+        message: error.to_string(),
+    };
+    let mut decoder = zstd::Decoder::new(on_wire).map_err(corrupt)?;
+    decoder.window_log_max(STREAM_DECODER_WINDOW_LOG_MAX).map_err(corrupt)?;
+    let mut total = 0u64;
+    loop {
+        work.tick()?;
+        let taken = decoder.read(buffer).map_err(corrupt)?;
+        if taken == 0 {
+            return Ok(total);
+        }
+        total += crate::error::lossless_u64(taken);
+        if total > max_logical {
+            return Err(IoError::Decompress {
+                section: "stream".into(),
+                message: format!("decompressed size exceeds declared size {max_logical}"),
+            });
+        }
+        on_chunk(&buffer[..taken])?;
+    }
+}
+
+/// Bytes a streamed encode leases for its codec on top of two chunk buffers.
+#[must_use]
+pub const fn stream_encoder_workspace_bytes() -> u64 {
+    STREAM_ENCODER_WORKSPACE_BYTES
+}
+
+/// Bytes a streamed decode leases for its codec on top of two chunk buffers.
+#[must_use]
+pub const fn stream_decoder_workspace_bytes() -> u64 {
+    STREAM_DECODER_WORKSPACE_BYTES
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
@@ -894,5 +1553,391 @@ mod tests {
         )
         .unwrap();
         assert_eq!(ok, logical);
+    }
+
+    mod streamed {
+        use std::io::Cursor;
+        use std::sync::atomic::{AtomicU64, Ordering};
+
+        use antecedent_core::execution::AdmissionPool;
+        use antecedent_core::{CanonicalWriter, ExecutionContext};
+
+        use super::super::*;
+        use super::tiny_artifact;
+
+        /// Bytes produced on demand, so a test source is never resident.
+        struct Generated {
+            len: u64,
+            random: bool,
+        }
+
+        struct GeneratedReader {
+            left: u64,
+            state: u64,
+            at: u64,
+            random: bool,
+        }
+
+        impl Read for GeneratedReader {
+            fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+                let n = usize::try_from(self.left).unwrap_or(usize::MAX).min(buf.len());
+                for byte in &mut buf[..n] {
+                    *byte = if self.random {
+                        self.state ^= self.state << 13;
+                        self.state ^= self.state >> 7;
+                        self.state ^= self.state << 17;
+                        (self.state >> 24) as u8
+                    } else {
+                        self.at += 1;
+                        b'a' + ((self.at / 64) % 7) as u8
+                    };
+                }
+                self.left -= n as u64;
+                Ok(n)
+            }
+        }
+
+        impl LogicalSource for Generated {
+            fn logical_len(&self) -> u64 {
+                self.len
+            }
+
+            fn open(&self) -> std::io::Result<Box<dyn Read + '_>> {
+                Ok(Box::new(GeneratedReader {
+                    left: self.len,
+                    state: 0x9E37_79B9_7F4A_7C15,
+                    at: 0,
+                    random: self.random,
+                }))
+            }
+        }
+
+        fn hash_of(source: &dyn LogicalSource) -> [u8; 32] {
+            let mut reader = source.open().unwrap();
+            let mut hasher = blake3::Hasher::new();
+            let mut buf = vec![0u8; 8192];
+            loop {
+                let n = reader.read(&mut buf).unwrap();
+                if n == 0 {
+                    return *hasher.finalize().as_bytes();
+                }
+                hasher.update(&buf[..n]);
+            }
+        }
+
+        fn study(pool: &AdmissionPool) -> ExecutionContext {
+            ExecutionContext::for_tests(1).with_admission(pool.clone())
+        }
+
+        fn manifest_of(descs: Vec<SectionDescriptor>) -> ArtifactManifest {
+            tiny_artifact(Vec::new()).manifest.clone_with(descs)
+        }
+
+        trait CloneWith {
+            fn clone_with(&self, sections: Vec<SectionDescriptor>) -> ArtifactManifest;
+        }
+
+        impl CloneWith for ArtifactManifest {
+            fn clone_with(&self, sections: Vec<SectionDescriptor>) -> ArtifactManifest {
+                ArtifactManifest { sections, ..self.clone() }
+            }
+        }
+
+        fn scratch_file(label: &str) -> std::path::PathBuf {
+            static NEXT: AtomicU64 = AtomicU64::new(0);
+            std::env::temp_dir().join(format!(
+                "antecedent-streamed-{}-{label}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::SeqCst)
+            ))
+        }
+
+        #[test]
+        fn a_streamed_write_equals_the_buffered_container_and_reads_back() {
+            let text: Vec<u8> = (0..300_000u32).map(|i| b'a' + ((i / 50) % 9) as u8).collect();
+            let noise: Vec<u8> =
+                (0..100_000u32).map(|i| (i.wrapping_mul(2_654_435_761) >> 13) as u8).collect();
+            let (d1, s1) = pack_section("text", "t", text.clone(), CompressPolicy::Always);
+            let (d2, s2) = pack_section("noise", "n", noise.clone(), CompressPolicy::Auto);
+            let (d3, s3) = pack_section("tiny", "x", b"abc".to_vec(), CompressPolicy::Never);
+            assert!(d1.compression.is_some());
+            let artifact = tiny_artifact(vec![(d1, s1), (d2, s2), (d3, s3)]);
+            let mut buffered = Vec::new();
+            artifact.write_to(&mut buffered).unwrap();
+
+            let pool = AdmissionPool::fixed(1, 64 << 20);
+            let ctx = study(&pool);
+            let work = StreamWork::new(&ctx).with_chunk_bytes(4096);
+            let mut streamed = Vec::new();
+            let receipt = artifact.write_streaming(&mut streamed, &work).unwrap();
+            assert_eq!(streamed, buffered, "streaming reproduces the buffered bytes");
+            assert!(receipt.largest_read <= 4096);
+            assert_eq!(pool.available().bytes(), 64 << 20, "the working set is returned");
+
+            let mut seen: Vec<(String, Vec<u8>)> = Vec::new();
+            let (manifest, read) = read_streaming(
+                Cursor::new(&streamed),
+                &work,
+                |_| true,
+                |desc, chunk| {
+                    assert!(chunk.len() <= 4096);
+                    match seen.last_mut() {
+                        Some((id, bytes)) if *id == desc.id => bytes.extend_from_slice(chunk),
+                        _ => seen.push((desc.id.clone(), chunk.to_vec())),
+                    }
+                    Ok(())
+                },
+            )
+            .unwrap();
+            assert_eq!(manifest, artifact.manifest);
+            assert_eq!(read.logical_bytes, (text.len() + noise.len() + 3) as u64);
+            assert_eq!(seen[0], ("text".to_owned(), text));
+            assert_eq!(seen[1], ("noise".to_owned(), noise));
+            assert_eq!(seen[2], ("tiny".to_owned(), b"abc".to_vec()));
+
+            let mut only = 0usize;
+            read_streaming(
+                Cursor::new(&streamed),
+                &work,
+                |desc| desc.id == "tiny",
+                |desc, chunk| {
+                    assert_eq!(desc.id, "tiny");
+                    only += chunk.len();
+                    Ok(())
+                },
+            )
+            .unwrap();
+            assert_eq!(only, 3, "unwanted sections are verified and skipped");
+        }
+
+        #[test]
+        fn sections_larger_than_the_budget_stream_through_a_chunk_sized_working_set() {
+            const BUDGET: u64 = 24 << 20;
+            let pool = AdmissionPool::fixed(1, BUDGET);
+            let ctx = study(&pool);
+            let work = StreamWork::new(&ctx).with_chunk_bytes(32 * 1024);
+            let sources = [
+                Generated { len: 20 << 20, random: true },
+                Generated { len: 96 << 20, random: false },
+            ];
+            let mut descs = Vec::new();
+            for (index, source) in sources.iter().enumerate() {
+                let (desc, receipt) = describe_streaming(
+                    format!("s{index}"),
+                    "bulk",
+                    source,
+                    CompressPolicy::Auto,
+                    &work,
+                )
+                .unwrap();
+                assert!(receipt.leased_bytes <= BUDGET);
+                assert!(receipt.largest_read <= 32 * 1024);
+                descs.push(desc);
+            }
+            assert!(descs[0].compression.is_none(), "noise does not earn compression");
+            assert!(descs[1].compression.is_some());
+            assert!(descs[1].compressed_size < descs[1].uncompressed_size / 20);
+            assert_eq!(pool.available().bytes(), BUDGET);
+
+            let manifest = manifest_of(descs);
+            let path = scratch_file("bulk");
+            let file = std::fs::File::create(&path).unwrap();
+            let refs: Vec<&dyn LogicalSource> = vec![&sources[0], &sources[1]];
+            let written = write_streaming(file, &manifest, &refs, &work).unwrap();
+            assert!(written.leased_bytes <= BUDGET);
+            assert!(written.largest_read <= 32 * 1024);
+            assert!(written.largest_write <= 1 << 20, "{}", written.largest_write);
+            assert!(
+                written.leased_bytes < manifest.sections[0].uncompressed_size,
+                "the working set is smaller than one section"
+            );
+            assert_eq!(pool.available().bytes(), BUDGET);
+
+            let mut hashers = [blake3::Hasher::new(), blake3::Hasher::new()];
+            let mut largest = 0usize;
+            let (read_manifest, read) = read_streaming(
+                std::fs::File::open(&path).unwrap(),
+                &work,
+                |_| true,
+                |desc, chunk| {
+                    largest = largest.max(chunk.len());
+                    hashers[usize::from(desc.id == "s1")].update(chunk);
+                    Ok(())
+                },
+            )
+            .unwrap();
+            let _ = std::fs::remove_file(&path);
+            assert_eq!(read_manifest, manifest);
+            assert!(largest <= 32 * 1024, "{largest}");
+            assert!(read.leased_bytes <= BUDGET);
+            assert_eq!(hashers[0].finalize().as_bytes(), &hash_of(&sources[0]));
+            assert_eq!(hashers[1].finalize().as_bytes(), &hash_of(&sources[1]));
+            assert_eq!(pool.available().bytes(), BUDGET);
+        }
+
+        #[test]
+        fn a_pool_short_of_the_working_set_refuses_before_any_byte_moves() {
+            let source = Generated { len: 100_000, random: false };
+            let chunk = 4096usize;
+            let need = 2 * chunk as u64 + stream_encoder_workspace_bytes();
+            let pool = AdmissionPool::fixed(1, need - 1);
+            let ctx = study(&pool);
+            let work = StreamWork::new(&ctx).with_chunk_bytes(chunk);
+            let refused =
+                describe_streaming("s", "t", &source, CompressPolicy::Always, &work).unwrap_err();
+            assert!(
+                matches!(&refused, IoError::Io(m) if m.starts_with(STREAM_BUDGET_REFUSED)),
+                "{refused}"
+            );
+            assert_eq!(pool.available().bytes(), need - 1);
+
+            let exact = AdmissionPool::fixed(1, need);
+            let ctx = study(&exact);
+            let work = StreamWork::new(&ctx).with_chunk_bytes(chunk);
+            let (desc, _) =
+                describe_streaming("s", "t", &source, CompressPolicy::Always, &work).unwrap();
+            let manifest = manifest_of(vec![desc]);
+            let short = AdmissionPool::fixed(1, need - 1);
+            let ctx = study(&short);
+            let work = StreamWork::new(&ctx).with_chunk_bytes(chunk);
+            let mut out = Vec::new();
+            let refused = write_streaming(&mut out, &manifest, &[&source], &work).unwrap_err();
+            assert!(matches!(&refused, IoError::Io(m) if m.starts_with(STREAM_BUDGET_REFUSED)));
+            assert!(out.is_empty(), "a refused lease writes no header");
+        }
+
+        struct CancelAfter<'a> {
+            seen: u64,
+            limit: u64,
+            token: &'a antecedent_core::CancellationToken,
+        }
+
+        impl Write for CancelAfter<'_> {
+            fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+                self.seen += buf.len() as u64;
+                if self.seen >= self.limit {
+                    self.token.cancel();
+                }
+                Ok(buf.len())
+            }
+
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+
+        #[test]
+        fn cancellation_stops_a_streamed_write_and_read_between_chunks() {
+            let source = Generated { len: 16 << 20, random: true };
+            let pool = AdmissionPool::fixed(1, 64 << 20);
+            let ctx = study(&pool);
+            let work = StreamWork::new(&ctx).with_chunk_bytes(16 * 1024);
+            let (desc, _) =
+                describe_streaming("s", "t", &source, CompressPolicy::Never, &work).unwrap();
+            let manifest = manifest_of(vec![desc]);
+
+            let token = ctx.cancellation.clone();
+            let mut sink = CancelAfter { seen: 0, limit: 1 << 20, token: &token };
+            let refused = write_streaming(&mut sink, &manifest, &[&source], &work).unwrap_err();
+            assert!(matches!(&refused, IoError::Io(m) if m == STREAM_CANCELLED), "{refused}");
+            assert!(sink.seen < 4 << 20, "the write stopped soon after the cancel: {}", sink.seen);
+            assert_eq!(pool.available().bytes(), 64 << 20, "the lease came back");
+
+            let fresh = study(&pool);
+            let work = StreamWork::new(&fresh).with_chunk_bytes(16 * 1024);
+            let mut bytes = Vec::new();
+            write_streaming(&mut bytes, &manifest, &[&source], &work).unwrap();
+            let token = fresh.cancellation.clone();
+            let mut delivered = 0u64;
+            let refused = read_streaming(
+                Cursor::new(&bytes),
+                &work,
+                |_| true,
+                |_, chunk| {
+                    delivered += chunk.len() as u64;
+                    if delivered >= 1 << 20 {
+                        token.cancel();
+                    }
+                    Ok(())
+                },
+            )
+            .unwrap_err();
+            assert!(matches!(&refused, IoError::Io(m) if m == STREAM_CANCELLED), "{refused}");
+            assert!(delivered < 4 << 20, "{delivered}");
+            assert_eq!(pool.available().bytes(), 64 << 20);
+        }
+
+        #[test]
+        fn a_corrupt_section_reaches_no_sink_and_an_expanding_frame_is_cut_at_its_declared_size() {
+            let pool = AdmissionPool::fixed(1, 64 << 20);
+            let ctx = study(&pool);
+            let work = StreamWork::new(&ctx).with_chunk_bytes(4096);
+            let source = Generated { len: 200_000, random: true };
+            let (desc, _) =
+                describe_streaming("s", "t", &source, CompressPolicy::Never, &work).unwrap();
+            let manifest = manifest_of(vec![desc]);
+            let mut bytes = Vec::new();
+            write_streaming(&mut bytes, &manifest, &[&source], &work).unwrap();
+            let middle = bytes.len() - 100_000;
+            bytes[middle] ^= 0x40;
+            let mut calls = 0;
+            let refused = read_streaming(
+                Cursor::new(&bytes),
+                &work,
+                |_| true,
+                |_, _| {
+                    calls += 1;
+                    Ok(())
+                },
+            )
+            .unwrap_err();
+            assert!(matches!(refused, IoError::ChecksumMismatch { .. }), "{refused}");
+            assert_eq!(calls, 0, "verification precedes delivery");
+
+            // A frame of one mebibyte of zeros whose descriptor declares 1000 bytes.
+            let zeros = vec![0u8; 1 << 20];
+            let frame = zstd::encode_all(&zeros[..], 3).unwrap();
+            let mut descriptor =
+                section_descriptor_with_policy("z", "t", &zeros, CompressPolicy::Always);
+            descriptor.uncompressed_size = 1000;
+            assert_eq!(descriptor.compressed_size, frame.len() as u64);
+            let manifest = manifest_of(vec![descriptor]);
+            let mut container = Vec::new();
+            container.extend_from_slice(MAGIC);
+            container.extend_from_slice(&CONTAINER_VERSION.to_le_bytes());
+            let mut cbor = Vec::new();
+            ciborium::into_writer(&manifest, &mut cbor).unwrap();
+            container.extend_from_slice(&u32::try_from(cbor.len()).unwrap().to_le_bytes());
+            container.extend_from_slice(&cbor);
+            container.extend_from_slice(&u32::try_from(frame.len()).unwrap().to_le_bytes());
+            container.extend_from_slice(&frame);
+            let mut delivered = 0usize;
+            let refused = read_streaming(
+                Cursor::new(&container),
+                &work,
+                |_| true,
+                |_, chunk| {
+                    delivered += chunk.len();
+                    Ok(())
+                },
+            )
+            .unwrap_err();
+            assert!(matches!(refused, IoError::Decompress { .. }), "{refused}");
+            assert!(delivered <= 1000, "output past the declared size never reaches the sink");
+        }
+
+        #[test]
+        fn the_piecewise_domain_digest_equals_the_one_shot_canonical_digest() {
+            let bytes: Vec<u8> = (0..10_000u32).map(|i| (i % 251) as u8).collect();
+            let tag = "antecedent.test.domain";
+            let mut digest = DomainDigest::new(tag, bytes.len() as u64);
+            for piece in bytes.chunks(777) {
+                digest.update(piece);
+            }
+            assert_eq!(digest.finish(), Some(CanonicalWriter::digest_bytes(tag, &bytes)));
+            let mut short = DomainDigest::new(tag, bytes.len() as u64);
+            short.update(&bytes[..bytes.len() - 1]);
+            assert_eq!(short.finish(), None);
+        }
     }
 }

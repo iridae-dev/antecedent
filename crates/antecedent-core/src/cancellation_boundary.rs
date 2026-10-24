@@ -20,6 +20,18 @@
 //! cleanup was not recorded. An unrecorded call size or elapsed time is an
 //! absent measurement, not zero.
 //!
+//! [`run_isolated`] runs an uninterruptible call for real. It refuses a call larger
+//! than the boundary before anything starts, leases the call's bytes and one worker
+//! slot from the admission pool, and runs the call on its own thread. The caller
+//! waits in slices no longer than a declared poll interval and returns the moment
+//! the context is cancelled: the cancellation latency is at most that interval plus
+//! scheduling, and is measured, not assumed. The call itself is not preempted. It
+//! keeps its lease until it returns, then its late value is either retained for the
+//! caller (when the boundary retains partials, never as a published claim) or handed
+//! to the cleanup closure, which releases whatever the call left behind (spill
+//! files, buffers). [`AbandonedCall::wait_finished`] reports that the call returned,
+//! the cleanup ran and the lease is back in the pool.
+//!
 //! Spill open and cleanup are records of a temporary spill. This module does
 //! not create or delete files. [`CancelSite::Device`] is the boundary for
 //! device work. Device reservation is a separate account.
@@ -27,9 +39,12 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::fmt;
-use std::time::Duration;
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
+use std::time::{Duration, Instant};
 
 use thiserror::Error;
+
+use crate::execution::{AdmissionError, ExecutionContext};
 
 /// Site at which a bounded call returns to its cancellation boundary.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -811,6 +826,249 @@ impl SuccessReceipt {
     }
 }
 
+/// Refusal from [`run_isolated`].
+#[derive(Debug, Error)]
+#[non_exhaustive]
+pub enum IsolatedCallError {
+    /// The call size or provider admission was refused by the boundary.
+    #[error(transparent)]
+    Boundary(#[from] BoundaryError),
+    /// The pool could not fund the call's worker slot and bytes, or the study was cancelled.
+    #[error("isolated call was not admitted: {0}")]
+    Admission(AdmissionError),
+    /// The poll interval is longer than the boundary's latency bound, so the bound
+    /// could not be met.
+    #[error("poll interval {poll:?} exceeds the latency bound {bound:?}")]
+    PollTooCoarse {
+        /// Requested poll interval.
+        poll: Duration,
+        /// Boundary latency bound.
+        bound: Duration,
+    },
+    /// The worker thread could not be started. The lease was returned.
+    #[error("isolated call thread could not start: {0}")]
+    Spawn(String),
+    /// The call panicked. Its lease was returned.
+    #[error("isolated call panicked")]
+    Panicked,
+}
+
+enum CallState<T> {
+    Running,
+    Done { value: Result<T, ()>, at: Instant },
+    Abandoned,
+    Retained(T),
+    Discarded,
+    Taken,
+}
+
+struct CallShared<T> {
+    state: Mutex<CallState<T>>,
+    changed: Condvar,
+}
+
+impl<T> CallShared<T> {
+    fn lock(&self) -> MutexGuard<'_, CallState<T>> {
+        self.state.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
+/// An isolated call the caller stopped waiting for.
+///
+/// The call is still running or has finished; either way its lease is held until it
+/// returns. The late value is never published as a claim.
+pub struct AbandonedCall<T> {
+    cancel_latency: Duration,
+    within_latency_bound: bool,
+    retains: bool,
+    shared: Arc<CallShared<T>>,
+}
+
+impl<T> fmt::Debug for AbandonedCall<T> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("AbandonedCall")
+            .field("cancel_latency", &self.cancel_latency)
+            .field("within_latency_bound", &self.within_latency_bound)
+            .field("retains", &self.retains)
+            .finish_non_exhaustive()
+    }
+}
+
+impl<T> AbandonedCall<T> {
+    /// Upper bound on the time between the last poll that saw no cancellation and the
+    /// poll that saw it, which bounds request-to-return latency.
+    #[must_use]
+    pub const fn cancel_latency(&self) -> Duration {
+        self.cancel_latency
+    }
+
+    /// Whether [`Self::cancel_latency`] is within the boundary's latency bound.
+    #[must_use]
+    pub const fn within_latency_bound(&self) -> bool {
+        self.within_latency_bound
+    }
+
+    /// Whether the call has not yet returned and been cleaned up.
+    #[must_use]
+    pub fn is_running(&self) -> bool {
+        matches!(*self.shared.lock(), CallState::Running | CallState::Abandoned)
+    }
+
+    /// Wait up to `timeout` for the call to return, its cleanup to run and its lease to
+    /// go back to the pool. Returns whether that happened.
+    #[must_use]
+    pub fn wait_finished(&self, timeout: Duration) -> bool {
+        let deadline = Instant::now() + timeout;
+        let mut state = self.shared.lock();
+        loop {
+            if !matches!(*state, CallState::Running | CallState::Abandoned) {
+                return true;
+            }
+            let now = Instant::now();
+            if now >= deadline {
+                return false;
+            }
+            state = self
+                .shared
+                .changed
+                .wait_timeout(state, deadline - now)
+                .unwrap_or_else(PoisonError::into_inner)
+                .0;
+        }
+    }
+
+    /// The late value, when the boundary retains partials and the call returned.
+    ///
+    /// It is a partial: nothing here publishes it as a claim.
+    #[must_use]
+    pub fn take_retained(&self) -> Option<T> {
+        let mut state = self.shared.lock();
+        match std::mem::replace(&mut *state, CallState::Taken) {
+            CallState::Retained(value) => Some(value),
+            other => {
+                *state = other;
+                None
+            }
+        }
+    }
+}
+
+/// How an isolated call ended for the caller.
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum IsolatedOutcome<T> {
+    /// The call returned before cancellation.
+    Completed {
+        /// The call's value.
+        value: T,
+        /// Bytes the call was bounded to and leased.
+        call_bytes: u64,
+        /// Time from the call returning to the caller observing it.
+        observe_latency: Duration,
+    },
+    /// The context was cancelled; the caller stopped waiting.
+    Abandoned(AbandonedCall<T>),
+}
+
+/// Run an uninterruptible `call` on an isolated worker under `boundary`.
+///
+/// `call_bytes` is the declared size of the call; it is refused when it exceeds the
+/// boundary's maximum, and it is leased from `ctx`'s admission pool together with one
+/// worker slot until the call returns. `poll` is the longest the caller sleeps between
+/// cancellation checks and must not exceed the boundary's latency bound. `cleanup`
+/// receives the value of a call that returns after the caller left, unless the boundary
+/// retains partials, in which case the value waits in [`AbandonedCall::take_retained`].
+///
+/// # Errors
+///
+/// [`IsolatedCallError::Boundary`] for an oversized call, [`IsolatedCallError::PollTooCoarse`],
+/// [`IsolatedCallError::Admission`] when the pool refuses the lease or the study is
+/// cancelled, [`IsolatedCallError::Spawn`], and [`IsolatedCallError::Panicked`].
+pub fn run_isolated<T, F, C>(
+    ctx: &ExecutionContext,
+    boundary: Boundary,
+    call_bytes: u64,
+    poll: Duration,
+    call: F,
+    cleanup: C,
+) -> Result<IsolatedOutcome<T>, IsolatedCallError>
+where
+    T: Send + 'static,
+    F: FnOnce() -> T + Send + 'static,
+    C: FnOnce(T) + Send + 'static,
+{
+    if poll > boundary.latency_bound() {
+        return Err(IsolatedCallError::PollTooCoarse { poll, bound: boundary.latency_bound() });
+    }
+    let mut session = boundary.open();
+    session.record_call_bytes(call_bytes)?;
+    if matches!(boundary.site(), CancelSite::Provider) {
+        session.enter_provider(false, UninterruptibleAdmission::Isolate)?;
+    }
+    let lease = ctx.acquire_admission(1, call_bytes).map_err(IsolatedCallError::Admission)?;
+    let shared =
+        Arc::new(CallShared { state: Mutex::new(CallState::Running), changed: Condvar::new() });
+    let retains = boundary.retain_partial();
+    let worker_shared = Arc::clone(&shared);
+    std::thread::Builder::new()
+        .name("antecedent-isolated-call".to_owned())
+        .spawn(move || {
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(call));
+            // The call has returned: give back its slot and bytes before anyone is told.
+            drop(lease);
+            let finished = Instant::now();
+            let value = result.map_err(|_| ());
+            let mut state = worker_shared.lock();
+            if matches!(*state, CallState::Running) {
+                *state = CallState::Done { value, at: finished };
+                drop(state);
+            } else {
+                drop(state);
+                let settled = match value {
+                    Ok(value) if retains => CallState::Retained(value),
+                    Ok(value) => {
+                        cleanup(value);
+                        CallState::Discarded
+                    }
+                    Err(()) => CallState::Discarded,
+                };
+                *worker_shared.lock() = settled;
+            }
+            worker_shared.changed.notify_all();
+        })
+        .map_err(|error| IsolatedCallError::Spawn(error.to_string()))?;
+    let mut last_clear = Instant::now();
+    let mut state = shared.lock();
+    loop {
+        match std::mem::replace(&mut *state, CallState::Taken) {
+            CallState::Done { value: Ok(value), at } => {
+                return Ok(IsolatedOutcome::Completed {
+                    value,
+                    call_bytes,
+                    observe_latency: at.elapsed(),
+                });
+            }
+            CallState::Done { value: Err(()), .. } => return Err(IsolatedCallError::Panicked),
+            other => *state = other,
+        }
+        let now = Instant::now();
+        if ctx.cancellation.is_cancelled() {
+            let cancel_latency = now.duration_since(last_clear);
+            *state = CallState::Abandoned;
+            drop(state);
+            return Ok(IsolatedOutcome::Abandoned(AbandonedCall {
+                cancel_latency,
+                within_latency_bound: cancel_latency <= boundary.latency_bound(),
+                retains,
+                shared,
+            }));
+        }
+        last_clear = now;
+        state = shared.changed.wait_timeout(state, poll).unwrap_or_else(PoisonError::into_inner).0;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
@@ -1006,5 +1264,198 @@ mod tests {
         assert_eq!(work.recorded_call_bytes(), Some(65));
         work.record_elapsed(Duration::from_millis(1)).unwrap();
         assert_eq!(work.stop().unwrap_err(), err);
+    }
+
+    mod isolated {
+        use std::sync::Arc;
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::time::{Duration, Instant};
+
+        use super::super::{
+            Boundary, CancelSite, IsolatedCallError, IsolatedOutcome, run_isolated,
+        };
+        use crate::cancellation_boundary::BoundaryError;
+        use crate::execution::{AdmissionPool, ExecutionContext};
+
+        fn study(pool: &AdmissionPool) -> ExecutionContext {
+            ExecutionContext::production(1, 2).with_admission(pool.clone())
+        }
+
+        fn provider_boundary(retain: bool) -> Boundary {
+            Boundary::new(CancelSite::Provider, 256, Duration::from_millis(250), retain, false)
+                .unwrap()
+        }
+
+        #[test]
+        fn an_oversized_call_is_refused_before_anything_runs() {
+            let pool = AdmissionPool::fixed(2, 4096);
+            let ran = Arc::new(AtomicBool::new(false));
+            let seen = Arc::clone(&ran);
+            let refused = run_isolated(
+                &study(&pool),
+                provider_boundary(false),
+                257,
+                Duration::from_millis(5),
+                move || seen.store(true, Ordering::SeqCst),
+                |()| {},
+            )
+            .unwrap_err();
+            assert!(
+                matches!(
+                    refused,
+                    IsolatedCallError::Boundary(BoundaryError::CallTooLarge {
+                        bytes: 257,
+                        max_call_bytes: 256,
+                        ..
+                    })
+                ),
+                "{refused}"
+            );
+            assert!(!ran.load(Ordering::SeqCst), "an oversized call never starts");
+            assert_eq!(pool.available().threads(), 2);
+            assert_eq!(pool.available().bytes(), 4096);
+
+            let coarse = run_isolated(
+                &study(&pool),
+                provider_boundary(false),
+                8,
+                Duration::from_secs(1),
+                || (),
+                |()| {},
+            )
+            .unwrap_err();
+            assert!(matches!(coarse, IsolatedCallError::PollTooCoarse { .. }), "{coarse}");
+        }
+
+        #[test]
+        fn a_call_that_returns_hands_back_its_value_and_its_lease() {
+            let pool = AdmissionPool::fixed(2, 4096);
+            let during = pool.clone();
+            let outcome = run_isolated(
+                &study(&pool),
+                provider_boundary(false),
+                64,
+                Duration::from_millis(5),
+                move || {
+                    std::thread::sleep(Duration::from_millis(20));
+                    (during.available().threads(), during.available().bytes(), 41 + 1)
+                },
+                |_| {},
+            )
+            .unwrap();
+            let IsolatedOutcome::Completed { value, call_bytes, .. } = outcome else {
+                panic!("an uncancelled call completes")
+            };
+            assert_eq!(value, (1, 4096 - 64, 42), "the call holds a slot and its bytes");
+            assert_eq!(call_bytes, 64);
+            assert_eq!(pool.available().threads(), 2);
+            assert_eq!(pool.available().bytes(), 4096);
+
+            let panicked = run_isolated(
+                &study(&pool),
+                provider_boundary(false),
+                64,
+                Duration::from_millis(5),
+                || -> u32 { panic!("provider fault") },
+                |_| {},
+            )
+            .unwrap_err();
+            assert!(matches!(panicked, IsolatedCallError::Panicked), "{panicked}");
+            assert_eq!(pool.available().threads(), 2, "a panicking call returns its lease");
+        }
+
+        #[test]
+        fn cancellation_returns_within_the_poll_while_the_call_keeps_its_lease_and_is_cleaned_up() {
+            let pool = AdmissionPool::fixed(2, 4096);
+            let ctx = study(&pool);
+            let spill = std::env::temp_dir()
+                .join(format!("antecedent-isolated-spill-{}", std::process::id()));
+            let _ = std::fs::remove_file(&spill);
+            let call_spill = spill.clone();
+            let cleaned = Arc::new(AtomicBool::new(false));
+            let cleaned_seen = Arc::clone(&cleaned);
+            let cleanup_spill = spill.clone();
+            let call_duration = Duration::from_millis(600);
+
+            let token = ctx.cancellation.clone();
+            let canceller = std::thread::spawn(move || {
+                std::thread::sleep(Duration::from_millis(40));
+                token.cancel();
+            });
+            let started = Instant::now();
+            let outcome = run_isolated(
+                &ctx,
+                provider_boundary(false),
+                128,
+                Duration::from_millis(5),
+                move || {
+                    std::fs::write(&call_spill, b"temporary spill").unwrap();
+                    std::thread::sleep(Duration::from_millis(600));
+                    call_spill
+                },
+                move |path| {
+                    std::fs::remove_file(&path).unwrap();
+                    assert_eq!(path, cleanup_spill);
+                    cleaned_seen.store(true, Ordering::SeqCst);
+                },
+            )
+            .unwrap();
+            let returned_after = started.elapsed();
+            canceller.join().unwrap();
+            let IsolatedOutcome::Abandoned(call) = outcome else {
+                panic!("a cancelled study abandons the call")
+            };
+            assert!(
+                returned_after < call_duration,
+                "the caller is not held for the call: {returned_after:?}"
+            );
+            assert!(call.within_latency_bound(), "{:?}", call.cancel_latency());
+            assert!(call.cancel_latency() <= Duration::from_millis(250));
+            assert!(call.is_running());
+            assert_eq!(pool.available().threads(), 1, "the running call keeps its slot");
+            assert_eq!(pool.available().bytes(), 4096 - 128, "and its bytes");
+            assert!(spill.exists(), "the call's spill exists until cleanup");
+
+            assert!(call.wait_finished(Duration::from_secs(10)));
+            assert!(cleaned.load(Ordering::SeqCst), "the late value reached cleanup");
+            assert!(!spill.exists(), "cleanup removed the spill");
+            assert_eq!(pool.available().threads(), 2);
+            assert_eq!(pool.available().bytes(), 4096);
+            assert!(call.take_retained().is_none(), "nothing is retained without the policy");
+        }
+
+        #[test]
+        fn a_retained_partial_waits_for_the_caller_and_skips_cleanup() {
+            let pool = AdmissionPool::fixed(2, 4096);
+            let ctx = study(&pool);
+            let token = ctx.cancellation.clone();
+            let cleaned = Arc::new(AtomicBool::new(false));
+            let cleaned_seen = Arc::clone(&cleaned);
+            let canceller = std::thread::spawn(move || {
+                std::thread::sleep(Duration::from_millis(20));
+                token.cancel();
+            });
+            let outcome = run_isolated(
+                &ctx,
+                provider_boundary(true),
+                32,
+                Duration::from_millis(5),
+                || {
+                    std::thread::sleep(Duration::from_millis(200));
+                    vec![1_u8, 2, 3]
+                },
+                move |_| cleaned_seen.store(true, Ordering::SeqCst),
+            )
+            .unwrap();
+            canceller.join().unwrap();
+            let IsolatedOutcome::Abandoned(call) = outcome else {
+                panic!("a cancelled study abandons the call")
+            };
+            assert!(call.wait_finished(Duration::from_secs(10)));
+            assert_eq!(call.take_retained(), Some(vec![1, 2, 3]));
+            assert!(call.take_retained().is_none(), "a partial is taken once");
+            assert!(!cleaned.load(Ordering::SeqCst), "a retained partial is not discarded");
+            assert_eq!(pool.available().threads(), 2);
+        }
     }
 }

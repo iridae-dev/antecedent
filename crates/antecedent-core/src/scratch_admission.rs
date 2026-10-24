@@ -159,7 +159,7 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     use super::*;
-    use crate::execution::AdmissionPool;
+    use crate::execution::{AdmissionPool, PipelineStep};
 
     fn pooled(threads: u32, bytes: u64) -> (ExecutionContext, AdmissionPool) {
         let pool = AdmissionPool::fixed(threads, bytes);
@@ -238,5 +238,162 @@ mod tests {
         assert_eq!(refused, ScratchRefusal::PoolShort { bytes: 16 });
         assert_eq!(pool.available().threads(), 2);
         assert_eq!(pool.available().bytes(), 15);
+    }
+
+    #[test]
+    fn a_stalled_consumer_holds_live_buffers_at_the_window() {
+        use std::time::{Duration, Instant};
+
+        let (ctx, pool) = pooled(4, 1 << 20);
+        let window = 3usize;
+        let produced = AtomicUsize::new(0);
+        let live = AtomicUsize::new(0);
+        let live_peak = AtomicUsize::new(0);
+        let mut seen = Vec::new();
+        let mut produced_while_stalled = 0usize;
+        let receipt = ctx
+            .pipeline_indexed(
+                64,
+                window,
+                |index, _| {
+                    produced.fetch_add(1, Ordering::SeqCst);
+                    let now = live.fetch_add(1, Ordering::SeqCst) + 1;
+                    live_peak.fetch_max(now, Ordering::SeqCst);
+                    Ok::<_, ()>(vec![index as u8; 1024])
+                },
+                |index, buffer| {
+                    if index == 0 {
+                        // The consumer stalls on the first item. Producers run until the
+                        // window is full and then wait for it.
+                        let deadline = Instant::now() + Duration::from_secs(10);
+                        while produced.load(Ordering::SeqCst) < window && Instant::now() < deadline
+                        {
+                            std::thread::sleep(Duration::from_millis(1));
+                        }
+                        std::thread::sleep(Duration::from_millis(150));
+                        produced_while_stalled = produced.load(Ordering::SeqCst);
+                    }
+                    seen.push((index, buffer.len(), buffer[0]));
+                    live.fetch_sub(1, Ordering::SeqCst);
+                    Ok(PipelineStep::Continue)
+                },
+            )
+            .unwrap();
+        assert_eq!(produced_while_stalled, window, "producers stop at the window");
+        assert!(live_peak.load(Ordering::SeqCst) <= window, "{}", live_peak.load(Ordering::SeqCst));
+        assert!(receipt.peak_live <= window && receipt.peak_live >= 1);
+        assert_eq!(receipt.items_consumed, 64);
+        assert!(receipt.workers >= 2, "the stall needs producers off the caller");
+        let expected: Vec<(usize, usize, u8)> = (0..64).map(|i| (i, 1024, i as u8)).collect();
+        assert_eq!(seen, expected, "items arrive in index order, each produced from its index");
+        assert_eq!(pool.available().threads(), 4);
+        assert_eq!(pool.available().bytes(), 1 << 20);
+    }
+
+    #[test]
+    fn a_pipeline_without_free_workers_runs_one_item_at_a_time_inline() {
+        let (ctx, pool) = pooled(1, 1 << 20);
+        let live = AtomicUsize::new(0);
+        let peak = AtomicUsize::new(0);
+        let receipt = ctx
+            .pipeline_indexed(
+                10,
+                4,
+                |index, _| {
+                    peak.fetch_max(live.fetch_add(1, Ordering::SeqCst) + 1, Ordering::SeqCst);
+                    Ok::<_, ()>(index)
+                },
+                |_, _| {
+                    live.fetch_sub(1, Ordering::SeqCst);
+                    Ok(PipelineStep::Continue)
+                },
+            )
+            .unwrap();
+        assert_eq!(receipt.workers, 1);
+        assert_eq!(receipt.peak_live, 1);
+        assert_eq!(peak.load(Ordering::SeqCst), 1);
+        assert_eq!(pool.available().threads(), 1);
+    }
+
+    #[test]
+    fn a_pipeline_reports_the_lowest_failure_and_returns_its_lease() {
+        use crate::execution::MapExecutionError;
+
+        let (ctx, pool) = pooled(4, 1 << 20);
+        let mut consumed = Vec::new();
+        let refused = ctx
+            .pipeline_indexed(
+                40,
+                4,
+                |index, _| if index == 7 || index == 9 { Err(index) } else { Ok(index) },
+                |index, _| {
+                    consumed.push(index);
+                    Ok(PipelineStep::Continue)
+                },
+            )
+            .unwrap_err();
+        assert!(matches!(refused, MapExecutionError::Work(7)), "{refused}");
+        assert_eq!(consumed, (0..7).collect::<Vec<_>>(), "nothing above the failure is consumed");
+        assert_eq!(pool.available().threads(), 4);
+
+        let refused = ctx
+            .pipeline_indexed(
+                40,
+                4,
+                |index, _| Ok::<_, usize>(index),
+                |index, _| {
+                    if index == 3 { Err(99) } else { Ok(PipelineStep::Continue) }
+                },
+            )
+            .unwrap_err();
+        assert!(matches!(refused, MapExecutionError::Work(99)), "{refused}");
+        assert_eq!(pool.available().threads(), 4);
+        assert_eq!(pool.available().bytes(), 1 << 20);
+    }
+
+    #[test]
+    fn a_cancelled_pipeline_stops_and_releases_the_pool() {
+        use crate::execution::MapExecutionError;
+
+        let (ctx, pool) = pooled(4, 1 << 20);
+        let token = ctx.cancellation.clone();
+        let refused = ctx
+            .pipeline_indexed(
+                1_000,
+                4,
+                |index, _| Ok::<_, ()>(index),
+                |index, _| {
+                    if index == 5 {
+                        token.cancel();
+                    }
+                    Ok(PipelineStep::Continue)
+                },
+            )
+            .unwrap_err();
+        assert!(
+            matches!(refused, MapExecutionError::Admission(AdmissionError::Cancelled)),
+            "{refused:?}"
+        );
+        assert_eq!(pool.available().threads(), 4);
+    }
+
+    #[test]
+    fn a_consumer_can_stop_the_pipeline_early() {
+        let (ctx, pool) = pooled(4, 1 << 20);
+        let mut taken = 0usize;
+        let receipt = ctx
+            .pipeline_indexed(
+                500,
+                4,
+                |index, _| Ok::<_, ()>(index),
+                |index, _| {
+                    taken += 1;
+                    Ok(if index == 9 { PipelineStep::Stop } else { PipelineStep::Continue })
+                },
+            )
+            .unwrap();
+        assert_eq!(receipt.items_consumed, 10);
+        assert_eq!(taken, 10);
+        assert_eq!(pool.available().threads(), 4);
     }
 }

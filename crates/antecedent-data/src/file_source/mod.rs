@@ -11,7 +11,12 @@
 //! context's admission pool *before* it is decoded and again before its
 //! library-owned columns are built, so a pool that cannot hold one chunk is a
 //! refusal that names the bytes and the next attempt (a smaller chunk or a
-//! larger pool), and leaves the pool as it was. Rows are addressed by checked
+//! larger pool), and leaves the pool as it was. An Arrow IPC batch keeps the
+//! size its writer chose, so its decode storage is sized from the message
+//! metadata (body length, inflated buffers, dictionaries and per-array
+//! structure) and leased in full before the reader allocates any of it; a batch
+//! the pool cannot hold is refused undecoded. Parquet is sized from the footer's
+//! column sizes, including the plain bytes of byte-array columns. Rows are addressed by checked
 //! [`GlobalId`]s, so a table may hold more than `2^32` rows; a row is narrowed
 //! to a [`ChunkIndex`] only inside its own bounded chunk.
 //!
@@ -34,6 +39,8 @@
 mod convert;
 mod error;
 mod identity;
+#[cfg(feature = "ipc")]
+mod ipc_scan;
 mod materialize;
 mod provider;
 mod writer;
@@ -54,7 +61,7 @@ use crate::global_index::{ChunkIndex, GlobalId};
 
 use convert::ColumnState;
 use identity::ColumnDigest;
-use provider::BatchProvider;
+use provider::{BatchProvider, DecodeNeed};
 
 pub use error::{FileSourceError, FileSourceErrorKind, MemoryStage};
 pub use identity::{FILE_IDENTITY_VERSION, FileContentIdentity};
@@ -1212,16 +1219,41 @@ impl TableChunkReader {
 
     fn pull(&mut self) -> Result<bool, FileSourceError> {
         let quote = self.plan.chunk_quote()?;
-        let decode = self.lease(MemoryStage::ChunkDecode, quote.decode_bytes)?;
+        let provider = self.provider.as_mut().ok_or(FileSourceError::NotRewindable)?;
+        // A provider that can size its next batch from metadata is leased for
+        // the whole decode (message body, inflated buffers, array structure)
+        // before one byte is read, so a writer-sized batch is refused here and
+        // never materialized.
+        let (reserve, stage) = match provider.next_decode_need()? {
+            DecodeNeed::Exhausted => return Ok(false),
+            DecodeNeed::Bytes(need) if need > quote.decode_bytes => {
+                (need, MemoryStage::DecodedBatch)
+            }
+            DecodeNeed::Bytes(_) | DecodeNeed::Unknown => {
+                (quote.decode_bytes, MemoryStage::ChunkDecode)
+            }
+        };
+        let decode = self.lease(stage, reserve)?;
         let provider = self.provider.as_mut().ok_or(FileSourceError::NotRewindable)?;
         let Some(batch) = provider.next_batch()? else {
             return Ok(false);
         };
-        let actual = batch.get_array_memory_size() as u64;
-        let mut held = quote.decode_bytes;
+        // Arrow reports a decoded column's whole backing allocation, so columns sliced from one
+        // message body would each be charged for all of it. The sliced span is what they own.
+        let actual = batch
+            .columns()
+            .iter()
+            .map(|column| {
+                column
+                    .to_data()
+                    .get_slice_memory_size()
+                    .unwrap_or_else(|_| column.get_array_memory_size())
+            })
+            .sum::<usize>() as u64;
+        let mut held = reserve;
         let mut leases = vec![decode];
-        if actual > quote.decode_bytes {
-            let extra = actual - quote.decode_bytes;
+        if actual > reserve {
+            let extra = actual - reserve;
             leases.push(self.lease(MemoryStage::DecodedBatch, extra)?);
             held = actual;
         }

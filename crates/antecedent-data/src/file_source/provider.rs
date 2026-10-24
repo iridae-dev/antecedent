@@ -4,7 +4,8 @@
 //! yields record batches of the projected columns only: Parquet decodes just
 //! the projected root columns, at most `batch_rows` rows per batch; Arrow IPC
 //! reads the projected columns of each record batch at the size its writer
-//! chose.
+//! chose, after the batch's message sizes are read from metadata so the caller
+//! can lease them first ([`BatchProvider::next_decode_need`]).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -18,8 +19,29 @@ use arrow_schema::SchemaRef;
 use super::TableFileFormat;
 use super::error::FileSourceError;
 
+/// Bytes the next batch will hold while it is decoded, when the source knows.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[cfg_attr(not(feature = "ipc"), allow(dead_code, reason = "only the IPC provider sizes batches"))]
+pub(crate) enum DecodeNeed {
+    /// The source cannot size its next batch before decoding it.
+    Unknown,
+    /// No batch remains.
+    Exhausted,
+    /// Bytes the reader holds for the next batch: its message body, inflated
+    /// buffers, metadata and per-array structure.
+    Bytes(u64),
+}
+
 /// Source of decoded record batches.
 pub(crate) trait BatchProvider {
+    /// Size of the next batch, read from metadata without decoding it.
+    ///
+    /// A source that returns [`DecodeNeed::Bytes`] guarantees decoding the next
+    /// batch allocates no more than that; the caller leases it first.
+    fn next_decode_need(&mut self) -> Result<DecodeNeed, FileSourceError> {
+        Ok(DecodeNeed::Unknown)
+    }
+
     /// Next batch, or `None` when the source is exhausted.
     fn next_batch(&mut self) -> Result<Option<RecordBatch>, FileSourceError>;
 }
@@ -71,6 +93,26 @@ struct Chained {
 }
 
 impl BatchProvider for Chained {
+    fn next_decode_need(&mut self) -> Result<DecodeNeed, FileSourceError> {
+        loop {
+            if self.current.is_none() {
+                let Some(path) = self.paths.get(self.next) else {
+                    return Ok(DecodeNeed::Exhausted);
+                };
+                self.current =
+                    Some(open_one(self.format, path, &self.projection, self.batch_rows)?);
+                self.next += 1;
+            }
+            let Some(current) = self.current.as_mut() else {
+                continue;
+            };
+            match current.next_decode_need()? {
+                DecodeNeed::Exhausted => self.current = None,
+                other => return Ok(other),
+            }
+        }
+    }
+
     fn next_batch(&mut self) -> Result<Option<RecordBatch>, FileSourceError> {
         loop {
             if self.current.is_none() {
@@ -139,8 +181,16 @@ fn parquet_inspect(path: &Path) -> Result<Inspected, FileSourceError> {
         for (leaf, chunk) in group.columns().iter().enumerate() {
             let root = descriptor.get_column_root_idx(leaf);
             if let Some(slot) = bytes.get_mut(root) {
-                let size = u64::try_from(chunk.uncompressed_size()).unwrap_or(0);
-                *slot = slot.saturating_add(size);
+                let stored = u64::try_from(chunk.uncompressed_size()).unwrap_or(0);
+                // A dictionary- or run-encoded byte-array chunk expands when it
+                // is decoded; the footer records the plain value bytes, and an
+                // Arrow offset takes four more bytes per value.
+                let expanded = chunk
+                    .unencoded_byte_array_data_bytes()
+                    .and_then(|bytes| u64::try_from(bytes).ok())
+                    .zip(u64::try_from(chunk.num_values()).ok())
+                    .map_or(0, |(bytes, values)| bytes.saturating_add(values.saturating_mul(4)));
+                *slot = slot.saturating_add(stored.max(expanded));
             }
         }
         for (slot, total) in decode_per_row.iter_mut().zip(bytes) {
@@ -230,28 +280,45 @@ fn ipc_open(
     struct IpcBatches<R> {
         reader: R,
         path: PathBuf,
+        costs: super::ipc_scan::IpcCosts,
+        next: usize,
     }
 
     impl<R> BatchProvider for IpcBatches<R>
     where
         R: Iterator<Item = Result<RecordBatch, arrow_schema::ArrowError>>,
     {
+        fn next_decode_need(&mut self) -> Result<DecodeNeed, FileSourceError> {
+            let Some(cost) = self.costs.batches.get(self.next) else {
+                return Ok(DecodeNeed::Exhausted);
+            };
+            cost.checked_add(self.costs.dictionaries)
+                .map(DecodeNeed::Bytes)
+                .ok_or(FileSourceError::CountOverflow { context: "ipc batch decode bytes" })
+        }
+
         fn next_batch(&mut self) -> Result<Option<RecordBatch>, FileSourceError> {
+            self.next += 1;
             self.reader.next().transpose().map_err(|error| format_error(&self.path, &error))
         }
     }
 
+    let costs = if stream {
+        super::ipc_scan::scan_stream(path)?
+    } else {
+        super::ipc_scan::scan_file(path)?
+    };
     let reader = BufReader::new(open_file(path)?);
     let projection = Some(projection.to_vec());
     let path = path.to_path_buf();
     if stream {
         let reader = StreamReader::try_new(reader, projection)
             .map_err(|error| format_error(&path, &error))?;
-        Ok(Box::new(IpcBatches { reader, path }))
+        Ok(Box::new(IpcBatches { reader, path, costs, next: 0 }))
     } else {
         let reader =
             FileReader::try_new(reader, projection).map_err(|error| format_error(&path, &error))?;
-        Ok(Box::new(IpcBatches { reader, path }))
+        Ok(Box::new(IpcBatches { reader, path, costs, next: 0 }))
     }
 }
 
