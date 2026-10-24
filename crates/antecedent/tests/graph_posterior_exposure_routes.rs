@@ -21,7 +21,8 @@ use antecedent_core::{
 };
 use antecedent_data::{NetworkData, NetworkEdge, TabularData};
 use antecedent_discovery::{
-    GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, adjacency_mask_from_admg, set_edge,
+    GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, adjacency_mask_from_admg,
+    adjacency_mask_from_cpdag, adjacency_masks_from_pag, set_edge,
 };
 use antecedent_graph::{Admg, Cpdag, Dag, DenseNodeId, Pag, SelectionDiagram};
 use antecedent_identify::{TransportIdentification, TransportIdentifier};
@@ -418,12 +419,7 @@ fn exposure_posterior(kind: GraphPosteriorAtomKind, weights: [f64; 4]) -> GraphP
     GraphPosterior::new(
         2,
         weights.to_vec(),
-        vec![
-            set_edge(0, 2, 0, 1, true),
-            0,
-            set_edge(0, 2, 1, 0, true),
-            cyclic,
-        ],
+        vec![set_edge(0, 2, 0, 1, true), 0, set_edge(0, 2, 1, 0, true), cyclic],
         vec![0.0; 4],
         vec![0.0; 4],
         sampling("graph_posterior_interference"),
@@ -830,5 +826,228 @@ fn a_pag_is_read_through_the_graphs_its_completions_stand_for() {
                 .iter()
                 .any(|diagnostic| diagnostic.code.as_ref() == "estimate.pag.transport_sid")
         );
+    });
+}
+
+// ---------------------------------------------------------------------------
+// Transport over a graph posterior of Cpdag or Pag atoms.
+// ---------------------------------------------------------------------------
+
+/// `a -> y <- z` as a Cpdag: the collider is compelled, so the class is the single DAG, and with
+/// the covariate `z` as the selection target sID standardizes over it.
+fn collider_cpdag() -> Cpdag {
+    let mut dag = Dag::with_variables(NODES);
+    dag.insert_directed(node(A), node(Y)).unwrap();
+    dag.insert_directed(node(Z), node(Y)).unwrap();
+    Cpdag::from_dag(&dag)
+}
+
+fn cpdag_posterior(weights: &[f64], graphs: &[Cpdag]) -> GraphPosterior {
+    let n = NODES as usize;
+    let masks: Vec<_> =
+        graphs.iter().map(|graph| adjacency_mask_from_cpdag(graph).unwrap()).collect();
+    GraphPosterior::new(
+        n,
+        weights.to_vec(),
+        masks,
+        vec![0.0; n * n],
+        vec![0.0; n * n],
+        sampling("graph_posterior_transport_cpdag"),
+    )
+    .unwrap()
+    .with_atom_kind(GraphPosteriorAtomKind::Cpdag)
+}
+
+fn pag_posterior(weights: &[f64], graphs: &[Pag]) -> GraphPosterior {
+    let n = NODES as usize;
+    let mut masks = Vec::new();
+    let mut marks = Vec::new();
+    for graph in graphs {
+        let (mask, mark) = adjacency_masks_from_pag(graph).unwrap();
+        masks.push(mask);
+        marks.push(mark);
+    }
+    GraphPosterior::new(
+        n,
+        weights.to_vec(),
+        masks,
+        vec![0.0; n * n],
+        vec![0.0; n * n],
+        sampling("graph_posterior_transport_pag"),
+    )
+    .unwrap()
+    .with_atom_kind(GraphPosteriorAtomKind::Pag)
+    .with_mark_atoms(marks)
+    .unwrap()
+}
+
+/// `a o-o y`: every completion and every ADMG sharing its m-separation model certifies the
+/// direct formula when the selection target is not an ancestor of the outcome.
+fn open_pag() -> Pag {
+    let mut pag = Pag::with_variables(NODES);
+    pag.insert_circle_circle(node(A), node(Y)).unwrap();
+    pag
+}
+
+/// `a -> y <- z` as a Pag: its one MAG completion is itself and it standardizes over `z`.
+fn collider_pag() -> Pag {
+    let mut pag = Pag::with_variables(NODES);
+    pag.insert_directed(node(A), node(Y)).unwrap();
+    pag.insert_directed(node(Z), node(Y)).unwrap();
+    pag
+}
+
+/// `a -> z -> y` with `trial <-> s`: the non-singleton c-component leaves sID without a
+/// certificate, as it does for the matching ADMG atom of the Dag/Admg posterior.
+fn uncertified_pag() -> Pag {
+    let mut pag = Pag::with_variables(NODES);
+    pag.insert_directed(node(A), node(Z)).unwrap();
+    pag.insert_directed(node(Z), node(Y)).unwrap();
+    pag.insert_bidirected(node(TRIAL), node(SEL)).unwrap();
+    pag
+}
+
+/// Each Cpdag atom is run through the class envelope of sID on its own completions: the
+/// open chain (two direct completions and one standardizing completion) and the compelled
+/// collider (one standardizing completion) are both identified, and the posterior publishes
+/// the one transported contrast the weighting evaluates on every certified case.
+#[test]
+fn a_posterior_of_cpdag_atoms_mixes_the_class_envelope_of_sid_outcomes() {
+    on_large_stack(|| {
+        let ctx = ExecutionContext::for_tests(7_301);
+        let graphs = cpdag_posterior(&[0.7, 0.3], &[open_chain(), collider_cpdag()]);
+        let study =
+            transport_study(graphs.clone(), &[Z], InferenceMode::Frequentist, RefuteSuite::None);
+        let result = study.run(&ctx).unwrap();
+
+        // The pinned closed-form contrast, with the delta-method interval of the weighting.
+        let effect = result.estimate.as_effect().unwrap();
+        assert!((effect.ate - 2.0).abs() < 1e-12, "{}", effect.ate);
+        assert!((effect.se_analytic() - reference_se()).abs() < 1e-12);
+        assert_eq!(result.support_status, Some(CellStatus::Refused));
+
+        // Every atom identifies and evaluates: no lost mass, and the value of each atom equals
+        // the explicit class route on the same data.
+        let mixture = result.structural_response.as_ref().expect("a structural mixture");
+        assert!((mixture.identified_mass - 1.0).abs() < 1e-9, "{}", mixture.identified_mass);
+        assert!(mixture.unidentified_mass.abs() < 1e-12);
+        assert!(mixture.unevaluable_mass.abs() < 1e-12);
+        assert_eq!(mixture.atoms.len(), 2);
+        let explicit =
+            class_study(ClassGraph::Cpdag(open_chain()), &[Z], InferenceMode::Frequentist)
+                .run(&ctx)
+                .unwrap();
+        for key in graphs.graph_keys.iter() {
+            let value = value_of(&result, *key).expect("an identified atom has a value");
+            assert!((value - explicit.estimate.as_effect().unwrap().ate).abs() < 1e-12);
+        }
+        // The open chain's members certify different formulas, so it is partially identified
+        // and so is the mixture that contains it.
+        assert_eq!(result.identification.status, IdentificationStatus::PartiallyIdentified);
+
+        // The classes the atoms stand for are disclosed, with the rules sID certified.
+        let members = result
+            .diagnostics
+            .iter()
+            .find(|item| item.code.as_ref() == "estimate.graph_posterior.transport_class_members")
+            .expect("the class members are disclosed");
+        assert!(members.message.contains("2 identified atom(s)"), "{}", members.message);
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .any(|item| { item.code.as_ref() == "estimate.graph_posterior.transport_sid" })
+        );
+
+        // The prepared handle retains the per-atom class proofs and returns the same answer.
+        let mut prepared = study.prepare(&ctx).unwrap();
+        let again = prepared.estimate(&transport_data(), &ctx).unwrap();
+        assert!((again.estimate.as_effect().unwrap().ate - effect.ate).abs() < 1e-12);
+        assert!(again.diagnostics.iter().any(|item| item.code.as_ref() == "exec.identify.cached"));
+    });
+}
+
+/// A Bayesian posterior of Cpdag atoms carries the Dirichlet trial-row posterior of the
+/// transported contrast, conditional on the atoms that identify.
+#[test]
+fn a_bayesian_posterior_of_cpdag_atoms_publishes_the_trial_row_posterior() {
+    on_large_stack(|| {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../conformance/estimate/bayesian_trial_transport/expected.json"
+        ))
+        .unwrap();
+        let study = transport_study(
+            cpdag_posterior(&[0.7, 0.3], &[open_chain(), collider_cpdag()]),
+            &[Z],
+            InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(2_000)),
+            RefuteSuite::None,
+        );
+        let result = study.run(&ExecutionContext::for_tests(7_302)).unwrap();
+        let posterior = result.posterior.as_ref().expect("a transport posterior");
+        assert_eq!(posterior.draws.n_draws, 2_000);
+        assert!(
+            (posterior.summaries.mean[0] - fixture["expected_mean"].as_f64().unwrap()).abs()
+                < fixture["mean_tolerance"].as_f64().unwrap()
+        );
+        assert!(posterior.unidentified_mass.abs() < 1e-12);
+        assert_eq!(
+            result.logical_plan.estimator.as_deref(),
+            Some("transport.trial_bayesian_bootstrap")
+        );
+    });
+}
+
+/// A Pag atom whose ADMG candidates sID does not certify is unidentified posterior mass, the
+/// atoms that certify keep their weights, and neither is redistributed.
+#[test]
+fn a_posterior_of_pag_atoms_states_the_mass_sid_does_not_certify() {
+    on_large_stack(|| {
+        let ctx = ExecutionContext::for_tests(7_303);
+        let graphs =
+            pag_posterior(&[0.5, 0.25, 0.25], &[open_pag(), uncertified_pag(), collider_pag()]);
+        let study =
+            transport_study(graphs.clone(), &[Z], InferenceMode::Frequentist, RefuteSuite::None);
+        let result = study.run(&ctx).unwrap();
+        let effect = result.estimate.as_effect().unwrap();
+        assert!((effect.ate - 2.0).abs() < 1e-12, "{}", effect.ate);
+        let mixture = result.structural_response.as_ref().expect("a structural mixture");
+        assert!((mixture.identified_mass - 0.75).abs() < 1e-9, "{}", mixture.identified_mass);
+        assert!((mixture.unidentified_mass - 0.25).abs() < 1e-9, "{}", mixture.unidentified_mass);
+        assert!(mixture.unevaluable_mass.abs() < 1e-12);
+        let keys = &graphs.graph_keys;
+        assert!(value_of(&result, keys[1]).is_none(), "the uncertified atom has no value");
+        for certified in [keys[0], keys[2]] {
+            let value = value_of(&result, certified).expect("a certified atom has a value");
+            assert!((value - 2.0).abs() < 1e-12, "{value}");
+        }
+        assert_eq!(result.identification.status, IdentificationStatus::GraphDependent);
+
+        // Moving the posterior mass moves the lost mass by exactly the shift.
+        let shifted = transport_study(
+            pag_posterior(&[0.1, 0.8, 0.1], &[open_pag(), uncertified_pag(), collider_pag()]),
+            &[Z],
+            InferenceMode::Frequentist,
+            RefuteSuite::None,
+        )
+        .run(&ctx)
+        .unwrap();
+        let mixture = shifted.structural_response.as_ref().unwrap();
+        assert!((mixture.unidentified_mass - 0.8).abs() < 1e-9);
+        assert!((mixture.identified_mass - 0.2).abs() < 1e-9);
+        assert!((shifted.estimate.as_effect().unwrap().ate - 2.0).abs() < 1e-12);
+    });
+}
+
+/// A posterior of Pag atoms none of which sID certifies is not identified.
+#[test]
+fn a_posterior_of_pag_atoms_with_no_certified_atom_is_not_identified() {
+    on_large_stack(|| {
+        let study = transport_study(
+            pag_posterior(&[1.0], &[uncertified_pag()]),
+            &[Z],
+            InferenceMode::Frequentist,
+            RefuteSuite::None,
+        );
+        assert!(study.run(&ExecutionContext::for_tests(7_304)).is_err());
     });
 }

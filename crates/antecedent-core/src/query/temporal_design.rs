@@ -37,6 +37,38 @@ pub enum TemporalDoseTarget {
     },
 }
 
+/// How the value of a whole static treatment regime is estimated.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TemporalRegimeMethod {
+    /// Iterated-conditional-expectation g-formula.
+    GFormula,
+    /// Inverse-probability-weighted saturated marginal structural model of each path.
+    InverseProbability,
+    /// Recursive augmented inverse-probability estimator, consistent when either the outcome
+    /// regressions or the treatment models are correct.
+    DoublyRobust,
+}
+
+impl TemporalRegimeMethod {
+    /// The stable name used by the wire and the Python surface.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::GFormula => "g_formula",
+            Self::InverseProbability => "inverse_probability_weighting",
+            Self::DoublyRobust => "doubly_robust",
+        }
+    }
+
+    /// The method named `name`, if any.
+    #[must_use]
+    pub fn from_name(name: &str) -> Option<Self> {
+        [Self::GFormula, Self::InverseProbability, Self::DoublyRobust]
+            .into_iter()
+            .find(|method| method.name() == name)
+    }
+}
+
 /// The assignment record of a sequentially randomized design, one entry per table row.
 #[derive(Clone, Debug, PartialEq)]
 pub enum TemporalAssignment {
@@ -111,6 +143,23 @@ pub enum TemporalAssignment {
         treatment: VariableId,
         /// History columns measured at each decision that the assignment model reads.
         history: Arc<[VariableId]>,
+    },
+    /// The value of whole static treatment regimes on a continuous end-of-follow-up outcome
+    /// under time-varying confounding, identified by sequential exchangeability given the
+    /// measured confounder and treatment history. Every unit is observed in the same periods;
+    /// the outcome column is read at each unit's last period, and the contrast is the mean
+    /// outcome under the active treatment path minus that under the reference path.
+    ObservationalRegime {
+        /// Binary treatment indicator column, coded exactly 0 or 1.
+        treatment: VariableId,
+        /// Time-varying confounder columns measured at the start of each period.
+        confounders: Arc<[VariableId]>,
+        /// The active path: the treatment taken in each period, in period order.
+        active: Arc<[bool]>,
+        /// The reference path, in period order.
+        reference: Arc<[bool]>,
+        /// How the value of each path is estimated.
+        method: TemporalRegimeMethod,
     },
 }
 
@@ -231,6 +280,18 @@ impl CanonicalEncode for TemporalAssignment {
                 treatment.encode(writer);
                 encode_variables(writer, history);
             }
+            Self::ObservationalRegime { treatment, confounders, active, reference, method } => {
+                writer.word(8);
+                treatment.encode(writer);
+                encode_variables(writer, confounders);
+                encode_flags(writer, active);
+                encode_flags(writer, reference);
+                writer.word(match method {
+                    TemporalRegimeMethod::GFormula => 1,
+                    TemporalRegimeMethod::InverseProbability => 2,
+                    TemporalRegimeMethod::DoublyRobust => 3,
+                });
+            }
         }
     }
 }
@@ -309,11 +370,18 @@ impl TemporalDesignQuery {
             columns.push(*treatment);
             columns.extend(history.iter().copied());
         }
+        if let TemporalAssignment::ObservationalRegime { treatment, confounders, .. } =
+            &self.assignment
+        {
+            columns.push(*treatment);
+            columns.extend(confounders.iter().copied());
+        }
         columns
     }
 
     /// A short design name: `two_arm`, `multi_arm`, `categorical`, `factorial`,
-    /// `interference`, `dose`, `regime_survival` or `observational_excursion`.
+    /// `interference`, `dose`, `regime_survival`, `observational_excursion` or
+    /// `observational_regime`.
     #[must_use]
     pub const fn design_name(&self) -> &'static str {
         match &self.assignment {
@@ -325,6 +393,7 @@ impl TemporalDesignQuery {
             TemporalAssignment::Dose { .. } => "dose",
             TemporalAssignment::RegimeSurvival { .. } => "regime_survival",
             TemporalAssignment::ObservationalExcursion { .. } => "observational_excursion",
+            TemporalAssignment::ObservationalRegime { .. } => "observational_regime",
         }
     }
 
@@ -517,6 +586,43 @@ impl TemporalDesignQuery {
                 if sorted.len() != columns.len() {
                     return Err(invalid(
                         "outcome, treatment and history columns of an observational excursion must be distinct",
+                    ));
+                }
+            }
+            TemporalAssignment::ObservationalRegime {
+                treatment,
+                confounders,
+                active,
+                reference,
+                ..
+            } => {
+                if self.outcome_misclassification.is_some()
+                    || self.functional != TemporalDesignFunctional::Mean
+                {
+                    return Err(invalid(
+                        "a whole-regime contrast reads the mean of a continuous outcome without a \
+                         misclassification correction",
+                    ));
+                }
+                if self.lag != 0 {
+                    return Err(invalid(
+                        "a whole-regime contrast reads the outcome at the end of follow-up (lag 0)",
+                    ));
+                }
+                if active.is_empty() || active.len() != reference.len() || active == reference {
+                    return Err(invalid(
+                        "the active and reference regimes name one action per period, the same \
+                         number of periods each, and differ in some period",
+                    ));
+                }
+                let mut columns = vec![self.outcome, *treatment];
+                columns.extend(confounders.iter().copied());
+                let mut sorted = columns.clone();
+                sorted.sort_unstable();
+                sorted.dedup();
+                if sorted.len() != columns.len() {
+                    return Err(invalid(
+                        "outcome, treatment and confounder columns of a whole-regime contrast must be distinct",
                     ));
                 }
             }

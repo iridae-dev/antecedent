@@ -48,8 +48,11 @@ pub use conditional::{
 pub use conditional::{ConditionalNonTransportabilityProof, ConditionalNonTransportabilityRecord};
 pub use conditional_witness::{
     CONDITIONAL_WITNESS_MAX_LATENT_LEVELS, ConditionalWitnessCheck, ConditionalWitnessRecord,
-    WitnessKernelRecord, WitnessLatentRecord, WitnessModelRecord, WitnessSearch,
-    search_conditional_witness, verify_conditional_witness,
+    WITNESS_SEARCH_DEFAULT_OPERATIONS, WITNESS_VERIFY_DEFAULT_OPERATIONS,
+    WITNESS_WORK_PER_OPERATION, WitnessKernelRecord, WitnessLatentRecord, WitnessMeter,
+    WitnessModelRecord, WitnessSearch, search_conditional_witness,
+    search_conditional_witness_within, verify_conditional_witness,
+    verify_conditional_witness_within,
 };
 pub use counterfactual_transport::{
     COUNTERFACTUAL_TRANSPORT_CONTRACT, COUNTERFACTUAL_TRANSPORT_DEFAULT_LIMITS,
@@ -2284,6 +2287,30 @@ impl<'c> SharedSearch<'c> {
         self.base_bytes = self.base_bytes.saturating_add(self.stage_peak);
         self.stages_retained = self.stages_retained.saturating_add(self.stage_peak);
         self.stage_peak = 0;
+    }
+    /// Charge one operation like [`SearchCharge::charge`], then lease `lease_bytes` of storage
+    /// (when non-zero) from the context's admission pool before the caller allocates it. A
+    /// refused lease is a memory (or cancellation) stop and is recorded like any other.
+    pub(crate) fn charge_leasing(
+        &mut self,
+        depth: usize,
+        bytes: u64,
+        lease_bytes: u64,
+    ) -> Result<Option<antecedent_core::execution::AdmissionLease>, SearchStop> {
+        SearchCharge::charge(self, depth, bytes)?;
+        if lease_bytes == 0 {
+            return Ok(None);
+        }
+        self.budget
+            .lease_storage(lease_bytes)
+            .map(Some)
+            .inspect_err(|stop| {
+                self.stop.get_or_insert(*stop);
+            })
+    }
+    /// Operations the budget still allows.
+    pub(crate) fn operations_remaining(&self) -> u64 {
+        u64::try_from(self.budget.operations_remaining()).unwrap_or(u64::MAX)
     }
     /// Operations charged so far, across every decision on this budget.
     pub(crate) const fn operations(&self) -> usize {

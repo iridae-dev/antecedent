@@ -17,6 +17,7 @@ use antecedent_validate::target_native::{
     RefutationTarget, TargetCertificationError, TargetFamily, TargetPerturbation, TargetQuadrant,
     TargetRefit, TargetRefitError, TargetRefutationConfig, TargetRefutationPlan, TargetRefuterKind,
     TargetSuite, certify_target_refutations, refuse_scalar_reports_for_target, run_target_plan,
+    target_refuter_stream,
 };
 use antecedent_validate::{RefutationReport, ValidationError};
 
@@ -370,4 +371,194 @@ fn an_attribution_catalogue_has_no_treatment_keyed_refuter_and_reads_the_prior_w
             assert_eq!(quadrant.bayesian, kinds.contains(&TargetRefuterKind::PriorSensitivity));
         }
     }
+}
+
+/// Probability atoms of a three-level outcome, estimated by the sample proportions of a
+/// categorical column drawn from `LAW`.
+const LAW: [f64; 3] = [0.5, 0.3, 0.2];
+
+fn law_target() -> RefutationTarget {
+    RefutationTarget::new(
+        TargetFamily::InterventionalLaw,
+        TargetQuadrant::STATIC_FREQUENTIST,
+        ["atom[0]", "atom[1]"],
+        [4; 32],
+    )
+    .unwrap()
+}
+
+/// A multinomial plug-in whose target is the first two atom probabilities. `drift` makes the
+/// procedure unstable: under a subset it moves the first atom by that amount, the defect a
+/// stability refuter exists to find.
+struct LawRefit {
+    outcome: Vec<usize>,
+    target: RefutationTarget,
+    original: Vec<f64>,
+    drift: f64,
+}
+
+fn proportions(rows: impl Iterator<Item = usize>) -> Vec<f64> {
+    let mut counts = [0.0_f64; 3];
+    let mut n = 0.0;
+    for level in rows {
+        counts[level] += 1.0;
+        n += 1.0;
+    }
+    vec![counts[0] / n, counts[1] / n]
+}
+
+impl LawRefit {
+    fn new(n: usize, seed: u64, drift: f64) -> Self {
+        let mut rng = CausalRng::from_seed(seed);
+        let outcome: Vec<usize> = (0..n)
+            .map(|_| {
+                let p = rng.next_f64();
+                if p < LAW[0] {
+                    0
+                } else if p < LAW[0] + LAW[1] {
+                    1
+                } else {
+                    2
+                }
+            })
+            .collect();
+        let original = proportions(outcome.iter().copied());
+        Self { outcome, target: law_target(), original, drift }
+    }
+}
+
+impl TargetRefit for LawRefit {
+    fn target(&self) -> &RefutationTarget {
+        &self.target
+    }
+
+    fn original(&self) -> &[f64] {
+        &self.original
+    }
+
+    fn refit(
+        &self,
+        perturbation: TargetPerturbation,
+        rng: &mut CausalRng,
+        _ctx: &ExecutionContext,
+    ) -> Result<Vec<f64>, TargetRefitError> {
+        let n = self.outcome.len();
+        match perturbation {
+            TargetPerturbation::Subset { fraction, .. } => {
+                let mut rows: Vec<usize> = (0..n).collect();
+                shuffle(rng, &mut rows);
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    clippy::cast_sign_loss,
+                    reason = "a subset fraction in (0, 1) keeps between zero and n rows"
+                )]
+                let keep = (fraction * n as f64) as usize;
+                rows.truncate(keep);
+                let mut out = proportions(rows.iter().map(|&i| self.outcome[i]));
+                out[0] += self.drift;
+                Ok(out)
+            }
+            TargetPerturbation::Bootstrap { .. } => {
+                Ok(proportions((0..n).map(|_| self.outcome[unbiased_index(rng, n)])))
+            }
+            _ => Err(TargetRefitError::Unsupported {
+                reason: Arc::from("a law has no treatment-keyed refuter"),
+                next_attempt: Arc::from("use the stability refuters"),
+            }),
+        }
+    }
+}
+
+#[test]
+fn an_interventional_law_is_refuted_by_stability_only() {
+    let plan_cheap = TargetRefutationPlan::for_target(law_target(), TargetSuite::Cheap);
+    assert_eq!(plan_cheap.refuters(), [TargetRefuterKind::SubsetStability]);
+    let plan_full = TargetRefutationPlan::for_target(law_target(), TargetSuite::Full);
+    assert_eq!(
+        plan_full.refuters(),
+        [TargetRefuterKind::SubsetStability, TargetRefuterKind::BootstrapStability]
+    );
+    assert_eq!(TargetFamily::parse("interventional_law"), Some(TargetFamily::InterventionalLaw));
+    assert_eq!(TargetFamily::InterventionalLaw.as_str(), "interventional_law");
+    let bayesian = RefutationTarget::new(
+        TargetFamily::InterventionalLaw,
+        TargetQuadrant::STATIC_BAYESIAN,
+        ["atom[0]"],
+        [4; 32],
+    )
+    .unwrap();
+    let kinds = TargetRefutationPlan::for_target(bayesian, TargetSuite::Cheap);
+    assert!(kinds.refuters().contains(&TargetRefuterKind::PriorSensitivity));
+}
+
+/// `(e − m)ᵀ S⁻¹ (e − m)` for two coordinates, by the explicit 2×2 inverse.
+fn mahalanobis_2d(expected: [f64; 2], rows: &[[f64; 2]]) -> f64 {
+    let r = rows.len() as f64;
+    let m = [
+        rows.iter().map(|row| row[0]).sum::<f64>() / r,
+        rows.iter().map(|row| row[1]).sum::<f64>() / r,
+    ];
+    let (mut s00, mut s01, mut s11) = (0.0, 0.0, 0.0);
+    for row in rows {
+        let (a, b) = (row[0] - m[0], row[1] - m[1]);
+        s00 += a * a;
+        s01 += a * b;
+        s11 += b * b;
+    }
+    let (s00, s01, s11) = (s00 / (r - 1.0), s01 / (r - 1.0), s11 / (r - 1.0));
+    let det = s00 * s11 - s01 * s01;
+    let (da, db) = (expected[0] - m[0], expected[1] - m[1]);
+    (s11 * da * da - 2.0 * s01 * da * db + s00 * db * db) / det
+}
+
+#[test]
+fn the_law_statistic_equals_the_hand_computed_two_atom_mahalanobis_distance() {
+    let refit = LawRefit::new(500, 31, 0.0);
+    // The sample proportions recover the law the column was drawn from.
+    for (p, truth) in refit.original.iter().zip(LAW) {
+        assert!((p - truth).abs() < 0.06, "{p} vs {truth}");
+    }
+    let ctx = ExecutionContext::for_tests(41);
+    let config = TargetRefutationConfig { replicates: 60, ..TargetRefutationConfig::default() };
+    let plan = TargetRefutationPlan::for_target(law_target(), TargetSuite::Full);
+    let run = run_target_plan(&plan, &refit, &config, &ctx).unwrap();
+    for kind in [TargetRefuterKind::SubsetStability, TargetRefuterKind::BootstrapStability] {
+        // Replay the same keyed streams the engine used and form the statistic independently.
+        let mut rows = Vec::new();
+        for replicate in 0..config.replicates {
+            let mut rng = target_refuter_stream(kind, replicate, &ctx);
+            let perturbation = match kind {
+                TargetRefuterKind::SubsetStability => {
+                    TargetPerturbation::Subset { replicate, fraction: config.subset_fraction }
+                }
+                _ => TargetPerturbation::Bootstrap { replicate },
+            };
+            let v = refit.refit(perturbation, &mut rng, &ctx).unwrap();
+            rows.push([v[0], v[1]]);
+        }
+        let expected = mahalanobis_2d([refit.original[0], refit.original[1]], &rows);
+        let r = report(&run, kind);
+        assert!((r.statistic.value - expected).abs() < 1e-8 * (1.0 + expected), "{kind:?}");
+        assert_eq!(r.statistic.df, 2);
+        assert!(r.passed, "{kind:?}: {:?}", r.failure);
+        assert_eq!(r.replicates, config.replicates);
+    }
+}
+
+#[test]
+fn an_unstable_law_procedure_fails_subset_stability_on_the_whole_vector() {
+    // A procedure whose answer shifts by 0.1 when it sees a subset is not stable under a
+    // change of population: the replicate mean sits far from the original in sampling units.
+    let refit = LawRefit::new(500, 32, 0.1);
+    let plan = TargetRefutationPlan::for_target(law_target(), TargetSuite::Cheap);
+    let config = TargetRefutationConfig { replicates: 60, ..TargetRefutationConfig::default() };
+    let run = run_target_plan(&plan, &refit, &config, &ExecutionContext::for_tests(42)).unwrap();
+    let subset = report(&run, TargetRefuterKind::SubsetStability);
+    assert!(!subset.passed);
+    assert!((subset.refuted[0] - subset.original[0] - 0.1).abs() < 0.02);
+    // The treatment-keyed refuters never ran: the route has no construction for them.
+    let sound = LawRefit::new(500, 32, 0.0);
+    let full = TargetRefutationPlan::for_target(law_target(), TargetSuite::Full);
+    let ok = run_target_plan(&full, &sound, &config, &ExecutionContext::for_tests(42)).unwrap();
+    assert!(ok.reports.iter().all(|r| r.passed));
 }

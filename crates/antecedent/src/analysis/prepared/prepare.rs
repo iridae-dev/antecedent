@@ -81,6 +81,16 @@ impl Study {
 
     /// The body of [`Self::prepare`], run under the plan's preparation budget.
     fn prepare_metered(&self, ctx: &ExecutionContext) -> Result<PreparedStudy, CausalError> {
+        // A functional query under cheap or full validation is prepared as the same query at
+        // validation none: its program is the one every refit re-executes, and the handle keeps
+        // the requested suite so each estimate validates (see `functional_validation`).
+        if crate::analysis::functional_validation::requested(self) {
+            let mut base = self.clone();
+            base.refute = crate::analysis::builder::RefuteSuite::None;
+            let mut handle = base.prepare_metered(ctx)?;
+            handle.analysis.refute = self.refute;
+            return Ok(handle);
+        }
         ensure_prepared_supported(self)?;
         let plan = Arc::new(self.compile(ctx)?);
         let counterfactual = self.compile_counterfactual()?;
@@ -168,6 +178,11 @@ impl Study {
     fn compile_nested_counterfactual(
         &self,
     ) -> Result<Option<crate::gcm::NestedCounterfactualOperation>, CausalError> {
+        // A graph posterior names no single graph: each atom answers the natural direct effect
+        // on its own structure at every execution.
+        if self.graph_posterior.is_some() {
+            return Ok(None);
+        }
         Ok(match (&self.graph, &self.query) {
             (graph, CausalQuery::NestedCounterfactual(_))
                 if matches!(
@@ -276,7 +291,7 @@ impl Study {
         if let Some(posterior) = self.graph_posterior.as_ref() {
             self.identify_graph_posterior_caches(posterior, ctx, &mut caches)?;
         } else {
-            self.identify_single_graph_caches(plan, &mut caches)?;
+            self.identify_single_graph_caches(plan, ctx, &mut caches)?;
             // The posterior builders report `identify.compute` themselves; the
             // single-graph, class, temporal and transport products identify
             // without a progress hook, so report once when any was built.
@@ -328,6 +343,18 @@ impl Study {
                     build_graph_posterior_identification_cache(posterior, query, ctx)?,
                 )));
             }
+            // A latent-confounded conditional effect, a derivative or multi-coordinate response
+            // and a counterfactual are identified on each atom's own structure by the executor
+            // of that structure at every execution; an average-effect witness would state
+            // another question.
+            (DataInput::Tabular(_), CausalQuery::ConditionalEffect(_))
+                if matches!(
+                    posterior.atom_kind,
+                    antecedent_discovery::GraphPosteriorAtomKind::Admg
+                        | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg
+                ) => {}
+            (DataInput::Tabular(_), CausalQuery::Response(query))
+                if crate::analysis::execute::atom_route_response(query) => {}
             (DataInput::Tabular(_), CausalQuery::ConditionalEffect(query)) => {
                 caches.push(IdentificationCache::GraphPosterior(Arc::new(
                     build_graph_posterior_identification_cache(posterior, &query.inner, ctx)?,
@@ -350,6 +377,19 @@ impl Study {
                     )?,
                 )));
             }
+            (
+                DataInput::Tabular(_),
+                CausalQuery::Mediation(_)
+                | CausalQuery::PathSpecific(_)
+                | CausalQuery::NestedCounterfactual(_)
+                | CausalQuery::Counterfactual(_)
+                | CausalQuery::Distribution(_)
+                | CausalQuery::AnomalyAttribution(_)
+                | CausalQuery::ChangeAttribution(_),
+            ) => {
+                // Each atom is identified on its own structure by the executor of that
+                // structure at every execution, as a cross-world probe is.
+            }
             (DataInput::Tabular(_), CausalQuery::Interference(query)) => {
                 // The design identifies the contrast; the atoms only state their membership.
                 caches.push(IdentificationCache::GraphPosterior(Arc::new(
@@ -361,6 +401,11 @@ impl Study {
                     )?,
                 )));
             }
+            // A one-modifier conditional effect over TemporalDag atoms identifies each atom's
+            // regressions at every execution, with the interval of the whole procedure.
+            (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::TemporalEffect(query))
+                if crate::analysis::execute::dbn_atoms(posterior)
+                    && !query.effect_modifiers.is_empty() => {}
             (
                 DataInput::Temporal(data) | DataInput::Event(data),
                 CausalQuery::TemporalEffect(query),
@@ -376,10 +421,17 @@ impl Study {
             (DataInput::Temporal(data) | DataInput::Event(data), CausalQuery::Mediation(query)) => {
                 let variables: Vec<_> =
                     data.schema().variables().iter().map(|variable| variable.id).collect();
-                caches.push(self.identify_temporal_mediation_posterior_cache(
-                    posterior, &variables, query, ctx,
-                )?);
+                // A posterior of temporal PAGs identifies each atom on the window of its own
+                // template at every execution, as a supplied temporal PAG does.
+                if posterior.atom_kind != antecedent_discovery::GraphPosteriorAtomKind::Pag {
+                    caches.push(self.identify_temporal_mediation_posterior_cache(
+                        posterior, &variables, query, ctx,
+                    )?);
+                }
             }
+            (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::Response(_))
+                if crate::analysis::execute::dbn_atoms(posterior)
+                    && crate::analysis::execute::dbn_route_query(&self.query) => {}
             (DataInput::Temporal(data) | DataInput::Event(data), CausalQuery::Response(query))
                 if query.is_temporal() =>
             {
@@ -395,7 +447,9 @@ impl Study {
                 CausalQuery::NestedCounterfactual(_)
                 | CausalQuery::PathSpecific(_)
                 | CausalQuery::Counterfactual(_)
-                | CausalQuery::Distribution(_),
+                | CausalQuery::Distribution(_)
+                | CausalQuery::AnomalyAttribution(_)
+                | CausalQuery::ChangeAttribution(_),
             ) => {
                 // Identification runs at execute, on the cross-world probe, so the
                 // cache matches the producer rather than an average-effect witness.
@@ -418,6 +472,7 @@ impl Study {
     fn identify_single_graph_caches(
         &self,
         plan: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
         caches: &mut Vec<IdentificationCache>,
     ) -> Result<(), CausalError> {
         let mut push = |cache: Option<IdentificationCache>| caches.extend(cache);
@@ -478,14 +533,14 @@ impl Study {
                     Some(linear) => {
                         Some(IdentificationCache::Static(Arc::clone(&linear.identification)))
                     }
-                    None => static_cache(self.prepare_static_identification(plan)?),
+                    None => static_cache(self.prepare_static_identification_in(plan, Some(ctx))?),
                 });
                 push(
-                    self.prepare_pag_identification(plan)?
+                    self.prepare_pag_identification(plan, Some(ctx))?
                         .map(|cache| IdentificationCache::Pag(Arc::new(cache))),
                 );
                 push(
-                    self.prepare_cpdag_identification(plan)?
+                    self.prepare_cpdag_identification(plan, Some(ctx))?
                         .map(|cache| IdentificationCache::Cpdag(Arc::new(cache))),
                 );
             }

@@ -622,6 +622,8 @@ pub struct StudyBuilder {
     bootstrap_replicates: u32,
     /// Whether [`Self::bootstrap_replicates`] was set explicitly.
     bootstrap_explicit: bool,
+    /// A requested bootstrap interval, set by [`Self::bootstrap_interval`].
+    bootstrap_interval: Option<antecedent_estimate::IntervalRequest>,
     /// Whether the temporal response retains its joint horizon replicates.
     retain_joint_horizons: bool,
     split: Option<DiscoveryEstimationSplit>,
@@ -1256,6 +1258,7 @@ impl StudyBuilder {
             refute_explicit: false,
             bootstrap_replicates: Self::OMITTED_BOOTSTRAP,
             bootstrap_explicit: false,
+            bootstrap_interval: None,
             retain_joint_horizons: false,
             split: None,
             identifier: None,
@@ -1556,6 +1559,25 @@ impl StudyBuilder {
     pub fn bootstrap_replicates(mut self, n: u32) -> Self {
         self.bootstrap_replicates = n;
         self.bootstrap_explicit = true;
+        self
+    }
+
+    /// Request a bootstrap interval produced by the complete resampling procedure: waves of
+    /// replicates that stop once the request's Monte Carlo tolerances on the standard error and
+    /// on the interval half-width are met, capped by [`Self::bootstrap_replicates`], which must
+    /// be set explicitly as that cap. The result's diagnostics carry the interval, every wave,
+    /// the Monte Carlo errors and the stop reason
+    /// ([`antecedent_estimate::EstimateDiagnostics::resampling`]).
+    ///
+    /// The selected estimator must be linear adjustment, propensity weighting, propensity
+    /// stratification, AIPW or GLM adjustment; a bare [`EstimatorId`] is built with the study's
+    /// settings, a configured estimator takes the request. Anything else is refused at
+    /// [`Self::build`] ([`CausalError::Conflict`]). The coverage of the stopping procedure is a
+    /// measured property of the request, not asserted: the estimate's calibration key carries
+    /// the procedure so a fixed-count calibration never binds to it.
+    #[must_use]
+    pub fn bootstrap_interval(mut self, request: antecedent_estimate::IntervalRequest) -> Self {
+        self.bootstrap_interval = Some(request);
         self
     }
 
@@ -1883,7 +1905,44 @@ impl StudyBuilder {
         self.finish(false)
     }
 
+    /// Hand a requested bootstrap interval to the selected estimator. An id-only estimator is
+    /// built with the study's settings first, so those settings are then the estimator's own and
+    /// the builder-level replicate and overlap settings no longer conflict with it.
+    fn apply_bootstrap_interval(&mut self) -> Result<(), CausalError> {
+        let Some(request) = self.bootstrap_interval.take() else {
+            return Ok(());
+        };
+        let Some(spec) = self.estimator_spec.take() else {
+            return Err(CausalError::Conflict {
+                what: "bootstrap_interval",
+                detail: "name the estimator that produces the interval (estimator(..)); the \
+                         default estimator is chosen from the graph and query at compile time",
+            });
+        };
+        let was_default = !spec.is_configured();
+        if was_default && !self.bootstrap_explicit {
+            return Err(CausalError::Conflict {
+                what: "bootstrap_interval",
+                detail: "set bootstrap_replicates(..) explicitly: it is the replicate cap of the \
+                         requested interval",
+            });
+        }
+        let defaults = crate::estimator_spec::BuildDefaults {
+            bootstrap_replicates: self.bootstrap_replicates,
+            overlap_policy: self.overlap_policy,
+            population_registry: self.population_registry.as_ref(),
+            sampling_design: self.sampling_design,
+        };
+        self.estimator_spec = Some(spec.with_bootstrap_interval(request, defaults)?);
+        if was_default {
+            self.bootstrap_explicit = false;
+            self.overlap_policy = None;
+        }
+        Ok(())
+    }
+
     fn finish(mut self, inspect_only: bool) -> Result<Study, CausalError> {
+        self.apply_bootstrap_interval()?;
         let discovery = self.discovery.take();
         let mechanisms = self.mechanisms.take();
         let posterior_provenance = self.posterior_provenance.take();
@@ -2096,5 +2155,70 @@ mod estimator_spec_conflict_tests {
     fn explicit_bootstrap_replicates_alone_does_not_conflict() {
         let result = toy_builder().bootstrap_replicates(100).build();
         assert!(!matches!(result, Err(CausalError::Conflict { .. })));
+    }
+
+    fn conflict_of(result: Result<Study, CausalError>) -> &'static str {
+        match result.map_err(CausalError::into_peeled) {
+            Err(CausalError::Conflict { what, .. }) => what,
+            other => panic!("expected CausalError::Conflict, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_requested_interval_needs_a_named_estimator_and_an_explicit_replicate_cap() {
+        use antecedent_estimate::IntervalRequest;
+        let request = IntervalRequest::default();
+        let unnamed = toy_builder().bootstrap_replicates(100).bootstrap_interval(request).build();
+        assert_eq!(conflict_of(unnamed), "bootstrap_interval");
+        let uncapped = toy_builder()
+            .estimator(crate::strategy_table::EstimatorId::LinearAdjustmentAte)
+            .bootstrap_interval(request)
+            .build();
+        assert_eq!(conflict_of(uncapped), "bootstrap_interval");
+        // An estimator whose bootstrap is not the wave procedure refuses the request.
+        let matching = toy_builder()
+            .estimator(crate::strategy_table::EstimatorId::PropensityMatching)
+            .bootstrap_replicates(100)
+            .bootstrap_interval(request)
+            .build();
+        assert_eq!(conflict_of(matching), "bootstrap_interval");
+        // A configured estimator takes the request; the builder's own replicate setting would
+        // still conflict with it.
+        let configured = toy_builder()
+            .estimator(LinearAdjustmentAte::new().with_bootstrap_replicates(300))
+            .bootstrap_interval(request)
+            .build();
+        assert!(!matches!(configured, Err(CausalError::Conflict { .. })));
+        let doubled = toy_builder()
+            .estimator(LinearAdjustmentAte::new().with_bootstrap_interval(request))
+            .bootstrap_interval(IntervalRequest { level: 0.9, ..request })
+            .build();
+        assert_eq!(conflict_of(doubled), "bootstrap_interval");
+    }
+
+    #[test]
+    fn a_requested_interval_on_a_named_estimator_becomes_that_estimators_own_setting() {
+        use antecedent_estimate::IntervalRequest;
+        let request = IntervalRequest { level: 0.9, ..IntervalRequest::default() };
+        let spec = EstimatorSpec::Default(crate::strategy_table::EstimatorId::Aipw)
+            .with_bootstrap_interval(
+                request,
+                crate::estimator_spec::BuildDefaults {
+                    bootstrap_replicates: 150,
+                    overlap_policy: None,
+                    population_registry: None,
+                    sampling_design: None,
+                },
+            )
+            .unwrap();
+        assert_eq!(spec.bootstrap_interval(), Some(request));
+        assert_eq!(spec.bootstrap_replicates(), Some(150));
+        assert_eq!(spec.bootstrap_interval_calibration_label(), Some("bootstrap=adaptive_waves"));
+        // The request is part of the estimator's identity.
+        let plain = EstimatorSpec::from(antecedent_estimate::AipwAte::new());
+        assert_ne!(
+            crate::analysis::contract_identity::estimator_spec_identity(&spec),
+            crate::analysis::contract_identity::estimator_spec_identity(&plain)
+        );
     }
 }

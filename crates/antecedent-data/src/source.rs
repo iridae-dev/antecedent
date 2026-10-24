@@ -1,22 +1,35 @@
 //! Source and snapshot contract over owned storage.
 //!
 //! A snapshot binds modality, cohort order, validity policy, units, splits, an
-//! optional time index, and the existing full-content digest (columns, mask,
-//! and weights). A projection does not reuse that digest. A chunk is a row
-//! range of the same source, not a new population.
+//! optional time index, the schema (names, value types, roles, units and
+//! measurement), event timestamps when the source has them, and the existing
+//! full-content digest (columns, mask, and weights). A projection does not
+//! reuse that digest. A chunk is a row range of the same source, not a new
+//! population.
+//!
+//! Every modality (table, series, panel, multi-environment, event series) reaches
+//! this contract through its own `source` constructor, and every setter of the
+//! owned source (`with_weights`, `with_analysis_mask`, `with_replaced_float`,
+//! `with_schema`, `with_time_index`, `with_event_times`, `with_part`) yields a source
+//! whose identity is recomputed from the new content, so a lazy view or an
+//! incremental digest taken of the earlier source no longer matches it.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::ops::Range;
 use std::sync::Arc;
 
+use antecedent_core::{CausalSchema, VariableId};
+
+use crate::column::ValidityBitmap;
 use crate::dataset::{TabularData, TimeSeriesData};
 use crate::error::DataError;
+use crate::event::EventData;
 use crate::multi_env::MultiEnvironmentData;
 use crate::panel::PanelData;
 use crate::storage::OwnedColumnarStorage;
 use crate::table::TableView;
-use crate::temporal::TimeIndex;
+use crate::temporal::{SamplingRegularity, TimeIndex};
 
 /// How the rows are organized. This does not change the stored columns.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -29,6 +42,8 @@ pub enum SourceModality {
     MultiEnvironment,
     /// A time series.
     TimeSeries,
+    /// Irregular events with their own timestamps.
+    EventSeries,
 }
 
 /// What invalid means for the values this snapshot points at.
@@ -96,6 +111,13 @@ pub struct SnapshotContract {
     pub rows: usize,
     /// Schema variable names in dense order.
     pub schema_names: Arc<[Arc<str>]>,
+    /// Digest of the whole schema (names, value types, roles, units, category domains and
+    /// measurement). The storage digest does not cover it, so two sources with the same
+    /// bytes and different roles are different sources.
+    pub schema: [u8; 32],
+    /// Digest of the event timestamps, for an event series. The storage digest does not
+    /// cover them.
+    pub event_times: Option<[u8; 32]>,
 }
 
 /// Owned immutable source.
@@ -156,6 +178,107 @@ impl OwnedSource {
             });
         }
         Ok(series_source(series, modality))
+    }
+
+    /// Snapshot an event series: irregular time axis, with the event timestamps bound
+    /// into the contract because the storage digest does not carry them.
+    #[must_use]
+    pub fn from_event_series(events: &EventData) -> Self {
+        let _ = events.storage().content_digest();
+        let mut source = Self::from_storage(events.storage().clone(), SourceModality::EventSeries);
+        source.contract.time_index = Some(TimeIndex {
+            regularity: SamplingRegularity::Irregular,
+            length: events.storage().row_count(),
+        });
+        source.contract.event_times = Some(event_times_digest(events.event_times_ns()));
+        source
+    }
+
+    /// Replace the event timestamps of an event series.
+    ///
+    /// # Errors
+    ///
+    /// The source is not an event series, the count is not the row count, or the timestamps
+    /// decrease.
+    pub fn with_event_times(mut self, times_ns: &[i64]) -> Result<Self, DataError> {
+        if self.contract.modality != SourceModality::EventSeries {
+            return Err(DataError::InvalidArgument {
+                message: "event timestamps belong to an event series".into(),
+            });
+        }
+        if times_ns.len() != self.contract.rows {
+            return Err(DataError::LengthMismatch {
+                expected: self.contract.rows,
+                actual: times_ns.len(),
+                context: "event times",
+            });
+        }
+        if times_ns.windows(2).any(|pair| pair[1] < pair[0]) {
+            return Err(DataError::InvalidArgument {
+                message: "event times must be non-decreasing".into(),
+            });
+        }
+        self.contract.event_times = Some(event_times_digest(times_ns));
+        Ok(self)
+    }
+
+    /// Replace the observation weights. The weights are part of the content, so the source
+    /// identity is recomputed.
+    ///
+    /// # Errors
+    ///
+    /// A weight count that is not the row count, or weights that are not valid weights.
+    pub fn with_weights(self, weights: Arc<[f64]>) -> Result<Self, DataError> {
+        let storage = TabularData::new(self.storage.clone()).with_weights(weights)?;
+        Ok(self.rebuilt(storage.storage().clone()))
+    }
+
+    /// Restrict analysis to the rows `mask` keeps (intersected with any existing mask). The
+    /// mask is part of the content, so the source identity is recomputed.
+    ///
+    /// # Errors
+    ///
+    /// A mask whose length is not the row count.
+    pub fn with_analysis_mask(self, mask: ValidityBitmap) -> Result<Self, DataError> {
+        let storage = TabularData::new(self.storage.clone()).with_analysis_mask(mask)?;
+        Ok(self.rebuilt(storage.storage().clone()))
+    }
+
+    /// Replace one float64 column. The source identity is recomputed.
+    ///
+    /// # Errors
+    ///
+    /// Unknown id, length mismatch, or non-float target.
+    pub fn with_replaced_float(
+        self,
+        id: VariableId,
+        values: Arc<[f64]>,
+    ) -> Result<Self, DataError> {
+        let storage = TabularData::new(self.storage.clone()).with_replaced_float(id, values)?;
+        Ok(self.rebuilt(storage.storage().clone()))
+    }
+
+    /// Replace the schema over the same columns (a rename, a role or a unit change). The
+    /// schema digest and the schema names of the contract follow it.
+    ///
+    /// # Errors
+    ///
+    /// A schema that does not fit the columns.
+    pub fn with_schema(self, schema: CausalSchema) -> Result<Self, DataError> {
+        let storage = self.storage.with_schema(schema)?;
+        Ok(self.rebuilt(storage))
+    }
+
+    /// Install `storage` of the same shape and recompute everything the contract derives from
+    /// it; cohort, unit, splits, validity, time index and event timestamps are kept.
+    fn rebuilt(mut self, storage: OwnedColumnarStorage) -> Self {
+        let fresh = contract_for(&storage, self.contract.modality, self.contract.validity);
+        self.contract.identity = fresh.identity;
+        self.contract.schema_names = fresh.schema_names;
+        self.contract.schema = fresh.schema;
+        self.contract.rows = fresh.rows;
+        self.storage = storage;
+        self
     }
 
     /// Borrow the snapshot.
@@ -447,7 +570,53 @@ fn contract_for(
         time_index: None,
         rows: storage.row_count(),
         schema_names,
+        schema: schema_digest(storage.schema()),
+        event_times: None,
     }
+}
+
+/// Digest of a whole schema, in dense order: name, value type, role bits, unit, category
+/// domain and measurement of every variable.
+#[must_use]
+pub fn schema_digest(schema: &CausalSchema) -> [u8; 32] {
+    fn text(hasher: &mut blake3::Hasher, value: &str) {
+        hasher.update(&(value.len() as u64).to_le_bytes());
+        hasher.update(value.as_bytes());
+    }
+    fn optional(hasher: &mut blake3::Hasher, value: Option<&str>) {
+        match value {
+            None => {
+                hasher.update(&[0]);
+            }
+            Some(value) => {
+                hasher.update(&[1]);
+                text(hasher, value);
+            }
+        }
+    }
+    let mut hasher = blake3::Hasher::new_derive_key("antecedent.data.source.schema.v1");
+    hasher.update(&(schema.len() as u64).to_le_bytes());
+    for variable in schema.variables() {
+        hasher.update(&variable.id.raw().to_le_bytes());
+        text(&mut hasher, &variable.name);
+        text(&mut hasher, &format!("{:?}", variable.value_type));
+        hasher.update(&variable.role_hints.bits().to_le_bytes());
+        optional(&mut hasher, variable.unit.as_deref());
+        text(&mut hasher, &format!("{:?}", variable.category_domain));
+        optional(&mut hasher, variable.measurement.description.as_deref());
+        hasher.update(&[u8::from(variable.measurement.noisy)]);
+    }
+    *hasher.finalize().as_bytes()
+}
+
+/// Digest of event timestamps, in order.
+fn event_times_digest(times_ns: &[i64]) -> [u8; 32] {
+    let mut hasher = blake3::Hasher::new_derive_key("antecedent.data.source.event_times.v1");
+    hasher.update(&(times_ns.len() as u64).to_le_bytes());
+    for time in times_ns {
+        hasher.update(&time.to_le_bytes());
+    }
+    *hasher.finalize().as_bytes()
 }
 
 fn fingerprint(columns: &[u32]) -> u64 {

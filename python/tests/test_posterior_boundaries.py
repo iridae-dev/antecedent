@@ -40,16 +40,20 @@ def _one_period(subjects: int = 600, seed: int = 5):
     arm = np.arange(subjects) % 2 == 0
     event = rng.random(subjects) < np.where(arm, 0.25, 0.40)
     shape = (subjects, 1)
-    return dict(
-        treatment=arm.reshape(shape),
-        event=event.reshape(shape),
-        at_risk=np.ones(shape, dtype=bool),
-        treatment_probability=np.full(shape, 0.5),
-        censoring_weight=np.ones(shape),
-        minimum_probability=0.2,
-        active=[True],
-        control=[False],
-    ), arm, event
+    return (
+        dict(
+            treatment=arm.reshape(shape),
+            event=event.reshape(shape),
+            at_risk=np.ones(shape, dtype=bool),
+            treatment_probability=np.full(shape, 0.5),
+            censoring_weight=np.ones(shape),
+            minimum_probability=0.2,
+            active=[True],
+            control=[False],
+        ),
+        arm,
+        event,
+    )
 
 
 def test_bootstrap_interval_width_matches_the_binomial_standard_error():

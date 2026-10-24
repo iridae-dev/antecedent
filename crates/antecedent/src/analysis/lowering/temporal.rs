@@ -91,12 +91,12 @@ const MEDIATION_DESIGN_AT_EXECUTION: &str =
     "each horizon assembles its mediator and outcome designs from the unfolded sample at execution";
 const CROSS_WORLD_DESIGN_AT_EXECUTION: &str =
     "the cross-world probe identifies and fits its mechanisms at execution";
+/// Why a temporal cross-world route retains no identification: the probe did not identify.
+const CROSS_WORLD_IDENTIFIES_PER_EXECUTION: &str = "the temporal cross-world probe did not identify at compile; execution identifies it and \
+     reports the refusal";
 /// Why a temporal ADMG mediation route retains no identification.
 const WINDOW_MEDIATION_IDENTIFIES_PER_EXECUTION: &str =
     "mediation under a temporal ADMG or PAG identifies on its window at each execution";
-/// Why a temporal cross-world route retains no identification.
-const CROSS_WORLD_IDENTIFIES_PER_EXECUTION: &str =
-    "temporal cross-world queries identify on the cross-world probe at each execution";
 
 /// Lower one cell of this family.
 pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalError> {
@@ -510,6 +510,36 @@ fn lower_mediation(
     )
 }
 
+/// Identification of the window, retained with the program when it identifies at compile.
+/// A window that does not identify is left to execution, which reports the refusal.
+fn window_identification(cx: &LoweringContext<'_>) -> IdentificationLayer {
+    let retained = cx.study.retain_window_mediation_identification(cx.plan).and_then(|window| {
+        super::RetainedIdentification::new(None, Vec::new(), super::retention_key(cx.study))
+            .ok()
+            .map(|retained| retained.with_execution_proof(window))
+    });
+    match retained {
+        Some(retained) => IdentificationLayer::Retained(Arc::new(retained)),
+        None => {
+            IdentificationLayer::PerExecution { reason: WINDOW_MEDIATION_IDENTIFIES_PER_EXECUTION }
+        }
+    }
+}
+
+/// Identification of the cross-world probe, retained with the program when it identifies at
+/// compile. A probe that does not identify is left to execution, which reports the refusal.
+fn cross_world_identification(cx: &LoweringContext<'_>) -> IdentificationLayer {
+    let retained = cx.study.retain_cross_world_identification(cx.plan).and_then(|proof| {
+        super::RetainedIdentification::new(None, Vec::new(), super::retention_key(cx.study))
+            .ok()
+            .map(|retained| retained.with_execution_proof(proof))
+    });
+    match retained {
+        Some(retained) => IdentificationLayer::Retained(Arc::new(retained)),
+        None => IdentificationLayer::PerExecution { reason: CROSS_WORLD_IDENTIFIES_PER_EXECUTION },
+    }
+}
+
 /// Natural mediation on one series under a temporal ADMG or PAG: identified on the unrolled
 /// or unfolded window at each execution, estimated by the discrete plug-in on the lag-aligned
 /// window table.
@@ -533,9 +563,7 @@ fn lower_mediation_window(
                 Some(query.outcome),
             ),
             envelope: is_class(cx.study),
-            identification: IdentificationLayer::PerExecution {
-                reason: WINDOW_MEDIATION_IDENTIFIES_PER_EXECUTION,
-            },
+            identification: window_identification(cx),
             models,
             claim: ClaimKind::Point,
             width: WINDOW_DESIGN_AT_EXECUTION,
@@ -579,9 +607,7 @@ fn lower_cross_world(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalE
         TemporalLowering {
             target: super::query_functional(cx.study, kind, outcome),
             envelope: is_class(cx.study),
-            identification: IdentificationLayer::PerExecution {
-                reason: CROSS_WORLD_IDENTIFIES_PER_EXECUTION,
-            },
+            identification: cross_world_identification(cx),
             models,
             claim: ClaimKind::Point,
             width: CROSS_WORLD_DESIGN_AT_EXECUTION,

@@ -231,6 +231,7 @@ _WRAPPED_PRIVATE_NATIVES = {
     "_identify_structure",
 }
 
+
 def test_wrapped_private_natives_exist_and_are_stubbed():
     assert _WRAPPED_PRIVATE_NATIVES <= set(dir(_native))
     assert _WRAPPED_PRIVATE_NATIVES <= _stub_toplevel_names()

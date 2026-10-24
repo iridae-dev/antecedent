@@ -81,6 +81,35 @@ impl EventData {
         &self.storage
     }
 
+    /// These events as a unified source snapshot. The event timestamps are bound into the
+    /// contract, since the storage digest does not carry them.
+    #[must_use]
+    pub fn source(&self) -> crate::source::OwnedSource {
+        crate::source::OwnedSource::from_event_series(self)
+    }
+
+    /// The same marks at other event times.
+    ///
+    /// # Errors
+    ///
+    /// The refusals of [`Self::try_new`].
+    pub fn with_event_times(
+        &self,
+        event_times_ns: impl Into<Arc<[i64]>>,
+    ) -> Result<Self, DataError> {
+        Self::try_new(self.storage.clone(), event_times_ns)
+    }
+
+    /// The same events under another storage (other marks, weights, mask or schema), keeping
+    /// the event times.
+    ///
+    /// # Errors
+    ///
+    /// The refusals of [`Self::try_new`].
+    pub fn with_storage(&self, storage: OwnedColumnarStorage) -> Result<Self, DataError> {
+        Self::try_new(storage, Arc::clone(&self.event_times_ns))
+    }
+
     /// Sampling regularity is always irregular for event data.
     #[must_use]
     pub const fn regularity(&self) -> SamplingRegularity {

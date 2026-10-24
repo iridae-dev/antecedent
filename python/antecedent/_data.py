@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
@@ -19,6 +20,39 @@ _PANDAS_MISSING = frozenset({"NAType", "NaTType", "_NaT"})
 def _refuse_column(message: str) -> CausalTypeError:
     """Typed refusal for non-numeric or unsafe column coercions."""
     return CausalTypeError(message, reason_code="invalid_argument")
+
+
+@dataclass(frozen=True)
+class ColumnCopy:
+    """One array allocation ingestion made in Python, before the native table took ownership.
+
+    ``kind`` names why the allocation could not be avoided: ``dtype_conversion`` (integer,
+    boolean or narrower-float column widened to float64), ``object_cast`` (an object column
+    cast to float64), ``extension_to_float64`` (a pandas nullable column filled with NaN),
+    ``arrow_cast`` (an Arrow integer, boolean or float column cast to float64),
+    ``chunk_concatenation`` (several Arrow chunks joined into the one contiguous buffer the
+    native reader borrows), ``arrow_to_numpy`` (an Arrow column with nulls filled with NaN) or
+    ``pandas_to_arrow`` (a pandas column the Arrow conversion could not share).
+    """
+
+    column: str | None
+    kind: str
+    nbytes: int
+
+
+@dataclass
+class _CopyLedger:
+    """Collects the copies one ingestion makes."""
+
+    copies: list[ColumnCopy] = field(default_factory=list)
+
+    def record(self, column: str | None, kind: str, nbytes: int) -> None:
+        self.copies.append(ColumnCopy(column, kind, int(nbytes)))
+
+
+def _note(ledger: _CopyLedger | None, column: str | None, kind: str, nbytes: int) -> None:
+    if ledger is not None:
+        ledger.record(column, kind, nbytes)
 
 
 def _is_missing_scalar(value: Any) -> bool:
@@ -175,23 +209,114 @@ def ingest_columns(
     data: Mapping[str, Any] | Any,
 ) -> tuple[list[str], list[Any]]:
     """Normalize to ``(names, columns)`` preferring Arrow CDI exporters."""
+    names, columns, _ = ingest_columns_with_receipt(data)
+    return names, columns
+
+
+def ingest_columns_with_receipt(
+    data: Mapping[str, Any] | Any,
+    *,
+    native_dtypes: bool = False,
+) -> tuple[list[str], list[Any], tuple[ColumnCopy, ...]]:
+    """:func:`ingest_columns`, with every array allocation the Python side made.
+
+    The returned copies are the allocations ingestion needed before the native table took its
+    own ownership copy (or borrowed an Arrow buffer): each is a conversion the column's type
+    required, named by its ``kind``. A column that needed none appears nowhere, so an empty
+    tuple means the columns reached the native reader as they were supplied.
+    """
+    ledger = _CopyLedger()
     if isinstance(data, TableFile):
         data = data.read()
-    arrow = try_as_arrow_c_columns(data)
+    arrow = try_as_arrow_c_columns(data, receipt=ledger)
     if arrow is not None:
-        return arrow
-    return as_columns(data)
+        return arrow[0], arrow[1], tuple(ledger.copies)
+    names, columns = as_columns(data, receipt=ledger, native_dtypes=native_dtypes)
+    return names, columns, tuple(ledger.copies)
+
+
+@dataclass(frozen=True)
+class IngestionReceipt:
+    """What loading one table copied, end to end: Python conversions plus native ownership.
+
+    ``python_copies`` are the allocations Python made before the native reader (see
+    :class:`ColumnCopy`). ``native`` is the native reader's own account: ``bytes_copied`` are
+    the ownership copies it retained (one per NumPy column, gathered in the same pass when the
+    column is strided), ``bytes_borrowed`` the Arrow buffers it borrowed without copying.
+    """
+
+    column_names: tuple[str, ...]
+    row_count: int
+    python_copies: tuple[ColumnCopy, ...]
+    native: Any
+
+    @property
+    def python_copy_count(self) -> int:
+        """Allocations Python made before the native reader."""
+        return len(self.python_copies)
+
+    @property
+    def python_bytes_copied(self) -> int:
+        """Bytes of those allocations."""
+        return sum(copy.nbytes for copy in self.python_copies)
+
+    @property
+    def ownership_bytes_copied(self) -> int:
+        """Bytes the native table copied into its own storage."""
+        return int(self.native.bytes_copied)
+
+    @property
+    def bytes_borrowed(self) -> int:
+        """Bytes the native table borrowed from Arrow buffers."""
+        return int(self.native.bytes_borrowed)
+
+    @property
+    def total_bytes_copied(self) -> int:
+        """Every byte copied between the caller's table and the native table."""
+        return self.python_bytes_copied + self.ownership_bytes_copied
+
+    def copies_of(self, kind: str) -> tuple[ColumnCopy, ...]:
+        """The Python allocations of one ``kind``."""
+        return tuple(copy for copy in self.python_copies if copy.kind == kind)
+
+
+def ingestion_receipt(data: Mapping[str, Any] | Any) -> IngestionReceipt:
+    """Load ``data`` through the analysis ingestion and report every copy it made.
+
+    The native reader is the one analysis uses: Arrow C Data exporters when every column
+    exports one (borrowed when the buffer is contiguous float64), NumPy float64 columns
+    otherwise (one owned copy per column). The loaded table is not retained.
+    """
+    from ._native import load_float64_arrow_c_columns, load_float64_columns
+
+    names, columns, copies = ingest_columns_with_receipt(data, native_dtypes=True)
+    if columns and all(hasattr(column, "__arrow_c_array__") for column in columns):
+        native = load_float64_arrow_c_columns(names, columns)
+    else:
+        native = load_float64_columns(names, columns)
+    return IngestionReceipt(
+        column_names=tuple(names),
+        row_count=int(native.row_count),
+        python_copies=copies,
+        native=native,
+    )
 
 
 def as_columns(
     data: Mapping[str, Any] | Any,
+    *,
+    receipt: _CopyLedger | None = None,
+    native_dtypes: bool = False,
 ) -> tuple[list[str], list[NDArray[np.float64]]]:
     """Normalize a mapping or pandas DataFrame to ``(names, float64 columns)``."""
     if isinstance(data, TableFile):
         data = data.read()
     if isinstance(data, Mapping):
         names = list(data.keys())
-        cols = [to_f64(data[n], name=str(n)) for n in names]
+        cols = [
+            to_f64(data[n], name=str(n), receipt=receipt, native_dtypes=native_dtypes)
+            for n in names
+        ]
         _check_column_lengths([str(n) for n in names], cols)
         return names, cols
     if hasattr(data, "columns") and hasattr(data, "to_numpy"):
@@ -199,13 +324,24 @@ def as_columns(
         duplicated = sorted({n for n in names if names.count(n) > 1})
         if duplicated:
             raise CausalValueError(f"data has duplicate column names: {duplicated}")
-        cols = [to_f64(data[c].to_numpy(), name=str(c)) for c in data.columns]
+        cols = [
+            to_f64(
+                _frame_column_values(data[c], name=str(c), receipt=receipt),
+                name=str(c),
+                receipt=receipt,
+                native_dtypes=native_dtypes,
+            )
+            for c in data.columns
+        ]
         _check_column_lengths(names, cols)
         return names, cols
-    arrow = try_as_arrow_c_columns(data)
+    arrow = try_as_arrow_c_columns(data, receipt=receipt)
     if arrow is not None:
         names, cols = arrow
-        return names, [_materialize_f64(col) for col in cols]
+        return names, [
+            _materialize_f64(col, name=name, receipt=receipt)
+            for name, col in zip(names, cols, strict=True)
+        ]
     raise CausalTypeError(
         "data must be a mapping of name→array, a pandas DataFrame, or an Arrow-exporting "
         f"table (PyArrow, Polars); got {type(data)!r}",
@@ -213,7 +349,36 @@ def as_columns(
     )
 
 
-def _arrow_float64(column: Any, name: str | None = None) -> Any:
+def _frame_column_values(series: Any, *, name: str, receipt: _CopyLedger | None) -> Any:
+    """One frame column as an array, with the fewest allocations its dtype allows.
+
+    A NumPy-backed column is read as a view. A pandas nullable integer, float or boolean
+    column is filled with NaN straight into float64: the detour through an object array (a
+    Python object per row) that ``to_numpy()`` would take is never made. Integers past 2**53
+    are refused first, as on every other route. Any other column is read as ``to_numpy()``
+    gives it and refused or cast by :func:`to_f64`.
+    """
+    dtype = getattr(series, "dtype", None)
+    if isinstance(dtype, np.dtype):
+        return series.to_numpy()
+    kind = getattr(dtype, "kind", None)
+    if kind in ("i", "u", "b", "f") and hasattr(series, "min") and hasattr(series, "max"):
+        if kind in ("i", "u") and len(series):
+            lowest, highest = series.min(), series.max()
+            if not (_is_missing_scalar(lowest) or _is_missing_scalar(highest)) and (
+                int(highest) > _EXACT_INT_LIMIT or int(lowest) < -_EXACT_INT_LIMIT
+            ):
+                raise _refuse_column(
+                    f"integer column {name!r} spans [{int(lowest)}, {int(highest)}], beyond "
+                    "2**53, and would lose precision as float64"
+                )
+        values = series.to_numpy(dtype=np.float64, na_value=np.nan)
+        _note(receipt, name, "extension_to_float64", values.nbytes)
+        return values
+    return series.to_numpy()
+
+
+def _arrow_float64(column: Any, name: str | None = None, receipt: _CopyLedger | None = None) -> Any:
     """An Arrow-exporting column as float64, so every Arrow route casts alike.
 
     Integer, boolean and floating columns cast (Arrow refuses an integer beyond
@@ -233,6 +398,7 @@ def _arrow_float64(column: Any, name: str | None = None) -> Any:
     if pa.types.is_float64(kind):
         return col
     if pa.types.is_integer(kind) or pa.types.is_boolean(kind) or pa.types.is_floating(kind):
+        _note(receipt, name, "arrow_cast", len(col) * 8)
         return col.cast(pa.float64())
     label = f" {name!r}" if name is not None else ""
     raise _refuse_column(
@@ -275,6 +441,35 @@ class ArrowChunkColumn:
         return pa.chunked_array(list(self.chunks)).__arrow_c_stream__(requested_schema)
 
 
+def _chunk_layout(column: Any) -> tuple[int, ...]:
+    """Row counts of the chunks a column reaches the native reader in."""
+    if isinstance(column, ArrowChunkColumn):
+        return tuple(len(chunk) for chunk in column.chunks)
+    return (len(column),)
+
+
+def _settle_chunks(columns: list[Any], receipt: _CopyLedger | None) -> list[Any]:
+    """Keep chunked columns chunked when every column shares one chunk layout.
+
+    The native table aligns chunks across columns, so columns of different layouts (a chunked
+    column beside a plain one, or chunked differently) cannot be loaded chunk by chunk. In that
+    case each chunked column is joined here, and the join is recorded.
+    """
+    if not any(isinstance(column, ArrowChunkColumn) for column in columns):
+        return columns
+    if len({_chunk_layout(column) for column in columns}) == 1:
+        return columns
+    import pyarrow as pa
+
+    settled: list[Any] = []
+    for column in columns:
+        if isinstance(column, ArrowChunkColumn):
+            _note(receipt, column.name, "chunk_concatenation", len(column) * 8)
+            column = pa.chunked_array(list(column.chunks)).combine_chunks()
+        settled.append(column)
+    return settled
+
+
 def _is_capsule(obj: Any) -> bool:
     """True for an Arrow PyCapsule, including the ``arrow_array_stream`` capsule."""
     name = type(obj).__name__
@@ -293,17 +488,24 @@ def _arrow_chunks(column: Any) -> list[Any] | None:
     return None
 
 
-def _export_numeric(column: Any, name: str) -> Any:
-    """Float64 view of a column. Several chunks stay several chunks."""
+def _export_numeric(column: Any, name: str, receipt: _CopyLedger | None = None) -> Any:
+    """Float64 view of a column. Several chunks stay several chunks.
+
+    A column of several chunks stays chunked: the native reader takes the chunks as they are
+    and joins them into the table's own buffer in the one ownership copy it makes, so Python
+    allocates nothing for it (:func:`_settle_chunks` joins only when columns disagree on their
+    chunking, which the native table cannot align).
+    """
     chunks = _arrow_chunks(column)
     if chunks is not None:
-        exported = [_arrow_float64(chunk, name) for chunk in chunks]
+        exported = [_arrow_float64(chunk, name, receipt) for chunk in chunks]
         if len(exported) == 1:
             return exported[0]
         return ArrowChunkColumn(exported, name)
     if hasattr(column, "combine_chunks"):
+        _note(receipt, name, "chunk_concatenation", len(column) * 8)
         column = column.combine_chunks()
-    return _arrow_float64(column, name)
+    return _arrow_float64(column, name, receipt)
 
 
 def _preserve_exact(column: Any, name: str | None = None) -> Any:
@@ -354,18 +556,55 @@ def _array_from_capsules(schema_capsule: Any, array_capsule: Any) -> Any:
     return importer(schema_capsule, array_capsule)
 
 
-def _table_from_arrow_export(data: Any) -> Any:
+def _table_from_arrow_export(data: Any, receipt: _CopyLedger | None = None) -> Any:
     """Record batches from a stream, a stream capsule, or a schema/array capsule pair.
 
-    ``read_all`` keeps each batch as a chunk. Pandas indexes are not columns.
+    ``read_all`` keeps each batch as a chunk. Pandas indexes are not columns. A table the
+    producer already holds in memory (a PyArrow table, a Polars frame) is used with its own
+    chunks: re-slicing it into engine-sized batches and joining them again would add a copy of
+    every multi-chunk column and bound nothing, since the producer has allocated it already.
     """
     import pyarrow as pa
 
     if _is_capsule_pair(data):
         return pa.table({"value": _array_from_capsules(data[0], data[1])})
     if hasattr(data, "iloc"):
-        return pa.Table.from_pandas(data, preserve_index=False)
+        table = pa.Table.from_pandas(data, preserve_index=False)
+        _record_pandas_conversion(data, table, receipt)
+        return table
+    if isinstance(data, pa.Table):
+        return data
+    if hasattr(data, "to_arrow") and hasattr(data, "iter_slices"):  # Polars DataFrame
+        converted = data.to_arrow()
+        if isinstance(converted, pa.Table):
+            return converted
     return bounded_arrow_reader(data, ARROW_STREAM_CHUNK_ROWS).read_all()
+
+
+def _record_pandas_conversion(frame: Any, table: Any, receipt: _CopyLedger | None) -> None:
+    """Record the pandas columns the Arrow conversion could not share with the frame.
+
+    A NumPy-backed column whose Arrow value buffer sits at the frame column's own address was
+    shared; every other column (extension dtypes, NaN-bearing floats, converted types) was
+    copied into its own buffer.
+    """
+    if receipt is None:
+        return
+    for position, name in enumerate(table.column_names):
+        column = table.column(position)
+        series = frame.iloc[:, position]
+        shared = False
+        if isinstance(getattr(series, "dtype", None), np.dtype) and column.num_chunks == 1:
+            buffers = column.chunk(0).buffers()
+            values = series.to_numpy()
+            shared = (
+                len(buffers) > 1
+                and buffers[1] is not None
+                and values.size > 0
+                and buffers[1].address == values.ctypes.data
+            )
+        if not shared:
+            receipt.record(str(name), "pandas_to_arrow", column.nbytes)
 
 
 #: Rows a producer is asked to put in one record batch; the engine's default chunk size.
@@ -422,6 +661,8 @@ def _split_reader(reader: Any, max_rows: int) -> Any:
 
 def try_as_arrow_c_columns(
     data: Any,
+    *,
+    receipt: _CopyLedger | None = None,
 ) -> tuple[list[str], list[Any]] | None:
     """If ``data`` exports Arrow C Data Interface columns, return ``(names, cols)``.
 
@@ -439,7 +680,10 @@ def try_as_arrow_c_columns(
         names = list(data.keys())
         cols = [data[n] for n in names]
         if names and all(hasattr(c, "__arrow_c_array__") for c in cols):
-            return names, [_export_numeric(c, str(n)) for n, c in zip(names, cols, strict=True)]
+            return names, _settle_chunks(
+                [_export_numeric(c, str(n), receipt) for n, c in zip(names, cols, strict=True)],
+                receipt,
+            )
         return None
 
     # PyArrow Table / RecordBatch style
@@ -449,9 +693,9 @@ def try_as_arrow_c_columns(
         names_attr = getattr(schema, "names", None) if schema is not None else None
     if names_attr is not None and hasattr(data, "column"):
         names = [str(n) for n in list(names_attr)]
-        cols = [_export_numeric(data.column(i), names[i]) for i in range(len(names))]
+        cols = [_export_numeric(data.column(i), names[i], receipt) for i in range(len(names))]
         if cols and all(_exports_arrow_array(c) for c in cols):
-            return names, cols
+            return names, _settle_chunks(cols, receipt)
         return None
 
     # Frame columns that export CDI, but not pandas (it has to_numpy and
@@ -461,7 +705,10 @@ def try_as_arrow_c_columns(
             names = [str(c) for c in data.columns]
             cols = [data[c] for c in data.columns]
             if names and all(hasattr(c, "__arrow_c_array__") for c in cols):
-                return names, [_export_numeric(c, n) for n, c in zip(names, cols, strict=True)]
+                return names, _settle_chunks(
+                    [_export_numeric(c, n, receipt) for n, c in zip(names, cols, strict=True)],
+                    receipt,
+                )
         except (AttributeError, KeyError, TypeError):
             pass  # not a column-indexable frame; try a table-level stream next
 
@@ -469,13 +716,13 @@ def try_as_arrow_c_columns(
     # Batches stay chunks. The numeric route still casts each chunk to float64.
     if _is_capsule(data) or _is_capsule_pair(data) or hasattr(data, "__arrow_c_stream__"):
         try:
-            table = _table_from_arrow_export(data)
+            table = _table_from_arrow_export(data, receipt)
         except ImportError:
             return None
         names = [str(n) for n in table.column_names]
-        cols = [_export_numeric(table.column(i), names[i]) for i in range(len(names))]
+        cols = [_export_numeric(table.column(i), names[i], receipt) for i in range(len(names))]
         if names:
-            return names, cols
+            return names, _settle_chunks(cols, receipt)
     return None
 
 
@@ -563,7 +810,13 @@ def test_arrow_chunk_column_keeps_pieces() -> None:
     assert column.name == "unit_id"
 
 
-def to_f64(arr: Any, *, name: str | None = None) -> NDArray[np.float64]:
+def to_f64(
+    arr: Any,
+    *,
+    name: str | None = None,
+    receipt: _CopyLedger | None = None,
+    native_dtypes: bool = False,
+) -> NDArray[np.float64]:
     """One numeric column as float64, naming the column in errors when known.
 
     Only numeric inputs are accepted: floats, integers within 2**53 (larger ones
@@ -571,14 +824,32 @@ def to_f64(arr: Any, *, name: str | None = None) -> NDArray[np.float64]:
     timedeltas and complex numbers are refused rather than parsed or reinterpreted
     (digit strings are labels, and a datetime is not a number of nanoseconds).
     A nullable pandas column's ``NA`` and ``None`` become NaN, which is missing.
+
+    With ``native_dtypes`` an integer, boolean or float32 NumPy column is range-checked and
+    returned as it is: the native reader widens it to float64 while it makes its one ownership
+    copy, so no float64 temporary is allocated here. Only for callers whose native entry accepts
+    those dtypes (``tabular_from_py_columns``, ``load_float64_columns``).
     """
     label = f" {name!r}" if name is not None else ""
     raw = np.asarray(arr)
     if raw.ndim != 1:
         raise CausalValueError(f"expected 1-d column{label}, got shape {raw.shape}")
+    if isinstance(arr, (list, tuple, range)):
+        _note(receipt, name, "dtype_conversion", raw.nbytes)
     kind = raw.dtype.kind
+    if native_dtypes and isinstance(arr, np.ndarray) and raw.dtype != np.float64:
+        # The dtypes the native reader widens while it copies.
+        if kind in "iub" or raw.dtype == np.float32:
+            if kind in "iu" and raw.size:
+                lowest, highest = int(raw.min()), int(raw.max())
+                if highest > _EXACT_INT_LIMIT or lowest < -_EXACT_INT_LIMIT:
+                    raise _refuse_column(
+                        f"integer column{label} spans [{lowest}, {highest}], beyond 2**53, and "
+                        "would lose precision as float64"
+                    )
+            return raw  # type: ignore[return-value]
     if kind == "O":
-        return _object_column_f64(raw, name=name, label=label)
+        return _object_column_f64(raw, name=name, label=label, receipt=receipt)
     if kind not in "fiub":
         raise _refuse_column(
             f"column{label} dtype {raw.dtype} is not numeric; only float, integer and boolean "
@@ -592,7 +863,10 @@ def to_f64(arr: Any, *, name: str | None = None) -> NDArray[np.float64]:
                 f"integer column{label} spans [{lowest}, {highest}], beyond 2**53, and would lose "
                 "precision as float64"
             )
-    return np.asarray(raw, dtype=np.float64)
+    out = np.asarray(raw, dtype=np.float64)
+    if out is not raw and not np.shares_memory(out, raw):
+        _note(receipt, name, "dtype_conversion", out.nbytes)
+    return out
 
 
 class _ObjectColumnFallback(Exception):
@@ -610,7 +884,9 @@ def _none_mask(raw: NDArray[Any]) -> NDArray[np.bool_]:
     return mask.reshape(raw.shape)
 
 
-def _object_column_f64(raw: NDArray[Any], *, name: str | None, label: str) -> NDArray[np.float64]:
+def _object_column_f64(
+    raw: NDArray[Any], *, name: str | None, label: str, receipt: _CopyLedger | None = None
+) -> NDArray[np.float64]:
     """Object column to float64.
 
     ``None`` and ordinary numbers cast in NumPy. ``astype(float64)`` would also
@@ -621,9 +897,13 @@ def _object_column_f64(raw: NDArray[Any], *, name: str | None, label: str) -> ND
         return np.empty(0, dtype=np.float64)
     missing = _none_mask(raw)
     try:
-        return _cast_object_numbers(raw, missing, name=name, label=label, na_checked=False)
+        return _cast_object_numbers(
+            raw, missing, name=name, label=label, na_checked=False, receipt=receipt
+        )
     except _ObjectColumnFallback:
-        return _object_column_f64_each(raw, name=name, label=label)
+        out = _object_column_f64_each(raw, name=name, label=label)
+        _note(receipt, name, "object_cast", out.nbytes)
+        return out
 
 
 def _cast_object_numbers(
@@ -633,16 +913,25 @@ def _cast_object_numbers(
     name: str | None,
     label: str,
     na_checked: bool,
+    receipt: _CopyLedger | None = None,
 ) -> NDArray[np.float64]:
-    work = np.array(values, dtype=object, copy=True)
-    if missing.any():
+    # The input is only read, so it is copied just to fill its missing entries; the one
+    # allocation every column needs is the float64 result.
+    has_missing = bool(missing.any())
+    if has_missing:
+        work = np.array(values, dtype=object, copy=True)
         work[missing] = 0.0
+        _note(receipt, name, "object_cast", work.nbytes)
+    else:
+        work = values
     try:
         too_wide = np.logical_or(
             np.greater(work, _EXACT_INT_LIMIT), np.less(work, -_EXACT_INT_LIMIT)
         )
     except TypeError:
-        return _retry_object_na(values, missing, name=name, label=label, na_checked=na_checked)
+        return _retry_object_na(
+            values, missing, name=name, label=label, na_checked=na_checked, receipt=receipt
+        )
     if np.any(too_wide):
         for value in work[np.flatnonzero(too_wide)]:
             if isinstance(value, (bool, np.bool_, float, np.floating)):
@@ -652,13 +941,18 @@ def _cast_object_numbers(
                 raise _refuse_column(
                     f"integer {int(value)} exceeds 2**53 and would lose precision as float64{where}"
                 )
-            return _retry_object_na(values, missing, name=name, label=label, na_checked=na_checked)
+            return _retry_object_na(
+                values, missing, name=name, label=label, na_checked=na_checked, receipt=receipt
+            )
     try:
         out = work.astype(np.float64)
     except (TypeError, ValueError):
-        return _retry_object_na(values, missing, name=name, label=label, na_checked=na_checked)
-    if missing.any():
-        out = np.array(out, dtype=np.float64, copy=True)
+        return _retry_object_na(
+            values, missing, name=name, label=label, na_checked=na_checked, receipt=receipt
+        )
+    _note(receipt, name, "object_cast", out.nbytes)
+    if has_missing:
+        # `astype` returned a fresh array, so the missing entries are written in place.
         out[missing] = np.nan
     return out
 
@@ -670,6 +964,7 @@ def _retry_object_na(
     name: str | None,
     label: str,
     na_checked: bool,
+    receipt: _CopyLedger | None = None,
 ) -> NDArray[np.float64]:
     if na_checked:
         raise _ObjectColumnFallback
@@ -681,7 +976,12 @@ def _retry_object_na(
     if not extra.any():
         raise _ObjectColumnFallback
     return _cast_object_numbers(
-        values, np.logical_or(missing, extra), name=name, label=label, na_checked=True
+        values,
+        np.logical_or(missing, extra),
+        name=name,
+        label=label,
+        na_checked=True,
+        receipt=receipt,
     )
 
 
@@ -726,18 +1026,32 @@ def _check_column_lengths(names: list[str], cols: list[NDArray[np.float64]]) -> 
     )
 
 
-def _materialize_f64(column: Any) -> NDArray[np.float64]:
-    """Numpy view of an ingested column (Arrow CDI or array-like)."""
+def _materialize_f64(
+    column: Any, *, name: str | None = None, receipt: _CopyLedger | None = None
+) -> NDArray[np.float64]:
+    """Numpy view of an ingested column (Arrow CDI or array-like).
+
+    An Arrow column is read in place when it has no nulls; only a column with nulls is
+    filled with NaN into a new buffer, and that allocation is recorded.
+    """
     if hasattr(column, "__arrow_c_array__"):
         try:
             import pyarrow as pa
         except ImportError:
             pass  # no PyArrow: read the column through its array protocols
         else:
-            return to_f64(pa.array(column).to_numpy(zero_copy_only=False))
+            if isinstance(column, ArrowChunkColumn) and len(column.chunks) > 1:
+                _note(receipt, name, "chunk_concatenation", len(column) * 8)
+            array = pa.array(column)
+            try:
+                values = array.to_numpy(zero_copy_only=True)
+            except pa.ArrowException:
+                values = array.to_numpy(zero_copy_only=False)
+                _note(receipt, name, "arrow_to_numpy", values.nbytes)
+            return to_f64(values, name=name, receipt=receipt)
     if hasattr(column, "to_numpy"):
-        return to_f64(column.to_numpy())
-    return to_f64(column)
+        return to_f64(column.to_numpy(), name=name, receipt=receipt)
+    return to_f64(column, name=name, receipt=receipt)
 
 
 def as_multi_env_columns(

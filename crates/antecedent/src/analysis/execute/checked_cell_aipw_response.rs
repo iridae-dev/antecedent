@@ -71,6 +71,10 @@ pub(crate) struct CheckedCellAipwResponseOperationPremises<'a> {
     pub(crate) fold_seed: u64,
     pub(crate) validation: RefuteSuite,
     pub(crate) origin: DagResponseOrigin,
+    /// The plan whose lowered program retained the identification, when there is one. The
+    /// retained identification is verified against its compile-time seal instead of being
+    /// replayed on the structure.
+    pub(crate) plan: Option<&'a crate::planner::PhysicalExecutionPlan>,
 }
 
 impl CheckedCellAipwResponseOperation {
@@ -92,6 +96,7 @@ impl CheckedCellAipwResponseOperation {
             fold_seed,
             validation,
             origin,
+            plan,
         } = premises;
         let (identification, estimand) = (&cache.identification, &cache.estimand);
         query.validate()?;
@@ -146,6 +151,43 @@ impl CheckedCellAipwResponseOperation {
                 message: "cell AIPW query, graph, target, identification, procedure, or validation suite do not form one checked route".into(),
             });
         }
+        let sealed = match plan {
+            Some(plan) => {
+                crate::analysis::proof_support::verify_retained_static(
+                    plan,
+                    identification,
+                    estimand,
+                    "cell AIPW identification differs from the identification compile sealed",
+                )? == crate::analysis::proof_support::RetainedProof::Sealed
+            }
+            None => false,
+        };
+        if !sealed {
+            Self::replay_identification(structure, identifier, query, identification)?;
+        }
+        Ok(Self {
+            structure: structure.clone(),
+            structure_signature: structure_signature(structure),
+            query: query.clone(),
+            outcome: *outcome,
+            treatments: treatments.into(),
+            requested_arm,
+            cache: Arc::clone(cache),
+            identifier,
+            estimator: CellSaturatedAipw::new().with_fold_seed(fold_seed),
+            validation,
+            origin,
+        })
+    }
+
+    /// Identify again on the retained structure and require the supplied identification to
+    /// be that claim. Used only when no compile-time seal exists to verify it against.
+    fn replay_identification(
+        structure: &CellAipwStructure,
+        identifier: IdentifierId,
+        query: &ResponseQuery,
+        identification: &antecedent_identify::IdentificationResult,
+    ) -> Result<(), CausalError> {
         let graph_replay = match structure {
             CellAipwStructure::Dag(graph) => crate::strategy_table::identify_static_query(
                 identifier,
@@ -169,19 +211,7 @@ impl CheckedCellAipwResponseOperation {
                     .into(),
             });
         }
-        Ok(Self {
-            structure: structure.clone(),
-            structure_signature: structure_signature(structure),
-            query: query.clone(),
-            outcome: *outcome,
-            treatments: treatments.into(),
-            requested_arm,
-            cache: Arc::clone(cache),
-            identifier,
-            estimator: CellSaturatedAipw::new().with_fold_seed(fold_seed),
-            validation,
-            origin,
-        })
+        Ok(())
     }
 
     pub(crate) fn query(&self) -> &ResponseQuery {
@@ -523,6 +553,7 @@ mod tests {
                 fold_seed: 817,
                 validation: RefuteSuite::Full,
                 origin: DagResponseOrigin::Accepted,
+                plan: None,
             })
             .unwrap();
         assert_eq!(operation.origin(), DagResponseOrigin::Accepted);
@@ -567,6 +598,7 @@ mod tests {
                 fold_seed: 1,
                 validation: RefuteSuite::None,
                 origin: DagResponseOrigin::Explicit,
+                plan: None,
             })
             .unwrap();
         let mut wrong_graph = graph.clone();
@@ -609,6 +641,7 @@ mod tests {
                 fold_seed: 1,
                 validation: RefuteSuite::None,
                 origin: DagResponseOrigin::Explicit,
+                plan: None,
             })
             .unwrap_err();
         assert!(err.to_string().contains("Set levels 0 or 1"));

@@ -107,9 +107,9 @@ def test_the_python_wrapper_runs_the_class_posterior_over_each_base():
     data = dict(zip(names, cols, strict=True))
     exact = EquivalenceClassPosterior(ExactDagPosterior()).run(data, seed=1)
     assert exact.atom_kind == "Cpdag"
-    sampled = EquivalenceClassPosterior(
-        StructureMcmc(n_chains=2, n_warmup=100, n_draws=300)
-    ).run(data, seed=1)
+    sampled = EquivalenceClassPosterior(StructureMcmc(n_chains=2, n_warmup=100, n_draws=300)).run(
+        data, seed=1
+    )
     assert sampled.atom_kind == "Cpdag"
     assert sum(sampled.weights) == pytest.approx(1.0)
     with pytest.raises(CausalUnsupportedError):
@@ -211,9 +211,9 @@ def test_a_template_posterior_collapses_onto_temporal_classes():
     data = dict(zip(names, cols, strict=True))
     from antecedent.discovery import DbnPosterior
 
-    classes = EquivalenceClassPosterior(DbnPosterior(max_lag=1, n_chains=2, n_warmup=50, n_draws=100)).run(
-        data, seed=1
-    )
+    classes = EquivalenceClassPosterior(
+        DbnPosterior(max_lag=1, n_chains=2, n_warmup=50, n_draws=100)
+    ).run(data, seed=1)
     assert classes.atom_kind == "Cpdag"
     assert sum(classes.weights) == pytest.approx(1.0)
 
@@ -227,7 +227,10 @@ def test_a_latent_variable_search_is_resampled():
     )
     assert result.structure_class == "temporal_pag"
     data = dict(zip(names, cols, strict=True))
-    assert BootstrapStability(LPCMCI(max_lag=1), replicates=8).run(data, seed=1).replicates_requested == 8
+    assert (
+        BootstrapStability(LPCMCI(max_lag=1), replicates=8).run(data, seed=1).replicates_requested
+        == 8
+    )
 
 
 def test_laplace_noise_orients_an_edge_the_gaussian_posterior_cannot():
@@ -235,8 +238,13 @@ def test_laplace_noise_orients_an_edge_the_gaussian_posterior_cannot():
     x = rng.laplace(size=1500)
     y = 1.5 * x + rng.laplace(size=1500)
     laplace = _native.discover_order_mcmc(
-        ["x", "y"], [x, y], n_warmup=200, n_draws=400, require_diagnostics_gate=False,
-        noise="laplace", seed=1,
+        ["x", "y"],
+        [x, y],
+        n_warmup=200,
+        n_draws=400,
+        require_diagnostics_gate=False,
+        noise="laplace",
+        seed=1,
     )
     forward, backward = laplace.edge_marginals[1], laplace.edge_marginals[2]
     assert forward > backward + 0.3

@@ -31,6 +31,7 @@
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
+use antecedent_core::execution::AdmissionLease;
 use antecedent_core::{
     CanonicalWriter, EvidenceCatalog, ExecutionContext, NodeRef, SearchBudget, SearchLimits,
     SearchReceipt, SearchStop, VariableId, reason_code,
@@ -371,11 +372,16 @@ struct Orienter<'a> {
     children: Vec<BitSet>,
     /// One orientation mask per completion found: bit `k` is the direction of `undirected[k]`.
     masks: Vec<BitSet>,
+    /// Storage leases for the retained masks, held while the masks live.
+    leases: Vec<AdmissionLease>,
     bytes: u64,
 }
 
-/// The charge of one orientation attempt: `(depth, live bytes)`.
-type Charge<'c> = dyn FnMut(usize, u64) -> Result<(), SearchStop> + 'c;
+/// The charge of one orientation attempt: `(depth, live bytes, bytes to lease)`. A non-zero
+/// lease is storage the walk is about to allocate for a retained completion; the charge
+/// returns the lease, which the walk holds until the enumeration ends, so the pool has funded
+/// the allocation before it is made.
+type Charge<'c> = dyn FnMut(usize, u64, u64) -> Result<Option<AdmissionLease>, SearchStop> + 'c;
 
 impl<'a> Orienter<'a> {
     fn new(skeleton: &'a Skeleton) -> Self {
@@ -385,6 +391,7 @@ impl<'a> Orienter<'a> {
             parents: vec![BitSet::with_len(n); n],
             children: vec![BitSet::with_len(n); n],
             masks: Vec::new(),
+            leases: Vec::new(),
             bytes: skeleton.completion_bytes(),
         };
         for (from, to) in &skeleton.fixed {
@@ -442,13 +449,15 @@ impl<'a> Orienter<'a> {
         charge: &mut Charge<'_>,
     ) -> Result<(), SearchStop> {
         let Some(&(a, b)) = self.skeleton.undirected.get(k) else {
-            charge(k, self.bytes.saturating_add(self.skeleton.completion_bytes()))?;
+            let held = self.skeleton.completion_bytes();
+            let lease = charge(k, self.bytes.saturating_add(held), held)?;
+            self.leases.extend(lease);
             self.masks.push(mask.clone());
             self.bytes = self.bytes.saturating_add(self.skeleton.completion_bytes());
             return Ok(());
         };
         for (from, to, forward) in [(a, b, true), (b, a, false)] {
-            charge(k + 1, self.bytes)?;
+            charge(k + 1, self.bytes, 0)?;
             if self.admissible(from, to) {
                 self.orient(from, to, true);
                 if forward {
@@ -465,11 +474,18 @@ impl<'a> Orienter<'a> {
 }
 
 /// Run the orientation search, returning the masks found and the stop, if any.
-fn run_walk(skeleton: &Skeleton, charge: &mut Charge<'_>) -> (Vec<BitSet>, Option<SearchStop>) {
+fn run_walk(skeleton: &Skeleton, charge: &mut Charge<'_>) -> Walk {
     let mut orienter = Orienter::new(skeleton);
     let mut mask = BitSet::with_len(skeleton.undirected.len());
     let stop = orienter.walk(0, &mut mask, charge).err();
-    (orienter.masks, stop)
+    Walk { masks: orienter.masks, stop, _leases: orienter.leases }
+}
+
+/// What an orientation walk found, with the storage leases that funded the masks.
+struct Walk {
+    masks: Vec<BitSet>,
+    stop: Option<SearchStop>,
+    _leases: Vec<AdmissionLease>,
 }
 
 /// A started budget, or the receipt of a stop before entry.
@@ -583,8 +599,9 @@ pub fn enumerate_cpdag_completions(
     match start(limits, ctx) {
         Err(receipt) => finish(&skeleton, &[], Some(receipt)),
         Ok(mut search) => {
-            let (masks, stop) =
-                run_walk(&skeleton, &mut |depth, bytes| search.charge(depth, bytes));
+            let Walk { masks, stop, _leases } = run_walk(&skeleton, &mut |depth, bytes, lease| {
+                search.charge_leasing(depth, bytes, lease)
+            });
             let receipt = stop.map(|s| search.receipt(s, Vec::new(), Vec::new()));
             finish(&skeleton, &masks, receipt)
         }
@@ -839,8 +856,9 @@ pub fn decide_cpdag_completions(
             })
         }
         Ok(mut search) => {
-            let (masks, stop) =
-                run_walk(&skeleton, &mut |depth, bytes| search.charge(depth, bytes));
+            let Walk { masks, stop, _leases } = run_walk(&skeleton, &mut |depth, bytes, lease| {
+                search.charge_leasing(depth, bytes, lease)
+            });
             let receipt = stop.map(|s| search.receipt(s, Vec::new(), Vec::new()));
             let enumeration = finish(&skeleton, &masks, receipt)?;
             let retained = u64::try_from(enumeration.completions.len())
@@ -991,6 +1009,32 @@ mod tests {
                 "de2984a9bd7e10bb44fe213e7d1b6995e7acd58b56da97fe0c7a8a720fbfe539",
             ]
         );
+    }
+
+    #[test]
+    fn completion_storage_is_leased_before_it_is_kept() {
+        use antecedent_core::execution::AdmissionPool;
+        let limits = SearchLimits { operations: 1_000_000, depth: 64 };
+        let chain = input(3, &[(0, 1), (1, 2)], &[]);
+        // Another holder leaves too little of the pool for even one completion (288 bytes):
+        // the walk is refused at the lease, so nothing was stored.
+        let ctx = ExecutionContext::for_tests(1).with_admission(AdmissionPool::fixed(1, 100_000));
+        let held = ctx.acquire_admission(0, 99_900).unwrap();
+        let none = enumerate_cpdag_completions(&chain, limits, &ctx).unwrap();
+        assert!(none.completions.is_empty());
+        assert_eq!(none.receipt.as_ref().map(|r| r.stop), Some(SearchStop::Memory));
+        assert_eq!(none.not_enumerated, 4);
+        drop(held);
+        // Room for two completions of three: two are kept, the third is refused at its lease,
+        // and the stop is a receipt with a bound on the remainder rather than a refusal.
+        let ctx = ExecutionContext::for_tests(1).with_admission(AdmissionPool::fixed(1, 100_000));
+        let _held = ctx.acquire_admission(0, 99_400).unwrap();
+        let partial = enumerate_cpdag_completions(&chain, limits, &ctx).unwrap();
+        assert_eq!(partial.completions.len(), 2);
+        assert_eq!(partial.receipt.as_ref().map(|r| r.stop), Some(SearchStop::Memory));
+        assert_eq!(partial.not_enumerated, 2);
+        // The same class under an unconstrained pool is complete.
+        assert_eq!(count(&chain), 3);
     }
 
     #[test]

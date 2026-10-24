@@ -111,6 +111,12 @@ pub struct BayesianConfig {
     /// and prior of the survival posterior, the dose curve and prior of the dose policy
     /// posterior). Set with [`Self::design_model`]; only those routes read it.
     pub design_model: Option<crate::design_posterior_model::DesignPosteriorModel>,
+    /// Multiplier on every Gaussian coefficient variance of the prior in force, applied after
+    /// the prior is resolved against the bound design: an explicit prior, a prior hydrated from
+    /// a posterior artifact (which exists only once the design is known) or an external
+    /// composition. Prior-sensitivity refits set it; it does nothing when the isotropic
+    /// `prior_scale` is in force (vary that instead). It is not part of the study identity.
+    pub prior_variance_multiplier: Option<f64>,
 }
 
 /// Numerical controls on the posterior draws behind a published interval.
@@ -173,6 +179,7 @@ impl BayesianConfig {
             external_compose: None,
             white_innovation: None,
             design_model: None,
+            prior_variance_multiplier: None,
         }
     }
 
@@ -191,6 +198,7 @@ impl BayesianConfig {
             external_compose: None,
             white_innovation: None,
             design_model: None,
+            prior_variance_multiplier: None,
         }
     }
 
@@ -212,6 +220,7 @@ impl BayesianConfig {
             external_compose: None,
             white_innovation: None,
             design_model: None,
+            prior_variance_multiplier: None,
         }
     }
 
@@ -490,6 +499,36 @@ pub fn resolve_bayesian_prior(
 ///
 /// Decode / hydrate / conflict composition failures.
 pub fn resolve_bayesian_prior_with_conflict(
+    cfg: &BayesianConfig,
+    prep: &PreparedBayesianProblem,
+    ctx: Option<&ExecutionContext>,
+) -> Result<(Option<PriorSet>, Option<ConflictSummary>), CausalError> {
+    let (prior, conflict) = resolve_unscaled_prior(cfg, prep, ctx)?;
+    let (Some(multiplier), Some(mut prior)) = (cfg.prior_variance_multiplier, prior.clone()) else {
+        return Ok((prior, conflict));
+    };
+    if !(multiplier.is_finite() && multiplier > 0.0) {
+        return Err(CausalError::Unsupported {
+            message: "the prior variance multiplier must be finite and positive",
+        });
+    }
+    let mut found = false;
+    for spec in &mut prior.specs {
+        if let antecedent_prob::PriorSpec::GaussianCoefficients(coefficients) = spec {
+            coefficients.variance =
+                coefficients.variance.iter().map(|variance| variance * multiplier).collect();
+            found = true;
+        }
+    }
+    if !found {
+        return Err(CausalError::Unsupported {
+            message: "the prior in force has no Gaussian coefficient block to scale",
+        });
+    }
+    Ok((Some(prior), conflict))
+}
+
+fn resolve_unscaled_prior(
     cfg: &BayesianConfig,
     prep: &PreparedBayesianProblem,
     ctx: Option<&ExecutionContext>,

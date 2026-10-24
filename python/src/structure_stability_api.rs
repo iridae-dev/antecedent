@@ -27,7 +27,9 @@ use pyo3::prelude::*;
 use pyo3::types::PyModule;
 
 use crate::compiled_route_api::{DiscoverInput, RouteRecord};
-use crate::discovery_api::{compiled_search, knowledge_arg, panel_units_from_batch};
+use crate::discovery_api::{
+    compiled_search, knowledge_arg, panel_units_from_unit_batches, tabular_from_ingested,
+};
 use crate::{GraphEdge, columns_to_batch, detach_catch, py_err};
 
 /// How often one pair of endpoint marks appeared on a node pair.
@@ -369,7 +371,7 @@ fn discover_bootstrap_stability(
     };
     let missing = missing.as_deref().map(crate::missing_report::parse_policy).transpose()?;
     let (ci_impl, ci_label) = named_ci(ci.as_deref())?;
-    let batch = columns_to_batch(&names, &columns)?;
+    let ingested = crate::columns_to_ingested(&names, &columns, unit_lengths.as_deref())?;
     drop(columns);
     let base = base.to_owned();
 
@@ -386,12 +388,15 @@ fn discover_bootstrap_stability(
             knowledge: knowledge.clone(),
         };
         let (spec, input, variables) = if temporal {
-            let (input, variables) = if let Some(lengths) = unit_lengths {
-                let (units, variables) = panel_units_from_batch(&batch, &lengths)?;
-                (DiscoverInput::Panel(units), variables)
-            } else {
-                let (series, variables) = crate::series_from_batch(&batch)?;
-                (DiscoverInput::Series(series), variables)
+            let (input, variables) = match ingested {
+                crate::IngestedColumns::Panel(batches) => {
+                    let (units, variables) = panel_units_from_unit_batches(&batches)?;
+                    (DiscoverInput::Panel(units), variables)
+                }
+                crate::IngestedColumns::Series(batch) => {
+                    let (series, variables) = crate::series_from_batch(&batch)?;
+                    (DiscoverInput::Series(series), variables)
+                }
             };
             let params = DiscoverParams {
                 max_lag,
@@ -409,7 +414,7 @@ fn discover_bootstrap_stability(
             };
             (spec, input, variables)
         } else {
-            let (data, variables) = crate::tabular_from_batch(&batch)?;
+            let (data, variables) = tabular_from_ingested(ingested)?;
             let spec = match base.as_str() {
                 "pc" => DiscoverySpec::pc(static_params(ci_impl, alpha, fdr), ci_label),
                 "fci" => DiscoverySpec::fci(static_params(ci_impl, alpha, fdr), ci_label),

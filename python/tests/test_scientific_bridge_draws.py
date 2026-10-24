@@ -279,9 +279,7 @@ def test_the_artifact_carries_the_draws_and_a_fresh_consumer_replays_them_bit_fo
     draws = table(3_000)
     bridged = sb.prepare_distribution_bridge(contract(covariance=0.02)).derive(draws, seed=5)
     exported = bridged.artifact("draws-bridge")
-    consumed = sb.consume_scientific_bridge_artifact(
-        exported.data, exported.expectation.identity
-    )
+    consumed = sb.consume_scientific_bridge_artifact(exported.data, exported.expectation.identity)
     assert isinstance(consumed, sb.ConsumedBridgeDistribution)
     assert consumed.claim.draws_digest == bridged.draws_digest
     assert consumed.claim.claim_id == bridged.claim_id

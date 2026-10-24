@@ -398,19 +398,13 @@ pub(crate) fn series_from_batch(
     Ok((series, variables))
 }
 
-/// The per-unit series of a panel passed as row-concatenated columns plus each unit's length.
-///
-/// Every unit becomes its own series, so lagged discovery builds each unit's lag windows inside
-/// that unit and never takes a lagged parent across a unit boundary.
+/// Refuse unit lengths that are empty, contain a zero, or do not add up to the `rows` of the
+/// pooled columns.
 ///
 /// # Errors
 ///
-/// `unit_lengths` that are empty, contain a zero, or do not add up to the column length.
-pub(crate) fn panel_units_from_batch(
-    batch: &crate::ColumnBatch,
-    unit_lengths: &[usize],
-) -> PyResult<(Vec<TimeSeriesData>, Vec<VariableId>)> {
-    let rows = batch.num_rows();
+/// A typed `invalid_argument` refusal.
+pub(crate) fn check_unit_lengths(rows: usize, unit_lengths: &[usize]) -> PyResult<()> {
     if unit_lengths.is_empty()
         || unit_lengths.contains(&0)
         || unit_lengths.iter().sum::<usize>() != rows
@@ -423,16 +417,42 @@ pub(crate) fn panel_units_from_batch(
             ),
         ));
     }
-    let mut units = Vec::with_capacity(unit_lengths.len());
+    Ok(())
+}
+
+/// The per-unit series of a panel ingested as one batch per unit window.
+///
+/// Every unit becomes its own series, so lagged discovery builds each unit's lag windows inside
+/// that unit and never takes a lagged parent across a unit boundary. The unit batches were
+/// copied straight from the pooled NumPy columns ([`crate::columns_to_ingested`]), so no unit
+/// is copied a second time here.
+pub(crate) fn panel_units_from_unit_batches(
+    units: &[crate::ColumnBatch],
+) -> PyResult<(Vec<TimeSeriesData>, Vec<VariableId>)> {
+    let mut series_units = Vec::with_capacity(units.len());
     let mut variables = Vec::new();
-    let mut offset = 0;
-    for &len in unit_lengths {
-        let (series, ids) = series_from_batch(&batch.slice(offset, len))?;
-        offset += len;
+    for unit in units {
+        let (series, ids) = series_from_batch(unit)?;
         variables = ids;
-        units.push(series);
+        series_units.push(series);
     }
-    Ok((units, variables))
+    Ok((series_units, variables))
+}
+
+/// A series' or a panel's ingested columns as a tabular table, for the static searches.
+///
+/// # Errors
+///
+/// A panel (`unit_lengths`) applies to the temporal searches only.
+pub(crate) fn tabular_from_ingested(
+    ingested: crate::IngestedColumns,
+) -> PyResult<(antecedent_data::TabularData, Vec<VariableId>)> {
+    match ingested {
+        crate::IngestedColumns::Series(batch) => tabular_from_batch(&batch),
+        crate::IngestedColumns::Panel(_) => {
+            Err(crate::value_err("unit_lengths applies to the temporal searches only"))
+        }
+    }
 }
 
 /// Read the `background_knowledge` argument of a direct entry point: the wire JSON of
@@ -529,17 +549,20 @@ where
              panel (unit_lengths)",
         ));
     }
-    let batch = columns_to_batch(&names, &columns)?;
+    let ingested = crate::columns_to_ingested(&names, &columns, unit_lengths.as_deref())?;
     let (ci_impl, ci_name, is_callback) = callbacks::resolve_ci_arg(ci.as_ref(), weights)?;
     drop(columns);
     let threads = if is_callback { Some(1) } else { threads };
     detach_catch(py, move || {
-        let (units, variables, panel) = if let Some(lengths) = unit_lengths {
-            let (units, variables) = panel_units_from_batch(&batch, &lengths)?;
-            (units, variables, true)
-        } else {
-            let (series, variables) = series_from_batch(&batch)?;
-            (vec![series], variables, false)
+        let (units, variables, panel) = match ingested {
+            crate::IngestedColumns::Panel(batches) => {
+                let (units, variables) = panel_units_from_unit_batches(&batches)?;
+                (units, variables, true)
+            }
+            crate::IngestedColumns::Series(batch) => {
+                let (series, variables) = series_from_batch(&batch)?;
+                (vec![series], variables, false)
+            }
         };
         let ctx =
             crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);

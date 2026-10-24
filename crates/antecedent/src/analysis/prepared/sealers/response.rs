@@ -159,6 +159,7 @@ pub(super) fn cell_aipw_response(cx: &SealContext<'_>) -> SealOutcome {
                         } else {
                             crate::analysis::execute::DagResponseOrigin::Explicit
                         },
+                        plan: Some(&**cx.plan),
                     },
                 )?)
             } else {
@@ -195,6 +196,7 @@ pub(super) fn cell_aipw_response(cx: &SealContext<'_>) -> SealOutcome {
                     fold_seed: ctx.rng.master_seed(),
                     validation: analysis.refute,
                     origin: crate::analysis::execute::DagResponseOrigin::Explicit,
+                    plan: Some(&**cx.plan),
                 },
             )?)
         }

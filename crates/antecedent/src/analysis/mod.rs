@@ -159,6 +159,8 @@ mod statistical;
 pub mod structure_route;
 mod structure_stability;
 pub mod target_validation;
+pub(crate) mod functional_sensitivity;
+pub(crate) mod functional_validation;
 pub mod temporal_counterfactual;
 mod temporal_extensions;
 #[doc(hidden)]
@@ -389,6 +391,8 @@ pub use z_transport_sensitivity_artifact::ZTransportSensitivityArtifactWire;
 mod graph_posterior_target;
 mod helpers;
 mod identification_cache;
+pub(crate) mod identification_seal;
+pub(crate) mod streamed_route;
 mod latency;
 pub(crate) mod lowering;
 mod posterior_binding;

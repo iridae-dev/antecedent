@@ -236,7 +236,14 @@ pub(crate) struct MecSearch<G: MecCpdag> {
     operations: usize,
     depth_reached: usize,
     stop: Option<SearchStop>,
+    /// Partial-orientation states whose storage is already leased from the context's pool.
+    leased_states: usize,
+    /// The leases themselves, held while the search (and any clone of it) lives.
+    leases: Arc<std::sync::Mutex<Vec<antecedent_core::execution::AdmissionLease>>>,
 }
+
+/// States leased at a time, so the pool is asked once per block of the stack's growth.
+const LEASE_BLOCK_STATES: usize = 16;
 
 impl<G: MecCpdag> MecSearch<G> {
     /// # Errors
@@ -290,6 +297,8 @@ impl<G: MecCpdag> MecSearch<G> {
             operations: 0,
             depth_reached: 0,
             stop: None,
+            leased_states: 0,
+            leases: Arc::default(),
         })
     }
 
@@ -365,6 +374,12 @@ impl<G: MecCpdag> MecSearch<G> {
             if edge_i == self.undirected.len() {
                 return Some(g);
             }
+            // The two states this expansion may push are funded by the pool before they exist.
+            if let Err(stop) = self.lease_states(budget, self.stack.len().saturating_add(3)) {
+                self.stop = Some(stop);
+                self.stack.push((g, edge_i));
+                return None;
+            }
             let (a, b) = self.undirected[edge_i];
             // Push reverse first so a→b is explored first (LIFO).
             for (from, to) in [(b, a), (a, b)] {
@@ -380,6 +395,20 @@ impl<G: MecCpdag> MecSearch<G> {
             }
         }
         None
+    }
+
+    /// Lease storage for `needed` stacked states in blocks, before they are allocated.
+    fn lease_states(&mut self, budget: &SearchBudget<'_>, needed: usize) -> Result<(), SearchStop> {
+        if needed <= self.leased_states {
+            return Ok(());
+        }
+        let target = needed.div_ceil(LEASE_BLOCK_STATES).saturating_mul(LEASE_BLOCK_STATES);
+        let grow = target - self.leased_states;
+        let bytes = u64::try_from(grow).unwrap_or(u64::MAX).saturating_mul(self.state_bytes);
+        let lease = budget.lease_storage(bytes)?;
+        self.leases.lock().unwrap_or_else(std::sync::PoisonError::into_inner).push(lease);
+        self.leased_states = target;
+        Ok(())
     }
 
     /// Record one yielded completion and return its stream index.

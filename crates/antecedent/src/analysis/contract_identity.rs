@@ -51,6 +51,7 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
         EstimatorSpec::Default(id) => EstimatorSpecWire::Default(id.as_str().into()),
         EstimatorSpec::LinearAdjustmentAte(cfg) => {
             EstimatorSpecWire::LinearAdjustmentAte(EstimatorConfigWire {
+                bootstrap_interval: interval_key(cfg.bootstrap_interval),
                 se_kind: Some(se_kind(cfg.se_kind)),
                 fit_kind: Some(fit_kind(cfg.fit_kind)),
                 cluster_ids: declared_clusters(
@@ -66,6 +67,7 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
         }
         EstimatorSpec::PropensityWeighting(cfg) => {
             EstimatorSpecWire::PropensityWeighting(EstimatorConfigWire {
+                bootstrap_interval: interval_key(cfg.bootstrap_interval),
                 outcome: cfg.covariate_balance.then(|| "covariate_balanced_linear_hc3".into()),
                 glm: Some(glm_options(&cfg.glm_options)),
                 other_levels: other_levels_key(cfg.other_levels),
@@ -104,6 +106,7 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
         }
         EstimatorSpec::PropensityStratification(cfg) => {
             EstimatorSpecWire::PropensityStratification(EstimatorConfigWire {
+                bootstrap_interval: interval_key(cfg.bootstrap_interval),
                 glm: Some(glm_options(&cfg.glm_options)),
                 other_levels: other_levels_key(cfg.other_levels),
                 n_strata: Some(cfg.n_strata),
@@ -134,6 +137,7 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
             })
         }
         EstimatorSpec::Aipw(cfg) => EstimatorSpecWire::Aipw(EstimatorConfigWire {
+            bootstrap_interval: interval_key(cfg.bootstrap_interval),
             glm: Some(glm_options(&cfg.glm_options)),
             other_levels: other_levels_key(cfg.other_levels),
             // The declared propensity nuisance (penalty grid, inner folds, fallback) changes
@@ -163,6 +167,7 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
         }),
         EstimatorSpec::GlmAdjustment(cfg) => {
             EstimatorSpecWire::GlmAdjustment(EstimatorConfigWire {
+                bootstrap_interval: interval_key(cfg.bootstrap_interval),
                 glm: Some(glm_options(&cfg.glm_options)),
                 se_kind: Some(se_kind(cfg.se_kind)),
                 family: Some(glm_family(cfg.family).into()),
@@ -307,7 +312,25 @@ fn base(bootstrap_replicates: u32, overlap: OverlapPolicy) -> EstimatorConfigWir
         max_depth: None,
         honesty: None,
         other_levels: None,
+        bootstrap_interval: None,
     }
+}
+
+/// Identity key of a requested bootstrap interval; no request is omitted.
+fn interval_key(request: Option<antecedent_estimate::IntervalRequest>) -> Option<String> {
+    request.map(|r| {
+        let bits = |value: Option<f64>| {
+            value.map_or_else(|| "-".to_owned(), |v| format!("{:016x}", v.to_bits()))
+        };
+        format!(
+            "level={:016x};wave={};min={};se={};half_width={}",
+            r.level.to_bits(),
+            r.wave_size,
+            r.min_replicates,
+            bits(r.se_rel_tol),
+            bits(r.half_width_rel_tol)
+        )
+    })
 }
 
 /// Identity key of a declared exclusion; the default refusal is omitted.

@@ -24,8 +24,16 @@
 //! designs behind `util::bootstrap_by_design`) evaluates an enabled
 //! [`antecedent_core::AdaptiveBootstrapBudget`] through [`run_waves_serial`]: the budget's
 //! floor is the rule's `success_floor`, one replicate is a wave, the replicate rows are those of
-//! the fixed-count loop, failures stay in the attempt count, and an estimator error aborts. The
-//! tolerance rules above are used by callers that report an interval.
+//! the fixed-count loop, failures stay in the attempt count, and an estimator error aborts.
+//!
+//! A requested interval runs the whole procedure. The linear adjustment, AIPW, GLM adjustment,
+//! propensity weighting and propensity stratification estimators carry an optional
+//! [`crate::IntervalRequest`]; with it set, their bootstrap is `util::bootstrap_interval_by_design`
+//! (the same replicate rows, design checks and admission as the fixed-count loop), stopped by
+//! the tolerance rules above and capped by the estimator's replicate count, and the interval,
+//! waves, Monte Carlo errors and stop reason are published in
+//! [`crate::EstimateDiagnostics::resampling`]. Without a request the fixed-count loop runs
+//! unchanged. The penalized AIPW refit bootstrap keeps its fixed count.
 //!
 //! Both are errors of the resampling Monte Carlo, never of the estimator's sampling error.
 //! A tolerance on a degenerate sample (zero spread) cannot be assessed and counts as not met.

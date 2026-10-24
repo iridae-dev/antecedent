@@ -457,9 +457,10 @@ def analyze(
         - ``survival.SurvivalOutcome`` / ``CompetingRisksOutcome``,
         - ``temporal_designs.TwoArmExcursion`` / ``MultiArmExcursion`` /
           ``FactorialExcursion`` / ``InterferenceExcursion`` / ``DoseExcursion`` /
-          ``RegimeSurvivalContrast`` / ``ObservationalExcursion`` (sequentially randomized
-          unit-period designs, regime survival and the observational excursion;
-          ``result.temporal_design``),
+          ``RegimeSurvivalContrast`` / ``ObservationalExcursion`` /
+          ``ObservationalRegimeContrast`` (sequentially randomized unit-period designs, regime
+          survival, the observational excursion and whole static regimes under time-varying
+          confounding; ``result.temporal_design``),
         - ``regimes.LongitudinalRegime``.
         - ``regimes.SequentialContrast``, ``quasi.PeriodHistoryMatch`` and ``quasi.IvBounds``
           (an identified set; ``result.iv_bounds``).

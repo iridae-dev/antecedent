@@ -20,7 +20,7 @@ use crate::error::EstimationError;
 use crate::overlap::{IpwTarget, OverlapPolicy};
 use crate::sampling_weights::SamplingWeights;
 use crate::se::AnalyticSeKind;
-use crate::util::BootstrapSeResult;
+use crate::util::BootstrapOutcome;
 
 /// Propensity stratification estimator: within-stratum difference of means pooled by size.
 ///
@@ -74,6 +74,12 @@ pub struct PropensityStratification {
     /// cluster labels or panel times imply; declared, a resample the design does not allow
     /// (a row-level draw under a trajectory design, say) is refused.
     pub sampling_design: crate::util::SamplingDeclaration,
+    /// A requested bootstrap interval. When set, the bootstrap runs as the wave procedure that
+    /// stops on the request's Monte Carlo tolerances (capped by
+    /// [`Self::bootstrap_replicates`]) and reports its interval, waves, Monte Carlo error and
+    /// stop reason in [`crate::EstimateDiagnostics::resampling`]. `None` runs the fixed-count
+    /// bootstrap exactly as before.
+    pub bootstrap_interval: Option<crate::util::IntervalRequest>,
 }
 
 impl Default for PropensityStratification {
@@ -99,7 +105,16 @@ impl PropensityStratification {
             cluster_ids: None,
             source_cluster_ids: None,
             sampling_design: crate::util::SamplingDeclaration::Undeclared,
+            bootstrap_interval: None,
         }
+    }
+
+    /// Request a bootstrap interval produced by the complete fit/resample/stop/interval
+    /// procedure (see [`Self::bootstrap_interval`]).
+    #[must_use]
+    pub const fn with_bootstrap_interval(mut self, request: crate::util::IntervalRequest) -> Self {
+        self.bootstrap_interval = Some(request);
+        self
     }
 
     /// Declare sampling weights for every row of the source table.
@@ -261,7 +276,7 @@ impl PropensityStratification {
         let n_strata = (self.n_strata.max(1)) as usize;
         let trim = trim_of(problem.overlap);
         let boot = self.bootstrap_se(problem, n_strata, trim, workspace, ctx)?;
-        Ok(point.with_bootstrap(Some(boot)))
+        Ok(point.with_bootstrap_outcome(boot))
     }
 
     fn fit_point(
@@ -382,7 +397,7 @@ impl PropensityStratification {
         trim: Option<f64>,
         _workspace: &mut PropensityEstimationWorkspace,
         ctx: &ExecutionContext,
-    ) -> Result<BootstrapSeResult, EstimationError> {
+    ) -> Result<BootstrapOutcome, EstimationError> {
         // Replicates own a cold workspace. A warm logistic start would change the replicate fit.
         let replicate = |scratch: &mut StratificationReplicate, idx: &[usize]| {
             Ok(self.replicate_ate(problem, n_strata, trim, scratch, idx))
@@ -395,7 +410,8 @@ impl PropensityStratification {
             problem.design_ncols + 4,
             self.bootstrap_replicates,
         )?;
-        crate::util::bootstrap_by_design(
+        crate::util::bootstrap_outcome_by_design(
+            self.bootstrap_interval.as_ref(),
             crate::util::BootstrapDesign {
                 clusters: labels.as_deref(),
                 series_block: None,

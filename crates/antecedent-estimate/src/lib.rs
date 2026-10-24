@@ -91,9 +91,10 @@ pub mod interference_saturation;
 pub mod iv;
 pub mod iv_bounds;
 pub mod joint_bayesian_transport;
+mod joint_coefficients;
+pub mod joint_design;
 pub mod joint_if;
 pub mod joint_panel;
-pub mod joint_design;
 pub mod lagged_instrument;
 pub mod latent_class_effects;
 mod learn_nuisance;
@@ -143,10 +144,13 @@ pub mod se;
 pub mod sequential_aipw_inference;
 pub mod sequential_crossfit;
 pub mod serial_dependence;
-mod joint_coefficients;
 pub mod staggered_event_study;
-pub mod streamed_adjustment;
 pub mod statistical_transport;
+pub mod streamed_adjustment;
+pub mod streamed_aipw;
+pub mod streamed_iv;
+pub mod streamed_propensity;
+mod streamed_rows;
 pub mod survival;
 pub mod survival_posterior;
 pub mod switchback;
@@ -245,6 +249,7 @@ pub use antecedent_learn::{
     ForestSpec, GbtSpec, LearnerProvenance, LearnerSpec, LinearSpec, LogisticSpec, NeuralSpec,
     RidgeSpec,
 };
+pub use antecedent_model::history_operators::HistoryScan;
 pub use antecedent_stats::FirstStageDiagnostics;
 pub use ar_kernel::kernel_bias_factor;
 pub use association::{
@@ -463,7 +468,6 @@ pub use temporal_sequential::{
 pub use temporal_sequential_tuples::{
     PreparedSequenceLevel, SequenceColumnReplacement, prepare_sequence_level,
 };
-pub use antecedent_model::history_operators::HistoryScan;
 pub use temporal_slope_design::{
     SlopeFit, SlopePosterior, SlopePosteriorSpec, SlopeRefitScratch, TemporalSlopeDesign,
 };
@@ -476,7 +480,7 @@ pub use transport::{
     trial_to_target_bayesian_bootstrap, trial_to_target_bayesian_bootstrap_blocks,
     trial_to_target_effect, trial_to_target_ipw_hac_se, trial_to_target_ipw_se,
 };
-pub use util::{BootstrapSeResult, DrawSpec, ReplicatePolicy};
+pub use util::{BootstrapSeResult, DrawSpec, IntervalRequest, ReplicatePolicy, ResamplingReport};
 
 mod splitmix;
 mod static_mediation;

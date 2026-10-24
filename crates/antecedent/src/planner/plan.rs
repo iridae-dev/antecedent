@@ -399,9 +399,69 @@ impl PhysicalExecutionPlan {
         rows: u64,
         ctx: &ExecutionContext,
     ) -> Result<(), CausalError> {
+        self.bind_streamed_views(EstimatorId::LinearAdjustmentAte, columns, rows, ctx)
+    }
+
+    /// Choose the streamed reduction for a nuisance-model route whose resident design does not
+    /// fit: two-stage least squares reads its moments in one pass, and inverse-probability
+    /// weighting fits its logistic propensity by one pass per iteration and reads the Hájek
+    /// sums, the information and the corrected influence in three more.
+    ///
+    /// # Errors
+    ///
+    /// `estimator` has no streamed reduction, or the limit cannot hold even the streamed
+    /// reduction.
+    pub(crate) fn bind_streamed_nuisance_views(
+        &mut self,
+        estimator: EstimatorId,
+        columns: u64,
+        rows: u64,
+        ctx: &ExecutionContext,
+    ) -> Result<(), CausalError> {
+        self.bind_streamed_views(estimator, columns, rows, ctx)
+    }
+
+    /// Whether `estimator` runs a streamed reduction. [`PhysicalAlternative::StreamedReduction`]
+    /// is declared supported for these and no others: a route that cannot read its rows in
+    /// batches would be planned onto a path it cannot execute.
+    #[must_use]
+    pub(crate) const fn runs_streamed_reduction(estimator: EstimatorId) -> bool {
+        matches!(
+            estimator,
+            EstimatorId::LinearAdjustmentAte
+                | EstimatorId::Iv2Sls
+                | EstimatorId::PropensityWeighting
+                | EstimatorId::Aipw
+        )
+    }
+
+    /// Passes over the rows the streamed reduction of `estimator` makes, for costing: the
+    /// cross-product pass and the residual pass of a moment reduction; a weighting fit
+    /// takes up to `max_iter` engine passes (two each) and four accumulating passes.
+    const fn streamed_passes(estimator: EstimatorId) -> u64 {
+        match estimator {
+            EstimatorId::PropensityWeighting => 2 * 50 + 4,
+            // Per fold: a logistic fit, a boundary pass, two arm regressions and a scoring pass.
+            EstimatorId::Aipw => 5 * (2 * 50 + 1 + 2 * 2 + 1) + 2,
+            _ => 2,
+        }
+    }
+
+    fn bind_streamed_views(
+        &mut self,
+        estimator: EstimatorId,
+        columns: u64,
+        rows: u64,
+        ctx: &ExecutionContext,
+    ) -> Result<(), CausalError> {
+        if !Self::runs_streamed_reduction(estimator) {
+            return Err(CausalError::Compile {
+                message: format!("estimator {estimator} has no streamed reduction"),
+            });
+        }
         let support = BackendSupport::none().with(PhysicalAlternative::StreamedReduction, true);
         let routed = RouteChoice::select(
-            RouteWork::new(rows, columns, 2),
+            RouteWork::new(rows, columns, Self::streamed_passes(estimator)),
             support,
             RouteBudget::from_limit(ctx.memory_limit_bytes()),
         )

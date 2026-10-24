@@ -120,6 +120,68 @@ pub(crate) fn verify_proof_against_graph(
     Ok(())
 }
 
+/// What checking a proof against the compile-time seal found.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum RetainedProof {
+    /// The product equals the full identification result compile sealed: identification
+    /// ran once, at compile.
+    Sealed,
+    /// Compile retained no product for this plan, so there is no seal to check against.
+    NotRetained,
+}
+
+/// Verify the static identification an operation proves from against the digest compile
+/// sealed over the full identification result.
+///
+/// The seal covers status, estimands, arena, derivation rules, required assumptions, hedge,
+/// query and the selected estimand, so this is a stronger check than comparing status, query
+/// and estimand, and it runs no identification.
+///
+/// # Errors
+///
+/// [`CausalError::Compile`] carrying `message` when the product differs from the seal.
+pub(crate) fn verify_retained_static(
+    plan: &crate::planner::PhysicalExecutionPlan,
+    identification: &IdentificationResult,
+    estimand: &IdentifiedEstimand,
+    message: &str,
+) -> Result<RetainedProof, CausalError> {
+    let sealed = plan
+        .lowered()
+        .and_then(crate::planner::lowered::LoweredProgram::retained_identification)
+        .and_then(|retained| retained.static_seal());
+    let Some(sealed) = sealed else {
+        return Ok(RetainedProof::NotRetained);
+    };
+    if super::identification_seal::seal_static(identification, estimand)? != sealed {
+        return Err(CausalError::Compile { message: message.into() });
+    }
+    Ok(RetainedProof::Sealed)
+}
+
+/// [`verify_retained_static`] for the temporal identification of every requested horizon.
+///
+/// # Errors
+///
+/// [`CausalError::Compile`] carrying `message` when the product differs from the seal.
+pub(crate) fn verify_retained_temporal(
+    plan: &crate::planner::PhysicalExecutionPlan,
+    cache: &super::prepared::CachedTemporalIdentification,
+    message: &str,
+) -> Result<RetainedProof, CausalError> {
+    let sealed = plan
+        .lowered()
+        .and_then(crate::planner::lowered::LoweredProgram::retained_identification)
+        .and_then(|retained| retained.temporal_seal());
+    let Some(sealed) = sealed else {
+        return Ok(RetainedProof::NotRetained);
+    };
+    if super::identification_seal::seal_temporal(cache)? != sealed {
+        return Err(CausalError::Compile { message: message.into() });
+    }
+    Ok(RetainedProof::Sealed)
+}
+
 /// The note a graph-posterior route attaches when it withholds the aggregate
 /// posterior because a graph- or completion-conditional posterior does not
 /// describe the full weighted target.
@@ -196,6 +258,92 @@ mod tests {
             dag.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
         }
         dag
+    }
+
+    fn compiled_static() -> (
+        crate::planner::PhysicalExecutionPlan,
+        std::sync::Arc<crate::analysis::prepared::CachedStaticIdentification>,
+    ) {
+        let rows = 80_usize;
+        let noise = |i: usize| ((i as f64 * 12.9898).sin() * 43758.5453).fract().abs() - 0.5;
+        let z: Vec<f64> = (0..rows).map(|i| noise(i + 17) * 4.0).collect();
+        let t: Vec<f64> = (0..rows).map(|i| f64::from(z[i] + 2.0 * noise(i + 31) > 0.0)).collect();
+        let y: Vec<f64> =
+            (0..rows).map(|i| 1.0 + 2.0 * t[i] + 0.5 * z[i] + 0.4 * noise(i + 99)).collect();
+        let data = antecedent_data::TabularData::from_f64_columns([
+            ("t", t.as_slice()),
+            ("y", y.as_slice()),
+            ("z", z.as_slice()),
+        ])
+        .unwrap();
+        let study = crate::Study::tabular(data)
+            .graph(confounded())
+            .query(AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1)))
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap();
+        let plan = study.compile(&antecedent_core::ExecutionContext::for_tests(1)).unwrap();
+        let cache = plan
+            .lowered()
+            .unwrap()
+            .retained_identification()
+            .unwrap()
+            .caches()
+            .iter()
+            .find_map(|cache| match cache {
+                crate::analysis::IdentificationCache::Static(cache) => {
+                    Some(std::sync::Arc::clone(cache))
+                }
+                _ => None,
+            })
+            .expect("compile retained the static identification");
+        (plan, cache)
+    }
+
+    #[test]
+    fn the_retained_identification_verifies_against_its_compile_seal() {
+        let (plan, cache) = compiled_static();
+        let sealed = verify_retained_static(
+            &plan,
+            &cache.identification,
+            &cache.estimand,
+            "the retained identification differs from its seal",
+        )
+        .unwrap();
+        assert_eq!(sealed, RetainedProof::Sealed, "no identification ran to verify it");
+    }
+
+    #[test]
+    fn a_tampered_retained_identification_is_refused() {
+        let (plan, cache) = compiled_static();
+        let message = "the retained identification differs from its seal";
+        // A different selected estimand.
+        let mut estimand = cache.estimand.clone();
+        estimand.adjustment_set = std::sync::Arc::from([]);
+        let refused =
+            verify_retained_static(&plan, &cache.identification, &estimand, message).unwrap_err();
+        assert!(refused.to_string().contains(message), "{refused}");
+        // A different status, with the estimand untouched.
+        let mut identification = cache.identification.clone();
+        identification.status = antecedent_core::IdentificationStatus::PartiallyIdentified;
+        assert!(
+            verify_retained_static(&plan, &identification, &cache.estimand, message).is_err()
+        );
+        // A different query.
+        let mut identification = cache.identification.clone();
+        identification.query = antecedent_core::CausalQuery::AverageEffect(
+            AverageEffectQuery::binary_ate(VariableId::from_raw(1), VariableId::from_raw(0)),
+        );
+        assert!(
+            verify_retained_static(&plan, &identification, &cache.estimand, message).is_err()
+        );
+        // A different arena: the claim is the same names over another functional.
+        let mut identification = cache.identification.clone();
+        identification.arena = antecedent_expr::CausalExprArena::new();
+        assert!(
+            verify_retained_static(&plan, &identification, &cache.estimand, message).is_err()
+        );
     }
 
     #[test]

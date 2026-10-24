@@ -1053,11 +1053,10 @@ mod identify_only_tests {
     }
 
     #[test]
-    fn bidirected_admg_non_ate_refuses_at_build_with_matrix_id() {
-        // ADMG InterventionalDistribution is licensed only at validation
-        // none; the cheap/full cells are closed, so the refusal fires at
-        // `build()` with the stable matrix reason. identify_only's own ADMG
-        // guard stays as defense in depth.
+    fn bidirected_admg_distribution_cheap_builds_as_an_unlicensed_functional_refuter_state() {
+        // ADMG InterventionalDistribution is licensed at validation none; cheap and full run the
+        // functional refuter state, an executing cell that stays unlicensed, so the build
+        // succeeds and reports the refused support status.
         let mut admg = Admg::with_variables(2);
         admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         admg.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
@@ -1065,17 +1064,13 @@ mod identify_only_tests {
             VariableId::from_raw(1),
             [Intervention::set(VariableId::from_raw(0), Value::f64(1.0))],
         );
-        let err = Study::tabular(toy_data())
+        let study = Study::tabular(toy_data())
             .graph(admg)
             .query(CausalQuery::Distribution(query))
             .refute(RefuteSuite::Cheap)
             .build()
-            .unwrap_err();
-        assert!(
-            matches!(&err, CausalError::Support { id: SupportRefusal::Refused, .. }),
-            "{err:?}"
-        );
-        assert!(err.to_string().starts_with("refused:"), "{err}");
+            .unwrap();
+        assert_eq!(study.support_status, Some(crate::support::CellStatus::Refused));
     }
 
     #[test]

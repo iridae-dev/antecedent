@@ -328,6 +328,61 @@ class ObservationalExcursion:
             raise CausalValueError("an observational excursion needs at least one history column")
 
 
+REGIME_ESTIMATORS = ("g_formula", "inverse_probability_weighting", "doubly_robust")
+
+
+@dataclass(frozen=True, slots=True)
+class ObservationalRegimeContrast:
+    """The value of whole static treatment regimes under time-varying confounding.
+
+    Subjects are observed in the same periods. In each period the ``confounders`` are measured
+    at the start of the period, then the 0/1 ``treatment`` is taken; ``outcome`` is the
+    continuous end-of-follow-up outcome, read at each subject's last period. ``active`` and
+    ``reference`` are whole treatment paths, one 0/1 action per period in period order, and the
+    result is the mean outcome under ``active`` minus that under ``reference``
+    (``regime_effect``) with both means. Identification is the declared sequential
+    exchangeability given the measured confounder and treatment history (no unmeasured
+    time-varying confounding), sequential positivity of the path actions (held to
+    ``min_probability`` in the fitted probabilities), consistency, no interference and complete
+    follow-up.
+
+    ``method`` is ``"doubly_robust"`` (recursive augmented inverse probability, consistent when
+    either the outcome regressions or the per-period treatment models are right),
+    ``"g_formula"`` (iterated conditional expectations) or ``"inverse_probability_weighting"``
+    (the saturated marginal structural model of each path). Every nuisance model is refitted
+    inside each interval: frequentist inference is a unit bootstrap (``bootstrap=`` of at least
+    99) and Bayesian inference the weighted-likelihood bootstrap.
+    """
+
+    outcome: str
+    unit: str
+    period: str
+    _: KW_ONLY
+    treatment: str
+    confounders: Sequence[str]
+    active: Sequence[int]
+    reference: Sequence[int]
+    method: str = "doubly_robust"
+    min_probability: float = 0.05
+
+    def __post_init__(self) -> None:
+        _check_common(self)
+        _column_name(self.treatment, "treatment")
+        for name in self.confounders:
+            _column_name(name, "confounders")
+        if len(self.confounders) == 0:
+            raise CausalValueError("a whole-regime contrast needs at least one confounder column")
+        for label, path in (("active", self.active), ("reference", self.reference)):
+            if len(path) == 0 or any(step not in (0, 1) for step in path):
+                raise CausalValueError(f"{label} must be a non-empty path of 0/1 actions")
+        if len(self.active) != len(self.reference):
+            raise CausalValueError("active and reference must name the same number of periods")
+        if [int(step) for step in self.active] == [int(step) for step in self.reference]:
+            raise CausalValueError("active and reference must differ in some period")
+        if self.method not in REGIME_ESTIMATORS:
+            raise CausalValueError(f"method must be one of {REGIME_ESTIMATORS}")
+
+
 TEMPORAL_DESIGN_QUERIES = (
     TwoArmExcursion,
     MultiArmExcursion,
@@ -336,6 +391,7 @@ TEMPORAL_DESIGN_QUERIES = (
     DoseExcursion,
     RegimeSurvivalContrast,
     ObservationalExcursion,
+    ObservationalRegimeContrast,
 )
 
 TemporalDesignQuery = (
@@ -346,6 +402,7 @@ TemporalDesignQuery = (
     | DoseExcursion
     | RegimeSurvivalContrast
     | ObservationalExcursion
+    | ObservationalRegimeContrast
 )
 
 
@@ -612,6 +669,15 @@ def _spec(query: Any, raw: Mapping[str, Any]) -> dict[str, Any]:
             "treatment": query.treatment,
             "history": list(query.history),
         }
+    if isinstance(query, ObservationalRegimeContrast):
+        return {
+            "design": "observational_regime",
+            "treatment": query.treatment,
+            "confounders": list(query.confounders),
+            "active": [bool(step) for step in query.active],
+            "reference": [bool(step) for step in query.reference],
+            "method": query.method,
+        }
     raise CausalValueError(f"not a temporal design query: {type(query).__name__}")
 
 
@@ -633,6 +699,8 @@ def _numeric_columns(query: Any) -> tuple[str, ...]:
         return (query.outcome, query.treatment, query.censored, *query.confounders)
     if isinstance(query, ObservationalExcursion):
         return (query.outcome, query.treatment, *query.history)
+    if isinstance(query, ObservationalRegimeContrast):
+        return (query.outcome, query.treatment, *query.confounders)
     return (query.outcome,)
 
 

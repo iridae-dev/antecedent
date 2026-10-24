@@ -13,9 +13,10 @@ use antecedent_identify::{
     ADMG_CONDITIONAL_DEFAULT_LIMITS, ClassicalTransportQuery, ClassicalTransportResult,
     ConditionalNonTransportabilityProof, ConditionalObstructionCandidate,
     ConditionalTransportDecision, ConditionalTransportDerivation, ConditionalTransportQuery,
-    ConditionalWitnessRecord, IdcIdentifier, IdentificationError, IdentificationWorkspace,
-    SidLimits, admg_conditional_refusal, decide_admg_conditional_transport,
-    identify_classical_transport, verify_conditional_witness,
+    ConditionalWitnessRecord, IdcIdentifier, IdentificationBudget, IdentificationError,
+    IdentificationWorkspace, SidLimits, WITNESS_VERIFY_DEFAULT_OPERATIONS,
+    admg_conditional_refusal, decide_admg_conditional_transport, identify_classical_transport,
+    verify_conditional_witness, verify_conditional_witness_within,
 };
 use std::sync::Arc;
 
@@ -1121,4 +1122,52 @@ fn a_cancellation_in_the_middle_of_the_decision_is_a_receipt_never_a_verdict() {
         assert!(checks < 1_999, "the decision never finished");
     }
     assert!(mid_search > 0);
+}
+
+/// The witness enumeration is quoted from the caller's budget and its tables are leased from
+/// the pool before they exist: too few operations or too small a pool refuses with a budget
+/// error and leaves the pool untouched, while a budget that covers the quote verifies.
+#[test]
+fn witness_enumeration_is_quoted_from_the_budget_and_leased_before_allocation() {
+    use antecedent_core::execution::AdmissionPool;
+    let diagram =
+        SelectionDiagram::try_new(graph(3, &[(0, 1), (1, 2)], &[(0, 1)]), [v(1)]).unwrap();
+    let q = query(&[1], &[0], &[2]);
+    let ConditionalTransportDecision::ProvenNonTransportable(proof) =
+        decide(&diagram, &q, &full_catalog(3, &[]))
+    else {
+        panic!("proven");
+    };
+    let witness = proof.witness();
+    let ctx = ExecutionContext::for_tests(1);
+    // One operation covers far fewer cells than this witness enumerates.
+    let few = verify_conditional_witness_within(&diagram, &q, witness, 1, &ctx).unwrap_err();
+    assert!(matches!(few, IdentificationError::Budget { budget: IdentificationBudget::Steps }));
+    // A pool that cannot fund the tables refuses before any is built and keeps every byte.
+    let pool = AdmissionPool::fixed(1, 16);
+    let small = ExecutionContext::for_tests(1).with_admission(pool.clone());
+    let memory = verify_conditional_witness_within(
+        &diagram,
+        &q,
+        witness,
+        WITNESS_VERIFY_DEFAULT_OPERATIONS,
+        &small,
+    )
+    .unwrap_err();
+    assert!(matches!(memory, IdentificationError::Budget { budget: IdentificationBudget::Memory }));
+    assert_eq!(pool.available().bytes(), 16);
+    // The quote grows with the work: the declared budget that covers it verifies, and the lease
+    // is returned afterwards.
+    let ample = AdmissionPool::fixed(1, 1 << 30);
+    let funded = ExecutionContext::for_tests(1).with_admission(ample.clone());
+    let check = verify_conditional_witness_within(
+        &diagram,
+        &q,
+        witness,
+        WITNESS_VERIFY_DEFAULT_OPERATIONS,
+        &funded,
+    )
+    .unwrap();
+    assert_eq!(check.cells_compared, 72);
+    assert_eq!(ample.available().bytes(), 1 << 30);
 }

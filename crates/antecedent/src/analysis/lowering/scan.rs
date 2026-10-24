@@ -36,6 +36,12 @@ use antecedent_data::file_source::ReadPlan;
 
 use crate::error::CausalError;
 
+/// Rows per batch a plan that streams its design reads from the source columns.
+pub(crate) const STREAMED_BATCH_ROWS: usize = 8192;
+/// Passes the streamed reduction makes over the rows: the cross-product pass and the
+/// residual pass.
+const STREAMED_PASSES: u64 = 2;
+
 const SOURCE_DEPENDENCY: u64 = 1;
 const DESIGN_DEPENDENCY: u64 = 1;
 /// Bytes of one `f64`.
@@ -122,6 +128,40 @@ impl ScanPlan {
             projection_bytes,
             chunk_bytes: dense,
             accumulator_bytes: 0,
+            spill_bytes: 0,
+        })
+    }
+
+    /// The scan of an in-memory table whose design is never built.
+    ///
+    /// Rows are read in batches of `batch_rows` straight from the borrowed source columns
+    /// through the complete-case mask. A chunk holds one batch of the design row, the
+    /// response and the weight; only the Gram accumulator of the real design width stays
+    /// resident across chunks; nothing is spilled. The reduction reads the rows twice.
+    ///
+    /// # Errors
+    ///
+    /// The size arithmetic overflows.
+    pub(crate) fn streamed(demand: ScanDemand, batch_rows: u64) -> Result<Self, CausalError> {
+        let rows = demand.rows.max(1);
+        let projected = demand.projected_columns.max(1);
+        let width = demand.design_columns.unwrap_or(projected).max(1);
+        let chunk_rows = batch_rows.min(rows).max(1);
+        let chunk_bytes = width
+            .checked_add(2)
+            .and_then(|cells| cells.checked_mul(chunk_rows))
+            .and_then(|cells| cells.checked_mul(WORD))
+            .ok_or_else(overflow)?;
+        Ok(Self {
+            mode: ScanMode::Chunked,
+            rows,
+            projected_columns: projected,
+            chunk_rows,
+            chunks: rows.div_ceil(chunk_rows),
+            passes: demand.passes.max(STREAMED_PASSES),
+            projection_bytes: chunk_bytes,
+            chunk_bytes,
+            accumulator_bytes: accumulator_bytes(width).ok_or_else(overflow)?,
             spill_bytes: 0,
         })
     }
@@ -271,6 +311,37 @@ mod tests {
 
         let overflowing = ScanPlan::resident(demand(u64::MAX, 8, Some(8), 1));
         assert!(matches!(overflowing, Err(CausalError::Resource { .. })));
+    }
+
+    #[test]
+    fn a_streamed_scan_holds_one_batch_and_the_gram_of_the_real_design_width() {
+        let plan = ScanPlan::streamed(demand(100_000, 6, Some(4), 1), 8192).unwrap();
+        assert_eq!(plan.mode(), ScanMode::Chunked);
+        assert_eq!(plan.chunk_rows(), 8192);
+        assert_eq!(plan.chunks(), 13, "100000 rows in batches of 8192");
+        assert_eq!(plan.passes(), 2, "the cross-product pass and the residual pass");
+        // One batch: the design row, the response and the weight of 8192 rows.
+        assert_eq!(plan.chunk_bytes(), (4 + 2) * 8192 * 8);
+        assert_eq!(plan.accumulator_bytes(), (16 + 8 + 2) * 8);
+        assert_eq!(plan.spill_bytes(), 0);
+        // The resident plan of the same demand holds three copies of the whole design.
+        let resident = ScanPlan::resident(demand(100_000, 6, Some(4), 1)).unwrap();
+        assert!(plan.chunk_bytes() < resident.chunk_bytes());
+        // A table smaller than a batch is one chunk and still streams.
+        let small = ScanPlan::streamed(demand(500, 3, Some(3), 1), 8192).unwrap();
+        assert_eq!(small.chunk_rows(), 500);
+        assert_eq!(small.chunks(), 1);
+        assert_eq!(small.mode(), ScanMode::Chunked);
+        let operators = plan.operators().unwrap();
+        assert_eq!(operators[1].estimates().scratch(), Some(plan.chunk_bytes()));
+        assert_eq!(operators[1].estimates().retained(), Some(plan.accumulator_bytes()));
+        for operator in &operators {
+            assert!(operator.bounded_memory_admission().is_ok());
+        }
+        assert!(matches!(
+            ScanPlan::streamed(demand(10, 1, Some(u64::MAX), 1), 8192),
+            Err(CausalError::Resource { .. })
+        ));
     }
 
     #[test]

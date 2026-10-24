@@ -90,6 +90,10 @@ impl CheckedTemporalGraphPosteriorEffect {
             && study.custom_validators.is_empty()
             && study.point_validation()
             && query.policy.is_pulse_or_sustained()
+            // A conditional effect over TemporalDag atoms is answered atom by atom with the
+            // interval of the whole procedure, not by the pulse design.
+            && !(posterior.atom_kind == GraphPosteriorAtomKind::Dag
+                && !query.effect_modifiers.is_empty())
             && study
                 .estimator
                 .is_none_or(|id| id == EstimatorId::temporal_effect_for(query, &study.inference))

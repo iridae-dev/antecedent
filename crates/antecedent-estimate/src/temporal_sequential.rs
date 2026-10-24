@@ -30,11 +30,11 @@ use antecedent_core::{
 use antecedent_data::{LaggedColumn, TemporalIndexer, TimeSeriesData};
 use antecedent_expr::{EstimandMethod, IdentifiedEstimand};
 use antecedent_graph::{DenseNodeId, TemporalDag};
-use antecedent_model::history_operators::HistoryScan;
+use antecedent_model::history_operators::{HistoryScan, SequentialRegression};
 use antecedent_prob::{BayesLikelihood, PosteriorDraws, PosteriorQuantityKind, PosteriorSchema};
 use antecedent_stats::{
-    CompiledDesign, DenseLinearAlgebra, DesignColumnMap, DesignColumnRole, FaerBackend,
-    LeastSquaresFit, LeastSquaresWorkspace, StatsError,
+    CompiledDesign, DesignColumnMap, DesignColumnRole, LeastSquaresFit, LeastSquaresWorkspace,
+    StatsError,
 };
 
 use crate::serial_dependence::{DependenceScope, SerialDependence};
@@ -1020,7 +1020,8 @@ impl SequentialSetup {
                     (design.nrows, design.ncols)
                 };
                 coefficients[i] =
-                    FaerBackend.least_squares(x_boot, nrows, ncols, y_boot, ls_ws)?.coefficients;
+                    SequentialRegression::solve_design(x_boot, nrows, ncols, y_boot, None, ls_ws)?
+                        .coefficients;
             }
         }
         Ok(coefficients)
@@ -1037,11 +1038,12 @@ impl SequentialSetup {
             .iter()
             .filter_map(|&i| {
                 let design = self.designs[i].as_ref()?;
-                let fit = FaerBackend.least_squares(
+                let fit = SequentialRegression::solve_design(
                     &design.matrix,
                     design.nrows,
                     design.ncols,
                     &design.outcome,
+                    None,
                     ls_ws,
                 );
                 Some((i, fit))

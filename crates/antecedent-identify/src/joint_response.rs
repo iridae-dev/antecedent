@@ -55,12 +55,12 @@ impl GeneralizedAdjustmentIdentifier {
                     "completion is not a directed/bidirected MAG",
                 ));
             };
-            identify_joint(
+            identify_joint_within(
                 &admg,
                 mag.nodes(),
                 query,
-                self.config.max_candidates,
-                self.config.max_examinations,
+                (self.config.max_candidates, self.config.max_examinations),
+                self.config.context.as_ref(),
                 |from, to| visible(mag, from, to),
             )
         })
@@ -94,12 +94,12 @@ impl GeneralizedAdjustmentIdentifier {
         graph: &Admg,
         query: &ResponseQuery,
     ) -> Result<IdentificationResult, IdentificationError> {
-        identify_joint(
+        identify_joint_within(
             graph,
             graph.nodes(),
             query,
-            self.config.max_candidates,
-            self.config.max_examinations,
+            (self.config.max_candidates, self.config.max_examinations),
+            self.config.context.as_ref(),
             |_, _| true,
         )
     }
@@ -189,12 +189,34 @@ pub(crate) fn prepare_joint_response(
     })
 }
 
+#[cfg(test)]
 fn identify_joint(
     graph: &Admg,
     nodes: &[NodeRef],
     response: &ResponseQuery,
     max_candidates: usize,
     max_examinations: u64,
+    visible_edge: impl Fn(DenseNodeId, DenseNodeId) -> bool,
+) -> Result<IdentificationResult, IdentificationError> {
+    identify_joint_within(
+        graph,
+        nodes,
+        response,
+        (max_candidates, max_examinations),
+        None,
+        visible_edge,
+    )
+}
+
+/// The joint search under the caller's `(candidate ceiling, examination budget)` and context:
+/// the enumeration's storage is leased from the context's pool before it is allocated and the
+/// context's cancellation is observed at every test.
+fn identify_joint_within(
+    graph: &Admg,
+    nodes: &[NodeRef],
+    response: &ResponseQuery,
+    (max_candidates, max_examinations): (usize, u64),
+    context: Option<&antecedent_core::ExecutionContext>,
     visible_edge: impl Fn(DenseNodeId, DenseNodeId) -> bool,
 ) -> Result<IdentificationResult, IdentificationError> {
     let PreparedJointResponse { query, treatments, outcome, targets, y } =
@@ -207,7 +229,10 @@ fn identify_joint(
         .map(DenseNodeId::from_index)
         .filter(|&v| v != y && !descendants.contains(v) && ancestors.contains(v))
         .collect();
-    if candidates.len() > max_candidates {
+    let context = crate::exact_search::context_or_default(context);
+    let mut exact = crate::exact_search::ExactSearch::open(&context)?;
+    // The joint search retains one set.
+    if !exact.fund_enumeration(candidates.len(), max_candidates, 1)? {
         return Ok(capped_completion_result(query, candidates.len(), max_candidates));
     }
     let backdoor_graphs = targets
@@ -222,6 +247,7 @@ fn identify_joint(
     // undecided.
     let mut workspace = DSeparationWorkspace::default();
     let search = crate::enum_masks::first_set_by_size(&candidates, 0, max_examinations, |z| {
+        exact.observe()?;
         for (index, &target) in targets.iter().enumerate() {
             let mut conditioned = z.to_vec();
             conditioned.extend(targets.iter().copied().filter(|&v| v != target));

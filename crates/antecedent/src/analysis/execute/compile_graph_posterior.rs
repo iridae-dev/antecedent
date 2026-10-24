@@ -63,6 +63,24 @@ impl super::Study {
             (DataInput::Tabular(data), CausalQuery::Interference(q)) => {
                 self.compile_graph_posterior_interference(data, q, ctx)
             }
+            (DataInput::Tabular(data), CausalQuery::Counterfactual(q)) => {
+                self.compile_graph_posterior_counterfactual(data, q, ctx)
+            }
+            (
+                DataInput::Tabular(data),
+                CausalQuery::Mediation(_)
+                | CausalQuery::PathSpecific(_)
+                | CausalQuery::NestedCounterfactual(_)
+                | CausalQuery::Distribution(_),
+            ) => self.compile_graph_posterior_static_cross_world(data, ctx),
+            (
+                DataInput::Tabular(data),
+                CausalQuery::AnomalyAttribution(_) | CausalQuery::ChangeAttribution(_),
+            ) => self.compile_graph_posterior_attribution(data, ctx),
+            (
+                DataInput::Temporal(data) | DataInput::Event(data),
+                CausalQuery::AnomalyAttribution(_) | CausalQuery::ChangeAttribution(_),
+            ) => self.compile_graph_posterior_series_attribution(data, ctx),
             (
                 DataInput::Temporal(data) | DataInput::Event(data),
                 CausalQuery::TemporalEffect(q),
@@ -79,11 +97,9 @@ impl super::Study {
                 | CausalQuery::PathSpecific(_)
                 | CausalQuery::Counterfactual(_)
                 | CausalQuery::Distribution(_),
-            ) if self
-                .graph_posterior
-                .as_ref()
-                .map(|posterior| posterior.atom_kind)
-                .is_some_and(is_class_atom) =>
+            ) if self.graph_posterior.as_ref().is_some_and(|posterior| {
+                is_class_atom(posterior.atom_kind) || super::dbn_atoms(posterior)
+            }) =>
             {
                 self.compile_graph_posterior_cross_world(data, ctx)
             }
@@ -225,6 +241,15 @@ impl super::Study {
                 antecedent_discovery::GraphPosteriorAtomKind::Cpdag
                 | antecedent_discovery::GraphPosteriorAtomKind::Pag,
             ) => self.resolve_class_conditional_pair(),
+            // A latent-confounded atom is decided by the IDC contrast of its own ADMG and
+            // evaluated by the finite-discrete plug-in, as a supplied ADMG is.
+            Some(
+                antecedent_discovery::GraphPosteriorAtomKind::Admg
+                | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg,
+            ) => (
+                Arc::from(IdentifierId::GeneralId.as_str()),
+                Arc::from(EstimatorId::FunctionalEffect.as_str()),
+            ),
             _ => (
                 Arc::from(IdentifierId::BackdoorAdjustment.as_str()),
                 match &self.inference {
@@ -280,6 +305,101 @@ impl super::Study {
         logical.compile_physical(ctx)
     }
 
+    /// Mediation, path-restricted or natural direct effect compile: every atom answers the query
+    /// with the executor of its own structure, so the plan records the strategy of the atom
+    /// kind and identifies at execution.
+    fn compile_graph_posterior_static_cross_world(
+        &self,
+        data: &TabularData,
+        ctx: &ExecutionContext,
+    ) -> Result<PhysicalExecutionPlan, CausalError> {
+        let posterior = self.graph_posterior.as_ref().ok_or(CausalError::Unsupported {
+            message: "a graph-posterior compile requires a study that carries a graph posterior",
+        })?;
+        let (identifier, estimator) = self.cross_world_posterior_strategy(posterior)?;
+        let variables: Vec<antecedent_core::VariableId> = match &self.query {
+            CausalQuery::Mediation(q) => vec![q.treatment, q.outcome],
+            CausalQuery::PathSpecific(q) => {
+                let mut variables = vec![q.treatment, q.outcome];
+                variables.extend(q.path_nodes.iter().copied());
+                variables
+            }
+            CausalQuery::NestedCounterfactual(q) => vec![q.treatment, q.outcome, q.mediator],
+            CausalQuery::Distribution(q) => {
+                let mut variables: Vec<antecedent_core::VariableId> = q
+                    .interventions
+                    .first()
+                    .and_then(antecedent_core::Intervention::primary_variable)
+                    .into_iter()
+                    .collect();
+                variables.extend(q.outcomes.iter().copied());
+                variables
+            }
+            _ => {
+                return Err(CausalError::Compile {
+                    message: "a cross-world graph-posterior compile needs a mediation, a \
+                              path-restricted effect or a natural direct effect"
+                        .into(),
+                });
+            }
+        };
+        let logical = LogicalAnalysisPlan::unsplit(
+            antecedent_contract::LogicalAnalysisPlanRecord {
+                plan_id: Arc::from(super::plan_id::PlanId::GraphPosteriorCrossWorld.as_str()),
+                data_classification: DataClassification::Tabular,
+                discovery_algorithm: Some(
+                    self.graph_posterior_discovery_algorithm("graph_posterior"),
+                ),
+                graph_review_required: false,
+                identifier: Some(Arc::from(identifier.as_str())),
+                estimator: Some(Arc::from(estimator.as_str())),
+                validation_suite: self.validation_suite_id(),
+                query_variables: Arc::from(variables),
+            },
+            self.query.clone(),
+            data.row_count() as u64,
+        );
+        logical.compile_physical(ctx)
+    }
+
+    /// Anomaly or change attribution compile: every atom is attributed as a supplied structure
+    /// of its kind, under the parametric structural-model claim of the query.
+    fn compile_graph_posterior_attribution(
+        &self,
+        data: &TabularData,
+        ctx: &ExecutionContext,
+    ) -> Result<PhysicalExecutionPlan, CausalError> {
+        let mut logical = self.compile_logical_gcm(
+            data.row_count() as u64,
+            super::plan_id::PlanId::GraphPosteriorAttribution.as_str(),
+            DataClassification::Tabular,
+        )?;
+        logical.record.discovery_algorithm =
+            Some(self.graph_posterior_discovery_algorithm("graph_posterior"));
+        logical.compile_physical(ctx)
+    }
+
+    /// Anomaly or change attribution compile on a series: every atom is attributed as a supplied
+    /// temporal structure of its kind, under the parametric structural-model claim of the query.
+    fn compile_graph_posterior_series_attribution(
+        &self,
+        data: &TimeSeriesData,
+        ctx: &ExecutionContext,
+    ) -> Result<PhysicalExecutionPlan, CausalError> {
+        let class = match &self.data {
+            DataInput::Event(_) => DataClassification::Event,
+            _ => DataClassification::Temporal,
+        };
+        let mut logical = self.compile_logical_gcm(
+            data.row_count() as u64,
+            super::plan_id::PlanId::GraphPosteriorAttribution.as_str(),
+            class,
+        )?;
+        logical.record.discovery_algorithm =
+            Some(self.graph_posterior_discovery_algorithm("dbn_posterior"));
+        logical.compile_physical(ctx)
+    }
+
     /// Temporal-effect compile over a DBN or temporal-class posterior.
     fn compile_graph_posterior_temporal_effect(
         &self,
@@ -316,7 +436,7 @@ impl super::Study {
         } else if q.is_multi_step_sustained() {
             logical.record.estimator =
                 Some(Arc::from(EstimatorId::TemporalSequentialGcomp.as_str()));
-        } else if self.inference.is_bayesian() {
+        } else if self.inference.is_bayesian() && q.effect_modifiers.is_empty() {
             logical.record.estimator = Some(Arc::from(EstimatorId::BayesianTemporalGcomp.as_str()));
         }
         logical.record.validation_suite = self.validation_suite_id();
@@ -403,8 +523,19 @@ impl super::Study {
             super::temporal_admg_mediation::window_effect_query(q)?;
             logical.record.plan_id =
                 Arc::from(super::plan_id::PlanId::TemporalAdmgMediation.as_str());
-            logical.record.identifier =
-                Some(Arc::from(IdentifierId::PathSpecificNatural.as_str()));
+            logical.record.identifier = Some(Arc::from(IdentifierId::PathSpecificNatural.as_str()));
+            logical.record.estimator = Some(Arc::from(EstimatorId::FunctionalEffect.as_str()));
+        } else if self
+            .graph_posterior
+            .as_ref()
+            .is_some_and(|gp| gp.atom_kind == antecedent_discovery::GraphPosteriorAtomKind::Pag)
+        {
+            // Each atom is a temporal PAG read through the ADMGs of its window, as a supplied
+            // one is; one outcome horizon names the window.
+            super::temporal_admg_mediation::window_effect_query(q)?;
+            logical.record.plan_id =
+                Arc::from(super::plan_id::PlanId::TemporalPagMediation.as_str());
+            logical.record.identifier = Some(Arc::from(IdentifierId::PathSpecificNatural.as_str()));
             logical.record.estimator = Some(Arc::from(EstimatorId::FunctionalEffect.as_str()));
         } else {
             logical.record.plan_id = Arc::from("temporal_mediation");
@@ -432,9 +563,19 @@ impl super::Study {
     ) -> Result<PhysicalExecutionPlan, CausalError> {
         let (treatment, outcome) =
             super::temporal_class_point::cross_world_plan_variables(&self.query)?;
-        let plan_id = match self.graph.class() {
-            GraphClass::TemporalPag => "temporal_pag_cross_world",
-            _ => "temporal_cpdag_cross_world",
+        let dbn = self.graph_posterior.as_ref().is_some_and(super::dbn_atoms);
+        let plan_id = if dbn {
+            super::plan_id::PlanId::GraphPosteriorCrossWorld.as_str()
+        } else {
+            match self.graph.class() {
+                GraphClass::TemporalPag => "temporal_pag_cross_world",
+                _ => "temporal_cpdag_cross_world",
+            }
+        };
+        let identifier = if dbn {
+            IdentifierId::TemporalBackdoorUnfolded
+        } else {
+            IdentifierId::GeneralizedAdjustment
         };
         let logical = LogicalAnalysisPlan::unsplit(
             antecedent_contract::LogicalAnalysisPlanRecord {
@@ -447,8 +588,56 @@ impl super::Study {
                         .unwrap_or_else(|| Arc::from("graph_posterior")),
                 ),
                 graph_review_required: false,
-                identifier: Some(Arc::from(IdentifierId::GeneralizedAdjustment.as_str())),
+                identifier: Some(Arc::from(identifier.as_str())),
                 estimator: Some(Arc::from(EstimatorId::TemporalLinearAdjustment.as_str())),
+                validation_suite: self.validation_suite_id(),
+                query_variables: Arc::from([treatment, outcome]),
+            },
+            self.query.clone(),
+            data.row_count() as u64,
+        );
+        logical.compile_physical(ctx)
+    }
+
+    /// Counterfactual compile over the atoms of a tabular posterior: every atom answers with the
+    /// counterfactual executor of its own structure, so the plan records the strategy pair of the
+    /// atom kind (structural mechanisms on a Dag or Cpdag, the ID* plug-in on a latent-confounded
+    /// graph or a Pag) and identifies at execution.
+    fn compile_graph_posterior_counterfactual(
+        &self,
+        data: &TabularData,
+        q: &antecedent_core::CounterfactualQuery,
+        ctx: &ExecutionContext,
+    ) -> Result<PhysicalExecutionPlan, CausalError> {
+        q.validate()?;
+        let atom_kind = self.graph_posterior.as_ref().map(|gp| gp.atom_kind);
+        let (identifier, estimator) = match atom_kind {
+            Some(
+                antecedent_discovery::GraphPosteriorAtomKind::Dag
+                | antecedent_discovery::GraphPosteriorAtomKind::Cpdag,
+            ) => (IdentifierId::GcmParametric, EstimatorId::GcmFit),
+            _ => (IdentifierId::GeneralId, EstimatorId::FunctionalEffect),
+        };
+        let treatment = q
+            .interventions
+            .first()
+            .and_then(antecedent_core::Intervention::primary_variable)
+            .ok_or_else(|| CausalError::Compile {
+                message: "a counterfactual over a graph posterior needs one intervention".into(),
+            })?;
+        let outcome = *q.outcomes.first().ok_or_else(|| CausalError::Compile {
+            message: "a counterfactual over a graph posterior needs one outcome".into(),
+        })?;
+        let logical = LogicalAnalysisPlan::unsplit(
+            antecedent_contract::LogicalAnalysisPlanRecord {
+                plan_id: Arc::from(super::plan_id::PlanId::GraphPosteriorCrossWorld.as_str()),
+                data_classification: DataClassification::Tabular,
+                discovery_algorithm: Some(
+                    self.graph_posterior_discovery_algorithm("graph_posterior"),
+                ),
+                graph_review_required: false,
+                identifier: Some(Arc::from(identifier.as_str())),
+                estimator: Some(Arc::from(estimator.as_str())),
                 validation_suite: self.validation_suite_id(),
                 query_variables: Arc::from([treatment, outcome]),
             },

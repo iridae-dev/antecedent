@@ -77,8 +77,8 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::conditional_witness::{
-    ConditionalWitnessCheck, ConditionalWitnessRecord, WitnessSearch, search_conditional_witness,
-    verify_conditional_witness,
+    ConditionalWitnessCheck, ConditionalWitnessRecord, WitnessMeter, WitnessSearch,
+    search_conditional_witness_within, verify_conditional_witness,
 };
 use super::mixed_source::{Checker, Set};
 use super::{
@@ -1075,6 +1075,20 @@ pub(super) fn decide_charged(
     }
 }
 
+/// The decision's shared budget as a witness-search meter: one charge per block and direction,
+/// and every quote derived from the operations the budget still allows.
+struct SharedWitnessMeter<'a, 'c>(&'a mut SharedSearch<'c>);
+
+impl WitnessMeter for SharedWitnessMeter<'_, '_> {
+    fn charge(&mut self, bytes: u64) -> Result<(), IdentificationError> {
+        use super::SearchCharge;
+        self.0.charge(1, bytes).map_err(super::stop_error)
+    }
+    fn operations_remaining(&self) -> u64 {
+        self.0.operations_remaining()
+    }
+}
+
 /// The witness stage of a decision whose reduced joint sID did not certify:
 /// search for an exactly verified two-model witness of the conditional query
 /// ([`super::conditional_witness`]), one charge of `search` per parameter block
@@ -1098,12 +1112,11 @@ fn witness_stage(
     search: &mut SharedSearch<'_>,
     ctx: &ExecutionContext,
 ) -> Result<ConditionalTransportDecision, IdentificationError> {
-    use super::SearchCharge;
     search.begin_stage();
-    let found = search_conditional_witness(
+    let found = search_conditional_witness_within(
         diagram,
         query,
-        &mut |bytes| search.charge(1, bytes).map_err(super::stop_error),
+        &mut SharedWitnessMeter(&mut *search),
         ctx,
     );
     let outcome = match found {

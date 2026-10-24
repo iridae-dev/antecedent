@@ -2088,6 +2088,7 @@ fn compile_with_payloads(
             estimator.propensity_calibration_label(),
             estimator.stratification_calibration_label().map(str::to_owned),
             estimator.matching_calibration_label().map(str::to_owned),
+            estimator.bootstrap_interval_calibration_label().map(str::to_owned),
         ]
         .into_iter()
         .flatten()

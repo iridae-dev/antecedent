@@ -2,23 +2,23 @@
 
 use super::completion_fit_memo::{CompletionFitKey, CompletionFitMemo};
 use super::{
-    Arc, AverageEffectQuery, CausalError, CausalQuery, CausalResponse, ClassEnvelopeRun,
-    ContinuousResponseEstimator, Dag, Diagnostic, DiagnosticKind, DiagnosticSeverity,
-    EffectEstimate, EstimandMethod, EstimationWorkspace, EstimatorId, EvalError, ExecuteRun,
-    ExecutionContext, FunctionalDistributionWorkspace, FunctionalEffect, GraphClass,
-    GraphIdentFlag, GraphPosterior, IdentificationResult, IdentificationStatus, IdentifiedClaim,
-    IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedKeyWeights,
-    IdentifierId, InferenceMode, Instant, Intervention, ObservationMechanismEstimator,
-    ObservationSpec, OverlapPolicy, PhysicalExecutionPlan, PosteriorMassSummary, RefutationRun,
-    RefuteSuite, ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseUncertainty,
-    ResponseValue, Strategy, StudyResult, TableView, TabularData, VariableId, WeightedGraphSamples,
     bayesian_gcomp, elapsed_ns, envelope_se_omits_between_atom_variance,
     envelope_to_identification_result_for, functional_cell_unevaluable,
     identification_from_cache_or, identification_status_ok_for_case,
     identified_set_interval_diagnostics, identify_cached_diagnostic, identify_static_query,
     interactive_subsample_graphs_accounted, provenance_ids, report_identify_compute,
     resolve_posterior_status, response_functional_is_derivative, scalar_identified_set,
-    support_from_functional_eval,
+    support_from_functional_eval, Arc, AverageEffectQuery, CausalError, CausalQuery,
+    CausalResponse, ClassEnvelopeRun, ContinuousResponseEstimator, Dag, Diagnostic, DiagnosticKind,
+    DiagnosticSeverity, EffectEstimate, EstimandMethod, EstimationWorkspace, EstimatorId,
+    EvalError, ExecuteRun, ExecutionContext, FunctionalDistributionWorkspace, FunctionalEffect,
+    GraphClass, GraphIdentFlag, GraphPosterior, IdentificationResult, IdentificationStatus,
+    IdentifiedClaim, IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish,
+    IdentifiedKeyWeights, IdentifierId, InferenceMode, Instant, Intervention,
+    ObservationMechanismEstimator, ObservationSpec, OverlapPolicy, PhysicalExecutionPlan,
+    PosteriorMassSummary, RefutationRun, RefuteSuite, ResponseFunctional, ResponseIdentification,
+    ResponseQuery, ResponseUncertainty, ResponseValue, Strategy, StudyResult, TableView,
+    TabularData, VariableId, WeightedGraphSamples,
 };
 use crate::planner::RouteDefaults;
 
@@ -576,27 +576,25 @@ impl super::Study {
         let (unidentified_mass, failed_mass, subsampled_out_mass) =
             (fits.unidentified_mass, fits.failed_mass, fits.subsampled_out_mass);
         let weighted = &fits.weighted;
-        let mut diagnostics = vec![
-            Diagnostic::new(
-                "estimate.response.graph_posterior",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                format!(
-                    "posterior_probability weights; identified_mass={}, unidentified_mass={}; \
+        let mut diagnostics = vec![Diagnostic::new(
+            "estimate.response.graph_posterior",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            format!(
+                "posterior_probability weights; identified_mass={}, unidentified_mass={}; \
                  unevaluable_mass={}; subsampled_out_mass={}; failed estimation and \
                  atoms the Interactive tier did not evaluate are not mixed into \
                  unidentified mass",
-                    identified_mass / total_mass,
-                    unidentified_mass / total_mass,
-                    failed_mass / total_mass,
-                    subsampled_out_mass / total_mass
-                ),
-            )
-            .with_fields(super::mass_fields(
-                Some(identified_mass / total_mass),
+                identified_mass / total_mass,
                 unidentified_mass / total_mass,
-            )),
-        ];
+                failed_mass / total_mass,
+                subsampled_out_mass / total_mass
+            ),
+        )
+        .with_fields(super::mass_fields(
+            Some(identified_mass / total_mass),
+            unidentified_mass / total_mass,
+        ))];
         if weighted.len() > 1 && mixed_if_se.is_none() {
             diagnostics.push(Diagnostic::new(
                 "estimate.response.graph_posterior.uncertainty_withheld",
@@ -829,14 +827,15 @@ impl super::Study {
             outcome,
             &query.outcome_functional,
         )?;
+        let front_door = FrontDoorClaim {
+            estimand: &estimand,
+            status: identification.status,
+            assumptions: identification.required_assumptions.clone(),
+        };
         let response = self.estimate_front_door_derivative_response(
             &data_est,
             query,
-            FrontDoorClaim {
-                estimand: &estimand,
-                status: identification.status,
-                assumptions: identification.required_assumptions.clone(),
-            },
+            front_door.clone(),
             1,
             ctx,
         )?;
@@ -852,6 +851,16 @@ impl super::Study {
             diagnostics.push(identify_cached_diagnostic());
         }
         diagnostics.extend(response.support.warnings.iter().cloned());
+        // A front-door derivative's cheap/full suite is its own refuter state (unlicensed).
+        let (refutations, refute_notes) = self.refute_front_door_derivative_response(
+            (&data_est, query),
+            &front_door,
+            &response,
+            1,
+            ctx,
+        )?;
+        diagnostics.extend(refute_notes);
+        drop(front_door);
         Ok(self.finish_identified_execute(
             IdentifiedExecuteFinish::new(
                 physical,
@@ -862,6 +871,7 @@ impl super::Study {
                 treatment,
                 outcome,
             )
+            .refutations(refutations)
             .wall_time_ns(elapsed_ns(started))
             .extras(IdentifiedExecuteExtras {
                 estimate_provenance: Some(provenance_ids(
@@ -1990,7 +2000,22 @@ impl super::Study {
         // A class-aware intervention level runs its per-completion refuter state
         // (unlicensed); a curve keeps the skipped note.
         let mut refutations = Vec::new();
+        let mut predictive_checks = Vec::new();
         if !matches!(self.refute, RefuteSuite::None)
+            && response_functional_is_derivative(&query.functional)
+        {
+            let (reports, checks, notes) = self.refute_class_derivative_atoms(
+                &data_est,
+                query,
+                envelope,
+                &mixed.weighted,
+                ctx,
+            )?;
+            refutations = reports;
+            predictive_checks = checks;
+            diagnostics.retain(|diagnostic| diagnostic.code.as_ref() != "refute.response.skipped");
+            diagnostics.extend(notes);
+        } else if !matches!(self.refute, RefuteSuite::None)
             && matches!(query.functional, ResponseFunctional::InterventionResponse { .. })
         {
             let (reports, notes) =
@@ -2036,6 +2061,7 @@ impl super::Study {
                 diagnostics: Some(diagnostics),
                 response: Some(mixed),
                 structural_response: Some(structural_response),
+                predictive_checks,
                 bootstrap_replicates_requested: Some(None),
                 ..Default::default()
             }),

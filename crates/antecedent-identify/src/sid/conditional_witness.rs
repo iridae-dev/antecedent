@@ -44,14 +44,19 @@ use crate::IdentificationError;
 use antecedent_core::ExecutionContext;
 use antecedent_graph::{DenseNodeId, SelectionDiagram};
 
-/// Most enumeration work (law cells times latent configurations times nodes)
-/// a witness may need; larger witnesses are refused before any arithmetic.
-pub(crate) const CONDITIONAL_WITNESS_MAX_WORK: u64 = 1 << 22;
+/// Enumeration work (law cells times latent configurations times nodes) one budget operation
+/// covers. A witness enumeration is quoted in this unit against the operations the caller's
+/// budget still allows, and its tables are leased from the context's admission pool before they
+/// are allocated; there is no fixed work ceiling.
+pub const WITNESS_WORK_PER_OPERATION: u64 = 1 << 8;
+/// Operations [`verify_conditional_witness`] declares for itself when the caller supplies no
+/// budget (see [`verify_conditional_witness_within`]).
+pub const WITNESS_VERIFY_DEFAULT_OPERATIONS: u64 = 1 << 14;
+/// Operations a bare charge function is taken to allow a witness search (see
+/// [`search_conditional_witness`]).
+pub const WITNESS_SEARCH_DEFAULT_OPERATIONS: u64 = 1 << 12;
 /// Most levels of one latent variable in a witness.
 pub const CONDITIONAL_WITNESS_MAX_LATENT_LEVELS: usize = 8;
-/// Enumeration work above which the search does not start (the verifier's cap
-/// is larger, so every searched witness fits it).
-const SEARCH_MAX_WORK: u64 = 1 << 20;
 /// Most free parameters of one perturbed block in the search.
 const SEARCH_MAX_BLOCK_PARAMETERS: usize = 256;
 /// Latent cardinalities the search tries, in order.
@@ -319,6 +324,95 @@ fn next_config(u: &mut [usize], cards: &[usize]) -> bool {
 }
 
 // ---------------------------------------------------------------------------
+// Work and storage quotes, derived from the caller's budget.
+
+/// What one enumeration needs: its work in the unit of
+/// [`WITNESS_WORK_PER_OPERATION`] and the bytes of the tables it allocates.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Quote {
+    work: u64,
+    bytes: u64,
+}
+
+impl Quote {
+    /// The quote of one model with latent cardinalities `cards`, whose tables hold
+    /// `entry_bytes` per (node, world, latent configuration) and per latent configuration.
+    fn of(shape: &Shape, cards: &[usize], entry_bytes: u64) -> Self {
+        let configs = cards.iter().map(|c| *c as u64).fold(1u64, u64::saturating_mul);
+        let worlds = crate::pow2::checked_pow2_u64(shape.n).unwrap_or(u64::MAX);
+        let tables = (shape.n.max(1) as u64)
+            .saturating_mul(worlds)
+            .saturating_mul(configs)
+            .saturating_mul(entry_bytes);
+        let latent = configs
+            .saturating_mul(cards.len().max(1) as u64)
+            .saturating_mul(std::mem::size_of::<usize>() as u64)
+            .saturating_add(configs.saturating_mul(entry_bytes));
+        Self { work: shape.work(cards), bytes: tables.saturating_add(latent) }
+    }
+
+    const fn plus(self, other: Self) -> Self {
+        Self {
+            work: self.work.saturating_add(other.work),
+            bytes: self.bytes.saturating_add(other.bytes),
+        }
+    }
+
+    /// Check the work against `operations` still allowed and lease the bytes from the
+    /// context's pool. Nothing is allocated here; a refusal happens before any table exists.
+    ///
+    /// # Errors
+    /// `Budget(Steps)` when the work exceeds what `operations` cover, `Budget(Memory)` when the
+    /// pool cannot fund the tables, and `Cancelled`.
+    fn admit(
+        self,
+        operations: u64,
+        ctx: &ExecutionContext,
+    ) -> Result<antecedent_core::execution::AdmissionLease, IdentificationError> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(IdentificationError::Cancelled);
+        }
+        if self.work > operations.saturating_mul(WITNESS_WORK_PER_OPERATION) {
+            return Err(IdentificationError::budget(crate::IdentificationBudget::Steps));
+        }
+        ctx.acquire_admission(0, self.bytes).map_err(|error| match error {
+            antecedent_core::execution::AdmissionError::Cancelled => IdentificationError::Cancelled,
+            _ => IdentificationError::budget(crate::IdentificationBudget::Memory),
+        })
+    }
+}
+
+/// Bytes per tabulated entry of the verifier's exact integer tables (`i128`, two populations).
+const VERIFY_ENTRY_BYTES: u64 = 2 * std::mem::size_of::<i128>() as u64;
+/// Bytes per tabulated entry of the search's modular tables (row, source and target words).
+const SEARCH_ENTRY_BYTES: u64 = 3 * std::mem::size_of::<u64>() as u64;
+
+/// The meter a witness search charges: one charge per block and per direction, with the
+/// live-state estimate of the attempt, and the operations the caller's budget still allows.
+pub trait WitnessMeter {
+    /// Charge one operation whose live state needs `bytes`.
+    ///
+    /// # Errors
+    /// The stop of the underlying budget, as an identification error.
+    fn charge(&mut self, bytes: u64) -> Result<(), IdentificationError>;
+    /// Operations the budget still allows.
+    fn operations_remaining(&self) -> u64;
+}
+
+/// A bare charge function: declares no operation limit of its own, so the search is quoted
+/// against [`WITNESS_SEARCH_DEFAULT_OPERATIONS`].
+struct ChargeFn<'a>(&'a mut dyn FnMut(u64) -> Result<(), IdentificationError>);
+
+impl WitnessMeter for ChargeFn<'_> {
+    fn charge(&mut self, bytes: u64) -> Result<(), IdentificationError> {
+        (self.0)(bytes)
+    }
+    fn operations_remaining(&self) -> u64 {
+        WITNESS_SEARCH_DEFAULT_OPERATIONS
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Verification.
 
 /// A parsed, shape-checked model.
@@ -359,9 +453,6 @@ fn parse_model(shape: &Shape, record: &WitnessModelRecord) -> Result<Model, Iden
         }
         cards.push(k);
         latents.push(law);
-    }
-    if shape.work(&cards) > CONDITIONAL_WITNESS_MAX_WORK {
-        return Err(rejected("witness exceeds the enumeration bound"));
     }
     let kernel = |j: usize, record: &WitnessKernelRecord| -> Result<Vec<Q>, IdentificationError> {
         let parents: Vec<u32> = shape.parents[j].iter().map(|p| shape.ids[*p]).collect();
@@ -547,11 +638,18 @@ fn evaluate(
     shape: &Shape,
     query: &ConditionalTransportQuery,
     record: &ConditionalWitnessRecord,
+    operations: u64,
     ctx: &ExecutionContext,
 ) -> Result<(Q, Q, usize), IdentificationError> {
     let overflow = || rejected("arithmetic overflow");
-    let first = Integral::new(shape, &parse_model(shape, &record.first)?).ok_or_else(overflow)?;
-    let second = Integral::new(shape, &parse_model(shape, &record.second)?).ok_or_else(overflow)?;
+    let (first_model, second_model) =
+        (parse_model(shape, &record.first)?, parse_model(shape, &record.second)?);
+    // Both models' exact tables are quoted against the budget and leased before either is built.
+    let _tables = Quote::of(shape, &first_model.cards, VERIFY_ENTRY_BYTES)
+        .plus(Quote::of(shape, &second_model.cards, VERIFY_ENTRY_BYTES))
+        .admit(operations, ctx)?;
+    let first = Integral::new(shape, &first_model).ok_or_else(overflow)?;
+    let second = Integral::new(shape, &second_model).ok_or_else(overflow)?;
     let mut compared = 0usize;
     let full = crate::pow2::checked_pow2(shape.n).ok_or_else(overflow)?;
     for mask in 0..=full {
@@ -581,22 +679,47 @@ fn evaluate(
 /// and on the target observational law, and give different values of `query`
 /// at the recorded level (equal to the recorded values). No theorem is trusted.
 ///
-/// Not charged to a search budget: the enumeration is refused above
-/// [`CONDITIONAL_WITNESS_MAX_WORK`] before any arithmetic, and cancellation is
-/// polled per law.
+/// Declares [`WITNESS_VERIFY_DEFAULT_OPERATIONS`] as its budget; see
+/// [`verify_conditional_witness_within`] to verify under the caller's own.
 ///
 /// # Errors
 /// `admg_transport.invalid_derivation` when any check fails (including an
-/// arithmetic overflow), an invalid query, or cancellation.
+/// arithmetic overflow), an invalid query, or cancellation; a budget error when the
+/// enumeration's quote exceeds the declared operations or the pool cannot fund its tables.
 pub fn verify_conditional_witness(
     diagram: &SelectionDiagram,
     query: &ConditionalTransportQuery,
     record: &ConditionalWitnessRecord,
     ctx: &ExecutionContext,
 ) -> Result<ConditionalWitnessCheck, IdentificationError> {
+    verify_conditional_witness_within(
+        diagram,
+        query,
+        record,
+        WITNESS_VERIFY_DEFAULT_OPERATIONS,
+        ctx,
+    )
+}
+
+/// [`verify_conditional_witness`] under `operations` of the caller's budget.
+///
+/// The enumeration is quoted before any arithmetic: its work (in units of
+/// [`WITNESS_WORK_PER_OPERATION`]) must fit `operations`, and the bytes of the exact tables
+/// of both models are leased from the context's admission pool before either is built.
+/// Cancellation is polled per law.
+///
+/// # Errors
+/// As [`verify_conditional_witness`].
+pub fn verify_conditional_witness_within(
+    diagram: &SelectionDiagram,
+    query: &ConditionalTransportQuery,
+    record: &ConditionalWitnessRecord,
+    operations: u64,
+    ctx: &ExecutionContext,
+) -> Result<ConditionalWitnessCheck, IdentificationError> {
     validate(diagram, query)?;
     let shape = Shape::new(diagram)?;
-    let (a, b, cells_compared) = evaluate(&shape, query, record, ctx)?;
+    let (a, b, cells_compared) = evaluate(&shape, query, record, operations, ctx)?;
     if a == b {
         return Err(rejected("the models agree on the query"));
     }
@@ -1033,11 +1156,13 @@ fn attempt_bytes(shape: &Shape, configs: usize, law_cells: usize, columns: usize
 /// seeds times one parameter block at a time, with one `charge` (the caller's
 /// budget, carrying the live-state estimate in bytes) for each block's linear
 /// algebra and one more for every null-space direction tried, so every unit
-/// of work is metered; nothing is attempted when one model's enumeration
-/// exceeds an internal bound. Returns `NotFound` when no attempt produced a pair the exact
-/// verifier accepts and `OutOfScope` when the diagram is too large to attempt;
-/// a found record has been accepted by [`verify_conditional_witness`], whose
-/// check travels with it.
+/// of work is metered. A cardinality is attempted only when its enumeration is
+/// quoted within the operations the meter still allows and the context's pool
+/// funds its tables (leased before they are built); a bare charge function allows
+/// [`WITNESS_SEARCH_DEFAULT_OPERATIONS`]. Returns `NotFound` when no attempt produced
+/// a pair the exact verifier accepts and `OutOfScope` when no cardinality's quote fits; a
+/// found record has been accepted by [`verify_conditional_witness`], whose check travels
+/// with it.
 ///
 /// # Errors
 /// Whatever `charge` returns (budget or cancellation), or an invalid query.
@@ -1045,6 +1170,20 @@ pub fn search_conditional_witness(
     diagram: &SelectionDiagram,
     query: &ConditionalTransportQuery,
     charge: &mut dyn FnMut(u64) -> Result<(), IdentificationError>,
+    ctx: &ExecutionContext,
+) -> Result<WitnessSearch, IdentificationError> {
+    search_conditional_witness_within(diagram, query, &mut ChargeFn(charge), ctx)
+}
+
+/// [`search_conditional_witness`] against a [`WitnessMeter`] that also reports the operations
+/// the caller's budget still allows, from which every quote is derived.
+///
+/// # Errors
+/// As [`search_conditional_witness`].
+pub fn search_conditional_witness_within(
+    diagram: &SelectionDiagram,
+    query: &ConditionalTransportQuery,
+    meter: &mut dyn WitnessMeter,
     ctx: &ExecutionContext,
 ) -> Result<WitnessSearch, IdentificationError> {
     validate(diagram, query)?;
@@ -1066,9 +1205,21 @@ pub fn search_conditional_witness(
     // cheapest systems.
     for seed in 0..SEARCH_SEEDS {
         for cardinality in SEARCH_LATENT_LEVELS {
-            if shape.work(&vec![cardinality; shape.edges.len()]) > SEARCH_MAX_WORK {
-                continue;
-            }
+            // The base model's modular tables, and the exact check of the pair a perturbation
+            // would produce (two models of this cardinality), are quoted against what the
+            // budget allows now and the tables are leased before they are built; a refusal
+            // skips the cardinality. The same allowance covers every check in the attempt.
+            let quoted_operations = meter.operations_remaining();
+            let cards = vec![cardinality; shape.edges.len()];
+            let table_quote = Quote::of(&shape, &cards, SEARCH_ENTRY_BYTES);
+            let pair_quote = Quote { work: table_quote.work.saturating_mul(2), ..table_quote };
+            let _tables = match pair_quote.admit(quoted_operations, ctx) {
+                Ok(lease) => lease,
+                Err(IdentificationError::Cancelled) => {
+                    return Err(IdentificationError::Cancelled);
+                }
+                Err(_) => continue,
+            };
             attempted = true;
             let blocks: Vec<Block> = (0..shape.n)
                 .filter(|j| shape.selected[*j])
@@ -1088,7 +1239,7 @@ pub fn search_conditional_witness(
                 let bytes = attempt_bytes(&shape, tables.configs, cells.len(), columns.len());
                 // One charge for the block's linear algebra (its Jacobians and
                 // null space) ...
-                charge(bytes)?;
+                meter.charge(bytes)?;
                 if columns.is_empty() || columns.len() > SEARCH_MAX_BLOCK_PARAMETERS {
                     continue;
                 }
@@ -1106,7 +1257,7 @@ pub fn search_conditional_witness(
                 for direction in null_space(jac, columns.len()) {
                     // ... and one for every null-space direction tried (its
                     // screening, lifting, perturbation and exact check).
-                    charge(bytes)?;
+                    meter.charge(bytes)?;
                     // The query's change along the direction, modulo P.
                     let q1: Vec<u64> = gradient
                         .iter()
@@ -1137,11 +1288,17 @@ pub fn search_conditional_witness(
                     // The exact verifier is the only certificate: the pair's
                     // values are read off once, and the record then passes
                     // through the public verifier exactly as a consumer runs it.
-                    match evaluate(&shape, query, &record, ctx) {
+                    match evaluate(&shape, query, &record, quoted_operations, ctx) {
                         Ok((a, b, _)) if a != b => {
                             record.first_value = a.to_text();
                             record.second_value = b.to_text();
-                            let check = verify_conditional_witness(diagram, query, &record, ctx)?;
+                            let check = verify_conditional_witness_within(
+                                diagram,
+                                query,
+                                &record,
+                                quoted_operations,
+                                ctx,
+                            )?;
                             return Ok(WitnessSearch::Found(Box::new(record), check));
                         }
                         Err(IdentificationError::Cancelled) => {

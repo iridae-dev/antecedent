@@ -393,6 +393,14 @@ fn a_design_over_the_resident_budget_streams_through_the_closed_form_reduction()
     assert!(plan.compiled_linear_program().is_none(), "a streamed plan retains no design");
     assert!(plan.record.materializations.iter().any(|(name, how)| &**name == "design.matrix"
         && *how == antecedent_contract::BufferMaterialization::Chunked));
+    // Layer five declares the scan the plan makes: one batch and the Gram of [1 | t | z]
+    // held across chunks, not the three dense copies of a 100000-row design.
+    let operators = plan.lowered().expect("compile attached a program").physical().operators();
+    let scan = operators.last().expect("a scan operator");
+    assert_eq!(scan.effect(), antecedent_core::PhysicalEffect::Scan);
+    assert_eq!(scan.estimates().retained(), Some((9 + 6 + 2) * 8));
+    assert_eq!(scan.estimates().scratch(), Some((3 + 2) * 8192 * 8));
+    assert!(scan.estimates().scratch().unwrap() < 3 * rows as u64 * 3 * 8);
 
     let result = study.run(&ctx).unwrap();
     // The normal equations of [1 | t | z], solved by Cramer's rule.

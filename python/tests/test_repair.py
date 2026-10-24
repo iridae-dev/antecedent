@@ -579,9 +579,7 @@ def test_instrument_validity_is_an_assumption_no_study_satisfies():
 def hedge_contract():
     # t -> w -> y with t <-> y and w <-> y: observation cannot identify do(t).
     return repair.HedgeContract(
-        graph=Admg.from_edges(
-            ["t", "w", "y"], [("t", "w"), ("w", "y")], [("t", "y"), ("w", "y")]
-        ),
+        graph=Admg.from_edges(["t", "w", "y"], [("t", "w"), ("w", "y")], [("t", "y"), ("w", "y")]),
         treatment="t",
         outcome="y",
         population="clinic",

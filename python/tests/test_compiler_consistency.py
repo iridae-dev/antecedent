@@ -330,12 +330,6 @@ def _refusals() -> list[tuple[str, Callable[[], Any]]]:
             ),
         ),
         (
-            "Counterfactual refute=cheap",
-            lambda: ant.analyze(
-                data, graph=GRAPH, query=ant.Counterfactual("treatment", "outcome"), refute="cheap"
-            ),
-        ),
-        (
             "unknown estimator",
             lambda: ant.analyze(data, graph=GRAPH, query=query, estimator="bogus"),
         ),

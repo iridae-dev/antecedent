@@ -26,5 +26,5 @@ pub use antecedent_core::{
 };
 pub use antecedent_core::{
     OutcomeMisclassification, TemporalAssignment, TemporalDesignFunctional, TemporalDesignQuery,
-    TemporalDoseTarget,
+    TemporalDoseTarget, TemporalRegimeMethod,
 };

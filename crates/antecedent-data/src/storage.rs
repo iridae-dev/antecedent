@@ -91,6 +91,22 @@ impl OwnedColumnarStorage {
         })
     }
 
+    /// The same columns, mask and weights under another schema (a rename, a role or a unit
+    /// change). The content digest does not cover the schema, so a source snapshot binds it
+    /// separately.
+    ///
+    /// # Errors
+    ///
+    /// A schema whose variable count is not the column count.
+    pub fn with_schema(&self, schema: CausalSchema) -> Result<Self, DataError> {
+        Self::try_new(
+            schema,
+            self.columns.to_vec(),
+            self.analysis_mask.clone(),
+            self.weights.clone(),
+        )
+    }
+
     /// Version-1 BLAKE3 digest of typed column contents, validity, mask, and weights.
     ///
     /// Computed on first use without copying cell buffers and memoised (storage is

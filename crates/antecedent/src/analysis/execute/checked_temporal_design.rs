@@ -28,6 +28,7 @@ use super::{
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
     TemporalAssignment, TemporalDesignFunctional, TemporalDesignQuery, TemporalDoseTarget,
+    TemporalRegimeMethod,
 };
 use antecedent_estimate::temporal_design::contrasts::{
     DesignScores, factorial_scores, interference_scores, multi_arm_scores, two_arm_scores,
@@ -40,6 +41,9 @@ use antecedent_estimate::temporal_design::observational::{
     OBSERVATIONAL_COORDINATES, ObservationalRows, fit_observational_excursion,
 };
 use antecedent_estimate::temporal_design::quantile::{QUANTILE_COORDINATES, fit_quantile};
+use antecedent_estimate::temporal_design::regime::{
+    REGIME_COORDINATES, RegimeMethod, RegimePanel, RegimeRows, StaticRegimes, fit_static_regimes,
+};
 use antecedent_estimate::temporal_design::survival::{
     SURVIVAL_COORDINATES, Trajectories, TrajectoryRows, fit_regime_survival,
     fit_regime_survival_posterior,
@@ -82,11 +86,16 @@ fn reads_replicates(query: &TemporalDesignQuery) -> bool {
         query.assignment,
         TemporalAssignment::RegimeSurvival { .. }
             | TemporalAssignment::ObservationalExcursion { .. }
+            | TemporalAssignment::ObservationalRegime { .. }
     ) || matches!(query.functional, TemporalDesignFunctional::Quantile { .. })
 }
 
 fn observational_design(query: &TemporalDesignQuery) -> bool {
     matches!(query.assignment, TemporalAssignment::ObservationalExcursion { .. })
+}
+
+fn regime_design(query: &TemporalDesignQuery) -> bool {
+    matches!(query.assignment, TemporalAssignment::ObservationalRegime { .. })
 }
 
 fn survival_design(query: &TemporalDesignQuery) -> bool {
@@ -240,6 +249,22 @@ impl CheckedTemporalDesignOperation {
                 &outcome,
                 &unit,
                 (*treatment, *censored, &confounders[..], *horizon),
+                ctx,
+            );
+        }
+        if let TemporalAssignment::ObservationalRegime {
+            treatment,
+            confounders,
+            active,
+            reference,
+            method,
+        } = &query.assignment
+        {
+            return self.fit_regime(
+                data,
+                &outcome,
+                &unit,
+                (*treatment, &confounders[..], &active[..], &reference[..], *method),
                 ctx,
             );
         }
@@ -491,7 +516,8 @@ impl CheckedTemporalDesignOperation {
             }
             TemporalAssignment::Dose { .. }
             | TemporalAssignment::RegimeSurvival { .. }
-            | TemporalAssignment::ObservationalExcursion { .. } => {
+            | TemporalAssignment::ObservationalExcursion { .. }
+            | TemporalAssignment::ObservationalRegime { .. } => {
                 return Err(CausalError::Compile {
                     message: "an arm score was requested for a dose, survival or observational \
                               design"
@@ -562,6 +588,93 @@ impl CheckedTemporalDesignOperation {
                 "weighted_likelihood_bootstrap_refitting_assignment_model"
             } else {
                 "whole_procedure_unit_bootstrap_refitting_assignment_model"
+            },
+        })
+    }
+
+    /// The value of whole static regimes on a continuous end-of-follow-up outcome: every
+    /// treatment and outcome model is refitted inside each bootstrap replicate or posterior draw.
+    fn fit_regime(
+        &self,
+        data: &TabularData,
+        outcome: &[f64],
+        unit: &[usize],
+        columns: (
+            antecedent_core::VariableId,
+            &[antecedent_core::VariableId],
+            &[bool],
+            &[bool],
+            TemporalRegimeMethod,
+        ),
+        ctx: &ExecutionContext,
+    ) -> Result<FitOutput, CausalError> {
+        let (treatment_id, confounder_ids, active, reference, method) = columns;
+        let treated = indicator(&read_column(data, treatment_id)?, "treatment")?;
+        let confounders: Vec<Vec<f64>> =
+            confounder_ids.iter().map(|id| read_column(data, *id)).collect::<Result<_, _>>()?;
+        let panel = RegimePanel::new(RegimeRows {
+            unit,
+            period: &self.query.periods,
+            outcome,
+            treated: &treated,
+            confounders: &confounders,
+        })
+        .map_err(CausalError::from)?;
+        let estimator = match method {
+            TemporalRegimeMethod::GFormula => RegimeMethod::GFormula,
+            TemporalRegimeMethod::InverseProbability => RegimeMethod::InverseProbability,
+            TemporalRegimeMethod::DoublyRobust => RegimeMethod::DoublyRobust,
+        };
+        let (prior_scale, draws) = self
+            .extra
+            .bayesian
+            .as_ref()
+            .map_or((1.0, None), |config| (config.prior_scale, Some(config.n_draws)));
+        let fit = fit_static_regimes(
+            &panel,
+            StaticRegimes { active, reference },
+            estimator,
+            self.query.min_probability,
+            prior_scale,
+            self.extra.replicates as usize,
+            draws,
+            ctx,
+        )
+        .map_err(CausalError::from)?;
+        let coordinates = REGIME_COORDINATES.iter().map(|name| (*name).to_owned()).collect();
+        let summary = match (&fit.posterior, fit.standard_error, fit.interval) {
+            (Some(posterior), _, _) => Summary::Posterior(posterior.clone()),
+            (None, Some(se), Some(interval)) => Summary::Bootstrap {
+                estimate: fit.estimate.to_vec(),
+                standard_error: se.to_vec(),
+                interval: interval.to_vec(),
+            },
+            _ => {
+                return Err(CausalError::Compile {
+                    message: "the regime contrast reported no uncertainty".into(),
+                });
+            }
+        };
+        let posterior = fit.posterior.is_some();
+        Ok(FitOutput {
+            coordinates,
+            family: vec![0],
+            summary,
+            pairs: fit.units * fit.periods,
+            clusters: fit.units,
+            unpaired: 0,
+            minimum_probability: fit.minimum_probability,
+            replicates: (!posterior).then_some((fit.replicates.0 as u64, fit.replicates.1 as u64)),
+            functional: format!(
+                "observational_regime:method={};periods={};confounder_columns={}",
+                method.name(),
+                fit.periods,
+                confounders.len()
+            ),
+            uncertainty: if posterior {
+                "weighted_likelihood_bootstrap_refitting_regime_models"
+            } else {
+                "whole_procedure_unit_bootstrap_refitting_regime_models"
             },
         })
     }
@@ -739,6 +852,8 @@ impl CheckedTemporalDesignOperation {
                 "joint_likelihood_factor_posteriors"
             } else if observational_design(&self.query) {
                 "weighted_likelihood_bootstrap_assignment_model"
+            } else if regime_design(&self.query) {
+                "weighted_likelihood_bootstrap_regime_models"
             } else {
                 "dirichlet_process_unit_law"
             },
@@ -747,6 +862,11 @@ impl CheckedTemporalDesignOperation {
                  assignment model under those weights with an isotropic Gaussian coefficient \
                  prior and recomputes the weighted ratio, so uncertainty about the assignment \
                  law is inside the posterior; the prior supplies no identifying premise"
+            } else if regime_design(&self.query) {
+                "independent units carry Dirichlet weights; each draw refits every per-period \
+                 treatment model (isotropic Gaussian coefficient prior) and outcome regression \
+                 under those weights and recomputes both regime values, so uncertainty about the \
+                 nuisance laws is inside the posterior; the prior supplies no identifying premise"
             } else if survival_design(&self.query) {
                 "the confounder transition law is conjugate Gaussian and the hazard, treatment and \
                  censoring laws are pooled logistic with an isotropic Gaussian coefficient prior \
@@ -953,6 +1073,42 @@ fn design_assumptions(query: &TemporalDesignQuery) -> antecedent_core::Assumptio
             "the treatment, censoring and hazard laws are pooled logistic in the current \
              confounders, the current or previous treatment and the scaled period",
         ));
+    } else if let TemporalAssignment::ObservationalRegime { method, .. } = &query.assignment {
+        assumptions.push(declared(
+            "sequential_exchangeability_given_measured_history",
+            "each period's treatment is independent of the potential end-of-follow-up outcomes \
+             given the measured confounder and treatment history, so no unmeasured time-varying \
+             confounder influences both a later treatment and the outcome (declared, not checked)",
+        ));
+        assumptions.push(declared(
+            "sequential_positivity_of_regime_actions",
+            "every action of each declared regime has probability above the floor given every \
+             measured history consistent with the regime's earlier actions (the fitted \
+             probabilities are held to the floor)",
+        ));
+        assumptions.push(declared(
+            "complete_follow_up_of_every_unit",
+            "every unit is observed in the same periods and its end-of-follow-up outcome is \
+             recorded, so there is no censoring or loss to follow-up to model",
+        ));
+        assumptions.push(declared(
+            "working_models_of_the_regime_estimator",
+            match method {
+                TemporalRegimeMethod::GFormula => {
+                    "each period's pseudo-outcome is linear in the confounder and treatment \
+                     history with a treatment-by-current-confounder interaction"
+                }
+                TemporalRegimeMethod::InverseProbability => {
+                    "each period's treatment law is logistic in the confounder and treatment \
+                     history"
+                }
+                TemporalRegimeMethod::DoublyRobust => {
+                    "either each period's pseudo-outcome is linear in the history with a \
+                     treatment-by-current-confounder interaction, or each period's treatment law \
+                     is logistic in the history"
+                }
+            },
+        ));
     } else if let TemporalAssignment::ObservationalExcursion { .. } = &query.assignment {
         assumptions.push(declared(
             "sequential_exchangeability_given_measured_history",
@@ -999,7 +1155,14 @@ fn design_identification(
         function: OutcomeExprId::identity(query.outcome),
         distribution,
     });
-    let (rule, note) = if observational_design(query) {
+    let (rule, note) = if regime_design(query) {
+        (
+            "temporal_design.observational_regime",
+            "sequential exchangeability given the measured confounder and treatment history, with \
+             sequential positivity, identifies the mean end-of-follow-up outcome under each \
+             static treatment regime",
+        )
+    } else if observational_design(query) {
         (
             "temporal_design.observational_excursion",
             "sequential exchangeability given the measured decision-time history identifies the \

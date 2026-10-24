@@ -88,6 +88,10 @@ impl CheckedTemporalGraphPosteriorResponse {
             && study.custom_validators.is_empty()
             && study.observation_delayed_entry.is_none()
             && query.is_temporal()
+            // A single-horizon derivative over TemporalDag atoms is answered atom by atom with
+            // the interval of the whole procedure, not by the response design.
+            && !(posterior.atom_kind == GraphPosteriorAtomKind::Dag
+                && super::execute::dbn_route_query(&study.query))
             && complete_mean_response(query)
             && temporal_response_is_direct(query)
             && matches!(

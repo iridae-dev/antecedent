@@ -28,6 +28,7 @@ use antecedent_identify::{
 
 use super::class_path_specific::ClassPathRun;
 use super::mediation_mixed::{ComponentRun, component_slot, joint_diagnostic};
+use super::mediation_refutation::{MemberProofs, envelope_cases};
 use super::pag_path::{ClassTag, pag_envelope_diagnostic};
 use super::temporal_admg_mediation::window_effect_query;
 use super::{
@@ -109,15 +110,85 @@ impl super::Study {
             .map_err(CausalError::from)
     }
 
+    /// Identify the total, direct and indirect components on their windows. The requested
+    /// component must be identified in every candidate of every completion; another may be
+    /// left unidentified.
+    ///
+    /// # Errors
+    ///
+    /// The requested contrast is not identified, or an identifier refusal other than
+    /// non-identification of an unrequested component.
+    pub(crate) fn identify_pag_window_components(
+        &self,
+        template: &TemporalPag,
+        windows: &[TemporalPagMediationWindow],
+        requested: usize,
+    ) -> Result<Vec<Option<TemporalClassEnvelope>>, CausalError> {
+        let mut envelopes: Vec<Option<TemporalClassEnvelope>> = Vec::new();
+        for (slot, window) in windows.iter().enumerate() {
+            let envelope = match self.identify_temporal_pag_window(template, window) {
+                Ok(envelope) if fully_identified(&envelope) => Some(envelope),
+                Ok(envelope) if slot == requested => {
+                    return Err(CausalError::not_identified(
+                        envelope.envelope.status,
+                        envelope.envelope.truncated_completions > 0,
+                        "temporal PAG mediation not identified: an ADMG sharing the \
+                         m-separation model of a MAG completion of the window leaves the \
+                         requested contrast unidentified, so no functional is correct for every \
+                         model the TemporalPag represents",
+                    ));
+                }
+                Ok(_) => None,
+                Err(error)
+                    if slot != requested
+                        && error.reason_code() == Some("effect_not_identified") =>
+                {
+                    None
+                }
+                Err(error) => return Err(error),
+            };
+            envelopes.push(envelope);
+        }
+        Ok(envelopes)
+    }
+
+    /// The window certificates compile retains with the program, when the window
+    /// identifies; `None` leaves identification (and its refusal) to execution.
+    pub(crate) fn retain_pag_window_identification(
+        &self,
+        variable_count: u32,
+    ) -> Option<crate::planner::lowered::RetainedExecutionProof> {
+        let GraphRef::TemporalPag(template) = self.graph.graph_ref() else {
+            return None;
+        };
+        let antecedent_core::CausalQuery::Mediation(query) = &self.query else {
+            return None;
+        };
+        let effect = window_effect_query(query).ok()?;
+        let base = temporal_pag_mediation_window(template, &effect, query, variable_count).ok()?;
+        let windows: Vec<TemporalPagMediationWindow> = CONTRASTS
+            .iter()
+            .map(|(contrast, _)| {
+                let mut window = base.clone();
+                window.query.contrast = *contrast;
+                window
+            })
+            .collect();
+        let envelopes = self
+            .identify_pag_window_components(template, &windows, component_slot(query.contrast))
+            .ok()?;
+        Some(crate::planner::lowered::RetainedExecutionProof::Pag { envelopes })
+    }
+
     /// Identify and estimate the mediation decomposition on the unfolded window of a
     /// `TemporalPag`.
     ///
     /// # Errors
     ///
     /// The requested contrast is not identified in every candidate of every completion (the
-    /// refusal names the status and whether the search was capped), a validation suite or custom
-    /// validator was attached, the series holds a gap inside a window, or more than one outcome
-    /// horizon was requested.
+    /// refusal names the status and whether the search was capped), a custom validator was
+    /// attached, the series holds a gap inside a window, or more than one outcome horizon was
+    /// requested.
     pub(super) fn execute_temporal_pag_mediation(
         &self,
         series: &TimeSeriesData,
@@ -125,7 +196,6 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        super::static_path::ensure_admg_path_specific_licensed(self.refute)?;
         if !self.custom_validators.is_empty() {
             return Err(crate::unsupported_reason!(
                 "validators_not_applicable",
@@ -155,37 +225,27 @@ impl super::Study {
         let base = temporal_pag_mediation_window(template, &effect, query, variable_count)
             .map_err(CausalError::from)?;
 
-        report_identify_compute(ctx);
         let requested = component_slot(query.contrast);
-        let mut windows = Vec::new();
-        let mut envelopes: Vec<Option<TemporalClassEnvelope>> = Vec::new();
-        for (slot, (contrast, _)) in CONTRASTS.iter().enumerate() {
-            let mut window = base.clone();
-            window.query.contrast = *contrast;
-            let envelope = match self.identify_temporal_pag_window(template, &window) {
-                Ok(envelope) if fully_identified(&envelope) => Some(envelope),
-                Ok(envelope) if slot == requested => {
-                    return Err(CausalError::not_identified(
-                        envelope.envelope.status,
-                        envelope.envelope.truncated_completions > 0,
-                        "temporal PAG mediation not identified: an ADMG sharing the \
-                         m-separation model of a MAG completion of the window leaves the \
-                         requested contrast unidentified, so no functional is correct for every \
-                         model the TemporalPag represents",
-                    ));
+        let windows: Vec<TemporalPagMediationWindow> = CONTRASTS
+            .iter()
+            .map(|(contrast, _)| {
+                let mut window = base.clone();
+                window.query.contrast = *contrast;
+                window
+            })
+            .collect();
+        // The window is identified once, at compile, and the program retains the
+        // certificates; a plan that retained none identifies here.
+        let envelopes =
+            match crate::analysis::lowering::plan_retained_execution_proof(self, physical) {
+                Some(crate::planner::lowered::RetainedExecutionProof::Pag { envelopes }) => {
+                    envelopes.clone()
                 }
-                Ok(_) => None,
-                Err(error)
-                    if slot != requested
-                        && error.reason_code() == Some("effect_not_identified") =>
-                {
-                    None
+                _ => {
+                    report_identify_compute(ctx);
+                    self.identify_pag_window_components(template, &windows, requested)?
                 }
-                Err(error) => return Err(error),
             };
-            envelopes.push(envelope);
-            windows.push(window);
-        }
         let requested_envelope = envelopes[requested].clone().ok_or_else(|| {
             CausalError::Compile { message: "requested contrast has no proof".into() }
         })?;
@@ -333,6 +393,23 @@ impl super::Study {
                 grid: None,
             };
         }
+        // The class members that identify different functionals are refuted one by one, each
+        // on its own proofs of the three components.
+        let per_slot: Vec<Option<Vec<Option<antecedent_identify::IdentificationResult>>>> =
+            envelopes
+                .iter()
+                .map(|entry| entry.as_ref().map(|found| envelope_cases(&found.envelope)))
+                .collect();
+        let mut member_roles =
+            vec![windows[requested].query.treatment, windows[requested].query.outcome];
+        member_roles.extend(windows[requested].query.mediators.iter().copied());
+        result.refutations = self.refute_mediation_members(
+            &table,
+            MemberProofs { per_slot: &per_slot, requested, estimator_id },
+            &member_roles,
+            (resampling, design),
+            ctx,
+        )?;
         Ok(result)
     }
 }

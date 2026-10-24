@@ -92,8 +92,10 @@ pub(super) fn estimator_route(cx: &SealContext<'_>) -> SealOutcome {
         .estimator
         .or_else(|| source.estimator_spec.as_deref().map(crate::EstimatorSpec::id))
         .or_else(|| binding.estimator.named());
+    // A graph posterior no specialised sealer claims is answered atom by atom by the compiled
+    // route of its cell, whichever estimator its atoms' explicit cells name.
     let admitted = match estimator {
-        Some(id) => FAMILY_ESTIMATORS.contains(&id),
+        Some(id) => FAMILY_ESTIMATORS.contains(&id) || analysis.graph_posterior.is_some(),
         None => cx.route.is_some() || analysis.graph_posterior.is_some(),
     };
     if !admitted {

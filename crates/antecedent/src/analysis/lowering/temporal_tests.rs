@@ -537,12 +537,23 @@ fn multi_horizon_mediation_states_one_target_per_horizon() {
 }
 
 #[test]
-fn cross_world_identifies_on_each_execution() {
+fn cross_world_identifies_once_at_compile_and_retains_the_probe() {
     let study =
         point(Study::series(xmy_series()).graph(xmy_dag()).query(nested_query())).build().unwrap();
     let plan = compile(&study);
     let program = plan.lowered().unwrap();
-    assert!(!program.identification_retained());
+    assert!(program.identification_retained());
+    let retained = program.retained_identification().unwrap();
+    assert!(
+        retained.caches().iter().any(|cache| matches!(
+            cache,
+            crate::analysis::IdentificationCache::Temporal(temporal)
+                if temporal.get(1).is_some()
+        )),
+        "the one-step probe is identified at compile"
+    );
+    assert!(retained.static_seal().is_none());
+    assert!(retained.temporal_seal().is_some(), "the retained probe is sealed");
     assert!(matches!(
         program.scientific().target(),
         ProblemTarget::QueryFunctional {
@@ -552,6 +563,81 @@ fn cross_world_identifies_on_each_execution() {
         }
             if *outcome == XMY_OUTCOME
     ));
+}
+
+#[test]
+fn window_mediation_identifies_once_at_compile_and_retains_the_components() {
+    use crate::planner::lowered::RetainedExecutionProof;
+    for (name, builder) in [
+        (
+            "TemporalMediationAdmg",
+            Study::series(xmy_series())
+                .graph(xmy_admg())
+                .query(CausalQuery::Mediation(mediation_query())),
+        ),
+        (
+            "TemporalMediationPag",
+            Study::series(xmy_series())
+                .graph(xmy_pag())
+                .query(CausalQuery::Mediation(mediation_query())),
+        ),
+    ] {
+        let study = point(builder).build().unwrap();
+        let plan = compile(&study);
+        let program = plan.lowered().expect("compile attaches a lowered program");
+        assert!(program.identification_retained(), "{name}: the window identifies at compile");
+        let retained = program.retained_identification().unwrap();
+        // The three components (total, direct, indirect) ride the program.
+        match (name, retained.execution_proof()) {
+            ("TemporalMediationAdmg", Some(RetainedExecutionProof::Admg(components))) => {
+                assert_eq!(components.len(), 3, "{name}");
+                assert!(components.iter().flatten().count() >= 1, "{name}");
+            }
+            ("TemporalMediationPag", Some(RetainedExecutionProof::Pag { envelopes })) => {
+                assert_eq!(envelopes.len(), 3, "{name}");
+                assert!(envelopes.iter().flatten().count() >= 1, "{name}");
+            }
+            other => panic!("{name}: no window proof retained, got {other:?}"),
+        }
+        // Execution finds it for the study it was compiled for.
+        assert!(
+            crate::analysis::lowering::plan_retained_execution_proof(&study, &plan).is_some(),
+            "{name}: the retention key matches the compiled study"
+        );
+        // A study that asks another contrast is another study and finds nothing.
+        let other =
+            point(Study::series(xmy_series()).graph(xmy_admg()).query(CausalQuery::Mediation(
+                MediationQuery::binary(X, XMY_OUTCOME, [M], MediationContrast::NaturalDirect),
+            )))
+            .build()
+            .unwrap();
+        assert!(
+            crate::analysis::lowering::plan_retained_execution_proof(&other, &plan).is_none(),
+            "{name}: a retained proof is installed only into the study it was identified for"
+        );
+    }
+}
+
+#[test]
+fn the_cross_world_run_reads_the_retained_probe_and_identifies_nothing_more() {
+    use antecedent_core::execution_attempt::{Operation, observe_execution};
+    let study =
+        point(Study::series(xmy_series()).graph(xmy_dag()).query(nested_query())).build().unwrap();
+    let plan = compile(&study);
+    assert!(matches!(
+        crate::analysis::lowering::plan_retained_execution_proof(&study, &plan),
+        Some(crate::planner::lowered::RetainedExecutionProof::CrossWorld { .. })
+    ));
+    // A run is a compile and an execution: the execution adds no identification of its own.
+    let compiled = observe_execution(|| study.compile(&ctx()));
+    compiled.result.as_ref().expect("compile");
+    let ran = observe_execution(|| study.run(&ctx()));
+    ran.result.as_ref().expect("the cross-world run executes from the retained probe");
+    assert_eq!(
+        ran.report.counts(Operation::Identification).attempted,
+        compiled.report.counts(Operation::Identification).attempted,
+        "execution reads the probe compile identified"
+    );
 }
 
 #[test]

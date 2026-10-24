@@ -209,6 +209,7 @@ impl CompletionSampler {
             represented_completions: 0,
             reference_signature: None,
             audit_allowance: limits.operations / 2,
+            leases: Vec::new(),
         };
         let stop = walk.run(&mut budget)?;
         let Walk { mut report, mut completions, represented_completions, .. } = walk;
@@ -344,6 +345,9 @@ struct Walk<'a, F: Fn(&Pag) -> Option<Pag>> {
     reference_signature: Option<Vec<bool>>,
     /// Queries the audit may still charge before it is abandoned for the rest of the walk.
     audit_allowance: usize,
+    /// Storage leases for the retained completions, taken from the context's admission pool
+    /// before each completion is kept and held until the walk ends.
+    leases: Vec<antecedent_core::execution::AdmissionLease>,
 }
 
 /// Complete assignments below a node with `remaining` unassigned sites, saturating.
@@ -472,8 +476,14 @@ impl<F: Fn(&Pag) -> Option<Pag>> Walk<'_, F> {
                 self.reference_signature = Some(signature);
             }
         }
+        let retain = self.completions.len() < self.max_completions;
+        if retain {
+            // The pool funds the completion before it is allocated; a refusal is a memory stop
+            // with the completions already kept intact.
+            self.leases.push(budget.lease_storage(self.graph_bytes)?);
+        }
         self.represented_completions += 1;
-        if self.completions.len() < self.max_completions {
+        if retain {
             self.completions.push(candidate.clone());
         }
         Ok(())
@@ -956,6 +966,30 @@ mod tests {
 
     fn search(operations: usize) -> (SearchLimits, ExecutionContext) {
         (SearchLimits { operations, depth: usize::MAX }, ExecutionContext::for_tests(0))
+    }
+
+    #[test]
+    fn retained_completion_storage_is_leased_before_it_is_kept() {
+        use antecedent_core::execution::AdmissionPool;
+        let mut pag = Pag::with_variables(6);
+        pag.insert_circle_circle(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let limits = SearchLimits { operations: 30, depth: usize::MAX };
+        let capacity = 100_000_u64;
+        let run = |free: u64| {
+            let pool = AdmissionPool::fixed(1, capacity);
+            let ctx = ExecutionContext::for_tests(0).with_admission(pool.clone());
+            let held = ctx.acquire_admission(0, capacity - free).unwrap();
+            let sampler = CompletionSampler::with_budget(&pag, 8, limits, &ctx).unwrap();
+            let stop = sampler.search_stop();
+            let kept = sampler.count();
+            drop(held);
+            assert_eq!(pool.available().bytes(), capacity, "every lease returns");
+            (stop, kept)
+        };
+        // One byte free funds no completion: the walk stops on memory with none kept.
+        assert_eq!(run(1), (Some(SearchStop::Memory), 0));
+        // The o-o edge has three completions, and a pool that funds all of them keeps them.
+        assert_eq!(run(capacity), (None, 3));
     }
 
     #[test]

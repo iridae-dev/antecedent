@@ -153,33 +153,48 @@ pub(super) fn checked_rd(cx: &SealContext<'_>) -> SealOutcome {
                     | RefuteSuite::Full
             ) =>
         {
-            let identification = antecedent_identify::SharpRdIdentifier::new(
-                antecedent_identify::SharpRdConfig::new(
-                    config.running_variable,
-                    config.cutoff,
-                    config.bandwidth,
-                ),
-            )
-            .identify_on(graph, CausalQuery::AverageEffect(query.clone()))
-            .map_err(CausalError::from)?;
-            if matches!(identification.status, IdentificationStatus::NotIdentified)
-                || identification.estimands.is_empty()
-                || !crate::strategy_table::identification_status_acceptable(identification.status)
-            {
-                let detail = identification
-                    .diagnostics
-                    .last()
-                    .map_or("effect not identified", |diagnostic| diagnostic.message.as_ref());
-                return Err(CausalError::not_identified(
-                    identification.status,
-                    antecedent_identify::search_truncated(&identification),
-                    detail,
-                ));
-            }
-            let estimand = crate::strategy_table::select_estimand(
-                &identification,
-                crate::strategy_table::EstimatorId::RdSharp,
-            )?;
+            // The design was identified once, at compile, and prepare installed it; a plan
+            // that retained none (a design that does not identify) identifies here and
+            // reports the refusal.
+            let target = CausalQuery::AverageEffect(query.clone());
+            let retained = analysis
+                .identification_cache
+                .as_ref()
+                .filter(|cache| cache.identification.query == target);
+            let (identification, estimand) = if let Some(cache) = retained {
+                (cache.identification.clone(), cache.estimand.clone())
+            } else {
+                let identification = antecedent_identify::SharpRdIdentifier::new(
+                    antecedent_identify::SharpRdConfig::new(
+                        config.running_variable,
+                        config.cutoff,
+                        config.bandwidth,
+                    ),
+                )
+                .identify_on(graph, target)
+                .map_err(CausalError::from)?;
+                if matches!(identification.status, IdentificationStatus::NotIdentified)
+                    || identification.estimands.is_empty()
+                    || !crate::strategy_table::identification_status_acceptable(
+                        identification.status,
+                    )
+                {
+                    let detail = identification
+                        .diagnostics
+                        .last()
+                        .map_or("effect not identified", |diagnostic| diagnostic.message.as_ref());
+                    return Err(CausalError::not_identified(
+                        identification.status,
+                        antecedent_identify::search_truncated(&identification),
+                        detail,
+                    ));
+                }
+                let estimand = crate::strategy_table::select_estimand(
+                    &identification,
+                    crate::strategy_table::EstimatorId::RdSharp,
+                )?;
+                (identification, estimand)
+            };
             let identified_query =
                 identification.average_effect().cloned().unwrap_or_else(|| query.clone());
             let mut fitter = antecedent_estimate::SharpRegressionDiscontinuity::new(
@@ -455,6 +470,11 @@ pub(super) fn checked_propensity(cx: &SealContext<'_>) -> SealOutcome {
 
 pub(super) fn checked_aipw(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { source, analysis, plan, .. } = *cx;
+    // A plan that streams its design retains no operation: the cross-fitted reduction runs on
+    // the fresh path, so there is nothing to seal.
+    if plan.streams_design() {
+        return Ok(None);
+    }
     let sealed = match (
         cx.route,
         analysis.identification_cache.as_ref(),
@@ -539,7 +559,12 @@ pub(super) fn frontdoor_linear(cx: &SealContext<'_>) -> SealOutcome {
 }
 
 pub(super) fn iv(cx: &SealContext<'_>) -> SealOutcome {
-    let SealContext { analysis, .. } = *cx;
+    let SealContext { analysis, plan, .. } = *cx;
+    // A plan that streams its design retains no operation: the closed-form reduction runs
+    // on the fresh path, so there is nothing to seal.
+    if plan.streams_design() {
+        return Ok(None);
+    }
     let sealed = match (
         cx.static_ate_dag(),
         analysis.identification_cache.as_ref(),

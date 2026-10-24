@@ -828,8 +828,8 @@ mod tests {
 
         let admg = background.to_admg(&schema).unwrap();
         let query = joint_query(&schema, "t1", "t2", "y");
-        // Generic subset search lists z + every co-facet. Pin 16 so this fixture
-        // still overflows after Default moved to 40; the default-limit tests cover that default.
+        // Generic subset search lists z + every co-facet. Declare a 16-candidate ceiling so this
+        // fixture overflows it; the default (no ceiling) is covered by the default-limit tests.
         let generic = GeneralizedAdjustmentIdentifier {
             config: crate::generalized::GeneralizedAdjustmentConfig {
                 max_candidates: 16,

@@ -8,7 +8,8 @@ The two licensed GCM cells run on ``analyze`` and retain a study::
     report = result.inspect().to_dict()
     loaded = ant.load(result.export())
 
-cheap/full, accepted, graph-posterior, and non-Dag stay refused.
+graph-posterior structures stay refused; cheap/full validation and accepted structures run the
+functional refuter state and stay unlicensed.
 """
 
 from __future__ import annotations
@@ -29,6 +30,9 @@ ROOT = REPO_ROOT
 PIN = json.loads(
     read_text(ROOT / "conformance" / "estimate" / "staged_attribution" / "expected.json")
 )
+
+
+_NOISE = np.sin(np.arange(200, dtype=np.float64) * 1.7) * 0.5
 
 
 def _outlier_chain(n: int = 20, outlier_at: int = -1) -> dict[str, np.ndarray]:
@@ -191,12 +195,12 @@ def test_bootstrap_runs_unlicensed_and_cheap_full_refuse(query):
     with pytest.raises(CausalUnsupportedError) as raised:
         ant.analyze(data, graph=_dag(), query=query, bootstrap=50, inference=ant.Bayesian())
     assert raised.value.reason_code == "option_not_applicable"
-    with pytest.raises(CausalUnsupportedError) as raised:
-        ant.analyze(data, graph=_dag(), query=query, refute="full")
-    assert raised.value.reason_code == "option_not_applicable"
-    with pytest.raises(CausalUnsupportedError) as raised:
-        ant.analyze(data, graph=_dag(), query=query, refute="cheap")
-    assert raised.value.reason_code == "option_not_applicable"
+    # Cheap and full validation refit the whole contribution vector on perturbed data: the
+    # table needs noise for the refits to vary, and the result stays unlicensed.
+    noisy = {name: values + _NOISE[: len(values)] for name, values in data.items()}
+    for suite in ("cheap", "full"):
+        validated = ant.analyze(noisy, graph=_dag(), query=query, refute=suite)
+        assert validated.evidence_status != "licensed"
 
 
 def test_retarget_refuses():
@@ -215,12 +219,12 @@ def test_bayesian_anomaly_and_unlicensed_axes_on_analyze():
     )
     assert bayesian.posterior is not None
     assert bayesian.posterior.backend == "gcm.attribution.shared_dirichlet_row_weights"
-    with pytest.raises(CausalUnsupportedError, match="licensed only for an explicit Dag"):
-        ant.analyze(
-            _two_period_chain(),
-            graph=ant.AcceptedGraph(_dag()),
-            query=_change_query(),
-        )
+    accepted = ant.analyze(
+        _two_period_chain(),
+        graph=ant.AcceptedGraph(_dag()),
+        query=_change_query(),
+    )
+    assert accepted.evidence_status != "licensed"
     with pytest.raises(ant.errors.CausalTypeError, match="requires graph=Dag"):
         ant.analyze(
             _outlier_chain(),

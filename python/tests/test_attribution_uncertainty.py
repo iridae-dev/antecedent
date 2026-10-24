@@ -78,9 +78,7 @@ def test_every_other_attribution_carries_the_requested_uncertainty(draws):
             names, cols, EDGES, [], "y", 0, 100, 100, 200, n_samples=200, **options
         ),
         "paths": attribute_path_specific(names, cols, EDGES, "x", "y", **options),
-        "features": attribute_feature_relevance(
-            names, cols, EDGES, "y", n_samples=100, **options
-        ),
+        "features": attribute_feature_relevance(names, cols, EDGES, "y", n_samples=100, **options),
         "anomaly": anomaly_attribution(names, cols, EDGES, ["y"], **options),
         "unit": attribute_unit_change(names, cols, EDGES, "y", **options),
         "root": attribute_root_causes(
@@ -101,9 +99,7 @@ def test_every_other_attribution_carries_the_requested_uncertainty(draws):
 
 def test_the_options_exclude_each_other_and_mechanism_change_has_no_posterior():
     with pytest.raises(ValueError):
-        attribute_distribution_change(
-            *_change_args(), posterior_draws=8, bootstrap_replicates=8
-        )
+        attribute_distribution_change(*_change_args(), posterior_draws=8, bootstrap_replicates=8)
     names, cols = _data()
     with pytest.raises(ValueError, match="mechanism-change"):
         antecedent.attribution.attribution_uncertainty(

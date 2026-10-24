@@ -3,8 +3,8 @@
 Live discovery is accepted through its review gate and then estimated like any
 other accepted structure: an oriented DAG runs, a class structure that
 PathSpecific / Interventional cannot read refuses by naming what it needs. A
-graph *posterior* is different in kind — these two estimands have no mixture
-contract across atoms — and is refused permanently.
+graph *posterior* mixes: every atom is answered by the executor of its own structure
+and the atoms are weighted by posterior probability.
 """
 
 from __future__ import annotations
@@ -12,9 +12,6 @@ from __future__ import annotations
 import antecedent
 import numpy as np
 import pytest
-from antecedent.errors import CausalUnsupportedError
-
-_POSTERIOR_REFUSED = "graph-posterior structures are refused"
 
 
 def _discrete_chain():
@@ -98,15 +95,30 @@ def test_interventional_lingam_discovery_smoke():
 
 def test_path_specific_exact_dag_posterior_map():
     data = _binary_pair()
-    with pytest.raises(CausalUnsupportedError, match=_POSTERIOR_REFUSED):
-        antecedent.analyze(
-            data,
-            discovery=antecedent.discovery.ExactDagPosterior(),
-            query=antecedent.PathSpecificEffect("x", "y"),
-            refute=False,
-            bootstrap=0,
-            seed=1,
-        )
+    result = antecedent.analyze(
+        data,
+        discovery=antecedent.discovery.ExactDagPosterior(),
+        query=antecedent.PathSpecificEffect("x", "y"),
+        refute=False,
+        bootstrap=0,
+        seed=1,
+    )
+    assert np.isfinite(result.estimate.ate)
+    assert result.evidence_status != "licensed"
+
+
+def test_interventional_distribution_exact_dag_posterior_mixes_the_atoms():
+    data = _discrete_chain()
+    result = antecedent.analyze(
+        data,
+        discovery=antecedent.discovery.ExactDagPosterior(),
+        query=antecedent.InterventionalDistribution("y", interventions={"t": 1.0}),
+        refute=False,
+        bootstrap=0,
+        seed=1,
+    )
+    assert np.isfinite(result.estimate.ate)
+    assert 0.0 <= result.estimate.ate <= 1.0
 
 
 def test_path_specific_fci_rejected():

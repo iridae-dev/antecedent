@@ -554,7 +554,10 @@ def test_v13_named_refusals():
         refute="none",
     )
     assert deriv.response is not None or deriv.ate is not None
-    with pytest.raises(CausalUnsupportedError, match="graph-posterior structures are refused"):
+    # A counterfactual has no graph-posterior mixture in the facade; a mediation does: every
+    # atom of the posterior decomposes it with the executor of its own structure and the
+    # atoms are mixed by posterior probability.
+    with pytest.raises(CausalUnsupportedError, match="no graph-posterior mixture"):
         ac.analyze(
             data,
             query=cf,
@@ -562,14 +565,15 @@ def test_v13_named_refusals():
             inference=ac.Bayesian(),
             refute="none",
         )
-    with pytest.raises(CausalUnsupportedError, match="graph-posterior structures are refused"):
-        ac.analyze(
-            data,
-            query=med,
-            discovery=ac.discovery.ExactDagPosterior(),
-            inference=ac.Bayesian(),
-            refute="none",
-        )
+    mixed = ac.analyze(
+        data,
+        query=med,
+        discovery=ac.discovery.ExactDagPosterior(),
+        inference=ac.Bayesian(n_draws=64),
+        refute="none",
+    )
+    assert np.isfinite(mixed.effect)
+    assert mixed.evidence_status != "licensed"
     with pytest.raises(CausalUnsupportedError, match="no native ITE refuter"):
         ac.analyze(data, graph=dag, query=cf, refute="full")
     with pytest.raises(CausalUnsupportedError, match="no native ITE refuter"):

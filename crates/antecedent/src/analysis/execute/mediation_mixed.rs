@@ -179,9 +179,9 @@ impl super::Study {
     ///
     /// # Errors
     ///
-    /// A validation suite other than `none`, a requested contrast the identifier refuses
-    /// (the refusal names the recanting district), or a plug-in that cannot evaluate a
-    /// required empirical cell.
+    /// A requested contrast the identifier refuses (the refusal names the recanting
+    /// district), a plug-in that cannot evaluate a required empirical cell, or a validation
+    /// suite that cannot be refit.
     pub(super) fn execute_mediation_mixed(
         &self,
         data: &TabularData,
@@ -190,7 +190,6 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        super::static_path::ensure_admg_path_specific_licensed(self.refute)?;
         query.validate()?;
         let started = Instant::now();
         let (identifier_id, estimator_id) = physical.binding().resolve(RouteDefaults::PATH)?;
@@ -335,6 +334,28 @@ impl super::Study {
             }
         }
 
+        // The mediation-native suite refits every identified component together; it reads the
+        // proofs before the requested one is taken out below.
+        let refutations = if self.refute == super::RefuteSuite::None {
+            Vec::new()
+        } else {
+            let components: [Option<super::mediation_refutation::IdentifiedComponent>; 3] =
+                std::array::from_fn(|slot| {
+                    identified[slot].as_ref().zip(estimates[slot].as_ref()).map(
+                        |((identification, estimand), (estimate, _))| {
+                            (identification.clone(), estimand.clone(), estimate.ate)
+                        },
+                    )
+                });
+            self.refute_mediation_decomposition(
+                data,
+                &components,
+                &roles,
+                (row_resampling, sampling_design),
+                ctx,
+            )?
+        };
+
         let value = |slot: usize| estimates[slot].as_ref().map(|(estimate, _)| estimate.ate);
         let (total, direct, mediated) = (value(0), value(1), value(2));
         let (estimate, posterior) = estimates[requested].take().ok_or_else(|| {
@@ -362,6 +383,7 @@ impl super::Study {
             )
             .identify_cached(false)
             .mediation(Some(decomposition))
+            .refutations(refutations)
             .wall_time_ns(elapsed_ns(started))
             .extras(IdentifiedExecuteExtras {
                 n_draws: posterior
@@ -379,8 +401,8 @@ impl super::Study {
     ///
     /// # Errors
     ///
-    /// The requested contrast is not identified in the class, or a validation suite other
-    /// than `none` was requested.
+    /// The requested contrast is not identified in the class, or the validation suite cannot
+    /// be refit.
     pub(super) fn execute_mediation_class(
         &self,
         data: &TabularData,
@@ -390,14 +412,22 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         query.validate()?;
+        // The components run through the path-specific executors, which carry no validation
+        // suite; the mediation suite below refits all three together on each class member.
+        let plain = (self.refute != super::RefuteSuite::None).then(|| {
+            let mut plain = self.clone();
+            plain.refute = super::RefuteSuite::None;
+            plain
+        });
+        let runner = plain.as_ref().unwrap_or(self);
         let run = |contrast_query: &MediationQuery| -> Result<StudyResult, CausalError> {
             let source = PathSpecificMixedSource::Mediation(contrast_query);
             match class {
                 ClassStructure::Cpdag(cpdag) => {
-                    self.execute_class_path_specific(data, cpdag, source, physical, ctx)
+                    runner.execute_class_path_specific(data, cpdag, source, physical, ctx)
                 }
                 ClassStructure::Pag(pag) => {
-                    self.execute_pag_path_specific(data, pag, source, physical, ctx)
+                    runner.execute_pag_path_specific(data, pag, source, physical, ctx)
                 }
             }
         };
@@ -449,6 +479,7 @@ impl super::Study {
                 grid: None,
             };
         }
+        result.refutations = self.refute_mediation_class(data, class, query, physical, ctx)?;
         Ok(result)
     }
 }

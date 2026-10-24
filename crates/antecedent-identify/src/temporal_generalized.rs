@@ -261,6 +261,7 @@ impl GeneralizedAdjustmentIdentifier {
                 &finite,
                 self.config.max_candidates,
                 self.config.max_examinations,
+                self.config.context.as_ref(),
             )?;
             unfolded.push(finite.pag);
             cases.push(GraphIdentificationCase {

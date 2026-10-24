@@ -259,7 +259,9 @@ pub fn synthetic_joint_posterior(
             },
             crate::util::DrawSpec {
                 draws: prior.draws,
-                seed: prior.seed.wrapping_add(0x9e37_79b9_7f4a_7c15_u64.wrapping_mul(index as u64 + 1)),
+                seed: prior
+                    .seed
+                    .wrapping_add(0x9e37_79b9_7f4a_7c15_u64.wrapping_mul(index as u64 + 1)),
             },
         )
         .map_err(|e| e.to_string())?;

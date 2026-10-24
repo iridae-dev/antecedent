@@ -47,6 +47,7 @@ const ESTIMATOR_KEYS: &[(&str, &[&str])] = &[
         "linear.adjustment.ate",
         &[
             "bootstrap_replicates",
+            "bootstrap_interval",
             "se_kind",
             "se_lag",
             "cluster_ids",
@@ -63,6 +64,7 @@ const ESTIMATOR_KEYS: &[(&str, &[&str])] = &[
         "propensity.weighting",
         &[
             "bootstrap_replicates",
+            "bootstrap_interval",
             "glm_options",
             "overlap",
             "other_levels",
@@ -92,6 +94,7 @@ const ESTIMATOR_KEYS: &[(&str, &[&str])] = &[
         "propensity.stratification",
         &[
             "bootstrap_replicates",
+            "bootstrap_interval",
             "glm_options",
             "n_strata",
             "overlap",
@@ -120,6 +123,7 @@ const ESTIMATOR_KEYS: &[(&str, &[&str])] = &[
         "aipw",
         &[
             "bootstrap_replicates",
+            "bootstrap_interval",
             "se_kind",
             "se_lag",
             "cluster_ids",
@@ -139,6 +143,7 @@ const ESTIMATOR_KEYS: &[(&str, &[&str])] = &[
         "glm.adjustment",
         &[
             "bootstrap_replicates",
+            "bootstrap_interval",
             "se_kind",
             "se_lag",
             "cluster_ids",
@@ -371,7 +376,17 @@ pub(crate) fn parse_estimator_config(
         });
     }
 
-    let spec = build_configured_spec(resolved_id, dict, ambient_bootstrap)?;
+    let mut spec = build_configured_spec(resolved_id, dict, ambient_bootstrap)?;
+    if let Some(request) = build_bootstrap_interval(dict)? {
+        // The spec is already configured, so the study defaults are never read.
+        let unused = antecedent::estimator_spec::BuildDefaults {
+            bootstrap_replicates: ambient_bootstrap,
+            overlap_policy: None,
+            population_registry: None,
+            sampling_design: None,
+        };
+        spec = spec.with_bootstrap_interval(request, unused).map_err(crate::py_err)?;
+    }
     Ok(ParsedEstimatorConfig { spec: Some(spec), ..ParsedEstimatorConfig::default() })
 }
 
@@ -668,6 +683,79 @@ fn build_family(dict: &Bound<'_, PyDict>) -> PyResult<Option<GlmFamily>> {
 /// Build [`GlmOptions`] from the `glm_options` nested dict. `nb_alpha` (NB2 dispersion policy)
 /// is intentionally not exposed yet — see the P5b report's gap list — so it always keeps
 /// [`GlmOptions::default`]'s `MethodOfMoments` policy.
+/// Keys of the `bootstrap_interval` sub-dict.
+const BOOTSTRAP_INTERVAL_KEYS: &[&str] =
+    &["level", "wave_size", "min_replicates", "se_rel_tol", "half_width_rel_tol"];
+
+/// A requested bootstrap interval: `{"level": float, "wave_size": int, "min_replicates": int,
+/// "se_rel_tol": float | None, "half_width_rel_tol": float | None}`. Absent keys take the
+/// defaults of [`antecedent_estimate::IntervalRequest`]; the replicate cap is
+/// `bootstrap_replicates`. Tolerances must be positive and finite, the level inside (0, 1).
+fn build_bootstrap_interval(
+    dict: &Bound<'_, PyDict>,
+) -> PyResult<Option<antecedent_estimate::IntervalRequest>> {
+    let Some(v) = dict.get_item("bootstrap_interval")? else { return Ok(None) };
+    let sub = v.cast::<PyDict>().map_err(|_| {
+        crate::value_err(format!(
+            "estimator_config['bootstrap_interval'] must be a dict, got {}",
+            type_name(&v)
+        ))
+    })?;
+    for (key_obj, _val) in sub.iter() {
+        let key: String = key_obj.extract().map_err(|_| {
+            crate::value_err("estimator_config['bootstrap_interval'] keys must be str")
+        })?;
+        if !BOOTSTRAP_INTERVAL_KEYS.contains(&key.as_str()) {
+            return Err(crate::value_err(format!(
+                "unknown estimator_config['bootstrap_interval'] key {key:?}; valid keys are: {}",
+                BOOTSTRAP_INTERVAL_KEYS.join(", "),
+            )));
+        }
+    }
+    let mut request = antecedent_estimate::IntervalRequest::default();
+    if let Some(level) = get_f64(sub, "level")? {
+        request.level = level;
+    }
+    if let Some(wave_size) = get_u32(sub, "wave_size")? {
+        request.wave_size = wave_size;
+    }
+    if let Some(minimum) = get_u32(sub, "min_replicates")? {
+        request.min_replicates = minimum;
+    }
+    // `None` declares the tolerance off; an absent key keeps the default.
+    for (key, slot) in [
+        ("se_rel_tol", &mut request.se_rel_tol),
+        ("half_width_rel_tol", &mut request.half_width_rel_tol),
+    ] {
+        if let Some(raw) = sub.get_item(key)? {
+            *slot = if raw.is_none() {
+                None
+            } else {
+                Some(raw.extract::<f64>().map_err(|_| {
+                    crate::value_err(format!(
+                        "estimator_config['bootstrap_interval'][{key:?}] must be a float or None"
+                    ))
+                })?)
+            };
+        }
+    }
+    let valid = request.level > 0.0
+        && request.level < 1.0
+        && request.wave_size > 0
+        && [request.se_rel_tol, request.half_width_rel_tol]
+            .into_iter()
+            .flatten()
+            .all(|tol| tol.is_finite() && tol > 0.0);
+    if !valid {
+        return Err(invalid(
+            "estimator_config['bootstrap_interval'] needs a level inside (0, 1), a positive \
+             wave_size and positive finite tolerances"
+                .to_owned(),
+        ));
+    }
+    Ok(Some(request))
+}
+
 fn build_glm_options(dict: &Bound<'_, PyDict>) -> PyResult<Option<GlmOptions>> {
     let Some(v) = dict.get_item("glm_options")? else { return Ok(None) };
     let sub = v.cast::<PyDict>().map_err(|_| {

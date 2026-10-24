@@ -109,6 +109,10 @@ pub(crate) fn memoized_cpdag<E>(
     config: &GeneralizedAdjustmentConfig,
     compute: impl FnOnce() -> Result<TemporalClassEnvelope, E>,
 ) -> Result<TemporalClassEnvelope, E> {
+    if config.context.is_some() {
+        // An envelope computed under one caller's pool and cancellation is never another's.
+        return compute();
+    }
     memoized(Key::new(SourceGraph::Cpdag(cpdag.clone()), query, config), compute)
 }
 
@@ -119,6 +123,9 @@ pub(crate) fn memoized_pag<E>(
     config: &GeneralizedAdjustmentConfig,
     compute: impl FnOnce() -> Result<TemporalClassEnvelope, E>,
 ) -> Result<TemporalClassEnvelope, E> {
+    if config.context.is_some() {
+        return compute();
+    }
     memoized(Key::new(SourceGraph::Pag(pag.clone()), query, config), compute)
 }
 

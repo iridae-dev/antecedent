@@ -2,8 +2,8 @@
 
 `CausalQuery::TemporalDesign` (Rust) and `antecedent.temporal_designs.estimate_temporal_design`
 (Python) read one table row per unit and period. The recorded assignment law identifies the
-target by design; regime survival and the observational excursion read observational data under
-declared sequential exchangeability. Every route here executes and is **unlicensed**: no coverage record exists,
+target by design; regime survival, the observational excursion and the observational regime
+contrast read observational data under declared sequential exchangeability. Every route here executes and is **unlicensed**: no coverage record exists,
 every interval and posterior carries `calibration = "unmeasured"`, and no support-matrix cell
 is implied.
 
@@ -56,6 +56,7 @@ unpaired and counted.
 | `two_arm` with `quantile_level` | quantile of the outcome law under the excursion, per arm, and its difference | whole-procedure cluster bootstrap (`bootstrap=` at least 99) | Bayesian bootstrap over units |
 | `regime_survival` | survival at `horizon` under always-treat and never-treat, and the difference | inverse-probability weighted hazards; the subject bootstrap refits the treatment and censoring models (`bootstrap=` at least 99) | joint-likelihood parametric g-formula |
 | `observational_excursion` | the excursion effect and arm means of an observed decision with no recorded assignment law | pooled logistic assignment model on the `history` columns; the unit bootstrap refits it in every replicate (`bootstrap=` at least 99) | weighted-likelihood bootstrap: Dirichlet unit weights, the assignment model refitted per draw |
+| `observational_regime` | mean end-of-follow-up outcome under an active and a reference whole treatment path, and their difference, under time-varying confounding | unit bootstrap refitting every per-period treatment model and outcome regression (`bootstrap=` at least 99) | weighted-likelihood bootstrap: Dirichlet unit weights, every model refitted per draw |
 
 The arm and dose estimators are ratios of Horvitz-Thompson scores summed within independent
 units, so serial dependence inside a unit is unrestricted. The Bayesian counterpart reweights
@@ -105,6 +106,39 @@ does not substitute for it: this route is the one that corrects confounding of t
 The nuisance fit is inside every interval, so the interval carries the cost of estimating the
 assignment law; coverage has not been measured.
 
+## Whole static regimes on a continuous outcome
+
+`ObservationalRegimeContrast` answers "what would the mean end-of-follow-up outcome be had every
+subject followed this whole treatment path rather than that one" when past treatment shapes later
+confounders. Subjects are observed in the same periods; in each period `k` the `confounders`
+`L_k` are measured, then the 0/1 `treatment` `A_k` is taken, and `outcome` is read once, at each
+subject's last period. `active` and `reference` are paths, one action per period, so any static
+regime is expressible (always, never, switch on, switch off, and so on). A pooled regression of
+the outcome on the final history does not identify the contrast, because the earlier treatment
+moves the later confounders; the estimators below do.
+
+Identification: sequential exchangeability (`Y^a` independent of `A_k` given
+`L_0..L_k, A_0..A_{k-1}` in every period), which rules out an unmeasured time-varying confounder
+of a later treatment and the outcome; sequential positivity of the path actions (every fitted
+action probability is held to `min_probability` and a violation is refused as
+`positivity_violated`); consistency; no interference between subjects; and complete follow-up.
+These are declared, not checked. Loss to follow-up is not modelled: use regime survival for
+censored event times.
+
+`method` selects the estimator. `g_formula` runs iterated conditional expectations: from the
+last period back, the pseudo-outcome is regressed on the history, the period's treatment and its
+interaction with the period's confounders, and its prediction with the period's action set to the
+path becomes the next pseudo-outcome. `inverse_probability_weighting` is the saturated marginal
+structural model of each path: subjects who followed the path are weighted by the inverse of the
+product of their fitted action probabilities (one logistic model per period on the history) and
+the mean is the weight-normalized outcome. `doubly_robust` (the default) is the recursive
+augmented estimator, which corrects each period's regression prediction by the weighted residual
+of the next and is consistent when either the outcome regressions or the treatment models are
+right. Every nuisance model is inside the interval: the frequentist interval refits all of them
+in each unit-bootstrap replicate, and the Bayesian posterior refits them under Dirichlet unit
+weights (a Gaussian coefficient prior on the treatment models) in each draw. The prior supplies
+no identifying premise, and coverage has not been measured.
+
 ## Regime survival
 
 Rows per subject run `0, 1, 2, ...` while at risk: confounders at the start of the period,
@@ -125,8 +159,10 @@ the positivity floor.
 | --- | --- | --- |
 | A realized assignment probability below `min_probability` | `positivity_violated` | A design whose arms keep the floor at every decision, or a lower floor |
 | An arm, cell or exposure no paired decision realized | `arm_not_populated` | More units or periods, or probabilities away from the boundary |
-| `bootstrap=` on a design whose interval is analytic, or under Bayesian inference | `option_not_applicable` | Omit it; only the quantile functional, frequentist regime survival and the frequentist observational excursion resample |
-| The quantile functional, regime survival or the observational excursion without `bootstrap=` of at least 99 | `required_option_missing` | Set `bootstrap=99` or more |
+| `bootstrap=` on a design whose interval is analytic, or under Bayesian inference | `option_not_applicable` | Omit it; only the quantile functional, frequentist regime survival, the frequentist observational excursion and the frequentist observational regime contrast resample |
+| The quantile functional, regime survival, the observational excursion or the observational regime contrast without `bootstrap=` of at least 99 | `required_option_missing` | Set `bootstrap=99` or more |
+| A regime contrast with identical paths, paths of different length or of a length other than the number of periods, a nonzero lag, a repeated column, or subjects observed in different periods | `invalid_argument` | Name two different paths with one action per period, keep `lag=0`, and give every subject the same periods |
+| A regime whose actions the fitted history does not support (a fitted probability under `min_probability`, or no subject following a path) | `positivity_violated` / `arm_not_populated` | A path the data support, fewer or better-scaled confounders, or a lower floor |
 | A local-quadratic grid without `curvature_bound` | `required_option_missing` | Declare the bound, or use `smoothed_curve` |
 | A dose outside the observed range, or with local effective sample size below 10 | `cell_not_licensed` | A wider bandwidth or a dose inside the supported range |
 | An interference decision with no other cluster member that period | `invalid_argument` | Record every member of the cluster each period |

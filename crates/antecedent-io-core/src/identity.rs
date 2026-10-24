@@ -2721,6 +2721,11 @@ pub struct EstimatorConfigWire {
     /// declared, so existing digests are unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sampling_weights: Option<PayloadDigestWire>,
+    /// Canonical key of a requested bootstrap interval (level, wave size, minimum replicates
+    /// and Monte Carlo tolerances); absent when none is requested, so existing digests are
+    /// unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bootstrap_interval: Option<String>,
 }
 
 /// Portable estimator-spec identity (mirrors `antecedent::EstimatorSpec` variants).

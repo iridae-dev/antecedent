@@ -72,7 +72,9 @@ def test_level_posterior_matches_the_conjugate_reference_and_keeps_the_covarianc
 
 def test_derivative_and_contrast_use_the_same_joint_draws():
     mean, covariance = _posterior()
-    slope = np.array([[0.0, 2.0 / (HIGH - LOW), 2.0 * _rescale(d) * 2.0 / (HIGH - LOW)] for d in (0.5, 2.0, 3.5)])
+    slope = np.array(
+        [[0.0, 2.0 / (HIGH - LOW), 2.0 * _rescale(d) * 2.0 / (HIGH - LOW)] for d in (0.5, 2.0, 3.5)]
+    )
     derivative = _run(functional="derivative").posterior
     assert derivative.exact_mean == pytest.approx(slope @ mean, abs=1e-9)
     contrast = _run(functional="contrast", grid=None, contrast=(1.0, 3.0)).posterior

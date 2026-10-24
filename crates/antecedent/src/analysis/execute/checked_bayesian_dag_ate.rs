@@ -17,7 +17,9 @@ use super::{
 };
 use std::sync::Mutex;
 
-use crate::analysis::proof_support::{proof_supplies, verify_proof_against_graph};
+use crate::analysis::proof_support::{
+    RetainedProof, proof_supplies, verify_proof_against_graph, verify_retained_static,
+};
 
 /// Fitted point stage state the validate stage reuses.
 struct CheckedBayesianDagAtePoint {
@@ -201,17 +203,29 @@ impl CheckedBayesianDagAteExecution {
                 message: "checked Bayesian DAG g-computation licenses a mean ATE over AllObserved, and a model-based mean effect over the Treated or Untreated arm",
             });
         }
-        let checked_identification =
-            identify_static(IdentifierId::BackdoorAdjustment, graph, target)?;
-        let (checked_identification, checked_estimand) =
-            select_claim(checked_identification, EstimatorId::BayesianGcomp)?;
-        verify_proof_against_graph(
-            &checked_identification,
-            &checked_estimand,
+        const PROOF_REFUSED: &str =
+            "Bayesian DAG effect proof is not justified by its retained graph";
+        // The proof is the identification compile sealed: equality with that digest verifies
+        // it without identifying again. A plan that retained none replays it from the graph.
+        if verify_retained_static(
+            &physical,
             operation.identification(),
             operation.estimand(),
-            "Bayesian DAG effect proof is not justified by its retained graph",
-        )?;
+            PROOF_REFUSED,
+        )? == RetainedProof::NotRetained
+        {
+            let checked_identification =
+                identify_static(IdentifierId::BackdoorAdjustment, graph, target)?;
+            let (checked_identification, checked_estimand) =
+                select_claim(checked_identification, EstimatorId::BayesianGcomp)?;
+            verify_proof_against_graph(
+                &checked_identification,
+                &checked_estimand,
+                operation.identification(),
+                operation.estimand(),
+                PROOF_REFUSED,
+            )?;
+        }
         let config = config.clone();
         Ok(Self {
             graph: graph.clone(),

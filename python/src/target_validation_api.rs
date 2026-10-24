@@ -22,11 +22,15 @@ use antecedent_validate::target_native::{
     prior_sensitivity_target_check,
 };
 use antecedent_validate::{
-    AssumptionRange, EffectInterval, EffectScale, LinearAdjustmentSummary, OvbPosterior,
-    ValidationError, amplify, benchmark_bound, evalue_posterior_range, evalue_range,
+    AssumptionRange, ComponentModel, EffectInterval, EffectScale, LinearAdjustmentSummary,
+    MediationComponent, MediationComponents, MediationPath, MediationPosterior, MsmWeightPeriod,
+    OvbPosterior, ValidationError,
+    amplify, benchmark_bound, component_evalue_posterior_range, component_evalue_range,
+    component_ovb_posterior_range, component_ovb_range, evalue_posterior_range, evalue_range,
     evalue_vector_range, linear_adjustment_fit, matched_sets_break_even, matched_sets_upper_p,
-    mediation_range, mediation_sensitivity_fit, ovb_posterior_range, ovb_range, ovb_vector_range,
-    rosenbaum_range, rosenbaum_vector_range,
+    mediation_components_fit, mediation_path_ovb_range, mediation_paths_fit, mediation_posterior_range, mediation_range,
+    mediation_sensitivity_fit, mediation_vector_range, msm_parameter_fit, msm_parameter_fit_refitting_weights, ovb_posterior_range,
+    ovb_range, ovb_vector_range, rosenbaum_range, rosenbaum_vector_range,
 };
 use pyo3::prelude::*;
 use serde_json::{Value, json};
@@ -198,6 +202,26 @@ fn scale_of(scale: &str) -> PyResult<EffectScale> {
     })
 }
 
+/// The setting a vector of coordinates is read in: absent for a plain effect vector.
+fn model_of(name: Option<&str>) -> PyResult<Option<ComponentModel>> {
+    match name {
+        None => Ok(None),
+        Some("mediation") => Ok(Some(ComponentModel::Mediation)),
+        Some("marginal_structural") => Ok(Some(ComponentModel::MarginalStructural)),
+        Some(other) => Err(value_err(format!(
+            "unknown model {other:?}; expected mediation or marginal_structural"
+        ))),
+    }
+}
+
+fn component_of(name: &str) -> PyResult<MediationComponent> {
+    match name {
+        "indirect" => Ok(MediationComponent::Indirect),
+        "direct" => Ok(MediationComponent::Direct),
+        other => Err(value_err(format!("unknown component {other:?}; expected indirect or direct"))),
+    }
+}
+
 fn same_length(what: &str, lengths: &[usize]) -> PyResult<()> {
     if lengths.windows(2).all(|w| w[0] == w[1]) {
         Ok(())
@@ -210,7 +234,8 @@ fn same_length(what: &str, lengths: &[usize]) -> PyResult<()> {
 /// read at the weakest coordinate.
 #[pyfunction]
 #[pyo3(signature = (estimates, labels, *, lowers=None, uppers=None, standard_errors=None,
-    scale="risk_ratio", family="conditional_effect", temporal=false, target_source=None))]
+    scale="risk_ratio", family="conditional_effect", temporal=false, target_source=None,
+    model=None))]
 #[allow(clippy::too_many_arguments)]
 fn sensitivity_evalue_vector(
     estimates: Vec<f64>,
@@ -222,8 +247,10 @@ fn sensitivity_evalue_vector(
     family: &str,
     temporal: bool,
     target_source: Option<String>,
+    model: Option<&str>,
 ) -> PyResult<String> {
     let scale = scale_of(scale)?;
+    let model = model_of(model)?;
     let n = estimates.len();
     for given in [&lowers, &uppers, &standard_errors].into_iter().flatten() {
         same_length("limits and standard errors", &[n, given.len()])?;
@@ -245,7 +272,11 @@ fn sensitivity_evalue_vector(
         })
         .collect();
     let target = target_of(family, temporal, false, labels, target_source.as_deref())?;
-    let (bounds, range) = evalue_vector_range(target, &coordinates, scale).map_err(py_err)?;
+    let (bounds, range) = match model {
+        Some(model) => component_evalue_range(target, &coordinates, scale, model),
+        None => evalue_vector_range(target, &coordinates, scale),
+    }
+    .map_err(py_err)?;
     Ok(json!({
         "scale": scale.as_str(),
         "risk_ratio": bounds.iter().map(|b| finite(b.risk_ratio)).collect::<Vec<_>>(),
@@ -261,7 +292,8 @@ fn sensitivity_evalue_vector(
 /// every coordinate keeps its reported side of the null at each confounder strength.
 #[pyfunction]
 #[pyo3(signature = (draws, labels, *, scale="risk_ratio", level=0.95,
-    family="conditional_effect", temporal=false, target_source=None))]
+    family="conditional_effect", temporal=false, target_source=None, model=None))]
+#[allow(clippy::too_many_arguments)]
 fn sensitivity_evalue_posterior(
     draws: Vec<Vec<f64>>,
     labels: Vec<String>,
@@ -270,10 +302,16 @@ fn sensitivity_evalue_posterior(
     family: &str,
     temporal: bool,
     target_source: Option<String>,
+    model: Option<&str>,
 ) -> PyResult<String> {
     let scale = scale_of(scale)?;
+    let model = model_of(model)?;
     let target = target_of(family, temporal, true, labels, target_source.as_deref())?;
-    let (summary, range) = evalue_posterior_range(target, &draws, scale, level).map_err(py_err)?;
+    let (summary, range) = match model {
+        Some(model) => component_evalue_posterior_range(target, &draws, scale, level, model),
+        None => evalue_posterior_range(target, &draws, scale, level),
+    }
+    .map_err(py_err)?;
     Ok(json!({
         "scale": scale.as_str(),
         "level": level,
@@ -293,7 +331,8 @@ fn sensitivity_evalue_posterior(
 /// Partial-R2 sensitivity of a vector of linear-adjustment coefficients.
 #[pyfunction]
 #[pyo3(signature = (estimates, standard_errors, dofs, labels, *, q=1.0, alpha=0.05,
-    r2yz_extreme=1.0, family="conditional_effect", temporal=false, target_source=None))]
+    r2yz_extreme=1.0, family="conditional_effect", temporal=false, target_source=None,
+    model=None))]
 #[allow(clippy::too_many_arguments)]
 fn sensitivity_ovb_vector(
     estimates: Vec<f64>,
@@ -306,7 +345,9 @@ fn sensitivity_ovb_vector(
     family: &str,
     temporal: bool,
     target_source: Option<String>,
+    model: Option<&str>,
 ) -> PyResult<String> {
+    let model = model_of(model)?;
     same_length(
         "estimates, standard errors and degrees of freedom",
         &[estimates.len(), standard_errors.len(), dofs.len()],
@@ -319,7 +360,11 @@ fn sensitivity_ovb_vector(
         .collect::<Result<_, _>>()
         .map_err(py_err)?;
     let target = target_of(family, temporal, false, labels, target_source.as_deref())?;
-    let range = ovb_vector_range(target, &summaries, q, alpha, r2yz_extreme).map_err(py_err)?;
+    let range = match model {
+        Some(model) => component_ovb_range(target, &summaries, q, alpha, r2yz_extreme, model),
+        None => ovb_vector_range(target, &summaries, q, alpha, r2yz_extreme),
+    }
+    .map_err(py_err)?;
     Ok(json!({
         "partial_r2_treatment": summaries.iter().map(|s| s.partial_r2_treatment()).collect::<Vec<_>>(),
         "robustness_value": summaries.iter().map(|s| s.robustness_value(q, None)).collect::<Vec<_>>(),
@@ -335,7 +380,7 @@ fn sensitivity_ovb_vector(
 /// Partial-R2 sensitivity of a posterior over a vector of linear-adjustment coefficients.
 #[pyfunction]
 #[pyo3(signature = (coefficients, bias_scale, labels, *, level=0.95, r2yz_extreme=1.0,
-    family="conditional_effect", temporal=false, target_source=None))]
+    family="conditional_effect", temporal=false, target_source=None, model=None))]
 #[allow(clippy::too_many_arguments)]
 fn sensitivity_ovb_posterior(
     coefficients: Vec<Vec<f64>>,
@@ -346,10 +391,18 @@ fn sensitivity_ovb_posterior(
     family: &str,
     temporal: bool,
     target_source: Option<String>,
+    model: Option<&str>,
 ) -> PyResult<String> {
+    let model = model_of(model)?;
     let target = target_of(family, temporal, true, labels, target_source.as_deref())?;
     let posterior = OvbPosterior { coefficients: &coefficients, bias_scale: &bias_scale };
-    let range = ovb_posterior_range(target, &posterior, level, r2yz_extreme).map_err(py_err)?;
+    let range = match model {
+        Some(model) => {
+            component_ovb_posterior_range(target, &posterior, level, r2yz_extreme, model)
+        }
+        None => ovb_posterior_range(target, &posterior, level, r2yz_extreme),
+    }
+    .map_err(py_err)?;
     Ok(json!({ "level": level, "range": range_json(&range) }).to_string())
 }
 
@@ -589,6 +642,252 @@ fn sensitivity_mediation(
         "sigma_mediator": summary.sigma_mediator,
         "rho_tilde": summary.rho_tilde,
         "indirect_at_zero": finite(summary.acme(0.0).map_err(py_err)?),
+        "range": range_json(&range),
+    })
+    .to_string())
+}
+
+fn components_json(coordinate: &MediationComponents, component: MediationComponent) -> Value {
+    json!({
+        "beta_mediator": coordinate.mediation.beta_mediator,
+        "sigma_total": coordinate.mediation.sigma_total,
+        "sigma_mediator": coordinate.mediation.sigma_mediator,
+        "rho_tilde": coordinate.mediation.rho_tilde,
+        "total_effect": coordinate.total_effect,
+        "indirect_at_zero": coordinate.effect_at(MediationComponent::Indirect, 0.0).ok().map(finite),
+        "direct_at_zero": coordinate.effect_at(MediationComponent::Direct, 0.0).ok().map(finite),
+        "break_even": coordinate.break_even(component).map(finite),
+    })
+}
+
+/// Mediation sensitivity of one mediator to several outcomes (or horizons): the indirect or
+/// direct effect of every outcome under mediator-outcome error correlation `rho`, read at the
+/// weakest outcome.
+#[pyfunction]
+#[pyo3(signature = (treatment, mediator, outcomes, covariates, labels, *, component="indirect",
+    temporal=false, target_source=None))]
+#[allow(clippy::too_many_arguments)]
+fn sensitivity_mediation_vector(
+    treatment: Vec<f64>,
+    mediator: Vec<f64>,
+    outcomes: Vec<Vec<f64>>,
+    covariates: Vec<Vec<f64>>,
+    labels: Vec<String>,
+    component: &str,
+    temporal: bool,
+    target_source: Option<String>,
+) -> PyResult<String> {
+    let component = component_of(component)?;
+    let coordinates: Vec<MediationComponents> = outcomes
+        .iter()
+        .map(|outcome| mediation_components_fit(&treatment, &mediator, outcome, &covariates))
+        .collect::<Result<_, _>>()
+        .map_err(py_err)?;
+    let target = target_of("mediation", temporal, false, labels, target_source.as_deref())?;
+    let range = mediation_vector_range(target, &coordinates, component).map_err(py_err)?;
+    Ok(json!({
+        "coordinates": coordinates.iter().map(|c| components_json(c, component)).collect::<Vec<_>>(),
+        "range": range_json(&range),
+    })
+    .to_string())
+}
+
+/// Partial-R2 sensitivity of one path of a mediation analysis (treatment-mediator,
+/// mediator-outcome, treatment-outcome or the indirect product), per outcome, read at the
+/// weakest outcome.
+#[pyfunction]
+#[pyo3(signature = (treatment, mediator, outcomes, covariates, labels, *, path="indirect",
+    q=1.0, alpha=0.05, r2yz_extreme=1.0, temporal=false, target_source=None))]
+#[allow(clippy::too_many_arguments)]
+fn sensitivity_mediation_paths(
+    treatment: Vec<f64>,
+    mediator: Vec<f64>,
+    outcomes: Vec<Vec<f64>>,
+    covariates: Vec<Vec<f64>>,
+    labels: Vec<String>,
+    path: &str,
+    q: f64,
+    alpha: f64,
+    r2yz_extreme: f64,
+    temporal: bool,
+    target_source: Option<String>,
+) -> PyResult<String> {
+    let path = match path {
+        "treatment_mediator" => MediationPath::TreatmentMediator,
+        "mediator_outcome" => MediationPath::MediatorOutcome,
+        "treatment_outcome" => MediationPath::TreatmentOutcome,
+        "indirect" => MediationPath::Indirect,
+        other => {
+            return Err(value_err(format!(
+                "unknown path {other:?}; expected treatment_mediator, mediator_outcome, \
+                 treatment_outcome or indirect"
+            )));
+        }
+    };
+    let coordinates: Vec<_> = outcomes
+        .iter()
+        .map(|outcome| mediation_paths_fit(&treatment, &mediator, outcome, &covariates))
+        .collect::<Result<_, _>>()
+        .map_err(py_err)?;
+    let target = target_of("mediation", temporal, false, labels, target_source.as_deref())?;
+    let range = mediation_path_ovb_range(target, &coordinates, path, q, alpha, r2yz_extreme)
+        .map_err(py_err)?;
+    let summary = |s: &LinearAdjustmentSummary| {
+        json!({
+            "estimate": s.estimate,
+            "standard_error": s.standard_error,
+            "dof": s.dof,
+            "robustness_value": s.robustness_value(q, None),
+            "robustness_value_alpha": s.robustness_value(q, Some(alpha)),
+        })
+    };
+    Ok(json!({
+        "coordinates": coordinates.iter().map(|c| json!({
+            "treatment_mediator": summary(&c.treatment_mediator),
+            "mediator_outcome": summary(&c.mediator_outcome),
+            "treatment_outcome": summary(&c.treatment_outcome),
+        })).collect::<Vec<_>>(),
+        "q": q,
+        "alpha": alpha,
+        "range": range_json(&range),
+    })
+    .to_string())
+}
+
+/// Mediation sensitivity of a posterior over the regression summaries of several outcomes.
+#[pyfunction]
+#[pyo3(signature = (beta_mediator, sigma_total, sigma_mediator, rho_tilde, total_effect, labels,
+    *, component="indirect", level=0.95, temporal=false, target_source=None))]
+#[allow(clippy::too_many_arguments)]
+fn sensitivity_mediation_posterior(
+    beta_mediator: Vec<Vec<f64>>,
+    sigma_total: Vec<Vec<f64>>,
+    sigma_mediator: Vec<Vec<f64>>,
+    rho_tilde: Vec<Vec<f64>>,
+    total_effect: Vec<Vec<f64>>,
+    labels: Vec<String>,
+    component: &str,
+    level: f64,
+    temporal: bool,
+    target_source: Option<String>,
+) -> PyResult<String> {
+    let component = component_of(component)?;
+    let target = target_of("mediation", temporal, true, labels, target_source.as_deref())?;
+    let posterior = MediationPosterior {
+        beta_mediator: &beta_mediator,
+        sigma_total: &sigma_total,
+        sigma_mediator: &sigma_mediator,
+        rho_tilde: &rho_tilde,
+        total_effect: &total_effect,
+    };
+    let range =
+        mediation_posterior_range(target, &posterior, component, level).map_err(py_err)?;
+    Ok(json!({ "level": level, "range": range_json(&range) }).to_string())
+}
+
+/// Partial-R2 sensitivity of the exposure parameters of a marginal structural model, fitted by
+/// weighted least squares with a robust standard error.
+#[pyfunction]
+#[pyo3(signature = (outcome, exposures, weights, labels, *, q=1.0, alpha=0.05,
+    r2yz_extreme=1.0, temporal=false, target_source=None))]
+#[allow(clippy::too_many_arguments)]
+fn sensitivity_msm_parameters(
+    outcome: Vec<f64>,
+    exposures: Vec<Vec<f64>>,
+    weights: Vec<f64>,
+    labels: Vec<String>,
+    q: f64,
+    alpha: f64,
+    r2yz_extreme: f64,
+    temporal: bool,
+    target_source: Option<String>,
+) -> PyResult<String> {
+    let summaries = msm_parameter_fit(&outcome, &exposures, &weights).map_err(py_err)?;
+    let target = target_of("scalar_average_effect", temporal, false, labels, target_source.as_deref())?;
+    let range = component_ovb_range(
+        target,
+        &summaries,
+        q,
+        alpha,
+        r2yz_extreme,
+        ComponentModel::MarginalStructural,
+    )
+    .map_err(py_err)?;
+    Ok(json!({
+        "estimate": summaries.iter().map(|s| s.estimate).collect::<Vec<_>>(),
+        "standard_error": summaries.iter().map(|s| s.standard_error).collect::<Vec<_>>(),
+        "dof": summaries.iter().map(|s| s.dof).collect::<Vec<_>>(),
+        "partial_r2_treatment": summaries.iter().map(|s| s.partial_r2_treatment()).collect::<Vec<_>>(),
+        "robustness_value": summaries.iter().map(|s| s.robustness_value(q, None)).collect::<Vec<_>>(),
+        "robustness_value_alpha":
+            summaries.iter().map(|s| s.robustness_value(q, Some(alpha))).collect::<Vec<_>>(),
+        "q": q,
+        "alpha": alpha,
+        "range": range_json(&range),
+    })
+    .to_string())
+}
+
+/// Partial-R2 sensitivity of the exposure parameters of a marginal structural model whose
+/// stabilized weights are estimated: every treatment model is refitted in each unit-bootstrap
+/// replicate, so the standard error carries the cost of estimating the weights.
+#[pyfunction]
+#[pyo3(signature = (outcome, exposures, treatments, numerators, denominators, labels, *,
+    replicates=200, seed=1, q=1.0, alpha=0.05, r2yz_extreme=1.0, temporal=false,
+    target_source=None))]
+#[allow(clippy::too_many_arguments)]
+fn sensitivity_msm_parameters_refit(
+    outcome: Vec<f64>,
+    exposures: Vec<Vec<f64>>,
+    treatments: Vec<Vec<f64>>,
+    numerators: Vec<Vec<Vec<f64>>>,
+    denominators: Vec<Vec<Vec<f64>>>,
+    labels: Vec<String>,
+    replicates: usize,
+    seed: u64,
+    q: f64,
+    alpha: f64,
+    r2yz_extreme: f64,
+    temporal: bool,
+    target_source: Option<String>,
+) -> PyResult<String> {
+    same_length(
+        "treatments and their numerator and denominator covariates",
+        &[treatments.len(), numerators.len(), denominators.len()],
+    )?;
+    let periods: Vec<MsmWeightPeriod> = treatments
+        .into_iter()
+        .zip(numerators)
+        .zip(denominators)
+        .map(|((treatment, numerator), denominator)| MsmWeightPeriod {
+            treatment,
+            numerator,
+            denominator,
+        })
+        .collect();
+    let fit = msm_parameter_fit_refitting_weights(&outcome, &exposures, &periods, replicates, seed)
+        .map_err(py_err)?;
+    let target =
+        target_of("scalar_average_effect", temporal, false, labels, target_source.as_deref())?;
+    let range = component_ovb_range(
+        target,
+        &fit.refit,
+        q,
+        alpha,
+        r2yz_extreme,
+        ComponentModel::MarginalStructural,
+    )
+    .map_err(py_err)?;
+    Ok(json!({
+        "estimate": fit.refit.iter().map(|s| s.estimate).collect::<Vec<_>>(),
+        "standard_error": fit.refit.iter().map(|s| s.standard_error).collect::<Vec<_>>(),
+        "fixed_weight_standard_error":
+            fit.fixed_weights.iter().map(|s| s.standard_error).collect::<Vec<_>>(),
+        "dof": fit.refit.iter().map(|s| s.dof).collect::<Vec<_>>(),
+        "replicates": [fit.replicates.0, fit.replicates.1],
+        "robustness_value": fit.refit.iter().map(|s| s.robustness_value(q, None)).collect::<Vec<_>>(),
+        "q": q,
+        "alpha": alpha,
         "range": range_json(&range),
     })
     .to_string())
@@ -858,6 +1157,11 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(sensitivity_matched_sets, module)?)?;
     module.add_function(wrap_pyfunction!(sensitivity_amplify, module)?)?;
     module.add_function(wrap_pyfunction!(sensitivity_mediation, module)?)?;
+    module.add_function(wrap_pyfunction!(sensitivity_mediation_vector, module)?)?;
+    module.add_function(wrap_pyfunction!(sensitivity_mediation_posterior, module)?)?;
+    module.add_function(wrap_pyfunction!(sensitivity_mediation_paths, module)?)?;
+    module.add_function(wrap_pyfunction!(sensitivity_msm_parameters, module)?)?;
+    module.add_function(wrap_pyfunction!(sensitivity_msm_parameters_refit, module)?)?;
     module.add_function(wrap_pyfunction!(target_refutation_plan, module)?)?;
     module.add_function(wrap_pyfunction!(target_derivative_consistency, module)?)?;
     module.add_function(wrap_pyfunction!(target_local_linearity, module)?)?;

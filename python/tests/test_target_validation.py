@@ -269,3 +269,174 @@ def test_vector_rosenbaum_reports_the_smallest_break_even():
     assert both.range.break_even_significance == pytest.approx(single.range.break_even_significance)
     flat = v.rosenbaum_bounds_vector([strong, null], ["a", "b"], gammas=[1.0, 2.0, 3.0])
     assert flat.range.break_even_significance is None
+
+
+def _mediation_columns(n: int = 160):
+    t = np.array([float(i % 2) for i in range(n)])
+    x = np.sin(0.3 * np.arange(n))
+    m = 0.8 * t + 0.5 * x + 0.4 * np.sin(1.7 * np.arange(n))
+    y1 = 0.3 * t + 1.2 * m - 0.7 * x + 0.5 * np.cos(0.9 * np.arange(n))
+    y2 = -0.4 * t + 0.5 * m + 0.2 * x + 0.3 * np.sin(2.3 * np.arange(n))
+    return t, m, y1, y2, x
+
+
+def test_mediation_vector_reads_the_weakest_outcome_and_the_total_effect_identity():
+    t, m, y1, y2, x = _mediation_columns()
+    labels = ["y1", "y2"]
+    indirect = v.mediation_sensitivity_vector(
+        t.tolist(), m.tolist(), [y1.tolist(), y2.tolist()], [x.tolist()], labels
+    )
+    direct = v.mediation_sensitivity_vector(
+        t.tolist(),
+        m.tolist(),
+        [y1.tolist(), y2.tolist()],
+        [x.tolist()],
+        labels,
+        component="direct",
+    )
+    assert indirect.range.assumption == "mediator_outcome_confounding"
+    # Closed form: the indirect effect of each outcome vanishes at its residual correlation.
+    rhos = [c["rho_tilde"] for c in indirect.summary["coordinates"]]
+    assert indirect.range.break_even == pytest.approx(min(rhos, key=abs), abs=1e-12)
+    # Total = direct + indirect, and the direct effect at rho = 0 is the structural coefficient.
+    for i, y in enumerate([y1, y2]):
+        design = np.column_stack([np.ones_like(t), t, m, x])
+        beta, *_ = np.linalg.lstsq(design, y, rcond=None)
+        coords = direct.summary["coordinates"][i]
+        assert coords["direct_at_zero"] == pytest.approx(beta[1], abs=1e-9)
+        assert coords["indirect_at_zero"] + coords["direct_at_zero"] == pytest.approx(
+            coords["total_effect"], abs=1e-9
+        )
+    first = indirect.range.tested[0]
+    assert first.parameter < 0
+    zero = next(p for p in indirect.range.tested if p.parameter == 0.0)
+    assert zero.target == pytest.approx(1.0)
+
+
+def test_mediation_posterior_carries_each_draw_through_the_formula():
+    n = 101
+    spread = np.linspace(-1.0, 1.0, n)
+    beta = [(0.8 + 0.1 * spread).tolist(), (0.5 + 0.1 * spread).tolist()]
+    result = v.mediation_sensitivity_posterior(
+        beta,
+        [[1.1] * n, [0.9] * n],
+        [[0.7] * n, [0.6] * n],
+        [[0.2] * n, [0.35] * n],
+        [(1.4 + 0.05 * spread).tolist(), (0.4 + 0.05 * spread).tolist()],
+        ["h1", "h2"],
+    )
+    assert result.range.assumption == "mediator_outcome_confounding"
+    assert result.range.break_even == pytest.approx(0.2, abs=1e-6)
+    by_rho = {p.parameter: p for p in result.range.tested}
+    assert by_rho[0.0].test == pytest.approx(1.0)
+    assert by_rho[0.1].test > 0.999
+    assert by_rho[0.3].test < 1e-12
+    with pytest.raises((ValueError, CausalError), match="one column of draws"):
+        v.mediation_sensitivity_posterior(
+            beta, [[1.1] * n], [[0.7] * n], [[0.2] * n], beta, ["h1", "h2"]
+        )
+
+
+def test_the_vector_ranges_bind_to_the_assumption_of_their_setting():
+    plain = v.evalue_vector([3.9], ["e"], lowers=[1.8], uppers=[8.7])
+    mediation = v.evalue_vector([3.9], ["e"], lowers=[1.8], uppers=[8.7], model="mediation")
+    msm = v.evalue_vector([3.9], ["e"], lowers=[1.8], uppers=[8.7], model="marginal_structural")
+    assert mediation.range.assumption == "mediator_outcome_confounding_risk_ratio"
+    assert msm.range.assumption == "sequential_exchangeability_risk_ratio"
+    assert mediation.range.break_even == plain.range.break_even
+    assert len({plain.range.identity, mediation.range.identity, msm.range.identity}) == 3
+    ovb = v.omitted_variable_bias_vector(
+        [0.0973], [0.0233], [783.0], ["a"], model="marginal_structural"
+    )
+    assert ovb.range.assumption == "sequential_exchangeability_partial_r2"
+    with pytest.raises(ValueError, match="unknown model"):
+        v.evalue_vector([3.9], ["e"], lowers=[1.8], uppers=[8.7], model="nonsense")
+
+
+def test_msm_parameters_are_fitted_with_a_robust_error_and_read_at_the_weakest():
+    n = 400
+    i = np.arange(n)
+    dose = (i % 5).astype(float)
+    trend = np.sin(0.37 * i)
+    outcome = 1.0 + 0.5 * dose + 0.05 * trend + 0.8 * np.sin(1.3 * i)
+    weights = 0.5 + (i % 3) * 0.5
+    result = v.msm_parameter_sensitivity(
+        outcome.tolist(),
+        [dose.tolist(), trend.tolist()],
+        weights.tolist(),
+        ["dose", "trend"],
+    )
+    assert result.range.assumption == "sequential_exchangeability_partial_r2"
+    estimate = result.summary["estimate"]
+    # Independent weighted least squares.
+    design = np.column_stack([np.ones(n), dose, trend])
+    sw = np.sqrt(weights)
+    beta, *_ = np.linalg.lstsq(design * sw[:, None], outcome * sw, rcond=None)
+    assert estimate == pytest.approx(beta[1:], abs=1e-9)
+    # HC1 sandwich computed independently.
+    bread = np.linalg.inv(design.T @ (design * weights[:, None]))
+    resid = outcome - design @ beta
+    meat = design.T @ (design * (weights * resid)[:, None] ** 2)
+    se = np.sqrt(np.diag(bread @ meat @ bread) * n / (n - 3))[1:]
+    assert result.summary["standard_error"] == pytest.approx(se, rel=1e-9)
+    neff = weights.sum() ** 2 / (weights**2).sum()
+    assert result.summary["dof"][0] == pytest.approx(neff - 3)
+    assert result.range.break_even == pytest.approx(min(result.summary["robustness_value"]))
+    with pytest.raises((ValueError, CausalError), match="non-negative weights"):
+        v.msm_parameter_sensitivity(
+            outcome.tolist(), [dose.tolist()], (-weights).tolist(), ["dose"]
+        )
+
+
+def test_mediation_paths_have_closed_form_robustness_values_and_a_product_for_the_indirect():
+    t, m, y1, _, x = _mediation_columns()
+    args = (t.tolist(), m.tolist(), [y1.tolist()], [x.tolist()], ["y1"])
+    ranges = {
+        path: v.mediation_path_sensitivity(*args, path=path)
+        for path in ("treatment_mediator", "mediator_outcome", "treatment_outcome", "indirect")
+    }
+    assert ranges["treatment_mediator"].range.assumption == (
+        "treatment_mediator_confounding_partial_r2"
+    )
+    assert ranges["treatment_outcome"].range.assumption == (
+        "treatment_outcome_confounding_partial_r2"
+    )
+    assert ranges["indirect"].range.assumption == "indirect_effect_confounding_partial_r2"
+    coordinate = ranges["indirect"].summary["coordinates"][0]
+    for path in ("treatment_mediator", "mediator_outcome", "treatment_outcome"):
+        rv = ranges[path].summary["coordinates"][0][path]["robustness_value"]
+        assert ranges[path].range.break_even == pytest.approx(rv, abs=1e-12)
+    # With q = 1 the product vanishes when either path does.
+    smaller = min(
+        coordinate["treatment_mediator"]["robustness_value"],
+        coordinate["mediator_outcome"]["robustness_value"],
+    )
+    assert ranges["indirect"].range.break_even == pytest.approx(smaller, abs=1e-9)
+    # The treatment-mediator path is the OLS coefficient of the mediator on the treatment.
+    design = np.column_stack([np.ones_like(t), t, x])
+    beta, *_ = np.linalg.lstsq(design, m, rcond=None)
+    assert coordinate["treatment_mediator"]["estimate"] == pytest.approx(beta[1], abs=1e-9)
+    with pytest.raises(ValueError, match="unknown path"):
+        v.mediation_path_sensitivity(*args, path="sideways")
+
+
+def test_msm_weight_refit_standard_error_carries_the_weight_estimation():
+    rng = np.random.default_rng(5)
+    n = 500
+    history = rng.normal(size=n)
+    a = (rng.uniform(size=n) < 1.0 / (1.0 + np.exp(-history))).astype(float)
+    y = 1.0 + 2.0 * a + history + rng.normal(size=n)
+    refit = v.msm_parameter_sensitivity_refit(
+        y.tolist(), [a.tolist()], [a.tolist()], [[]], [[history.tolist()]], ["a"], replicates=99
+    )
+    assert refit.range.assumption == "sequential_exchangeability_partial_r2"
+    assert refit.summary["estimate"][0] == pytest.approx(2.0, abs=0.5)
+    assert refit.summary["standard_error"][0] > 0
+    assert refit.summary["standard_error"][0] != pytest.approx(
+        refit.summary["fixed_weight_standard_error"][0], abs=1e-6
+    )
+    assert sum(refit.summary["replicates"]) == 99
+    with pytest.raises((ValueError, CausalError), match="at least 99"):
+        v.msm_parameter_sensitivity_refit(
+            y.tolist(), [a.tolist()], [a.tolist()], [[]], [[history.tolist()]], ["a"], replicates=10
+        )

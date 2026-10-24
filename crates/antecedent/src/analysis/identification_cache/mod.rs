@@ -31,7 +31,7 @@ pub(crate) use self::dbn::{
     build_dbn_posterior_response_identification_cache, temporal_dag_from_dbn_atom,
 };
 pub(crate) use self::exposure_posterior::{
-    build_interference_graph_posterior_identification_cache,
+    TRANSPORT_CLASS_ATOM_CODE, build_interference_graph_posterior_identification_cache,
     build_transport_graph_posterior_identification_cache,
 };
 #[cfg(test)]

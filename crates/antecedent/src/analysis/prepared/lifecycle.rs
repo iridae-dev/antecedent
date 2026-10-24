@@ -108,6 +108,17 @@ impl PreparedStudy {
     ) -> Result<StudyResult, CausalError> {
         self.transform_capability(antecedent_contract::TransformIntent::CompatibleDataReplace)?;
         self.ensure_schema_compatible(&data)?;
+        if crate::analysis::functional_validation::requested(&self.analysis) {
+            let result = crate::analysis::functional_validation::validate_data(
+                &self.analysis,
+                DataInput::Tabular(data.clone()),
+                ctx,
+            )?;
+            let mut refreshed = self.analysis.clone();
+            refreshed.data = DataInput::Tabular(data);
+            self.replace_study(refreshed);
+            return Ok(result);
+        }
         // The refreshed result carries the same native observations a fresh estimate does, so
         // its claim identity agrees with the one the retained handle reproduces.
         let mut observed = antecedent_core::execution_attempt::observe_with_context(ctx, || {
@@ -571,6 +582,13 @@ impl PreparedStudy {
     ) -> Result<StudyResult, CausalError> {
         self.ensure_series_compatible(data)?;
         let input = series_input(&self.analysis.data, data.clone());
+        if crate::analysis::functional_validation::requested(&self.analysis) {
+            return crate::analysis::functional_validation::validate_data(
+                &self.analysis,
+                input,
+                ctx,
+            );
+        }
         let mut result = if crate::analysis::missing_imputation::imputes_series(&self.analysis) {
             self.estimate_series_imputed(&self.analysis, data, SeriesEntry::Estimate, ctx)?
         } else {
@@ -656,6 +674,13 @@ impl PreparedStudy {
         self.execution.operation().require_retained_program(&self.plan)?;
         self.ensure_panel_compatible(data)?;
         let input = DataInput::Panel(data.clone());
+        if crate::analysis::functional_validation::requested(&self.analysis) {
+            return crate::analysis::functional_validation::validate_data(
+                &self.analysis,
+                input,
+                ctx,
+            );
+        }
         let result = self.analysis.execute_on(&input, &self.plan, Some(&self.execution), ctx)?;
         self.stamp(&input, result)
     }
@@ -675,6 +700,11 @@ impl PreparedStudy {
         self.ensure_panel_compatible(&data)?;
         let mut refreshed = self.analysis.clone();
         refreshed.data = DataInput::Panel(data);
+        if crate::analysis::functional_validation::requested(&refreshed) {
+            let result = crate::analysis::functional_validation::run_validated(&refreshed, ctx)?;
+            self.replace_study(refreshed);
+            return Ok(result);
+        }
         let result = refreshed.execute_shared(&self.plan, Some(&self.execution), ctx)?;
         self.replace_study(refreshed);
         let data = self.analysis.data.clone();
@@ -694,6 +724,13 @@ impl PreparedStudy {
         self.execution.operation().require_retained_program(&self.plan)?;
         self.ensure_multi_env_compatible(data)?;
         let input = DataInput::MultiEnv(data.clone());
+        if crate::analysis::functional_validation::requested(&self.analysis) {
+            return crate::analysis::functional_validation::validate_data(
+                &self.analysis,
+                input,
+                ctx,
+            );
+        }
         let result = self.analysis.execute_on(&input, &self.plan, Some(&self.execution), ctx)?;
         self.stamp(&input, result)
     }
@@ -713,6 +750,11 @@ impl PreparedStudy {
         self.ensure_multi_env_compatible(&data)?;
         let mut refreshed = self.analysis.clone();
         refreshed.data = DataInput::MultiEnv(data);
+        if crate::analysis::functional_validation::requested(&refreshed) {
+            let result = crate::analysis::functional_validation::run_validated(&refreshed, ctx)?;
+            self.replace_study(refreshed);
+            return Ok(result);
+        }
         let result = refreshed.execute_shared(&self.plan, Some(&self.execution), ctx)?;
         self.replace_study(refreshed);
         let data = self.analysis.data.clone();
@@ -791,6 +833,11 @@ impl PreparedStudy {
         self.ensure_series_compatible(&data)?;
         let mut refreshed = self.analysis.clone();
         refreshed.data = series_input(&self.analysis.data, data);
+        if crate::analysis::functional_validation::requested(&refreshed) {
+            let result = crate::analysis::functional_validation::run_validated(&refreshed, ctx)?;
+            self.replace_study(refreshed);
+            return Ok(result);
+        }
         let imputes = crate::analysis::missing_imputation::imputes_series(&refreshed);
         let result = match &refreshed.data {
             DataInput::Temporal(series) if imputes => {

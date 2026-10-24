@@ -212,15 +212,25 @@ impl Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let rd=self.rd.ok_or_else(||CausalError::Compile{message:"rd.bayesian_local_linear requires builder.rd_config(running_variable, cutoff, bandwidth)".into()})?;
-        let identification = SharpRdIdentifier::new(SharpRdConfig::new(
-            rd.running_variable,
-            rd.cutoff,
-            rd.bandwidth,
-        ))
-        .identify_on(graph, CausalQuery::AverageEffect(query.clone()))
-        .map_err(CausalError::from)?;
-        require_identified(&identification)?;
-        let estimand = select_estimand(&identification, EstimatorId::BayesianRdLocalLinear)?;
+        // The design identifies once, at compile; only a plan that retained none identifies
+        // here and reports the refusal.
+        let target = CausalQuery::AverageEffect(query.clone());
+        let reused = self
+            .reuse_static_identification_if(physical, |cache| cache.identification.query == target);
+        let (identification, estimand, identify_cached) = if let Some((cache, prepared)) = reused {
+            (cache.identification.clone(), cache.estimand.clone(), prepared)
+        } else {
+            let identification = SharpRdIdentifier::new(SharpRdConfig::new(
+                rd.running_variable,
+                rd.cutoff,
+                rd.bandwidth,
+            ))
+            .identify_on(graph, target)
+            .map_err(CausalError::from)?;
+            require_identified(&identification)?;
+            let estimand = select_estimand(&identification, EstimatorId::BayesianRdLocalLinear)?;
+            (identification, estimand, false)
+        };
         let InferenceMode::Bayesian(config) = &self.inference else {
             return Err(CausalError::unsupported_inference(
                 "rd.bayesian_local_linear requires Bayesian inference",
@@ -235,7 +245,7 @@ impl Study {
                 identification: &identification,
                 estimand: &estimand,
                 config,
-                identify_cached: false,
+                identify_cached,
             },
             ctx,
         )

@@ -489,7 +489,6 @@ def test_response_honors_explicit_threads():
 
 
 def test_response_admg_intervention_cheap_runs_plugin_level():
-
     from _repo_text import load_json
 
     pin = load_json(

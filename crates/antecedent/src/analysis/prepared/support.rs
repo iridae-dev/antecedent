@@ -149,7 +149,11 @@ pub(super) fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalEr
         // posterior identification cache is built.
         match (&analysis.data, &analysis.query) {
             (DataInput::Tabular(_), CausalQuery::Response(query)) => {
-                crate::analysis::execute::graph_posterior_response_supported(query)?;
+                // A derivative or multi-coordinate level is answered atom by atom, and each
+                // atom's executor states its own refusals.
+                if !crate::analysis::execute::atom_route_response(query) {
+                    crate::analysis::execute::graph_posterior_response_supported(query)?;
+                }
             }
             (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::Mediation(query))
                 if matches!(analysis.inference, InferenceMode::Frequentist)
@@ -172,7 +176,14 @@ pub(super) fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalEr
                 | CausalQuery::Response(_)
                 | CausalQuery::ConditionalEffect(_)
                 | CausalQuery::Transport(_)
-                | CausalQuery::Interference(_),
+                | CausalQuery::Interference(_)
+                | CausalQuery::Mediation(_)
+                | CausalQuery::PathSpecific(_)
+                | CausalQuery::NestedCounterfactual(_)
+                | CausalQuery::Counterfactual(_)
+                | CausalQuery::Distribution(_)
+                | CausalQuery::AnomalyAttribution(_)
+                | CausalQuery::ChangeAttribution(_),
             )
             | (
                 DataInput::Temporal(_) | DataInput::Event(_),
@@ -182,12 +193,16 @@ pub(super) fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalEr
                 | CausalQuery::NestedCounterfactual(_)
                 | CausalQuery::PathSpecific(_)
                 | CausalQuery::Counterfactual(_)
-                | CausalQuery::Distribution(_),
+                | CausalQuery::Distribution(_)
+                | CausalQuery::AnomalyAttribution(_)
+                | CausalQuery::ChangeAttribution(_),
             ) => Ok(()),
             _ => Err(crate::support_reason!(
                 "data_modality_not_licensed",
                 "graph_posterior on the prepared handle is licensed only for tabular \
-                 AverageEffect/Response/ConditionalEffect/Transport/Interference and series \
+                 AverageEffect/Response/ConditionalEffect/Transport/Interference/Mediation/\
+                 PathSpecific/NestedCounterfactual/Counterfactual/Anomaly and Change \
+                 attribution and series \
                  TemporalEffect, TemporalMediationEffect, or temporal Response"
             )),
         };

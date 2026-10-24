@@ -492,9 +492,7 @@ SERIES = [
 
 
 def stated_prior() -> PeriodPrior:
-    return PeriodPrior(
-        [0.0, 0.0, 0.0], [0.5, 0, 0, 0, 0.4, 0, 0, 0, 0.3], shape=3.0, rate=2.0
-    )
+    return PeriodPrior([0.0, 0.0, 0.0], [0.5, 0, 0, 0, 0.4, 0, 0, 0, 0.3], shape=3.0, rate=2.0)
 
 
 def period_window(start, end, snapshot, units=("u1", "u2")) -> PeriodWindow:

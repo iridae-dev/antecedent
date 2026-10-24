@@ -23,13 +23,12 @@ use super::{
     StaticCpdagResponseCompileInput, StaticDistributionCompileInput, StaticMediationSource,
     StaticPagAteCompileInput, StaticPagPathSpecificCompileInput, StaticPagResponseCompileInput,
     StaticPathSpecificCompileInput, StaticResponseCompileInput, TableView, TabularData,
-    TemporalClassEffectCompileInput,
-    TemporalDag, TemporalEffectQuery, TimeSeriesData, VariableId, admg_has_bidirected,
-    admg_without_latents_to_dag, compile_logical_codetermined_joint, compile_logical_distribution,
-    compile_logical_path_specific, compile_logical_path_specific_admg,
-    compile_logical_path_specific_cpdag, compile_logical_path_specific_pag,
-    compile_logical_static_ate, compile_logical_static_cpdag_ate,
-    compile_logical_static_cpdag_response,
+    TemporalClassEffectCompileInput, TemporalDag, TemporalEffectQuery, TimeSeriesData, VariableId,
+    admg_has_bidirected, admg_without_latents_to_dag, compile_logical_codetermined_joint,
+    compile_logical_distribution, compile_logical_path_specific,
+    compile_logical_path_specific_admg, compile_logical_path_specific_cpdag,
+    compile_logical_path_specific_pag, compile_logical_static_ate,
+    compile_logical_static_cpdag_ate, compile_logical_static_cpdag_response,
     compile_logical_static_pag_ate, compile_logical_static_pag_response,
     compile_logical_static_response, compile_logical_temporal_class_effect,
     compile_logical_temporal_effect, compile_logical_temporal_effect_classified,
@@ -44,6 +43,10 @@ use crate::analysis::conditional_admg::{
 #[cfg(test)]
 #[path = "prepared_gaussian_tests.rs"]
 mod prepared_gaussian_tests;
+
+#[cfg(test)]
+#[path = "streamed_nuisance_tests.rs"]
+mod streamed_nuisance_tests;
 
 /// The path-restricted query a natural-effect source identifies, and the query its plan
 /// records: a natural direct effect reads its mediator as the path node.
@@ -547,7 +550,9 @@ impl super::Study {
         data: &TabularData,
         source: PathSpecificMixedSource<'_>,
     ) -> Result<LogicalAnalysisPlan, CausalError> {
-        super::static_path::ensure_admg_path_specific_licensed(self.refute)?;
+        if !matches!(source, PathSpecificMixedSource::Mediation(_)) {
+            super::static_path::ensure_admg_path_specific_licensed(self.refute)?;
+        }
         let admg = mixed_admg(self)?;
         let (identifier, estimator) = self.resolve_path_pair();
         let (path, query) = path_specific_source_queries(source)?;
@@ -573,7 +578,9 @@ impl super::Study {
         data: &TabularData,
         source: PathSpecificMixedSource<'_>,
     ) -> Result<LogicalAnalysisPlan, CausalError> {
-        super::static_path::ensure_admg_path_specific_licensed(self.refute)?;
+        if !matches!(source, PathSpecificMixedSource::Mediation(_)) {
+            super::static_path::ensure_admg_path_specific_licensed(self.refute)?;
+        }
         let GraphRef::Cpdag(cpdag) = self.graph.graph_ref() else {
             return Err(CausalError::Compile {
                 message: "class path-specific effect requires a Cpdag".into(),
@@ -603,7 +610,9 @@ impl super::Study {
         data: &TabularData,
         source: PathSpecificMixedSource<'_>,
     ) -> Result<LogicalAnalysisPlan, CausalError> {
-        super::static_path::ensure_admg_path_specific_licensed(self.refute)?;
+        if !matches!(source, PathSpecificMixedSource::Mediation(_)) {
+            super::static_path::ensure_admg_path_specific_licensed(self.refute)?;
+        }
         let GraphRef::Pag(pag) = self.graph.graph_ref() else {
             return Err(CausalError::Compile {
                 message: "PAG path-specific effect requires a Pag".into(),
@@ -1204,7 +1213,9 @@ impl super::Study {
         };
         let effect = super::temporal_admg_mediation::window_effect_query(query)?;
         if self.identifier.is_some_and(|id| id != IdentifierId::PathSpecificNatural)
-            || self.caller_selected_estimator().is_some_and(|id| id != EstimatorId::FunctionalEffect)
+            || self
+                .caller_selected_estimator()
+                .is_some_and(|id| id != EstimatorId::FunctionalEffect)
         {
             return Err(crate::compile_reason!(
                 "strategy_incompatible",
@@ -1233,8 +1244,13 @@ impl super::Study {
         let variable_count = u32::try_from(data.schema().len()).map_err(|_| {
             CausalError::Compile { message: "series schema exceeds the variable id range".into() }
         })?;
-        antecedent_identify::temporal_pag_mediation_window(template, &effect, query, variable_count)
-            .map_err(CausalError::from)?;
+        antecedent_identify::temporal_pag_mediation_window(
+            template,
+            &effect,
+            query,
+            variable_count,
+        )
+        .map_err(CausalError::from)?;
         let mut plan = compile_logical_temporal_effect_classified(
             data,
             &TemporalDag::empty(),
@@ -1876,12 +1892,6 @@ impl super::Study {
         data: &TabularData,
         query: &antecedent_core::CounterfactualQuery,
     ) -> Result<LogicalAnalysisPlan, CausalError> {
-        if self.refute != super::RefuteSuite::None {
-            return Err(CausalError::Unsupported {
-                message: "a counterfactual on an Admg, Pag, Cpdag or TemporalAdmg runs at \
-                          validation none; cheap/full remain Dag-only",
-            });
-        }
         query.validate()?;
         let (treatment, outcome) = gcm_query_vars(&self.query)?;
         let (identifier, estimator) = match self.graph.graph_ref() {
@@ -1899,7 +1909,7 @@ impl super::Study {
     }
 
     /// Parametric SCM paths use a query- and inference-specific estimator identity.
-    fn compile_logical_gcm(
+    pub(super) fn compile_logical_gcm(
         &self,
         row_count_hint: u64,
         plan_id: &str,

@@ -1127,6 +1127,15 @@ impl PreparedFunctionalEffect {
         &self.program
     }
 
+    /// Variables whose empirical laws the functional reads (the factors' variables and
+    /// conditioning variables and the extra variables the caller declared), ascending.
+    #[must_use]
+    pub fn variables_read(&self) -> Vec<VariableId> {
+        let mut variables: Vec<VariableId> = self.vars_needed.iter().copied().collect();
+        variables.sort_unstable();
+        variables
+    }
+
     /// Export every empirical law needed to independently evaluate this
     /// checked scalar functional, including its free-variable weighting law.
     pub fn factor_snapshot(&self) -> Result<EmpiricalDistributionFactorSnapshot, EstimationError> {

@@ -121,6 +121,79 @@ impl EstimatorSpec {
         }
     }
 
+    /// Request a bootstrap interval produced by the complete resampling procedure (waves that
+    /// stop on the request's Monte Carlo tolerances, capped by the estimator's replicate count).
+    ///
+    /// A configured linear adjustment, weighting, stratification, AIPW or GLM estimator takes the
+    /// request as its own. An id-only spec of those estimators is built with the study's
+    /// `defaults` (replicates, overlap, population registry, sampling design), exactly as the
+    /// dispatcher builds it, then takes the request.
+    ///
+    /// # Errors
+    ///
+    /// [`crate::CausalError::Conflict`] for an estimator whose bootstrap is not the wave
+    /// procedure (matching, IV, front-door, DML, forests), or one that already carries a
+    /// different request.
+    pub fn with_bootstrap_interval(
+        self,
+        request: antecedent_estimate::IntervalRequest,
+        defaults: BuildDefaults<'_>,
+    ) -> Result<Self, crate::CausalError> {
+        let refuse = || crate::CausalError::Conflict {
+            what: "bootstrap_interval",
+            detail: "a requested bootstrap interval is produced by linear adjustment, propensity \
+                     weighting, propensity stratification, AIPW or GLM adjustment; the selected \
+                     estimator's bootstrap is not the wave procedure",
+        };
+        let taken = || crate::CausalError::Conflict {
+            what: "bootstrap_interval",
+            detail: "the estimator already carries a different bootstrap interval request",
+        };
+        let claim = |slot: &mut Option<antecedent_estimate::IntervalRequest>| match *slot {
+            None => {
+                *slot = Some(request);
+                Ok(())
+            }
+            Some(own) if own == request => Ok(()),
+            Some(_) => Err(taken()),
+        };
+        let spec = match self {
+            Self::Default(id) => defaults.build(id).ok_or_else(refuse)?,
+            other => other,
+        };
+        let mut spec = spec;
+        match &mut spec {
+            Self::LinearAdjustmentAte(cfg) => claim(&mut cfg.bootstrap_interval)?,
+            Self::PropensityWeighting(cfg) => claim(&mut cfg.bootstrap_interval)?,
+            Self::PropensityStratification(cfg) => claim(&mut cfg.bootstrap_interval)?,
+            Self::Aipw(cfg) => claim(&mut cfg.bootstrap_interval)?,
+            Self::GlmAdjustment(cfg) => claim(&mut cfg.bootstrap_interval)?,
+            _ => return Err(refuse()),
+        }
+        Ok(spec)
+    }
+
+    /// The requested bootstrap interval a configured estimator carries.
+    #[must_use]
+    pub fn bootstrap_interval(&self) -> Option<antecedent_estimate::IntervalRequest> {
+        match self {
+            Self::LinearAdjustmentAte(cfg) => cfg.bootstrap_interval,
+            Self::PropensityWeighting(cfg) => cfg.bootstrap_interval,
+            Self::PropensityStratification(cfg) => cfg.bootstrap_interval,
+            Self::Aipw(cfg) => cfg.bootstrap_interval,
+            Self::GlmAdjustment(cfg) => cfg.bootstrap_interval,
+            _ => None,
+        }
+    }
+
+    /// Separate an interval stopped by Monte Carlo tolerances from the fixed-count bootstrap the
+    /// calibration gates certify: the coverage of the stop-and-interval procedure is its own
+    /// measured property, so the key must not bind the two.
+    #[must_use]
+    pub fn bootstrap_interval_calibration_label(&self) -> Option<&'static str> {
+        self.bootstrap_interval().map(|_| "bootstrap=adaptive_waves")
+    }
+
     /// Whether the caller supplied an explicit configuration (versus [`Self::Default`]).
     #[must_use]
     pub fn is_configured(&self) -> bool {
@@ -238,6 +311,73 @@ impl EstimatorSpec {
             _ => false,
         };
         declared.then_some("matching=population_linear")
+    }
+}
+
+/// What a study fills into an estimator built from an id alone.
+#[derive(Clone, Copy)]
+pub struct BuildDefaults<'a> {
+    /// Bootstrap replicates (the replicate cap of a requested interval).
+    pub bootstrap_replicates: u32,
+    /// Overlap policy, when the study set one.
+    pub overlap_policy: Option<antecedent_estimate::OverlapPolicy>,
+    /// Population registry, when the study set one.
+    pub population_registry: Option<&'a antecedent_core::PopulationRegistry>,
+    /// Sampling design the study declared.
+    pub sampling_design: Option<antecedent_core::DeclaredSamplingDesign>,
+}
+
+impl BuildDefaults<'_> {
+    /// The configured estimator the dispatcher would build for `id`, for the estimators whose
+    /// bootstrap is the wave procedure; `None` for every other id.
+    fn build(self, id: EstimatorId) -> Option<EstimatorSpec> {
+        let sampling = declared_sampling(self.sampling_design);
+        Some(match id {
+            EstimatorId::LinearAdjustmentAte => {
+                let mut est = LinearAdjustmentAte::new();
+                est.sampling_design = sampling;
+                est.bootstrap_replicates = self.bootstrap_replicates;
+                est.overlap = antecedent_estimate::OverlapPolicy::ExplicitOverride;
+                EstimatorSpec::LinearAdjustmentAte(Box::new(est))
+            }
+            EstimatorId::PropensityWeighting => {
+                let mut est = PropensityWeighting::new();
+                est.sampling_design = sampling;
+                est.bootstrap_replicates = self.bootstrap_replicates;
+                if let Some(policy) = self.overlap_policy {
+                    est.overlap = policy;
+                }
+                est.population_registry = self.population_registry.cloned();
+                EstimatorSpec::PropensityWeighting(Box::new(est))
+            }
+            EstimatorId::PropensityStratification => {
+                let mut est = PropensityStratification::new();
+                est.sampling_design = sampling;
+                est.bootstrap_replicates = self.bootstrap_replicates;
+                if let Some(policy) = self.overlap_policy {
+                    est.overlap = policy;
+                }
+                est.population_registry = self.population_registry.cloned();
+                EstimatorSpec::PropensityStratification(Box::new(est))
+            }
+            EstimatorId::Aipw => {
+                let mut est = AipwAte::new();
+                est.sampling_design = sampling;
+                est.bootstrap_replicates = self.bootstrap_replicates;
+                if let Some(policy) = self.overlap_policy {
+                    est.overlap = policy;
+                }
+                est.population_registry = self.population_registry.cloned();
+                EstimatorSpec::Aipw(Box::new(est))
+            }
+            EstimatorId::GlmAdjustment => {
+                let mut est = GlmAdjustmentAte::new();
+                est.sampling_design = sampling;
+                est.bootstrap_replicates = self.bootstrap_replicates;
+                EstimatorSpec::GlmAdjustment(Box::new(est))
+            }
+            _ => return None,
+        })
     }
 }
 

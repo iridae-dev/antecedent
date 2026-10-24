@@ -181,9 +181,38 @@ fn install(
 ) -> Result<(), CausalError> {
     let design = lowered.physical().design();
     if design.source() == WidthSource::Quoted && plan.linear.is_none() && !plan.streams_design() {
-        plan.requote(design, ctx)?;
+        match plan.requote(design, ctx) {
+            // The resident design does not fit. A nuisance-model route that reduces in
+            // closed form streams its rows instead.
+            Err(error @ CausalError::Resource { .. }) => {
+                match (
+                    crate::analysis::streamed_route::streamed_estimator(study, plan),
+                    design.rows(),
+                    design.columns(),
+                ) {
+                    (Some(estimator), Some(rows), Some(columns)) => {
+                        plan.bind_streamed_nuisance_views(
+                            estimator,
+                            columns.max(1),
+                            rows.max(1),
+                            ctx,
+                        )?;
+                    }
+                    _ => return Err(error),
+                }
+            }
+            other => other?,
+        }
     }
-    let operators = scan::ScanPlan::resident(scan_demand(study, &lowered))?.operators()?;
+    let demand = scan_demand(study, &lowered);
+    // A plan that streams its design reads batches and keeps the Gram; it never holds the
+    // dense copies the resident scan declares.
+    let scan = if plan.streams_design() {
+        scan::ScanPlan::streamed(demand, scan::STREAMED_BATCH_ROWS as u64)?
+    } else {
+        scan::ScanPlan::resident(demand)?
+    };
+    let operators = scan.operators()?;
     plan.lowered = Some(Arc::new(lowered.with_physical_operators(operators)));
     Ok(())
 }
@@ -235,11 +264,11 @@ pub(crate) fn retain_identification(
     product: Option<CompiledIdentificationProduct>,
 ) -> Result<IdentificationLayer, CausalError> {
     let caches = cx.study.identify_caches(cx.plan, cx.ctx)?;
-    Ok(IdentificationLayer::Retained(Arc::new(RetainedIdentification {
+    Ok(IdentificationLayer::Retained(Arc::new(RetainedIdentification::new(
         product,
-        caches: Arc::from(caches),
-        key: retention_key(cx.study),
-    })))
+        caches,
+        retention_key(cx.study),
+    )?)))
 }
 
 /// The deferred layer of a program whose identification refused at compile.
@@ -281,6 +310,19 @@ fn retained_cache<T>(
         return None;
     }
     retained.caches().iter().find_map(pick).map(Arc::clone)
+}
+
+/// The execution proof `plan` retained for `study`: the components of a mediation on the
+/// window of a temporal ADMG or PAG, or the probe of a temporal cross-world query.
+pub(crate) fn plan_retained_execution_proof<'plan>(
+    study: &Study,
+    plan: &'plan PhysicalExecutionPlan,
+) -> Option<&'plan crate::planner::lowered::RetainedExecutionProof> {
+    let retained = plan.lowered()?.retained_identification()?;
+    if Some(retained.key?) != retention_key(study) {
+        return None;
+    }
+    retained.execution_proof()
 }
 
 /// The static identification `plan` retained for `study`.

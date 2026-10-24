@@ -37,7 +37,10 @@ pub enum GraphPosteriorCell {
     TemporalResponse,
     /// Temporal mediation over the atoms.
     TemporalMediation,
-    /// A cross-world query over the atoms of a temporal class posterior.
+    /// A cross-world or attribution query whose answer is a functional of the atoms' own
+    /// mechanisms rather than of one observed contrast: over the atoms of a temporal class
+    /// posterior, or a mediation, path-restricted, natural direct or attribution query over the
+    /// atoms of a tabular posterior.
     CrossWorld,
     /// A trial-to-target transport over the atoms of a posterior, each a selection diagram.
     Transport,
@@ -100,7 +103,25 @@ impl GraphPosteriorCell {
                 | CausalQuery::PathSpecific(_)
                 | CausalQuery::Counterfactual(_)
                 | CausalQuery::Distribution(_),
-            ) if is_class_atom(posterior.atom_kind) => Self::CrossWorld,
+            ) if is_class_atom(posterior.atom_kind)
+                || crate::analysis::execute::dbn_atoms(posterior) =>
+            {
+                Self::CrossWorld
+            }
+            (
+                DataInput::Tabular(_),
+                CausalQuery::Mediation(_)
+                | CausalQuery::NestedCounterfactual(_)
+                | CausalQuery::PathSpecific(_)
+                | CausalQuery::Counterfactual(_)
+                | CausalQuery::Distribution(_)
+                | CausalQuery::AnomalyAttribution(_)
+                | CausalQuery::ChangeAttribution(_),
+            ) => Self::CrossWorld,
+            (
+                DataInput::Temporal(_) | DataInput::Event(_),
+                CausalQuery::AnomalyAttribution(_) | CausalQuery::ChangeAttribution(_),
+            ) => Self::CrossWorld,
             _ => return None,
         })
     }

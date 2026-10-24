@@ -88,6 +88,49 @@ impl PanelData {
         self.units.iter().map(|u| u.series.row_count()).sum()
     }
 
+    /// This panel as a unified segmented source: one part per unit, in unit order.
+    #[must_use]
+    pub fn source(&self) -> crate::source::SegmentedSource {
+        crate::source::SegmentedSource::from_panel(self)
+    }
+
+    /// Replace the series of unit `index`, keeping its unit id and every other unit. The
+    /// replacement must share the panel schema.
+    ///
+    /// # Errors
+    ///
+    /// `index` is past the units, or the series has another schema.
+    pub fn with_unit_series(
+        &self,
+        index: usize,
+        series: TimeSeriesData,
+    ) -> Result<Self, DataError> {
+        let mut units: Vec<PanelUnit> = self.units.to_vec();
+        let Some(slot) = units.get_mut(index) else {
+            return Err(DataError::InvalidArgument {
+                message: "panel unit index out of range".into(),
+            });
+        };
+        slot.series = series;
+        Self::try_new(units)
+    }
+
+    /// Relabel unit `index` with `unit_id`. The unit label is part of the source identity.
+    ///
+    /// # Errors
+    ///
+    /// `index` is past the units.
+    pub fn with_unit_id(&self, index: usize, unit_id: u32) -> Result<Self, DataError> {
+        let mut units: Vec<PanelUnit> = self.units.to_vec();
+        let Some(slot) = units.get_mut(index) else {
+            return Err(DataError::InvalidArgument {
+                message: "panel unit index out of range".into(),
+            });
+        };
+        slot.unit_id = unit_id;
+        Self::try_new(units)
+    }
+
     /// View panel units as multi-environment series (shared schema, one env per unit).
     ///
     /// Used for pooled discovery (e.g. J-PCMCI+) without cloning payloads.

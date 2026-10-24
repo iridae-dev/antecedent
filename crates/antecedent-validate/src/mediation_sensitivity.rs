@@ -156,6 +156,206 @@ pub fn mediation_range(
     ))
 }
 
+/// Slope of the treatment in the regression of `outcome` on a constant, the treatment and the
+/// covariates: the total effect the mediator-outcome correlation `ρ` splits into its indirect
+/// and direct parts.
+///
+/// # Errors
+///
+/// Mismatched lengths, too few rows, non-finite values or a rank-deficient design.
+pub fn total_effect_slope(
+    treatment: &[f64],
+    outcome: &[f64],
+    covariates: &[Vec<f64>],
+) -> Result<f64, ValidationError> {
+    let n = outcome.len();
+    let p = 2 + covariates.len();
+    if treatment.len() != n
+        || covariates.iter().any(|c| c.len() != n)
+        || n <= p + 1
+        || treatment
+            .iter()
+            .chain(outcome)
+            .chain(covariates.iter().flatten())
+            .any(|v| !v.is_finite())
+    {
+        return Err(ValidationError::NotApplicable {
+            message: "the total effect needs finite, equal-length columns and more rows than \
+                      regression parameters plus one",
+        });
+    }
+    let mut design = vec![1.0; n];
+    design.extend_from_slice(treatment);
+    for column in covariates {
+        design.extend_from_slice(column);
+    }
+    let fit =
+        FaerBackend.least_squares(&design, n, p, outcome, &mut LeastSquaresWorkspace::default())?;
+    if fit.rank < p {
+        return Err(ValidationError::NotApplicable {
+            message: "the total effect needs a full-rank treatment and covariate design",
+        });
+    }
+    Ok(fit.coefficients[1])
+}
+
+/// Correlation of the treatment and outcome residuals after a constant and the covariates:
+/// the partial correlation that is the break-even of [`cross_world_noise_range`].
+///
+/// # Errors
+///
+/// As [`total_effect_slope`], or a residual with no variance.
+pub fn residual_correlation(
+    treatment: &[f64],
+    outcome: &[f64],
+    covariates: &[Vec<f64>],
+) -> Result<f64, ValidationError> {
+    let n = outcome.len();
+    let p = 1 + covariates.len();
+    if treatment.len() != n
+        || covariates.iter().any(|c| c.len() != n)
+        || n <= p + 1
+        || treatment
+            .iter()
+            .chain(outcome)
+            .chain(covariates.iter().flatten())
+            .any(|v| !v.is_finite())
+    {
+        return Err(ValidationError::NotApplicable {
+            message: "the residual correlation needs finite, equal-length columns and more rows \
+                      than regression parameters plus one",
+        });
+    }
+    let mut design = vec![1.0; n];
+    for column in covariates {
+        design.extend_from_slice(column);
+    }
+    let mut ws = LeastSquaresWorkspace::default();
+    let t = FaerBackend.least_squares(&design, n, p, treatment, &mut ws)?;
+    let y = FaerBackend.least_squares(&design, n, p, outcome, &mut ws)?;
+    if !(t.rss > 0.0 && y.rss > 0.0) {
+        return Err(ValidationError::NotApplicable {
+            message: "the treatment or the outcome is fitted exactly by the covariates",
+        });
+    }
+    let cross: f64 = t.residuals.iter().zip(&y.residuals).map(|(a, b)| a * b).sum();
+    Ok(cross / (t.rss.sqrt() * y.rss.sqrt()))
+}
+
+/// Finest grid and bisection depth of the break-even search.
+const BREAK_EVEN_STEPS: usize = 398;
+
+/// Smallest-magnitude `ρ` in `(−0.995, 0.995)` at which `f` changes sign, by a grid scan and
+/// bisection; `None` when `f` keeps one sign over the grid.
+fn first_root(f: impl Fn(f64) -> f64) -> Option<f64> {
+    let at = |k: usize| -0.995 + 1.99 * (k as f64) / (BREAK_EVEN_STEPS as f64);
+    let mut best: Option<f64> = None;
+    let mut previous = (at(0), f(at(0)));
+    for k in 1..=BREAK_EVEN_STEPS {
+        let x = at(k);
+        let value = f(x);
+        if previous.1 == 0.0 || previous.1 * value < 0.0 {
+            let (mut lo, mut hi) = (previous.0, x);
+            let mut f_lo = previous.1;
+            for _ in 0..80 {
+                let mid = 0.5 * (lo + hi);
+                let f_mid = f(mid);
+                if f_lo * f_mid <= 0.0 {
+                    hi = mid;
+                } else {
+                    lo = mid;
+                    f_lo = f_mid;
+                }
+            }
+            let root = 0.5 * (lo + hi);
+            if best.is_none_or(|b| root.abs() < b.abs()) {
+                best = Some(root);
+            }
+        }
+        previous = (x, value);
+    }
+    best
+}
+
+/// The natural direct effect as a function of the mediator-outcome error correlation `ρ`, bound
+/// to the sequential-ignorability (cross-world independence) assumption it relaxes.
+///
+/// `direct(ρ) = total − ACME(ρ)` (Imai, Keele and Yamamoto 2010): the total effect is
+/// identified without the assumption, so the direct effect inherits the indirect effect's
+/// dependence on `ρ`. At `ρ = 0` it is the direct coefficient of the outcome regression.
+///
+/// # Errors
+///
+/// A non-finite curve.
+pub fn natural_direct_range(
+    target: RefutationTarget,
+    summary: &MediationSensitivitySummary,
+    total_effect: f64,
+) -> Result<AssumptionRange, ValidationError> {
+    let direct = |rho: f64| summary.acme(rho).map(|acme| total_effect - acme);
+    let mut tested = Vec::with_capacity(RHO_GRID.len());
+    for &rho in &RHO_GRID {
+        tested.push(RangePoint { parameter: rho, target: direct(rho)?, test: None });
+    }
+    if tested.iter().any(|p| !p.target.is_finite()) {
+        return Err(ValidationError::estimation_msg(
+            "direct-effect sensitivity curve is not finite",
+        ));
+    }
+    let break_even = first_root(|rho| direct(rho).unwrap_or(f64::NAN));
+    Ok(AssumptionRange::new(
+        target,
+        SensitivityAssumption::MediatorOutcomeConfounding,
+        "rho",
+        0.0,
+        tested,
+        break_even,
+        None,
+    ))
+}
+
+/// A linear-Gaussian effect as a function of the treatment-outcome error correlation `ρ`.
+///
+/// With `r` the residual correlation of treatment and outcome after the covariates, the
+/// least-squares slope is `β̂ = r s_y / s_t`. If the structural outcome error has correlation
+/// `ρ` with the treatment error, then `cov(t, y) = β s_t² + ρ s_t σ_u` and
+/// `var(y) = β² s_t² + 2 β ρ s_t σ_u + σ_u²`; eliminating `σ_u` gives
+/// `β̂ − β = (s_y / s_t) · sqrt(1 − r²) · g(ρ)` with `g(x) = x / sqrt(1 − x²)`. The effect,
+/// proportional to the slope, is therefore `effect · (1 − g(ρ) / g(r))`, which vanishes at
+/// the break-even `ρ = r`.
+///
+/// # Errors
+///
+/// A non-finite effect, or `r` outside `(−1, 1)`.
+pub fn cross_world_noise_range(
+    target: RefutationTarget,
+    effect: f64,
+    residual_correlation: f64,
+) -> Result<AssumptionRange, ValidationError> {
+    if !effect.is_finite() || !(residual_correlation > -1.0 && residual_correlation < 1.0) {
+        return Err(ValidationError::NotApplicable {
+            message: "the cross-world range needs a finite effect and a residual correlation \
+                      inside (-1, 1)",
+        });
+    }
+    let r = residual_correlation;
+    let mut tested = Vec::with_capacity(RHO_GRID.len());
+    for &rho in &RHO_GRID {
+        let g = |x: f64| x / (1.0 - x * x).sqrt();
+        let value = if r == 0.0 { effect } else { effect * (1.0 - g(rho) / g(r)) };
+        tested.push(RangePoint { parameter: rho, target: value, test: None });
+    }
+    Ok(AssumptionRange::new(
+        target,
+        SensitivityAssumption::CrossWorldNoiseDependence,
+        "rho",
+        0.0,
+        tested,
+        (r != 0.0).then_some(r),
+        None,
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -202,5 +402,78 @@ mod tests {
         let s = mediation_sensitivity_fit(&t, &m, &y, &[x]).unwrap();
         assert!(s.acme(s.rho_tilde).unwrap().abs() < 1e-12);
         assert!(s.acme(-1.0).is_err());
+    }
+
+    #[test]
+    fn the_direct_effect_at_zero_is_the_outcome_regression_coefficient_and_vanishes_at_break_even()
+    {
+        let (t, m, y, x) = data();
+        let s = mediation_sensitivity_fit(&t, &m, &y, &[x.clone()]).unwrap();
+        let total = total_effect_slope(&t, &y, &[x.clone()]).unwrap();
+        let n = y.len();
+        let mut design = vec![1.0; n];
+        design.extend_from_slice(&t);
+        design.extend_from_slice(&m);
+        design.extend_from_slice(&x);
+        let outcome = FaerBackend
+            .least_squares(&design, n, 4, &y, &mut LeastSquaresWorkspace::default())
+            .unwrap();
+        let target = RefutationTarget::scalar_average_effect(
+            crate::target_native::TargetQuadrant::STATIC_FREQUENTIST,
+            [9; 32],
+        );
+        let range = natural_direct_range(target, &s, total).unwrap();
+        // In-sample, total = direct + beta_mediator * gamma exactly, so direct(0) is the
+        // coefficient of the treatment in the outcome regression on treatment and mediator.
+        let at_zero = range.tested.iter().find(|p| p.parameter == 0.0).unwrap().target;
+        assert!((at_zero - outcome.coefficients[1]).abs() < 1e-9, "{at_zero}");
+        let rho = range.break_even.expect("the direct effect changes sign on the grid");
+        assert!((total - s.acme(rho).unwrap()).abs() < 1e-9);
+    }
+
+    #[test]
+    fn the_cross_world_range_recovers_the_slope_of_errors_correlated_at_rho() {
+        // y = beta t + e_y with corr(e_t, e_y) = rho0 built exactly from orthogonal columns.
+        let n = 400;
+        let center = |v: Vec<f64>| {
+            let mean = v.iter().sum::<f64>() / v.len() as f64;
+            v.into_iter().map(|x| x - mean).collect::<Vec<f64>>()
+        };
+        let a = center((0..n).map(|i| (f64::from(i) * 0.37).sin()).collect());
+        let mut b = center((0..n).map(|i| (f64::from(i) * 1.13).cos()).collect());
+        let ab: f64 = a.iter().zip(&b).map(|(x, y)| x * y).sum();
+        let aa: f64 = a.iter().map(|x| x * x).sum();
+        for (bi, ai) in b.iter_mut().zip(&a) {
+            *bi -= ab / aa * ai;
+        }
+        let norm = |v: &[f64]| (v.iter().map(|x| x * x).sum::<f64>() / v.len() as f64).sqrt();
+        let (sa, sb) = (norm(&a), norm(&b));
+        let rho0 = 0.4;
+        let beta = 1.5;
+        // Treatment error a (unit scale), outcome error rho0 * a + sqrt(1 - rho0^2) * b.
+        let t: Vec<f64> = a.iter().map(|x| x / sa).collect();
+        let e_y: Vec<f64> = t
+            .iter()
+            .zip(&b)
+            .map(|(ti, bi)| rho0 * ti + (1.0 - rho0 * rho0).sqrt() * bi / sb)
+            .collect();
+        let y: Vec<f64> = t.iter().zip(&e_y).map(|(ti, e)| beta * ti + e).collect();
+        let slope = total_effect_slope(&t, &y, &[]).unwrap();
+        let r = residual_correlation(&t, &y, &[]).unwrap();
+        // The OLS slope is biased by rho0 * sigma_u / sigma_t = rho0 * sd(e_y) (sd(t) = 1).
+        let bias = rho0 * norm(&e_y);
+        assert!((slope - (beta + bias)).abs() < 1e-9, "{slope}");
+        let target = RefutationTarget::scalar_average_effect(
+            crate::target_native::TargetQuadrant::STATIC_FREQUENTIST,
+            [9; 32],
+        );
+        let range = cross_world_noise_range(target, slope, r).unwrap();
+        assert_eq!(range.break_even, Some(r));
+        // At the true correlation the range returns the structural slope beta.
+        let g = |x: f64| x / (1.0 - x * x).sqrt();
+        let at = |rho: f64| slope * (1.0 - g(rho) / g(r));
+        assert!((at(rho0) - beta).abs() < 1e-9, "{}", at(rho0));
+        let point = range.tested.iter().find(|p| p.parameter == 0.3).unwrap();
+        assert!((point.target - at(0.3)).abs() < 1e-12);
     }
 }

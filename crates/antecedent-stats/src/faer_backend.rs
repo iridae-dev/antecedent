@@ -850,9 +850,14 @@ fn qr_reduce(
         rhs[(row, 0)] = *value;
     }
     apply_transpose(qr.rb(), coeff.rb(), Conj::No, rhs.rb_mut(), par, stack);
-    let triangular = Mat::<f64>::from_fn(ncols, ncols, |row, column| {
-        if row <= column { qr[(row, column)] } else { 0.0 }
-    });
+    let triangular =
+        Mat::<f64>::from_fn(
+            ncols,
+            ncols,
+            |row, column| {
+                if row <= column { qr[(row, column)] } else { 0.0 }
+            },
+        );
     let reduced = (0..ncols).map(|row| rhs[(row, 0)]).collect();
     Ok((triangular, reduced))
 }

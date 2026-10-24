@@ -101,9 +101,7 @@ def test_the_selection_rule_is_deterministic_and_a_declared_scale_wins() -> None
         )
     )
     assert counted.analysis == "poisson_regression" and counted.outcome_kind == "count"
-    marginal = _association(
-        ant.analyze(data, query=Association("y"), refute="none")
-    )
+    marginal = _association(ant.analyze(data, query=Association("y"), refute="none"))
     assert marginal.analysis == "stratified_mean" and len(marginal.terms) == 1
 
 

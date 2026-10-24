@@ -1212,19 +1212,30 @@ impl super::Study {
         let run = ExecuteRun { physical, ctx, started, identify_cached };
         if let [(_, identification, estimand, indexer, _)] = claims.as_slice() {
             if estimand.method_kind().ok() == Some(EstimandMethod::FrontDoor) {
-                let response = self.temporal_admg_front_door_response(
+                let fit = self.temporal_admg_front_door_response(
                     (data, template, query),
                     (identification, estimand),
                     ctx,
                 )?;
+                let refuted = if self.refute == RefuteSuite::None {
+                    (Vec::new(), Vec::new(), Vec::new())
+                } else {
+                    let (reports, notes) = self.refute_temporal_admg_front_door(
+                        &fit,
+                        (identification, estimand),
+                        ctx,
+                    )?;
+                    (reports, Vec::new(), notes)
+                };
                 return Ok(self.finish_temporal_admg_response(
-                    response,
+                    fit.response,
                     IdentifiedClaim {
                         identification: identification.clone(),
                         estimand: estimand.clone(),
                     },
                     (treatment, outcome),
                     run,
+                    refuted,
                 ));
             }
             return self.execute_temporal_derivative_response(
@@ -1237,16 +1248,47 @@ impl super::Study {
             );
         }
         let mut responses = Vec::with_capacity(claims.len());
+        let mut witness_sites = Vec::new();
+        let mut horizon_reports = Vec::new();
+        let mut horizon_notes = Vec::new();
         for (horizon, identification, estimand, indexer, _) in &claims {
             let single =
                 crate::analysis::temporal_admg_contrast::single_horizon_query(query, *horizon)?;
             responses.push(if estimand.method_kind().ok() == Some(EstimandMethod::FrontDoor) {
-                self.temporal_admg_front_door_response(
+                let fit = self.temporal_admg_front_door_response(
                     (data, template, &single),
                     (identification, estimand),
                     ctx,
-                )?
+                )?;
+                if self.refute != RefuteSuite::None {
+                    let (reports, notes) = self.refute_temporal_admg_front_door(
+                        &fit,
+                        (identification, estimand),
+                        ctx,
+                    )?;
+                    horizon_reports.extend(reports);
+                    horizon_notes.extend(notes);
+                    horizon_notes.push(horizon_note(*horizon, "front-door derivative state"));
+                }
+                fit.response
             } else {
+                if self.refute != RefuteSuite::None {
+                    witness_sites.push(super::temporal_response_refutation::PulseWitnessSite {
+                        key: u64::from(*horizon),
+                        horizon: *horizon,
+                        weight: 1.0,
+                        witness: unit_contrast_query(
+                            temporal,
+                            (treatment, outcome),
+                            *horizon,
+                            query.target_population.clone(),
+                        ),
+                        estimand: estimand.clone(),
+                        indexer: indexer.clone(),
+                        status: identification.status,
+                        assumptions: identification.required_assumptions.clone(),
+                    });
+                }
                 let probe = unit_contrast_query(
                     temporal,
                     (treatment, outcome),
@@ -1277,11 +1319,35 @@ impl super::Study {
         identification.required_assumptions = assumptions.clone();
         combined.identification_status = status;
         combined.assumptions = assumptions;
+        // A multi-horizon derivative's cheap/full suite is the support of the published
+        // values, the front-door state of each front-door horizon and the TemporalDag
+        // Pulse-native suite on each adjustment horizon's witness; horizons are not mixed
+        // (unlicensed).
+        let mut refuted = (Vec::new(), Vec::new(), Vec::new());
+        if self.refute != RefuteSuite::None {
+            let value = super::derivative_refutation::derivative_scalar(&combined).0;
+            refuted.0.push(super::derivative_refutation::support_report(&combined, value));
+            refuted.0.extend(horizon_reports);
+            refuted.2.extend(horizon_notes);
+            if !witness_sites.is_empty() {
+                let (reports, checks, notes, _) =
+                    super::temporal_response_refutation::refute_pulse_witness_sites(
+                        self,
+                        data,
+                        &witness_sites,
+                        ctx,
+                    )?;
+                refuted.0.extend(reports);
+                refuted.1.extend(checks);
+                refuted.2.extend(notes);
+            }
+        }
         Ok(self.finish_temporal_admg_response(
             combined,
             IdentifiedClaim { identification, estimand: first_estimand.clone() },
             (treatment, outcome),
             run,
+            refuted,
         ))
     }
 
@@ -1298,7 +1364,7 @@ impl super::Study {
         ),
         (identification, estimand): (&IdentificationResult, &IdentifiedEstimand),
         ctx: &ExecutionContext,
-    ) -> Result<CausalResponse, CausalError> {
+    ) -> Result<TemporalFrontDoorFit, CausalError> {
         let Some(temporal) = query.temporal.as_ref() else {
             return Err(CausalError::Compile {
                 message: "temporal response route requires TemporalResponseSpec".into(),
@@ -1373,7 +1439,28 @@ impl super::Study {
         )?;
         // The response answers the caller's query, not the window-coordinate one.
         response.estimand = query.functional.clone();
-        Ok(response)
+        Ok(TemporalFrontDoorFit { response, table, window_query, block })
+    }
+
+    /// The front-door derivative refuter state of one horizon of a temporal ADMG, on the
+    /// window table the published value was estimated on (unlicensed).
+    fn refute_temporal_admg_front_door(
+        &self,
+        fit: &TemporalFrontDoorFit,
+        (identification, estimand): (&IdentificationResult, &IdentifiedEstimand),
+        ctx: &ExecutionContext,
+    ) -> Result<(Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>), CausalError> {
+        self.refute_front_door_derivative_response(
+            (&fit.table, &fit.window_query),
+            &super::response_path::FrontDoorClaim {
+                estimand,
+                status: identification.status,
+                assumptions: identification.required_assumptions.clone(),
+            },
+            &fit.response,
+            fit.block,
+            ctx,
+        )
     }
 
     /// The result of a temporal ADMG derivative from its response.
@@ -1383,7 +1470,9 @@ impl super::Study {
         claim: IdentifiedClaim,
         (treatment, outcome): (VariableId, VariableId),
         run: ExecuteRun<'_>,
+        refuted: super::temporal_response_refutation::TemporalLevelRefutation,
     ) -> StudyResult {
+        let (refutations, predictive_checks, notes) = refuted;
         let IdentifiedClaim { identification, estimand } = claim;
         let ExecuteRun { physical, ctx: _, started, identify_cached } = run;
         let scalar = super::response_path::response_scalar_summary(&response).0;
@@ -1393,7 +1482,8 @@ impl super::Study {
             identification.required_assumptions.clone(),
             OverlapPolicy::ExplicitOverride,
         );
-        let diagnostics: Vec<Diagnostic> = response.support.warnings.clone();
+        let mut diagnostics: Vec<Diagnostic> = response.support.warnings.clone();
+        diagnostics.extend(notes);
         let mut result = self.finish_identified_execute(
             IdentifiedExecuteFinish::new(
                 physical,
@@ -1408,10 +1498,12 @@ impl super::Study {
                 outcome,
             )
             .identify_cached(identify_cached)
+            .refutations(refutations)
             .wall_time_ns(elapsed_ns(started)),
         );
         result.payload = crate::result::ResultPayload::Response(response);
         result.posterior = None;
+        result.predictive_checks = predictive_checks;
         result.rebind_interval(self.inference.is_bayesian());
         result.diagnostics.extend(diagnostics);
         result
@@ -5565,6 +5657,37 @@ impl super::Study {
         }
     }
 
+    /// The identification of the cross-world probe, which depends on the query and the
+    /// structure alone, for compile to retain with the program. `None` leaves identification
+    /// (and its refusal) to execution.
+    pub(crate) fn retain_cross_world_identification(
+        &self,
+        plan: &PhysicalExecutionPlan,
+    ) -> Option<crate::planner::lowered::RetainedExecutionProof> {
+        let probe = super::temporal_class_point::cross_world_identification_probe(&self.query)?;
+        use crate::accepted::GraphRef;
+        match self.graph.graph_ref() {
+            GraphRef::TemporalDag(graph) => {
+                let found =
+                    TemporalBackdoorIdentifier::new().identify_temporal(graph, &probe).ok()?;
+                require_identified(&found.result).ok()?;
+                found.result.estimands.first()?;
+                Some(crate::planner::lowered::RetainedExecutionProof::CrossWorld {
+                    identification: found.result,
+                    indexer: found.indexer,
+                })
+            }
+            GraphRef::TemporalCpdag(_) | GraphRef::TemporalPag(_) => {
+                let identifier_id = plan.binding().identifier_or(RouteDefaults::PAG).ok()?;
+                let bundle = self.identify_temporal_class(identifier_id, &probe).ok()?;
+                Some(crate::planner::lowered::RetainedExecutionProof::CrossWorldClass {
+                    envelope: Arc::clone(&bundle.envelope),
+                })
+            }
+            _ => None,
+        }
+    }
+
     #[allow(
         clippy::too_many_lines,
         reason = "one cross-world execution: the point, the draws, and the claim stay in one function"
@@ -5589,10 +5712,24 @@ impl super::Study {
             .with_policy(antecedent_core::TemporalPolicy::pulse(-1))
             .with_horizon_steps(1)
             .with_max_history_lag(Some(1));
-        let found = TemporalBackdoorIdentifier::new()
-            .identify_temporal(graph, &probe)
-            .map_err(CausalError::from)?;
-        let identification = found.result;
+        // The probe depends only on the query and the graph, so it is identified once, at
+        // compile, and the program retains it; a plan that retained none identifies here.
+        let retained =
+            match crate::analysis::lowering::plan_retained_execution_proof(self, physical) {
+                Some(crate::planner::lowered::RetainedExecutionProof::CrossWorld {
+                    identification,
+                    indexer,
+                }) => Some((identification.clone(), indexer.clone())),
+                _ => None,
+            };
+        let (identification, indexer) = if let Some(retained) = retained {
+            retained
+        } else {
+            let found = TemporalBackdoorIdentifier::new()
+                .identify_temporal(graph, &probe)
+                .map_err(CausalError::from)?;
+            (found.result, found.indexer)
+        };
         require_identified(&identification)?;
         let estimand = identification.estimands.first().cloned().ok_or_else(|| {
             CausalError::Compile { message: "temporal cross-world proof has no estimand".into() }
@@ -5614,7 +5751,7 @@ impl super::Study {
         let atom = point_uncertainty::SlopeAtom::new(
             data,
             used,
-            &found.indexer,
+            &indexer,
             (probe.try_treatment_offset()?, probe.outcome_offset()),
             ctx.kernel_policy,
             prior_scale,
@@ -5626,12 +5763,12 @@ impl super::Study {
                 };
             cross_world_point(&self.query, &fit, contrast)?
         };
-        let structural_span = super::temporal_class_block_span(std::iter::once(&found.indexer));
+        let structural_span = super::temporal_class_block_span(std::iter::once(&indexer));
         let proof = identification.clone();
         let proof_estimand = estimand.clone();
         let identification = template_scoped_cross_world(
             identification,
-            &found.indexer,
+            &indexer,
             self.query.clone(),
             CrossWorldContrast { treatment, outcome, mediator, active, control },
         );
@@ -5646,7 +5783,7 @@ impl super::Study {
                 data,
                 &proof,
                 &proof_estimand,
-                &found.indexer,
+                &indexer,
                 &contrast_query,
                 ctx,
             )?;
@@ -6318,7 +6455,7 @@ pub(super) fn temporal_linear_derivative_response(
 /// One response per horizon of a point or average derivative, as one value per horizon in
 /// horizon order with a pointwise band per horizon (horizons are not mixed, so the band is
 /// marginal, not joint).
-fn combine_horizon_derivatives(
+pub(super) fn combine_horizon_derivatives(
     functional: &ResponseFunctional,
     responses: &[CausalResponse],
 ) -> Result<CausalResponse, CausalError> {
@@ -6921,6 +7058,29 @@ struct DerivativeResponseInputs<'a> {
     indexer: &'a TemporalIndexer,
     treatment: VariableId,
     outcome: VariableId,
+}
+
+/// A front-door derivative of one horizon of a temporal ADMG with the window table, the
+/// window-coordinate query and the resampling block it was estimated on.
+struct TemporalFrontDoorFit {
+    response: CausalResponse,
+    table: TabularData,
+    window_query: ResponseQuery,
+    block: usize,
+}
+
+/// Names the horizon whose refuter state produced the neighbouring reports.
+fn horizon_note(horizon: u32, state: &str) -> Diagnostic {
+    Diagnostic::new(
+        "refute.temporal_response.horizon_state",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Info,
+        format!(
+            "horizon {horizon}: the {state} ran on this horizon's own window and estimand; \
+             horizons are not mixed"
+        ),
+    )
+    .with_fields([("horizon", horizon.to_string())])
 }
 
 /// What the observation preparation of a temporal response reads.

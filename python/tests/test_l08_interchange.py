@@ -81,9 +81,12 @@ def test_counts_record_what_was_passed():
     assert record.scientific_contract_changed() is False
     assert record.publishes_claim() is True
     assert len(record.physical_identity()) == 32
-    assert record.physical_identity() == _facts(
-        retention="disk_backed", backend="portable", kernel="scalar_only"
-    ).physical_identity()
+    assert (
+        record.physical_identity()
+        == _facts(
+            retention="disk_backed", backend="portable", kernel="scalar_only"
+        ).physical_identity()
+    )
 
 
 def test_overflow_refuses():
@@ -137,9 +140,7 @@ def test_cancelled_status_does_not_publish():
     flagged = cancelled.declare_numerical_policy_changes_scientific_contract(True)
     assert flagged.scientific_contract_changed() is True
     assert flagged.publishes_claim() is False
-    failed = flagged.rebuild(
-        _counts(), "summary_only", _resources(), "cpu", "default", "failed"
-    )
+    failed = flagged.rebuild(_counts(), "summary_only", _resources(), "cpu", "default", "failed")
     assert failed.publishes_claim() is False
     assert failed.status() == "failed"
     assert failed.retention() == "summary-only"

@@ -796,3 +796,162 @@ fn the_observational_excursion_refuses_what_it_cannot_identify_or_resample() {
     };
     assert!(bad.validate().is_err());
 }
+
+/// Two periods with treatment-confounder feedback: the baseline confounder drives the first
+/// treatment, the first treatment raises the second confounder, which drives the second
+/// treatment, and the outcome reads both treatments and both confounders. From the structural
+/// equations (centered baseline confounder and noise) `E[Y^{a0,a1}] = 0.5 + 2.2 a0 + 2 a1`, so
+/// always-treat against never-treat is `4.2` whatever the estimator.
+fn regime_panel(
+    units: usize,
+    method: antecedent_core::TemporalRegimeMethod,
+    seed: u64,
+) -> (TabularData, TemporalDesignQuery, f64) {
+    let expit = |x: f64| 1.0 / (1.0 + (-x).exp());
+    let mut stream = Stream(seed);
+    let (mut labels_of_rows, mut periods) = (Vec::new(), Vec::new());
+    let (mut outcome, mut treated, mut confounder) = (Vec::new(), Vec::new(), Vec::new());
+    let (mut always, mut never) = ([0.0_f64; 2], [0.0_f64; 2]);
+    for i in 0..units {
+        let l0 = 2.0 * stream.next() - 1.0;
+        let a0 = stream.next() < expit(1.5 * l0);
+        let l1 = 0.6 * l0 + 0.8 * f64::from(u8::from(a0)) + (stream.next() - 0.5);
+        let a1 = stream.next() < expit(1.2 * (l1 - 0.4));
+        let y = 0.5
+            + f64::from(u8::from(a0))
+            + 2.0 * f64::from(u8::from(a1))
+            + 1.5 * l1
+            + 2.0 * l0
+            + 0.6 * (stream.next() - 0.5);
+        if a0 && a1 {
+            always = [always[0] + y, always[1] + 1.0];
+        } else if !a0 && !a1 {
+            never = [never[0] + y, never[1] + 1.0];
+        }
+        for (t, (value, action, level)) in
+            [(0.0, a0, l0), (y, a1, l1)].into_iter().enumerate()
+        {
+            labels_of_rows.push(format!("u{i}"));
+            periods.push(i64::try_from(t).unwrap());
+            outcome.push(value);
+            treated.push(f64::from(u8::from(action)));
+            confounder.push(level);
+        }
+    }
+    let naive = always[0] / always[1] - never[0] / never[1];
+    let data = table(&[
+        ("y", outcome.as_slice()),
+        ("a", treated.as_slice()),
+        ("l", confounder.as_slice()),
+    ]);
+    let query = TemporalDesignQuery {
+        outcome: VariableId::from_raw(0),
+        units: labels(&labels_of_rows),
+        periods: periods.as_slice().into(),
+        lag: 0,
+        assignment: TemporalAssignment::ObservationalRegime {
+            treatment: VariableId::from_raw(1),
+            confounders: Arc::from([VariableId::from_raw(2)]),
+            active: Arc::from([true, true]),
+            reference: Arc::from([false, false]),
+            method,
+        },
+        functional: TemporalDesignFunctional::Mean,
+        min_probability: 0.05,
+        outcome_misclassification: None,
+    };
+    (data, query, naive)
+}
+
+#[test]
+fn the_observational_regime_removes_time_varying_confounding_under_feedback() {
+    use antecedent_core::TemporalRegimeMethod;
+    let ctx = ExecutionContext::for_tests(113);
+    for method in [TemporalRegimeMethod::DoublyRobust, TemporalRegimeMethod::GFormula] {
+        let (data, query, naive) = regime_panel(1500, method, 127);
+        let frequentist = run(&data, query.clone(), InferenceMode::Frequentist, 99, &ctx);
+        let fit = section(&frequentist);
+        assert_eq!(&*fit.design, "observational_regime");
+        assert_eq!(&*fit.calibration, "unmeasured");
+        assert!(!fit.licensed);
+        assert!(fit.replicates.is_some_and(|(done, failed)| done + failed == 99));
+        assert!(
+            (fit.estimate[0] - 4.2).abs() < 4.0 * fit.standard_error[0] + 0.1,
+            "{method:?}: {} (se {}) vs 4.2",
+            fit.estimate[0],
+            fit.standard_error[0]
+        );
+        assert!(
+            (fit.estimate[1] - 4.7).abs() < 4.0 * fit.standard_error[1] + 0.2,
+            "{method:?}: active mean {}",
+            fit.estimate[1]
+        );
+        // The raw contrast of the always- and never-treated subjects is confounded.
+        assert!((naive - 4.2).abs() > 0.5, "raw contrast {naive}");
+        let posterior = run(&data, query, bayesian(100), 0, &ctx);
+        let draws_fit = section(&posterior);
+        assert_eq!(draws_fit.draws, Some(100));
+        assert!(
+            (draws_fit.estimate[0] - 4.2).abs() < 4.0 * draws_fit.standard_error[0] + 0.2,
+            "{method:?}: posterior {} vs 4.2",
+            draws_fit.estimate[0]
+        );
+    }
+}
+
+#[test]
+fn the_observational_regime_refuses_what_it_cannot_identify_or_resample() {
+    use antecedent_core::TemporalRegimeMethod;
+    let (data, query, _) = regime_panel(80, TemporalRegimeMethod::DoublyRobust, 131);
+    let ctx = ExecutionContext::for_tests(137);
+    // No replicates, no interval.
+    let missing = Study::tabular(data.clone())
+        .query(CausalQuery::TemporalDesign(query.clone()))
+        .build()
+        .and_then(|study| study.run(&ctx));
+    assert!(missing.is_err());
+    // Identical paths, paths of different length, a lag and a repeated column are invalid.
+    let mut bad = query.clone();
+    bad.assignment = TemporalAssignment::ObservationalRegime {
+        treatment: VariableId::from_raw(1),
+        confounders: Arc::from([VariableId::from_raw(2)]),
+        active: Arc::from([true, true]),
+        reference: Arc::from([true, true]),
+        method: TemporalRegimeMethod::GFormula,
+    };
+    assert!(bad.validate().is_err());
+    bad.assignment = TemporalAssignment::ObservationalRegime {
+        treatment: VariableId::from_raw(1),
+        confounders: Arc::from([VariableId::from_raw(2)]),
+        active: Arc::from([true]),
+        reference: Arc::from([true, false]),
+        method: TemporalRegimeMethod::GFormula,
+    };
+    assert!(bad.validate().is_err());
+    let mut lagged = query.clone();
+    lagged.lag = 1;
+    assert!(lagged.validate().is_err());
+    bad.assignment = TemporalAssignment::ObservationalRegime {
+        treatment: VariableId::from_raw(1),
+        confounders: Arc::from([VariableId::from_raw(0)]),
+        active: Arc::from([true, true]),
+        reference: Arc::from([false, false]),
+        method: TemporalRegimeMethod::GFormula,
+    };
+    assert!(bad.validate().is_err());
+    // A path longer than the follow-up is refused at execution.
+    let mut long = query;
+    long.assignment = TemporalAssignment::ObservationalRegime {
+        treatment: VariableId::from_raw(1),
+        confounders: Arc::from([VariableId::from_raw(2)]),
+        active: Arc::from([true, true, true]),
+        reference: Arc::from([false, false, false]),
+        method: TemporalRegimeMethod::GFormula,
+    };
+    let refused = Study::tabular(data)
+        .query(CausalQuery::TemporalDesign(long))
+        .bootstrap_replicates(99)
+        .build()
+        .and_then(|study| study.run(&ctx));
+    assert!(refused.is_err());
+}

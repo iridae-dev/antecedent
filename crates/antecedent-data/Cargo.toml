@@ -58,6 +58,10 @@ path = "tests/file_source.rs"
 required-features = ["parquet", "ipc"]
 
 [[test]]
+name = "source_setters"
+path = "tests/source_setters.rs"
+
+[[test]]
 name = "selected_columns_allocation"
 path = "tests/selected_columns_allocation.rs"
 

@@ -13,7 +13,9 @@ use super::{
     select_claim,
 };
 use crate::analysis::prepared::Inspect;
-use crate::analysis::proof_support::{proof_supplies, verify_proof_against_graph};
+use crate::analysis::proof_support::{
+    RetainedProof, proof_supplies, verify_proof_against_graph, verify_retained_static,
+};
 use antecedent_core::{TargetPopulation, VariableId};
 use antecedent_learn::{BasisTargetPopulation, BayesianBasisGComputation, BayesianBasisSpec};
 
@@ -127,21 +129,26 @@ impl CheckedBayesianBasisAteExecution {
                 message: "Bayesian basis estimand is not supplied by its retained proof".into(),
             });
         }
-        let (checked_identification, checked_estimand) = select_claim(
-            identify_static_query(
-                IdentifierId::BackdoorAdjustment,
-                graph,
-                &CausalQuery::AverageEffect(query.clone()),
-            )?,
-            EstimatorId::BayesianBasisGcomp,
-        )?;
-        verify_proof_against_graph(
-            &checked_identification,
-            &checked_estimand,
-            identification,
-            estimand,
-            "Bayesian basis proof is not justified by its retained graph",
-        )?;
+        const PROOF_REFUSED: &str = "Bayesian basis proof is not justified by its retained graph";
+        if verify_retained_static(&physical, identification, estimand, PROOF_REFUSED)?
+            == RetainedProof::NotRetained
+        {
+            let (checked_identification, checked_estimand) = select_claim(
+                identify_static_query(
+                    IdentifierId::BackdoorAdjustment,
+                    graph,
+                    &CausalQuery::AverageEffect(query.clone()),
+                )?,
+                EstimatorId::BayesianBasisGcomp,
+            )?;
+            verify_proof_against_graph(
+                &checked_identification,
+                &checked_estimand,
+                identification,
+                estimand,
+                PROOF_REFUSED,
+            )?;
+        }
         Ok(Self {
             graph: graph.clone(),
             query,

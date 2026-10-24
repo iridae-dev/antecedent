@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use antecedent_core::{
     OutcomeMisclassification, TemporalAssignment, TemporalDesignFunctional, TemporalDesignQuery,
-    TemporalDoseTarget, VariableId,
+    TemporalDoseTarget, TemporalRegimeMethod, VariableId,
 };
 use serde::{Deserialize, Serialize};
 
@@ -118,6 +118,19 @@ pub enum TemporalAssignmentWire {
         treatment: u32,
         /// History columns of the assignment model.
         history: Vec<u32>,
+    },
+    /// Whole static treatment regimes on a continuous end-of-follow-up outcome.
+    ObservationalRegime {
+        /// Treatment column.
+        treatment: u32,
+        /// Time-varying confounder columns.
+        confounders: Vec<u32>,
+        /// Active path, one action per period.
+        active: Vec<bool>,
+        /// Reference path, one action per period.
+        reference: Vec<bool>,
+        /// Estimator name: `g_formula`, `inverse_probability_weighting` or `doubly_robust`.
+        method: String,
     },
 }
 
@@ -242,6 +255,19 @@ impl TemporalDesignQueryWire {
                     history: vars_to_raw(history),
                 }
             }
+            TemporalAssignment::ObservationalRegime {
+                treatment,
+                confounders,
+                active,
+                reference,
+                method,
+            } => TemporalAssignmentWire::ObservationalRegime {
+                treatment: treatment.raw(),
+                confounders: vars_to_raw(confounders),
+                active: active.to_vec(),
+                reference: reference.to_vec(),
+                method: method.name().to_owned(),
+            },
         };
         Ok(Self {
             outcome: query.outcome.raw(),
@@ -360,6 +386,21 @@ impl TemporalDesignQueryWire {
                     history: vars_from_raw(history),
                 }
             }
+            TemporalAssignmentWire::ObservationalRegime {
+                treatment,
+                confounders,
+                active,
+                reference,
+                method,
+            } => TemporalAssignment::ObservationalRegime {
+                treatment: VariableId::from_raw(*treatment),
+                confounders: vars_from_raw(confounders),
+                active: active.as_slice().into(),
+                reference: reference.as_slice().into(),
+                method: TemporalRegimeMethod::from_name(method).ok_or_else(|| {
+                    IoError::Convert(format!("unknown regime estimator {method:?}"))
+                })?,
+            },
         };
         let query = TemporalDesignQuery {
             outcome: VariableId::from_raw(self.outcome),
@@ -401,6 +442,12 @@ impl TemporalDesignQueryWire {
             ids.push(*treatment);
             ids.extend(history.iter().copied());
         }
+        if let TemporalAssignmentWire::ObservationalRegime { treatment, confounders, .. } =
+            &self.assignment
+        {
+            ids.push(*treatment);
+            ids.extend(confounders.iter().copied());
+        }
         ids
     }
 
@@ -416,6 +463,7 @@ impl TemporalDesignQueryWire {
             TemporalAssignmentWire::Dose { .. } => "dose",
             TemporalAssignmentWire::RegimeSurvival { .. } => "regime_survival",
             TemporalAssignmentWire::ObservationalExcursion { .. } => "observational_excursion",
+            TemporalAssignmentWire::ObservationalRegime { .. } => "observational_regime",
         }
     }
 }
@@ -464,5 +512,35 @@ mod tests {
         assert_eq!(wire.to_domain().unwrap(), query);
         assert_eq!(wire.variable_ids(), vec![1, 2, 3, 4]);
         assert_eq!(wire.design_name(), "observational_excursion");
+    }
+
+    #[test]
+    fn an_observational_regime_round_trips_and_refuses_an_unknown_estimator() {
+        let query = TemporalDesignQuery {
+            outcome: VariableId::from_raw(1),
+            units: arcs(&["a".into(), "a".into(), "b".into(), "b".into()]),
+            periods: Arc::from([0_i64, 1, 0, 1]),
+            lag: 0,
+            assignment: TemporalAssignment::ObservationalRegime {
+                treatment: VariableId::from_raw(2),
+                confounders: Arc::from([VariableId::from_raw(3)]),
+                active: Arc::from([true, true]),
+                reference: Arc::from([false, false]),
+                method: TemporalRegimeMethod::DoublyRobust,
+            },
+            functional: TemporalDesignFunctional::Mean,
+            min_probability: 0.05,
+            outcome_misclassification: None,
+        };
+        let wire = TemporalDesignQueryWire::from_domain(&query).unwrap();
+        assert_eq!(wire.to_domain().unwrap(), query);
+        assert_eq!(wire.variable_ids(), vec![1, 2, 3]);
+        assert_eq!(wire.design_name(), "observational_regime");
+        let mut unknown = wire.clone();
+        if let TemporalAssignmentWire::ObservationalRegime { method, .. } = &mut unknown.assignment
+        {
+            "propensity_matching".clone_into(method);
+        }
+        assert!(unknown.to_domain().is_err());
     }
 }

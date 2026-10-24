@@ -162,6 +162,29 @@ pub(crate) fn identify_temporal_mediation_horizons(
 }
 
 impl Study {
+    /// The sharp-RD design identification, identified once here and retained with the
+    /// program. `None` when the study declares no design, the structure is not a DAG, or the
+    /// design does not identify: execution then identifies and reports the refusal.
+    fn prepare_sharp_rd_identification(
+        &self,
+        estimator_id: EstimatorId,
+    ) -> Option<CachedStaticIdentification> {
+        let rd = self.rd?;
+        let CausalQuery::AverageEffect(_) = &self.query else {
+            return None;
+        };
+        let graph = self.graph.as_dag()?;
+        let identification = antecedent_identify::SharpRdIdentifier::new(
+            antecedent_identify::SharpRdConfig::new(rd.running_variable, rd.cutoff, rd.bandwidth),
+        )
+        .identify_on(graph, self.query.clone())
+        .ok()?;
+        crate::strategy_table::require_identified(&identification).ok()?;
+        let estimand =
+            crate::strategy_table::select_estimand(&identification, estimator_id).ok()?;
+        Some(CachedStaticIdentification { identification, estimand })
+    }
+
     /// The not-identified product behind `error`, for a latent-confounded ADMG average-effect
     /// query the complete algorithm does not identify.
     ///
@@ -200,6 +223,17 @@ impl Study {
         &self,
         plan: &PhysicalExecutionPlan,
     ) -> Result<Option<CachedStaticIdentification>, CausalError> {
+        self.prepare_static_identification_in(plan, None)
+    }
+
+    /// [`Self::prepare_static_identification`] under the caller's execution context: the exact
+    /// adjustment searches lease their storage from its admission pool and stop at its
+    /// cancellation token.
+    pub(crate) fn prepare_static_identification_in(
+        &self,
+        plan: &PhysicalExecutionPlan,
+        context: Option<&ExecutionContext>,
+    ) -> Result<Option<CachedStaticIdentification>, CausalError> {
         use crate::strategy_table::{
             EstimatorId, IdentifierId, identify_static, identify_static_query, select_claim,
             select_estimand,
@@ -209,7 +243,7 @@ impl Study {
         }
         let (identifier_id, estimator_id) = plan.binding().resolve(RouteDefaults::STATIC_ATE)?;
         if matches!(estimator_id, EstimatorId::RdSharp | EstimatorId::BayesianRdLocalLinear) {
-            return Ok(None);
+            return Ok(self.prepare_sharp_rd_identification(estimator_id));
         }
         match &self.query {
             CausalQuery::AverageEffect(query) => self.prepare_static_average_effect_identification(
@@ -217,12 +251,14 @@ impl Study {
                 query,
                 identifier_id,
                 estimator_id,
+                context,
             ),
             CausalQuery::Response(query) => self.prepare_static_response_identification(
                 plan,
                 query,
                 identifier_id,
                 estimator_id,
+                context,
             ),
             CausalQuery::Mediation(query) => {
                 let GraphRef::Dag(graph) = self.graph.graph_ref() else {
@@ -505,8 +541,11 @@ impl Study {
         query: &AverageEffectQuery,
         identifier_id: crate::strategy_table::IdentifierId,
         estimator_id: EstimatorId,
+        context: Option<&ExecutionContext>,
     ) -> Result<Option<CachedStaticIdentification>, CausalError> {
-        use crate::strategy_table::{identify_static_query_with_rd, select_claim, select_estimand};
+        use crate::strategy_table::{
+            identify_static_query_in_context, select_claim, select_estimand,
+        };
         if let Some(background) = &self.tiered {
             let identification = antecedent_identify::identify_tiered(background, query)?;
             let estimand =
@@ -552,11 +591,12 @@ impl Study {
                 antecedent_identify::SharpRdConfig::new(c.running_variable, c.cutoff, c.bandwidth)
             })
         };
-        let identification = identify_static_query_with_rd(
+        let identification = identify_static_query_in_context(
             identifier_id,
             &graph,
             &CausalQuery::AverageEffect(query.clone()),
             rd,
+            context,
         )?;
         let (identification, estimand) = select_claim(identification, estimator_id)?;
         Ok(Some(CachedStaticIdentification { identification, estimand }))
@@ -569,8 +609,9 @@ impl Study {
         query: &antecedent_core::ResponseQuery,
         identifier_id: crate::strategy_table::IdentifierId,
         estimator_id: EstimatorId,
+        context: Option<&ExecutionContext>,
     ) -> Result<Option<CachedStaticIdentification>, CausalError> {
-        use crate::strategy_table::{identify_static_query, select_estimand};
+        use crate::strategy_table::{identify_static_query_in_context, select_estimand};
         if let Some(background) = &self.tiered {
             let schema = match &self.data {
                 DataInput::Tabular(data) => data.schema(),
@@ -653,8 +694,13 @@ impl Study {
         let Some(graph) = graph else {
             return Ok(None);
         };
-        let identification =
-            identify_static_query(identifier_id, &graph, &CausalQuery::Response(query.clone()))?;
+        let identification = identify_static_query_in_context(
+            identifier_id,
+            &graph,
+            &CausalQuery::Response(query.clone()),
+            None,
+            context,
+        )?;
         let estimand = identification.estimands.first().cloned().ok_or_else(|| {
             CausalError::Compile { message: "response identifier returned no estimand".into() }
         })?;
@@ -665,8 +711,9 @@ impl Study {
     pub(super) fn prepare_pag_identification(
         &self,
         plan: &PhysicalExecutionPlan,
+        context: Option<&ExecutionContext>,
     ) -> Result<Option<CachedPagIdentification>, CausalError> {
-        use crate::strategy_table::identify_pag;
+        use crate::strategy_table::identify_pag_in_context;
 
         let Some(query) = self.envelope_witness_ate()? else {
             return Ok(None);
@@ -681,7 +728,7 @@ impl Study {
         let envelope = if let CausalQuery::Response(response) = &self.query {
             crate::strategy_table::identify_pag_response(identifier_id, pag, response)?
         } else {
-            identify_pag(identifier_id, pag, &query)?
+            identify_pag_in_context(identifier_id, pag, &query, context)?
         };
         let identification = crate::analysis::execute::envelope_to_identification_result_for(
             &envelope,
@@ -698,8 +745,9 @@ impl Study {
     pub(super) fn prepare_cpdag_identification(
         &self,
         plan: &PhysicalExecutionPlan,
+        context: Option<&ExecutionContext>,
     ) -> Result<Option<CachedCpdagIdentification>, CausalError> {
-        use crate::strategy_table::identify_cpdag;
+        use crate::strategy_table::identify_cpdag_in_context;
 
         let Some(query) = self.envelope_witness_ate()? else {
             return Ok(None);
@@ -711,7 +759,7 @@ impl Study {
         let envelope = if let CausalQuery::Response(response) = &self.query {
             crate::strategy_table::identify_cpdag_response(identifier_id, cpdag, response)?
         } else {
-            identify_cpdag(identifier_id, cpdag, &query)?
+            identify_cpdag_in_context(identifier_id, cpdag, &query, context)?
         };
         let identification = crate::analysis::execute::envelope_to_identification_result_for(
             &envelope,

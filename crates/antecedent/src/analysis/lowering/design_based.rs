@@ -149,11 +149,11 @@ pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalEr
         if matches!(estimator, Some(EstimatorId::RdSharp | EstimatorId::BayesianRdLocalLinear)) {
             IdentificationLayer::PerExecution { reason: RD_IDENTIFIES_PER_EXECUTION }
         } else {
-            IdentificationLayer::Retained(Arc::new(RetainedIdentification {
-                product: Some(retain_product(&cell.identification, &cell.target)?),
-                caches: Arc::from(caches),
-                key: super::retention_key(study),
-            }))
+            IdentificationLayer::Retained(Arc::new(RetainedIdentification::new(
+                Some(retain_product(&cell.identification, &cell.target)?),
+                caches,
+                super::retention_key(study),
+            )?))
         };
     let design = design_shape(cx, input, cell.width);
     let statistical = statistical_program(study, identifier, estimator, design, &cell)?;
@@ -242,9 +242,7 @@ fn design_cell(
                 _ => None,
             });
             let identification = match single {
-                Some(identified) => {
-                    Study::transport_design_identification(query, &identified)?.0
-                }
+                Some(identified) => Study::transport_design_identification(query, &identified)?.0,
                 // A Cpdag or Pag names no single selection diagram: the identification is the
                 // class envelope of the sID outcomes of its members.
                 None => caches
@@ -894,6 +892,19 @@ fn temporal_design_cell(study: &Study, query: &antecedent_core::TemporalDesignQu
             ),
             slot(ModelRole::Outcome, "horvitz_thompson_excursion", &[], Some(query.outcome)),
         ],
+        TemporalAssignment::ObservationalRegime { treatment, confounders, method, .. } => {
+            let mut history: Vec<VariableId> = confounders.to_vec();
+            history.push(*treatment);
+            vec![
+                slot(
+                    ModelRole::Propensity,
+                    "per_period_logistic_treatment_history",
+                    &history,
+                    Some(*treatment),
+                ),
+                slot(ModelRole::Outcome, method.name(), &history, Some(query.outcome)),
+            ]
+        }
         _ => vec![
             slot(ModelRole::Propensity, "recorded_sequential_assignment_law", &[], None),
             slot(ModelRole::Outcome, "horvitz_thompson_excursion", &[], Some(query.outcome)),

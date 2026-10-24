@@ -32,8 +32,8 @@ use antecedent_core::{ExecutionContext, IdentificationStatus, Lag, TemporalNodeK
 use antecedent_data::LaggedColumn;
 use antecedent_expr::EstimandMethod;
 use antecedent_graph::DenseNodeId;
-use antecedent_model::history_operators::HistoryScan;
-use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
+use antecedent_model::history_operators::{HistoryScan, SequentialRegression};
+use antecedent_stats::LeastSquaresWorkspace;
 
 use crate::EstimationError;
 use crate::temporal_sequential::{SequenceTarget, SequentialMechanismOverlay, SequentialProblem};
@@ -408,7 +408,8 @@ impl PreparedSequenceLevel {
                 x_boot[(k + 1) * m..(k + 2) * m].copy_from_slice(&gathered[self.column_of[parent]]);
             }
             let y = &gathered[self.column_of[i]];
-            coefficients[i] = FaerBackend.least_squares(x_boot, m, p, y, ls_ws).ok()?.coefficients;
+            coefficients[i] =
+                SequentialRegression::solve_design(x_boot, m, p, y, None, ls_ws).ok()?.coefficients;
         }
         let value = crate::temporal_sequential::propagate_linear_level(
             &self.order,

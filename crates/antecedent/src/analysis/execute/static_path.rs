@@ -12,12 +12,13 @@ use super::{
     SharpRdIdentifier, SharpRegressionDiscontinuity, StaticEstimateInput, StaticEstimateWorkspaces,
     Strategy, StudyResult, TableView, TabularData, bayesian_draw_count, bayesian_gcomp, elapsed_ns,
     envelope_se_omission_diagnostic, envelope_to_identification_result_for, estimate_static_effect,
-    identification_from_cache_or, identification_status_ok_for_case, identify_cpdag, identify_pag,
-    identify_static, identify_static_query, identify_static_query_with_rd, mix_static_envelope_se,
+    identification_from_cache_or, identification_status_ok_for_case, identify_static,
+    identify_static_query, identify_static_query_in_context, mix_static_envelope_se,
     mix_weighted_analytic_se, mixed_static_influence, overlap_diagnostic, project_for_ate_estimate,
     projection_diagnostic, report_identify_compute, require_identified, scalar_identified_set,
     select_claim, select_estimand, static_aligned_influence,
 };
+use crate::analysis::lowering::scan::STREAMED_BATCH_ROWS;
 use crate::estimator_spec::EstimatorSpec;
 use crate::planner::RouteDefaults;
 
@@ -26,9 +27,6 @@ use crate::planner::RouteDefaults;
 /// crate exposes it only as a static message, so the pattern keeps one copy here.
 const CHECKED_IV_NON_BINARY_INSTRUMENT: &str =
     "checked IV currently requires a binary 0/1 instrument matching the checked Wald functional";
-
-/// Rows a streamed reduction reads per batch.
-const STREAMED_BATCH_ROWS: usize = 8192;
 
 /// Borrowed inputs of one static ATE execution, shared by every phase.
 #[derive(Clone, Copy)]
@@ -105,11 +103,12 @@ impl<'a> StaticAteExecution<'a> {
             || {
                 let rd =
                     study.rd.map(|c| SharpRdConfig::new(c.running_variable, c.cutoff, c.bandwidth));
-                let identification = identify_static_query_with_rd(
+                let identification = identify_static_query_in_context(
                     identifier_id,
                     graph,
                     &CausalQuery::AverageEffect(query.clone()),
                     rd,
+                    Some(ctx),
                 )?;
                 select_claim(identification, estimator_id)
             },
@@ -311,6 +310,10 @@ impl<'a> StaticAteExecution<'a> {
         )>,
         CausalError,
     > {
+        // A plan that streams its design reduces the rows in closed form and prepares nothing.
+        if self.run.physical.streams_design() {
+            return Ok(None);
+        }
         let data = self.run.data;
         let identification = &self.identification;
         // Route the supported single binary-instrument slice through the checked IV
@@ -395,6 +398,32 @@ impl<'a> StaticAteExecution<'a> {
         let prepared_aipw = execution.aipw_operation();
         let prepared_frontdoor = execution.frontdoor_linear();
         let prepared_iv = execution.iv();
+        // A weighting or two-stage least-squares plan that streams its design reduces the
+        // rows in closed form; the linear adjustment has its own streamed fit below.
+        let streamed_nuisance = if self.run.physical.streams_design()
+            && !matches!(self.estimator_id, EstimatorId::LinearAdjustmentAte)
+        {
+            crate::strategy_table::estimate_static_effect_streamed(
+                &checked.spec,
+                self.estimator_id,
+                StaticEstimateInput {
+                    data: &self.data_est,
+                    estimand: &self.estimand_est,
+                    query: &self.query_est,
+                    // Point stage: no bootstrap.
+                    bootstrap_replicates: 0,
+                    overlap_policy: self.study.overlap_policy,
+                    population_registry: self.study.population_registry.as_ref(),
+                    sampling_design: self.study.sampling_design,
+                },
+                self.identification.required_assumptions.clone(),
+                ctx.rng.master_seed(),
+                STREAMED_BATCH_ROWS,
+                ctx.memory_limit_bytes().unwrap_or(u64::MAX / 4),
+            )?
+        } else {
+            None
+        };
         let mut point = if let Some(operation) = prepared_iv {
             self.fit_prepared_iv(operation, &mut ws.iv)?
         } else if let Some((fitter, receipt)) = &checked.linear {
@@ -420,6 +449,8 @@ impl<'a> StaticAteExecution<'a> {
                     .fit_checked(receipt, &mut ws.estimate.linear, ctx)
                     .map_err(CausalError::from)?
             }
+        } else if let Some(estimate) = streamed_nuisance {
+            estimate
         } else if let Some(fitter) = self.streamed_fitter(&checked.spec) {
             self.fit_streamed(&fitter)?
         } else if let Some(operation) = prepared_aipw {
@@ -1380,28 +1411,37 @@ impl super::Study {
         let rd = self.rd.ok_or_else(|| CausalError::Compile {
             message: "estimator \"rd.sharp\" requires builder.rd_config(running_variable, cutoff, bandwidth)".into(),
         })?;
-        // Sharp RD is the documented identify-per-click exception: prepare()
-        // stores no cache for it, so every click computes identification.
-        report_identify_compute(ctx);
-        let identification = SharpRdIdentifier::new(SharpRdConfig::new(
-            rd.running_variable,
-            rd.cutoff,
-            rd.bandwidth,
-        ))
-        .identify_on(graph, CausalQuery::AverageEffect(query.clone()))
-        .map_err(CausalError::from)?;
-        if matches!(identification.status, IdentificationStatus::NotIdentified) {
-            // Say why the design does not identify: the graph contradicts it, or the
-            // requested population is not the one at the cutoff.
-            let detail = identification
-                .diagnostics
-                .iter()
-                .find(|d| d.kind == antecedent_core::DiagnosticKind::Scientific)
-                .map_or_else(|| "sharp RD design".to_string(), |d| d.message.to_string());
-            return Err(CausalError::not_identified(identification.status, false, &detail));
-        }
-        require_identified(&identification)?;
-        let estimand = select_estimand(&identification, EstimatorId::RdSharp)?;
+        // The design identifies once, at compile, and the program retains it; only a plan
+        // that retained none (a design that does not identify) identifies here and reports
+        // the refusal.
+        let target = CausalQuery::AverageEffect(query.clone());
+        let reused = self
+            .reuse_static_identification_if(physical, |cache| cache.identification.query == target);
+        let (identification, estimand, identify_cached) = if let Some((cache, prepared)) = reused {
+            (cache.identification.clone(), cache.estimand.clone(), prepared)
+        } else {
+            report_identify_compute(ctx);
+            let identification = SharpRdIdentifier::new(SharpRdConfig::new(
+                rd.running_variable,
+                rd.cutoff,
+                rd.bandwidth,
+            ))
+            .identify_on(graph, target)
+            .map_err(CausalError::from)?;
+            if matches!(identification.status, IdentificationStatus::NotIdentified) {
+                // Say why the design does not identify: the graph contradicts it, or the
+                // requested population is not the one at the cutoff.
+                let detail = identification
+                    .diagnostics
+                    .iter()
+                    .find(|d| d.kind == antecedent_core::DiagnosticKind::Scientific)
+                    .map_or_else(|| "sharp RD design".to_string(), |d| d.message.to_string());
+                return Err(CausalError::not_identified(identification.status, false, &detail));
+            }
+            require_identified(&identification)?;
+            let estimand = select_estimand(&identification, EstimatorId::RdSharp)?;
+            (identification, estimand, false)
+        };
         // The identified query names the population the design speaks for (units at the
         // cutoff); estimation, refutation and the result all use that query.
         let identified_query =
@@ -1439,6 +1479,7 @@ impl super::Study {
                 query.treatment,
                 query.outcome,
             )
+            .identify_cached(identify_cached)
             .extra_diagnostics(extra_diagnostics)
             .refutations(refutations)
             .wall_time_ns(elapsed_ns(started)),
@@ -1555,7 +1596,12 @@ impl super::Study {
                         (Arc::clone(&cache.envelope), cache.identification.clone(), prepared)
                     } else {
                         report_identify_compute(ctx);
-                        let envelope = identify_pag(identifier_id, pag, &query.inner)?;
+                        let envelope = crate::strategy_table::identify_pag_in_context(
+                            identifier_id,
+                            pag,
+                            &query.inner,
+                            Some(ctx),
+                        )?;
                         let identification = envelope_to_identification_result_for(
                             &envelope,
                             CausalQuery::ConditionalEffect(query.clone()),
@@ -1594,7 +1640,12 @@ impl super::Study {
                         (Arc::clone(&cache.envelope), cache.identification.clone(), prepared)
                     } else {
                         report_identify_compute(ctx);
-                        let envelope = identify_cpdag(identifier_id, cpdag, &query.inner)?;
+                        let envelope = crate::strategy_table::identify_cpdag_in_context(
+                            identifier_id,
+                            cpdag,
+                            &query.inner,
+                            Some(ctx),
+                        )?;
                         let identification = envelope_to_identification_result_for(
                             &envelope,
                             CausalQuery::ConditionalEffect(query.clone()),
@@ -2447,15 +2498,15 @@ pub(super) fn path_specific_source_parts(
 }
 
 /// Gate for a path-specific effect on an ADMG, shared by compile and execute: the plug-in
-/// reads the identified functional on the table at validation none; the query-native DAG
-/// refuters do not apply to a latent-confounded graph.
+/// reads the identified functional on the table. Cheap and full validation are the functional
+/// refuter state, which runs the study at validation none and refits it; the route itself
+/// never carries a scalar suite.
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "the gate keeps the shape of the other licence gates its callers share"
+)]
 pub(super) fn ensure_admg_path_specific_licensed(refute: RefuteSuite) -> Result<(), CausalError> {
-    if refute != RefuteSuite::None {
-        return Err(CausalError::Unsupported {
-            message: "ADMG path-specific and natural direct effects run at validation none; \
-                      cheap/full remain Dag-only",
-        });
-    }
+    let _ = refute;
     Ok(())
 }
 
@@ -2471,11 +2522,7 @@ pub(super) fn ensure_admg_distribution_licensed(
                       finite-discrete tables; IDC conditionals are a follow-up",
         });
     }
-    if refute != RefuteSuite::None {
-        return Err(CausalError::Unsupported {
-            message: "ADMG InterventionalDistribution is licensed at validation none; \
-                      cheap/full remain Dag-only",
-        });
-    }
+    // Cheap and full validation are the functional refuter state (see the path-specific gate).
+    let _ = refute;
     Ok(())
 }

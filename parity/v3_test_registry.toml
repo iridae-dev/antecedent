@@ -637,6 +637,20 @@ path = "python/tests/test_bayesian_intervention_level_refutation.py"
 gates = ["inventory"]
 
 [[test]]
+id = "mediation-decomposition-validation"
+crate = "antecedent"
+cargo_target = "mediation_decomposition_validation"
+path = "crates/antecedent/tests/mediation_decomposition_validation.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "class-and-design-validation-suites"
+crate = "antecedent"
+cargo_target = "class_and_design_validation_suites"
+path = "crates/antecedent/tests/class_and_design_validation_suites.rs"
+gates = ["inventory", "named"]
+
+[[test]]
 id = "unlicensed-refuter-states-and-mechanism-bootstrap"
 crate = "antecedent"
 cargo_target = "unlicensed_refuter_states_and_mechanism_bootstrap"
@@ -1556,6 +1570,34 @@ id = "graph-posterior-exposure-routes"
 crate = "antecedent"
 cargo_target = "graph_posterior_exposure_routes"
 path = "crates/antecedent/tests/graph_posterior_exposure_routes.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "graph-posterior-cross-world-routes"
+crate = "antecedent"
+cargo_target = "graph_posterior_cross_world_routes"
+path = "crates/antecedent/tests/graph_posterior_cross_world_routes.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "graph-posterior-functional-routes"
+crate = "antecedent"
+cargo_target = "graph_posterior_functional_routes"
+path = "crates/antecedent/tests/graph_posterior_functional_routes.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "graph-posterior-attribution-routes"
+crate = "antecedent"
+cargo_target = "graph_posterior_attribution_routes"
+path = "crates/antecedent/tests/graph_posterior_attribution_routes.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "graph-posterior-temporal-pag-mediation"
+crate = "antecedent"
+cargo_target = "graph_posterior_temporal_pag_mediation"
+path = "crates/antecedent/tests/graph_posterior_temporal_pag_mediation.rs"
 gates = ["inventory", "named"]
 
 [[test]]

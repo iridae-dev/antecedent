@@ -132,6 +132,22 @@ impl TabularData {
     pub fn storage(&self) -> &OwnedColumnarStorage {
         &self.storage
     }
+
+    /// This table as a unified source snapshot.
+    #[must_use]
+    pub fn source(&self) -> crate::source::OwnedSource {
+        crate::source::OwnedSource::from_tabular(self)
+    }
+
+    /// The same columns, mask and weights under another schema (a rename, a role or a unit
+    /// change). The result is a different source: the snapshot binds the schema.
+    ///
+    /// # Errors
+    ///
+    /// A schema whose variable count is not the column count.
+    pub fn with_schema(&self, schema: CausalSchema) -> Result<Self, DataError> {
+        Ok(Self::new(self.storage.with_schema(schema)?))
+    }
 }
 
 impl TableView for TabularData {
@@ -207,6 +223,41 @@ impl TimeSeriesData {
     #[must_use]
     pub fn storage(&self) -> &OwnedColumnarStorage {
         &self.storage
+    }
+
+    /// This series as a unified source snapshot under `modality`; the series time index is
+    /// bound into its contract.
+    ///
+    /// # Errors
+    ///
+    /// `modality` is [`crate::source::SourceModality::Tabular`].
+    pub fn source(
+        &self,
+        modality: crate::source::SourceModality,
+    ) -> Result<crate::source::OwnedSource, DataError> {
+        crate::source::OwnedSource::from_time_series(self, modality)
+    }
+
+    /// The same observations under another time index (a different cadence or regularity).
+    /// The storage digest is unchanged and the source contract is not: the snapshot binds
+    /// the time index, so lazy views and incremental digests of the earlier index no longer
+    /// match.
+    ///
+    /// # Errors
+    ///
+    /// The index length is not the row count.
+    pub fn with_time_index(&self, time_index: TimeIndex) -> Result<Self, DataError> {
+        Self::try_new(self.storage.clone(), time_index)
+    }
+
+    /// The same observations under another schema (a rename, a role or a unit change),
+    /// keeping the time index.
+    ///
+    /// # Errors
+    ///
+    /// A schema whose variable count is not the column count.
+    pub fn with_schema(&self, schema: CausalSchema) -> Result<Self, DataError> {
+        Self::try_new(self.storage.with_schema(schema)?, self.time_index.clone())
     }
 
     /// Replace one float64 column; preserve time index, other columns, mask, and weights.

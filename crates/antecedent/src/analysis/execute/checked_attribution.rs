@@ -317,9 +317,12 @@ impl CheckedAttributionOperation {
             ));
         }
         let (estimator, procedure) = attribution_procedure(&target, study)?;
-        let structure_ok = study.structure_source == crate::support::StructureSource::Explicit
-            || (fitted_model
-                && study.structure_source == crate::support::StructureSource::Accepted);
+        // An accepted graph is the structure's provenance, not a different graph: the
+        // mechanisms are fitted on it exactly as on a supplied one.
+        let structure_ok = matches!(
+            study.structure_source,
+            crate::support::StructureSource::Explicit | crate::support::StructureSource::Accepted
+        );
         if !structure_ok
             || (fitted_model && lag_aligned.is_some() && !attribute_on_unfolding(&target_query))
             || cache.identification.query != target_query

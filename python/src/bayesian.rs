@@ -954,20 +954,23 @@ fn discover_dbn_posterior(
     equivalence_classes: bool,
 ) -> PyResult<PyGraphPosterior> {
     let _ = thin; // DBN engine schedule has no thin; kept for API symmetry.
-    let batch = columns_to_batch(&names, &columns)?;
+    let ingested = crate::columns_to_ingested(&names, &columns, unit_lengths.as_deref())?;
     drop(columns);
     detach_catch(py, move || {
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let schedule = schedule_from_args(n_chains, n_warmup, n_draws, 1);
-        let (input, variables) = if let Some(lengths) = unit_lengths {
+        let (input, variables) = match ingested {
             // `unit_lengths` marks the columns as a panel's row-concatenated units: each unit's
             // lag windows are built inside that unit.
-            let (units, variables) =
-                crate::discovery_api::panel_units_from_batch(&batch, &lengths)?;
-            (DiscoverInput::Panel(units), variables)
-        } else {
-            let (series, variables) = series_from_batch(&batch)?;
-            (DiscoverInput::Series(series), variables)
+            crate::IngestedColumns::Panel(batches) => {
+                let (units, variables) =
+                    crate::discovery_api::panel_units_from_unit_batches(&batches)?;
+                (DiscoverInput::Panel(units), variables)
+            }
+            crate::IngestedColumns::Series(batch) => {
+                let (series, variables) = series_from_batch(&batch)?;
+                (DiscoverInput::Series(series), variables)
+            }
         };
         let (post, route) = compiled_search(
             over_classes(

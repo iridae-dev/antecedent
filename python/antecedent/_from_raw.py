@@ -1543,6 +1543,7 @@ def _wrap_ate(
             stage_timings={str(k): int(v) for k, v in (sec_performance.stage_timings or [])}
             or None,
             bytes_borrowed=getattr(sec_performance, "bytes_borrowed", None),
+            resampling=_resampling_from_raw(getattr(sec_performance, "resampling", None)),
         ),
         diagnostics=list(raw.diagnostics),
         route_diagnostics=tuple(
@@ -1602,3 +1603,34 @@ def _wrap_ate(
         claim_id=None if slots is None else slots.claim_id,
         data_snapshot_id=None if slots is None else slots.data_snapshot_id,
     )
+
+
+_WAVE_FIELDS = (
+    "wave",
+    "first_replicate",
+    "attempted",
+    "ok",
+    "estimator_errors",
+    "non_finite",
+    "declined",
+)
+
+
+def _resampling_from_raw(section: Any) -> dict[str, Any] | None:
+    """The resampling section of a requested bootstrap interval as plain data."""
+    if section is None:
+        return None
+    return {
+        "level": section.level,
+        "wave_size": section.wave_size,
+        "min_replicates": section.min_replicates,
+        "max_replicates": section.max_replicates,
+        "se_rel_tol": section.se_rel_tol,
+        "half_width_rel_tol": section.half_width_rel_tol,
+        "interval": None if section.interval is None else tuple(section.interval),
+        "stop": section.stop,
+        "attempted": section.attempted,
+        "waves": tuple(dict(zip(_WAVE_FIELDS, wave, strict=True)) for wave in section.waves),
+        "se_rel_mc_error": section.se_rel_mc_error,
+        "half_width_rel_mc_error": section.half_width_rel_mc_error,
+    }

@@ -40,6 +40,41 @@ pub enum SensitivityAssumption {
     /// Sequential ignorability of the mediator; relaxed to a correlation `ρ` between the
     /// mediator and outcome errors (Imai, Keele and Yamamoto 2010).
     MediatorOutcomeConfounding,
+    /// No unmeasured confounder of the mediator and the outcome given treatment and the
+    /// measured covariates; relaxed to a confounder of given risk-ratio strength with the
+    /// mediator and the outcome (E-value of a mediation component, with the treatment taken
+    /// as unconfounded).
+    MediatorOutcomeConfoundingRiskRatio,
+    /// No unmeasured confounder of the mediator and the outcome in the outcome regression on
+    /// treatment, mediator and covariates; relaxed to a confounder explaining given shares of
+    /// the residual variance of the mediator and the outcome (Cinelli and Hazlett 2020, read
+    /// on the mediator-outcome path).
+    MediatorOutcomeConfoundingPartialR2,
+    /// Sequential exchangeability of a marginal structural model; relaxed to a time-varying
+    /// confounder of given risk-ratio strength with the exposure history and the outcome
+    /// (E-value of an MSM parameter).
+    SequentialExchangeabilityRiskRatio,
+    /// Sequential exchangeability of a marginal structural model; relaxed to an omitted
+    /// confounder explaining given shares of the residual variance of the exposure and of the
+    /// outcome in the weighted outcome regression (Cinelli and Hazlett 2020 on the weighted
+    /// fit with a robust standard error).
+    SequentialExchangeabilityPartialR2,
+    /// No unmeasured confounder of treatment and mediator given the measured covariates;
+    /// relaxed to a confounder explaining given shares of the residual variance of the
+    /// treatment and of the mediator (Cinelli and Hazlett 2020 on the mediator regression).
+    TreatmentMediatorConfoundingPartialR2,
+    /// No unmeasured confounder of treatment and outcome given the mediator and the measured
+    /// covariates; relaxed to a confounder explaining given shares of the residual variance of
+    /// the treatment and of the outcome in the outcome regression (the direct-effect path).
+    TreatmentOutcomeConfoundingPartialR2,
+    /// No unmeasured confounding of either path of the indirect effect (treatment-mediator and
+    /// mediator-outcome); relaxed to confounders of both paths with the tested partial R²,
+    /// the indirect effect being the product of the two path coefficients.
+    IndirectEffectConfoundingPartialR2,
+    /// Independence of the cross-world potential outcomes (and of the unit-level noise the
+    /// fitted structural model abducts) from the treatment given the measured covariates;
+    /// relaxed to a correlation `ρ` between the treatment and outcome errors.
+    CrossWorldNoiseDependence,
 }
 
 impl SensitivityAssumption {
@@ -51,6 +86,18 @@ impl SensitivityAssumption {
             Self::UnmeasuredConfoundingPartialR2 => "unmeasured_confounding_partial_r2",
             Self::HiddenBiasInMatchedAssignment => "hidden_bias_in_matched_assignment",
             Self::MediatorOutcomeConfounding => "mediator_outcome_confounding",
+            Self::MediatorOutcomeConfoundingRiskRatio => "mediator_outcome_confounding_risk_ratio",
+            Self::MediatorOutcomeConfoundingPartialR2 => "mediator_outcome_confounding_partial_r2",
+            Self::SequentialExchangeabilityRiskRatio => "sequential_exchangeability_risk_ratio",
+            Self::SequentialExchangeabilityPartialR2 => "sequential_exchangeability_partial_r2",
+            Self::TreatmentMediatorConfoundingPartialR2 => {
+                "treatment_mediator_confounding_partial_r2"
+            }
+            Self::TreatmentOutcomeConfoundingPartialR2 => {
+                "treatment_outcome_confounding_partial_r2"
+            }
+            Self::IndirectEffectConfoundingPartialR2 => "indirect_effect_confounding_partial_r2",
+            Self::CrossWorldNoiseDependence => "cross_world_noise_dependence",
         }
     }
 
@@ -74,6 +121,52 @@ impl SensitivityAssumption {
             Self::MediatorOutcomeConfounding => {
                 "no unmeasured mediator-outcome confounding (sequential ignorability); relaxed \
                  to the tested correlation rho between mediator and outcome model errors"
+            }
+            Self::MediatorOutcomeConfoundingRiskRatio => {
+                "no unmeasured mediator-outcome confounding, with treatment unconfounded; \
+                 relaxed to a confounder associated with the mediator and with the outcome by \
+                 the tested risk ratio (each), conditional on treatment and the measured \
+                 covariates"
+            }
+            Self::MediatorOutcomeConfoundingPartialR2 => {
+                "no unmeasured mediator-outcome confounding in the outcome regression on \
+                 treatment, mediator and covariates, with the treatment-mediator path \
+                 unconfounded; relaxed to a confounder explaining the tested shares of the \
+                 residual mediator and outcome variance"
+            }
+            Self::SequentialExchangeabilityRiskRatio => {
+                "sequential exchangeability given the measured time-varying history (no \
+                 unmeasured time-varying confounding); relaxed to a confounder associated with \
+                 the exposure history and with the outcome by the tested risk ratio (each)"
+            }
+            Self::SequentialExchangeabilityPartialR2 => {
+                "sequential exchangeability given the measured time-varying history, with the \
+                 estimated weights held fixed; relaxed to an omitted confounder explaining the \
+                 tested shares of the residual exposure and outcome variance of the weighted \
+                 regression"
+            }
+            Self::TreatmentMediatorConfoundingPartialR2 => {
+                "no unmeasured treatment-mediator confounding in the mediator regression on \
+                 treatment and covariates; relaxed to a confounder explaining the tested shares \
+                 of the residual treatment and mediator variance"
+            }
+            Self::TreatmentOutcomeConfoundingPartialR2 => {
+                "no unmeasured treatment-outcome confounding in the outcome regression on \
+                 treatment, mediator and covariates (the direct-effect path); relaxed to a \
+                 confounder explaining the tested shares of the residual treatment and outcome \
+                 variance"
+            }
+            Self::IndirectEffectConfoundingPartialR2 => {
+                "no unmeasured confounding of the treatment-mediator and the mediator-outcome \
+                 paths; relaxed to confounders of both paths with the tested partial R², each \
+                 path coefficient moving toward zero by its worst-case omitted-variable bias"
+            }
+            Self::CrossWorldNoiseDependence => {
+                "the treatment is independent of the outcome's noise given the measured \
+                 covariates, so the cross-world and abducted-noise functionals read the same \
+                 mechanism in both worlds; relaxed to the tested correlation rho between the \
+                 treatment and outcome errors, the linear-Gaussian slope moving by \
+                 rho times the ratio of the outcome and treatment residual deviations"
             }
         }
     }

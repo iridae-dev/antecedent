@@ -5,12 +5,6 @@ from __future__ import annotations
 import antecedent
 import numpy as np
 import pytest
-from antecedent.errors import CausalUnsupportedError
-
-_REASON_PATH_DIST = (
-    "reason=option_not_applicable: graph-posterior structures are refused: a path, "
-    "distribution, or mediation mixture is not a single estimand across posterior atoms"
-)
 
 
 def _two_node_table(n: int = 48, seed: int = 3):
@@ -29,34 +23,19 @@ _PAG = antecedent.Pag.from_marked_edges(
 )
 _ACCEPTED = antecedent.AcceptedGraph.from_graph(_DAG, algorithm_id="hand")
 _CURVE = antecedent.ResponseCurve("t", "y", grid=[0.5, 1.0, 1.5])
-_REFUSED = [
-    (
-        "path_specific_exact_dag_posterior",
-        antecedent.PathSpecificEffect("t", "y"),
-        {"discovery": antecedent.discovery.ExactDagPosterior()},
-        _REASON_PATH_DIST,
-    ),
-]
 
 
-@pytest.mark.parametrize(
-    "query, kwargs, prefix",
-    [row[1:] for row in _REFUSED],
-    ids=[row[0] for row in _REFUSED],
-)
-def test_closed_cells_raise_refused(query, kwargs, prefix):
-    options = {"refute": False, "bootstrap": 0, "seed": 1, **kwargs}
-    with pytest.raises(CausalUnsupportedError) as ei:
-        antecedent.analyze(
-            _DATA,
-            query=query,
-            **options,
-        )
-    msg = str(ei.value)
-    # Every closed cell names itself: a matrix refusal as `refused:`, a Python
-    # routing-gate refusal as its closed reason code.
-    assert msg.startswith(("refused:", "reason=")), msg
-    assert msg.startswith(prefix), msg
+def test_path_specific_graph_posterior_runs_and_is_never_licensed():
+    result = antecedent.analyze(
+        _DATA,
+        query=antecedent.PathSpecificEffect("t", "y"),
+        discovery=antecedent.discovery.ExactDagPosterior(),
+        refute=False,
+        bootstrap=0,
+        seed=1,
+    )
+    assert np.isfinite(result.estimate.ate)
+    assert result.evidence_status != "licensed"
 
 
 def test_licensed_pag_response_curve_runs():

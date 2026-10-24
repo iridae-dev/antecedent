@@ -73,6 +73,11 @@ pub enum TargetFamily {
     /// fitted structural model; it has no treatment, so the treatment-keyed refuters do not
     /// denote and the stability refuters of its whole-procedure refit apply.
     Attribution,
+    /// The probability atoms of an interventional distribution (all but the last atom, which
+    /// the others determine). The atoms are levels of a law, not effects: no contrast between
+    /// worlds is expected to vanish, so the treatment-keyed null refuters do not denote and the
+    /// stability refuters of the whole-procedure refit apply.
+    InterventionalLaw,
 }
 
 impl TargetFamily {
@@ -88,6 +93,7 @@ impl TargetFamily {
             Self::WorldValued => "world_valued",
             Self::JointContrast => "joint_contrast",
             Self::Attribution => "attribution",
+            Self::InterventionalLaw => "interventional_law",
         }
     }
 
@@ -103,6 +109,7 @@ impl TargetFamily {
             "world_valued" => Self::WorldValued,
             "joint_contrast" => Self::JointContrast,
             "attribution" => Self::Attribution,
+            "interventional_law" => Self::InterventionalLaw,
             _ => return None,
         })
     }
@@ -430,10 +437,10 @@ impl TargetRefutationPlan {
         let quadrant = target.quadrant();
         let family = target.family();
         let mut refuters: Vec<TargetRefuterKind> = Vec::new();
-        if family == TargetFamily::Attribution {
-            // No treatment or outcome to permute or swap: the whole contribution vector is
-            // refuted by refitting the attribution program on perturbed data (Bayesian
-            // quadrants add prior sensitivity).
+        if matches!(family, TargetFamily::Attribution | TargetFamily::InterventionalLaw) {
+            // No treatment or outcome to permute or swap: the whole contribution vector (or
+            // the whole vector of atom probabilities) is refuted by refitting the program on
+            // perturbed data (Bayesian quadrants add prior sensitivity).
             refuters.push(K::SubsetStability);
             if suite != TargetSuite::Cheap {
                 refuters.push(K::BootstrapStability);

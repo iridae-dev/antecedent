@@ -58,8 +58,8 @@ use crate::{EstimatorId, IdentifierId, InferenceMode, Study};
 mod tests;
 
 /// Why a cross-world cell retains no identification.
-const CROSS_WORLD_IDENTIFIES_PER_EXECUTION: &str =
-    "a cross-world query over a temporal class posterior identifies on its probe at each execution";
+const CROSS_WORLD_IDENTIFIES_PER_EXECUTION: &str = "a cross-world or attribution query over a graph posterior identifies each atom on its own \
+     structure at each execution";
 /// Why a graph-posterior program has no single design width.
 const ATOM_DESIGNS: &str = "every graph-posterior atom fits its own adjustment design";
 /// Refusal when a posterior is wider than the atom packing.
@@ -163,8 +163,14 @@ fn refuse_before_identification(
         return Err(CausalError::Unsupported { message: ATOM_CAP_REFUSAL });
     }
     match (&study.data, &study.query) {
+        // A derivative or multi-coordinate level is answered atom by atom, and each atom's
+        // executor states its own refusals.
         (DataInput::Tabular(_), CausalQuery::Response(query)) => {
-            crate::analysis::execute::graph_posterior_response_supported(query)
+            if crate::analysis::execute::atom_route_response(query) {
+                Ok(())
+            } else {
+                crate::analysis::execute::graph_posterior_response_supported(query)
+            }
         }
         (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::Response(query)) => {
             crate::analysis::execute::dbn_posterior_response_supported(query)
@@ -257,6 +263,8 @@ fn problem_target(
         CausalQuery::NestedCounterfactual(_) | CausalQuery::PathSpecific(_) => {
             FunctionalKind::PathSpecific
         }
+        CausalQuery::AnomalyAttribution(_) => FunctionalKind::AnomalyAttribution,
+        CausalQuery::ChangeAttribution(_) => FunctionalKind::ChangeAttribution,
         CausalQuery::Transport(_) => FunctionalKind::InterventionContrast,
         CausalQuery::Interference(_) => FunctionalKind::ExposureContrast,
         CausalQuery::Mediation(query) if query.contrast != MediationContrast::Total => {
@@ -700,7 +708,10 @@ fn statistical_program(inputs: &ProgramInputs<'_>) -> Result<StatisticalProgram,
     }
     // A series with no declared sampling design is resampled in contiguous blocks
     // of calendar time, shared across every atom.
-    if is_series(cell) && study.sampling_design.is_none() {
+    if is_series(cell)
+        && !matches!(study.data, DataInput::Tabular(_))
+        && study.sampling_design.is_none()
+    {
         if let Some(plan) = program.resampling.as_mut() {
             plan.method = ResamplingMethod::BlockBootstrap;
             plan.unit = ResampleUnit::CalendarBlock;

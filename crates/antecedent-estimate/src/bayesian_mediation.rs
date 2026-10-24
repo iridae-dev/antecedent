@@ -9,7 +9,7 @@ use antecedent_core::{
 };
 use antecedent_data::{LaggedColumn, TimeSeriesData};
 use antecedent_expr::IdentifiedEstimand;
-use antecedent_model::history_operators::HistoryScan;
+use antecedent_model::history_operators::{HistoryScan, SequentialRegression};
 use antecedent_prob::{BayesLikelihood, PosteriorDraws, PosteriorQuantityKind, PosteriorSchema};
 use antecedent_stats::CompiledDesign;
 
@@ -151,13 +151,13 @@ pub fn prepare_temporal_mediation_with_gaps(
 
 /// OLS coefficient `index` of `design` (the plug-in path slope for a tempering gradient).
 fn ols_coefficient(design: &CompiledDesign, index: usize) -> Result<f64, EstimationError> {
-    use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
-    let fit = FaerBackend.least_squares(
+    let fit = SequentialRegression::solve_design(
         &design.matrix[..design.nrows * design.ncols],
         design.nrows,
         design.ncols,
         &design.outcome,
-        &mut LeastSquaresWorkspace::default(),
+        None,
+        &mut antecedent_stats::LeastSquaresWorkspace::default(),
     )?;
     fit.coefficients
         .get(index)

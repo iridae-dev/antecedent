@@ -14,7 +14,9 @@ use super::{
     validator_not_applicable_diagnostics, with_conflict_summary, with_prior_sensitivity,
 };
 use crate::analysis::prepared::Inspect;
-use crate::analysis::proof_support::{proof_supplies, verify_proof_against_graph};
+use crate::analysis::proof_support::{
+    RetainedProof, proof_supplies, verify_proof_against_graph, verify_retained_static,
+};
 
 const PPC_ALPHA: f64 = 0.05;
 
@@ -159,17 +161,22 @@ impl CheckedBayesianConditionalOperation {
                 message: "Bayesian CATE estimand is not supplied by its retained proof".into(),
             });
         }
-        let (checked_identification, checked_estimand) = select_claim(
-            identify_static(IdentifierId::BackdoorAdjustment, graph, &query.inner)?,
-            EstimatorId::BayesianConditional,
-        )?;
-        verify_proof_against_graph(
-            &checked_identification,
-            &checked_estimand,
-            identification,
-            estimand,
-            "Bayesian CATE proof is not justified by its retained graph",
-        )?;
+        const PROOF_REFUSED: &str = "Bayesian CATE proof is not justified by its retained graph";
+        if verify_retained_static(&physical, identification, estimand, PROOF_REFUSED)?
+            == RetainedProof::NotRetained
+        {
+            let (checked_identification, checked_estimand) = select_claim(
+                identify_static(IdentifierId::BackdoorAdjustment, graph, &query.inner)?,
+                EstimatorId::BayesianConditional,
+            )?;
+            verify_proof_against_graph(
+                &checked_identification,
+                &checked_estimand,
+                identification,
+                estimand,
+                PROOF_REFUSED,
+            )?;
+        }
         Ok(Self {
             query,
             cache,

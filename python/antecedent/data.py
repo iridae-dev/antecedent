@@ -20,8 +20,20 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
-from ._data import as_columns, as_multi_env_columns, to_f64
-from ._native import ArrowLoadInfo, load_float64_arrow_c_columns, load_float64_columns
+from ._data import (
+    ColumnCopy,
+    IngestionReceipt,
+    as_columns,
+    as_multi_env_columns,
+    ingestion_receipt,
+    to_f64,
+)
+from ._native import (
+    ArrowLoadInfo,
+    load_float64_arrow_c_columns,
+    load_float64_columns,
+    load_float64_panel_columns,
+)
 from ._table_file import (
     GaussianSummary,
     MemoryQuote,
@@ -120,8 +132,10 @@ def multi_env(
 
 __all__ = [
     "ArrowLoadInfo",
+    "ColumnCopy",
     "EventFrame",
     "GaussianSummary",
+    "IngestionReceipt",
     "MemoryQuote",
     "MultiEnvFrame",
     "PanelFrame",
@@ -130,8 +144,10 @@ __all__ = [
     "event",
     "from_arrow_ipc",
     "from_parquet",
+    "ingestion_receipt",
     "load_float64_arrow_c_columns",
     "load_float64_columns",
+    "load_float64_panel_columns",
     "multi_env",
     "panel",
     "to_f64",

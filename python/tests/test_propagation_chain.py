@@ -164,9 +164,7 @@ def test_independent_sources_join_by_their_product() -> None:
         pc.draws("y", table[1], meaning="posterior", alignment="product"),
     ]
     stage = pc.binary("product", "derived_quantity", ["x", "y"], "product")
-    chain = pc.propagate(
-        sources, [stage], output="product", construction="independent_product"
-    )
+    chain = pc.propagate(sources, [stage], output="product", construction="independent_product")
     assert chain.answer.value("mean") == pytest.approx(1.0)
     with pytest.raises(R) as refused:
         pc.independent_product_table([[1.0] * 10, [1.0] * 10], max_rows=50)
@@ -271,7 +269,11 @@ def test_the_representation_must_carry_the_uncertainty() -> None:
 
 
 def test_intervals_run_into_an_enclosure_under_every_coupling() -> None:
-    sources = [pc.interval("effect", 0.0, 1.0), pc.interval("cost", 0.1, 0.4), pc.point("rate", 2.0)]
+    sources = [
+        pc.interval("effect", 0.0, 1.0),
+        pc.interval("cost", 0.1, 0.4),
+        pc.point("rate", 2.0),
+    ]
     stages = [
         pc.binary("scaled", "transport", ["effect", "rate"], "product"),
         pc.binary("net", "derived_quantity", ["scaled", "cost"], "difference"),
@@ -352,9 +354,7 @@ def test_a_ratio_expression_is_the_formula_row_by_row_and_replays() -> None:
     assert refused.value.detail == "propagation_chain.denominator_not_bounded"
     high = pc.draws("q", np.full(ROWS, 0.99), meaning="posterior", alignment=TABLE)
     with pytest.raises(R) as refused:
-        pc.propagate(
-            [high, sources[1], sources[2]], [_correction_stage(0.0)], output="corrected"
-        )
+        pc.propagate([high, sources[1], sources[2]], [_correction_stage(0.0)], output="corrected")
     assert refused.value.detail == "propagation_chain.stage_left_domain"
 
 
@@ -390,7 +390,9 @@ def test_a_chain_compiles_before_it_runs_and_the_result_carries_its_program() ->
     effect = pc.draws("effect", _grid(0.5, 0.6), meaning="posterior", alignment=TABLE)
     stages = [
         pc.affine("mapped", "measurement_mapping", ["effect"], scale=0.8, shift=0.1),
-        pc.unary("utility", "decision_utility", ["mapped"], "exponential_utility", risk_aversion=1.0),
+        pc.unary(
+            "utility", "decision_utility", ["mapped"], "exponential_utility", risk_aversion=1.0
+        ),
     ]
     view = pc.plan_view([effect], stages, output="utility")
     assert view["route"] == "PropagationChain"
@@ -401,6 +403,8 @@ def test_a_chain_compiles_before_it_runs_and_the_result_carries_its_program() ->
     other = pc.plan_view([effect], stages, output="utility", reading="point")
     assert other["identity"] != view["identity"]
     # A change is compiled and executed as a new program.
-    assert chain.reweight("effect", 0.5 * _grid(0.5, 0.6)).program_identity != chain.program_identity
+    assert (
+        chain.reweight("effect", 0.5 * _grid(0.5, 0.6)).program_identity != chain.program_identity
+    )
     with pytest.raises(R):
         pc.plan_view([effect], stages, output="utility", reading="interval")

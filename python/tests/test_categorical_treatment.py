@@ -332,7 +332,9 @@ PRIOR = CategoricalPosteriorPrior(
 
 def _posterior_reference(levels, outcome, order, reference, weights):
     y = np.asarray(outcome)
-    x = np.array([[1.0] + [float(lv == name) for name in order if name != reference] for lv in levels])
+    x = np.array(
+        [[1.0] + [float(lv == name) for name in order if name != reference] for lv in levels]
+    )
     lam = np.diag([0.5] + [1.0] * (len(order) - 1))
     ln = lam + x.T @ x
     m = np.linalg.solve(ln, x.T @ y)

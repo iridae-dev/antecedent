@@ -159,19 +159,25 @@ impl CheckedBayesianSpecialistOperation {
                 }
             }
             BayesianSpecialistFamily::RdLocalLinear(rd) => {
-                let identification = SharpRdIdentifier::new(SharpRdConfig::new(
-                    rd.running_variable,
-                    rd.cutoff,
-                    rd.bandwidth,
-                ))
-                .identify_on(graph, target)
-                .map_err(CausalError::from)?;
-                require_identified(&identification)?;
-                let estimand = select_estimand(&identification, estimator)?;
-                Arc::new(crate::analysis::prepared::CachedStaticIdentification {
-                    identification,
-                    estimand,
-                })
+                match study.reuse_static_identification(plan) {
+                    // The design was identified once, at compile.
+                    Some((cache, _)) if cache.identification.query == target => cache,
+                    _ => {
+                        let identification = SharpRdIdentifier::new(SharpRdConfig::new(
+                            rd.running_variable,
+                            rd.cutoff,
+                            rd.bandwidth,
+                        ))
+                        .identify_on(graph, target)
+                        .map_err(CausalError::from)?;
+                        require_identified(&identification)?;
+                        let estimand = select_estimand(&identification, estimator)?;
+                        Arc::new(crate::analysis::prepared::CachedStaticIdentification {
+                            identification,
+                            estimand,
+                        })
+                    }
+                }
             }
         };
         match family {

@@ -3,8 +3,9 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
-    CausalQuery, ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery,
-    TemporalResponseSpec,
+    AnomalyAttributionQuery, CausalQuery, ChangeAttributionQuery, ContinuousDomain, GridSpec,
+    Intervention, InterventionalDistributionQuery, PathSpecificEffectQuery, PopulationSelector,
+    ResponseFunctional, ResponseQuery, TemporalResponseSpec, Value,
 };
 use antecedent_data::TableView;
 use pyo3::prelude::*;
@@ -14,7 +15,7 @@ use super::{
     PrepareRequest, PyPreparedAnalysis, SeriesGraphQuery, conditional_query, configured_spec,
     dbn_posterior, exact_dag_posterior, finish_series_graph_posterior,
     finish_static_graph_posterior, one_series, parse_response_options, response_query,
-    static_ate_query, take_supplied_posterior, temporal_effect_query, temporal_mediation_query,
+    static_ate_query, static_kind_query, take_supplied_posterior, temporal_effect_query, temporal_mediation_query,
 };
 use crate::py_err;
 use crate::response_api::build_functional;
@@ -122,6 +123,251 @@ impl PyPreparedAnalysis {
             let ctx = req.opts.ctx(seed, threads);
             let gp = exact_dag_posterior(supplied, &data, &ctx)?;
             finish_static_graph_posterior(data, req, gp, query, None, None, &ctx)
+        })
+    }
+
+    /// Compile once for a mediation, path-restricted effect, natural direct effect,
+    /// interventional distribution or anomaly / change attribution over a graph posterior.
+    ///
+    /// `kind` is `mediation`, `nested_counterfactual`, `path_specific`, `distribution`,
+    /// `anomaly_attribution` or `change_attribution`; the other arguments are read by the kind
+    /// that names them. Every posterior atom is answered by the explicit executor of its own
+    /// structure and the atoms are mixed by posterior probability.
+    #[staticmethod]
+    #[pyo3(signature = (
+        names,
+        columns,
+        kind,
+        *,
+        treatment=None,
+        outcome=None,
+        mediators=Vec::new(),
+        contrast="mediated",
+        control_level=0.0,
+        active_level=1.0,
+        path_nodes=None,
+        max_paths=64,
+        max_len=16,
+        interventions=None,
+        conditioning=None,
+        targets=Vec::new(),
+        max_units=0,
+        reference=None,
+        baseline_start=0,
+        baseline_end=0,
+        comparison_start=0,
+        comparison_end=0,
+        posterior=None,
+        seed=1,
+        threads=None,
+        options=None,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_graph_posterior_kind(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        kind: String,
+        treatment: Option<String>,
+        outcome: Option<String>,
+        mediators: Vec<String>,
+        contrast: &str,
+        control_level: f64,
+        active_level: f64,
+        path_nodes: Option<Vec<String>>,
+        max_paths: usize,
+        max_len: usize,
+        interventions: Option<std::collections::HashMap<String, f64>>,
+        conditioning: Option<Vec<String>>,
+        targets: Vec<String>,
+        max_units: usize,
+        reference: Option<(f64, f64)>,
+        baseline_start: usize,
+        baseline_end: usize,
+        comparison_start: usize,
+        comparison_end: usize,
+        posterior: Option<Bound<'_, crate::bayesian::PyGraphPosterior>>,
+        seed: u64,
+        threads: Option<u32>,
+        options: Option<Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+        let supplied = take_supplied_posterior(posterior, &req.names)?;
+        let data = req.load_columns(py, columns)?;
+        let contrast = contrast.to_owned();
+        let need = |value: &Option<String>, what: &str| -> PyResult<String> {
+            value.clone().ok_or_else(|| crate::value_err(format!("{kind} requires a {what}")))
+        };
+        let query = match kind.as_str() {
+            "mediation" | "nested_counterfactual" => {
+                let mut query = static_kind_query(
+                    data.schema(),
+                    &kind,
+                    &need(&treatment, "treatment")?,
+                    &need(&outcome, "outcome")?,
+                    &mediators,
+                    &contrast,
+                    control_level,
+                    active_level,
+                )?;
+                if let (CausalQuery::Mediation(q), Some(population)) =
+                    (&mut query, req.opts.target_population.clone())
+                {
+                    q.target_population = population;
+                }
+                query
+            }
+            "path_specific" => {
+                let t_id = data.schema().id_of(&need(&treatment, "treatment")?).map_err(py_err)?;
+                let y_id = data.schema().id_of(&need(&outcome, "outcome")?).map_err(py_err)?;
+                let mut query = PathSpecificEffectQuery::binary(t_id, y_id)
+                    .with_max_paths(max_paths)
+                    .with_max_len(max_len);
+                query.control = Intervention::set(t_id, Value::f64(control_level));
+                query.active = Intervention::set(t_id, Value::f64(active_level));
+                if let Some(population) = req.opts.target_population.clone() {
+                    query.target_population = population;
+                }
+                if let Some(nodes) = &path_nodes {
+                    let mut ids = Vec::with_capacity(nodes.len());
+                    for name in nodes {
+                        ids.push(data.schema().id_of(name).map_err(py_err)?);
+                    }
+                    query = query.with_path_nodes(ids);
+                }
+                CausalQuery::PathSpecific(query)
+            }
+            "distribution" => {
+                let y_id = data.schema().id_of(&need(&outcome, "outcome")?).map_err(py_err)?;
+                let mut ivs = Vec::new();
+                for (name, level) in interventions.as_ref().into_iter().flatten() {
+                    let id = data.schema().id_of(name).map_err(py_err)?;
+                    ivs.push(Intervention::set(id, Value::f64(*level)));
+                }
+                let mut query = InterventionalDistributionQuery::new(y_id, ivs);
+                if let Some(population) = req.opts.target_population.clone() {
+                    query.target_population = population;
+                }
+                if let Some(cond) = &conditioning {
+                    let mut z = Vec::with_capacity(cond.len());
+                    for name in cond {
+                        z.push(data.schema().id_of(name).map_err(py_err)?);
+                    }
+                    query = query.with_conditioning(z);
+                }
+                CausalQuery::Distribution(query)
+            }
+            "anomaly_attribution" => {
+                let ids = targets
+                    .iter()
+                    .map(|name| crate::graph_build::schema_var_id(data.schema(), name))
+                    .collect::<PyResult<Vec<_>>>()?;
+                let mut query = AnomalyAttributionQuery::new(ids, max_units);
+                if let Some((center, scale)) = reference {
+                    query = query
+                        .with_reference(antecedent_core::AnomalyReference::fixed(center, scale));
+                }
+                CausalQuery::AnomalyAttribution(query)
+            }
+            "change_attribution" => {
+                let outcome_id = crate::graph_build::schema_var_id(
+                    data.schema(),
+                    &need(&outcome, "outcome")?,
+                )?;
+                CausalQuery::ChangeAttribution(ChangeAttributionQuery::new(
+                    outcome_id,
+                    PopulationSelector::TimeRange { start: baseline_start, end: baseline_end },
+                    PopulationSelector::TimeRange { start: comparison_start, end: comparison_end },
+                ))
+            }
+            other => {
+                return Err(crate::value_err(format!(
+                    "unsupported graph-posterior query kind {other:?}"
+                )));
+            }
+        };
+        req.off_gil(py, move |req| {
+            let ctx = req.opts.ctx(seed, threads);
+            let gp = exact_dag_posterior(supplied, &data, &ctx)?;
+            finish_static_graph_posterior(data, req, gp, query, None, None, &ctx)
+        })
+    }
+
+    /// Compile once for a trial-to-target TransportQuery over a graph posterior: every atom is a
+    /// selection diagram with the declared selection targets, decided by sID on its own graph.
+    #[staticmethod]
+    #[pyo3(signature = (names, columns, selections, source_population, target_population,
+        source_experiments, kind, treatments, outcomes, trial, selection_probability,
+        treatment_probability, *, grid=None, at=None, direction=None, order=1, scale="identity",
+        weighting="observed", posterior=None, seed=1, threads=None, options=None))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_graph_posterior_transport(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        selections: Vec<String>,
+        source_population: String,
+        target_population: String,
+        source_experiments: Vec<String>,
+        kind: String,
+        treatments: Vec<String>,
+        outcomes: Vec<String>,
+        trial: String,
+        selection_probability: String,
+        treatment_probability: String,
+        grid: Option<Vec<f64>>,
+        at: Option<Vec<f64>>,
+        direction: Option<Vec<f64>>,
+        order: u8,
+        scale: &str,
+        weighting: &str,
+        posterior: Option<Bound<'_, crate::bayesian::PyGraphPosterior>>,
+        seed: u64,
+        threads: Option<u32>,
+        options: Option<Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+        req.refuse_prior("a transport query")?;
+        let supplied = take_supplied_posterior(posterior, &req.names)?;
+        let data = req.load_columns(py, columns)?;
+        let (scale, weighting) = (scale.to_owned(), weighting.to_owned());
+        req.off_gil(py, move |mut req| {
+            use crate::transport_interference_api::{ResponseArgs, schema_ids, transport_query};
+            let schema = data.schema().clone();
+            let query = transport_query(
+                ResponseArgs {
+                    kind,
+                    treatments,
+                    outcomes,
+                    grid,
+                    at,
+                    direction,
+                    order,
+                    scale,
+                    weighting,
+                },
+                source_population,
+                target_population,
+                &source_experiments,
+                |names| schema_ids(&schema, names),
+            )?;
+            let column = |name: &str| crate::graph_build::schema_var_id(&schema, name);
+            let trial_spec = antecedent::TransportTrialSpec {
+                trial: column(&trial)?,
+                selection_probability: column(&selection_probability)?,
+                treatment_probability: column(&treatment_probability)?,
+            };
+            let ctx = req.opts.ctx(seed, threads);
+            let gp = exact_dag_posterior(supplied, &data, &ctx)?;
+            req.refuse_prior("a graph-posterior mixture")?;
+            let builder = antecedent::Study::tabular(data)
+                .graph_posterior(gp)
+                .query(CausalQuery::Transport(query))
+                .selection_targets(schema_ids(&schema, &selections)?)
+                .transport_trial(trial_spec);
+            let builder = req.opts.apply_budget_for(builder, false);
+            let builder = req.opts.apply_inference(builder)?;
+            req.compile_with(builder, false, &ctx)
         })
     }
 

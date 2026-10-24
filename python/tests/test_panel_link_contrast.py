@@ -110,7 +110,9 @@ def test_the_bayesian_contrast_matches_the_mode_and_a_laplace_sample() -> None:
     )
     assert result.estimate.estimator_id == "bayesian.temporal.glm_link_contrast"
     assert result.posterior is not None
-    assert result.posterior.effect_mean == pytest.approx(float(contrast(rows, sample).mean()), abs=0.01)
+    assert result.posterior.effect_mean == pytest.approx(
+        float(contrast(rows, sample).mean()), abs=0.01
+    )
     assert result.posterior.n_draws == 4000
     assert abs(result.posterior.effect_mean - float(contrast(rows, mode[None, :])[0])) < 0.02
 

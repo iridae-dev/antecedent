@@ -26,8 +26,9 @@ use antecedent_core::NestedCounterfactualQuery;
 /// Refusal for a graph-posterior study whose data / query pair has no route.
 pub(super) const GRAPH_POSTERIOR_QUERY_REFUSAL: &str = concat!(
     "graph-posterior analysis supports tabular average-effect, conditional-effect, static ",
-    "response, transport, or interference queries, and series temporal-effect, ",
-    "temporal-mediation, or temporal response queries only",
+    "response, transport, interference, mediation, path-specific, natural-direct or ",
+    "attribution queries, and series temporal-effect, temporal-mediation, or temporal ",
+    "response queries only",
 );
 
 /// The refusal for a route whose data or query kind disagrees with the one the route was
@@ -66,6 +67,18 @@ impl super::Study {
             CausalQuery::Distribution(_) => Some("distribution"),
             CausalQuery::Mediation(_) if self.graph.class() == GraphClass::TemporalDag => {
                 Some("temporal.mediation")
+            }
+            CausalQuery::Mediation(_)
+                if matches!(
+                    self.graph.class(),
+                    GraphClass::Admg
+                        | GraphClass::TemporalAdmg
+                        | GraphClass::Cpdag
+                        | GraphClass::Pag
+                        | GraphClass::TemporalPag
+                ) =>
+            {
+                Some("mediation.decomposition")
             }
             _ => None,
         };
@@ -123,7 +136,10 @@ impl super::Study {
     fn ensure_nested_counterfactual_licensed(&self, class: GraphClass) -> Result<(), CausalError> {
         if let CausalQuery::NestedCounterfactual(q) = &self.query {
             q.validate()?;
-            if matches!(
+            if self.graph_posterior.is_some() && matches!(self.data, DataInput::Tabular(_)) {
+                // Each atom of a tabular graph posterior answers the natural direct effect on
+                // its own structure; the placeholder graph names no edge to check.
+            } else if matches!(
                 self.graph.class(),
                 GraphClass::TemporalDag | GraphClass::TemporalCpdag | GraphClass::TemporalPag
             ) && matches!(self.data, DataInput::Temporal(_) | DataInput::Event(_))
@@ -222,7 +238,8 @@ impl super::Study {
                 });
             }
             (_, CausalQuery::Distribution(_), class)
-                if !matches!(
+                if !(self.graph_posterior.is_some() && class == GraphClass::Pag)
+                    && !matches!(
                     (&self.data, class),
                     (
                         DataInput::Tabular(_),
@@ -628,6 +645,9 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        if crate::analysis::functional_validation::requested(self) {
+            return crate::analysis::functional_validation::run_validated(self, ctx);
+        }
         self.execute_shared(&std::sync::Arc::new(physical.clone()), None, ctx)
     }
 
@@ -654,6 +674,16 @@ impl super::Study {
         execution: Option<&super::super::prepared::PreparedExecution>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        // A requested functional validation is run by `functional_validation::run_validated`
+        // (the study refitted at validation none); a route reaching here with the suite still
+        // set would return an unvalidated result under a validated request.
+        if crate::analysis::functional_validation::requested(self) {
+            return Err(CausalError::Unsupported {
+                message: "cheap and full validation of this query run through the functional \
+                          refuter state: execute the study through run, a prepared estimate or \
+                          refresh",
+            });
+        }
         let lowered =
             physical.require_lowered(crate::analysis::lowering::expected_cell(self))?.identity();
         let ctx = &ctx.enter_lowered_dispatch(lowered);
@@ -719,6 +749,13 @@ impl super::Study {
         ) {
             return self.execute_temporal_class_graph_posterior_family(series, gp, physical, ctx);
         }
+        // A one-modifier conditional effect or a cross-world contrast over `TemporalDag` atoms is
+        // answered atom by atom, with the shared interval of the whole procedure.
+        if let (DataInput::Temporal(series) | DataInput::Event(series), true) =
+            (data, super::dbn_atoms(gp) && super::dbn_route_query(&self.query))
+        {
+            return self.execute_dbn_route_graph_posterior(series, gp, physical, ctx);
+        }
         match (data, &self.query) {
             (DataInput::Tabular(data), _) => {
                 self.execute_graph_posterior_tabular(data, gp, physical, ctx)
@@ -745,11 +782,13 @@ impl super::Study {
             },
             (DataInput::Temporal(data) | DataInput::Event(data), CausalQuery::Mediation(q)) => {
                 match gp.atom_kind {
-                    antecedent_discovery::GraphPosteriorAtomKind::Cpdag
-                    | antecedent_discovery::GraphPosteriorAtomKind::Pag => self
+                    antecedent_discovery::GraphPosteriorAtomKind::Cpdag => self
                         .execute_temporal_class_graph_posterior_mediation(
                             data, gp, q, physical, ctx,
                         ),
+                    antecedent_discovery::GraphPosteriorAtomKind::Pag => {
+                        self.execute_temporal_pag_graph_posterior_mediation(data, gp, q, physical, ctx)
+                    }
                     antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg => {
                         self.execute_temporal_admg_graph_posterior_mediation(data, gp, q, physical, ctx)
                     }
@@ -766,6 +805,10 @@ impl super::Study {
                     _ => self.execute_dbn_posterior_response(data, gp, q, physical, ctx),
                 }
             }
+            (
+                DataInput::Temporal(data) | DataInput::Event(data),
+                CausalQuery::AnomalyAttribution(_) | CausalQuery::ChangeAttribution(_),
+            ) => self.execute_series_attribution_graph_posterior(data, gp, physical, ctx),
             _ => Err(CausalError::Unsupported { message: GRAPH_POSTERIOR_QUERY_REFUSAL }),
         }
     }
@@ -1041,11 +1084,29 @@ impl super::Study {
         &self,
         data: &TabularData,
         gp: &GraphPosterior,
-        physical: &PhysicalExecutionPlan,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let query = match &self.query {
             CausalQuery::AverageEffect(q) => q,
+            // A latent-confounded conditional effect, a derivative or multi-coordinate
+            // response and a counterfactual are answered atom by atom through the explicit
+            // executor of each atom's structure.
+            CausalQuery::ConditionalEffect(_)
+                if matches!(
+                    gp.atom_kind,
+                    antecedent_discovery::GraphPosteriorAtomKind::Admg
+                        | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg
+                ) =>
+            {
+                return self.execute_atom_route_graph_posterior(data, gp, physical, ctx);
+            }
+            CausalQuery::Response(q) if super::atom_route_response(q) => {
+                return self.execute_atom_route_graph_posterior(data, gp, physical, ctx);
+            }
+            CausalQuery::Counterfactual(_) => {
+                return self.execute_atom_route_graph_posterior(data, gp, physical, ctx);
+            }
             CausalQuery::ConditionalEffect(q) => &q.inner,
             CausalQuery::Response(q) => match gp.atom_kind {
                 antecedent_discovery::GraphPosteriorAtomKind::Dag => {
@@ -1064,6 +1125,15 @@ impl super::Study {
             }
             CausalQuery::Interference(q) => {
                 return self.execute_interference_graph_posterior(data, gp, q, physical, ctx);
+            }
+            CausalQuery::Mediation(_)
+            | CausalQuery::PathSpecific(_)
+            | CausalQuery::NestedCounterfactual(_)
+            | CausalQuery::Distribution(_) => {
+                return self.execute_cross_world_graph_posterior(data, gp, physical, ctx);
+            }
+            CausalQuery::AnomalyAttribution(_) | CausalQuery::ChangeAttribution(_) => {
+                return self.execute_attribution_graph_posterior(data, gp, physical, ctx);
             }
             _ => return Err(CausalError::Unsupported { message: GRAPH_POSTERIOR_QUERY_REFUSAL }),
         };
@@ -1817,6 +1887,9 @@ impl super::Study {
 
     fn run_unnamed(&self, ctx: &ExecutionContext) -> Result<StudyResult, CausalError> {
         crate::analysis::lowering::refuse_reentry(ctx)?;
+        if crate::analysis::functional_validation::requested(self) {
+            return crate::analysis::functional_validation::run_validated(self, ctx);
+        }
         if let Some(result) = self.run_checked_bayesian_static_mediation(ctx)? {
             return Ok(*result);
         }
@@ -2289,12 +2362,14 @@ impl super::Study {
         // These families have a complete retained expression or model operation.
         // The one-shot facade must use that operation too, so it cannot silently
         // recover its meaning from the ordinary Study dispatcher.
-        if matches!(
-            self.query,
-            CausalQuery::Distribution(_)
-                | CausalQuery::PathSpecific(_)
-                | CausalQuery::NestedCounterfactual(_)
-        ) {
+        if self.graph_posterior.is_none()
+            && matches!(
+                self.query,
+                CausalQuery::Distribution(_)
+                    | CausalQuery::PathSpecific(_)
+                    | CausalQuery::NestedCounterfactual(_)
+            )
+        {
             if let DataInput::Tabular(data) = &self.data {
                 // A distribution over an equivalence class is decided member by member at
                 // each execution: its checked operation is the lowered route itself.

@@ -32,7 +32,8 @@
 //! calibrated: no coverage of these intervals has been measured.
 //!
 //! The quantile functional, the local-quadratic dose grid, the regime survival procedure and the
-//! observational excursion (whose assignment law is fitted, not recorded) are not linear in the
+//! observational excursion and the whole-regime contrast (whose assignment laws are fitted, not
+//! recorded) are not linear in the
 //! scores; their modules state their own uncertainty paths.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -43,6 +44,7 @@ mod linalg;
 pub mod misclassification;
 pub mod observational;
 pub mod quantile;
+pub mod regime;
 pub mod survival;
 
 pub(crate) use linalg::{cholesky as cholesky_factor, cholesky_solve as cholesky_apply};

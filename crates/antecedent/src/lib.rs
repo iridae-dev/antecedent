@@ -130,7 +130,7 @@ pub use query::{AssociationFunctional, AssociationMeasure, AssociationOutcome, A
 pub use query::{AttributeQuery, DiscoverQuery, SimulateQuery};
 pub use query::{
     OutcomeMisclassification, TemporalAssignment, TemporalDesignFunctional, TemporalDesignQuery,
-    TemporalDoseTarget,
+    TemporalDoseTarget, TemporalRegimeMethod,
 };
 pub use result::QuasiRolloutEstimate;
 pub use result::TemporalDesignEstimate;

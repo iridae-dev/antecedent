@@ -404,6 +404,212 @@ pub struct WaveBootstrap {
     pub se_rel_mc_error: Option<f64>,
     /// Estimated relative Monte Carlo error of the interval half-width.
     pub half_width_rel_mc_error: Option<f64>,
+    /// Why the run ended.
+    pub stop: StopReason,
+    /// Replicates attempted in the completed waves, failures included.
+    pub attempted: u32,
+}
+
+impl WaveBootstrap {
+    fn skipped() -> Self {
+        Self {
+            se: BootstrapSeResult::skipped(),
+            interval: None,
+            waves: Vec::new(),
+            se_rel_mc_error: None,
+            half_width_rel_mc_error: None,
+            stop: StopReason::MaxReplicates,
+            attempted: 0,
+        }
+    }
+
+    /// A finished or stopped wave run as the interval procedure reports it.
+    pub(crate) fn from_run(run: crate::adaptive_resample_waves::WaveRun) -> Self {
+        Self {
+            se: finalize_bootstrap_se_ex(
+                &run.successes,
+                run.attempted,
+                run.stop == StopReason::Cancelled,
+                run.stop == StopReason::Converged,
+            ),
+            interval: run.interval,
+            waves: run.waves,
+            se_rel_mc_error: run.se_rel_mc_error,
+            half_width_rel_mc_error: run.half_width_rel_mc_error,
+            stop: run.stop,
+            attempted: run.attempted,
+        }
+    }
+
+    fn cancelled() -> Self {
+        Self {
+            se: finalize_bootstrap_se_ex(&[], 0, true, false),
+            stop: StopReason::Cancelled,
+            ..Self::skipped()
+        }
+    }
+
+    /// The record of this run under the `rule` it ran: the interval is withheld exactly when
+    /// the standard error is (too few survivors or too many failures), so a summary never
+    /// leans on replicates the fixed-count bootstrap would have refused.
+    #[must_use]
+    pub fn report(&self, rule: WaveStoppingRule) -> ResamplingReport {
+        ResamplingReport {
+            rule,
+            interval: self.interval.filter(|_| self.se.se.is_some()),
+            waves: self.waves.clone(),
+            attempted: self.attempted,
+            stop: self.stop,
+            se_rel_mc_error: self.se_rel_mc_error,
+            half_width_rel_mc_error: self.half_width_rel_mc_error,
+        }
+    }
+}
+
+/// The complete resampling procedure behind a requested interval: the rule it ran (waves,
+/// tolerances, the replicate cap), the percentile interval, every wave's accounting, the
+/// Monte Carlo error of the standard error and of the half-width at the stop, and why the run
+/// stopped. Coverage of the whole stop-and-interval procedure is a measured property of the
+/// rule, not asserted here.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct ResamplingReport {
+    /// The declared schedule, tolerances, level and replicate cap.
+    pub rule: WaveStoppingRule,
+    /// Type-7 percentile interval of the successes at `rule.level`, when it is licensed.
+    pub interval: Option<(f64, f64)>,
+    /// One record per completed wave (attempts, successes, failures by kind).
+    pub waves: Vec<crate::adaptive_resample_waves::WaveRecord>,
+    /// Replicates attempted in the completed waves, failures included.
+    pub attempted: u32,
+    /// Why the run ended: a met tolerance, the replicate cap, or cancellation.
+    pub stop: StopReason,
+    /// Relative Monte Carlo error of the standard error at the stop.
+    pub se_rel_mc_error: Option<f64>,
+    /// Relative Monte Carlo error of the interval half-width at the stop.
+    pub half_width_rel_mc_error: Option<f64>,
+}
+
+/// A requested bootstrap interval: the level and the Monte Carlo tolerances the resampling may
+/// stop on. The replicate cap is the estimator's declared replicate count, so the request can
+/// shorten the run but never lengthen it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct IntervalRequest {
+    /// Nominal level of the percentile interval, strictly inside `(0, 1)`.
+    pub level: f64,
+    /// Replicates per wave.
+    pub wave_size: u32,
+    /// Successes required before a tolerance may stop the run (clamped to the cap).
+    pub min_replicates: u32,
+    /// Relative Monte Carlo error target of the bootstrap standard error (kurtosis bound).
+    pub se_rel_tol: Option<f64>,
+    /// Relative Monte Carlo error target of the interval half-width.
+    pub half_width_rel_tol: Option<f64>,
+}
+
+impl Default for IntervalRequest {
+    fn default() -> Self {
+        Self {
+            level: 0.95,
+            wave_size: 25,
+            min_replicates: 100,
+            se_rel_tol: Some(0.05),
+            half_width_rel_tol: Some(0.10),
+        }
+    }
+}
+
+impl IntervalRequest {
+    /// The wave rule this request declares under a cap of `replicates` attempts. Failures stay
+    /// in the attempt count and never refuse here (the standard error and the interval are
+    /// withheld by the fixed-count bootstrap's own failure fraction), and cancellation returns
+    /// the completed waves.
+    #[must_use]
+    pub fn rule(&self, replicates: u32) -> WaveStoppingRule {
+        WaveStoppingRule {
+            wave_size: self.wave_size.max(1),
+            min_replicates: self.min_replicates.min(replicates),
+            max_replicates: replicates,
+            se_rel_tol: self.se_rel_tol,
+            half_width_rel_tol: self.half_width_rel_tol,
+            success_floor: None,
+            level: self.level,
+            max_failure_fraction: 1.0,
+            on_cancel: crate::adaptive_resample_waves::CancelPolicy::ReturnPartial,
+        }
+    }
+}
+
+/// A bootstrap standard error and, when an interval was requested, the resampling that
+/// produced it.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct BootstrapOutcome {
+    /// Standard error and failure accounting.
+    pub(crate) se: BootstrapSeResult,
+    /// The complete fit/resample/stop/interval record of a requested interval.
+    pub(crate) resampling: Option<ResamplingReport>,
+}
+
+/// Bootstrap under the sampling design the labels declare, as a plain fixed-count standard
+/// error (no `request`, identical to [`bootstrap_by_design`]) or as the wave procedure that
+/// stops on the request's Monte Carlo tolerances and reports its interval and waves.
+///
+/// # Errors
+///
+/// The errors of [`bootstrap_by_design`] / [`bootstrap_interval_by_design`].
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the dispatcher of bootstrap_by_design, taking its arguments plus the interval request"
+)]
+pub(crate) fn bootstrap_outcome_by_design<S, F>(
+    request: Option<&IntervalRequest>,
+    design: BootstrapDesign<'_>,
+    replicates: u32,
+    ctx: &ExecutionContext,
+    stream_base: u64,
+    n: usize,
+    make_scratch: impl Fn() -> S + Sync,
+    estimate: F,
+) -> Result<BootstrapOutcome, EstimationError>
+where
+    S: Send,
+    F: Fn(&mut S, &[usize]) -> Result<Option<f64>, EstimationError> + Sync,
+{
+    let Some(request) = request else {
+        let se =
+            bootstrap_by_design(design, replicates, ctx, stream_base, n, make_scratch, estimate)?;
+        return Ok(BootstrapOutcome { se, resampling: None });
+    };
+    let rule = request.rule(replicates);
+    let run =
+        bootstrap_interval_by_design(design, &rule, ctx, stream_base, n, make_scratch, estimate)?;
+    Ok(BootstrapOutcome { resampling: Some(run.report(rule)), se: run.se })
+}
+
+/// The wave procedure over the rows `rows` draws: one reused scratch, waves on the caller.
+fn interval_over_rows<S, F>(
+    rule: &WaveStoppingRule,
+    ctx: &ExecutionContext,
+    stream_base: u64,
+    rows: &ReplicateRows<'_>,
+    make_scratch: impl Fn() -> S,
+    estimate: F,
+) -> Result<WaveBootstrap, EstimationError>
+where
+    F: Fn(&mut S, &[usize]) -> Result<Option<f64>, EstimationError>,
+{
+    let mut state = (make_scratch(), Vec::<usize>::new());
+    let run = run_waves_serial(rule, ctx, stream_base, &mut state, |(scratch, idx), id, _rng| {
+        let replicate = usize::try_from(id)
+            .map_err(|_| EstimationError::data_msg("bootstrap replicate id exceeds usize"))?;
+        rows.fill(replicate, idx)?;
+        estimate(scratch, idx)
+    });
+    match run {
+        Ok(run) => Ok(WaveBootstrap::from_run(run)),
+        Err(DriveError::Estimator(error)) => Err(error),
+        Err(DriveError::Wave(error)) => Err(EstimationError::data_msg(error.to_string())),
+    }
 }
 
 /// IID bootstrap that stops on the Monte Carlo tolerances of `rule` and returns the interval.
@@ -425,46 +631,93 @@ pub fn bootstrap_interval_with_scratch<S, F>(
 where
     F: Fn(&mut S, &[usize]) -> Result<Option<f64>, EstimationError>,
 {
-    let cancelled_result = || WaveBootstrap {
-        se: finalize_bootstrap_se_ex(&[], 0, true, false),
-        interval: None,
-        waves: Vec::new(),
-        se_rel_mc_error: None,
-        half_width_rel_mc_error: None,
-    };
     if rule.max_replicates == 0 || n == 0 {
-        return Ok(WaveBootstrap { se: BootstrapSeResult::skipped(), ..cancelled_result() });
+        return Ok(WaveBootstrap::skipped());
     }
     if ctx.cancellation.is_cancelled() {
-        return Ok(cancelled_result());
+        return Ok(WaveBootstrap::cancelled());
     }
     let Some(_lease) = admit_bootstrap_scratch(ctx, n, 1)? else {
-        return Ok(cancelled_result());
+        return Ok(WaveBootstrap::cancelled());
     };
     let rows = ReplicateRows::Rows { n, ctx, stream_base };
-    let mut state = (make_scratch(), Vec::<usize>::new());
-    let run = run_waves_serial(rule, ctx, stream_base, &mut state, |(scratch, idx), id, _rng| {
-        let replicate = usize::try_from(id)
-            .map_err(|_| EstimationError::data_msg("bootstrap replicate id exceeds usize"))?;
-        rows.fill(replicate, idx)?;
-        estimate(scratch, idx)
-    });
-    match run {
-        Ok(run) => Ok(WaveBootstrap {
-            se: finalize_bootstrap_se_ex(
-                &run.successes,
-                run.attempted,
-                run.stop == StopReason::Cancelled,
-                run.stop == StopReason::Converged,
-            ),
-            interval: run.interval,
-            waves: run.waves,
-            se_rel_mc_error: run.se_rel_mc_error,
-            half_width_rel_mc_error: run.half_width_rel_mc_error,
-        }),
-        Err(DriveError::Estimator(error)) => Err(error),
-        Err(DriveError::Wave(error)) => Err(EstimationError::data_msg(error.to_string())),
+    interval_over_rows(rule, ctx, stream_base, &rows, make_scratch, estimate)
+}
+
+/// The wave procedure under the sampling design the labels declare, with the same design rules,
+/// admission and replicate rows as [`bootstrap_by_design`]: whole clusters, contiguous blocks,
+/// or single rows. Waves run on the caller with one reused scratch.
+///
+/// # Errors
+///
+/// The design refuses the draw, the pool cannot fund the index buffer, the rule is unusable, or
+/// an estimator errs.
+pub(crate) fn bootstrap_interval_by_design<S, F>(
+    design: BootstrapDesign<'_>,
+    rule: &WaveStoppingRule,
+    ctx: &ExecutionContext,
+    stream_base: u64,
+    n: usize,
+    make_scratch: impl Fn() -> S,
+    estimate: F,
+) -> Result<WaveBootstrap, EstimationError>
+where
+    F: Fn(&mut S, &[usize]) -> Result<Option<f64>, EstimationError>,
+{
+    let BootstrapDesign { clusters, series_block, declared } = design;
+    if let Some(labels) = clusters {
+        let grouped = ClusterRows::new(labels)?;
+        let declared = declared.resolve(DeclaredSamplingDesign::ClusteredPanel);
+        let draw = match declared {
+            DeclaredSamplingDesign::IndependentSubjectTrajectories => ResamplingRule::RowSubjectIid,
+            DeclaredSamplingDesign::ClusteredPanel
+            | DeclaredSamplingDesign::DependentTimeSeries => ResamplingRule::WholeCluster,
+        };
+        declared.apply_resampling(draw).map_err(design_err)?;
+        if rule.max_replicates == 0 || grouped.len() == 0 {
+            return Ok(WaveBootstrap::skipped());
+        }
+        if ctx.cancellation.is_cancelled() {
+            return Ok(WaveBootstrap::cancelled());
+        }
+        let ceiling = grouped.replicate_row_ceiling();
+        let Some(_lease) = admit_bootstrap_scratch(ctx, ceiling, 1)? else {
+            return Ok(WaveBootstrap::cancelled());
+        };
+        retained_index_slots(ceiling, 1)?;
+        let rows =
+            ReplicateRows::Clusters { members: grouped.members(), ceiling, ctx, stream_base };
+        return interval_over_rows(rule, ctx, stream_base, &rows, make_scratch, estimate);
     }
+    if let Some(block_length) = series_block {
+        declared
+            .resolve(DeclaredSamplingDesign::DependentTimeSeries)
+            .apply_resampling(ResamplingRule::ContiguousBlock)
+            .map_err(design_err)?;
+        if rule.max_replicates == 0 || n == 0 {
+            return Ok(WaveBootstrap::skipped());
+        }
+        if block_length == 0 || block_length > n {
+            return Err(EstimationError::data_msg(
+                "contiguous block length must be positive and no longer than the series",
+            ));
+        }
+        if ctx.cancellation.is_cancelled() {
+            return Ok(WaveBootstrap::cancelled());
+        }
+        let Some(_lease) = admit_bootstrap_scratch(ctx, n, 1)? else {
+            return Ok(WaveBootstrap::cancelled());
+        };
+        let rows = ReplicateRows::Blocks { n, block_length, ctx, stream_base };
+        return interval_over_rows(rule, ctx, stream_base, &rows, make_scratch, estimate);
+    }
+    match declared {
+        SamplingDeclaration::Undeclared => DeclaredSamplingDesign::IndependentSubjectTrajectories
+            .apply_resampling(ResamplingRule::RowSubjectIid),
+        SamplingDeclaration::Declared(design) => design.apply_resampling(ResamplingRule::RowIid),
+    }
+    .map_err(design_err)?;
+    bootstrap_interval_with_scratch(rule, ctx, stream_base, n, make_scratch, estimate)
 }
 
 fn design_err(error: SamplingDesignError) -> EstimationError {
@@ -1987,5 +2240,294 @@ mod bootstrap_clock_trials {
                 result.cancelled
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod interval_procedure_tests {
+    use std::cell::RefCell;
+
+    use super::*;
+    use crate::adaptive_resample_waves::StopReason;
+    use crate::statistical_transport::percentile_interval;
+
+    const N: usize = 40;
+
+    fn statistic(rows: &[usize]) -> f64 {
+        rows.iter().map(|row| ((row * 37) % 11) as f64).sum::<f64>() / rows.len() as f64
+    }
+
+    fn labels() -> Vec<u32> {
+        (0..N).map(|row| u32::try_from(row / 4).unwrap()).collect()
+    }
+
+    /// Every replicate-row design the dispatcher resolves: single rows, whole clusters and
+    /// contiguous blocks.
+    fn designs(labels: &[u32]) -> Vec<BootstrapDesign<'_>> {
+        vec![
+            BootstrapDesign {
+                clusters: None,
+                series_block: None,
+                declared: SamplingDeclaration::Undeclared,
+            },
+            BootstrapDesign {
+                clusters: Some(labels),
+                series_block: None,
+                declared: SamplingDeclaration::Undeclared,
+            },
+            BootstrapDesign {
+                clusters: None,
+                series_block: Some(4),
+                declared: SamplingDeclaration::Undeclared,
+            },
+        ]
+    }
+
+    fn rule(wave_size: u32, max_replicates: u32, se_rel_tol: f64) -> WaveStoppingRule {
+        IntervalRequest {
+            level: 0.9,
+            wave_size,
+            min_replicates: 0,
+            se_rel_tol: Some(se_rel_tol),
+            half_width_rel_tol: None,
+        }
+        .rule(max_replicates)
+    }
+
+    #[test]
+    fn a_never_met_request_reproduces_the_fixed_count_bootstrap_on_every_design() {
+        let ctx = ExecutionContext::for_tests(5);
+        let labels = labels();
+        for design in designs(&labels) {
+            let fixed = bootstrap_by_design(
+                design,
+                60,
+                &ctx,
+                21,
+                N,
+                || (),
+                |(), rows| Ok(Some(statistic(rows))),
+            )
+            .unwrap();
+            let seen = RefCell::new(Vec::new());
+            let run = bootstrap_interval_by_design(
+                design,
+                &rule(15, 60, 1e-12),
+                &ctx,
+                21,
+                N,
+                || (),
+                |(), rows| {
+                    let value = statistic(rows);
+                    seen.borrow_mut().push(value);
+                    Ok(Some(value))
+                },
+            )
+            .unwrap();
+            assert_eq!(run.stop, StopReason::MaxReplicates);
+            assert_eq!((run.attempted, run.waves.len()), (60, 4));
+            assert_eq!(run.se.replicates_ok, fixed.replicates_ok);
+            assert_eq!(run.se.se.map(f64::to_bits), fixed.se.map(f64::to_bits));
+            // The interval is the type-7 percentile of exactly the successes the fixed count draws.
+            assert_eq!(run.interval, percentile_interval(&seen.borrow(), 0.9));
+            assert!(run.se_rel_mc_error.is_some());
+        }
+    }
+
+    #[test]
+    fn a_met_tolerance_stops_on_a_wave_boundary_with_the_prefix_of_the_full_run() {
+        let ctx = ExecutionContext::for_tests(5);
+        let labels = labels();
+        for design in designs(&labels) {
+            let record = |rule: &WaveStoppingRule| {
+                let seen = RefCell::new(Vec::new());
+                let run = bootstrap_interval_by_design(
+                    design,
+                    rule,
+                    &ctx,
+                    21,
+                    N,
+                    || (),
+                    |(), rows| {
+                        let value = statistic(rows);
+                        seen.borrow_mut().push(value);
+                        Ok(Some(value))
+                    },
+                )
+                .unwrap();
+                (run, seen.into_inner())
+            };
+            let (full, all) = record(&rule(20, 400, 1e-12));
+            assert_eq!(full.attempted, 400);
+            let mut loose = rule(20, 400, 0.3);
+            loose.min_replicates = 40;
+            let (stopped, prefix) = record(&loose);
+            assert_eq!(stopped.stop, StopReason::Converged);
+            assert!(stopped.se.early_stopped);
+            assert_eq!((stopped.attempted, stopped.waves.len()), (40, 2));
+            assert_eq!(prefix, all[..40]);
+            assert!(stopped.se_rel_mc_error.is_some_and(|error| error <= 0.3));
+        }
+    }
+
+    #[test]
+    fn the_dispatcher_without_a_request_is_the_fixed_count_bootstrap_bit_for_bit() {
+        let ctx = ExecutionContext::for_tests(5);
+        let labels = labels();
+        for design in designs(&labels) {
+            let fixed = bootstrap_by_design(
+                design,
+                50,
+                &ctx,
+                3,
+                N,
+                || (),
+                |(), rows| Ok(Some(statistic(rows))),
+            )
+            .unwrap();
+            let outcome = bootstrap_outcome_by_design(
+                None,
+                design,
+                50,
+                &ctx,
+                3,
+                N,
+                || (),
+                |(), rows| Ok(Some(statistic(rows))),
+            )
+            .unwrap();
+            assert_eq!(outcome.se, fixed);
+            assert!(outcome.resampling.is_none());
+            // A request reports the procedure beside the same replicate cap.
+            let request = IntervalRequest { min_replicates: 10, ..IntervalRequest::default() };
+            let requested = bootstrap_outcome_by_design(
+                Some(&request),
+                design,
+                50,
+                &ctx,
+                3,
+                N,
+                || (),
+                |(), rows| Ok(Some(statistic(rows))),
+            )
+            .unwrap();
+            let report = requested.resampling.expect("a requested interval is reported");
+            assert_eq!(report.rule.max_replicates, 50);
+            assert_eq!(report.attempted, requested.se.replicates_ok);
+            assert!(report.interval.is_some() && !report.waves.is_empty());
+        }
+    }
+
+    #[test]
+    fn failures_stay_in_the_attempts_and_withhold_the_interval_with_the_standard_error() {
+        let ctx = ExecutionContext::for_tests(5);
+        let calls = RefCell::new(0u32);
+        let run = bootstrap_interval_by_design(
+            BootstrapDesign {
+                clusters: None,
+                series_block: None,
+                declared: SamplingDeclaration::Undeclared,
+            },
+            &rule(10, 40, 1e-12),
+            &ctx,
+            8,
+            N,
+            || (),
+            |(), rows| {
+                *calls.borrow_mut() += 1;
+                Ok((*calls.borrow() % 4 == 0).then(|| statistic(rows)))
+            },
+        )
+        .unwrap();
+        assert_eq!(run.attempted, 40);
+        assert_eq!((run.se.replicates_ok, run.se.replicates_failed), (10, 30));
+        assert!(run.waves.iter().all(|wave| wave.declined == 7 || wave.declined == 8));
+        // Three quarters failed: the fixed-count bootstrap withholds the SE, and the report
+        // withholds the interval it would otherwise compute from the survivors.
+        assert!(run.se.se.is_none());
+        assert!(run.interval.is_some());
+        assert!(run.report(rule(10, 40, 1e-12)).interval.is_none());
+    }
+
+    #[test]
+    fn cancellation_returns_the_completed_waves_flagged() {
+        let ctx = ExecutionContext::for_tests(5);
+        ctx.cancellation.cancel();
+        let run = bootstrap_interval_by_design(
+            BootstrapDesign {
+                clusters: None,
+                series_block: None,
+                declared: SamplingDeclaration::Undeclared,
+            },
+            &rule(10, 40, 1e-12),
+            &ctx,
+            8,
+            N,
+            || (),
+            |(), rows| Ok(Some(statistic(rows))),
+        )
+        .unwrap();
+        assert_eq!(run.stop, StopReason::Cancelled);
+        assert!(run.se.cancelled && run.interval.is_none() && run.waves.is_empty());
+    }
+}
+
+/// Shared assertions of the estimator-level interval-procedure tests: a request whose tolerances
+/// are never met reproduces the fixed-count bootstrap, and one met early stops on a wave boundary.
+#[cfg(test)]
+pub(crate) mod interval_test_support {
+    use super::IntervalRequest;
+    use crate::adaptive_resample_waves::StopReason;
+    use crate::effect_estimate::EffectEstimate;
+
+    /// Tolerances no finite run can meet, so the procedure runs to the replicate cap.
+    pub(crate) fn never_met(wave_size: u32) -> IntervalRequest {
+        IntervalRequest {
+            level: 0.95,
+            wave_size,
+            min_replicates: 0,
+            se_rel_tol: Some(1e-12),
+            half_width_rel_tol: Some(1e-12),
+        }
+    }
+
+    /// Tolerances any run meets, so the procedure stops at the first wave that has
+    /// `min_replicates` successes.
+    pub(crate) fn met_early(wave_size: u32, min_replicates: u32) -> IntervalRequest {
+        IntervalRequest {
+            level: 0.95,
+            wave_size,
+            min_replicates,
+            se_rel_tol: Some(1e9),
+            half_width_rel_tol: Some(1e9),
+        }
+    }
+
+    /// `never` reproduces `fixed` bit for bit and uses the whole cap in whole waves; `early`
+    /// stops before the cap on a wave boundary with at least the requested successes.
+    pub(crate) fn assert_procedure(
+        fixed: &EffectEstimate,
+        never: &EffectEstimate,
+        early: &EffectEstimate,
+        cap: u32,
+        wave: u32,
+    ) {
+        assert!(fixed.diagnostics.resampling.is_none(), "a fixed count reports no procedure");
+        let never_report =
+            never.diagnostics.resampling.as_ref().expect("a requested interval is reported");
+        assert_eq!(never_report.stop, StopReason::MaxReplicates);
+        assert_eq!(never_report.attempted, cap);
+        assert_eq!(never_report.waves.len() as u32, cap / wave);
+        assert_eq!(
+            never.se_bootstrap().map(f64::to_bits),
+            fixed.se_bootstrap().map(f64::to_bits),
+            "an unmet tolerance is the fixed-count bootstrap"
+        );
+        let early_report =
+            early.diagnostics.resampling.as_ref().expect("a requested interval is reported");
+        assert_ne!(early_report.stop, StopReason::MaxReplicates);
+        assert!(early_report.attempted < cap, "a met tolerance shortens the run");
+        assert_eq!(early_report.attempted % wave, 0, "the run ends on a wave boundary");
+        assert!(early.se_bootstrap().is_some_and(f64::is_finite));
     }
 }

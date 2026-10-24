@@ -36,6 +36,7 @@ use super::{
     interference_saturation_api, inverse_outcome_api, inverse_query_api, joint_law_propagation_api,
     joint_transport_api, latent_class_api, learned_continuous_api, learned_joint_api,
     learned_trial_api, load_float64_arrow_c_columns, load_float64_columns,
+    load_float64_panel_columns,
     matched_case_control_api, measured_inference_api, measurement_model_api,
     mechanism_composition_api, mechanism_discrepancy_api, msm_sensitivity_api,
     multi_level_treatment_api, nested_bayesian_api, nested_fisher_api, nonlinear_mediation_api,
@@ -346,6 +347,7 @@ fn register_native_functions(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(host_status_of_claim, m)?)?;
     m.add_function(wrap_pyfunction!(host_status_of_operation, m)?)?;
     m.add_function(wrap_pyfunction!(load_float64_columns, m)?)?;
+    m.add_function(wrap_pyfunction!(load_float64_panel_columns, m)?)?;
     m.add_function(wrap_pyfunction!(load_float64_arrow_c_columns, m)?)?;
     m.add_function(wrap_pyfunction!(set_review_error_class, m)?)?;
     m.add_function(wrap_pyfunction!(set_unsupported_error_class, m)?)?;
@@ -396,6 +398,7 @@ fn register_native_classes(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ValidationSection>()?;
     m.add_class::<ValidationFailureSection>()?;
     m.add_class::<PerformanceSection>()?;
+    m.add_class::<crate::ResamplingSection>()?;
     m.add_class::<PyCancellationToken>()?;
     m.add_class::<PosteriorArtifact>()?;
     m.add_class::<AnalysisResult>()?;

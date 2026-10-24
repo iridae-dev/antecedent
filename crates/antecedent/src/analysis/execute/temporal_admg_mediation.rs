@@ -38,12 +38,86 @@ pub(crate) fn window_effect_query(
             ));
         }
     };
-    let mut effect = TemporalEffectQuery::pulse(query.treatment, query.outcome, 1.0)
-        .with_horizon_steps(horizon);
+    let mut effect =
+        TemporalEffectQuery::pulse(query.treatment, query.outcome, 1.0).with_horizon_steps(horizon);
     effect.control = query.control.clone();
     effect.active = query.active.clone();
     effect.target_population = query.target_population.clone();
     Ok(effect)
+}
+
+/// The window problem of a mediation under a temporal ADMG: the unrolled window, the
+/// pulse contrast on its coordinates and the mediators between the pulse and the outcome.
+pub(crate) struct AdmgWindowProblem {
+    effect: TemporalEffectQuery,
+    plan: antecedent_identify::temporal_admg::TemporalAdmgWindowPlan,
+    window: antecedent_graph::UnrolledTemporalAdmg,
+    treatment: VariableId,
+    outcome: VariableId,
+    mediators: Vec<VariableId>,
+    window_query: MediationQuery,
+}
+
+/// State the window problem of `query` on `template`, reading `variable_count` variables.
+///
+/// # Errors
+///
+/// The query reads more than one horizon, names a variable the template lacks, has no
+/// mediator in the window, or intervenes other than by `Set`.
+pub(crate) fn admg_window_problem(
+    template: &antecedent_graph::TemporalAdmg,
+    query: &MediationQuery,
+    variable_count: u32,
+) -> Result<AdmgWindowProblem, CausalError> {
+    let effect = window_effect_query(query)?;
+    let plan = plan_temporal_admg_window(template, &effect)?;
+    let window = template.unroll_window_over(plan.periods, variable_count)?;
+    let unknown = |variable: VariableId| CausalError::Compile {
+        message: format!(
+            "variable {} is not a variable of the temporal ADMG template; name a variable \
+                 that appears in the template at some lag",
+            variable.raw()
+        ),
+    };
+    let first = plan.treated.first().copied().ok_or_else(|| CausalError::Compile {
+        message: "the pulse has no treated period".into(),
+    })?;
+    let treatment =
+        window.coordinate(query.treatment, first).ok_or_else(|| unknown(query.treatment))?;
+    let outcome = window
+        .coordinate(query.outcome, plan.outcome_period)
+        .ok_or_else(|| unknown(query.outcome))?;
+    let mut mediators = Vec::new();
+    for &variable in query.mediators.iter() {
+        for period in first..=plan.outcome_period {
+            if let Some(node) = window.coordinate(variable, period) {
+                if node != treatment && node != outcome {
+                    mediators.push(node);
+                }
+            }
+        }
+    }
+    if mediators.is_empty() {
+        return Err(CausalError::Compile {
+            message: "no mediator occurs in the window between the pulse and the outcome; a \
+                          mediator must lie between the treatment period and the outcome period"
+                .into(),
+        });
+    }
+    let level = |intervention: &Intervention| match intervention {
+        Intervention::Set { value, .. } => Ok(Intervention::set(treatment, value.clone())),
+        _ => Err(crate::unsupported_reason!(
+            "option_not_applicable",
+            "mediation under a temporal ADMG requires Set interventions on both sides"
+        )),
+    };
+    let mut window_query =
+        MediationQuery::binary(treatment, outcome, mediators.clone(), query.contrast);
+    window_query.control = level(&query.control)?;
+    window_query.active = level(&query.active)?;
+    window_query.target_population = query.target_population.clone();
+
+    Ok(AdmgWindowProblem { effect, plan, window, treatment, outcome, mediators, window_query })
 }
 
 impl super::Study {
@@ -53,8 +127,8 @@ impl super::Study {
     /// # Errors
     ///
     /// The requested contrast is not identified on the window (the refusal names the
-    /// recanting district or hedge), a validation suite or custom validator was attached, the
-    /// series holds a gap inside a window, or more than one outcome horizon was requested.
+    /// recanting district or hedge), a custom validator was attached, the series holds a gap
+    /// inside a window, or more than one outcome horizon was requested.
     pub(super) fn execute_temporal_admg_mediation(
         &self,
         series: &TimeSeriesData,
@@ -62,7 +136,6 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        super::static_path::ensure_admg_path_specific_licensed(self.refute)?;
         if !self.custom_validators.is_empty() {
             return Err(crate::unsupported_reason!(
                 "validators_not_applicable",
@@ -88,60 +161,18 @@ impl super::Study {
         let variable_count = u32::try_from(series.schema().len()).map_err(|_| {
             CausalError::Compile { message: "series schema exceeds the variable id range".into() }
         })?;
-        let effect = window_effect_query(query)?;
-        let plan = plan_temporal_admg_window(template, &effect)?;
-        let window = template.unroll_window_over(plan.periods, variable_count)?;
-        let unknown = |variable: VariableId| CausalError::Compile {
-            message: format!(
-                "variable {} is not a variable of the temporal ADMG template; name a variable \
-                 that appears in the template at some lag",
-                variable.raw()
-            ),
-        };
-        let first = plan.treated.first().copied().ok_or_else(|| CausalError::Compile {
-            message: "the pulse has no treated period".into(),
-        })?;
-        let treatment = window.coordinate(query.treatment, first).ok_or_else(|| unknown(query.treatment))?;
-        let outcome = window
-            .coordinate(query.outcome, plan.outcome_period)
-            .ok_or_else(|| unknown(query.outcome))?;
-        let mut mediators = Vec::new();
-        for &variable in query.mediators.iter() {
-            for period in first..=plan.outcome_period {
-                if let Some(node) = window.coordinate(variable, period) {
-                    if node != treatment && node != outcome {
-                        mediators.push(node);
-                    }
-                }
+        let problem = admg_window_problem(template, query, variable_count)?;
+        let AdmgWindowProblem { effect, plan, window, treatment, outcome, mediators, window_query } =
+            problem;
+        // The window is identified once, at compile, and the program retains the components;
+        // a plan that retained none identifies here.
+        let identified = match crate::analysis::lowering::plan_retained_execution_proof(self, physical) {
+            Some(crate::planner::lowered::RetainedExecutionProof::Admg(identified)) => identified.clone(),
+            _ => {
+                report_identify_compute(ctx);
+                identify_components(window.admg(), &window_query, identifier_id, estimator_id)?
             }
-        }
-        if mediators.is_empty() {
-            return Err(CausalError::Compile {
-                message: "no mediator occurs in the window between the pulse and the outcome; a \
-                          mediator must lie between the treatment period and the outcome period"
-                    .into(),
-            });
-        }
-        let level = |intervention: &Intervention| match intervention {
-            Intervention::Set { value, .. } => Ok(Intervention::set(treatment, value.clone())),
-            _ => Err(crate::unsupported_reason!(
-                "option_not_applicable",
-                "mediation under a temporal ADMG requires Set interventions on both sides"
-            )),
         };
-        let mut window_query = MediationQuery::binary(
-            treatment,
-            outcome,
-            mediators.clone(),
-            query.contrast,
-        );
-        window_query.control = level(&query.control)?;
-        window_query.active = level(&query.active)?;
-        window_query.target_population = query.target_population.clone();
-
-        report_identify_compute(ctx);
-        let identified =
-            identify_components(window.admg(), &window_query, identifier_id, estimator_id)?;
         let mut used = used_variables(template, &effect);
         used.extend(query.mediators.iter().copied());
         used.sort_unstable();
@@ -172,5 +203,41 @@ impl super::Study {
             physical,
             ctx,
         )
+    }
+
+    /// The window identification compile retains with the program, for a mediation under a
+    /// temporal ADMG or PAG; `None` leaves identification (and its refusal) to execution.
+    pub(crate) fn retain_window_mediation_identification(
+        &self,
+        plan: &PhysicalExecutionPlan,
+    ) -> Option<crate::planner::lowered::RetainedExecutionProof> {
+        let (super::DataInput::Temporal(series) | super::DataInput::Event(series)) = &self.data
+        else {
+            return None;
+        };
+        let variable_count = u32::try_from(series.schema().len()).ok()?;
+        match self.graph.graph_ref() {
+            GraphRef::TemporalAdmg(template) => {
+                let antecedent_core::CausalQuery::Mediation(query) = &self.query else {
+                    return None;
+                };
+                let (identifier_id, estimator_id) =
+                    plan.binding().resolve(RouteDefaults::PATH).ok()?;
+                if !matches!(estimator_id, EstimatorId::FunctionalEffect) {
+                    return None;
+                }
+                let problem = admg_window_problem(template, query, variable_count).ok()?;
+                let identified = identify_components(
+                    problem.window.admg(),
+                    &problem.window_query,
+                    identifier_id,
+                    estimator_id,
+                )
+                .ok()?;
+                Some(crate::planner::lowered::RetainedExecutionProof::Admg(identified))
+            }
+            GraphRef::TemporalPag(_) => self.retain_pag_window_identification(variable_count),
+            _ => None,
+        }
     }
 }

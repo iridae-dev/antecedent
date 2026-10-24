@@ -38,6 +38,7 @@ use super::{
     effect_from_posterior, elapsed_ns, overlap_diagnostic, provenance_ids,
     push_graph_posterior_structural_aggregation_diagnostic, resolve_posterior_status,
 };
+use crate::analysis::identification_cache::TRANSPORT_CLASS_ATOM_CODE;
 use crate::analysis::prepared::CachedGraphPosteriorIdentification;
 
 /// Method tag every posterior atom's transport estimand carries. The certified rule differs
@@ -233,6 +234,17 @@ impl super::Study {
             },
         );
 
+        // An atom that is a class whose members certify different formulas is partially
+        // identified, and so is the mixture that contains it unless lost mass already made it
+        // graph dependent.
+        if mixed.identification.status == IdentificationStatus::NonparametricallyIdentified
+            && evals.iter().any(|eval| {
+                eval.value.is_some() && eval.status == IdentificationStatus::PartiallyIdentified
+            })
+        {
+            mixed.identification.status = IdentificationStatus::PartiallyIdentified;
+        }
+
         let (estimate, posterior) = match representative_posterior {
             Some(component) => {
                 let posterior = envelope_posterior(&identified, &evals, &component)?;
@@ -265,6 +277,7 @@ impl super::Study {
             &mixed.mixture,
             unidentified_mass,
         ));
+        diagnostics.extend(Self::transport_class_member_diagnostic(&identified));
         push_graph_posterior_structural_aggregation_diagnostic(
             &mut diagnostics,
             mixed.policy,
@@ -396,8 +409,71 @@ impl super::Study {
     }
 }
 
+impl super::Study {
+    /// What the classes of selection diagrams that Cpdag and Pag atoms stand for left
+    /// uncertified: the posterior mass of the atoms that are classes and the share of that
+    /// mass whose class members sID did not certify. `None` when no atom is a class.
+    fn transport_class_member_diagnostic(
+        identified: &CachedGraphPosteriorIdentification,
+    ) -> Option<Diagnostic> {
+        let key_weights = IdentifiedKeyWeights::new(&identified.graphs);
+        let mut atoms = 0usize;
+        let mut class_mass = 0.0;
+        let mut uncertified_mass = 0.0;
+        for atom in identified.atoms.iter() {
+            let Some(note) = atom
+                .identification
+                .diagnostics
+                .iter()
+                .find(|note| note.code.as_ref() == TRANSPORT_CLASS_ATOM_CODE)
+            else {
+                continue;
+            };
+            let field = |name: &str| {
+                note.fields
+                    .iter()
+                    .find(|(key, _)| key.as_ref() == name)
+                    .and_then(|(_, value)| value.parse::<f64>().ok())
+            };
+            let (Some(certified), Some(uncertified)) =
+                (field("identified_weight"), field("unidentified_weight"))
+            else {
+                continue;
+            };
+            let mass = key_weights.get(atom.key);
+            atoms += 1;
+            class_mass += mass;
+            if certified + uncertified > 0.0 {
+                uncertified_mass += mass * uncertified / (certified + uncertified);
+            }
+        }
+        (atoms > 0).then(|| {
+            Diagnostic::new(
+                "estimate.graph_posterior.transport_class_members",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                format!(
+                    "{atoms} identified atom(s) stand for a class of selection diagrams (a Cpdag \
+                     or a Pag): sID decided every DAG completion, or every ADMG sharing the \
+                     m-separation model of a MAG completion, on its own diagram; the identified \
+                     class mass is {class_mass} of which {uncertified_mass} sits on members sID \
+                     did not certify (read as identified conditional on the certified members, \
+                     as the class effect posterior reads its atoms); members that certify \
+                     different formulas are evaluated by the one trial-to-target weighting, \
+                     which reads a formula only through its certificate"
+                ),
+            )
+            .with_fields([
+                ("class_atoms", atoms.to_string()),
+                ("class_mass", class_mass.to_string()),
+                ("uncertified_member_mass", uncertified_mass.to_string()),
+            ])
+        })
+    }
+}
+
 /// Whether the trial-to-target weighting can evaluate the certified formula.
-pub(super) fn ipw_estimable(transport: &TransportIdentification) -> bool {
+pub(crate) fn ipw_estimable(transport: &TransportIdentification) -> bool {
     matches!(
         transport,
         TransportIdentification::Transportable { formula, .. }

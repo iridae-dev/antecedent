@@ -306,7 +306,7 @@ fn a_prepared_handle_freezes_the_per_atom_identification_and_re_estimates() {
 }
 
 #[test]
-fn contemporaneous_atoms_and_validation_suites_are_refused_with_their_next_attempt() {
+fn contemporaneous_atoms_are_refused_with_their_next_attempt_and_validation_runs_per_atom() {
     let ctx = ExecutionContext::for_tests(85);
     let series = effect_series(2_000, 29);
     // No lag masks: the atoms are contemporaneous and read tabular rows.
@@ -322,15 +322,20 @@ fn contemporaneous_atoms_and_validation_suites_are_refused_with_their_next_attem
         .and_then(|built| built.run(&ctx))
         .unwrap_err();
     assert!(error.to_string().contains("lag masks"), "{error}");
+    // A validation suite over lagged atoms runs the window-native suite on each atom's own
+    // window table and mixes the per-atom reports; it is no longer a refusal.
     let lagged_posterior = atom_posterior(3, 1, &[1.0], &[true_atom()]);
-    let refused = Study::series(series)
+    let validated = Study::series(series)
         .graph_posterior(lagged_posterior)
         .temporal_query(effect_query())
         .refute(RefuteSuite::Cheap)
         .bootstrap_replicates(0)
         .build()
-        .and_then(|built| built.run(&ctx));
-    assert!(refused.is_err(), "cheap validation over lagged ADMG atoms is refused");
+        .and_then(|built| built.run(&ctx))
+        .unwrap();
+    let refuters: Vec<&str> =
+        validated.refutations.iter().map(|report| report.refuter.as_ref()).collect();
+    assert_eq!(refuters, ["window.stretch_80", "window.placebo_treatment"]);
 }
 
 #[test]

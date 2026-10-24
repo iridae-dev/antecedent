@@ -30,6 +30,7 @@ use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
 
 use super::atom_mix::{AtomBoundRule, AtomEvalView, AtomMixInput, MixedAtomEvals, mix_atom_evals};
 use super::mediation_mixed::{component_slot, identify_components};
+use super::mediation_refutation::plug_in_value;
 use super::temporal_admg_mediation::window_effect_query;
 use super::{
     Arc, BootstrapAccounting, CausalError, CausalPosterior, Diagnostic, DiagnosticKind,
@@ -65,6 +66,8 @@ struct AtomWindow {
     roles: Vec<VariableId>,
     /// Variables of the series the window table must hold values for.
     used: Vec<VariableId>,
+    /// Window columns of the treated periods (empty for a mediation).
+    treated: Vec<VariableId>,
 }
 
 /// One atom's evaluation: the plug-in of its identified functional on its window table.
@@ -281,13 +284,6 @@ fn window_disclosure(
 impl super::Study {
     /// Refusals every window route over lagged temporal-ADMG atoms shares.
     fn ensure_admg_posterior_window_licensed(&self) -> Result<(), CausalError> {
-        if self.refute != RefuteSuite::None {
-            return Err(CausalError::Unsupported {
-                message: "a graph posterior over lagged temporal-ADMG atoms runs at validation \
-                          none: the window-native validators refit one template's contrast, and \
-                          a mixture over templates has no single plug-in to refit",
-            });
-        }
         if !self.custom_validators.is_empty() {
             return Err(crate::unsupported_reason!(
                 "validators_not_applicable",
@@ -296,6 +292,47 @@ impl super::Study {
             ));
         }
         Ok(())
+    }
+
+    /// The window-native suite on every atom that carries posterior weight, each refit on the
+    /// window table of its own template, mixed by posterior weight (the mixed check passes
+    /// only when every contributing atom passed); empty at validation none.
+    fn refute_window_atoms(
+        &self,
+        input: &WindowMix<'_>,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<antecedent_validate::RefutationReport>, CausalError> {
+        if self.refute == RefuteSuite::None {
+            return Ok(Vec::new());
+        }
+        let key_weights = IdentifiedKeyWeights::new(input.graphs);
+        let mut per_atom = Vec::new();
+        for (proof, window) in input.proofs.iter().zip(input.windows) {
+            let weight = key_weights.get(proof.key);
+            if weight <= 0.0 {
+                continue;
+            }
+            let table = input.tables.get(window.periods)?;
+            let Some(original) =
+                plug_in_value(table, &proof.estimand, &proof.identification, &window.roles, ctx)
+            else {
+                continue;
+            };
+            let reports = antecedent_validate::functional::refute_window_contrast(
+                table,
+                &proof.identification,
+                &proof.estimand,
+                &window.roles,
+                &window.treated,
+                window.periods,
+                original,
+                self.refute == RefuteSuite::Full,
+                ctx,
+            )
+            .map_err(CausalError::from)?;
+            per_atom.push((weight, reports));
+        }
+        Ok(antecedent_validate::QueryRefutationPlan::mix_weighted(per_atom))
     }
 
     /// Estimate every identified atom of one slot on its window table and mix them by posterior
@@ -475,6 +512,11 @@ impl super::Study {
                 periods: plan.periods,
                 roles: contrast_roles(&plan, query, variable_count),
                 used: used_variables(&template, query),
+                treated: plan
+                    .treated
+                    .iter()
+                    .map(|&period| coordinate(query.treatment, period, variable_count))
+                    .collect(),
             });
         }
         let tables = WindowTables::build(series, &variables, &windows, ctx)?;
@@ -490,6 +532,16 @@ impl super::Study {
             ctx,
         )?;
         Self::adopt_mixture_se(&mut mixed, se);
+        let refutations = self.refute_window_atoms(
+            &WindowMix {
+                tables: &tables,
+                windows: &windows,
+                graphs: &identified.graphs,
+                proofs: &identified.atoms,
+                unidentified_mass,
+            },
+            ctx,
+        )?;
         mixed.identification.status = resolve_posterior_status(
             mixed.identification.status,
             mixed.policy,
@@ -522,6 +574,7 @@ impl super::Study {
                 query.outcome,
             )
             .identify_cached(identify_cached)
+            .refutations(refutations)
             .wall_time_ns(elapsed_ns(started))
             .extras(IdentifiedExecuteExtras {
                 identify_provenance: Some(provenance_ids("discover.graph_posterior", algo)),
@@ -642,6 +695,46 @@ impl super::Study {
             );
             results.push(Some((mixed, unidentified_mass)));
         }
+        // The mediation-native suite refits the three components of every atom that carries
+        // weight on the window table of its own template; the per-atom reports are mixed by
+        // posterior weight.
+        let mut refutations = Vec::new();
+        if self.refute != RefuteSuite::None {
+            let mut per_atom = Vec::new();
+            for (position, atom) in found.iter().enumerate() {
+                let Some(atom) = atom else { continue };
+                let weight = weights[position];
+                if weight <= 0.0 || atom.components.get(requested).is_none_or(Option::is_none) {
+                    continue;
+                }
+                let table = tables.get(atom.window.periods)?;
+                let components: [Option<super::mediation_refutation::IdentifiedComponent>; 3] =
+                    std::array::from_fn(|slot| {
+                        let (identification, estimand) =
+                            atom.components.get(slot).and_then(Option::as_ref)?;
+                        let value = plug_in_value(
+                            table,
+                            estimand,
+                            identification,
+                            &atom.window.roles,
+                            ctx,
+                        )?;
+                        Some((identification.clone(), estimand.clone(), value))
+                    });
+                let resampling = self.window_row_resampling(atom.window.periods)?;
+                per_atom.push((
+                    weight,
+                    self.refute_mediation_decomposition(
+                        table,
+                        &components,
+                        &atom.window.roles,
+                        resampling,
+                        ctx,
+                    )?,
+                ));
+            }
+            refutations = antecedent_validate::QueryRefutationPlan::mix_weighted(per_atom);
+        }
         let value = |slot: usize| {
             results[slot]
                 .as_ref()
@@ -686,6 +779,7 @@ impl super::Study {
             )
             .identify_cached(false)
             .mediation(Some(decomposition))
+            .refutations(refutations)
             .wall_time_ns(elapsed_ns(started))
             .extras(IdentifiedExecuteExtras {
                 identify_provenance: Some(provenance_ids("discover.graph_posterior", algo)),
@@ -787,7 +881,7 @@ fn atom_components(
     used.sort_unstable();
     used.dedup();
     Ok(Some(AtomComponents {
-        window: AtomWindow { periods: plan.periods, roles, used },
+        window: AtomWindow { periods: plan.periods, roles, used, treated: Vec::new() },
         components,
     }))
 }

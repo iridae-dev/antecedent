@@ -23,8 +23,8 @@ use std::sync::Arc;
 
 use antecedent_core::{KernelPolicy, Lag, VariableId};
 use antecedent_data::{LaggedColumn, TimeSeriesData};
-use antecedent_model::history_operators::HistoryScan;
-use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
+use antecedent_model::history_operators::{HistoryScan, SequentialRegression};
+use antecedent_stats::LeastSquaresWorkspace;
 
 use crate::error::EstimationError;
 
@@ -81,8 +81,7 @@ impl TemporalLinearPredictor {
                 "lagged linear predictor needs finite target and parent values",
             ));
         }
-        let fit = FaerBackend
-            .least_squares(&design, n, ncols, y, &mut ws)
+        let fit = SequentialRegression::solve_design(&design, n, ncols, y, None, &mut ws)
             .map_err(EstimationError::from)?;
         Ok(Self { target, parents, coefficients: Arc::from(fit.coefficients), max_lag })
     }

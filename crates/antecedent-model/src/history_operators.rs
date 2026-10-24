@@ -1874,6 +1874,23 @@ pub enum HistoryExecutionError {
          equations); next attempt: vary the action and outcome history or shorten it"
     )]
     SingularHistory,
+    /// A sampling weight is negative or not finite.
+    #[error(
+        "sampling weight {value} at window {window} is not a finite non-negative weight; next \
+         attempt: declare weights of at least zero"
+    )]
+    SamplingWeightInvalid {
+        /// Window of the weight.
+        window: usize,
+        /// The refused value.
+        value: f64,
+    },
+    /// No window carries a positive sampling weight.
+    #[error(
+        "no lag window has a positive sampling weight; the weighted population is empty; next \
+         attempt: give at least one window a positive weight"
+    )]
+    NoPositiveSamplingWeight,
     /// A named initial law needs the state it names.
     #[error("initial law `{law}` is named, not observed; next attempt: supply its state")]
     InitialStateRequired {
@@ -2164,32 +2181,64 @@ impl SequentialRegression {
                 got: weights.map_or(columns.first().map_or(0, |c| c.len()), <[f64]>::len),
             });
         }
-        let weight = |r: usize| weights.map_or(1.0, |w| w[r]);
-        let mut gram = vec![0.0; p * p];
-        let mut cross = vec![0.0; p];
-        for i in 0..p {
-            for r in 0..rows {
-                cross[i] += weight(r) * columns[i][r] * target[r];
-            }
-            for j in 0..=i {
-                let value: f64 = (0..rows).map(|r| weight(r) * columns[i][r] * columns[j][r]).sum();
-                gram[i * p + j] = value;
-                gram[j * p + i] = value;
-            }
+        let mut design = Vec::with_capacity(rows * p);
+        for column in columns {
+            design.extend_from_slice(column);
         }
-        let coefficients =
-            solve_symmetric(gram, cross).ok_or(HistoryExecutionError::SingularHistory)?;
-        let mut weighted_rss = 0.0;
-        let mut total_weight = 0.0;
-        for r in 0..rows {
-            let w = weight(r);
-            let fitted: f64 = (0..p).map(|j| columns[j][r] * coefficients[j]).sum();
-            weighted_rss += w * (target[r] - fitted).powi(2);
-            total_weight += w;
-        }
+        let mut workspace = antecedent_stats::LeastSquaresWorkspace::default();
+        let fit = Self::solve_design(&design, rows, p, target, weights, &mut workspace)
+            .map_err(|_| HistoryExecutionError::SingularHistory)?;
+        let total_weight: f64 = weights.map_or(rows as f64, |w| w.iter().sum());
         let residual_variance =
-            weighted_rss / (total_weight * (1.0 - p as f64 / rows as f64)).max(f64::MIN_POSITIVE);
-        Ok(ColumnFit { coefficients, residual_variance, rows })
+            fit.rss / (total_weight * (1.0 - p as f64 / rows as f64)).max(f64::MIN_POSITIVE);
+        Ok(ColumnFit { coefficients: fit.coefficients, residual_variance, rows })
+    }
+
+    /// The one least-squares solve every temporal route engine reads: `min ||W^(1/2)(X b - y)||`
+    /// for the column-major design `x_colmajor` (`nrows` by `ncols`).
+    ///
+    /// `weights` of `None` is the ordinary fit (the backend's column-pivoted QR, bit for bit);
+    /// `Some` folds the square root of each weight into the factorization without building a
+    /// second design, which is the same fit as scaling every row and the target by the root
+    /// weight beforehand. The fit's residuals and `rss` are those of the scaled rows.
+    ///
+    /// # Errors
+    ///
+    /// The backend's shape and rank refusals.
+    pub fn solve_design(
+        x_colmajor: &[f64],
+        nrows: usize,
+        ncols: usize,
+        y: &[f64],
+        weights: Option<&[f64]>,
+        workspace: &mut antecedent_stats::LeastSquaresWorkspace,
+    ) -> Result<antecedent_stats::LeastSquaresFit, antecedent_stats::StatsError> {
+        use antecedent_stats::DenseLinearAlgebra;
+        let backend = antecedent_stats::FaerBackend;
+        match weights {
+            None => backend.least_squares(x_colmajor, nrows, ncols, y, workspace),
+            Some(weights) => {
+                let root: Vec<f64> = weights.iter().map(|w| w.sqrt()).collect();
+                let scaled: Vec<f64> = y.iter().zip(&root).map(|(y, r)| y * r).collect();
+                backend
+                    .row_scaled_least_squares(x_colmajor, nrows, ncols, &root, &scaled, workspace)
+            }
+        }
+    }
+
+    /// The coefficients of [`Self::solve_design`] alone, for resampling loops that never read
+    /// residuals. The unweighted fit is the backend's coefficient-only path.
+    ///
+    /// # Errors
+    ///
+    /// The backend's shape and rank refusals.
+    pub fn solve_coefficients(
+        x_colmajor: &[f64],
+        nrows: usize,
+        ncols: usize,
+        y: &[f64],
+    ) -> Result<Vec<f64>, antecedent_stats::StatsError> {
+        antecedent_stats::FaerBackend.least_squares_coefficients(x_colmajor, nrows, ncols, y)
     }
 }
 
@@ -2202,40 +2251,6 @@ pub struct ColumnFit {
     pub residual_variance: f64,
     /// Rows fitted.
     pub rows: usize,
-}
-
-/// Gaussian elimination with partial pivoting; `None` when the system is singular.
-fn solve_symmetric(mut a: Vec<f64>, mut b: Vec<f64>) -> Option<Vec<f64>> {
-    let n = b.len();
-    let scale = a.iter().fold(0.0_f64, |m, v| m.max(v.abs()));
-    for col in 0..n {
-        let pivot =
-            (col..n).max_by(|&i, &j| a[i * n + col].abs().total_cmp(&a[j * n + col].abs()))?;
-        if a[pivot * n + col].abs() <= 1e-12 * scale.max(f64::MIN_POSITIVE) {
-            return None;
-        }
-        if pivot != col {
-            for k in 0..n {
-                a.swap(col * n + k, pivot * n + k);
-            }
-            b.swap(col, pivot);
-        }
-        for row in col + 1..n {
-            let factor = a[row * n + col] / a[col * n + col];
-            for k in col..n {
-                let sub = factor * a[col * n + k];
-                a[row * n + k] -= sub;
-            }
-            let sub = factor * b[col];
-            b[row] -= sub;
-        }
-    }
-    let mut x = vec![0.0; n];
-    for row in (0..n).rev() {
-        let tail: f64 = (row + 1..n).map(|k| a[row * n + k] * x[k]).sum();
-        x[row] = (b[row] - tail) / a[row * n + row];
-    }
-    x.iter().all(|v| v.is_finite()).then_some(x)
 }
 
 impl CensoringAssignmentWeight {
@@ -2277,6 +2292,58 @@ impl CensoringAssignmentWeight {
                 Ok(self.censoring * self.assignment / (pc * pa))
             })
             .collect()
+    }
+}
+
+/// Sampling weights of a series' lag windows, as the weight operator turns them into row
+/// weights.
+#[derive(Clone, Debug, PartialEq)]
+pub struct WindowWeights {
+    /// One weight per window, scaled to mean one over the windows of positive weight. A
+    /// window of weight zero keeps its place with weight zero.
+    pub weights: Vec<f64>,
+    /// Windows with positive weight.
+    pub rows_used: usize,
+    /// Windows that kept their place with weight zero.
+    pub zero_weight_windows: usize,
+    /// Sum of the declared weights over the windows used, before normalization.
+    pub weight_sum: f64,
+    /// Kish effective sample size of the windows used.
+    pub effective_sample_size: f64,
+}
+
+impl CensoringAssignmentWeight {
+    /// Row weights of the windows from the series' declared sampling weights.
+    ///
+    /// The declared censoring and assignment values multiply every weight, and the result is
+    /// scaled to mean one over the windows of positive weight; weighted least squares is
+    /// invariant to that common factor, so it cancels in the normalization.
+    /// A window of weight zero stays in the design, scaled to nothing, so windows keep their
+    /// consecutive times.
+    ///
+    /// # Errors
+    ///
+    /// [`HistoryExecutionError::SamplingWeightInvalid`] for a negative or non-finite weight,
+    /// or [`HistoryExecutionError::NoPositiveSamplingWeight`].
+    pub fn window_weights(&self, sampling: &[f64]) -> Result<WindowWeights, HistoryExecutionError> {
+        if let Some((window, &value)) =
+            sampling.iter().enumerate().find(|(_, w)| !w.is_finite() || **w < 0.0)
+        {
+            return Err(HistoryExecutionError::SamplingWeightInvalid { window, value });
+        }
+        let positive: Vec<f64> = sampling.iter().copied().filter(|w| *w > 0.0).collect();
+        if positive.is_empty() {
+            return Err(HistoryExecutionError::NoPositiveSamplingWeight);
+        }
+        let weight_sum: f64 = positive.iter().sum();
+        let scale = positive.len() as f64 / weight_sum;
+        Ok(WindowWeights {
+            weights: sampling.iter().map(|w| w * scale).collect(),
+            rows_used: positive.len(),
+            zero_weight_windows: sampling.len() - positive.len(),
+            weight_sum,
+            effective_sample_size: antecedent_kernels::kish_ess(&positive),
+        })
     }
 }
 
@@ -3805,5 +3872,134 @@ mod execution_tests {
         );
         assert_eq!(program.policy_name(), "pulse");
         assert_eq!(program.step_ns(), 10);
+    }
+
+    fn design_fixture(rows: usize) -> (Vec<f64>, Vec<f64>) {
+        let x: Vec<f64> = (0..rows).map(|t| ((t * 7) % 13) as f64).collect();
+        let z: Vec<f64> = (0..rows).map(|t| ((t * 5) % 11) as f64 - 4.0).collect();
+        let y: Vec<f64> = (0..rows)
+            .map(|t| 1.0 + 2.0 * x[t] - 0.5 * z[t] + (((t * 31) % 17) as f64 - 8.0) * 0.05)
+            .collect();
+        let mut design = vec![1.0; rows];
+        design.extend_from_slice(&x);
+        design.extend_from_slice(&z);
+        (design, y)
+    }
+
+    #[test]
+    fn the_shared_solve_is_the_backend_fit_unweighted_and_the_root_scaled_fit_weighted() {
+        use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
+        let rows = 60;
+        let (design, y) = design_fixture(rows);
+        let mut ws = LeastSquaresWorkspace::default();
+        let shared =
+            SequentialRegression::solve_design(&design, rows, 3, &y, None, &mut ws).unwrap();
+        let direct = FaerBackend.least_squares(&design, rows, 3, &y, &mut ws).unwrap();
+        assert_eq!(shared.coefficients, direct.coefficients);
+        assert_eq!(shared.rss, direct.rss);
+        let only = SequentialRegression::solve_coefficients(&design, rows, 3, &y).unwrap();
+        assert_eq!(only, direct.coefficients);
+
+        // Weighted: identical to rescaling every row and the target by the root weight.
+        let weights: Vec<f64> =
+            (0..rows).map(|r| if r % 4 == 0 { 0.0 } else { 0.5 + (r % 3) as f64 }).collect();
+        let weighted =
+            SequentialRegression::solve_design(&design, rows, 3, &y, Some(&weights), &mut ws)
+                .unwrap();
+        let root: Vec<f64> = weights.iter().map(|w| w.sqrt()).collect();
+        let mut scaled_design = design.clone();
+        for column in scaled_design.chunks_exact_mut(rows) {
+            for (v, r) in column.iter_mut().zip(&root) {
+                *v *= r;
+            }
+        }
+        let scaled_y: Vec<f64> = y.iter().zip(&root).map(|(v, r)| v * r).collect();
+        let reference =
+            FaerBackend.least_squares(&scaled_design, rows, 3, &scaled_y, &mut ws).unwrap();
+        for (got, want) in weighted.coefficients.iter().zip(&reference.coefficients) {
+            close(*got, *want, 1e-10, "weighted vs root-scaled");
+        }
+        close(weighted.rss, reference.rss, 1e-9, "weighted rss");
+        // The weights moved the fit.
+        assert!(
+            weighted
+                .coefficients
+                .iter()
+                .zip(&direct.coefficients)
+                .any(|(a, b)| (a - b).abs() > 1e-4)
+        );
+    }
+
+    #[test]
+    fn fit_columns_reports_the_weighted_residual_variance_of_the_shared_solve() {
+        let program = program("final");
+        let rows = 40;
+        let (design, y) = design_fixture(rows);
+        let columns: Vec<&[f64]> = design.chunks_exact(rows).collect();
+        let weights: Vec<f64> = (0..rows).map(|r| 1.0 + (r % 5) as f64).collect();
+        let fit = program.regression.fit_columns(&columns, &y, Some(&weights)).unwrap();
+        let mut ws = antecedent_stats::LeastSquaresWorkspace::default();
+        let solved =
+            SequentialRegression::solve_design(&design, rows, 3, &y, Some(&weights), &mut ws)
+                .unwrap();
+        assert_eq!(fit.coefficients, solved.coefficients);
+        let total: f64 = weights.iter().sum();
+        close(
+            fit.residual_variance,
+            solved.rss / (total * (1.0 - 3.0 / rows as f64)),
+            1e-12,
+            "variance",
+        );
+        // A duplicated column is not identified.
+        let twice = [columns[0], columns[1], columns[1]];
+        assert_eq!(
+            program.regression.fit_columns(&twice, &y, None),
+            Err(HistoryExecutionError::SingularHistory)
+        );
+    }
+
+    #[test]
+    fn window_weights_normalize_over_positive_windows_and_keep_zero_windows_in_place() {
+        let program = program_with(
+            InitialLaw::contemporaneous_observed(),
+            HistoryWindow::max_lag(1),
+            Some((2.0, 3.0)),
+            "final",
+        )
+        .unwrap();
+        let operator = program.weights.as_ref().unwrap();
+        let sampling = [2.0, 0.0, 6.0, 4.0, 0.0];
+        let windowed = operator.window_weights(&sampling).unwrap();
+        assert_eq!(windowed.rows_used, 3);
+        assert_eq!(windowed.zero_weight_windows, 2);
+        close(windowed.weight_sum, 12.0, 1e-12, "weight sum");
+        // Mean one over the positive windows; zero windows keep a zero weight in place.
+        close(windowed.weights.iter().sum::<f64>(), 3.0, 1e-12, "mean one");
+        assert_eq!(windowed.weights[1], 0.0);
+        assert_eq!(windowed.weights[4], 0.0);
+        close(windowed.weights[2] / windowed.weights[0], 3.0, 1e-12, "ratio kept");
+        // Kish: (sum w)^2 / sum w^2 = 144 / 56.
+        close(windowed.effective_sample_size, 144.0 / 56.0, 1e-12, "ess");
+        // The declared multipliers are a common factor and cancel.
+        let unit = program_with(
+            InitialLaw::contemporaneous_observed(),
+            HistoryWindow::max_lag(1),
+            Some((1.0, 1.0)),
+            "final",
+        )
+        .unwrap();
+        assert_eq!(unit.weights.as_ref().unwrap().window_weights(&sampling).unwrap(), windowed);
+        assert_eq!(
+            operator.window_weights(&[0.0, 0.0]),
+            Err(HistoryExecutionError::NoPositiveSamplingWeight)
+        );
+        assert!(matches!(
+            operator.window_weights(&[1.0, -1.0]),
+            Err(HistoryExecutionError::SamplingWeightInvalid { window: 1, .. })
+        ));
+        assert!(matches!(
+            operator.window_weights(&[1.0, f64::NAN]),
+            Err(HistoryExecutionError::SamplingWeightInvalid { window: 1, .. })
+        ));
     }
 }

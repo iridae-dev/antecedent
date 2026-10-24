@@ -38,7 +38,7 @@ pub const INCREMENTAL_VERSION: u16 = 1;
 const LAZY_DOMAIN: &str = "antecedent.data.lazy.v1";
 
 /// BLAKE3 domain for the digest of a snapshot contract's scientific fields.
-const CONTRACT_DOMAIN: &str = "antecedent.data.lazy.contract.v1";
+const CONTRACT_DOMAIN: &str = "antecedent.data.lazy.contract.v2";
 
 /// BLAKE3 domain for the composite digest of a panel or multi-environment source.
 const SEGMENT_DOMAIN: &str = "antecedent.data.lazy.segmented.v1";
@@ -201,6 +201,21 @@ impl LazyViewIdentity {
             end,
             digest: lazy_digest(&parent, &binding, start, end)?,
         })
+    }
+
+    /// Whether `source` is still the source this view was taken of: the same content under
+    /// the same contract, with the range still inside it. A setter that changes the weights,
+    /// mask, a column, the schema, the time index or the event times makes this false.
+    ///
+    /// # Errors
+    ///
+    /// `source` is a projection or carries a digest that is not its storage digest.
+    pub fn is_current_for(&self, source: &OwnedSource) -> Result<bool, DataError> {
+        let full = FullContentIdentity::try_from_source(source)?;
+        let Ok(chunk) = source.chunk(self.start, self.end) else {
+            return Ok(false);
+        };
+        Ok(Self::from_chunk(&full, &chunk)? == *self)
     }
 
     /// Digest of the parent contract this view was taken under.
@@ -433,6 +448,50 @@ impl SegmentChunkIdentity {
 }
 
 impl BaseScan {
+    /// Accept streamed `parts` as a continuation of this base scan, for `source` only.
+    ///
+    /// The base scan records the identity of the source it verified. A source that has
+    /// since changed (other weights, mask, column, schema, time index or event times) has
+    /// another identity, and the continuation is refused: the scan must be taken again.
+    ///
+    /// # Errors
+    ///
+    /// The base scan was skipped, `source` is not the scanned source, or the digests differ.
+    pub fn accept_for_source(
+        &self,
+        source: &OwnedSource,
+        parts: &[&[u8]],
+        bytes: &[u8],
+    ) -> Result<IncrementalDigest, DataError> {
+        let Self::Verified(full) = self else {
+            return Err(scan_required());
+        };
+        if FullContentIdentity::try_from_source(source)? != *full {
+            return Err(stale_base_scan());
+        }
+        self.accept(parts, bytes)
+    }
+
+    /// As [`Self::accept_for_source`] for a panel or multi-environment source.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::accept_for_source`], over the composite identity.
+    pub fn accept_for_segmented(
+        &self,
+        source: &SegmentedSource,
+        parts: &[&[u8]],
+        bytes: &[u8],
+    ) -> Result<IncrementalDigest, DataError> {
+        let Self::Verified(full) = self else {
+            return Err(scan_required());
+        };
+        if FullContentIdentity::try_from_segmented(source)? != *full {
+            return Err(stale_base_scan());
+        }
+        self.accept(parts, bytes)
+    }
+
     /// Required first scan of a panel or multi-environment source.
     ///
     /// # Errors
@@ -449,6 +508,7 @@ const fn modality_tag(modality: SourceModality) -> u8 {
         SourceModality::Panel => 2,
         SourceModality::MultiEnvironment => 3,
         SourceModality::TimeSeries => 4,
+        SourceModality::EventSeries => 5,
     }
 }
 
@@ -484,12 +544,7 @@ fn contract_binding(contract: &SnapshotContract) -> [u8; 32] {
         hasher.update(&(value as u64).to_le_bytes());
     }
     let mut hasher = blake3::Hasher::new_derive_key(CONTRACT_DOMAIN);
-    hasher.update(&[match contract.modality {
-        SourceModality::Tabular => 1,
-        SourceModality::Panel => 2,
-        SourceModality::MultiEnvironment => 3,
-        SourceModality::TimeSeries => 4,
-    }]);
+    hasher.update(&[modality_tag(contract.modality)]);
     hasher.update(&[match contract.validity {
         ValidityPolicy::F64InvalidIffNan => 1,
         ValidityPolicy::NullDistinctFromNan => 2,
@@ -523,6 +578,18 @@ fn contract_binding(contract: &SnapshotContract) -> [u8; 32] {
     for name in contract.schema_names.iter() {
         text(&mut hasher, name);
     }
+    // The schema (value types, roles, units, measurement) and the event timestamps are not in
+    // the storage digest; they are bound here.
+    hasher.update(&contract.schema);
+    match &contract.event_times {
+        None => {
+            hasher.update(&[0]);
+        }
+        Some(times) => {
+            hasher.update(&[1]);
+            hasher.update(times);
+        }
+    }
     match &contract.time_index {
         None => {
             hasher.update(&[0]);
@@ -554,6 +621,14 @@ fn incremental_hasher(parent: &[u8; 32], binding: &[u8; 32]) -> blake3::Hasher {
 
 fn finish(hasher: &blake3::Hasher) -> [u8; 32] {
     *hasher.finalize().as_bytes()
+}
+
+fn stale_base_scan() -> DataError {
+    DataError::InvalidArgument {
+        message: "the base scan was taken of a different source or contract; next attempt: \
+                  verify the current source again before accepting an increment"
+            .into(),
+    }
 }
 
 fn projection_refused() -> DataError {

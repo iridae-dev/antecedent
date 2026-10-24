@@ -52,6 +52,7 @@ fn run(
         PreparedTargetData::Tabular(d) => prepared.estimate(d, ctx),
         PreparedTargetData::Series(d) => prepared.estimate_series(d, ctx),
         PreparedTargetData::Panel(d) => prepared.estimate_panel(d, ctx),
+        PreparedTargetData::MultiEnv(d) => prepared.estimate_multi_env(d, ctx),
     }
     .unwrap();
     refute_prepared_target(prepared, &result, data, suite, config, options, ctx).unwrap()

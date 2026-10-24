@@ -151,14 +151,13 @@ pub fn result_target_family(result: &StudyResult) -> TargetFamily {
         };
     }
     if result.distribution().is_some() {
-        return TargetFamily::WorldValued;
+        return TargetFamily::InterventionalLaw;
     }
     if result.anomaly().is_some() || result.change_attribution().is_some() {
         return TargetFamily::Attribution;
     }
-    if result.counterfactual().is_some() {
-        return TargetFamily::ConditionalEffect;
-    }
+    // A counterfactual reports its population mean: the per-unit effects number as many as the
+    // scored units, far more coordinates than any replicate law can estimate a covariance for.
     TargetFamily::ScalarAverageEffect
 }
 
@@ -210,6 +209,28 @@ fn attribution_values(result: &StudyResult) -> Result<(Vec<Arc<str>>, Vec<f64>),
     Ok((labels, values))
 }
 
+/// The probability atoms of an interventional distribution, all but the last (the others
+/// determine it, and a vector that sums to one has a singular replicate covariance). A
+/// distribution with a single atom, or a mean only, is read through its mean.
+fn law_values(result: &StudyResult) -> Result<(Vec<Arc<str>>, Vec<f64>), CausalError> {
+    let distribution = result.distribution().ok_or(CausalError::Unsupported {
+        message: "no interventional distribution payload to refute",
+    })?;
+    let atoms = &distribution.atoms;
+    if atoms.len() >= 2 {
+        let kept = atoms.len() - 1;
+        let labels = (0..kept).map(|i| Arc::from(format!("atom[{i}]"))).collect();
+        let values = atoms[..kept].iter().map(|atom| atom.probability).collect();
+        return Ok((labels, values));
+    }
+    if distribution.mean.is_finite() {
+        return Ok((vec![Arc::from("mean")], vec![distribution.mean]));
+    }
+    Err(CausalError::Unsupported {
+        message: "the interventional distribution has neither two atoms nor a finite mean to refute",
+    })
+}
+
 fn labelled(prefix: &str, values: &[f64]) -> (Vec<Arc<str>>, Vec<f64>) {
     let labels = (0..values.len()).map(|i| Arc::from(format!("{prefix}[{i}]"))).collect();
     (labels, values.to_vec())
@@ -255,23 +276,37 @@ pub fn result_target_values(
             if result.response().is_some() =>
         {
             let response = result.response().ok_or_else(|| refuse("no response payload"))?;
-            match &response.estimate {
-                ResponseIdentification::PointIdentified(value) => match value {
-                    ResponseValue::Scalar(v) => (vec![Arc::<str>::from("value")], vec![*v]),
-                    ResponseValue::Surface { mean, .. } => labelled("grid", mean),
-                    ResponseValue::Vector(values) => labelled("coordinate", values),
-                    ResponseValue::Jacobian { values, .. } => labelled("jacobian", values),
-                    ResponseValue::Envelope(_) => {
-                        return Err(refuse(
-                            "an envelope is a set, not a point target; next attempt: the \
-                             assumption-range sensitivity analyses of the bounds",
-                        ));
-                    }
-                },
+            let value = match &response.estimate {
+                ResponseIdentification::PointIdentified(value) => value,
+                // A graph posterior that loses mass to atoms the identifier refuses publishes
+                // its value conditional on the atoms that identify; the refits recompute that
+                // same conditional value.
+                ResponseIdentification::GraphDependent(_) => result
+                    .structural_response
+                    .as_ref()
+                    .and_then(|mixture| mixture.conditional_on_identified.as_ref())
+                    .ok_or_else(|| {
+                        refuse(
+                            "only a point-identified response has a target vector to refute; \
+                             next attempt: refute each identified graph's response separately",
+                        )
+                    })?,
                 _ => {
                     return Err(refuse(
                         "only a point-identified response has a target vector to refute; next \
                          attempt: refute each identified graph's response separately",
+                    ));
+                }
+            };
+            match value {
+                ResponseValue::Scalar(v) => (vec![Arc::<str>::from("value")], vec![*v]),
+                ResponseValue::Surface { mean, .. } => labelled("grid", mean),
+                ResponseValue::Vector(values) => labelled("coordinate", values),
+                ResponseValue::Jacobian { values, .. } => labelled("jacobian", values),
+                ResponseValue::Envelope(_) => {
+                    return Err(refuse(
+                        "an envelope is a set, not a point target; next attempt: the \
+                         assumption-range sensitivity analyses of the bounds",
                     ));
                 }
             }
@@ -283,11 +318,18 @@ pub fn result_target_values(
             ));
         }
         TargetFamily::Attribution => attribution_values(result)?,
+        TargetFamily::InterventionalLaw => law_values(result)?,
         TargetFamily::ConditionalEffect => {
             let ite = result
                 .counterfactual()
                 .ok_or_else(|| refuse("no counterfactual payload to refute"))?;
             labelled("unit", &ite.unit_effects)
+        }
+        _ if result.counterfactual().is_some() => {
+            let ite = result
+                .counterfactual()
+                .ok_or_else(|| refuse("no counterfactual payload to refute"))?;
+            (vec![Arc::<str>::from("mean_ite")], vec![ite.mean_ite])
         }
         _ => {
             let effect = result
@@ -613,6 +655,8 @@ pub enum PreparedTargetData<'a> {
     Series(&'a TimeSeriesData),
     /// A panel of unit series.
     Panel(&'a PanelData),
+    /// Independent environments, each one series of a shared schema.
+    MultiEnv(&'a antecedent_data::MultiEnvironmentData),
 }
 
 /// Plan, reports, refusals and certificate of one prepared target refutation.
@@ -656,7 +700,13 @@ pub fn refute_prepared_target(
     // outcome stands in for the unused field.
     let treatment = match result.treatment {
         Some(treatment) => treatment,
-        None if target.family() == TargetFamily::Attribution => result.outcome,
+        None if matches!(
+            target.family(),
+            TargetFamily::Attribution | TargetFamily::InterventionalLaw
+        ) =>
+        {
+            result.outcome
+        }
         None => {
             return Err(CausalError::Unsupported {
                 message: "target refutation needs a result with a treatment",
@@ -696,6 +746,7 @@ enum Modal {
     Tabular(TabularData),
     Series(TimeSeriesData),
     Panel(PanelData),
+    MultiEnv(antecedent_data::MultiEnvironmentData),
 }
 
 /// One coordinate's derivative check, before the coordinates are merged into one report.
@@ -721,6 +772,31 @@ struct PreparedRefit<'a> {
 
 fn unsupported(reason: impl Into<Arc<str>>, next_attempt: &str) -> TargetRefitError {
     TargetRefitError::Unsupported { reason: reason.into(), next_attempt: Arc::from(next_attempt) }
+}
+
+/// Copy of an explicit coefficient prior with every Gaussian coefficient standard deviation
+/// multiplied by `factor`; means, residual-variance and restriction specs are kept.
+fn scale_prior_deviations(
+    prior: &antecedent_prob::PriorSet,
+    factor: f64,
+) -> Result<antecedent_prob::PriorSet, TargetRefitError> {
+    let mut scaled = prior.clone();
+    let mut found = false;
+    for spec in &mut scaled.specs {
+        if let antecedent_prob::PriorSpec::GaussianCoefficients(coefficients) = spec {
+            coefficients.variance =
+                coefficients.variance.iter().map(|variance| variance * factor * factor).collect();
+            found = true;
+        }
+    }
+    if found {
+        Ok(scaled)
+    } else {
+        Err(unsupported(
+            "the explicit prior has no Gaussian coefficient block to scale",
+            "declare a Gaussian coefficient prior, or leave the isotropic prior scale",
+        ))
+    }
 }
 
 fn failed(error: &CausalError) -> TargetRefitError {
@@ -914,6 +990,7 @@ impl PreparedRefit<'_> {
             PreparedTargetData::Tabular(data) => data.storage(),
             PreparedTargetData::Series(data) => data.storage(),
             PreparedTargetData::Panel(data) => data.units()[0].series.storage(),
+            PreparedTargetData::MultiEnv(data) => data.environments()[0].storage(),
         }
     }
 
@@ -931,6 +1008,7 @@ impl PreparedRefit<'_> {
             Modal::Tabular(data) => self.prepared.estimate(data, ctx),
             Modal::Series(data) => self.prepared.estimate_series(data, ctx),
             Modal::Panel(data) => self.prepared.estimate_panel(data, ctx),
+            Modal::MultiEnv(data) => self.prepared.estimate_multi_env(data, ctx),
         }
         .map_err(|error| failed(&error))?;
         self.read_back(&refitted)
@@ -962,12 +1040,14 @@ impl PreparedRefit<'_> {
                 _ => DataInput::Temporal(d.clone()),
             },
             Modal::Panel(d) => DataInput::Panel(d.clone()),
+            Modal::MultiEnv(d) => DataInput::MultiEnv(d.clone()),
         };
         let prepared = study.prepare(ctx)?;
         match data {
             Modal::Tabular(d) => prepared.estimate(d, ctx),
             Modal::Series(d) => prepared.estimate_series(d, ctx),
             Modal::Panel(d) => prepared.estimate_panel(d, ctx),
+            Modal::MultiEnv(d) => prepared.estimate_multi_env(d, ctx),
         }
     }
 
@@ -1424,6 +1504,25 @@ impl PreparedRefit<'_> {
                 let panel = PanelData::try_new(units).map_err(data_failed)?;
                 (Modal::Panel(panel), id.ok_or_else(|| unsupported("an empty panel", "data"))?)
             }
+            PreparedTargetData::MultiEnv(environments) => {
+                let label = name(environments.environments()[0].storage());
+                let mut members = Vec::with_capacity(environments.env_count());
+                let mut id = None;
+                for environment in environments.environments() {
+                    let u = draw(environment.row_count(), rng);
+                    let planted = plant(environment.storage(), &u)?;
+                    let base = series_with(environment, &planted, None, None)?;
+                    let (table, uid) = append(TabularData::new(base.storage().clone()), u, &label)?;
+                    id = Some(uid);
+                    members.push(
+                        TimeSeriesData::try_new(table.storage().clone(), base.time_index().clone())
+                            .map_err(data_failed)?,
+                    );
+                }
+                let rebuilt =
+                    antecedent_data::MultiEnvironmentData::try_new(members).map_err(data_failed)?;
+                (Modal::MultiEnv(rebuilt), id.ok_or_else(|| unsupported("no environment", "data"))?)
+            }
         };
         let mut study = self.study().clone();
         if let Some(posterior) = &self.study().graph_posterior {
@@ -1713,7 +1812,7 @@ impl PreparedRefit<'_> {
         antecedent_data::fill_circular_block_indexes(n, length, rng, &mut map)
             .map_err(data_failed)?;
         let storage = series.storage();
-        let mut replacements = Vec::with_capacity(storage.columns().len());
+        let mut columns = Vec::with_capacity(storage.columns().len());
         for column in storage.columns() {
             let OwnedColumn::Float64(column) = column else {
                 return Err(unsupported(
@@ -1721,20 +1820,40 @@ impl PreparedRefit<'_> {
                     "encode every column as float64",
                 ));
             };
-            let gathered: Arc<[f64]> = map.iter().map(|&row| column.values[row]).collect();
-            replacements.push((column.id, gathered));
+            let values: Arc<[f64]> = map.iter().map(|&row| column.values[row]).collect();
+            // Missing values and the analysis mask travel with the rows they belong to.
+            let validity = column.validity.gather_rows(&map).map_err(data_failed)?;
+            columns.push(OwnedColumn::Float64(
+                antecedent_data::Float64Column::new(column.id, values, validity)
+                    .map_err(data_failed)?,
+            ));
         }
+        let mask = storage
+            .analysis_mask()
+            .map(|mask| mask.gather_rows(&map))
+            .transpose()
+            .map_err(data_failed)?;
         // A design row whose lag window crosses a block join pairs values observed apart, which
         // attenuates a lagged effect by about the share of such rows. Their weight is zero, so
         // a route that reads row weights recovers the replicate the multiplicities define; a
-        // route that reads none keeps the attenuation, of order `(span - 1) / length`.
-        let seam_free: Arc<[f64]> = (0..n)
+        // route that reads none keeps the attenuation, of order `(span - 1) / length`. A
+        // sampling weight of the original sample is carried to the row it was gathered from, so
+        // the replicate is the block resample of the weighted sample.
+        let weights: Arc<[f64]> = (0..n)
             .map(|row| {
                 let aligned = row + 1 >= span && (1..span).all(|k| map[row - k] + k == map[row]);
-                f64::from(u8::from(aligned))
+                let sampling = storage.weights().map_or(1.0, |weights| weights[map[row]]);
+                if aligned { sampling } else { 0.0 }
             })
             .collect();
-        let gathered = series_with(series, &replacements, None, Some(seam_free))?;
+        let gathered = antecedent_data::OwnedColumnarStorage::try_new(
+            storage.schema().clone(),
+            columns,
+            mask,
+            Some(weights),
+        )
+        .and_then(|gathered| TimeSeriesData::try_new(gathered, series.time_index().clone()))
+        .map_err(data_failed)?;
         self.reestimate(&Modal::Series(gathered), ctx)
     }
 
@@ -1824,6 +1943,45 @@ impl PreparedRefit<'_> {
                  columns",
                 "encode every column as float64",
             )
+        })
+    }
+
+    /// Independent environments: every environment is perturbed on its own by the series rules
+    /// (a circular block resample carried as row multiplicities on top of the environment's own
+    /// sampling weights, a circular shift of a placebo column, a window of the environment), and
+    /// the study is re-run on the perturbed environments together.
+    fn multi_env_refit(
+        &self,
+        data: &antecedent_data::MultiEnvironmentData,
+        perturbation: TargetPerturbation,
+        rng: &mut CausalRng,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<f64>, TargetRefitError> {
+        if matches!(perturbation, TargetPerturbation::RandomCommonCause { .. }) {
+            return self.random_common_cause(rng, ctx);
+        }
+        let exposure = match perturbation {
+            TargetPerturbation::NegativeControlExposure { .. } => Some(self.control_exposure()?),
+            _ => None,
+        };
+        let mut perturbed = Vec::with_capacity(data.env_count());
+        for environment in data.environments() {
+            perturbed.push(self.perturb_series(
+                environment,
+                perturbation,
+                rng,
+                exposure,
+                self.options.negative_control_outcome,
+            )?);
+        }
+        let rebuilt =
+            antecedent_data::MultiEnvironmentData::try_new(perturbed).map_err(data_failed)?;
+        self.reestimate(&Modal::MultiEnv(rebuilt), ctx).map_err(|error| match error {
+            TargetRefitError::Failed(error) => unsupported(
+                format!("the route has no construction for the perturbed environments: {error}"),
+                "a route that reads row weights and environment windows, or subset stability",
+            ),
+            other @ TargetRefitError::Unsupported { .. } => other,
         })
     }
 
@@ -2026,6 +2184,7 @@ impl PreparedRefit<'_> {
             PreparedTargetData::Tabular(d) => Modal::Tabular(d.clone()),
             PreparedTargetData::Series(d) => Modal::Series(d.clone()),
             PreparedTargetData::Panel(d) => Modal::Panel(d.clone()),
+            PreparedTargetData::MultiEnv(d) => Modal::MultiEnv((*d).clone()),
         }
     }
 
@@ -2068,14 +2227,6 @@ impl PreparedRefit<'_> {
                 "prepare the study with Bayesian inference",
             ));
         };
-        if config.prior.is_some() || config.prior_artifact.is_some() {
-            return Err(unsupported(
-                "the study declares an explicit coefficient prior, which has no single scale \
-                 to vary",
-                "prepare the study under each alternative prior set and pass the posterior draws \
-                 of the target to prior_sensitivity_target_check",
-            ));
-        }
         let baseline = self.target_draws(self.result).ok_or_else(|| {
             unsupported(
                 "the result retains no posterior draws of its whole target",
@@ -2089,7 +2240,19 @@ impl PreparedRefit<'_> {
             }
             let mut study = self.study().clone();
             let mut alternative = config.clone();
-            alternative.prior_scale *= factor;
+            // An explicit coefficient prior has no single scale: its Gaussian coefficient
+            // standard deviations are multiplied by `factor` around their own means (variances
+            // by `factor^2`), the same perturbation the isotropic scale undergoes.
+            // A prior hydrated from a posterior artifact, or composed from external sources,
+            // exists only once the design is bound, so its variances are scaled where the route
+            // resolves it (`prior_variance_multiplier`), not here.
+            match &config.prior {
+                Some(prior) => alternative.prior = Some(scale_prior_deviations(prior, factor)?),
+                None if config.prior_artifact.is_some() || config.external_compose.is_some() => {
+                    alternative.prior_variance_multiplier = Some(factor * factor);
+                }
+                None => alternative.prior_scale *= factor,
+            }
             study.inference = InferenceMode::Bayesian(alternative);
             let refitted =
                 Self::compile_and_run(study, &self.modal_data(), ctx).map_err(|error| {
@@ -2272,6 +2435,9 @@ impl PreparedRefit<'_> {
         let units: Vec<&TimeSeriesData> = match self.data {
             PreparedTargetData::Series(series) => vec![series],
             PreparedTargetData::Panel(panel) => panel.units().iter().map(|u| &u.series).collect(),
+            PreparedTargetData::MultiEnv(environments) => {
+                environments.environments().iter().collect()
+            }
             PreparedTargetData::Tabular(_) => {
                 return Err(unsupported("a table has no lag structure", "a series or panel"));
             }
@@ -2422,6 +2588,10 @@ impl PreparedRefit<'_> {
                         }
                         Modal::Panel(PanelData::try_new(members).map_err(data_failed)?)
                     }
+                    PreparedTargetData::MultiEnv(_) => Modal::MultiEnv(
+                        antecedent_data::MultiEnvironmentData::try_new(replaced)
+                            .map_err(data_failed)?,
+                    ),
                     _ => Modal::Series(replaced.remove(0)),
                 };
                 self.reestimate(&modal, ctx).map_err(|error| match error {
@@ -2478,6 +2648,13 @@ impl PreparedRefit<'_> {
                     .units()
                     .iter()
                     .filter_map(|unit| float_column(unit.series.storage(), self.treatment))
+                    .flatten()
+                    .copied()
+                    .collect(),
+                PreparedTargetData::MultiEnv(environments) => environments
+                    .environments()
+                    .iter()
+                    .filter_map(|series| float_column(series.storage(), self.treatment))
                     .flatten()
                     .copied()
                     .collect(),
@@ -2787,6 +2964,13 @@ impl PreparedRefit<'_> {
                     .flatten()
                     .copied()
                     .collect(),
+                PreparedTargetData::MultiEnv(environments) => environments
+                    .environments()
+                    .iter()
+                    .filter_map(|series| float_column(series.storage(), variable))
+                    .flatten()
+                    .copied()
+                    .collect(),
                 _ => {
                     float_column(self.storage(), variable).map(<[f64]>::to_vec).unwrap_or_default()
                 }
@@ -2986,6 +3170,9 @@ impl TargetRefit for PreparedRefit<'_> {
             PreparedTargetData::Tabular(data) => self.tabular_refit(data, perturbation, rng, ctx),
             PreparedTargetData::Series(data) => self.series_refit(data, perturbation, rng, ctx),
             PreparedTargetData::Panel(data) => self.panel_refit(data, perturbation, rng, ctx),
+            PreparedTargetData::MultiEnv(data) => {
+                self.multi_env_refit(data, perturbation, rng, ctx)
+            }
         }
     }
 

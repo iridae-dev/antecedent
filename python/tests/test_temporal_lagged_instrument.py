@@ -104,9 +104,7 @@ def test_the_bayesian_route_matches_a_numpy_reduced_form_posterior() -> None:
         result = run(
             series,
             estimator=antecedent.Estimator.BAYESIAN_TEMPORAL_LAGGED_INSTRUMENT,
-            inference=antecedent.Bayesian(
-                backend="conjugate", prior_scale=prior_sd, n_draws=4000
-            ),
+            inference=antecedent.Bayesian(backend="conjugate", prior_scale=prior_sd, n_draws=4000),
         )
         reference = ratio_posterior_reference(series, prior_sd)
         spread = float(np.std(reference))

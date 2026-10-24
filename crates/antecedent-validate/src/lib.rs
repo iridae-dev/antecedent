@@ -9,6 +9,7 @@ pub mod assumption_range;
 pub mod bayesian_checks;
 pub mod bootstrap_refute;
 pub mod common;
+pub mod component_sensitivity;
 pub mod conflict;
 pub mod custom;
 pub mod data_subset;
@@ -17,6 +18,7 @@ pub mod error;
 pub mod evalue;
 pub mod evalue_scales;
 pub mod functional;
+pub mod functional_mediation;
 pub mod graph_refute;
 pub mod joint_mechanism_sensitivity;
 pub mod mechanism_sensitivity;
@@ -51,6 +53,14 @@ pub use bayesian_checks::{
 };
 pub use bootstrap_refute::BootstrapRefute;
 pub use common::{RefutationProblem, RefutationReport, TemporalRefitContext, stack_panel_tabular};
+pub use component_sensitivity::{
+    ComponentModel, MIN_MSM_REPLICATES, MediationComponent, MediationComponents, MediationPath,
+    MediationPaths, MediationPosterior, MsmRefitFit, MsmWeightPeriod,
+    component_evalue_posterior_range, component_evalue_range, component_ovb_posterior_range,
+    component_ovb_range, mediation_components_fit, mediation_path_ovb_range, mediation_paths_fit,
+    mediation_posterior_range, mediation_vector_range, msm_parameter_fit,
+    msm_parameter_fit_refitting_weights,
+};
 pub use conflict::{
     ConflictPolicy, ConflictSignals, apply_conflict_and_compose, compose_with_conflict_policy,
     with_conflict_summary,
@@ -83,7 +93,8 @@ pub use mechanism_sensitivity::{
 };
 pub use mediation::QueryRefutationPlan;
 pub use mediation_sensitivity::{
-    MediationSensitivitySummary, mediation_range, mediation_sensitivity_fit,
+    MediationSensitivitySummary, cross_world_noise_range, mediation_range,
+    mediation_sensitivity_fit, natural_direct_range, residual_correlation, total_effect_slope,
 };
 pub use msm_sensitivity::{
     MsmOutcomeLaw, MsmPoint, MsmSensitivityError, MsmSensitivityResult, MsmSensitivitySpec,

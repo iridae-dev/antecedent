@@ -17,7 +17,9 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{AssumptionSet, AverageEffectQuery, CausalQuery, VariableId};
+use antecedent_core::{
+    AssumptionSet, AverageEffectQuery, CausalQuery, ExecutionContext, VariableId,
+};
 use antecedent_expr::CausalExprArena;
 use antecedent_graph::{BitSet, DSeparationWorkspace, Dag, DenseNodeId, GraphWorkspace};
 
@@ -43,11 +45,18 @@ pub struct AdjustmentSearchConfig {
     /// one separation test on the ancestral set, which is returned (valid, not minimal) with
     /// an execution diagnostic when nothing smaller was found first.
     pub max_examinations: u64,
-    /// Maximum candidate variables for exact subset enumeration (fail closed above).
+    /// Caller-declared ceiling on the candidate variables of an exact subset enumeration.
     ///
-    /// Default is 40. Beyond this, search restricts to ancestors of `{T,Y}` first;
-    /// if still over the cap, tries the Henckel O-set before failing closed.
+    /// The default (`usize::MAX`) declares none: the enumeration is funded by the context's
+    /// admission pool (its cursor and retained sets are leased before they are allocated) and
+    /// its work is charged to [`Self::max_examinations`]. Above a declared ceiling, or when the
+    /// pool cannot fund the enumeration, search restricts to ancestors of `{T,Y}` first; if
+    /// still unfunded, tries the Henckel O-set before the certified ancestral set.
     pub max_candidates: usize,
+    /// The caller's execution context: its admission pool funds the search's storage and its
+    /// cancellation token is observed at every test. `None` runs under a serial production
+    /// context with an unlimited pool.
+    pub context: Option<ExecutionContext>,
     /// Variables forbidden from appearing in Z.
     pub forbidden: Arc<[VariableId]>,
     /// If true, only return inclusion-minimal sets.
@@ -74,7 +83,8 @@ impl Default for AdjustmentSearchConfig {
         Self {
             max_results: 64,
             max_examinations: 1_000_000,
-            max_candidates: 40,
+            max_candidates: usize::MAX,
+            context: None,
             forbidden: Arc::from([]),
             minimal_only: true,
             maximal_only: false,
@@ -269,10 +279,19 @@ impl BackdoorIdentifier {
         Self::default()
     }
 
-    /// Cap exact candidate-subset enumeration (default 40).
+    /// Declare a ceiling on exact candidate-subset enumeration (default: none, the context's
+    /// pool funds it).
     #[must_use]
     pub fn with_max_candidates(mut self, max_candidates: usize) -> Self {
         self.config.max_candidates = max_candidates;
+        self
+    }
+
+    /// Run the search under the caller's context: its pool funds the search's storage and its
+    /// cancellation token stops it.
+    #[must_use]
+    pub fn with_context(mut self, context: ExecutionContext) -> Self {
+        self.config.context = Some(context);
         self
     }
 
@@ -369,6 +388,13 @@ impl BackdoorIdentifier {
         workspace: &mut IdentificationWorkspace,
     ) -> Result<IdentificationResult, IdentificationError> {
         let dag = prepared.dag();
+        let context = crate::exact_search::context_or_default(self.config.context.as_ref());
+        let mut search = crate::exact_search::ExactSearch::open(&context)?;
+        // The mutilated graph and its search scratch are leased before they are built; a pool
+        // that cannot hold them is a resource refusal, never a scientific negative.
+        if !search.hold(crate::exact_search::graph_bytes(dag.node_count()))? {
+            return Err(IdentificationError::budget(crate::IdentificationBudget::Memory));
+        }
         let problem = AdjustmentProblem::new(
             dag,
             ate.treatment,
@@ -421,16 +447,17 @@ impl BackdoorIdentifier {
                     .to_owned(),
             );
             valid.push(constructive.clone());
-        } else if candidates.len() > cap {
-            // Screen to An({T,Y}) \ forbidden when over the exact-enumeration cap.
+        } else if !search.fund_enumeration(candidates.len(), cap, self.config.max_results)? {
+            // Screen to An({T,Y}) \ forbidden when the enumeration is over the declared
+            // ceiling or the pool cannot fund it.
             derivation_notes.push(format!(
                 "backdoor.screen: restricted to An({{T,Y}}); {} → {} candidates",
                 candidates.len(),
                 constructive.len()
             ));
             candidates.clone_from(&constructive);
-            if candidates.len() > cap {
-                // Still over cap: the Henckel O-set is the preferred valid set; the ancestral
+            if !search.fund_enumeration(candidates.len(), cap, self.config.max_results)? {
+                // Still unfunded: the Henckel O-set is the preferred valid set; the ancestral
                 // set already tested valid is the certified fallback.
                 let o_set =
                     crate::efficient::optimal_adjustment_set_pub(dag, t, y, &mut workspace.graph);
@@ -439,14 +466,15 @@ impl BackdoorIdentifier {
                     && is_backdoor_adjustment(mutilated, t, y, &o_set, &mut workspace.dsep)?
                 {
                     derivation_notes.push(format!(
-                        "exact enumeration skipped ({} candidates > max_candidates={cap}); returned O-set",
+                        "exact enumeration skipped ({} candidates over the declared ceiling {cap} or the \
+                         storage the context can lease); returned O-set",
                         candidates.len()
                     ));
                     valid.push(o_set);
                 } else {
                     derivation_notes.push(format!(
-                        "exact enumeration skipped ({} candidates > max_candidates={cap}); \
-                         returned the ancestral set An({{T,Y}}) minus forbidden, valid but not minimal",
+                        "exact enumeration skipped ({} candidates over the declared ceiling {cap} or the \
+                         storage the context can lease); returned the ancestral set An({{T,Y}}) minus forbidden, valid but not minimal",
                         candidates.len()
                     ));
                     valid.push(constructive.clone());
@@ -468,6 +496,10 @@ impl BackdoorIdentifier {
                 let mut enum_err: Option<IdentificationError> = None;
                 crate::enum_masks::for_each_mask_of_size(&candidates, size, |z| {
                     if enum_err.is_some() {
+                        return true;
+                    }
+                    if let Err(e) = search.observe() {
+                        enum_err = Some(e);
                         return true;
                     }
                     // A superset of a set already in hand is not d-separated again, but it still
@@ -1321,11 +1353,11 @@ mod tests {
     }
 
     #[test]
-    fn default_cap_allows_twenty_five_candidates() {
-        // 1 confounder + 24 isolates → 25 candidates; default cap is 40.
+    fn default_declares_no_ceiling_and_allows_twenty_five_candidates() {
+        // 1 confounder + 24 isolates → 25 candidates; no ceiling is declared by default.
         let g = one_confounder_many_candidates(24);
         let mut id = BackdoorIdentifier::new();
-        assert_eq!(id.config.max_candidates, 40);
+        assert_eq!(id.config.max_candidates, usize::MAX);
         id.config.max_results = 1;
         let prep = id.prepare(&g).unwrap();
         let q = CausalQuery::average_effect(AverageEffectQuery::binary_ate(
@@ -1337,6 +1369,88 @@ mod tests {
         assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
         assert_eq!(res.estimands.len(), 1);
         assert_eq!(res.estimands[0].adjustment_set.as_ref(), &[VariableId::from_raw(2)]);
+    }
+
+    /// `U -> T`, `U -> Y`, `T -> Y` and ten isolates, all sets requested so the mandatory-fork
+    /// certificate does not close the query.
+    fn confounder_with_isolates() -> (Dag, CausalQuery) {
+        let mut g = Dag::with_variables(12);
+        let (t, y, u) =
+            (DenseNodeId::from_raw(0), DenseNodeId::from_raw(1), DenseNodeId::from_raw(11));
+        g.insert_directed(u, t).unwrap();
+        g.insert_directed(u, y).unwrap();
+        g.insert_directed(t, y).unwrap();
+        let q = CausalQuery::average_effect(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+        ));
+        (g, q)
+    }
+
+    fn identify_in_pool(
+        g: &Dag,
+        q: &CausalQuery,
+        pool: &antecedent_core::execution::AdmissionPool,
+    ) -> Result<IdentificationResult, IdentificationError> {
+        let ctx = ExecutionContext::for_tests(1).with_admission(pool.clone());
+        let mut id = BackdoorIdentifier::new().with_context(ctx);
+        id.config.minimal_only = false;
+        let prep = id.prepare(g).unwrap();
+        id.identify(&prep, q, &mut IdentificationWorkspace::default())
+    }
+
+    #[test]
+    fn enumeration_storage_is_leased_and_a_pool_that_cannot_fund_it_falls_back_to_a_certified_set()
+    {
+        use antecedent_core::execution::AdmissionPool;
+        let (g, q) = confounder_with_isolates();
+        let funded = AdmissionPool::fixed(1, 1 << 30);
+        let full = identify_in_pool(&g, &q, &funded).unwrap();
+        assert_eq!(full.estimands[0].adjustment_set.as_ref(), &[VariableId::from_raw(11)]);
+        assert!(
+            !full.derivation.steps.iter().any(|s| s.detail.contains("exact enumeration skipped"))
+        );
+        assert!(full.performance.candidates_examined > 2);
+        assert_eq!(funded.available().bytes(), 1 << 30);
+
+        // The graph is funded, the ten-candidate enumeration is not, and the ancestral
+        // screen (one candidate) is: the search screens, then enumerates the screen.
+        let screen = AdmissionPool::fixed(1, 1_000);
+        let screened = identify_in_pool(&g, &q, &screen).unwrap();
+        assert_eq!(screened.estimands[0].adjustment_set.as_ref(), &[VariableId::from_raw(11)]);
+        assert!(screened.derivation.steps.iter().any(|s| s.detail.contains("backdoor.screen")));
+        assert_eq!(screen.available().bytes(), 1_000);
+
+        // Only the graph is funded: the search returns the O-set after one more test and
+        // examines no subset.
+        let tight = AdmissionPool::fixed(1, 800);
+        let o_set = identify_in_pool(&g, &q, &tight).unwrap();
+        assert_eq!(o_set.estimands[0].adjustment_set.as_ref(), &[VariableId::from_raw(11)]);
+        assert!(
+            o_set.derivation.steps.iter().any(|s| s.detail.contains("exact enumeration skipped"))
+        );
+        assert_eq!(o_set.performance.candidates_examined, 2);
+        assert_eq!(tight.available().bytes(), 800);
+
+        // A pool that cannot hold the graph refuses before anything is built.
+        let none = AdmissionPool::fixed(1, 100);
+        let refused = identify_in_pool(&g, &q, &none).unwrap_err();
+        assert!(matches!(
+            refused,
+            IdentificationError::Budget { budget: crate::IdentificationBudget::Memory }
+        ));
+        assert_eq!(none.available().bytes(), 100);
+    }
+
+    #[test]
+    fn a_cancelled_context_stops_the_search() {
+        let (g, q) = confounder_with_isolates();
+        let ctx = ExecutionContext::for_tests(1);
+        let id = BackdoorIdentifier::new().with_context(ctx.clone());
+        let prep = id.prepare(&g).unwrap();
+        ctx.cancellation.cancel();
+        let err = id.identify(&prep, &q, &mut IdentificationWorkspace::default()).unwrap_err();
+        assert!(matches!(err, IdentificationError::Cancelled));
     }
 
     #[test]

@@ -905,10 +905,18 @@ impl super::Study {
         let contrast = CrossWorldContrast { treatment, outcome, mediator, active, control };
         let probe = cross_world_probe(treatment, outcome);
         let identifier_id = physical.binding().identifier_or(RouteDefaults::PAG)?;
-        let (bundle, identify_cached) = {
-            report_identify_compute(ctx);
-            (self.identify_temporal_class(identifier_id, &probe)?.envelope.clone(), false)
-        };
+        // The probe is identified once, at compile, and the program retains its certificate;
+        // a plan that retained none identifies here.
+        let (bundle, identify_cached) =
+            if let Some(crate::planner::lowered::RetainedExecutionProof::CrossWorldClass {
+                envelope,
+            }) = crate::analysis::lowering::plan_retained_execution_proof(self, physical)
+            {
+                (Arc::clone(envelope), false)
+            } else {
+                report_identify_compute(ctx);
+                (self.identify_temporal_class(identifier_id, &probe)?.envelope.clone(), false)
+            };
         let offsets = (probe.try_treatment_offset()?, probe.outcome_offset());
         let query = &self.query;
         let fitted = collect_class_cross_world(
@@ -1139,11 +1147,6 @@ impl super::Study {
                 message: "a temporal derivative is the local slope at one horizon",
             });
         }
-        if self.refute != RefuteSuite::None {
-            return Err(CausalError::Unsupported {
-                message: "temporal derivative is point-only; cheap/full refuters are not licensed",
-            });
-        }
         let probe = derivative_probe(query)?;
         let (cache, identify_cached) = load_class_posterior_cache(self, gp, data, &probe, ctx)?;
         let prior_scale = isotropic_prior_scale(&self.inference, DERIVATIVE_PRIOR_REFUSAL)?;
@@ -1155,6 +1158,7 @@ impl super::Study {
         let mut pooled_weights = Vec::new();
         let mut spans = Vec::new();
         let mut chosen = None;
+        let mut witness_states = super::posterior_witness_state::AtomWitnessStates::default();
         let key_weights = IdentifiedKeyWeights::new(&cache.graphs);
         for atom in cache.class_atoms.iter() {
             let weight = key_weights.get(atom.key);
@@ -1174,6 +1178,23 @@ impl super::Study {
             }
             pairs.push((weight, scalar));
             responses.push((weight, derived.response.clone()));
+            if self.refute != RefuteSuite::None {
+                // Each atom's derivative is refuted on its own identified completions' Pulse
+                // witnesses against its own response, then the reports mix by posterior weight.
+                let sites = super::posterior_witness_state::class_completion_sites(
+                    &atom.envelope,
+                    &probe,
+                    temporal.horizons[0],
+                )?;
+                witness_states.push_derivative(
+                    self,
+                    data,
+                    (atom.key, weight),
+                    (query, &derived.response),
+                    &sites,
+                    ctx,
+                )?;
+            }
             let total: f64 = derived.weights.iter().sum();
             for (completion, completion_weight) in
                 derived.atoms.into_iter().zip(derived.weights.iter())
@@ -1234,6 +1255,12 @@ impl super::Study {
         result.posterior = None;
         if let Some(structural) = result.structural_response.as_mut() {
             structural.identified_set_interval = None;
+        }
+        if self.refute != RefuteSuite::None {
+            let (reports, checks, notes) = witness_states.finish();
+            result.refutations = reports;
+            result.predictive_checks = checks;
+            result.diagnostics.extend(notes);
         }
         result.rebind_interval(self.inference.is_bayesian());
         Ok(result)
@@ -1482,7 +1509,14 @@ fn cross_world_note() -> Diagnostic {
 }
 
 /// The lag-1 pulse probe a cross-world contrast identifies on.
-fn cross_world_probe(treatment: VariableId, outcome: VariableId) -> TemporalEffectQuery {
+/// The one-step pulse probe a temporal cross-world query identifies on, when the query names
+/// a contrast this route estimates. It depends on the query alone, so compile can identify it.
+pub(super) fn cross_world_identification_probe(query: &CausalQuery) -> Option<TemporalEffectQuery> {
+    let (treatment, outcome, ..) = cross_world_endpoints(query).ok()?;
+    Some(cross_world_probe(treatment, outcome))
+}
+
+pub(super) fn cross_world_probe(treatment: VariableId, outcome: VariableId) -> TemporalEffectQuery {
     TemporalEffectQuery::pulse(treatment, outcome, 1.0)
         .with_policy(antecedent_core::TemporalPolicy::pulse(-1))
         .with_horizon_steps(1)
@@ -1607,7 +1641,7 @@ fn shape_error() -> CausalError {
     }
 }
 
-fn cross_world_endpoints(
+pub(super) fn cross_world_endpoints(
     query: &CausalQuery,
 ) -> Result<(VariableId, VariableId, Option<VariableId>, f64, f64), CausalError> {
     match query {

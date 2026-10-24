@@ -199,7 +199,7 @@ pub use query::{
 };
 pub use query::{
     OutcomeMisclassification, TemporalAssignment, TemporalDesignFunctional, TemporalDesignQuery,
-    TemporalDoseTarget,
+    TemporalDoseTarget, TemporalRegimeMethod,
 };
 pub use query::{SmoothedDoseTransportQuery, SmoothingKernel};
 pub use refusal::{NextAttempt, Refusal, Refused};

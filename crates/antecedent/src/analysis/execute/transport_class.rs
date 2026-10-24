@@ -35,7 +35,9 @@ use super::transport_interference_path::{
     known_probability_assumption, transport_primary_pair,
 };
 use super::transport_posterior::ipw_estimable;
-use super::transport_refutation::{TransportRefutationInput, refute_transport};
+use super::transport_refutation::{
+    MAX_CLASS_MEMBERS, TransportRefutationInput, refute_transport, refute_transport_members,
+};
 use super::{
     Arc, CausalError, CausalQuery, ClassAtomOutcome, Diagnostic, DiagnosticKind,
     DiagnosticSeverity, EstimatorId, ExecutionContext, GraphRef, IdentificationStatus,
@@ -331,22 +333,39 @@ impl super::Study {
             posterior.identification = identification.status;
         }
 
-        let refutations = refute_transport(
-            &TransportRefutationInput {
-                transport: representative_proof,
-                outcomes: &outcomes,
-                treatment: &treatment_bool,
-                trial: &trial_bool,
-                selection: &selection,
-                propensity: &propensity,
-                overlap: transported.overlap,
-                published: estimate.ate,
-                suite: self.refute,
-                series_block,
-                replicates: self.bootstrap_replicates,
-            },
-            ctx,
-        )?;
+        let refutation_input = TransportRefutationInput {
+            transport: representative_proof,
+            outcomes: &outcomes,
+            treatment: &treatment_bool,
+            trial: &trial_bool,
+            selection: &selection,
+            propensity: &propensity,
+            overlap: transported.overlap,
+            published: estimate.ate,
+            suite: self.refute,
+            series_block,
+            replicates: self.bootstrap_replicates,
+        };
+        let mut refutations = refute_transport(&refutation_input, ctx)?;
+        // Members that certify a formula with a value of its own are bootstrapped through
+        // their own certificate on the same resampled tables.
+        let mut seen = vec![estimates[representative].map_or(f64::NAN, |each| each.ipw)];
+        let mut members = Vec::new();
+        for (index, each) in estimates.iter().enumerate() {
+            let Some(each) = each else { continue };
+            if index == representative || members.len() + 1 >= MAX_CLASS_MEMBERS {
+                continue;
+            }
+            if seen
+                .iter()
+                .any(|earlier| (earlier - each.ipw).abs() <= 1e-9 * earlier.abs().max(1.0))
+            {
+                continue;
+            }
+            seen.push(each.ipw);
+            members.push((index, &proofs[index], each.ipw));
+        }
+        refutations.extend(refute_transport_members(&refutation_input, &members, ctx)?);
 
         let class_tag = class.as_str();
         let mut diagnostics = vec![

@@ -106,12 +106,40 @@ pub(crate) fn arrow_c_columns(
     }
     let mut cdi_cols = Vec::with_capacity(columns.len());
     for (name, obj) in names.into_iter().zip(columns) {
+        if let Some(chunks) = take_chunk_pairs(&obj)? {
+            // SAFETY: each pair was moved out of a compliant exporter by `take_arrow_c_array`.
+            let column = unsafe { ArrowCColumn::from_ffi_chunks(name, chunks) }
+                .map_err(|error| CausalDataError::new_err(error.to_string()))?;
+            cdi_cols.push(column);
+            continue;
+        }
         let (array, schema) = take_arrow_c_array(&obj)?;
         // SAFETY: `take_arrow_c_array` moved the exporter's CDI structs out and
         // left released empty structs in the capsules.
         cdi_cols.push(unsafe { ArrowCColumn::from_ffi(name, array, schema) });
     }
     Ok(cdi_cols)
+}
+
+/// The chunks of a column that keeps several, each moved out as a CDI pair.
+///
+/// A column object exposing `chunks` (several Arrow arrays, each an `__arrow_c_array__`
+/// exporter) is imported chunk by chunk: the loader joins them into the table's one owned
+/// buffer, a single copy, so the caller never concatenates them first. A column with fewer
+/// than two chunks, or any other object, takes the single-array route.
+fn take_chunk_pairs(
+    obj: &Bound<'_, PyAny>,
+) -> PyResult<Option<Vec<(FfiArrowArray, FfiArrowSchema)>>> {
+    if obj.cast::<pyo3::types::PyTuple>().is_ok() {
+        return Ok(None);
+    }
+    let Ok(chunks) = obj.getattr("chunks") else { return Ok(None) };
+    let Ok(iter) = chunks.try_iter() else { return Ok(None) };
+    let items = iter.collect::<PyResult<Vec<Bound<'_, PyAny>>>>()?;
+    if items.len() < 2 || !items.iter().all(|c| c.hasattr("__arrow_c_array__").unwrap_or(false)) {
+        return Ok(None);
+    }
+    items.iter().map(take_arrow_c_array).collect::<PyResult<Vec<_>>>().map(Some)
 }
 
 /// Move CDI structs out of an `__arrow_c_array__` exporter or a `(schema, array)` capsule pair.

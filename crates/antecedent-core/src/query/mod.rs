@@ -117,7 +117,7 @@ pub use target::{PredicateExpr, TargetPopulation};
 pub use temporal::TemporalEffectQuery;
 pub use temporal_design::{
     OutcomeMisclassification, TemporalAssignment, TemporalDesignFunctional, TemporalDesignQuery,
-    TemporalDoseTarget,
+    TemporalDoseTarget, TemporalRegimeMethod,
 };
 pub use transport::TransportQuery;
 pub use transport_catalog::{

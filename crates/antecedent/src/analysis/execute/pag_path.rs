@@ -13,10 +13,10 @@ use super::{
     credible_scalar_uncertainty, effect_from_posterior, elapsed_ns,
     envelope_se_omission_diagnostic, envelope_to_identification_result, estimate_static_effect,
     identification_from_cache_or, identification_status_ok_for_case, identify_admg,
-    identify_admg_query, identify_cached_diagnostic, identify_cpdag, identify_pag,
-    mix_static_envelope_se, mix_weighted_analytic_se, mixed_static_influence,
-    nonidentified_with_prior, overlap_diagnostic, provenance_ids, report_identify_compute,
-    select_estimand, static_aligned_influence, support_from_functional_eval,
+    identify_admg_query, identify_cached_diagnostic, mix_static_envelope_se,
+    mix_weighted_analytic_se, mixed_static_influence, nonidentified_with_prior, overlap_diagnostic,
+    provenance_ids, report_identify_compute, select_estimand, static_aligned_influence,
+    support_from_functional_eval,
 };
 use crate::planner::RouteDefaults;
 
@@ -746,7 +746,12 @@ impl super::Study {
                 (Arc::clone(&cache.envelope), cache.identification.clone(), prepared)
             } else {
                 report_identify_compute(ctx);
-                let envelope = identify_pag(identifier_id, pag, query)?;
+                let envelope = crate::strategy_table::identify_pag_in_context(
+                    identifier_id,
+                    pag,
+                    query,
+                    Some(ctx),
+                )?;
                 let identification = envelope_to_identification_result(&envelope, query);
                 (Arc::new(envelope), identification, false)
             };
@@ -786,7 +791,12 @@ impl super::Study {
                 (Arc::clone(&cache.envelope), cache.identification.clone(), prepared)
             } else {
                 report_identify_compute(ctx);
-                let envelope = identify_cpdag(identifier_id, cpdag, query)?;
+                let envelope = crate::strategy_table::identify_cpdag_in_context(
+                    identifier_id,
+                    cpdag,
+                    query,
+                    Some(ctx),
+                )?;
                 let identification = envelope_to_identification_result(&envelope, query);
                 (Arc::new(envelope), identification, false)
             };

@@ -192,21 +192,23 @@ fn frequentist_body() {
         .inference(InferenceMode::Frequentist)
         .refute(RefuteSuite::Cheap)
         .build();
-    assert!(cheap.unwrap_err().to_string().contains("no native refuter suite"));
+    // Cheap and full validation are the functional refuter state: an executing, unlicensed cell.
+    assert!(cheap.is_ok(), "{:?}", cheap.err());
     let full = Study::series(anomaly.clone())
         .graph(temporal_chain())
         .query(anomaly_query.clone())
         .inference(InferenceMode::Frequentist)
         .refute(RefuteSuite::Full)
         .build();
-    assert!(full.unwrap_err().to_string().contains("no native refuter suite"));
+    assert!(full.is_ok(), "{:?}", full.err());
     let accepted = Study::series(anomaly.clone())
         .graph(AcceptedGraph::from(temporal_chain()))
         .query(anomaly_query)
         .inference(InferenceMode::Frequentist)
         .refute(RefuteSuite::None)
         .build();
-    assert!(accepted.unwrap_err().to_string().contains("explicit TemporalDag"));
+    // An accepted TemporalDag is attributed as a supplied one and stays unlicensed.
+    assert!(accepted.is_ok(), "{:?}", accepted.err());
     refuse(
         SupportCell::from_labels(
             "AnomalyAttribution",

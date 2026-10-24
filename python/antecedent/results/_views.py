@@ -839,6 +839,12 @@ class PerformanceView(ResultModel):
     early_stopped: bool = False
     stage_timings: Mapping[str, int] | None = None
     bytes_borrowed: int | None = None
+    #: The resampling procedure behind a requested bootstrap interval, or ``None``: the rule
+    #: (``level``, ``wave_size``, ``min_replicates``, ``max_replicates``, tolerances), the
+    #: ``interval``, the ``stop`` reason, ``attempted`` replicates, every wave as a mapping
+    #: (``wave``, ``first_replicate``, ``attempted``, ``ok``, ``estimator_errors``,
+    #: ``non_finite``, ``declined``) and the Monte Carlo errors at the stop.
+    resampling: Mapping[str, Any] | None = None
 
     @property
     def bootstrap_requested(self) -> int | None:

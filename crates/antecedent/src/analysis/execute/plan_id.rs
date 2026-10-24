@@ -135,6 +135,10 @@ pub(crate) enum PlanId {
     Association,
     /// Bayesian reading of the same association.
     BayesianAssociation,
+    /// Mediation, path-restricted or natural direct effect over a graph posterior's atoms.
+    GraphPosteriorCrossWorld,
+    /// Anomaly or change attribution over a graph posterior's atoms.
+    GraphPosteriorAttribution,
 }
 
 impl PlanId {
@@ -205,6 +209,8 @@ impl PlanId {
             Self::BayesianIvBounds => "bayesian.iv_bounds.endpoint_bootstrap",
             Self::Association => "association.descriptive",
             Self::BayesianAssociation => "bayesian.association.descriptive",
+            Self::GraphPosteriorCrossWorld => "graph_posterior_cross_world",
+            Self::GraphPosteriorAttribution => "graph_posterior_attribution",
         }
     }
 }

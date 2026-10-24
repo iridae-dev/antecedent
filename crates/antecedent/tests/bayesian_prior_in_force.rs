@@ -539,3 +539,56 @@ fn least_squares_stand_in_is_checked_only_when_it_matches_the_posterior_mean() {
         assert_eq!(bootstrap_check(&tight), (false, true), "{label}: tight scale skips it");
     }
 }
+
+#[test]
+fn target_prior_sensitivity_scales_a_prior_hydrated_from_an_artifact() {
+    use antecedent::analysis::target_validation::{
+        PreparedTargetData, TargetRefitOptions, TargetRefutationConfig, TargetRefuterKind,
+        TargetSuite, refute_prepared_target,
+    };
+    let (bytes, _) = informative_source();
+    // The target data say beta = 0.2; the artifact prior says 0.9 and exists only once the
+    // design is bound.
+    let data = series_xy(120, 0.2, 0.0, 0.35, 23);
+    let ctx = ExecutionContext::for_tests(5);
+    let prepared = Study::series(data.clone())
+        .graph(lag_dag(&[1]))
+        .temporal_query(pulse())
+        .inference(InferenceMode::Bayesian(
+            BayesianConfig::conjugate().n_draws(400).prior_from_artifact(bytes, None),
+        ))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let result = prepared.estimate_series(&data, &ctx).unwrap();
+    let config = TargetRefutationConfig { replicates: 8, ..TargetRefutationConfig::default() };
+    let check = |factors: Vec<f64>| {
+        let options = TargetRefitOptions { prior_scale_factors: factors, ..Default::default() };
+        let outcome = refute_prepared_target(
+            &prepared,
+            &result,
+            PreparedTargetData::Series(&data),
+            TargetSuite::Cheap,
+            &config,
+            &options,
+            &ctx,
+        )
+        .unwrap();
+        let report = outcome
+            .run
+            .reports
+            .iter()
+            .find(|r| r.kind == TargetRefuterKind::PriorSensitivity)
+            .unwrap_or_else(|| panic!("did not run: {:?}", outcome.run.refused))
+            .clone();
+        report
+    };
+    // The prior in force, unscaled, reproduces the baseline posterior.
+    assert!(check(vec![1.0]).passed);
+    // Widening the hydrated prior fifty-fold lets the data pull the target away from it.
+    let widened = check(vec![50.0]);
+    assert!(!widened.passed, "{:?}", widened.failure);
+}

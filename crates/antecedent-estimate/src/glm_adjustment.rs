@@ -39,7 +39,7 @@ use crate::gcomp::{GcompContrast, linear_predictors};
 use crate::overlap::OverlapPolicy;
 use crate::sampling_weights::{RetainedSamplingWeights, SamplingWeights};
 use crate::se::{AnalyticSeKind, SeSpec};
-use crate::util::{BootstrapSeResult, stats_err};
+use crate::util::{BootstrapOutcome, stats_err};
 
 /// Prepared GLM adjustment problem (compiled design retained).
 #[derive(Clone, Debug)]
@@ -117,6 +117,12 @@ pub struct GlmAdjustmentAte {
     /// Fisher delta method treats weights as precision and is refused). Logit, probit,
     /// Poisson, negative-binomial (weighted dispersion update) and Gaussian families.
     pub sampling_weights: Option<SamplingWeights>,
+    /// A requested bootstrap interval. When set, the bootstrap runs as the wave procedure that
+    /// stops on the request's Monte Carlo tolerances (capped by
+    /// [`Self::bootstrap_replicates`]) and reports its interval, waves, Monte Carlo error and
+    /// stop reason in [`crate::EstimateDiagnostics::resampling`]. `None` runs the fixed-count
+    /// bootstrap exactly as before.
+    pub bootstrap_interval: Option<crate::util::IntervalRequest>,
 }
 
 impl Default for GlmAdjustmentAte {
@@ -143,7 +149,16 @@ impl GlmAdjustmentAte {
             panel_times: None,
             population_registry: None,
             sampling_weights: None,
+            bootstrap_interval: None,
         }
+    }
+
+    /// Request a bootstrap interval produced by the complete fit/resample/stop/interval
+    /// procedure (see [`Self::bootstrap_interval`]).
+    #[must_use]
+    pub const fn with_bootstrap_interval(mut self, request: crate::util::IntervalRequest) -> Self {
+        self.bootstrap_interval = Some(request);
+        self
     }
 
     /// Declare sampling weights for every row of the source table.
@@ -405,7 +420,7 @@ impl GlmAdjustmentAte {
             .treatment_column()
             .ok_or_else(|| EstimationError::stats_msg("missing treatment column"))?;
         let boot = self.bootstrap_se(problem, workspace, ctx, t_col)?;
-        Ok(point.with_bootstrap(Some(boot)))
+        Ok(point.with_bootstrap_outcome(boot))
     }
 
     fn fit_point(
@@ -520,7 +535,7 @@ impl GlmAdjustmentAte {
         _workspace: &mut GlmAdjustmentWorkspace,
         ctx: &ExecutionContext,
         t_col: usize,
-    ) -> Result<BootstrapSeResult, EstimationError> {
+    ) -> Result<BootstrapOutcome, EstimationError> {
         let n = problem.design.nrows;
         let p = problem.design.ncols;
         let clusters = crate::se::declared_row_labels(
@@ -543,7 +558,8 @@ impl GlmAdjustmentAte {
         // Each worker gathers `n * p` design cells and three length-`n` vectors.
         let _gather = crate::util::admit_gather_scratch(ctx, n, p + 3, self.bootstrap_replicates)?;
         // Replicates own a cold workspace. A warm IRLS start would change the replicate fit.
-        crate::util::bootstrap_by_design(
+        crate::util::bootstrap_outcome_by_design(
+            self.bootstrap_interval.as_ref(),
             crate::util::BootstrapDesign {
                 clusters: clusters.as_deref(),
                 series_block,
@@ -1288,6 +1304,28 @@ mod tests {
         assert!(effect.ate < 1.0, "ate={}", effect.ate);
         crate::prepare::assert_records_preparation(&effect, 4000);
         assert!(effect.se_bootstrap().is_some());
+    }
+
+    #[test]
+    fn glm_runs_the_complete_interval_procedure() {
+        use crate::util::interval_test_support::{assert_procedure, met_early, never_met};
+        let (data, estimand) = binary_scm(600, 6);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let (cap, wave) = (120, 30);
+        let est = GlmAdjustmentAte { bootstrap_replicates: cap, ..GlmAdjustmentAte::new() };
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
+        let fit = |est: &GlmAdjustmentAte| {
+            est.fit(&prep, &mut GlmAdjustmentWorkspace::default(), &ctx(), AssumptionSet::new())
+                .unwrap()
+        };
+        assert_procedure(
+            &fit(&est),
+            &fit(&est.clone().with_bootstrap_interval(never_met(wave))),
+            &fit(&est.clone().with_bootstrap_interval(met_early(wave, 60))),
+            cap,
+            wave,
+        );
     }
 
     #[test]

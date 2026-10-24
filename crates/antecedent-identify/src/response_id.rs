@@ -111,6 +111,7 @@ pub(crate) fn identify_mag_response(
     query: &ResponseQuery,
     max_candidates: usize,
     max_examinations: u64,
+    context: Option<&antecedent_core::ExecutionContext>,
 ) -> Result<IdentificationResult, IdentificationError> {
     if let Some((t, y, level)) = intervention_response_set(query) {
         let t_d = pag_var_to_dense(mag, t)?;
@@ -119,7 +120,7 @@ pub(crate) fn identify_mag_response(
             mag,
             MagTarget { t, y, t_d, y_d },
             level,
-            AdjustmentBudget { max_candidates, max_examinations },
+            AdjustmentBudget { max_candidates, max_examinations, context },
             query,
         )?;
         if !is_identified(&result) {
@@ -138,7 +139,7 @@ pub(crate) fn identify_mag_response(
         MagTarget { t, y, t_d, y_d },
         active.clone(),
         control.clone(),
-        AdjustmentBudget { max_candidates, max_examinations },
+        AdjustmentBudget { max_candidates, max_examinations, context },
     )?;
     if !is_identified(&result) {
         result = identify_admg_response(mag, query)?;
@@ -279,7 +280,13 @@ pub fn identify_pag_response_general(
 ) -> Result<IdentificationEnvelope<Pag>, IdentificationError> {
     let id = GeneralizedAdjustmentIdentifier::new();
     id.pag_envelope_with(pag, |mag| {
-        identify_mag_response(mag, query, id.config.max_candidates, id.config.max_examinations)
+        identify_mag_response(
+            mag,
+            query,
+            id.config.max_candidates,
+            id.config.max_examinations,
+            id.config.context.as_ref(),
+        )
     })
 }
 
@@ -388,7 +395,7 @@ mod tests {
             },
             Value::f64(1.0),
             Value::f64(0.0),
-            AdjustmentBudget { max_candidates: 16, max_examinations: 1_000_000 },
+            AdjustmentBudget { max_candidates: 16, max_examinations: 1_000_000, context: None },
         )
         .unwrap();
         assert_eq!(adj.status, IdentificationStatus::NotIdentified, "{:?}", adj.derivation);

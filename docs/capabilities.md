@@ -1788,7 +1788,15 @@ Temporal mediation uses mediator-placebo and contrast-specific stability checks.
 Static `MediationEffect` cheap/full uses a mediation-native suite: placebo
 mediator (indirect-effect target), random common cause on the requested contrast,
 binary mediator-range overlap when applicable, and an 80% subset on `full`.
-Continuous-treatment conditional overlap reports unsupported mass under a
+On an `Admg`, `TemporalAdmg`, `Cpdag` or `Pag` (and `TemporalMediationEffect` on a
+`TemporalAdmg` or `TemporalPag`) the three components are discrete-plug-in functionals
+of one table, so the suite refits them together: the sensitivity of the indirect
+effect to a violation of sequential ignorability (the mediator-outcome error
+correlation at which it vanishes), a mediator placebo that permutes the mediator
+columns together (rotated by whole windows on a window table), the stability of
+total, direct and indirect effects on the same row subsets or window stretches,
+and on `full` 50% subsets and a joint bootstrap range. Over a class the suite
+runs on each distinct identified member. Continuous-treatment conditional overlap reports unsupported mass under a
 descriptive residual-support model; lower `comparison` values mean better
 support. Passing any of these checks does not establish causal identification
 or validate the structural assumptions.

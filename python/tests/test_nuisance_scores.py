@@ -184,7 +184,9 @@ def prepared_panel(units):
     )
 
 
-def test_the_temporal_penalized_score_is_the_ridge_mode_and_the_posterior_is_a_laplace_mean() -> None:
+def test_the_temporal_penalized_score_is_the_ridge_mode_and_the_posterior_is_a_laplace_mean() -> (
+    None
+):
     units = panel_units()
     rows = np.array([[1.0, u["c"][0]] for u in units])
     treated = np.array([u["x"][0] for u in units])
@@ -194,7 +196,9 @@ def test_the_temporal_penalized_score_is_the_ridge_mode_and_the_posterior_is_a_l
     mode, _ = newton_mode(rows, treated, np.diag([0.0, 2.0]))
     assert ridge["coefficient.0"] == pytest.approx(mode[0], abs=1e-6)
     assert ridge["coefficient.1"] == pytest.approx(mode[1], abs=1e-6)
-    assert ridge["score1.at_mode"] == pytest.approx(float(sigmoid(mode[0] + 1.5 * mode[1])), abs=1e-6)
+    assert ridge["score1.at_mode"] == pytest.approx(
+        float(sigmoid(mode[0] + 1.5 * mode[1])), abs=1e-6
+    )
     assert ridge.estimator_id == "temporal.penalized_propensity"
     assert ridge.licensing == "unlicensed" and ridge.calibration == "unmeasured"
 

@@ -427,9 +427,11 @@ def test_posterior_intervals_cover_the_closed_form_target_at_the_nominal_rate(de
     covered = total = 0
     for data_seed in range(3, 15):
         query, data = fixture(design, seed=data_seed)
-        row = advanced.prepare_smoothed_dose(
-            query, data, options=options(), seed=5
-        ).posterior(posterior_model(draws=4_000)).posterior
+        row = (
+            advanced.prepare_smoothed_dose(query, data, options=options(), seed=5)
+            .posterior(posterior_model(draws=4_000))
+            .posterior
+        )
         mean_z = float(np.asarray(data.covariates["z"])[~np.asarray(data.source)].mean())
         for index, dose in enumerate(GRID):
             reference = truth(dose, mean=mean_z)
@@ -450,7 +452,8 @@ def test_posterior_artifact_is_consumed_independently_and_refuses_changes():
         advanced.consume_smoothed_dose_posterior(b"not a smoothed dose posterior")
     with pytest.raises(CausalSerializationError, match="smoothed dose posterior"):
         advanced.consume_smoothed_dose_posterior(
-            b"ANTECEDENT-SMOOTHED-DOSE\x01" + result.export()[len(b"ANTECEDENT-SMOOTHED-DOSE-POSTERIOR\x01") :]
+            b"ANTECEDENT-SMOOTHED-DOSE\x01"
+            + result.export()[len(b"ANTECEDENT-SMOOTHED-DOSE-POSTERIOR\x01") :]
         )
 
 

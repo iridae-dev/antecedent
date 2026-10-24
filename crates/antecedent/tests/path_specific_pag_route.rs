@@ -308,16 +308,18 @@ fn an_invisible_mediator_outcome_edge_refuses_the_natural_direct_effect() {
 }
 
 #[test]
-fn a_pag_path_specific_effect_stays_at_validation_none() {
-    let error = Study::tabular(parented_data())
+fn a_pag_path_specific_effect_under_cheap_validation_runs_the_unlicensed_refuter_state() {
+    let result = Study::tabular(parented_data())
         .graph(parented_pag())
         .query(path_through_a())
         .refute(RefuteSuite::Cheap)
         .bootstrap_replicates(0)
         .build()
         .and_then(|built| built.run(&ExecutionContext::for_tests(47)))
-        .unwrap_err();
-    assert!(!error.to_string().is_empty());
+        .unwrap();
+    assert_eq!(result.support_status, Some(antecedent::CellStatus::Refused));
+    assert!(!result.refutations.is_empty());
+    assert!(result.refutations.iter().all(|r| r.refuter.starts_with("target.")));
 }
 
 fn route_cases() -> Vec<(&'static str, StudyBuilder, TabularData)> {

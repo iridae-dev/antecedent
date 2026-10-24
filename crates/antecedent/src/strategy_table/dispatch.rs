@@ -95,15 +95,36 @@ pub fn identify_static_query_with_rd(
     query: &CausalQuery,
     rd: Option<antecedent_identify::SharpRdConfig>,
 ) -> Result<IdentificationResult, CausalError> {
+    identify_static_query_in_context(identifier, graph, query, rd, None)
+}
+
+/// [`identify_static_query_with_rd`] under the caller's execution context: the exact
+/// adjustment searches (back-door, efficient back-door, and the automatic route's back-door)
+/// lease their storage from the context's admission pool before allocating it and stop at its
+/// cancellation token.
+///
+/// # Errors
+///
+/// As [`identify_static_query_with_rd`]; a pool that cannot fund the search's graph copies is a
+/// budget refusal, never a non-identification.
+pub fn identify_static_query_in_context(
+    identifier: IdentifierId,
+    graph: &Dag,
+    query: &CausalQuery,
+    rd: Option<antecedent_identify::SharpRdConfig>,
+    context: Option<&ExecutionContext>,
+) -> Result<IdentificationResult, CausalError> {
     let mut id_ws = IdentificationWorkspace::default();
     let result = match identifier {
         IdentifierId::BackdoorAdjustment => {
-            let id = BackdoorIdentifier::new();
+            let mut id = BackdoorIdentifier::new();
+            id.config.context = context.cloned();
             let prepared = id.prepare(graph).map_err(identify_err)?;
             id.identify(&prepared, query, &mut id_ws).map_err(identify_err)?
         }
         IdentifierId::BackdoorEfficient => {
-            let id = EfficientBackdoorIdentifier::new();
+            let mut id = EfficientBackdoorIdentifier::new();
+            id.config.context = context.cloned();
             let prepared = id.prepare(graph).map_err(identify_err)?;
             id.identify(&prepared, query, &mut id_ws).map_err(identify_err)?
         }
@@ -168,6 +189,7 @@ pub fn identify_static_query_with_rd(
         }
         IdentifierId::Auto => {
             let mut id = AutoIdentifier::new();
+            id.backdoor.config.context = context.cloned();
             if let Some(cfg) = rd {
                 id = id.with_rd(cfg);
             }
@@ -201,9 +223,26 @@ pub fn identify_cpdag(
     cpdag: &antecedent_graph::Cpdag,
     query: &AverageEffectQuery,
 ) -> Result<IdentificationEnvelope<antecedent_graph::Dag>, CausalError> {
+    identify_cpdag_in_context(identifier, cpdag, query, None)
+}
+
+/// [`identify_cpdag`] under the caller's execution context: the completion enumeration and the
+/// per-completion exact searches lease their storage from its admission pool before allocating
+/// and stop at its cancellation token.
+///
+/// # Errors
+///
+/// As [`identify_cpdag`].
+pub fn identify_cpdag_in_context(
+    identifier: IdentifierId,
+    cpdag: &antecedent_graph::Cpdag,
+    query: &AverageEffectQuery,
+    context: Option<&ExecutionContext>,
+) -> Result<IdentificationEnvelope<antecedent_graph::Dag>, CausalError> {
     match identifier {
         IdentifierId::GeneralizedAdjustment => {
-            let id = GeneralizedAdjustmentIdentifier::new();
+            let mut id = GeneralizedAdjustmentIdentifier::new();
+            id.config.context = context.cloned();
             id.identify_cpdag_envelope(cpdag, query).map_err(identify_err)
         }
         other => reject_non_generalized_identifier(other, "CPDAG", "unsupported CPDAG identifier"),
@@ -322,9 +361,24 @@ pub(crate) fn identify_pag(
     pag: &Pag,
     query: &AverageEffectQuery,
 ) -> Result<IdentificationEnvelope<Pag>, CausalError> {
+    identify_pag_in_context(identifier, pag, query, None)
+}
+
+/// [`identify_pag`] under the caller's execution context (see [`identify_cpdag_in_context`]).
+///
+/// # Errors
+///
+/// As [`identify_pag`].
+pub(crate) fn identify_pag_in_context(
+    identifier: IdentifierId,
+    pag: &Pag,
+    query: &AverageEffectQuery,
+    context: Option<&ExecutionContext>,
+) -> Result<IdentificationEnvelope<Pag>, CausalError> {
     match identifier {
         IdentifierId::GeneralizedAdjustment => {
-            let id = GeneralizedAdjustmentIdentifier::new();
+            let mut id = GeneralizedAdjustmentIdentifier::new();
+            id.config.context = context.cloned();
             id.identify_pag_envelope(pag, query).map_err(identify_err)
         }
         other => reject_non_generalized_identifier(other, "PAG", "unsupported PAG identifier"),
@@ -600,6 +654,139 @@ pub(crate) fn estimate_static_effect(
             cfg.fit(&prep, ctx, assumptions).map_err(est_err)
         }
     }
+}
+
+/// The two-stage least-squares estimator `spec` selects, when it selects one.
+fn streamed_iv_estimator(
+    spec: &EstimatorSpec,
+    estimator: EstimatorId,
+) -> Option<TwoStageLeastSquares> {
+    match (spec, estimator) {
+        (EstimatorSpec::Iv2Sls(cfg), EstimatorId::Iv2Sls) => Some((**cfg).clone()),
+        (EstimatorSpec::Default(EstimatorId::Iv2Sls), EstimatorId::Iv2Sls) => {
+            Some(TwoStageLeastSquares::new())
+        }
+        _ => None,
+    }
+}
+
+/// The inverse-probability-weighting estimator `spec` selects, built as the point stage
+/// builds it, when it selects one.
+fn streamed_weighting_estimator(
+    spec: &EstimatorSpec,
+    estimator: EstimatorId,
+    input: &StaticEstimateInput<'_>,
+) -> Option<PropensityWeighting> {
+    match (spec, estimator) {
+        (EstimatorSpec::PropensityWeighting(cfg), EstimatorId::PropensityWeighting) => {
+            Some((**cfg).clone())
+        }
+        (
+            EstimatorSpec::Default(EstimatorId::PropensityWeighting),
+            EstimatorId::PropensityWeighting,
+        ) => {
+            let mut est = PropensityWeighting::new();
+            est.sampling_design = crate::estimator_spec::declared_sampling(input.sampling_design);
+            est.bootstrap_replicates = input.bootstrap_replicates;
+            if let Some(policy) = input.overlap_policy {
+                est.overlap = policy;
+            }
+            est.population_registry = input.population_registry.cloned();
+            Some(est)
+        }
+        _ => None,
+    }
+}
+
+/// The cross-fitted AIPW estimator `spec` selects, built as the point stage builds it, when it
+/// selects one.
+fn streamed_aipw_estimator(
+    spec: &EstimatorSpec,
+    estimator: EstimatorId,
+    input: &StaticEstimateInput<'_>,
+) -> Option<AipwAte> {
+    match (spec, estimator) {
+        (EstimatorSpec::Aipw(cfg), EstimatorId::Aipw) => Some((**cfg).clone()),
+        (EstimatorSpec::Default(EstimatorId::Aipw), EstimatorId::Aipw) => {
+            let mut est = AipwAte::new();
+            est.sampling_design = crate::estimator_spec::declared_sampling(input.sampling_design);
+            est.bootstrap_replicates = input.bootstrap_replicates;
+            if let Some(policy) = input.overlap_policy {
+                est.overlap = policy;
+            }
+            est.population_registry = input.population_registry.cloned();
+            Some(est)
+        }
+        _ => None,
+    }
+}
+
+/// Whether [`estimate_static_effect_streamed`] runs `spec` as `estimator` under `input`'s
+/// defaults. Two-stage least squares and inverse-probability weighting have a streamed
+/// reduction; a configuration with no closed form (a bootstrap, a trim, sampling weights,
+/// clustering) does not.
+pub(crate) fn streams_static_effect(
+    spec: &EstimatorSpec,
+    estimator: EstimatorId,
+    input: &StaticEstimateInput<'_>,
+) -> bool {
+    streamed_iv_estimator(spec, estimator).is_some_and(|est| est.supports_streamed_reduction())
+        || streamed_weighting_estimator(spec, estimator, input)
+            .is_some_and(|est| est.supports_streamed_reduction())
+        || streamed_aipw_estimator(spec, estimator, input)
+            .is_some_and(|est| est.supports_streamed_reduction())
+}
+
+/// Estimate through the streamed reduction of an estimator that has one, or `None` when the
+/// estimator (or its configuration) has no closed-form reduction.
+///
+/// Two-stage least squares, inverse-probability weighting and cross-fitted AIPW stream: the rows are read in
+/// bounded batches into the weighted-Gaussian capacity engine and the design is never built.
+/// A default-built weighting estimator takes the point-stage bootstrap count in `input`, so it
+/// streams exactly when that count is zero.
+///
+/// # Errors
+///
+/// The reduction refuses (a rank-deficient block, a separated propensity fit, a ceiling below
+/// the batch window) or fails.
+pub(crate) fn estimate_static_effect_streamed(
+    spec: &EstimatorSpec,
+    estimator: EstimatorId,
+    input: StaticEstimateInput<'_>,
+    assumptions: AssumptionSet,
+    fold_seed: u64,
+    batch_rows: usize,
+    ceiling_bytes: u64,
+) -> Result<Option<EffectEstimate>, CausalError> {
+    let StaticEstimateInput { data, estimand, query, .. } = input;
+    if let Some(est) = streamed_iv_estimator(spec, estimator) {
+        if !est.supports_streamed_reduction() {
+            return Ok(None);
+        }
+        let streamed = est
+            .estimate_streamed(data, estimand, query, batch_rows, ceiling_bytes)
+            .map_err(est_err)?;
+        return Ok(Some(streamed.into_effect(assumptions, est.overlap, est.se_kind)));
+    }
+    if let Some(est) = streamed_weighting_estimator(spec, estimator, &input) {
+        if !est.supports_streamed_reduction() {
+            return Ok(None);
+        }
+        let streamed = est
+            .estimate_streamed(data, estimand, query, batch_rows, ceiling_bytes)
+            .map_err(est_err)?;
+        return Ok(Some(streamed.into_effect(assumptions, est.overlap)));
+    }
+    if let Some(est) = streamed_aipw_estimator(spec, estimator, &input) {
+        if !est.supports_streamed_reduction() {
+            return Ok(None);
+        }
+        let streamed = est
+            .estimate_streamed(data, estimand, query, fold_seed, batch_rows, ceiling_bytes)
+            .map_err(est_err)?;
+        return Ok(Some(streamed.into_effect(assumptions, est.overlap)));
+    }
+    Ok(None)
 }
 
 /// [`EstimatorSpec::Default`] path: construct a fresh estimator by id and apply the
@@ -1077,4 +1264,80 @@ pub fn identify_pag_response(
     GeneralizedAdjustmentIdentifier::new()
         .identify_pag_response_envelope(graph, query)
         .map_err(identify_err)
+}
+
+#[cfg(test)]
+mod class_context_tests {
+    use antecedent_core::execution::AdmissionPool;
+    use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
+    use antecedent_graph::{Cpdag, DenseNodeId, Pag};
+
+    use super::{identify_cpdag_in_context, identify_pag_in_context};
+    use crate::strategy_table::IdentifierId;
+
+    fn query(treatment: u32, outcome: u32) -> AverageEffectQuery {
+        AverageEffectQuery::binary_ate(
+            VariableId::from_raw(treatment),
+            VariableId::from_raw(outcome),
+        )
+    }
+
+    /// A context whose pool has `free` of `capacity` bytes left; the returned lease holds the rest.
+    fn constrained(
+        capacity: u64,
+        free: u64,
+    ) -> (ExecutionContext, antecedent_core::execution::AdmissionLease, AdmissionPool) {
+        let pool = AdmissionPool::fixed(1, capacity);
+        let ctx = ExecutionContext::for_tests(1).with_admission(pool.clone());
+        let held = ctx.acquire_admission(0, capacity - free).unwrap();
+        (ctx, held, pool)
+    }
+
+    #[test]
+    fn a_cpdag_envelope_leases_its_completion_search_from_the_callers_pool() {
+        let mut cpdag = Cpdag::with_variables(3);
+        let (a, b, c) =
+            (DenseNodeId::from_raw(0), DenseNodeId::from_raw(1), DenseNodeId::from_raw(2));
+        cpdag.insert_undirected(a, b).unwrap();
+        cpdag.insert_undirected(b, c).unwrap();
+        let q = query(0, 2);
+        let (ctx, held, pool) = constrained(1 << 20, 1);
+        let starved =
+            identify_cpdag_in_context(IdentifierId::GeneralizedAdjustment, &cpdag, &q, Some(&ctx))
+                .unwrap();
+        // Nothing could be leased, so no completion was stacked or identified.
+        assert!(starved.cases.is_empty());
+        assert_eq!(pool.available().bytes(), 1);
+        drop(held);
+        let funded = identify_cpdag_in_context(
+            IdentifierId::GeneralizedAdjustment,
+            &cpdag,
+            &q,
+            Some(&ExecutionContext::for_tests(1)),
+        )
+        .unwrap();
+        assert_eq!(funded.cases.len(), 3);
+    }
+
+    #[test]
+    fn a_pag_envelope_leases_its_completions_from_the_callers_pool() {
+        let mut pag = Pag::with_variables(2);
+        pag.insert_circle_circle(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let q = query(0, 1);
+        let (ctx, held, pool) = constrained(1 << 20, 1);
+        let starved =
+            identify_pag_in_context(IdentifierId::GeneralizedAdjustment, &pag, &q, Some(&ctx))
+                .unwrap();
+        assert!(starved.cases.is_empty());
+        assert_eq!(pool.available().bytes(), 1);
+        drop(held);
+        let funded = identify_pag_in_context(
+            IdentifierId::GeneralizedAdjustment,
+            &pag,
+            &q,
+            Some(&ExecutionContext::for_tests(1)),
+        )
+        .unwrap();
+        assert!(!funded.cases.is_empty());
+    }
 }

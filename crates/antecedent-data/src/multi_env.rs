@@ -72,6 +72,32 @@ impl MultiEnvironmentData {
     pub fn environments(&self) -> &[TimeSeriesData] {
         &self.environments
     }
+
+    /// These environments as a unified segmented source: one part per environment, in order.
+    #[must_use]
+    pub fn source(&self) -> crate::source::SegmentedSource {
+        crate::source::SegmentedSource::from_multi_environment(self)
+    }
+
+    /// Replace environment `index`. The replacement must share the schema.
+    ///
+    /// # Errors
+    ///
+    /// `index` is past the environments, or the series has another schema.
+    pub fn with_environment(
+        &self,
+        index: usize,
+        series: TimeSeriesData,
+    ) -> Result<Self, DataError> {
+        let mut environments: Vec<TimeSeriesData> = self.environments.to_vec();
+        let Some(slot) = environments.get_mut(index) else {
+            return Err(DataError::InvalidArgument {
+                message: "environment index out of range".into(),
+            });
+        };
+        *slot = series;
+        Self::try_new(environments)
+    }
 }
 
 #[cfg(test)]

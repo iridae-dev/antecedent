@@ -18,8 +18,8 @@ use std::sync::Arc;
 use antecedent_core::{CausalRng, KernelPolicy, TargetPopulation, TemporalEffectQuery, VariableId};
 use antecedent_data::{LaggedColumn, TemporalIndexer, TimeSeriesData};
 use antecedent_expr::IdentifiedEstimand;
-use antecedent_model::history_operators::HistoryScan;
-use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
+use antecedent_model::history_operators::{HistoryScan, SequentialRegression};
+use antecedent_stats::LeastSquaresWorkspace;
 
 use crate::adjustment::intervention_f64;
 use crate::error::EstimationError;
@@ -340,9 +340,15 @@ impl TemporalSlopeDesign {
     /// A singular design or a non-positive prior scale.
     pub fn fit(&self, prior_scale: Option<f64>) -> Result<SlopeFit, EstimationError> {
         let mut ws = LeastSquaresWorkspace::default();
-        let fit = FaerBackend
-            .least_squares(&self.matrix, self.rows, self.cols, &self.outcome, &mut ws)
-            .map_err(crate::util::stats_err)?;
+        let fit = SequentialRegression::solve_design(
+            &self.matrix,
+            self.rows,
+            self.cols,
+            &self.outcome,
+            None,
+            &mut ws,
+        )
+        .map_err(crate::util::stats_err)?;
         let coefficients = match prior_scale {
             Some(scale) => self.ridge_mean(&fit.coefficients, scale)?.0,
             None => fit.coefficients,
@@ -369,9 +375,13 @@ impl TemporalSlopeDesign {
                 *slot = source[row];
             }
         }
-        let coefficients = FaerBackend
-            .least_squares_coefficients(&scratch.matrix, m, self.cols, &scratch.outcome)
-            .ok()?;
+        let coefficients = SequentialRegression::solve_coefficients(
+            &scratch.matrix,
+            m,
+            self.cols,
+            &scratch.outcome,
+        )
+        .ok()?;
         if !coefficients.iter().all(|value| value.is_finite()) {
             return None;
         }
@@ -462,9 +472,15 @@ impl TemporalSlopeDesign {
             ));
         }
         let mut ws = LeastSquaresWorkspace::default();
-        let fit = FaerBackend
-            .least_squares(&self.matrix, self.rows, self.cols, &self.outcome, &mut ws)
-            .map_err(crate::util::stats_err)?;
+        let fit = SequentialRegression::solve_design(
+            &self.matrix,
+            self.rows,
+            self.cols,
+            &self.outcome,
+            None,
+            &mut ws,
+        )
+        .map_err(crate::util::stats_err)?;
         let (mean, inverse, sigma2) = self.ridge_mean(&fit.coefficients, prior_scale)?;
         let scores = crate::temporal_block::normal_equation_scores_of_residuals(
             &self.matrix,
@@ -577,9 +593,15 @@ impl TemporalSlopeDesign {
         let mut parts = Vec::with_capacity(designs.len());
         for design in designs {
             let mut ws = LeastSquaresWorkspace::default();
-            let fit = FaerBackend
-                .least_squares(&design.matrix, design.rows, design.cols, &design.outcome, &mut ws)
-                .map_err(crate::util::stats_err)?;
+            let fit = SequentialRegression::solve_design(
+                &design.matrix,
+                design.rows,
+                design.cols,
+                &design.outcome,
+                None,
+                &mut ws,
+            )
+            .map_err(crate::util::stats_err)?;
             let (mean, inverse, sigma2) = design.ridge_mean(&fit.coefficients, prior_scale)?;
             let scores = crate::temporal_block::normal_equation_scores_of_residuals(
                 &design.matrix,

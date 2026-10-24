@@ -10,6 +10,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::sync::Arc;
+
 use antecedent::analysis::target_validation::{
     PreparedTargetData, TargetRefitOptions, TargetRefutationConfig, TargetRefutationOutcome,
     TargetRefuterKind, TargetSuite, refute_prepared_target,
@@ -105,6 +107,7 @@ fn run(
         PreparedTargetData::Tabular(d) => prepared.estimate(d, ctx),
         PreparedTargetData::Series(d) => prepared.estimate_series(d, ctx),
         PreparedTargetData::Panel(d) => prepared.estimate_panel(d, ctx),
+        PreparedTargetData::MultiEnv(d) => prepared.estimate_multi_env(d, ctx),
     }
     .unwrap();
     refute_prepared_target(prepared, &result, data, suite, config, options, ctx).unwrap()
@@ -227,6 +230,82 @@ fn a_single_series_gets_block_bootstrap_placebo_timing_and_a_lagged_placebo() {
 }
 
 #[test]
+fn a_gathered_block_bootstrap_carries_the_sampling_weights_of_a_weighted_series() {
+    let plain = series(600, 5, 0.0);
+    // Sampling weights that favour the second half: the weighted target differs from the
+    // unweighted one only through the weights, and the gathered replicate must keep each row's
+    // own weight with its values.
+    let weights: Arc<[f64]> = (0..600).map(|t| if t < 300 { 0.5 } else { 1.5 }).collect();
+    let data = plain.with_weights(weights).unwrap();
+    let ctx = ExecutionContext::for_tests(37);
+    let prepared = pulse_study(&data, &ctx);
+    let config = TargetRefutationConfig { replicates: 12, ..TargetRefutationConfig::default() };
+    let options = TargetRefitOptions { gathered_resamples: true, ..TargetRefitOptions::default() };
+    let outcome = run(
+        &prepared,
+        PreparedTargetData::Series(&data),
+        TargetSuite::Full,
+        &config,
+        &options,
+        &ctx,
+    );
+    let bootstrap = report(&outcome, TargetRefuterKind::BootstrapStability);
+    assert!(bootstrap.passed, "{:?}", bootstrap.failure);
+    assert!(bootstrap.replicates >= 12);
+    // Replicates differ from the point estimate (the resample is real) and stay near it.
+    assert!(bootstrap.refuted.iter().zip(bootstrap.original.iter()).any(|(r, o)| r != o));
+}
+
+#[test]
+fn independent_environments_are_perturbed_one_by_one_and_refit_together() {
+    let environments = antecedent_data::MultiEnvironmentData::try_new(vec![
+        series(400, 41, 0.0),
+        series(400, 42, 0.0),
+        series(400, 43, 0.0),
+    ])
+    .unwrap();
+    let ctx = ExecutionContext::for_tests(38);
+    let mut graph = TemporalDag::empty();
+    let x1 = ensure_lagged(&mut graph, v(0), Lag::from_raw(1)).unwrap();
+    let y0 = ensure_lagged(&mut graph, v(1), Lag::CONTEMPORANEOUS).unwrap();
+    graph.insert_directed(x1, y0).unwrap();
+    let query = TemporalEffectQuery::pulse(v(0), v(1), 1.0)
+        .with_policy(TemporalPolicy::pulse(-1))
+        .with_horizon_steps(1);
+    let prepared = Study::series_multi(environments.clone())
+        .graph(graph)
+        .temporal_query(query)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let result = prepared.estimate_multi_env(&environments, &ctx).unwrap();
+    let config = TargetRefutationConfig {
+        replicates: 12,
+        pre_trend_lead: 2,
+        ..TargetRefutationConfig::default()
+    };
+    let outcome = refute_prepared_target(
+        &prepared,
+        &result,
+        PreparedTargetData::MultiEnv(&environments),
+        TargetSuite::Full,
+        &config,
+        &TargetRefitOptions::default(),
+        &ctx,
+    )
+    .unwrap();
+    for kind in [TargetRefuterKind::PlaceboTreatment, TargetRefuterKind::BootstrapStability] {
+        let r = report(&outcome, kind);
+        assert!(r.passed, "{kind:?}: {:?}", r.failure);
+        // The refits ran on perturbed environments: the refuted value moves off the original.
+        assert!(r.refuted.iter().zip(r.original.iter()).any(|(a, b)| a != b), "{kind:?}");
+    }
+}
+
+#[test]
 fn placebo_timing_flags_an_outcome_that_anticipates_the_treatment() {
     let data = series(600, 6, 0.8);
     let ctx = ExecutionContext::for_tests(34);
@@ -281,6 +360,53 @@ fn prior_sensitivity_runs_under_a_compiled_prior_grid() {
     );
     let sensitivity = report(&outcome, TargetRefuterKind::PriorSensitivity);
     assert!(!sensitivity.passed, "a dominating prior moves the target");
+}
+
+#[test]
+fn prior_sensitivity_scales_an_explicit_coefficient_prior_around_its_own_means() {
+    use antecedent_prob::{GaussianCoefficientPrior, PriorSet, PriorSpec};
+    let ctx = ExecutionContext::for_tests(36);
+    let config = TargetRefutationConfig { replicates: 8, ..TargetRefutationConfig::default() };
+    let explicit = |mean: [f64; 3], variance: [f64; 3]| {
+        InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(200).prior(PriorSet {
+            specs: vec![PriorSpec::GaussianCoefficients(GaussianCoefficientPrior {
+                mean: mean.into(),
+                variance: variance.into(),
+            })],
+            contrast: None,
+            categorical: Vec::new(),
+            restrictions: Vec::new(),
+        }))
+    };
+    // Many rows and a vague prior: the likelihood dominates every scaling of it.
+    let data = static_data(800, 7, false);
+    let prepared = static_study(&data, explicit([0.0; 3], [100.0; 3]), &ctx);
+    let outcome = run(
+        &prepared,
+        PreparedTargetData::Tabular(&data),
+        TargetSuite::Cheap,
+        &config,
+        &TargetRefitOptions::default(),
+        &ctx,
+    );
+    let sensitivity = report(&outcome, TargetRefuterKind::PriorSensitivity);
+    assert!(sensitivity.passed, "{:?}", sensitivity.failure);
+    // Few rows and an informative prior centred far from the data (treatment effect 6 against
+    // a true 2): widening it by a factor of 100 lets the data pull the target away.
+    let small = static_data(16, 8, false);
+    let prepared = static_study(&small, explicit([0.0, 6.0, 0.0], [100.0, 0.05, 100.0]), &ctx);
+    let options =
+        TargetRefitOptions { prior_scale_factors: vec![100.0], ..TargetRefitOptions::default() };
+    let outcome = run(
+        &prepared,
+        PreparedTargetData::Tabular(&small),
+        TargetSuite::Cheap,
+        &config,
+        &options,
+        &ctx,
+    );
+    let sensitivity = report(&outcome, TargetRefuterKind::PriorSensitivity);
+    assert!(!sensitivity.passed, "the prior in force decides the target");
 }
 
 /// `y = f(a) + 0.5 b + e` with `a` confounded by `b`.

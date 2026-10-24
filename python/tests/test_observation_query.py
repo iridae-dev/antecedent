@@ -702,12 +702,16 @@ def test_dirichlet_redraw_returns_aligned_draws_around_the_posterior_mean():
     assert aligned.point[1] == pytest.approx(0.78, abs=TOL)
     # One draw produced both levels: each row is one distribution.
     assert all(abs(row[0] + row[1] - 1.0) < 1e-12 for row in aligned.values)
+
     # The plug-in at the posterior-mean tables, by brute force over the counted cells.
     def posterior_mean(counts, a=1.0):
         return {k: (v + a) / (sum(counts.values()) + 2 * a) for k, v in counts.items()}
 
     pz = posterior_mean({"0": 100, "1": 100})
-    ps = {z: posterior_mean(c) for z, c in {"0": {"0": 160, "1": 40}, "1": {"0": 40, "1": 160}}.items()}
+    ps = {
+        z: posterior_mean(c)
+        for z, c in {"0": {"0": 160, "1": 40}, "1": {"0": 40, "1": 160}}.items()
+    }
     py = {
         ("0", "0"): posterior_mean({"0": 45, "1": 5}),
         ("0", "1"): posterior_mean({"0": 25, "1": 25}),
@@ -746,7 +750,10 @@ def test_an_interval_of_redrawn_parameters_needs_a_measured_coverage_record():
 def test_a_regression_redraw_spreads_around_the_declared_structural_equation():
     x = [i / 12.0 for i in range(60)]
     m = [0.5 + 2.0 * v + 0.3 * math.sin(5.0 * i) for i, v in enumerate(x)]
-    y = [-1.0 + 0.5 * a + 3.0 * b + 0.2 * math.cos(11.0 * i) for i, (a, b) in enumerate(zip(x, m, strict=True))]
+    y = [
+        -1.0 + 0.5 * a + 3.0 * b + 0.2 * math.cos(11.0 * i)
+        for i, (a, b) in enumerate(zip(x, m, strict=True))
+    ]
     claim = oq.parameter_uncertainty(
         gaussian_chain(),
         "Y",

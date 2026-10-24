@@ -259,10 +259,66 @@ fn gather<T: Copy>(values: &[T], rows: &[usize]) -> Vec<T> {
     rows.iter().map(|&row| values[row]).collect()
 }
 
+/// One transport certificate refitted by the whole-procedure bootstrap, with the report id and
+/// the value the bootstrap range must contain.
+struct BootstrapMember<'a> {
+    id: String,
+    transport: &'a TransportIdentification,
+    published: f64,
+}
+
 fn bootstrap_range(
     input: &TransportRefutationInput<'_>,
     ctx: &ExecutionContext,
 ) -> Result<RefutationReport, CausalError> {
+    let member = BootstrapMember {
+        id: "transport.bootstrap_range".to_owned(),
+        transport: input.transport,
+        published: input.published,
+    };
+    bootstrap_ranges(input, &[member], ctx)?.into_iter().next().ok_or_else(|| {
+        CausalError::Compile { message: "the transport bootstrap produced no report".into() }
+    })
+}
+
+/// Most class members whose certificates are refitted one by one.
+pub(super) const MAX_CLASS_MEMBERS: usize = 8;
+
+/// Member-specific checks of a class: the members of a Cpdag or a Pag may certify different
+/// formulas, and each is read by the trial-to-target weighting through its own certificate, so
+/// its transported contrast is bootstrapped on its own. Every member is refitted on the same
+/// resampled tables as the representative the base suite is about, and its published value
+/// (`published`) must lie in its own 95% percentile range. Only the full suite bootstraps.
+///
+/// `members` pairs a case index with the certificate and the plug-in value of that case.
+///
+/// # Errors
+///
+/// A cancelled run, or a replicate budget the execution pool refuses.
+pub(super) fn refute_transport_members(
+    input: &TransportRefutationInput<'_>,
+    members: &[(usize, &TransportIdentification, f64)],
+    ctx: &ExecutionContext,
+) -> Result<Vec<RefutationReport>, CausalError> {
+    if input.suite != RefuteSuite::Full || members.is_empty() {
+        return Ok(Vec::new());
+    }
+    let members: Vec<BootstrapMember<'_>> = members
+        .iter()
+        .map(|&(index, transport, published)| BootstrapMember {
+            id: format!("transport.bootstrap_range.case{index}"),
+            transport,
+            published,
+        })
+        .collect();
+    bootstrap_ranges(input, &members, ctx)
+}
+
+fn bootstrap_ranges(
+    input: &TransportRefutationInput<'_>,
+    members: &[BootstrapMember<'_>],
+    ctx: &ExecutionContext,
+) -> Result<Vec<RefutationReport>, CausalError> {
     let n = input.outcomes.len();
     let replicates = if input.replicates == 0 {
         DEFAULT_BOOTSTRAP_REPLICATES
@@ -273,8 +329,11 @@ fn bootstrap_range(
         message: "transport bootstrap size overflow".to_owned(),
     })?;
     let _admitted = super::gcm_bootstrap::admit_replicates(ctx, replicates, 1, width)?;
-    let mut values = Vec::with_capacity(usize::try_from(replicates).unwrap_or(0));
-    let mut failed = 0_u32;
+    let mut values: Vec<Vec<f64>> = members
+        .iter()
+        .map(|_| Vec::with_capacity(usize::try_from(replicates).unwrap_or(0)))
+        .collect();
+    let mut failed = vec![0_u32; members.len()];
     for replicate in 0..replicates {
         if ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_VALIDATE });
@@ -283,25 +342,51 @@ fn bootstrap_range(
             .rng
             .stream_for(StreamDomain::Resample, 0x7A17_B007_u64.wrapping_add(u64::from(replicate)));
         let rows = resample_rows(n, input.series_block, &mut rng);
-        let estimate = trial_to_target_effect(
-            input.transport,
-            &gather(input.outcomes, &rows),
-            &gather(input.treatment, &rows),
-            &gather(input.trial, &rows),
-            &gather(input.selection, &rows),
-            &gather(input.propensity, &rows),
-            None,
+        let (outcomes, treatment, trial, selection, propensity) = (
+            gather(input.outcomes, &rows),
+            gather(input.treatment, &rows),
+            gather(input.trial, &rows),
+            gather(input.selection, &rows),
+            gather(input.propensity, &rows),
         );
-        match estimate {
-            Ok(estimate) if estimate.ipw.is_finite() => values.push(estimate.ipw),
-            _ => failed += 1,
+        for (slot, member) in members.iter().enumerate() {
+            let estimate = trial_to_target_effect(
+                member.transport,
+                &outcomes,
+                &treatment,
+                &trial,
+                &selection,
+                &propensity,
+                None,
+            );
+            match estimate {
+                Ok(estimate) if estimate.ipw.is_finite() => values[slot].push(estimate.ipw),
+                _ => failed[slot] += 1,
+            }
         }
     }
+    Ok(members
+        .iter()
+        .zip(values)
+        .zip(failed)
+        .map(|((member, values), failed)| {
+            range_report(&member.id, member.published, values, (failed, replicates))
+        })
+        .collect())
+}
+
+/// The report of one bootstrap: the published value against the 95% percentile range.
+fn range_report(
+    id: &str,
+    published: f64,
+    mut values: Vec<f64>,
+    (failed, replicates): (u32, u32),
+) -> RefutationReport {
     let ok = u32::try_from(values.len()).unwrap_or(u32::MAX);
     if values.len() < 2 {
-        return Ok(RefutationReport::new(
-            "transport.bootstrap_range",
-            input.published,
+        return RefutationReport::new(
+            id,
+            published,
             0.0,
             0.0,
             false,
@@ -311,7 +396,7 @@ fn bootstrap_range(
                  ({failed} failed)"
             ))),
             ok,
-        ));
+        );
     }
     values.sort_by(f64::total_cmp);
     let quantile = |p: f64| {
@@ -325,23 +410,22 @@ fn bootstrap_range(
     };
     let (lower, upper) = (quantile(0.025), quantile(0.975));
     let mean = values.iter().sum::<f64>() / values.len() as f64;
-    let passed = (lower..=upper).contains(&input.published);
-    Ok(RefutationReport::new(
-        "transport.bootstrap_range",
-        input.published,
+    let passed = (lower..=upper).contains(&published);
+    RefutationReport::new(
+        id,
+        published,
         mean,
         upper - lower,
         false,
         passed,
         (!passed).then(|| {
             std::sync::Arc::from(format!(
-                "the published contrast {:.4} lies outside the bootstrap 95% range \
-                 [{lower:.4}, {upper:.4}] ({failed} of {replicates} replicates failed)",
-                input.published
+                "the published contrast {published:.4} lies outside the bootstrap 95% range \
+                 [{lower:.4}, {upper:.4}] ({failed} of {replicates} replicates failed)"
             ))
         }),
         ok,
-    ))
+    )
 }
 
 #[cfg(test)]
@@ -420,6 +504,23 @@ mod tests {
         let independent = resample_rows(7, None, &mut ctx.rng.stream(2));
         assert_eq!(independent.len(), 7);
         assert!(independent.iter().all(|&row| row < 7));
+    }
+
+    #[test]
+    fn a_published_contrast_is_judged_against_its_own_bootstrap_range() {
+        // 1.0, 1.01, ..., 1.99: the 95% percentile range is [1.02, 1.97].
+        let values: Vec<f64> = (0..100).map(|i| 1.0 + 0.01 * f64::from(i)).collect();
+        let inside = range_report("transport.bootstrap_range.case3", 1.5, values.clone(), (0, 100));
+        assert!(inside.passed);
+        assert_eq!(inside.refuter.as_ref(), "transport.bootstrap_range.case3");
+        assert!((inside.refuted_ate - 1.495).abs() < 1e-9);
+        assert!((inside.comparison - 0.95).abs() < 1e-9, "{}", inside.comparison);
+        let outside = range_report("transport.bootstrap_range.case3", 2.5, values, (0, 100));
+        assert!(!outside.passed && outside.failure_condition.is_some());
+        // Fewer than two usable replicates is a failed report that names the loss.
+        let lost = range_report("transport.bootstrap_range", 1.0, vec![1.0], (48, 49));
+        assert!(!lost.passed);
+        assert_eq!(lost.replicates, 1);
     }
 
     #[test]

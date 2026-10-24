@@ -83,11 +83,14 @@ fn checked_mediation_inference(
     })
 }
 
-/// Replays each requested horizon's cached proof against the recomputed one
-/// and collects the identified horizons' mediation clicks.
+/// Collects the identified horizons' mediation clicks from the cached proof.
+///
+/// `verified` is a recomputed identification to replay each horizon against. It is `None`
+/// when the cache was already verified against the digest compile sealed over it, so
+/// identification is not run again.
 fn replay_mediation_horizons(
     cache: &crate::analysis::prepared::CachedTemporalIdentification,
-    verified: &crate::analysis::prepared::CachedTemporalIdentification,
+    verified: Option<&crate::analysis::prepared::CachedTemporalIdentification>,
     query: &antecedent_core::MediationQuery,
 ) -> Result<Vec<MediationHorizonClick>, CausalError> {
     let mut horizons = Vec::with_capacity(query.horizons.len());
@@ -95,22 +98,24 @@ fn replay_mediation_horizons(
         let cached = cache.get(horizon).ok_or_else(|| CausalError::Compile {
             message: format!("temporal mediation proof missing horizon {horizon}"),
         })?;
-        let checked = verified.get(horizon).ok_or_else(|| CausalError::Compile {
-            message: format!("recomputed temporal mediation proof missing horizon {horizon}"),
-        })?;
-        if cached.identification.query != checked.identification.query
-            || cached.identification.status != checked.identification.status
-            || cached.estimand.functional != checked.estimand.functional
-            || cached.estimand.method != checked.estimand.method
-            || cached.estimand.adjustment_set != checked.estimand.adjustment_set
-            || cached.estimand.mediators != checked.estimand.mediators
-            || cached.indexer.variable_count() != checked.indexer.variable_count()
-            || cached.indexer.history() != checked.indexer.history()
-            || cached.indexer.horizon() != checked.indexer.horizon()
-        {
-            return Err(CausalError::Compile {
-                message: format!("temporal mediation proof failed replay at horizon {horizon}"),
-            });
+        if let Some(verified) = verified {
+            let checked = verified.get(horizon).ok_or_else(|| CausalError::Compile {
+                message: format!("recomputed temporal mediation proof missing horizon {horizon}"),
+            })?;
+            if cached.identification.query != checked.identification.query
+                || cached.identification.status != checked.identification.status
+                || cached.estimand.functional != checked.estimand.functional
+                || cached.estimand.method != checked.estimand.method
+                || cached.estimand.adjustment_set != checked.estimand.adjustment_set
+                || cached.estimand.mediators != checked.estimand.mediators
+                || cached.indexer.variable_count() != checked.indexer.variable_count()
+                || cached.indexer.history() != checked.indexer.history()
+                || cached.indexer.horizon() != checked.indexer.horizon()
+            {
+                return Err(CausalError::Compile {
+                    message: format!("temporal mediation proof failed replay at horizon {horizon}"),
+                });
+            }
         }
         if cached.estimand.mediators.len() != 1 {
             return Err(CausalError::Unsupported {
@@ -167,13 +172,27 @@ impl CheckedTemporalMediationOperation {
             CheckedMediationInference::Frequentist { .. } => EstimatorId::TemporalMediation,
             CheckedMediationInference::Bayesian(_) => EstimatorId::BayesianTemporalMediation,
         };
-        let verified = crate::analysis::prepared::identify_temporal_mediation_horizons(
-            graph,
-            query,
-            estimator_id,
-        )?;
+        // The proof is the identification compile sealed: equality with that digest over
+        // every horizon's full result verifies it without identifying again. A plan that
+        // retained none replays it from the graph.
+        let sealed = crate::analysis::proof_support::verify_retained_temporal(
+            physical,
+            cache,
+            "temporal mediation proof failed replay against its retained identification",
+        )? == crate::analysis::proof_support::RetainedProof::Sealed;
+        let verified = if sealed {
+            None
+        } else {
+            Some(crate::analysis::prepared::identify_temporal_mediation_horizons(
+                graph,
+                query,
+                estimator_id,
+            )?)
+        };
         if cache.by_horizon.len() != query.horizons.len()
-            || verified.by_horizon.len() != query.horizons.len()
+            || verified
+                .as_ref()
+                .is_some_and(|verified| verified.by_horizon.len() != query.horizons.len())
         {
             return Err(CausalError::Compile {
                 message:
@@ -181,7 +200,7 @@ impl CheckedTemporalMediationOperation {
                         .into(),
             });
         }
-        let horizons = replay_mediation_horizons(cache, &verified, query)?;
+        let horizons = replay_mediation_horizons(cache, verified.as_ref(), query)?;
         let targets = mediation_targets(query, data.schema(), &horizons, &inference)?;
         Ok(Self {
             graph: graph.clone(),
@@ -478,6 +497,49 @@ mod tests {
             .unwrap()
             .execute(data, &ctx)
             .unwrap()
+    }
+
+    #[test]
+    fn a_tampered_horizon_proof_is_refused_by_the_compile_seal_without_identifying_again() {
+        let (data, graph) = fixture();
+        let ctx = ExecutionContext::for_tests(8823);
+        let query = antecedent_core::MediationQuery::binary(
+            VariableId::from_raw(0),
+            VariableId::from_raw(2),
+            [VariableId::from_raw(1)],
+            MediationContrast::Mediated,
+        );
+        let study = Study::series(data.clone())
+            .graph(graph.clone())
+            .query(CausalQuery::Mediation(query.clone()))
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap();
+        let physical = Arc::new(study.compile(&ctx).unwrap());
+        let cache = crate::analysis::prepared::identify_temporal_mediation_horizons(
+            &graph,
+            &query,
+            EstimatorId::TemporalMediation,
+        )
+        .unwrap();
+        // The proof equals the identification compile sealed: accepted.
+        assert_eq!(
+            crate::analysis::proof_support::verify_retained_temporal(&physical, &cache, "refused")
+                .unwrap(),
+            crate::analysis::proof_support::RetainedProof::Sealed
+        );
+        CheckedTemporalMediationOperation::checked(&study, &data, &physical, &cache).unwrap();
+        // A horizon whose adjustment set was changed after the seal is refused.
+        let mut entries = cache.by_horizon.to_vec();
+        entries[0].estimand.adjustment_set = Arc::from([]);
+        let tampered = crate::analysis::prepared::CachedTemporalIdentification {
+            by_horizon: Arc::from(entries),
+        };
+        let refused =
+            CheckedTemporalMediationOperation::checked(&study, &data, &physical, &tampered)
+                .unwrap_err();
+        assert!(refused.to_string().contains("failed replay"), "{refused}");
     }
 
     #[test]

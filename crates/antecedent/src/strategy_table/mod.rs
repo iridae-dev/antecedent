@@ -13,15 +13,16 @@ pub use dispatch::{
     StaticEstimateInput, StaticEstimateWorkspaces, attach_static_bootstrap,
     estimate_provenance_step, identify_admg_query, identify_cpdag, identify_cpdag_response,
     identify_pag_response, identify_provenance_step, identify_static_query,
-    identify_static_query_with_rd, identify_temporal_cpdag, identify_temporal_cpdag_configured,
+    identify_cpdag_in_context, identify_static_query_in_context, identify_static_query_with_rd, identify_temporal_cpdag, identify_temporal_cpdag_configured,
     identify_temporal_pag, identify_temporal_pag_configured,
 };
 // The raw static estimate and identification entries run without a lowered program or a
 // contract; only the compiled paths inside the crate reach them.
 pub(crate) use dispatch::{
-    estimate_static_effect, identify_admg, identify_admg_derivative, identify_cpdag_distribution,
+    estimate_static_effect, estimate_static_effect_streamed, streams_static_effect, identify_admg, identify_admg_derivative, identify_cpdag_distribution,
     identify_cpdag_path_specific, identify_pag_distribution,
-    identify_pag, identify_pag_path_specific, identify_static, not_identified_admg,
+    identify_pag, identify_pag_in_context, identify_pag_path_specific, identify_static,
+    not_identified_admg,
 };
 pub use ids::{
     DEFAULT_ADMG_ESTIMATOR_ID, DEFAULT_ADMG_IDENTIFIER_ID, DEFAULT_CONDITIONAL_ESTIMATOR_ID,

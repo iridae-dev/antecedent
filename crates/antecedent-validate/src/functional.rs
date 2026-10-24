@@ -228,9 +228,7 @@ pub fn refute_window_contrast(
             identification.required_assumptions.clone(),
             coordinates,
         )?;
-        Ok(estimator
-            .estimate(&prepared, &mut FunctionalDistributionWorkspace::default(), ctx)?
-            .ate)
+        Ok(estimator.estimate(&prepared, &mut FunctionalDistributionWorkspace::default(), ctx)?.ate)
     };
     let stretches: &[(f64, &str, u64)] = if full {
         &[
@@ -343,11 +341,8 @@ fn split_half(
             identification.required_assumptions.clone(),
             coordinates,
         )?;
-        let estimate = estimator.estimate(
-            &prepared,
-            &mut FunctionalDistributionWorkspace::default(),
-            ctx,
-        )?;
+        let estimate =
+            estimator.estimate(&prepared, &mut FunctionalDistributionWorkspace::default(), ctx)?;
         halves[slot] = (estimate.ate, estimate.se_bootstrap().unwrap_or(f64::NAN));
     }
     let [(first, first_se), (second, second_se)] = halves;
@@ -426,8 +421,10 @@ fn rotate_columns(
         }
         named.push((Arc::clone(&variable.name), values));
     }
-    TabularData::from_f64_columns(named.iter().map(|(name, values)| (Arc::clone(name), values.as_slice())))
-        .map_err(ValidationError::from)
+    TabularData::from_f64_columns(
+        named.iter().map(|(name, values)| (Arc::clone(name), values.as_slice())),
+    )
+    .map_err(ValidationError::from)
 }
 
 /// RNG stream of replicate `replicate` of subset-fraction `slot`. Each fraction gets its own

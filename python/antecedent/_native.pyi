@@ -1033,6 +1033,23 @@ class PerformanceSection:
     early_stopped: bool
     stage_timings: list[tuple[str, int]]
     bytes_borrowed: int | None
+    resampling: ResamplingSection | None
+
+class ResamplingSection:
+    """The complete resampling procedure behind a requested bootstrap interval."""
+
+    level: float
+    wave_size: int
+    min_replicates: int
+    max_replicates: int
+    se_rel_tol: float | None
+    half_width_rel_tol: float | None
+    interval: tuple[float, float] | None
+    stop: str
+    attempted: int
+    waves: list[tuple[int, int, int, int, int, int, int]]
+    se_rel_mc_error: float | None
+    half_width_rel_mc_error: float | None
 
 class PosteriorArtifact:
     n_draws: int
@@ -1172,7 +1189,6 @@ class PcmciDiscoveryResult:
     @property
     def claim(self) -> dict[str, str]: ...
     def inspect(self) -> dict[str, str]: ...
-
     def accepted_graph(self, *, accept_discovered: bool = True) -> Any:
         """The reviewed accepted graph; refuses while edges are pending."""
 
@@ -2940,7 +2956,12 @@ def decode_policy_program(names: list[str], data: bytes) -> str: ...
 def policy_program_identity(names: list[str], policies: str) -> str: ...
 def load_float64_columns(
     names: list[str],
+    columns: Sequence[NDArray[Any]],
+) -> ArrowLoadInfo: ...
+def load_float64_panel_columns(
+    names: list[str],
     columns: Sequence[NDArray[np.float64]],
+    unit_lengths: list[int],
 ) -> ArrowLoadInfo: ...
 def load_float64_arrow_c_columns(
     names: list[str],
@@ -3429,6 +3450,7 @@ def discover_bootstrap_stability(
     unit_lengths: list[int] | None = None,
     background_knowledge: str | None = None,
 ) -> StructureStabilityResult: ...
+
 class RegimeStabilityResult:
     regimes: list[int]
     tables: list[StructureStabilityResult]
@@ -4991,6 +5013,7 @@ def sensitivity_evalue_vector(
     family: str = "conditional_effect",
     temporal: bool = False,
     target_source: str | None = None,
+    model: str | None = None,
 ) -> str: ...
 def sensitivity_evalue_posterior(
     draws: list[list[float]],
@@ -5001,6 +5024,7 @@ def sensitivity_evalue_posterior(
     family: str = "conditional_effect",
     temporal: bool = False,
     target_source: str | None = None,
+    model: str | None = None,
 ) -> str: ...
 def sensitivity_ovb_vector(
     estimates: list[float],
@@ -5014,6 +5038,7 @@ def sensitivity_ovb_vector(
     family: str = "conditional_effect",
     temporal: bool = False,
     target_source: str | None = None,
+    model: str | None = None,
 ) -> str: ...
 def sensitivity_ovb_posterior(
     coefficients: list[list[float]],
@@ -5025,6 +5050,7 @@ def sensitivity_ovb_posterior(
     family: str = "conditional_effect",
     temporal: bool = False,
     target_source: str | None = None,
+    model: str | None = None,
 ) -> str: ...
 def sensitivity_rosenbaum_vector(
     differences: list[list[float]],
@@ -5092,6 +5118,72 @@ def sensitivity_mediation(
     outcome: list[float],
     covariates: list[list[float]],
     *,
+    target_source: str | None = None,
+) -> str: ...
+def sensitivity_mediation_vector(
+    treatment: list[float],
+    mediator: list[float],
+    outcomes: list[list[float]],
+    covariates: list[list[float]],
+    labels: list[str],
+    *,
+    component: str = "indirect",
+    temporal: bool = False,
+    target_source: str | None = None,
+) -> str: ...
+def sensitivity_mediation_paths(
+    treatment: list[float],
+    mediator: list[float],
+    outcomes: list[list[float]],
+    covariates: list[list[float]],
+    labels: list[str],
+    *,
+    path: str = "indirect",
+    q: float = 1.0,
+    alpha: float = 0.05,
+    r2yz_extreme: float = 1.0,
+    temporal: bool = False,
+    target_source: str | None = None,
+) -> str: ...
+def sensitivity_mediation_posterior(
+    beta_mediator: list[list[float]],
+    sigma_total: list[list[float]],
+    sigma_mediator: list[list[float]],
+    rho_tilde: list[list[float]],
+    total_effect: list[list[float]],
+    labels: list[str],
+    *,
+    component: str = "indirect",
+    level: float = 0.95,
+    temporal: bool = False,
+    target_source: str | None = None,
+) -> str: ...
+def sensitivity_msm_parameters(
+    outcome: list[float],
+    exposures: list[list[float]],
+    weights: list[float],
+    labels: list[str],
+    *,
+    q: float = 1.0,
+    alpha: float = 0.05,
+    r2yz_extreme: float = 1.0,
+    temporal: bool = False,
+    target_source: str | None = None,
+) -> str: ...
+def sensitivity_msm_parameters_refit(
+    outcome: list[float],
+    exposures: list[list[float]],
+    treatments: list[list[float]],
+    numerators: list[list[list[float]]],
+    denominators: list[list[list[float]]],
+    labels: list[str],
+    *,
+    replicates: int = 200,
+    seed: int = 1,
+    q: float = 1.0,
+    alpha: float = 0.05,
+    r2yz_extreme: float = 1.0,
+    temporal: bool = False,
     target_source: str | None = None,
 ) -> str: ...
 def target_refutation_plan(
@@ -5448,6 +5540,7 @@ def consume_repair_artifact(
     memory_bytes: int | None = None,
     cancel: CancellationToken | None = None,
 ) -> RepairStage: ...
+
 class FailureStage:
     @property
     def family(self) -> str: ...
@@ -6861,16 +6954,40 @@ def consume_array_fit_artifact(
     max_columns: int = 1_024,
 ) -> tuple[str, str]: ...
 def evaluate_dose_grid_functional(
-    request_json: str, dose: list[float], outcome: list[float], *, threads: int | None = None, max_bytes: int | None = None, cancel: CancellationToken | None = None
+    request_json: str,
+    dose: list[float],
+    outcome: list[float],
+    *,
+    threads: int | None = None,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
 ) -> tuple[str | None, bytes | None, str | None]: ...
 def evaluate_dose_grid_posterior(
-    request_json: str, dose: list[float], outcome: list[float], *, threads: int | None = None, max_bytes: int | None = None, cancel: CancellationToken | None = None
+    request_json: str,
+    dose: list[float],
+    outcome: list[float],
+    *,
+    threads: int | None = None,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
 ) -> tuple[str | None, bytes | None, str | None, ExecutionFacts]: ...
 def consume_dose_grid_posterior_artifact(
-    artifact: bytes, *, max_rows: int = 100_000, max_grid: int = 1_024, threads: int | None = None, max_bytes: int | None = None, cancel: CancellationToken | None = None
+    artifact: bytes,
+    *,
+    max_rows: int = 100_000,
+    max_grid: int = 1_024,
+    threads: int | None = None,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
 ) -> tuple[str | None, str | None, ExecutionFacts]: ...
 def consume_dose_grid_artifact(
-    artifact: bytes, *, max_rows: int = 100_000, max_grid: int = 1_024, threads: int | None = None, max_bytes: int | None = None, cancel: CancellationToken | None = None
+    artifact: bytes,
+    *,
+    max_rows: int = 100_000,
+    max_grid: int = 1_024,
+    threads: int | None = None,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
 ) -> tuple[str | None, str | None]: ...
 def dose_support_labels(
     dose: list[float], points: list[float], bandwidth: float, minimum_local_ess: float
@@ -9557,152 +9674,624 @@ def trajectory_credible_interval_native(
     active: list[bool],
     control: list[bool],
 ) -> tuple[float, float]: ...
-
-def execute_cyclic_system(request_json: str, *, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> tuple[str, bytes, ExecutionFacts]: ...
-def consume_cyclic_system(bytes: bytes, expected_identity: str, *, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> tuple[str, ExecutionFacts]: ...
-def cyclic_parameter_posterior(request_json: str, prior_sd: float, chains: int, warmup: int, draws: int, proposal_scale: float, seed: int, *, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> str: ...
-
-def execute_cyclic_family(request_json: str, *, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> tuple[str, bytes, ExecutionFacts]: ...
-def consume_cyclic_family(bytes: bytes, expected_identity: str, *, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> tuple[str, ExecutionFacts]: ...
+def execute_cyclic_system(
+    request_json: str, *, max_bytes: int | None = None, cancel: CancellationToken | None = None
+) -> tuple[str, bytes, ExecutionFacts]: ...
+def consume_cyclic_system(
+    bytes: bytes,
+    expected_identity: str,
+    *,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str, ExecutionFacts]: ...
+def cyclic_parameter_posterior(
+    request_json: str,
+    prior_sd: float,
+    chains: int,
+    warmup: int,
+    draws: int,
+    proposal_scale: float,
+    seed: int,
+    *,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+def execute_cyclic_family(
+    request_json: str, *, max_bytes: int | None = None, cancel: CancellationToken | None = None
+) -> tuple[str, bytes, ExecutionFacts]: ...
+def consume_cyclic_family(
+    bytes: bytes,
+    expected_identity: str,
+    *,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str, ExecutionFacts]: ...
 
 class _PreparedCyclicSystem:
-    def execute(self, *, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> tuple[str, bytes, ExecutionFacts]: ...
-    def execute_buffers(self, *, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> tuple[str, bytes, NDArray[np.float64], NDArray[np.float64], int, ExecutionFacts]: ...
+    def execute(
+        self, *, max_bytes: int | None = None, cancel: CancellationToken | None = None
+    ) -> tuple[str, bytes, ExecutionFacts]: ...
+    def execute_buffers(
+        self, *, max_bytes: int | None = None, cancel: CancellationToken | None = None
+    ) -> tuple[str, bytes, NDArray[np.float64], NDArray[np.float64], int, ExecutionFacts]: ...
     def request_json(self) -> str: ...
     def initial_state(self) -> list[float]: ...
     def inspect(self) -> str: ...
-    def retarget(self, worlds_json: str, noise_json: str, initial_json: str) -> _PreparedCyclicSystem: ...
-    def retarget_buffers(self, worlds_json: str, noise: NDArray[np.float64], initial: list[float]) -> _PreparedCyclicSystem: ...
-    def refresh_buffers(self, rows_json: str, observations: NDArray[np.float64], *, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> _PreparedCyclicSystem: ...
-    def to_family(self, *, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> _PreparedCyclicFamily: ...
+    def retarget(
+        self, worlds_json: str, noise_json: str, initial_json: str
+    ) -> _PreparedCyclicSystem: ...
+    def retarget_buffers(
+        self, worlds_json: str, noise: NDArray[np.float64], initial: list[float]
+    ) -> _PreparedCyclicSystem: ...
+    def refresh_buffers(
+        self,
+        rows_json: str,
+        observations: NDArray[np.float64],
+        *,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _PreparedCyclicSystem: ...
+    def to_family(
+        self, *, max_bytes: int | None = None, cancel: CancellationToken | None = None
+    ) -> _PreparedCyclicFamily: ...
     def contract(self) -> str: ...
-def prepare_cyclic_system(request_json: str, *, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> _PreparedCyclicSystem: ...
-def prepare_cyclic_system_buffers(metadata: str, noise: NDArray[np.float64], observations: NDArray[np.float64], *, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> _PreparedCyclicSystem: ...
+
+def prepare_cyclic_system(
+    request_json: str, *, max_bytes: int | None = None, cancel: CancellationToken | None = None
+) -> _PreparedCyclicSystem: ...
+def prepare_cyclic_system_buffers(
+    metadata: str,
+    noise: NDArray[np.float64],
+    observations: NDArray[np.float64],
+    *,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> _PreparedCyclicSystem: ...
 
 class _PreparedCyclicFamily:
-    def rebind(self, request_json: str, *, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> _PreparedCyclicFamily: ...
-    def evidence(self, schema_json: str, selectors_json: str, *, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> _CyclicEvidence: ...
-    def execute(self, *, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> tuple[str, bytes, ExecutionFacts]: ...
-    def interventions(self, *, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> tuple[str, ExecutionFacts]: ...
+    def rebind(
+        self,
+        request_json: str,
+        *,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _PreparedCyclicFamily: ...
+    def evidence(
+        self,
+        schema_json: str,
+        selectors_json: str,
+        *,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _CyclicEvidence: ...
+    def execute(
+        self, *, max_bytes: int | None = None, cancel: CancellationToken | None = None
+    ) -> tuple[str, bytes, ExecutionFacts]: ...
+    def interventions(
+        self, *, max_bytes: int | None = None, cancel: CancellationToken | None = None
+    ) -> tuple[str, ExecutionFacts]: ...
     def inspect(self) -> str: ...
     def contract(self) -> str: ...
-def prepare_cyclic_family(request_json: str, *, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> _PreparedCyclicFamily: ...
-def prepare_cyclic_experimental_recovery(request_json: str, *, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> _PreparedCyclicFamily: ...
 
-def execute_local_cyclic(request_json: str, callbacks: list[Any], *, max_bytes: int | None = None, cancel: Any = None) -> str: ...
+def prepare_cyclic_family(
+    request_json: str, *, max_bytes: int | None = None, cancel: CancellationToken | None = None
+) -> _PreparedCyclicFamily: ...
+def prepare_cyclic_experimental_recovery(
+    request_json: str, *, max_bytes: int | None = None, cancel: CancellationToken | None = None
+) -> _PreparedCyclicFamily: ...
+def execute_local_cyclic(
+    request_json: str, callbacks: list[Any], *, max_bytes: int | None = None, cancel: Any = None
+) -> str: ...
 
 class _CyclicEvidence:
     def report(self) -> str: ...
-    def export(self, *, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> bytes: ...
-    def joint_law(self, *, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> JointDistributionArtifact: ...
+    def export(
+        self, *, max_bytes: int | None = None, cancel: CancellationToken | None = None
+    ) -> bytes: ...
+    def joint_law(
+        self, *, max_bytes: int | None = None, cancel: CancellationToken | None = None
+    ) -> JointDistributionArtifact: ...
     def decide_means(self, contract_json: str) -> str: ...
     def decide_enclosures(self, contract_json: str) -> str: ...
-def consume_cyclic_evidence(bytes: bytes, expected_identity: str, *, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> _CyclicEvidence: ...
 
+def consume_cyclic_evidence(
+    bytes: bytes,
+    expected_identity: str,
+    *,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> _CyclicEvidence: ...
 
 class _JointPanelResult:
     @property
     def execution_facts(self) -> ExecutionFacts: ...
     def experiment_quantity(self, functional_json: str) -> str: ...
-    def condition_experiment(self, declaration_json: str, ledger: EvidenceLedgerHandle, *, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> _JointPanelExperiment: ...
+    def condition_experiment(
+        self,
+        declaration_json: str,
+        ledger: EvidenceLedgerHandle,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _JointPanelExperiment: ...
     def report(self) -> str: ...
     def scheduled_contrast(self, functional_json: str, level: float) -> str: ...
-    def certify_program(self, declaration_json: str, *, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> _PanelProgramCertificate: ...
-    def search_program(self, declaration_json: str, *, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> str: ...
-    def decompose_reference(self, declaration_json: str, *, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> str: ...
-    def export(self, *, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> bytes: ...
+    def certify_program(
+        self,
+        declaration_json: str,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _PanelProgramCertificate: ...
+    def search_program(
+        self,
+        declaration_json: str,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
+    def decompose_reference(
+        self,
+        declaration_json: str,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
+    def export(
+        self,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> bytes: ...
 
 class _PreparedJointPanel:
     def inspect(self) -> str: ...
-    def estimate(self, *, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> _JointPanelResult: ...
-    def retarget(self, worlds_json: str, *, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> _PreparedJointPanel: ...
+    def estimate(
+        self,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _JointPanelResult: ...
+    def retarget(
+        self,
+        worlds_json: str,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _PreparedJointPanel: ...
 
-def prepare_joint_panel(declaration_json: str, *, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> _PreparedJointPanel: ...
-def consume_joint_panel(bytes: bytes, *, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> str: ...
-def consume_panel_program_certificate(bytes: bytes, *, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> str: ...
-
+def prepare_joint_panel(
+    declaration_json: str,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> _PreparedJointPanel: ...
+def consume_joint_panel(
+    bytes: bytes,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+def consume_panel_program_certificate(
+    bytes: bytes,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
 
 class _PanelProgramCertificate:
     def report(self) -> str: ...
-    def export(self, *, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> bytes: ...
-    def verify_current(self, bytes: bytes, *, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> None: ...
+    def export(
+        self,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> bytes: ...
+    def verify_current(
+        self,
+        bytes: bytes,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> None: ...
 
 class _PreparedRandomizedProgramSelection:
-    def execute(self, *, repetitions: int = 199, tie_tolerance: float = 0.0, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> _RandomizedProgramSelection: ...
-    def simultaneous_intervals(self, *, repetitions: int = 199, level: float = 0.95, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> str: ...
+    def execute(
+        self,
+        *,
+        repetitions: int = 199,
+        tie_tolerance: float = 0.0,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _RandomizedProgramSelection: ...
+    def simultaneous_intervals(
+        self,
+        *,
+        repetitions: int = 199,
+        level: float = 0.95,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
 
 class _RandomizedProgramSelection:
     def report(self) -> str: ...
     def export(self) -> bytes: ...
-    def verify_current(self, bytes: bytes, *, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> None: ...
+    def verify_current(
+        self,
+        bytes: bytes,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> None: ...
 
 class _InstrumentedProgramSelection:
     def report(self) -> str: ...
     def export(self) -> bytes: ...
-    def verify_current(self, bytes: bytes, *, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> None: ...
+    def verify_current(
+        self,
+        bytes: bytes,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> None: ...
 
-def prepare_randomized_program_selection(declaration_json: str, *, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> _PreparedRandomizedProgramSelection: ...
-def consume_randomized_program_selection(bytes: bytes, *, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> str: ...
-def select_instrumented_program(declaration_json: str, *, repetitions: int = 199, tie_tolerance: float = 0.0, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> _InstrumentedProgramSelection: ...
-def consume_instrumented_selection(bytes: bytes, *, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> str: ...
+def prepare_randomized_program_selection(
+    declaration_json: str,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> _PreparedRandomizedProgramSelection: ...
+def consume_randomized_program_selection(
+    bytes: bytes,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+def select_instrumented_program(
+    declaration_json: str,
+    *,
+    repetitions: int = 199,
+    tie_tolerance: float = 0.0,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> _InstrumentedProgramSelection: ...
+def consume_instrumented_selection(
+    bytes: bytes,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
 
 class _JointPanelExperiment:
     def report(self, ledger: EvidenceLedgerHandle) -> str: ...
     def decide(self, contract_json: str, ledger: EvidenceLedgerHandle) -> str: ...
-    def rank_next_samples(self, declaration_json: str, ledger: EvidenceLedgerHandle, *, replicates: int = 199, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> str: ...
-    def export(self, ledger: EvidenceLedgerHandle, *, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> bytes: ...
-    def verify_current(self, bytes: bytes, ledger: EvidenceLedgerHandle, *, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> None: ...
+    def rank_next_samples(
+        self,
+        declaration_json: str,
+        ledger: EvidenceLedgerHandle,
+        *,
+        replicates: int = 199,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
+    def export(
+        self,
+        ledger: EvidenceLedgerHandle,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> bytes: ...
+    def verify_current(
+        self,
+        bytes: bytes,
+        ledger: EvidenceLedgerHandle,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> None: ...
 
 class _JointDesignExperiment:
     def report(self, ledger: EvidenceLedgerHandle) -> str: ...
     def decide(self, contract_json: str, ledger: EvidenceLedgerHandle) -> str: ...
-    def rank_next_samples(self, declaration_json: str, ledger: EvidenceLedgerHandle, *, replicates: int = 199, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> str: ...
-    def export(self, ledger: EvidenceLedgerHandle, *, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> bytes: ...
-    def verify_current(self, bytes: bytes, ledger: EvidenceLedgerHandle, *, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> None: ...
+    def rank_next_samples(
+        self,
+        declaration_json: str,
+        ledger: EvidenceLedgerHandle,
+        *,
+        replicates: int = 199,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
+    def export(
+        self,
+        ledger: EvidenceLedgerHandle,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> bytes: ...
+    def verify_current(
+        self,
+        bytes: bytes,
+        ledger: EvidenceLedgerHandle,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> None: ...
 
 def joint_panel_experiment_acceptance_matrix() -> str: ...
 
 class _PreparedJointDesign:
     def proof(self) -> str: ...
-    def execute(self, inference_json: str, *, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> _JointDesignResult: ...
-    def consume_current(self, artifact: bytes, *, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> _JointDesignResult: ...
+    def execute(
+        self,
+        inference_json: str,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _JointDesignResult: ...
+    def consume_current(
+        self,
+        artifact: bytes,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _JointDesignResult: ...
 
 class _JointDesignResult:
-    def export_reference_decomposition(self, declaration_json: str, *, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> bytes: ...
-    def consume_reference_decomposition_current(self, artifact: bytes, declaration_json: str, *, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> str: ...
+    def export_reference_decomposition(
+        self,
+        declaration_json: str,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> bytes: ...
+    def consume_reference_decomposition_current(
+        self,
+        artifact: bytes,
+        declaration_json: str,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
     def report(self) -> str: ...
     def posterior_quantities(self) -> str: ...
     def export(self) -> bytes: ...
     def experiment_quantity(self, functional_json: str) -> str: ...
-    def condition_experiment(self, declaration_json: str, ledger: EvidenceLedgerHandle, *, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> _JointDesignExperiment: ...
-    def decompose_population_reference(self, declaration_json: str, *, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> str: ...
-    def export_population_reference(self, declaration_json: str, *, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> bytes: ...
-    def consume_population_reference_current(self, artifact: bytes, declaration_json: str, *, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> str: ...
-    def decompose_reference_components(self, declaration_json: str, *, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> str: ...
+    def condition_experiment(
+        self,
+        declaration_json: str,
+        ledger: EvidenceLedgerHandle,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _JointDesignExperiment: ...
+    def decompose_population_reference(
+        self,
+        declaration_json: str,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
+    def export_population_reference(
+        self,
+        declaration_json: str,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> bytes: ...
+    def consume_population_reference_current(
+        self,
+        artifact: bytes,
+        declaration_json: str,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
+    def decompose_reference_components(
+        self,
+        declaration_json: str,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
 
 class _PreparedNativeJointDesign:
     def identification(self) -> str: ...
-    def execute(self, inference_json: str, *, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> _NativeJointDesignResult: ...
-    def consume_current(self, artifact: bytes, *, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> _NativeJointDesignResult: ...
+    def execute(
+        self,
+        inference_json: str,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _NativeJointDesignResult: ...
+    def consume_current(
+        self,
+        artifact: bytes,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _NativeJointDesignResult: ...
 
 class _NativeJointDesignResult:
     def experiment_quantity(self, binding_json: str) -> str: ...
-    def condition_native_experiment(self, binding_json: str, declaration_json: str, ledger: EvidenceLedgerHandle, *, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> _NativeJointExperiment: ...
+    def condition_native_experiment(
+        self,
+        binding_json: str,
+        declaration_json: str,
+        ledger: EvidenceLedgerHandle,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _NativeJointExperiment: ...
     def report(self) -> str: ...
     def export(self) -> bytes: ...
 
-def prepare_joint_design(target_json: str, proof_json: str, *, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> _PreparedJointDesign: ...
-def prepare_joint_design_for_panel(panel_result: _JointPanelResult, proof_json: str, *, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> _PreparedJointDesign: ...
-def replay_joint_design(artifact: bytes, *, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> str: ...
-def prepare_native_joint_design(recipe_json: str, *, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> _PreparedNativeJointDesign: ...
-def replay_native_joint_design(artifact: bytes, *, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> str: ...
-def replay_population_reference(artifact: bytes, *, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> str: ...
+def prepare_joint_design(
+    target_json: str,
+    proof_json: str,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> _PreparedJointDesign: ...
+def prepare_joint_design_for_panel(
+    panel_result: _JointPanelResult,
+    proof_json: str,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> _PreparedJointDesign: ...
+def replay_joint_design(
+    artifact: bytes,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+def prepare_native_joint_design(
+    recipe_json: str,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> _PreparedNativeJointDesign: ...
+def replay_native_joint_design(
+    artifact: bytes,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+def replay_population_reference(
+    artifact: bytes,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
 
 class _NativeJointExperiment:
     def report(self, ledger: EvidenceLedgerHandle) -> str: ...
     def decide(self, contract_json: str, ledger: EvidenceLedgerHandle) -> str: ...
-    def rank_next_samples(self, declaration_json: str, ledger: EvidenceLedgerHandle, *, replicates: int = 199, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> str: ...
-    def export(self, ledger: EvidenceLedgerHandle, *, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> bytes: ...
-    def verify_current(self, bytes: bytes, ledger: EvidenceLedgerHandle, *, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> None: ...
+    def rank_next_samples(
+        self,
+        declaration_json: str,
+        ledger: EvidenceLedgerHandle,
+        *,
+        replicates: int = 199,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
+    def export(
+        self,
+        ledger: EvidenceLedgerHandle,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> bytes: ...
+    def verify_current(
+        self,
+        bytes: bytes,
+        ledger: EvidenceLedgerHandle,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> None: ...
 
-def replay_reference_decomposition(artifact: bytes, *, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> str: ...
+def replay_reference_decomposition(
+    artifact: bytes,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...

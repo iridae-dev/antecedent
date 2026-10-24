@@ -17,7 +17,7 @@ use crate::error::EstimationError;
 use crate::overlap::{IpwTarget, OverlapPolicy};
 use crate::sampling_weights::SamplingWeights;
 use crate::se::AnalyticSeKind;
-use crate::util::BootstrapSeResult;
+use crate::util::BootstrapOutcome;
 
 /// A score-inverted interval for the calibrated weighted-population contrast. The common
 /// population-mass denominator and its covariance with the full effect influence enter the
@@ -107,6 +107,12 @@ pub struct PropensityWeighting {
     /// cluster labels or panel times imply; declared, a resample the design does not allow
     /// (a row-level draw under a trajectory design, say) is refused.
     pub sampling_design: crate::util::SamplingDeclaration,
+    /// A requested bootstrap interval. When set, the bootstrap runs as the wave procedure that
+    /// stops on the request's Monte Carlo tolerances (capped by
+    /// [`Self::bootstrap_replicates`]) and reports its interval, waves, Monte Carlo error and
+    /// stop reason in [`crate::EstimateDiagnostics::resampling`]. `None` runs the fixed-count
+    /// bootstrap exactly as before.
+    pub bootstrap_interval: Option<crate::util::IntervalRequest>,
 }
 
 impl Default for PropensityWeighting {
@@ -131,7 +137,16 @@ impl PropensityWeighting {
             cluster_ids: None,
             source_cluster_ids: None,
             sampling_design: crate::util::SamplingDeclaration::Undeclared,
+            bootstrap_interval: None,
         }
+    }
+
+    /// Request a bootstrap interval produced by the complete fit/resample/stop/interval
+    /// procedure (see [`Self::bootstrap_interval`]).
+    #[must_use]
+    pub const fn with_bootstrap_interval(mut self, request: crate::util::IntervalRequest) -> Self {
+        self.bootstrap_interval = Some(request);
+        self
     }
 
     /// Set the number of bootstrap replicates used for the bootstrap standard error.
@@ -442,7 +457,7 @@ impl PropensityWeighting {
         let target = IpwTarget::from_population(&problem.target_population)?;
         let trim = trim_of(problem.overlap);
         let boot = self.bootstrap_se(problem, target, trim, workspace, ctx)?;
-        Ok(point.with_bootstrap(Some(boot)))
+        Ok(point.with_bootstrap_outcome(boot))
     }
 
     fn fit_point(
@@ -564,7 +579,7 @@ impl PropensityWeighting {
         trim: Option<f64>,
         _workspace: &mut PropensityEstimationWorkspace,
         ctx: &ExecutionContext,
-    ) -> Result<BootstrapSeResult, EstimationError> {
+    ) -> Result<BootstrapOutcome, EstimationError> {
         let n = problem.nrows;
         // Replicates own a cold workspace. A warm logistic start would change the replicate fit.
         let replicate = |scratch: &mut IpwReplicate, idx: &[usize]| {
@@ -578,7 +593,8 @@ impl PropensityWeighting {
             problem.design_ncols + 5,
             self.bootstrap_replicates,
         )?;
-        crate::util::bootstrap_by_design(
+        crate::util::bootstrap_outcome_by_design(
+            self.bootstrap_interval.as_ref(),
             crate::util::BootstrapDesign {
                 clusters: labels.as_deref(),
                 series_block: None,

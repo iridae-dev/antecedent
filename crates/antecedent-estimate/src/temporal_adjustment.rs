@@ -24,9 +24,9 @@ use antecedent_data::{
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_model::history_operators::{
     ActionTiming, CensoringAssignmentWeight, HistoryConstruction, HistoryOperatorError,
-    HistoryScan, Horizon,
+    HistoryScan, Horizon, SequentialRegression,
 };
-use antecedent_stats::{CompiledDesign, DenseLinearAlgebra};
+use antecedent_stats::CompiledDesign;
 
 use crate::adjustment::{
     EffectEstimate, EstimationWorkspace, LinearAdjustmentAte, PreparedEstimationProblem,
@@ -158,10 +158,11 @@ impl GapSelection {
 /// Apply the series' sampling weights to a lag-aligned design: window `r` is weighted by the
 /// weight of the observation it ends at, series time `first_time + r`.
 ///
-/// A window of weight zero stays in the design, scaled to nothing, so the windows keep their
-/// consecutive times (the block bootstrap and the HAC lags need them) and contribute no score.
-/// The weights are normalized to mean one over the windows of positive weight. A series with
-/// gaps, whose windows are not consecutive, refuses.
+/// The weights are the weight operator's: [`CensoringAssignmentWeight::window_weights`]
+/// admits them on the query's frame and normalizes them to mean one over the windows of
+/// positive weight. A window of weight zero stays in the design, scaled to nothing, so the
+/// windows keep their consecutive times (the block bootstrap and the HAC lags need them) and
+/// contribute no score. A series with gaps, whose windows are not consecutive, refuses.
 ///
 /// # Errors
 ///
@@ -170,6 +171,7 @@ impl GapSelection {
 fn weight_windows(
     design: CompiledDesign,
     data: &TimeSeriesData,
+    query: &TemporalEffectQuery,
     first_time: usize,
     windows: usize,
     allow_gaps: bool,
@@ -188,20 +190,25 @@ fn weight_windows(
             "the series' sampling weights do not cover its lag-aligned windows",
         ));
     };
-    let positive: Vec<f64> = window_weights.iter().copied().filter(|w| *w > 0.0).collect();
-    if positive.is_empty() {
-        return Err(crate::sampling_weights::invalid(
-            "no lag window has a positive sampling weight; the weighted population is empty",
-        ));
-    }
-    let zero_weight_windows = (window_weights.len() - positive.len()) as u64;
-    let retained = crate::sampling_weights::RetainedSamplingWeights::from_positive(
-        &positive,
-        zero_weight_windows,
-    );
-    let scale = positive.len() as f64 / positive.iter().sum::<f64>();
-    let normalized: Vec<f64> = window_weights.iter().map(|w| w * scale).collect();
-    Ok((crate::sampling_weights::root_weight_design(design, &normalized), Some(retained.record)))
+    let cadence = data.time_index();
+    let operator = CensoringAssignmentWeight::try_new(
+        cadence.clone(),
+        query_horizon_end(cadence, query.horizon_steps)?,
+        InitialLaw::contemporaneous_observed(),
+        1.0,
+        1.0,
+    )
+    .map_err(|error| history_operator_refusal(&error))?;
+    let windowed = operator
+        .window_weights(window_weights)
+        .map_err(|error| crate::sampling_weights::invalid(&error.to_string()))?;
+    let record = crate::sampling_weights::SamplingWeightRecord {
+        rows_used: windowed.rows_used as u64,
+        zero_weight_rows: windowed.zero_weight_windows as u64,
+        effective_sample_size: windowed.effective_sample_size,
+        weight_sum: windowed.weight_sum,
+    };
+    Ok((crate::sampling_weights::root_weight_design(design, &windowed.weights), Some(record)))
 }
 
 /// Temporal linear adjustment for unfolded backdoor estimands.
@@ -494,7 +501,7 @@ impl TemporalLinearAdjustment {
         let design = CompiledDesign::linear_adjustment(&t_sel, &cov_sel_refs, &y_sel, &selected)
             .map_err(EstimationError::from)?;
         let (design, sampling_weights) =
-            weight_windows(design, data, max_lag as usize + row_start, nrows, allow_gaps)?;
+            weight_windows(design, data, query, max_lag as usize + row_start, nrows, allow_gaps)?;
         let selection = complete.as_ref().map(|intact| GapSelection {
             first_time: max_lag as usize + row_start,
             complete: intact[row_start..row_end].to_vec(),
@@ -1164,8 +1171,7 @@ fn slope_ridge_coefficients(
         aug_x[col * aug_n + row] = root;
     }
     let mut aug_ws = antecedent_stats::LeastSquaresWorkspace::default();
-    Ok(antecedent_stats::FaerBackend
-        .least_squares(&aug_x, aug_n, ncols, &aug_y, &mut aug_ws)
+    Ok(SequentialRegression::solve_design(&aug_x, aug_n, ncols, &aug_y, None, &mut aug_ws)
         .map_err(crate::util::stats_err)?
         .coefficients)
 }
@@ -1299,8 +1305,7 @@ pub fn temporal_conditional_marginal_effect_with_gaps(
         design[base..base + n].copy_from_slice(column);
     }
     let mut ws = antecedent_stats::LeastSquaresWorkspace::default();
-    let fit = antecedent_stats::FaerBackend
-        .least_squares(&design, n, ncols, y, &mut ws)
+    let fit = SequentialRegression::solve_design(&design, n, ncols, y, None, &mut ws)
         .map_err(crate::util::stats_err)?;
     let mut coef = fit.coefficients;
     if let Some(scale) = prior_scale {
@@ -1415,8 +1420,7 @@ pub fn temporal_linear_slopes(
         design[base..base + n].copy_from_slice(column);
     }
     let mut ws = antecedent_stats::LeastSquaresWorkspace::default();
-    let fit = antecedent_stats::FaerBackend
-        .least_squares(&design, n, ncols, y, &mut ws)
+    let fit = SequentialRegression::solve_design(&design, n, ncols, y, None, &mut ws)
         .map_err(crate::util::stats_err)?;
     let mut coef = fit.coefficients;
     if let Some(scale) = prior_scale {
@@ -1514,8 +1518,7 @@ pub fn nested_direct_fit_moments(
             ));
         }
         let mut ws = antecedent_stats::LeastSquaresWorkspace::default();
-        let coef = antecedent_stats::FaerBackend
-            .least_squares(&design, n, ncols, y, &mut ws)
+        let coef = SequentialRegression::solve_design(&design, n, ncols, y, None, &mut ws)
             .map_err(crate::util::stats_err)?
             .coefficients;
         let sigma2 = crate::util::ols_sigma2(&design, n, ncols, y, &coef).max(1e-12);

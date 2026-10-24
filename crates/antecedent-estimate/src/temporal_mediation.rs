@@ -21,7 +21,7 @@ use antecedent_core::{
 };
 use antecedent_data::{LaggedColumn, TimeSeriesData};
 use antecedent_expr::IdentifiedEstimand;
-use antecedent_model::history_operators::HistoryScan;
+use antecedent_model::history_operators::{HistoryScan, SequentialRegression};
 use antecedent_stats::{FaerBackend, LeastSquaresWorkspace};
 
 use crate::adjustment::{EffectEstimate, intervention_f64};
@@ -846,13 +846,14 @@ fn ols_fit(
 
 /// `(coefficients, residuals)` of one least-squares fit.
 fn ols_fit_with_residuals(
-    backend: FaerBackend,
+    _backend: FaerBackend,
     design_colmajor: &[f64],
     ncols: usize,
     y: &[f64],
 ) -> Result<(Vec<f64>, Vec<f64>), EstimationError> {
     let mut ws = LeastSquaresWorkspace::default();
-    let fit = crate::util::ls_fit(backend, design_colmajor, y.len(), ncols, y, &mut ws)?;
+    let fit = SequentialRegression::solve_design(design_colmajor, y.len(), ncols, y, None, &mut ws)
+        .map_err(crate::util::stats_err)?;
     Ok((fit.coefficients, fit.residuals))
 }
 

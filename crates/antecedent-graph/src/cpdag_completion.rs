@@ -368,6 +368,34 @@ mod tests {
     }
 
     #[test]
+    fn partial_orientation_storage_is_leased_before_it_is_allocated() {
+        use antecedent_core::execution::AdmissionPool;
+        let g = complete_undirected(6);
+        let limits = SearchLimits { operations: 1_000_000, depth: usize::MAX };
+        // A pool with one byte free funds no block of states: the search stops on memory
+        // before it stacks anything, yields nothing, and leases nothing.
+        let pool = AdmissionPool::fixed(1, 1 << 20);
+        let ctx = ExecutionContext::for_tests(0).with_admission(pool.clone());
+        let held = ctx.acquire_admission(0, (1 << 20) - 1).unwrap();
+        let mut sampler = CpdagCompletionSampler::with_budget(g.clone(), 64, limits, &ctx).unwrap();
+        assert!(sampler.next().is_none());
+        assert_eq!(sampler.search_stop(), Some(SearchStop::Memory));
+        assert_eq!(pool.available().bytes(), 1);
+        drop(sampler);
+        drop(held);
+        assert_eq!(pool.available().bytes(), 1 << 20);
+        // The same class under an ample pool completes, and the leases return with the sampler.
+        let ample = AdmissionPool::fixed(1, 1 << 30);
+        let ctx = ExecutionContext::for_tests(0).with_admission(ample.clone());
+        let mut sampler = CpdagCompletionSampler::with_budget(g, 1_000, limits, &ctx).unwrap();
+        assert_eq!(sampler.by_ref().count(), 720);
+        assert_eq!(sampler.search_stop(), None);
+        assert!(ample.available().bytes() < 1 << 30);
+        drop(sampler);
+        assert_eq!(ample.available().bytes(), 1 << 30);
+    }
+
+    #[test]
     fn cancellation_is_honoured_within_one_state_expansion() {
         let g = complete_undirected(8);
         let limits = SearchLimits { operations: 1_000_000, depth: usize::MAX };

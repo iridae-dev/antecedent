@@ -91,9 +91,15 @@ on every refit.
   circular blocks of a series, or whole units of a panel.
 - **Series bootstrap.** A circular-block bootstrap with the dependence-aware
   block length, carried as row multiplicities: each design row keeps its own
-  lag window, so no lag is read across a block join. A route without a weighted
-  construction (anything but the frequentist single-window temporal linear
-  adjustment today) records the refuter as refused with the route's reason.
+  lag window, so no lag is read across a block join. A series that carries
+  sampling weights keeps them: the multiplicities multiply each row's own
+  weight, and a route that reads no row weights is given the gathered
+  circular-block series instead, in which every row carries the weight, the
+  missing values and the analysis mask of the row it was gathered from (a row
+  whose lag window crosses a block join gets weight zero). Independent
+  environments (`PreparedTargetData::MultiEnv`) are perturbed one environment at
+  a time by the same rules and re-run together; a panel resamples whole units,
+  each with its own weights.
 - **Placebo timing and pre-period outcome on one series.** `target.pre_trend`
   puts the treatment `pre_trend_lead` periods later in the treatment's role;
   its lags in the design are the actual treatment path, so the coefficient is
@@ -111,7 +117,13 @@ on every refit.
 - **Bayesian prior sensitivity.** The study is compiled under each alternative
   isotropic prior scale (`prior_scale_factors` times its own) and the posterior
   of the whole target is read back. An explicit coefficient prior set has no
-  single scale and is refused with the next attempt.
+  single scale: every Gaussian coefficient standard deviation of the set is
+  multiplied by the factor around its own means (variances by the factor
+  squared), and the study is compiled under each scaled set. A prior hydrated
+  from a posterior artifact, or composed from external sources, exists only once
+  the design is bound, so the same factor is applied where the route resolves it
+  (`BayesianConfig::prior_variance_multiplier`, the squared factor on every
+  Gaussian coefficient variance of the prior in force).
 - **Posterior-predictive check.** Under the reference linear-Gaussian outcome
   model of the treatment and adjustment set, each posterior draw's noiseless
   outcome gives the target of the draw and its noisy replicate gives a
@@ -169,6 +181,26 @@ The confounding structure stays an assumption of the analysis; the posterior
 variants carry uncertainty about the effect through it and do not make the
 confounding assumption testable. A range is bound to its target, so a scalar
 range cannot be cited for a vector claim.
+
+### Mediation components and marginal structural model parameters
+
+| Function | Reads | Assumption relaxed |
+| --- | --- | --- |
+| `validation.mediation_sensitivity_vector` | one mediator and several outcomes (or horizons); `component="indirect"` or `"direct"` | sequential ignorability of the mediator: the error correlation `ρ` of Imai, Keele and Yamamoto (2010). The total effect does not depend on `ρ`, so the direct effect is the total minus the indirect effect at `ρ`; the indirect effect vanishes at the residual correlation `ρ̃` and the direct effect at `w / sqrt(1 + w²)`, `w = (ρ̃ - β₁/A) / sqrt(1 - ρ̃²)`, `A = β₂σ₁/σ₂`. The break-even is the correlation of smallest magnitude at which some outcome's component reaches zero |
+| `validation.mediation_sensitivity_posterior` | coordinate-major draws of the mediator coefficient, the two residual standard deviations, their correlation and the total effect | the same, draw by draw; `test` is the joint posterior probability that every outcome keeps its side, `break_even` the correlation at which the weakest posterior median reaches zero and `break_even_significance` the same for the credible limit |
+| `validation.msm_parameter_sensitivity` | an outcome, the exposure terms of a marginal structural model and its subject weights | sequential exchangeability (no unmeasured time-varying confounding): the model is fitted by weighted least squares with the weights held fixed, each exposure parameter has a robust (HC1) standard error and the effective degrees of freedom `(Σw)²/Σw² - p`, and the partial-R² range is read at the weakest parameter |
+| `model="mediation"` or `model="marginal_structural"` on `evalue_vector`, `evalue_posterior`, `omitted_variable_bias_vector`, `omitted_variable_bias_posterior` | the E-value or partial-R² analysis of a mediation component or an MSM parameter | no unmeasured mediator-outcome confounding (treatment unconfounded), or sequential exchangeability; the range records that assumption in its identity |
+
+| `validation.mediation_path_sensitivity` | one mediator and several outcomes; `path="treatment_mediator"`, `"mediator_outcome"`, `"treatment_outcome"` (the direct effect given the mediator) or `"indirect"` | no unmeasured confounding of that path (each bound to its own assumption); for `"indirect"` both paths are confounded at the tested strength, each coefficient moving toward zero by its own worst-case bias, the share left is the product of the two paths' shares and the break-even is the equal partial R² at which that product falls to `1 - q` (at `q = 1`, the smaller of the two robustness values) |
+| `validation.msm_parameter_sensitivity_refit` | as `msm_parameter_sensitivity`, with the stabilized-weight models of each time point | as above, with every weight model refitted in each unit-bootstrap replicate, so the standard error carries the cost of estimating the weights |
+
+Each single path is the Cinelli and Hazlett analysis of that regression
+coefficient (`T → M` in the mediator regression, `M → Y` and `T → Y` in the
+outcome regression). The weight-refit standard error is the spread of the
+bootstrap replicates; the robust error that holds estimated weights fixed is
+reported beside it (`fixed_weight_standard_error`) and is conservative for an
+estimated denominator model, so the plain `msm_parameter_sensitivity` is a
+conservative analysis and the refit one the one that matches repeated sampling.
 
 The marginal sensitivity model (`msm_sensitivity`) and the decision
 sensitivity grid are unchanged; they remain the analyses for bounded

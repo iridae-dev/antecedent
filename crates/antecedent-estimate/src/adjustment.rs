@@ -262,6 +262,12 @@ pub struct LinearAdjustmentAte {
     pub preparation_budget: Option<PreparationBudget>,
     /// Explicit contrasts for categorical adjustment columns, in request order.
     pub contrasts: Vec<(VariableId, Contrast)>,
+    /// A requested bootstrap interval. When set, the bootstrap runs as the wave procedure that
+    /// stops on the request's Monte Carlo tolerances (capped by
+    /// [`Self::bootstrap_replicates`]) and reports its interval, waves, Monte Carlo error and
+    /// stop reason in [`crate::EstimateDiagnostics::resampling`]. `None` runs the fixed-count
+    /// bootstrap exactly as before.
+    pub bootstrap_interval: Option<crate::util::IntervalRequest>,
 }
 
 impl Default for LinearAdjustmentAte {
@@ -289,7 +295,16 @@ impl LinearAdjustmentAte {
             sampling_weights: None,
             preparation_budget: None,
             contrasts: Vec::new(),
+            bootstrap_interval: None,
         }
+    }
+
+    /// Request a bootstrap interval produced by the complete fit/resample/stop/interval
+    /// procedure (see [`Self::bootstrap_interval`]).
+    #[must_use]
+    pub const fn with_bootstrap_interval(mut self, request: crate::util::IntervalRequest) -> Self {
+        self.bootstrap_interval = Some(request);
+        self
     }
 
     /// Admit preparation only when the resident payload fits `budget`.
@@ -994,7 +1009,10 @@ impl LinearAdjustmentAte {
                 .ok_or_else(|| EstimationError::stats_msg("missing treatment column"))?;
             Some(self.bootstrap_se(problem, workspace, ctx, t_col)?)
         };
-        Ok(point.with_bootstrap(boot))
+        Ok(match boot {
+            Some(outcome) => point.with_bootstrap_outcome(outcome),
+            None => point.with_bootstrap(None),
+        })
     }
 
     fn fit_coefficients(
@@ -1146,7 +1164,7 @@ impl LinearAdjustmentAte {
         _workspace: &mut EstimationWorkspace,
         ctx: &ExecutionContext,
         t_col: usize,
-    ) -> Result<crate::util::BootstrapSeResult, EstimationError> {
+    ) -> Result<crate::util::BootstrapOutcome, EstimationError> {
         let n = problem.design.nrows;
         let p = problem.design.ncols;
         // Replicates own a cold workspace. The caller's scratch stays untouched: parallel
@@ -1166,7 +1184,8 @@ impl LinearAdjustmentAte {
         let series_block = self.series_block(n);
         // Each worker gathers `n * p` design cells and `n` outcomes.
         let _gather = crate::util::admit_gather_scratch(ctx, n, p + 1, self.bootstrap_replicates)?;
-        crate::util::bootstrap_by_design(
+        crate::util::bootstrap_outcome_by_design(
+            self.bootstrap_interval.as_ref(),
             crate::util::BootstrapDesign {
                 clusters: clusters.as_deref(),
                 series_block,
@@ -2022,6 +2041,69 @@ mod tests {
         let identity: Vec<usize> = (0..prep.design.nrows).collect();
         let resampled = est.ate_on_row_indices(&prep, &mut ws, &identity).unwrap();
         assert!((resampled - effect.ate).abs() < 1e-12);
+    }
+
+    /// A requested interval is produced by the whole procedure on the production estimator: a
+    /// request whose tolerances are never met runs the declared replicate count and reproduces
+    /// the fixed-count bootstrap's standard error bit for bit, while a met tolerance stops on a
+    /// wave boundary below the cap. The waves, Monte Carlo error and stop reason are reported
+    /// beside the interval, and a fit with no request reports none.
+    #[test]
+    fn a_requested_interval_runs_the_complete_resampling_procedure() {
+        use crate::adaptive_resample_waves::StopReason;
+        let (data, estimand) = toy_with(|i, t, z| 1.0 + 2.0 * t + z + ((i * i) % 7) as f64 - 3.0);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let ctx = ExecutionContext::for_tests(1);
+        let fit = |est: &LinearAdjustmentAte| {
+            let prep = est.prepare(&data, &estimand, &query).unwrap();
+            est.fit(&prep, &mut EstimationWorkspace::default(), &ctx, AssumptionSet::new()).unwrap()
+        };
+        let fixed_est =
+            LinearAdjustmentAte { bootstrap_replicates: 240, ..LinearAdjustmentAte::new() };
+        let fixed = fit(&fixed_est);
+        assert!(fixed.diagnostics.resampling.is_none());
+
+        let never = crate::util::IntervalRequest {
+            level: 0.9,
+            wave_size: 60,
+            min_replicates: 0,
+            se_rel_tol: Some(1e-12),
+            half_width_rel_tol: Some(1e-12),
+        };
+        let full = fit(&fixed_est.clone().with_bootstrap_interval(never));
+        let report = full.diagnostics.resampling.as_ref().expect("the request is reported");
+        assert_eq!(report.stop, StopReason::MaxReplicates);
+        assert_eq!((report.attempted, report.waves.len()), (240, 4));
+        assert_eq!(
+            full.uncertainty.bootstrap.se.map(f64::to_bits),
+            fixed.uncertainty.bootstrap.se.map(f64::to_bits)
+        );
+        assert_eq!(
+            full.uncertainty.bootstrap.replicates_ok,
+            fixed.uncertainty.bootstrap.replicates_ok
+        );
+        assert_eq!(full.ate.to_bits(), fixed.ate.to_bits());
+        let (lower, upper) = report.interval.expect("the interval is licensed");
+        assert!(lower < full.ate && full.ate < upper);
+        assert!(report.se_rel_mc_error.is_some() && report.half_width_rel_mc_error.is_some());
+
+        let loose = crate::util::IntervalRequest {
+            level: 0.9,
+            wave_size: 30,
+            min_replicates: 60,
+            se_rel_tol: Some(0.5),
+            half_width_rel_tol: Some(0.9),
+        };
+        let early = fit(&fixed_est.clone().with_bootstrap_interval(loose));
+        let report = early.diagnostics.resampling.as_ref().unwrap();
+        assert_eq!(report.stop, StopReason::Converged);
+        assert!(report.attempted < 240 && report.attempted % 30 == 0);
+        assert!(early.uncertainty.bootstrap.early_stopped);
+        assert_eq!(
+            usize::try_from(report.attempted).unwrap(),
+            report.waves.iter().map(|w| usize::try_from(w.attempted).unwrap()).sum::<usize>()
+        );
     }
 
     /// The shared Gram inverse and the column-wise leverage pass reproduce the

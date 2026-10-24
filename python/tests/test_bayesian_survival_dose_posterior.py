@@ -179,9 +179,7 @@ def test_survival_posterior_refusals_name_the_next_attempt() -> None:
     assert "Next attempt" in str(caught.value)
     # The last cut is the horizon.
     with pytest.raises(CausalError, match="horizon_mismatch"):
-        antecedent.analyze(
-            data, query=_survival_query(), inference=_hazards(cuts=(1.0, 2.0))
-        )
+        antecedent.analyze(data, query=_survival_query(), inference=_hazards(cuts=(1.0, 2.0)))
     # A bootstrap has no meaning for a posterior.
     with pytest.raises(CausalError, match="bootstrap_not_applicable"):
         antecedent.analyze(data, query=_survival_query(), inference=_hazards(), bootstrap=300)
@@ -234,9 +232,7 @@ def test_dose_policy_posterior_tracks_the_frequentist_kernel_row() -> None:
     data = _dose_rows()
     query = _dose_query()
     frequentist = antecedent.analyze(data, query=query, refute="none").continuous_dose_response
-    result = antecedent.analyze(
-        data, query=query, inference=_polynomial(), refute="none", seed=7
-    )
+    result = antecedent.analyze(data, query=query, inference=_polynomial(), refute="none", seed=7)
     row = result.posterior_row
     assert row is not None and result.continuous_dose_response is None
     assert row.estimator == "bayesian.continuous_dose_policy"
@@ -258,7 +254,9 @@ def test_dose_policy_posterior_tracks_the_frequentist_kernel_row() -> None:
         covariance[0, 0] + covariance[1, 1] - 2.0 * covariance[0, 1], rel=1e-6
     )
     assert result.answer.detail == "unlicensed_posterior_bayesian_continuous_dose_policy"
-    assert antecedent.load(result.export(artifact_id="bayesian-dose-policy")).answer == result.answer
+    assert (
+        antecedent.load(result.export(artifact_id="bayesian-dose-policy")).answer == result.answer
+    )
 
 
 def test_dose_policy_posterior_matches_the_per_group_conjugate_reference() -> None:
@@ -332,7 +330,9 @@ def _quantile(concentration: float = 0.5, model: bool = True, **kwargs):
     inference = antecedent.Bayesian(
         backend="conjugate",
         n_draws=40_000,
-        design_model=QuantileGrid(thresholds=(0.0, 1.0, 2.0, 3.0, 4.0, 5.0), bin_concentration=concentration)
+        design_model=QuantileGrid(
+            thresholds=(0.0, 1.0, 2.0, 3.0, 4.0, 5.0), bin_concentration=concentration
+        )
         if model
         else None,
     )
@@ -390,8 +390,6 @@ def test_quantile_posterior_refusals_name_the_next_attempt() -> None:
     assert "Next attempt" in str(caught.value)
     data = _quantile_data()
     data["z"] = [float(i % 3) for i in range(24)]
-    confounded = antecedent.Dag.from_edges(
-        ["t", "y", "z"], [("z", "t"), ("z", "y"), ("t", "y")]
-    )
+    confounded = antecedent.Dag.from_edges(["t", "y", "z"], [("z", "t"), ("z", "y"), ("t", "y")])
     with pytest.raises(CausalError, match="adjustment_not_supported"):
         _quantile(data=data, graph=confounded)

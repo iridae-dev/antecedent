@@ -1834,6 +1834,7 @@ pub(crate) fn shared_study_sections(
         antecedent_estimate::OverlapPolicy::ExplicitOverride,
     );
     let estimate = result.estimate.as_effect().unwrap_or(&absent_effect);
+    let resampling = estimate.diagnostics.resampling.as_ref().map(ResamplingSection::from_report);
     // A temporal effect's estimand ids are dense unfolded node ids; read them
     // through the certificate's unfolding coordinates, not as schema ids (a
     // dense id past the first window slice would otherwise name the wrong
@@ -2090,6 +2091,7 @@ pub(crate) fn shared_study_sections(
         early_stopped: result.performance.early_stopped,
         stage_timings,
         bytes_borrowed: result.performance.bytes_borrowed,
+        resampling,
     };
     let (evidence_status, allowlist_reason, allowlist_parent) =
         evidence_status_parts(result.support_status);
@@ -2362,6 +2364,91 @@ pub(crate) struct PerformanceSection {
     /// Arrow CDI bytes borrowed at ingest (`None` when not an Arrow path).
     #[pyo3(get)]
     bytes_borrowed: Option<u64>,
+    /// The resampling procedure behind a requested bootstrap interval (`None` when no
+    /// interval was requested).
+    #[pyo3(get)]
+    resampling: Option<ResamplingSection>,
+}
+
+/// The complete resampling procedure behind a requested bootstrap interval.
+#[pyclass(skip_from_py_object)]
+#[derive(Clone, Debug)]
+pub(crate) struct ResamplingSection {
+    /// Nominal level of the percentile interval.
+    #[pyo3(get)]
+    level: f64,
+    /// Replicates per wave.
+    #[pyo3(get)]
+    wave_size: u32,
+    /// Successes required before a tolerance may stop the run.
+    #[pyo3(get)]
+    min_replicates: u32,
+    /// Replicate cap (the estimator's declared replicate count).
+    #[pyo3(get)]
+    max_replicates: u32,
+    /// Relative Monte Carlo error target of the standard error.
+    #[pyo3(get)]
+    se_rel_tol: Option<f64>,
+    /// Relative Monte Carlo error target of the interval half-width.
+    #[pyo3(get)]
+    half_width_rel_tol: Option<f64>,
+    /// Percentile interval of the successes, when licensed.
+    #[pyo3(get)]
+    interval: Option<(f64, f64)>,
+    /// Why the run ended: `converged`, `max_replicates` or `cancelled`.
+    #[pyo3(get)]
+    stop: String,
+    /// Replicates attempted in the completed waves, failures included.
+    #[pyo3(get)]
+    attempted: u32,
+    /// Per wave: `(wave, first replicate, attempted, ok, estimator errors, non-finite, declined)`.
+    #[pyo3(get)]
+    waves: Vec<(u32, u32, u32, u32, u32, u32, u32)>,
+    /// Relative Monte Carlo error of the standard error at the stop.
+    #[pyo3(get)]
+    se_rel_mc_error: Option<f64>,
+    /// Relative Monte Carlo error of the interval half-width at the stop.
+    #[pyo3(get)]
+    half_width_rel_mc_error: Option<f64>,
+}
+
+impl ResamplingSection {
+    fn from_report(report: &antecedent_estimate::ResamplingReport) -> Self {
+        use antecedent_estimate::adaptive_resample_waves::StopReason;
+        Self {
+            level: report.rule.level,
+            wave_size: report.rule.wave_size,
+            min_replicates: report.rule.min_replicates,
+            max_replicates: report.rule.max_replicates,
+            se_rel_tol: report.rule.se_rel_tol,
+            half_width_rel_tol: report.rule.half_width_rel_tol,
+            interval: report.interval,
+            stop: match report.stop {
+                StopReason::Converged => "converged",
+                StopReason::MaxReplicates => "max_replicates",
+                StopReason::Cancelled => "cancelled",
+            }
+            .to_owned(),
+            attempted: report.attempted,
+            waves: report
+                .waves
+                .iter()
+                .map(|w| {
+                    (
+                        w.wave,
+                        w.first_replicate,
+                        w.attempted,
+                        w.ok,
+                        w.estimator_errors,
+                        w.non_finite,
+                        w.declined,
+                    )
+                })
+                .collect(),
+            se_rel_mc_error: report.se_rel_mc_error,
+            half_width_rel_mc_error: report.half_width_rel_mc_error,
+        }
+    }
 }
 
 /// Decoded posterior artifact for Python consumers.
@@ -2737,6 +2824,264 @@ pub(crate) fn columns_to_batch(
     })
 }
 
+/// Largest integer magnitude a float64 holds exactly.
+const EXACT_INT_LIMIT: i64 = 1 << 53;
+
+/// A NumPy column of any numeric dtype the ingestion widens to float64 exactly.
+///
+/// A float64 column is copied once into the table's own buffer. An integer, boolean or float32
+/// column is converted while it is copied, so widening and ownership are one pass and one
+/// allocation: nothing is materialized as float64 in Python first. Integers beyond 2**53 do not
+/// survive the widening and are refused.
+pub(crate) enum NumericColumn<'py> {
+    F64(PyReadonlyArray1<'py, f64>),
+    F32(PyReadonlyArray1<'py, f32>),
+    I64(PyReadonlyArray1<'py, i64>),
+    I32(PyReadonlyArray1<'py, i32>),
+    I16(PyReadonlyArray1<'py, i16>),
+    I8(PyReadonlyArray1<'py, i8>),
+    U64(PyReadonlyArray1<'py, u64>),
+    U32(PyReadonlyArray1<'py, u32>),
+    U16(PyReadonlyArray1<'py, u16>),
+    U8(PyReadonlyArray1<'py, u8>),
+    Bool(PyReadonlyArray1<'py, bool>),
+}
+
+impl<'py> NumericColumn<'py> {
+    /// The column behind `obj`, by its dtype.
+    pub(crate) fn extract(obj: &Bound<'py, PyAny>) -> PyResult<Self> {
+        macro_rules! try_dtype {
+            ($($variant:ident($ty:ty)),* $(,)?) => {
+                $(if let Ok(array) = obj.extract::<PyReadonlyArray1<'py, $ty>>() {
+                    return Ok(Self::$variant(array));
+                })*
+            };
+        }
+        try_dtype!(
+            F64(f64),
+            I64(i64),
+            F32(f32),
+            I32(i32),
+            I16(i16),
+            I8(i8),
+            U64(u64),
+            U32(u32),
+            U16(u16),
+            U8(u8),
+            Bool(bool),
+        );
+        Err(value_err(
+            "a column must be a one-dimensional float, integer or boolean NumPy array",
+        ))
+    }
+
+    fn len(&self) -> usize {
+        match self {
+            Self::F64(a) => a.as_array().len(),
+            Self::F32(a) => a.as_array().len(),
+            Self::I64(a) => a.as_array().len(),
+            Self::I32(a) => a.as_array().len(),
+            Self::I16(a) => a.as_array().len(),
+            Self::I8(a) => a.as_array().len(),
+            Self::U64(a) => a.as_array().len(),
+            Self::U32(a) => a.as_array().len(),
+            Self::U16(a) => a.as_array().len(),
+            Self::U8(a) => a.as_array().len(),
+            Self::Bool(a) => a.as_array().len(),
+        }
+    }
+
+    /// The column's values as one owned float64 buffer, and whether the source was strided.
+    ///
+    /// # Errors
+    ///
+    /// An integer column holding a value beyond 2**53.
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "integers are range-checked to 2**53 before they are widened, so the cast is exact"
+    )]
+    fn owned(&self, name: &str) -> PyResult<(Arc<[f64]>, bool)> {
+        macro_rules! widen {
+            ($array:expr, $convert:expr) => {{
+                let array = $array;
+                let convert = $convert;
+                match array.as_slice() {
+                    Ok(slice) => (slice.iter().map(|v| convert(*v)).collect::<Arc<[f64]>>(), false),
+                    Err(_) => {
+                        (array.as_array().iter().map(|v| convert(*v)).collect::<Arc<[f64]>>(), true)
+                    }
+                }
+            }};
+        }
+        macro_rules! checked_int {
+            ($array:expr, $ty:ty) => {{
+                let array = $array;
+                if let (Some(lo), Some(hi)) =
+                    (array.as_array().iter().min(), array.as_array().iter().max())
+                {
+                    if i128::from(*hi) > i128::from(EXACT_INT_LIMIT)
+                        || i128::from(*lo) < -i128::from(EXACT_INT_LIMIT)
+                    {
+                        return Err(value_err(format!(
+                            "integer column {name:?} spans [{lo}, {hi}], beyond 2**53, and would \
+                             lose precision as float64"
+                        )));
+                    }
+                }
+                widen!(array, |v: $ty| v as f64)
+            }};
+        }
+        Ok(match self {
+            Self::F64(a) => widen!(a, |v: f64| v),
+            Self::F32(a) => widen!(a, |v: f32| f64::from(v)),
+            Self::I64(a) => checked_int!(a, i64),
+            Self::I32(a) => widen!(a, |v: i32| f64::from(v)),
+            Self::I16(a) => widen!(a, |v: i16| f64::from(v)),
+            Self::I8(a) => widen!(a, |v: i8| f64::from(v)),
+            Self::U64(a) => checked_int!(a, u64),
+            Self::U32(a) => widen!(a, |v: u32| f64::from(v)),
+            Self::U16(a) => widen!(a, |v: u16| f64::from(v)),
+            Self::U8(a) => widen!(a, |v: u8| f64::from(v)),
+            Self::Bool(a) => widen!(a, |v: bool| f64::from(u8::from(v))),
+        })
+    }
+}
+
+/// Numeric NumPy columns of any supported dtype, each copied (and widened) once.
+pub(crate) fn numeric_columns_to_batch(
+    names: &[String],
+    columns: &[NumericColumn<'_>],
+) -> PyResult<ColumnBatch> {
+    if names.len() != columns.len() {
+        return Err(crate::value_err("names and columns must have the same length"));
+    }
+    if columns.is_empty() {
+        return Err(crate::value_err("at least one column required"));
+    }
+    let n = columns[0].len();
+    for (i, col) in columns.iter().enumerate() {
+        if col.len() != n {
+            return Err(crate::value_err(format!(
+                "column length mismatch: '{}' has length {}, '{}' has length {}",
+                names[0],
+                n,
+                names[i],
+                col.len()
+            )));
+        }
+    }
+    let mut noncontiguous = 0_u64;
+    let mut owned = Vec::with_capacity(columns.len());
+    for (name, column) in names.iter().zip(columns) {
+        let (values, strided) = column.owned(name)?;
+        noncontiguous += u64::from(strided);
+        owned.push(values);
+    }
+    let ncols = owned.len() as u64;
+    Ok(ColumnBatch {
+        names: names.to_vec(),
+        columns: owned,
+        receipt: NumpyIngestReceipt {
+            owned_copies: ncols,
+            bytes_copied: ncols * (n * std::mem::size_of::<f64>()) as u64,
+            noncontiguous_columns: noncontiguous,
+        },
+    })
+}
+
+/// The columns of a series, or the per-unit windows of a panel, each element owned once.
+///
+/// A panel arrives as row-concatenated columns plus each unit's length. Each unit's window is
+/// copied from the NumPy buffer straight into that unit's own storage, so there is no pooled
+/// batch that a later per-unit slice would copy a second time.
+pub(crate) enum IngestedColumns {
+    /// One series (or one static table).
+    Series(ColumnBatch),
+    /// One batch per unit, in unit order.
+    Panel(Vec<ColumnBatch>),
+}
+
+impl IngestedColumns {
+    /// Copies the ingestion made, summed over every unit of a panel.
+    pub(crate) fn receipt(&self) -> NumpyIngestReceipt {
+        match self {
+            Self::Series(batch) => batch.receipt(),
+            Self::Panel(units) => units.iter().fold(
+                NumpyIngestReceipt { owned_copies: 0, bytes_copied: 0, noncontiguous_columns: 0 },
+                |total, unit| {
+                    let each = unit.receipt();
+                    NumpyIngestReceipt {
+                        owned_copies: total.owned_copies + each.owned_copies,
+                        bytes_copied: total.bytes_copied + each.bytes_copied,
+                        noncontiguous_columns: total.noncontiguous_columns
+                            + each.noncontiguous_columns,
+                    }
+                },
+            ),
+        }
+    }
+}
+
+/// NumPy columns owned once: one batch for a series, one per unit window for a panel
+/// (`unit_lengths`, which must be positive and add up to the column length).
+pub(crate) fn columns_to_ingested(
+    names: &[String],
+    columns: &[PyReadonlyArray1<'_, f64>],
+    unit_lengths: Option<&[usize]>,
+) -> PyResult<IngestedColumns> {
+    let Some(lengths) = unit_lengths else {
+        return columns_to_batch(names, columns).map(IngestedColumns::Series);
+    };
+    if names.len() != columns.len() {
+        return Err(crate::value_err("names and columns must have the same length"));
+    }
+    if columns.is_empty() {
+        return Err(crate::value_err("at least one column required"));
+    }
+    let rows = columns[0].as_array().len();
+    for (i, col) in columns.iter().enumerate() {
+        let len = col.as_array().len();
+        if len != rows {
+            return Err(crate::value_err(format!(
+                "column length mismatch: '{}' has length {}, '{}' has length {}",
+                names[0], rows, names[i], len
+            )));
+        }
+    }
+    crate::discovery_api::check_unit_lengths(rows, lengths)?;
+    let mut units = Vec::with_capacity(lengths.len());
+    let mut offset = 0_usize;
+    for &len in lengths {
+        let mut noncontiguous = 0_u64;
+        let owned: Vec<Arc<[f64]>> = columns
+            .iter()
+            .map(|c| match c.as_slice() {
+                Ok(slice) => Arc::<[f64]>::from(&slice[offset..offset + len]),
+                Err(_) => {
+                    noncontiguous += 1;
+                    c.as_array()
+                        .slice(numpy::ndarray::s![offset..offset + len])
+                        .iter()
+                        .copied()
+                        .collect()
+                }
+            })
+            .collect();
+        let ncols = owned.len() as u64;
+        units.push(ColumnBatch {
+            names: names.to_vec(),
+            columns: owned,
+            receipt: NumpyIngestReceipt {
+                owned_copies: ncols,
+                bytes_copied: ncols * (len * std::mem::size_of::<f64>()) as u64,
+                noncontiguous_columns: noncontiguous,
+            },
+        });
+        offset += len;
+    }
+    Ok(IngestedColumns::Panel(units))
+}
+
 /// NumPy float64 columns into library-owned storage: one copy per column.
 pub(crate) fn tabular_from_numpy_receipt(
     names: &[String],
@@ -2759,10 +3104,11 @@ pub(crate) fn tabular_from_numpy(
 #[pyfunction]
 fn load_float64_columns(
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<Bound<'_, PyAny>>,
 ) -> PyResult<ArrowLoadInfo> {
     catch_ffi(|| {
-        let loaded = tabular_from_numpy_receipt(&names, &columns)?;
+        let numeric = columns.iter().map(NumericColumn::extract).collect::<PyResult<Vec<_>>>()?;
+        let loaded = numeric_columns_to_batch(&names, &numeric)?.loaded()?;
         let column_names: Vec<String> =
             loaded.data.schema().variables().iter().map(|v| v.name.to_string()).collect();
         Ok(ArrowLoadInfo {
@@ -2773,6 +3119,33 @@ fn load_float64_columns(
             // One materialization entry per owned buffer the ingestion made.
             diagnostic_count: usize::try_from(loaded.receipt.owned_copies).unwrap_or(usize::MAX),
             column_names,
+        })
+    })
+}
+
+/// Conversion probe for a panel: row-concatenated NumPy columns into per-unit library-owned
+/// storage, each element copied once (the pooled columns are never copied as a whole first).
+#[pyfunction]
+fn load_float64_panel_columns(
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    unit_lengths: Vec<usize>,
+) -> PyResult<ArrowLoadInfo> {
+    catch_ffi(|| {
+        let ingested = columns_to_ingested(&names, &columns, Some(&unit_lengths))?;
+        let receipt = ingested.receipt();
+        let IngestedColumns::Panel(units) = ingested else {
+            return Err(crate::value_err("a panel ingestion yields one batch per unit"));
+        };
+        let rows: usize = units.iter().map(ColumnBatch::num_rows).sum();
+        Ok(ArrowLoadInfo {
+            row_count: rows,
+            column_count: names.len(),
+            bytes_copied: receipt.bytes_copied,
+            bytes_borrowed: 0,
+            // One materialization entry per owned buffer the ingestion made.
+            diagnostic_count: usize::try_from(receipt.owned_copies).unwrap_or(usize::MAX),
+            column_names: names,
         })
     })
 }
@@ -2830,9 +3203,9 @@ pub(crate) fn tabular_from_py_columns(
     }
     let mut np = Vec::with_capacity(columns.len());
     for c in &columns {
-        np.push(c.extract::<PyReadonlyArray1<'_, f64>>().map_err(PyErr::from)?);
+        np.push(NumericColumn::extract(c)?);
     }
-    Ok((tabular_from_numpy(&names, &np)?, None))
+    Ok((numeric_columns_to_batch(&names, &np)?.loaded()?.data, None))
 }
 
 /// Default coalition / semantic cache budget for Python production contexts

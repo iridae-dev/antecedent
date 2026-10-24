@@ -19,7 +19,7 @@
 //! previous order unchanged. The fallback keeps at most `max_results` valid sets; hitting
 //! that limit truncates collection rather than erroring. Whether any valid set
 //! exists is settled first by one separation test on `An({T,Y}) \ forbidden`;
-//! that ancestral set is also the answer when the pool exceeds `max_candidates`
+//! that ancestral set is also the answer when the pool exceeds the declared candidate ceiling
 //! or the examination budget runs out, valid but not minimum-cardinality.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -67,10 +67,19 @@ impl EfficientBackdoorIdentifier {
         Self::default()
     }
 
-    /// Cap exact candidate-subset enumeration on the min-cardinality fallback (default 40).
+    /// Declare a ceiling on exact candidate-subset enumeration on the min-cardinality fallback
+    /// (default: none, the context's pool funds it).
     #[must_use]
     pub fn with_max_candidates(mut self, max_candidates: usize) -> Self {
         self.config.max_candidates = max_candidates;
+        self
+    }
+
+    /// Run the search under the caller's context: its pool funds the search's storage and its
+    /// cancellation token stops it.
+    #[must_use]
+    pub fn with_context(mut self, context: antecedent_core::ExecutionContext) -> Self {
+        self.config.context = Some(context);
         self
     }
 
@@ -135,6 +144,11 @@ impl EfficientBackdoorIdentifier {
         workspace: &mut IdentificationWorkspace,
     ) -> Result<IdentificationResult, IdentificationError> {
         let dag = prepared.dag();
+        let context = crate::exact_search::context_or_default(self.config.context.as_ref());
+        let mut search = crate::exact_search::ExactSearch::open(&context)?;
+        if !search.hold(crate::exact_search::graph_bytes(dag.node_count()))? {
+            return Err(IdentificationError::budget(crate::IdentificationBudget::Memory));
+        }
         let problem = AdjustmentProblem::new(
             dag,
             ate.treatment,
@@ -177,6 +191,7 @@ impl EfficientBackdoorIdentifier {
         let mut candidates: Vec<DenseNodeId> = candidates;
         let mut m = candidates.len();
         let cap = self.config.max_candidates;
+        let max_results = self.config.max_results;
 
         // Existence is decided by one separation test: An({T,Y}) \ forbidden separates T from
         // Y in G underbar T whenever any admissible set does (van der Zander, Liskiewicz &
@@ -203,11 +218,13 @@ impl EfficientBackdoorIdentifier {
                 IdentificationPerformanceRecord { candidates_examined: examined, sets_returned: 0 },
             ));
         }
-        if m > cap {
+        let mut funded = search.fund_enumeration(m, cap, max_results)?;
+        if !funded {
             candidates.clone_from(&constructive);
             m = candidates.len();
+            funded = search.fund_enumeration(m, cap, max_results)?;
         }
-        if m > cap {
+        if !funded {
             return Self::finish(
                 ate,
                 query,
@@ -216,8 +233,8 @@ impl EfficientBackdoorIdentifier {
                 &EfficientChoice {
                     chosen: &[constructive],
                     examined,
-                    rule: "ancestral set (candidate pool over max_candidates; valid, not \
-                           minimum-cardinality)",
+                    rule: "ancestral set (candidate pool over the declared ceiling or the storage \
+                           the context can lease; valid, not minimum-cardinality)",
                     truncated: false,
                 },
             );
@@ -239,6 +256,10 @@ impl EfficientBackdoorIdentifier {
             let mut enum_err: Option<IdentificationError> = None;
             crate::enum_masks::for_each_mask_of_size(&candidates, size, |z| {
                 if enum_err.is_some() {
+                    return true;
+                }
+                if let Err(e) = search.observe() {
+                    enum_err = Some(e);
                     return true;
                 }
                 if examined >= self.config.max_examinations {

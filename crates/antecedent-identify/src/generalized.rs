@@ -35,7 +35,7 @@ use std::sync::Arc;
 
 use antecedent_core::{
     AssumptionSet, AverageEffectQuery, CausalQuery, Diagnostic, DiagnosticKind, DiagnosticSeverity,
-    ResponseQuery, Value, VariableId,
+    ExecutionContext, ResponseQuery, Value, VariableId,
 };
 use antecedent_expr::CausalExprArena;
 use antecedent_graph::{
@@ -78,8 +78,15 @@ pub struct GeneralizedAdjustmentConfig {
     pub max_completions: usize,
     /// Uniform weight per streamed completion.
     pub per_completion_weight: f64,
-    /// Max candidate covariates to enumerate (bitmask width).
+    /// Caller-declared ceiling on the candidate covariates of an exact enumeration. The default
+    /// (`usize::MAX`) declares none: the enumeration's storage is leased from the context's
+    /// admission pool before it is allocated and its work is charged to
+    /// [`Self::max_examinations`].
     pub max_candidates: usize,
+    /// The caller's execution context: its admission pool funds every search's storage and
+    /// completion enumeration, and its cancellation token stops them. `None` runs under a
+    /// serial production context with an unlimited pool.
+    pub context: Option<ExecutionContext>,
     /// Separation tests one adjustment search may run before it stops looking for a smaller
     /// set (work budget, not an output cap).
     ///
@@ -99,13 +106,13 @@ impl GeneralizedAdjustmentConfig {
     /// Limits and context of the completion search these settings configure.
     pub(crate) fn completion_search(
         &self,
-    ) -> (antecedent_core::SearchLimits, antecedent_core::ExecutionContext) {
+    ) -> (antecedent_core::SearchLimits, ExecutionContext) {
         (
             antecedent_core::SearchLimits {
                 operations: self.completion_operations,
                 depth: usize::MAX,
             },
-            antecedent_core::ExecutionContext::production(0, 1),
+            self.context.clone().unwrap_or_else(|| ExecutionContext::production(0, 1)),
         )
     }
 }
@@ -115,7 +122,8 @@ impl Default for GeneralizedAdjustmentConfig {
         Self {
             max_completions: 32,
             per_completion_weight: 1.0,
-            max_candidates: 40,
+            max_candidates: usize::MAX,
+            context: None,
             max_examinations: 1_000_000,
             completion_operations: antecedent_graph::DEFAULT_COMPLETION_OPERATIONS,
         }
@@ -187,6 +195,7 @@ impl GeneralizedAdjustmentIdentifier {
                     &mut result,
                     &crate::backdoor::AdjustmentSearchConfig {
                         max_candidates: self.config.max_candidates,
+                        context: self.config.context.clone(),
                         ..Default::default()
                     },
                 )?;
@@ -330,7 +339,8 @@ impl GeneralizedAdjustmentIdentifier {
             }
         }
 
-        let backdoor = BackdoorIdentifier::new().with_max_candidates(self.config.max_candidates);
+        let mut backdoor = BackdoorIdentifier::new().with_max_candidates(self.config.max_candidates);
+        backdoor.config.context.clone_from(&self.config.context);
         let mut workspace = IdentificationWorkspace::default();
         let cq = CausalQuery::AverageEffect(query.clone());
         self.cpdag_envelope_with(cpdag, |graph| {
@@ -653,7 +663,9 @@ fn constrained_conditional_set(
     if !cut.is_m_separated(t, y, &all_conditioned, &mut ws)? {
         return Ok(ConditionalSearch::Absent);
     }
-    if candidates.len() > config.max_candidates {
+    let context = crate::exact_search::context_or_default(config.context.as_ref());
+    let mut search = crate::exact_search::ExactSearch::open(&context)?;
+    if !search.fund_enumeration(candidates.len(), config.max_candidates, config.max_results)? {
         return Ok(ConditionalSearch::Capped(candidates.len()));
     }
     if config.max_results == 0 {
@@ -669,6 +681,10 @@ fn constrained_conditional_set(
     for size in sizes {
         let mut error = None;
         crate::enum_masks::for_each_mask_of_size(&candidates, size, |z| {
+            if let Err(e) = search.observe() {
+                error = Some(e);
+                return true;
+            }
             if config.minimal_only && found.iter().any(|old| old.iter().all(|v| z.contains(v))) {
                 return false;
             }
@@ -834,16 +850,19 @@ enum MagAdjustment {
 
 /// Work limits of one MAG adjustment search.
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct AdjustmentBudget {
+pub(crate) struct AdjustmentBudget<'a> {
     pub max_candidates: usize,
     pub max_examinations: u64,
+    /// The caller's context, which funds the search's storage and observes cancellation.
+    pub context: Option<&'a ExecutionContext>,
 }
 
 impl GeneralizedAdjustmentConfig {
-    pub(crate) const fn budget(&self) -> AdjustmentBudget {
+    pub(crate) const fn budget(&self) -> AdjustmentBudget<'_> {
         AdjustmentBudget {
             max_candidates: self.max_candidates,
             max_examinations: self.max_examinations,
+            context: self.context.as_ref(),
         }
     }
 }
@@ -861,10 +880,12 @@ fn mag_adjustment_search(
     mag: &Pag,
     target: MagTarget,
     query: CausalQuery,
-    budget: AdjustmentBudget,
+    budget: AdjustmentBudget<'_>,
 ) -> Result<MagAdjustment, IdentificationError> {
     let MagTarget { t_d, y_d, .. } = target;
-    let AdjustmentBudget { max_candidates, max_examinations } = budget;
+    let AdjustmentBudget { max_candidates, max_examinations, context } = budget;
+    let context = crate::exact_search::context_or_default(context);
+    let mut exact = crate::exact_search::ExactSearch::open(&context)?;
     let Some(admg) = mag_to_admg(mag) else {
         return Ok(MagAdjustment::Failed(not_identified(
             query,
@@ -905,7 +926,8 @@ fn mag_adjustment_search(
             IdentificationPerformanceRecord { candidates_examined: 1, sets_returned: 0 },
         )));
     }
-    if candidates.len() > max_candidates {
+    // A single adjustment set is retained, so the enumeration's retained storage is one set.
+    if !exact.fund_enumeration(candidates.len(), max_candidates, 1)? {
         return Ok(MagAdjustment::Failed(capped_completion_result(
             query,
             candidates.len(),
@@ -914,6 +936,7 @@ fn mag_adjustment_search(
     }
 
     let search = crate::enum_masks::first_set_by_size(&candidates, 1, max_examinations, |z| {
+        exact.observe()?;
         if z == constructive.as_slice() {
             return Ok(true);
         }
@@ -978,7 +1001,7 @@ pub(crate) fn identify_on_mag_completion(
     target: MagTarget,
     active: Value,
     control: Value,
-    budget: AdjustmentBudget,
+    budget: AdjustmentBudget<'_>,
 ) -> Result<IdentificationResult, IdentificationError> {
     let MagTarget { t, y, .. } = target;
     let query = CausalQuery::AverageEffect(AverageEffectQuery::new(
@@ -1011,7 +1034,7 @@ pub(crate) fn identify_on_mag_completion_mean(
     mag: &Pag,
     target: MagTarget,
     level: Value,
-    budget: AdjustmentBudget,
+    budget: AdjustmentBudget<'_>,
     response: &ResponseQuery,
 ) -> Result<IdentificationResult, IdentificationError> {
     let MagTarget { t, y, .. } = target;
@@ -1094,8 +1117,8 @@ pub(crate) fn not_identified(query: CausalQuery, detail: &str) -> Identification
     )
 }
 
-/// Execution-capped result: candidate family exceeded `max_candidates` before
-/// enumeration could start. Status stays [`IdentificationStatus::NotIdentified`].
+/// Execution-capped result: the candidate family exceeded the declared ceiling or the storage
+/// the context can lease before enumeration could start. Status stays [`IdentificationStatus::NotIdentified`].
 /// Honesty is [`CAPPED_COMPLETION_DIAGNOSTIC_CODE`] as
 /// [`DiagnosticKind::Execution`], not a scientific open-back-door.
 pub(crate) fn capped_completion_result(
@@ -1110,8 +1133,9 @@ pub(crate) fn capped_completion_result(
         DiagnosticKind::Execution,
         DiagnosticSeverity::Warning,
         format!(
-            "generalized adjustment candidate set ({n_candidates}) exceeds max_candidates \
-             ({max_candidates}); enumeration was not attempted on this completion, so \
+            "generalized adjustment candidate set ({n_candidates}) exceeds the declared \
+             candidate ceiling ({max_candidates}) or the storage the context can lease; \
+             enumeration was not attempted on this completion, so \
              identifiability could not be determined (not the same as a proven non-\
              identifiable completion)"
         ),
@@ -1216,7 +1240,11 @@ mod tests {
 
     #[test]
     fn default_max_candidates_matches_dag_backdoor() {
-        assert_eq!(GeneralizedAdjustmentConfig::default().max_candidates, 40);
+        assert_eq!(GeneralizedAdjustmentConfig::default().max_candidates, usize::MAX);
+        assert_eq!(
+            GeneralizedAdjustmentConfig::default().max_candidates,
+            crate::backdoor::AdjustmentSearchConfig::default().max_candidates
+        );
     }
 
     #[test]

@@ -88,6 +88,13 @@ enum DesignSpec {
         treatment: String,
         history: Vec<String>,
     },
+    ObservationalRegime {
+        treatment: String,
+        confounders: Vec<String>,
+        active: Vec<bool>,
+        reference: Vec<bool>,
+        method: String,
+    },
 }
 
 fn labels(values: &[String]) -> Arc<[Arc<str>]> {
@@ -196,6 +203,25 @@ impl PyPreparedAnalysis {
                             .into(),
                     }
                 }
+                DesignSpec::ObservationalRegime {
+                    treatment,
+                    confounders,
+                    active,
+                    reference,
+                    method,
+                } => TemporalAssignment::ObservationalRegime {
+                    treatment: id(&treatment)?,
+                    confounders: confounders
+                        .iter()
+                        .map(|name| id(name))
+                        .collect::<Result<Vec<_>, _>>()?
+                        .into(),
+                    active: active.into(),
+                    reference: reference.into(),
+                    method: antecedent::TemporalRegimeMethod::from_name(&method).ok_or_else(
+                        || crate::value_err(format!("unknown regime estimator {method:?}")),
+                    )?,
+                },
             };
             let query = TemporalDesignQuery {
                 outcome: id(&outcome)?,

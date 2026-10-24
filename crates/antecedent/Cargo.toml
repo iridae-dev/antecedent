@@ -558,6 +558,10 @@ name = "class_derivative_response"
 path = "tests/class_derivative_response.rs"
 
 [[test]]
+name = "derivative_validation_on_classes"
+path = "tests/derivative_validation_on_classes.rs"
+
+[[test]]
 name = "temporal_admg_derivative"
 path = "tests/temporal_admg_derivative.rs"
 
@@ -786,8 +790,20 @@ name = "target_native_validation"
 path = "tests/target_native_validation.rs"
 
 [[test]]
+name = "functional_validation"
+path = "tests/functional_validation.rs"
+
+[[test]]
 name = "target_constructed_refuters"
 path = "tests/target_constructed_refuters.rs"
+
+[[test]]
+name = "mediation_decomposition_validation"
+path = "tests/mediation_decomposition_validation.rs"
+
+[[test]]
+name = "class_and_design_validation_suites"
+path = "tests/class_and_design_validation_suites.rs"
 
 [[test]]
 name = "bayesian_intervention_level_refutation"
@@ -853,6 +869,22 @@ path = "tests/joint_panel_streamed_memory.rs"
 [[test]]
 name = "graph_posterior_exposure_routes"
 path = "tests/graph_posterior_exposure_routes.rs"
+
+[[test]]
+name = "graph_posterior_cross_world_routes"
+path = "tests/graph_posterior_cross_world_routes.rs"
+
+[[test]]
+name = "graph_posterior_functional_routes"
+path = "tests/graph_posterior_functional_routes.rs"
+
+[[test]]
+name = "graph_posterior_attribution_routes"
+path = "tests/graph_posterior_attribution_routes.rs"
+
+[[test]]
+name = "graph_posterior_temporal_pag_mediation"
+path = "tests/graph_posterior_temporal_pag_mediation.rs"
 
 [[example]]
 name = "joint_panel_workflow"

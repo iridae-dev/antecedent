@@ -27,9 +27,7 @@ def _run(**options):
 
 def test_an_unknown_design_name_is_a_value_error():
     with pytest.raises(CausalValueError, match="sampling_design"):
-        ant.prepare(
-            _rows(), graph=EDGES, query=QUERY, bootstrap=0, sampling_design="row_iid"
-        )
+        ant.prepare(_rows(), graph=EDGES, query=QUERY, bootstrap=0, sampling_design="row_iid")
 
 
 def test_a_declared_design_without_resampling_leaves_the_estimate_unchanged():

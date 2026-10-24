@@ -671,16 +671,135 @@ class _PrepareRoute:
                 **shared,
             )
             return native, response_kind
+        if static and self.frame is None:
+            mixed = self._graph_posterior_cross_world(shared)
+            if mixed is not None:
+                return mixed
         raise CausalUnsupportedError(
-            "graph-posterior structures are refused: a path, distribution, or mediation "
-            "mixture is not a single estimand across posterior atoms. "
-            "Licensed graph-posterior cells are AverageEffect / "
-            "ConditionalEffect / ResponseCurve / one-coordinate InterventionResponse on "
-            "DAG, CPDAG, PAG, and ADMG atoms and Pulse / Sustained / TemporalMediationEffect / "
-            "temporal ResponseCurve / one-coordinate InterventionResponse on DBN and "
+            "this query has no graph-posterior mixture. Graph-posterior cells are "
+            "AverageEffect / ConditionalEffect / ResponseCurve / InterventionResponse, "
+            "MediationEffect / PathSpecificEffect / NestedCounterfactual / "
+            "InterventionalDistribution / AnomalyAttribution / ChangeAttribution / "
+            "TransportQuery on DAG, CPDAG, PAG and ADMG atoms, and Pulse / Sustained / "
+            "TemporalMediationEffect / temporal ResponseCurve / InterventionResponse on DBN and "
             "temporal-class atoms",
             reason_code="option_not_applicable",
         )
+
+    def _graph_posterior_cross_world(self, shared: dict[str, Any]) -> tuple[Any, Any] | None:
+        """Mediation, path-restricted, natural direct, distribution, attribution and transport.
+
+        Every atom of the posterior is answered by the explicit executor of its own structure
+        and the atoms are mixed by posterior probability; the native compiler owns which
+        validation suites and inference modes apply.
+        """
+        query = self.query
+        route = type(query).__name__
+        if isinstance(query, TransportQuery):
+            from .transport._impl import _response_args
+
+            columns = query.trial_columns
+            if columns is None:
+                raise CausalValueError(
+                    "TransportQuery on analyze reads its trial columns: pass trial=, "
+                    "selection_probability= and treatment_probability="
+                )
+            response = _response_args(query.query)
+            native = _NativePreparedAnalysis.prepare_graph_posterior_transport(
+                self.names,
+                self.columns,
+                list(query.diagram.selections),
+                query.diagram.source,
+                query.diagram.target,
+                list(query.source_experiments),
+                response["kind"],
+                response["treatments"],
+                response["outcomes"],
+                columns[0],
+                columns[1],
+                columns[2],
+                grid=response["grid"],
+                at=response["at"],
+                direction=response["direction"],
+                order=response["order"],
+                scale=response["scale"],
+                weighting=response["weighting"],
+                **shared,
+            )
+            return native, "average"
+        arguments: dict[str, Any]
+        if isinstance(query, MediationEffect):
+            arguments = {
+                "kind": "mediation",
+                "treatment": query.treatment,
+                "outcome": query.outcome,
+                "mediators": list(query.mediators),
+                "contrast": query.contrast,
+                "control_level": query.control_level,
+                "active_level": query.active_level,
+            }
+        elif isinstance(query, NestedCounterfactual):
+            arguments = {
+                "kind": "nested_counterfactual",
+                "treatment": query.treatment,
+                "outcome": query.outcome,
+                "mediators": [query.mediator],
+                "control_level": query.control_level,
+                "active_level": query.active_level,
+            }
+        elif isinstance(query, PathSpecificEffect):
+            arguments = {
+                "kind": "path_specific",
+                "treatment": query.treatment,
+                "outcome": query.outcome,
+                "control_level": query.control_level,
+                "active_level": query.active_level,
+                "path_nodes": list(query.path_nodes) if query.path_nodes is not None else None,
+                "max_paths": query.max_paths,
+                "max_len": query.max_len,
+            }
+        elif isinstance(query, InterventionalDistribution):
+            arguments = {
+                "kind": "distribution",
+                "outcome": query.outcome,
+                "interventions": dict(query.interventions),
+                "conditioning": list(query.conditioning) or None,
+            }
+        elif isinstance(query, AnomalyAttribution):
+            reference = (
+                (float(query.reference.center), float(query.reference.scale))
+                if query.reference is not None
+                else None
+            )
+            arguments = {
+                "kind": "anomaly_attribution",
+                "targets": list(query.targets),
+                "max_units": int(query.max_units),
+                "reference": reference,
+            }
+        elif isinstance(query, ChangeAttribution):
+            arguments = {
+                "kind": "change_attribution",
+                "outcome": query.outcome,
+                "baseline_start": int(query.baseline_start),
+                "baseline_end": int(query.baseline_end),
+                "comparison_start": int(query.comparison_start),
+                "comparison_end": int(query.comparison_end),
+            }
+        else:
+            return None
+        self._refuse_estimator_config(route)
+        self._refuse_ids(route)
+        if self.bootstrap and isinstance(self.inference, Bayesian):
+            raise CausalUnsupportedError(
+                f"Bayesian {route} over a graph posterior publishes its Bayesian-bootstrap "
+                "posterior; bootstrap= applies to Frequentist inference",
+                reason_code="option_not_applicable",
+            )
+        native = _NativePreparedAnalysis.prepare_graph_posterior_kind(
+            self.names, self.columns, arguments.pop("kind"), **arguments, **shared
+        )
+        return native, "average"
 
     # -- temporal -------------------------------------------------------------
     def _temporal(self) -> tuple[Any, Any]:
@@ -2012,13 +2131,11 @@ class _PrepareRoute:
         )
         if self.identifier not in (None, expected_id) or self.estimator not in (None, expected_est):
             raise CausalUnsupportedError(f"{query.kind} requires {expected_id} and {expected_est}")
-        if isinstance(query, Counterfactual) and self._explicit_refute():
-            raise CausalUnsupportedError(
-                "refused: Counterfactual cheap/full are not licensed; there is no "
-                "native ITE refuter suite and ATE refuters do not apply.",
-                reason_code="cell_not_licensed",
-            )
-        if isinstance(query, Counterfactual) and self.bootstrap and isinstance(self.inference, Bayesian):
+        if (
+            isinstance(query, Counterfactual)
+            and self.bootstrap
+            and isinstance(self.inference, Bayesian)
+        ):
             raise CausalUnsupportedError(
                 "Bayesian Counterfactual publishes its mechanism-refit posterior; bootstrap= "
                 "applies to the Frequentist mechanism-refit bootstrap",

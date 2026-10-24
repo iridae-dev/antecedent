@@ -8,10 +8,10 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ExecutionContext, Intervention,
-    InterventionalDistributionQuery, MediationContrast, MediationQuery, ResponseFunctional,
-    ResponseQuery, SemanticDigest, TargetForm, TemporalEffectQuery, TemporalPolicy,
-    TemporalResponseSpec, Value, VariableId,
+    AnomalyAttributionQuery, AverageEffectQuery, CausalQuery, ConditionalEffectQuery,
+    ExecutionContext, Intervention, InterventionalDistributionQuery, MediationContrast,
+    MediationQuery, NestedCounterfactualQuery, ResponseFunctional, ResponseQuery, SemanticDigest,
+    TargetForm, TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec, Value, VariableId,
 };
 use antecedent_data::{TabularData, TimeSeriesData};
 use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, set_edge};
@@ -305,8 +305,12 @@ fn transport_study(inference: InferenceMode) -> Study {
             antecedent_core::GridSpec::Values(Arc::from([0.0, 1.0])),
         ),
     });
-    let query =
-        antecedent_core::TransportQuery::new(response, "trial", "target", [VariableId::from_raw(0)]);
+    let query = antecedent_core::TransportQuery::new(
+        response,
+        "trial",
+        "target",
+        [VariableId::from_raw(0)],
+    );
     Study::tabular(transport_data())
         .graph_posterior(transport_posterior())
         .query(CausalQuery::Transport(query))
@@ -356,11 +360,7 @@ fn interference_study(inference: InferenceMode) -> Study {
     let posterior = GraphPosterior::new(
         2,
         weights,
-        vec![
-            set_edge(0, 2, 0, 1, true),
-            0,
-            set_edge(set_edge(0, 2, 0, 1, true), 2, 1, 0, true),
-        ],
+        vec![set_edge(0, 2, 0, 1, true), 0, set_edge(set_edge(0, 2, 0, 1, true), 2, 1, 0, true)],
         vec![0.0; 4],
         vec![0.0; 4],
         sampling,
@@ -702,5 +702,50 @@ fn compile_identifies_the_atoms_once_and_preparation_installs_them() {
         assert!(prepared.plan().lowered().unwrap().identification_retained());
         let _ = prepared.estimate_retained(&ctx).unwrap();
         assert_eq!(identified(), 1, "an estimate reuses the installed identification");
+    });
+}
+
+/// A mediation, a natural direct effect, an interventional distribution and an attribution over
+/// a tabular posterior lower to the cross-world cell: the target is the typed functional of the
+/// query, every atom is identified at execution by the executor of its own structure, and the
+/// resampling is over rows, not calendar blocks.
+#[test]
+fn tabular_cross_world_and_attribution_posteriors_lower_to_the_cross_world_cell() {
+    on_large_stack(|| {
+        let ctx = ExecutionContext::for_tests(41);
+        let (t, y, z) = (VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2));
+        let queries = vec![
+            CausalQuery::Mediation(MediationQuery::binary(
+                t,
+                y,
+                [z],
+                MediationContrast::NaturalDirect,
+            )),
+            CausalQuery::NestedCounterfactual(NestedCounterfactualQuery::new(t, z, y).unwrap()),
+            CausalQuery::Distribution(InterventionalDistributionQuery::new(
+                y,
+                [Intervention::set(t, Value::f64(1.0))],
+            )),
+            CausalQuery::AnomalyAttribution(AnomalyAttributionQuery::new([y], 50)),
+        ];
+        let mut identities = BTreeSet::new();
+        for query in queries {
+            let study =
+                tabular_study(query, tabular_posterior(true), InferenceMode::Frequentist, 20);
+            let lowered = compiled(&study, &ctx);
+            assert_eq!(lowered.route(), "GraphPosteriorCrossWorld");
+            assert_eq!(lowered.depth(), LoweringDepth::Complete);
+            assert!(!lowered.identification_retained(), "each atom identifies at execution");
+            assert!(matches!(lowered.scientific().target(), ProblemTarget::QueryFunctional { .. }));
+            if let Some(resampling) = lowered.statistical().resampling() {
+                assert_eq!(resampling.unit(), ResampleUnit::Row);
+            }
+            assert!(
+                matches!(lowered.evidence().composition(), Composition::AtomMixture { atoms }
+                    if atoms == 3),
+                "layer four mixes every atom"
+            );
+            assert!(identities.insert(lowered.identity()), "each query is its own program");
+        }
     });
 }

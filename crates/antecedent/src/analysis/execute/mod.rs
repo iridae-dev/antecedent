@@ -83,11 +83,12 @@ pub(super) use crate::strategy_table::{
     DEFAULT_PAG_ESTIMATOR_ID, DEFAULT_PAG_IDENTIFIER_ID, DEFAULT_PATH_ESTIMATOR_ID,
     DEFAULT_PATH_IDENTIFIER_ID, DEFAULT_RESPONSE_IDENTIFIER_ID, EstimatorId, IdentifierId,
     StaticEstimateInput, StaticEstimateWorkspaces, estimate_provenance_step,
-    estimate_static_effect, identify_admg, identify_admg_query, identify_cpdag,
-    identify_cpdag_distribution, identify_cpdag_path_specific, identify_pag,
+    estimate_static_effect, identify_admg, identify_admg_query,
+    identify_cpdag_distribution, identify_cpdag_path_specific,
     identify_pag_distribution, identify_pag_path_specific,
     identify_provenance_step, identify_static,
-    identify_static_query, identify_static_query_with_rd, identify_temporal_cpdag_configured,
+    identify_static_query, identify_static_query_in_context, identify_static_query_with_rd,
+    identify_temporal_cpdag_configured,
     identify_temporal_pag_configured, require_identified, select_claim, select_estimand,
     validate_static_pair,
 };
@@ -296,11 +297,14 @@ mod checked_longitudinal_regime;
 mod checked_panel_did;
 mod checked_randomized;
 mod class_response_refutation;
+mod class_derivative_refutation;
+mod front_door_derivative_refutation;
 mod derivative_refutation;
 mod gcm_bootstrap;
 mod randomized_fit;
 mod randomized_trial;
 mod rollout_finish;
+mod posterior_witness_state;
 mod temporal_response_refutation;
 mod transport_refutation;
 use randomized_trial::{RandomizedTrialOperation, RandomizedTrialQuery};
@@ -350,14 +354,20 @@ pub(crate) use checked_synthetic_control::{
 pub(crate) use checked_temporal_design::CheckedTemporalDesignOperation;
 pub(crate) use checked_temporal_mediation::CheckedTemporalMediationOperation;
 mod atom_mix;
+mod atom_route_posterior;
+pub(crate) use atom_route_posterior::atom_route_response;
+mod dbn_route_posterior;
+pub(crate) use dbn_route_posterior::{dbn_atoms, dbn_route_query};
 mod interference_posterior;
 mod transport_class;
 mod transport_posterior;
+pub(crate) use transport_posterior::ipw_estimable;
 mod class_counterfactual;
 mod class_distribution;
 mod class_envelope_se;
 mod class_path_specific;
 mod class_posterior;
+mod cross_world_posterior;
 mod class_posterior_response;
 mod completion_fit_memo;
 pub(crate) use checked_temporal_effect::CheckedTemporalEffectExecution;
@@ -388,6 +398,7 @@ mod dispatch;
 mod identified_set_diagnostics;
 mod interference_refutation;
 mod mediation_mixed;
+mod mediation_refutation;
 mod multi_env_path;
 mod pag_path;
 mod panel_link_path;

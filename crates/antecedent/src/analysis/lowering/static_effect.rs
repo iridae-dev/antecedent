@@ -5,8 +5,8 @@
 //! worlds, conditioned on the effect modifiers for a conditional effect; the mediation
 //! target of a path-restricted effect; or the typed interventional-distribution
 //! functional, which no world-indexed form states. Layer two identifies once at compile
-//! through the prepare-side identification and retains it, so preparation installs it;
-//! a sharp regression discontinuity identifies on each execution. Layer three binds the
+//! through the prepare-side identification and retains it, so preparation installs it; a
+//! sharp regression discontinuity identifies its design here as well. Layer three binds the
 //! resolved identifier and estimator, the realization the inference mode selects (an
 //! identified-set envelope when frequentist identification is partial), the fitted models
 //! with their roles and variables, the cross-fitting split, and the resampling the
@@ -244,7 +244,7 @@ pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalEr
         licensed: matches!(study.support_status, Some(crate::support::CellStatus::Licensed)),
     };
 
-    let identification = identification_layer(cx, linear, estimator)?;
+    let identification = identification_layer(cx, linear)?;
     let caches = match &identification {
         IdentificationLayer::Retained(retained) => retained.caches(),
         IdentificationLayer::Deferred { .. }
@@ -588,15 +588,7 @@ fn target_error(error: ScientificTargetError) -> CausalError {
 fn identification_layer(
     cx: &LoweringContext<'_>,
     linear: Option<&CompiledLinearExecution>,
-    estimator: Option<EstimatorId>,
 ) -> Result<IdentificationLayer, CausalError> {
-    if linear.is_none()
-        && matches!(estimator, Some(EstimatorId::RdSharp | EstimatorId::BayesianRdLocalLinear))
-    {
-        return Ok(IdentificationLayer::PerExecution {
-            reason: super::RD_IDENTIFIES_PER_EXECUTION,
-        });
-    }
     let product = linear.map(|linear| linear.program.identification().clone());
     match retain_identification(cx, product) {
         Ok(layer) => Ok(layer),

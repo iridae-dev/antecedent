@@ -16,9 +16,7 @@ use std::sync::Arc;
 use antecedent::analysis::CausalContract;
 use antecedent::planner::PlanView;
 use antecedent::report::{ReportFormat, ReportInput, render_report};
-use antecedent::{
-    BayesianConfig, CausalError, EstimatorId, IdentifierId, InferenceMode, RefuteSuite, Study,
-};
+use antecedent::{BayesianConfig, EstimatorId, IdentifierId, InferenceMode, RefuteSuite, Study};
 use antecedent_contract::{ClaimEnvelope, SlotAvailability};
 use antecedent_core::{
     CausalQuery, ExecutionContext, Lag, PathSpecificEffectQuery, SequentialContrastQuery,
@@ -194,7 +192,9 @@ fn refused_cell() -> Scenario {
         .estimator(EstimatorId::FunctionalEffect)
         .refute(RefuteSuite::Cheap)
         .bootstrap_replicates(0);
-    assert!(matches!(builder.clone().build(), Err(CausalError::Support { .. })));
+    // Cheap validation of a path-specific effect is the unlicensed functional refuter state: the
+    // cell builds and its result reports the refused support status.
+    assert!(builder.clone().build().is_ok());
     Scenario {
         name: "refused_cell",
         contract: builder.inspect().unwrap(),

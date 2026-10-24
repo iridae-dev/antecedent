@@ -254,6 +254,10 @@ pub struct EstimateDiagnostics {
     /// excluded, the Kish effective sample size and the unnormalized weight sum. `None` when
     /// no weights were declared, so unweighted results are unchanged.
     pub sampling_weights: Option<crate::sampling_weights::SamplingWeightRecord>,
+    /// The complete resampling procedure behind a requested bootstrap interval: its waves,
+    /// the Monte Carlo error at the stop and why it stopped. `None` when no interval was
+    /// requested, so a fixed-count bootstrap is reported exactly as before.
+    pub resampling: Option<crate::util::ResamplingReport>,
 }
 
 /// Nuisance cross-fitting record.
@@ -639,6 +643,14 @@ impl EffectEstimate {
     pub fn with_preparation(mut self, preparation: Option<Arc<PreparationSummary>>) -> Self {
         self.provenance.preparation = preparation;
         self
+    }
+
+    /// Attach a bootstrap outcome: its standard-error accounting and, when an interval was
+    /// requested, the resampling record that produced it.
+    #[must_use]
+    pub(crate) fn with_bootstrap_outcome(mut self, outcome: crate::util::BootstrapOutcome) -> Self {
+        self.diagnostics.resampling = outcome.resampling;
+        self.with_bootstrap(Some(outcome.se))
     }
 
     /// Attach bootstrap SE accounting (or clear when bootstrap was skipped).

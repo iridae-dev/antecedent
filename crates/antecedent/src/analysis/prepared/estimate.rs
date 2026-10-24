@@ -144,6 +144,13 @@ impl PreparedStudy {
         shared: Option<Arc<crate::analysis::batch::SharedBatchDesign>>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        if crate::analysis::functional_validation::requested(&self.analysis) {
+            return crate::analysis::functional_validation::validate_data(
+                &self.analysis,
+                crate::analysis::builder::DataInput::Tabular(data.clone()),
+                ctx,
+            );
+        }
         // A stats-layer refusal of a regression, GLM, IV or matching design fit learns here
         // which plan it was for and, for a rank refusal, which columns are dependent on the
         // table the fit read.

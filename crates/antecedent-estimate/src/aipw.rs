@@ -83,7 +83,7 @@ use crate::propensity::{
 };
 use crate::sampling_weights::SamplingWeights;
 use crate::se::AnalyticSeKind;
-use crate::util::{BootstrapSeResult, refuse, stats_err};
+use crate::util::{BootstrapOutcome, refuse, stats_err};
 
 /// Reusable scratch for AIPW point-estimate and bootstrap fits.
 ///
@@ -280,6 +280,13 @@ pub struct AipwAte {
     /// error is the linearization of that weighted mean. Trimmed, ATT/ATC, penalized and
     /// cluster-DML constructions refuse them.
     pub sampling_weights: Option<SamplingWeights>,
+    /// A requested bootstrap interval. When set, the non-penalized bootstrap runs as the wave
+    /// procedure that stops on the request's Monte Carlo tolerances (capped by
+    /// [`Self::bootstrap_replicates`]) and reports its interval, waves, Monte Carlo error and
+    /// stop reason in [`crate::EstimateDiagnostics::resampling`]. The penalized refit
+    /// bootstrap, which records per-replicate penalties, keeps its fixed count. `None` runs
+    /// the fixed-count bootstrap exactly as before.
+    pub bootstrap_interval: Option<crate::util::IntervalRequest>,
 }
 
 /// Per-row influence of the control-to-treated score contrast: the plain score difference
@@ -333,7 +340,16 @@ impl AipwAte {
             cluster_dml: None,
             other_levels: OtherLevels::default(),
             sampling_weights: None,
+            bootstrap_interval: None,
         }
+    }
+
+    /// Request a bootstrap interval produced by the complete fit/resample/stop/interval
+    /// procedure (see [`Self::bootstrap_interval`]).
+    #[must_use]
+    pub const fn with_bootstrap_interval(mut self, request: crate::util::IntervalRequest) -> Self {
+        self.bootstrap_interval = Some(request);
+        self
     }
 
     /// Declare sampling weights for every row of the source table. They are read by the
@@ -930,7 +946,7 @@ impl AipwAte {
         } else {
             self.bootstrap_se(problem, workspace, ctx)?
         };
-        Ok(point.with_bootstrap(Some(boot)))
+        Ok(point.with_bootstrap_outcome(boot))
     }
 
     #[allow(
@@ -1345,7 +1361,7 @@ impl AipwAte {
         problem: &PreparedPropensityProblem,
         ctx: &ExecutionContext,
         weights: Option<&[f64]>,
-    ) -> Result<BootstrapSeResult, EstimationError> {
+    ) -> Result<BootstrapOutcome, EstimationError> {
         let fold_seed = ctx.rng.master_seed();
         let clusters = self.bootstrap_clusters(problem)?;
         let series_block = self.series_block(problem.nrows);
@@ -1356,7 +1372,8 @@ impl AipwAte {
             problem.design_ncols + 4,
             self.bootstrap_replicates,
         )?;
-        crate::util::bootstrap_by_design(
+        crate::util::bootstrap_outcome_by_design(
+            self.bootstrap_interval.as_ref(),
             crate::util::BootstrapDesign {
                 clusters: clusters.as_deref(),
                 series_block,
@@ -1417,6 +1434,9 @@ impl AipwAte {
         let base = penalized_bootstrap_base(problem, ctx.rng.master_seed(), nuisance);
         let n = base.nrows;
         let n_rep = self.bootstrap_replicates as usize;
+        if let Some(request) = self.bootstrap_interval {
+            return self.attach_penalized_waves(&base, ctx, request, point);
+        }
         let outcomes = if ctx.cancellation.is_cancelled() {
             vec![PenalizedDraw::Cancelled]
         } else if n == 0 || n_rep == 0 {
@@ -1470,6 +1490,88 @@ impl AipwAte {
         });
         let mut estimate = point.with_bootstrap(Some(boot));
         estimate.diagnostics.penalized = Some(Box::new(report));
+        Ok(estimate)
+    }
+
+    /// The penalized refit bootstrap as the wave procedure of a requested interval.
+    ///
+    /// Replicate `r` is the same penalized refit on the same rows as in the fixed-count loop
+    /// (stream `derive_stream(PENALIZED_BOOTSTRAP_STREAM, r)`); waves run on the caller and stop
+    /// on the request's Monte Carlo tolerances, capped by the declared replicate count. The
+    /// penalties the kept replicates selected are recorded in replicate order, and the report
+    /// of the procedure travels beside them.
+    fn attach_penalized_waves(
+        &self,
+        base: &PreparedPropensityProblem,
+        ctx: &ExecutionContext,
+        request: crate::util::IntervalRequest,
+        point: EffectEstimate,
+    ) -> Result<EffectEstimate, EstimationError> {
+        use crate::adaptive_resample_waves::{DriveError, run_waves_serial};
+        let n = base.nrows;
+        if n == 0 || self.bootstrap_replicates == 0 {
+            return Err(EstimationError::Data(antecedent_data::DataError::InvalidArgument {
+                message: "batch resample needs n > 0 and n_replicates > 0".into(),
+            }));
+        }
+        retained_index_slots(n, 1)?;
+        let rule = request.rule(self.bootstrap_replicates);
+        let mut state = (Vec::<antecedent_data::GlobalId>::new(), Vec::<usize>::new(), Vec::new());
+        let run = run_waves_serial(
+            &rule,
+            ctx,
+            PENALIZED_BOOTSTRAP_STREAM,
+            &mut state,
+            |(ids, idx, penalties): &mut (_, _, Vec<ReplicatePenalties>), id, _rng| {
+                let replicate = usize::try_from(id).map_err(|_| {
+                    EstimationError::data_msg("bootstrap replicate id exceeds usize")
+                })?;
+                Ok(match self.penalized_replicate(base, ctx, ctx, n, replicate, (ids, idx))? {
+                    PenalizedDraw::Done(ate, lambdas) => {
+                        penalties.push(ReplicatePenalties {
+                            replicate: u32::try_from(id).unwrap_or(u32::MAX),
+                            lambdas,
+                        });
+                        Some(ate)
+                    }
+                    // A cancelled draw is observed again before the next replicate, which
+                    // discards the wave it belongs to.
+                    PenalizedDraw::Failed | PenalizedDraw::Cancelled => None,
+                })
+            },
+        );
+        let run = match run {
+            Ok(run) => run,
+            Err(DriveError::Estimator(error)) => return Err(error),
+            Err(DriveError::Wave(error)) => {
+                return Err(EstimationError::data_msg(error.to_string()));
+            }
+        };
+        // A wave discarded by cancellation leaves its penalties behind: keep exactly the
+        // replicates whose estimates the run kept.
+        let mut penalties = state.2;
+        penalties.truncate(run.successes.len());
+        let wave = crate::util::WaveBootstrap::from_run(run);
+        let boot = wave.se;
+        let influence_se = match point.scores.table.as_ref() {
+            Some(table) => crossfit_influence_se(table)?,
+            None => f64::NAN,
+        };
+        let mut report = point.diagnostics.penalized.as_deref().cloned().unwrap_or_default();
+        report.variance = Some(PenalizedVarianceReport {
+            uncertainty_kind: REFIT_BOOTSTRAP_UNCERTAINTY_KIND,
+            refit_bootstrap_se: boot.se,
+            replicates_requested: self.bootstrap_replicates,
+            replicates_ok: boot.replicates_ok,
+            replicates_failed: boot.replicates_failed,
+            cancelled: boot.cancelled,
+            replicate_penalties: penalties,
+            influence_se,
+        });
+        let resampling = wave.report(rule);
+        let mut estimate = point.with_bootstrap(Some(boot));
+        estimate.diagnostics.penalized = Some(Box::new(report));
+        estimate.diagnostics.resampling = Some(resampling);
         Ok(estimate)
     }
 
@@ -1565,7 +1667,7 @@ impl AipwAte {
         problem: &PreparedPropensityProblem,
         _workspace: &mut AipwWorkspace,
         ctx: &ExecutionContext,
-    ) -> Result<BootstrapSeResult, EstimationError> {
+    ) -> Result<BootstrapOutcome, EstimationError> {
         let clip = clip_of(problem.overlap);
         let trim = trim_of(problem.overlap);
         let n = problem.nrows;
@@ -1576,7 +1678,8 @@ impl AipwAte {
         let _gather =
             crate::util::admit_gather_scratch(ctx, n, ncols + 8, self.bootstrap_replicates)?;
         // Replicates own a cold workspace; parallel workers cannot share the caller's.
-        crate::util::bootstrap_by_design(
+        crate::util::bootstrap_outcome_by_design(
+            self.bootstrap_interval.as_ref(),
             crate::util::BootstrapDesign {
                 clusters: clusters.as_deref(),
                 series_block,
@@ -2445,6 +2548,56 @@ mod tests {
             AssumptionSet::new(),
             IdentificationPerformanceRecord::default(),
         )
+    }
+
+    #[test]
+    fn aipw_runs_the_complete_interval_procedure_on_both_bootstrap_routes() {
+        use crate::util::interval_test_support::{assert_procedure, met_early, never_met};
+        let (data, estimand) = confounded_scm(300, 12);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let (cap, wave) = (90, 30);
+        let est = AipwAte { bootstrap_replicates: cap, ..AipwAte::new() };
+        let fit = |est: &AipwAte| {
+            let prep = est.prepare(&data, &estimand, &query).unwrap();
+            est.fit(
+                &prep,
+                &mut AipwWorkspace::default(),
+                &ExecutionContext::for_tests(3),
+                AssumptionSet::new(),
+            )
+            .unwrap()
+        };
+        // The cross-fitted route (untrimmed AllObserved).
+        assert_procedure(
+            &fit(&est),
+            &fit(&est.clone().with_bootstrap_interval(never_met(wave))),
+            &fit(&est.clone().with_bootstrap_interval(met_early(wave, 60))),
+            cap,
+            wave,
+        );
+        // The penalized refit bootstrap keeps its penalties beside the same procedure.
+        let ridge = AipwAte { bootstrap_replicates: cap, ..ridge_estimator(&[0.5, 5.0], 3) };
+        let fixed = fit(&ridge);
+        let never = fit(&ridge.clone().with_bootstrap_interval(never_met(wave)));
+        let early = fit(&ridge.clone().with_bootstrap_interval(met_early(wave, 60)));
+        assert_procedure(&fixed, &never, &early, cap, wave);
+        let kept = |e: &EffectEstimate| {
+            e.diagnostics
+                .penalized
+                .as_ref()
+                .unwrap()
+                .variance
+                .as_ref()
+                .unwrap()
+                .replicate_penalties
+                .len()
+        };
+        assert_eq!(kept(&never), kept(&fixed));
+        assert_eq!(
+            kept(&early),
+            usize::try_from(early.uncertainty.bootstrap.replicates_ok.unwrap()).unwrap()
+        );
     }
 
     #[test]

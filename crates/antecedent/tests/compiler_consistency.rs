@@ -1,7 +1,7 @@
 //! Compiler-surface consistency: an estimator never runs under an inference
 //! mode it does not implement, not-identified questions refuse with their
 //! identification outcome, inspection reports no program it has not compiled,
-//! sharp RD's contract names its per-execution identification, and a
+//! a sharp RD design that does not identify names its per-execution identification, and a
 //! transformation preview reports the refusal its apply raises.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -344,6 +344,52 @@ fn sharp_rd_contract_names_per_execution_identification() {
         }
         other => panic!("unexpected slot {other:?}"),
     }
+}
+
+#[test]
+fn sharp_rd_that_identifies_retains_its_design_from_compile() {
+    use antecedent_core::{AverageEffectQuery, VariableId};
+    use antecedent_graph::Dag;
+
+    let ctx = ExecutionContext::for_tests(1);
+    let n = 200_usize;
+    let noise = |i: usize| ((i as f64 * 12.9898).sin() * 43758.5453).fract().abs() - 0.5;
+    let r: Vec<f64> = (0..n).map(|i| -1.0 + 2.0 * i as f64 / (n - 1) as f64).collect();
+    let t: Vec<f64> = r.iter().map(|value| f64::from(*value >= 0.0)).collect();
+    let y: Vec<f64> = (0..n).map(|i| 2.0 * t[i] + 0.5 * r[i] + 0.1 * noise(i)).collect();
+    let data = antecedent_data::TabularData::from_f64_columns([
+        ("t", t.as_slice()),
+        ("y", y.as_slice()),
+        ("r", r.as_slice()),
+    ])
+    .unwrap();
+    // The running variable is the treatment's only parent, as a threshold rule requires.
+    let mut dag = Dag::with_variables(3);
+    for (from, to) in [(2, 0), (0, 1), (2, 1)] {
+        dag.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
+    }
+    let study = Study::tabular(data.clone())
+        .graph(dag)
+        .query(AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1)))
+        .identifier(IdentifierId::RdSharp)
+        .estimator(EstimatorId::RdSharp)
+        .rd_config(VariableId::from_raw(2), 0.0, 1.0)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    // Compile identifies the design and retains it; execution reads it from the program.
+    let plan = study.compile(&ctx).unwrap();
+    assert!(plan.lowered().unwrap().identification_retained());
+    let prepared = study.prepare(&ctx).unwrap();
+    assert!(
+        matches!(
+            &prepared.contract().unwrap().reasoning.identification,
+            SlotAvailability::Available(_)
+        ),
+        "an identified sharp design retains its identification product"
+    );
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    assert!((result.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.5);
 }
 
 #[test]

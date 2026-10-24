@@ -43,6 +43,21 @@ from ._native import (
     sensitivity_mediation as _sensitivity_mediation,
 )
 from ._native import (
+    sensitivity_mediation_paths as _sensitivity_mediation_paths,
+)
+from ._native import (
+    sensitivity_mediation_posterior as _sensitivity_mediation_posterior,
+)
+from ._native import (
+    sensitivity_mediation_vector as _sensitivity_mediation_vector,
+)
+from ._native import (
+    sensitivity_msm_parameters as _sensitivity_msm_parameters,
+)
+from ._native import (
+    sensitivity_msm_parameters_refit as _sensitivity_msm_parameters_refit,
+)
+from ._native import (
     sensitivity_omitted_variable_bias as _sensitivity_omitted_variable_bias,
 )
 from ._native import (
@@ -654,8 +669,14 @@ def evalue_vector(
     family: str = "conditional_effect",
     temporal: bool = False,
     target_source: str | None = None,
+    model: str | None = None,
 ) -> SensitivityResult:
     """E-values of every coordinate of a vector target, read at its weakest coordinate.
+
+    ``model="mediation"`` reads the coordinates as mediation components (the assumption is no
+    unmeasured mediator-outcome confounding) and ``model="marginal_structural"`` as marginal
+    structural model parameters (the assumption is sequential exchangeability); ``None`` is a
+    plain effect vector.
 
     One estimate (and limits, or standard errors on the standardized scale) per label: a
     conditional effect's strata, a temporal effect's horizons or a joint contrast's components.
@@ -678,6 +699,7 @@ def evalue_vector(
             family=family,
             temporal=temporal,
             target_source=target_source,
+            model=model,
         ),
     )
 
@@ -691,8 +713,12 @@ def evalue_posterior(
     family: str = "conditional_effect",
     temporal: bool = False,
     target_source: str | None = None,
+    model: str | None = None,
 ) -> SensitivityResult:
     """E-values of a posterior over a vector target.
+
+    ``model`` binds the range to the assumption of a mediation analysis (``"mediation"``) or a
+    marginal structural model (``"marginal_structural"``), as in :func:`evalue_vector`.
 
     ``draws[k]`` are the posterior draws of coordinate ``k`` on ``scale``. Each draw is
     bias-adjusted at every probed confounder strength; the range reports the weakest
@@ -710,6 +736,7 @@ def evalue_posterior(
             family=family,
             temporal=temporal,
             target_source=target_source,
+            model=model,
         ),
     )
 
@@ -726,8 +753,12 @@ def omitted_variable_bias_vector(
     family: str = "conditional_effect",
     temporal: bool = False,
     target_source: str | None = None,
+    model: str | None = None,
 ) -> SensitivityResult:
     """Partial-R2 sensitivity of a vector of linear-adjustment coefficients.
+
+    ``model`` binds the range to a mediation analysis (the coefficients are the mediator-outcome
+    path) or a marginal structural model, as in :func:`evalue_vector`.
 
     The range is read at the weakest coordinate: its ``target`` is the smallest share of a
     reported estimate left, and ``break_even`` the smallest robustness value ``RV_q``.
@@ -745,6 +776,7 @@ def omitted_variable_bias_vector(
             family=family,
             temporal=temporal,
             target_source=target_source,
+            model=model,
         ),
     )
 
@@ -759,8 +791,12 @@ def omitted_variable_bias_posterior(
     family: str = "conditional_effect",
     temporal: bool = False,
     target_source: str | None = None,
+    model: str | None = None,
 ) -> SensitivityResult:
     """Partial-R2 sensitivity of a posterior over a vector of linear-adjustment coefficients.
+
+    ``model`` binds the range to a mediation analysis or a marginal structural model, as in
+    :func:`evalue_vector`.
 
     ``bias_scale[k][d]`` is ``sd(Y_k | D, X) / sd(D | X)`` in draw ``d``; each draw moves toward
     the null by ``bias_scale * sqrt(R2yz * R2dz / (1 - R2dz))`` (Cinelli and Hazlett 2020).
@@ -775,6 +811,205 @@ def omitted_variable_bias_posterior(
             level=level,
             r2yz_extreme=r2yz_extreme,
             family=family,
+            temporal=temporal,
+            target_source=target_source,
+            model=model,
+        ),
+    )
+
+
+def mediation_sensitivity_vector(
+    treatment: Sequence[float],
+    mediator: Sequence[float],
+    outcomes: Sequence[Sequence[float]],
+    covariates: Sequence[Sequence[float]],
+    labels: Sequence[str],
+    *,
+    component: str = "indirect",
+    temporal: bool = False,
+    target_source: str | None = None,
+) -> SensitivityResult:
+    """Mediation sensitivity of one mediator to several outcomes (or horizons).
+
+    The assumption is no mediator-outcome confounding (sequential ignorability); the range
+    probes the error correlation ``rho`` of Imai, Keele and Yamamoto (2010). ``component`` is
+    ``"indirect"`` or ``"direct"`` (the total effect, identified without the mediator
+    assumption, minus the indirect effect). The range is read at the weakest outcome: ``target``
+    is the smallest share of the reported component left and ``break_even`` the correlation of
+    smallest magnitude at which some outcome's component reaches zero.
+    """
+    return _sensitivity(
+        "mediation_vector",
+        _sensitivity_mediation_vector(
+            [float(v) for v in treatment],
+            [float(v) for v in mediator],
+            [[float(v) for v in column] for column in outcomes],
+            [[float(v) for v in column] for column in covariates],
+            [str(label) for label in labels],
+            component=component,
+            temporal=temporal,
+            target_source=target_source,
+        ),
+    )
+
+
+def mediation_path_sensitivity(
+    treatment: Sequence[float],
+    mediator: Sequence[float],
+    outcomes: Sequence[Sequence[float]],
+    covariates: Sequence[Sequence[float]],
+    labels: Sequence[str],
+    *,
+    path: str = "indirect",
+    q: float = 1.0,
+    alpha: float = 0.05,
+    r2yz_extreme: float = 1.0,
+    temporal: bool = False,
+    target_source: str | None = None,
+) -> SensitivityResult:
+    """Partial-R2 sensitivity of one path of a mediation analysis, per outcome.
+
+    ``path`` is ``"treatment_mediator"`` (confounders of treatment and mediator),
+    ``"mediator_outcome"`` (of mediator and outcome), ``"treatment_outcome"`` (of treatment and
+    outcome given the mediator, the direct effect) or ``"indirect"`` (the product of the first
+    two, both paths confounded at the tested strength). The range is read at the weakest
+    outcome; for the indirect effect ``target`` is the product of the two paths' shares left,
+    ``test`` the product of the shares of their adjusted limits, and ``break_even`` the smallest
+    equal partial R2 at which the product falls to ``1 - q`` (at ``q = 1`` the smaller of the
+    two paths' robustness values).
+    """
+    return _sensitivity(
+        "mediation_paths",
+        _sensitivity_mediation_paths(
+            [float(v) for v in treatment],
+            [float(v) for v in mediator],
+            [[float(v) for v in column] for column in outcomes],
+            [[float(v) for v in column] for column in covariates],
+            [str(label) for label in labels],
+            path=path,
+            q=q,
+            alpha=alpha,
+            r2yz_extreme=r2yz_extreme,
+            temporal=temporal,
+            target_source=target_source,
+        ),
+    )
+
+
+def mediation_sensitivity_posterior(
+    beta_mediator: Sequence[Sequence[float]],
+    sigma_total: Sequence[Sequence[float]],
+    sigma_mediator: Sequence[Sequence[float]],
+    rho_tilde: Sequence[Sequence[float]],
+    total_effect: Sequence[Sequence[float]],
+    labels: Sequence[str],
+    *,
+    component: str = "indirect",
+    level: float = 0.95,
+    temporal: bool = False,
+    target_source: str | None = None,
+) -> SensitivityResult:
+    """Mediation sensitivity of a posterior over the regression summaries of several outcomes.
+
+    Each argument is coordinate-major draws (``[k][d]``) of the mediator-regression treatment
+    coefficient, the two residual standard deviations, their residual correlation and the
+    total-effect coefficient. Every draw moves through the Imai-Keele-Yamamoto formula at each
+    probed ``rho``; ``test`` is the joint posterior probability that every outcome keeps its
+    side of zero, ``break_even`` the correlation of smallest magnitude at which a posterior
+    median reaches zero and ``break_even_significance`` the same for the credible limit.
+    """
+    return _sensitivity(
+        "mediation_posterior",
+        _sensitivity_mediation_posterior(
+            [[float(v) for v in column] for column in beta_mediator],
+            [[float(v) for v in column] for column in sigma_total],
+            [[float(v) for v in column] for column in sigma_mediator],
+            [[float(v) for v in column] for column in rho_tilde],
+            [[float(v) for v in column] for column in total_effect],
+            [str(label) for label in labels],
+            component=component,
+            level=level,
+            temporal=temporal,
+            target_source=target_source,
+        ),
+    )
+
+
+def msm_parameter_sensitivity(
+    outcome: Sequence[float],
+    exposures: Sequence[Sequence[float]],
+    weights: Sequence[float],
+    labels: Sequence[str],
+    *,
+    q: float = 1.0,
+    alpha: float = 0.05,
+    r2yz_extreme: float = 1.0,
+    temporal: bool = False,
+    target_source: str | None = None,
+) -> SensitivityResult:
+    """Partial-R2 sensitivity of the exposure parameters of a marginal structural model.
+
+    The model ``outcome ~ 1 + exposures`` is fitted by weighted least squares with the subject
+    ``weights`` (for example stabilized inverse-probability weights), held fixed, and a robust
+    (HC1) standard error with the effective degrees of freedom of the weights. The assumption is
+    sequential exchangeability; the range is read at the weakest parameter.
+    """
+    return _sensitivity(
+        "msm_parameters",
+        _sensitivity_msm_parameters(
+            [float(v) for v in outcome],
+            [[float(v) for v in column] for column in exposures],
+            [float(v) for v in weights],
+            [str(label) for label in labels],
+            q=q,
+            alpha=alpha,
+            r2yz_extreme=r2yz_extreme,
+            temporal=temporal,
+            target_source=target_source,
+        ),
+    )
+
+
+def msm_parameter_sensitivity_refit(
+    outcome: Sequence[float],
+    exposures: Sequence[Sequence[float]],
+    treatments: Sequence[Sequence[float]],
+    numerators: Sequence[Sequence[Sequence[float]]],
+    denominators: Sequence[Sequence[Sequence[float]]],
+    labels: Sequence[str],
+    *,
+    replicates: int = 200,
+    seed: int = 1,
+    q: float = 1.0,
+    alpha: float = 0.05,
+    r2yz_extreme: float = 1.0,
+    temporal: bool = False,
+    target_source: str | None = None,
+) -> SensitivityResult:
+    """Partial-R2 sensitivity of marginal structural model parameters with estimated weights.
+
+    ``treatments[k]`` is the 0/1 treatment of time point ``k`` and ``numerators[k]`` /
+    ``denominators[k]`` the covariate columns of its stabilized-weight models (an empty numerator
+    is the marginal treatment probability; the denominator is the measured history). Each
+    bootstrap replicate resamples subjects and refits every weight model and the weighted
+    regression, so ``standard_error`` carries the cost of estimating the weights;
+    ``fixed_weight_standard_error`` is the robust error that holds them fixed (conservative for
+    an estimated denominator model).
+    """
+    return _sensitivity(
+        "msm_parameters_refit",
+        _sensitivity_msm_parameters_refit(
+            [float(v) for v in outcome],
+            [[float(v) for v in column] for column in exposures],
+            [[float(v) for v in column] for column in treatments],
+            [[[float(v) for v in column] for column in block] for block in numerators],
+            [[[float(v) for v in column] for column in block] for block in denominators],
+            [str(label) for label in labels],
+            replicates=int(replicates),
+            seed=int(seed),
+            q=q,
+            alpha=alpha,
+            r2yz_extreme=r2yz_extreme,
             temporal=temporal,
             target_source=target_source,
         ),
@@ -991,7 +1226,12 @@ __all__ = [
     "evalue_vector",
     "local_linearity",
     "matched_sets_sensitivity",
+    "mediation_path_sensitivity",
     "mediation_sensitivity",
+    "mediation_sensitivity_posterior",
+    "mediation_sensitivity_vector",
+    "msm_parameter_sensitivity",
+    "msm_parameter_sensitivity_refit",
     "omitted_variable_bias",
     "omitted_variable_bias_from_data",
     "omitted_variable_bias_posterior",

@@ -30,6 +30,7 @@ pub mod cyclic_calculus;
 pub mod cyclic_id;
 pub mod efficient;
 pub(crate) mod enum_masks;
+pub(crate) mod exact_search;
 pub mod envelope;
 pub mod error;
 /// Actual finite identification checker counters.
@@ -132,8 +133,11 @@ pub use sid::{
 pub use sid::{
     CONDITIONAL_WITNESS_MAX_LATENT_LEVELS, ConditionalNonTransportabilityProof,
     ConditionalNonTransportabilityRecord, ConditionalWitnessCheck, ConditionalWitnessRecord,
-    WitnessKernelRecord, WitnessLatentRecord, WitnessModelRecord, WitnessSearch,
-    search_conditional_witness, verify_conditional_witness,
+    WITNESS_SEARCH_DEFAULT_OPERATIONS, WITNESS_VERIFY_DEFAULT_OPERATIONS,
+    WITNESS_WORK_PER_OPERATION, WitnessKernelRecord, WitnessLatentRecord, WitnessMeter,
+    WitnessModelRecord, WitnessSearch, search_conditional_witness,
+    search_conditional_witness_within, verify_conditional_witness,
+    verify_conditional_witness_within,
 };
 pub use sid::{
     COUNTERFACTUAL_TRANSPORT_CONTRACT, COUNTERFACTUAL_TRANSPORT_DEFAULT_LIMITS,

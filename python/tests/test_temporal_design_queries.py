@@ -22,6 +22,7 @@ from antecedent.temporal_designs import (
     InterferenceExcursion,
     MultiArmExcursion,
     ObservationalExcursion,
+    ObservationalRegimeContrast,
     OutcomeMisclassification,
     RegimeSurvivalContrast,
     SmoothedDoseContrast,
@@ -297,3 +298,110 @@ def test_observational_excursion_needs_history_and_replicates() -> None:
     query = ObservationalExcursion("y", "unit", "period", treatment="a", history=("x",))
     with pytest.raises(CausalError):
         antecedent.analyze(_observational_table(units=40), query=query)
+
+
+def _regime_table(units: int = 1500, seed: int = 31) -> dict[str, list]:
+    """Two periods with treatment-confounder feedback and a closed-form regime truth.
+
+    ``E[Y^{a0,a1}] = 0.5 + 2.2 a0 + 2 a1`` from the structural equations (the baseline
+    confounder is centered), so always-treat against never-treat is 4.2.
+    """
+    rng = np.random.default_rng(seed)
+    table: dict[str, list] = {"y": [], "unit": [], "period": [], "a": [], "l": []}
+    for i in range(units):
+        l0 = rng.uniform(-1.0, 1.0)
+        a0 = float(rng.uniform() < 1.0 / (1.0 + math.exp(-1.5 * l0)))
+        l1 = 0.6 * l0 + 0.8 * a0 + rng.uniform(-0.5, 0.5)
+        a1 = float(rng.uniform() < 1.0 / (1.0 + math.exp(-1.2 * (l1 - 0.4))))
+        y = 0.5 + a0 + 2.0 * a1 + 1.5 * l1 + 2.0 * l0 + rng.uniform(-0.3, 0.3)
+        rows = ((0.0, a0, l0), (y, a1, l1))
+        for t, (outcome, action, confounder) in enumerate(rows):
+            for key, value in zip(table, (outcome, f"u{i}", t, action, confounder), strict=True):
+                table[key].append(value)
+    return table
+
+
+def _regime_query(method: str = "doubly_robust") -> ObservationalRegimeContrast:
+    return ObservationalRegimeContrast(
+        "y",
+        "unit",
+        "period",
+        treatment="a",
+        confounders=("l",),
+        active=(1, 1),
+        reference=(0, 0),
+        method=method,
+    )
+
+
+def test_observational_regime_recovers_the_whole_path_contrast_under_feedback() -> None:
+    table = _regime_table()
+    result = antecedent.analyze(table, query=_regime_query(), bootstrap=99)
+    design = result.temporal_design
+    assert design.design == "observational_regime"
+    assert design.replicates is not None and design.replicates[0] >= 90
+    treated = np.array(table["a"]).reshape(-1, 2)
+    outcome = np.array(table["y"]).reshape(-1, 2)[:, 1]
+    always = (treated == 1).all(axis=1)
+    never = (treated == 0).all(axis=1)
+    naive = outcome[always].mean() - outcome[never].mean()
+    assert abs(naive - 4.2) > 0.5
+    assert abs(design.estimate[0] - 4.2) < 4.0 * design.standard_error[0] + 0.1
+    assert abs(design.estimate[1] - 4.7) < 4.0 * design.standard_error[1] + 0.2
+    assert antecedent.load(result.export()).temporal_design == design
+
+
+def test_observational_regime_estimators_agree_and_posterior_is_seeded() -> None:
+    table = _regime_table(units=800)
+    estimates = {
+        method: antecedent.analyze(
+            table, query=_regime_query(method), bootstrap=99
+        ).temporal_design.estimate[0]
+        for method in ("g_formula", "doubly_robust")
+    }
+    assert abs(estimates["g_formula"] - 4.2) < 0.6
+    assert abs(estimates["doubly_robust"] - 4.2) < 0.8
+    first = antecedent.analyze(
+        table, query=_regime_query("g_formula"), inference=antecedent.Bayesian(n_draws=100), seed=4
+    ).temporal_design
+    second = antecedent.analyze(
+        table, query=_regime_query("g_formula"), inference=antecedent.Bayesian(n_draws=100), seed=4
+    ).temporal_design
+    assert first == second
+    assert first.draws == 100
+    assert abs(first.estimate[0] - 4.2) < 4.0 * first.standard_error[0] + 0.2
+
+
+def test_observational_regime_refuses_what_it_cannot_identify() -> None:
+    with pytest.raises(CausalValueError):
+        ObservationalRegimeContrast(
+            "y", "unit", "period", treatment="a", confounders=("l",), active=(1,), reference=(0, 0)
+        )
+    with pytest.raises(CausalValueError):
+        ObservationalRegimeContrast(
+            "y",
+            "unit",
+            "period",
+            treatment="a",
+            confounders=("l",),
+            active=(1, 1),
+            reference=(1, 1),
+        )
+    with pytest.raises(CausalValueError):
+        ObservationalRegimeContrast(
+            "y",
+            "unit",
+            "period",
+            treatment="a",
+            confounders=("l",),
+            active=(1, 1),
+            reference=(0, 0),
+            method="matching",
+        )
+    with pytest.raises(CausalError):
+        antecedent.analyze(_regime_table(units=60), query=_regime_query())
+    ragged = _regime_table(units=60)
+    for key in ragged:
+        ragged[key] = ragged[key][:-1]
+    with pytest.raises(CausalError):
+        antecedent.analyze(ragged, query=_regime_query(), bootstrap=99)

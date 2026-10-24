@@ -67,7 +67,7 @@ No limit is recorded beyond the blockers below.
 
 | Id | Scientific impossibility | Reason |
 | --- | --- | --- |
-| support.refused | yes | Query-native functional validation requires a Dag. |
+| support.refused | yes | Cheap and full validation of a path-specific effect or an interventional distribution on a supplied or accepted Cpdag, Pag, Admg or TemporalAdmg run the functional refuter state and stay unlicensed. The identified functional executes as at validation none (in every completion of a class); a path-specific effect is refuted by the placebo treatment, subset stability and, under full, the placebo outcome and bootstrap stability of the whole procedure, and an interventional distribution by subset and bootstrap stability of its vector of atom probabilities, each a joint statistic over the whole refitted value. The result keeps support status refused: no evidence row or coverage record names the cell, and the verdicts are diagnostics, not a calibration claim. |
 
 ### Next actions
 

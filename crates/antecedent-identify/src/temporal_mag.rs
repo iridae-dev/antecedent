@@ -135,6 +135,7 @@ pub(crate) fn identify(
     unfolded: &UnfoldedTemporalPag,
     max_candidates: usize,
     max_examinations: u64,
+    context: Option<&antecedent_core::ExecutionContext>,
 ) -> Result<IdentificationResult, IdentificationError> {
     let indexer = &unfolded.indexer;
     let keys = query_keys(query)?;
@@ -170,7 +171,7 @@ pub(crate) fn identify(
             },
             level(&query.active)?,
             level(&query.control)?,
-            AdjustmentBudget { max_candidates, max_examinations },
+            AdjustmentBudget { max_candidates, max_examinations, context },
         )?
     };
     let mut conditioning = keys.clone();

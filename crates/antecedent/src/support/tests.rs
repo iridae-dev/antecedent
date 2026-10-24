@@ -438,16 +438,16 @@ fn remaining_closed_dag_cells_are_named() {
             "graph_posterior",
             "Bayesian",
             "none",
-            "Graph-posterior derivative mixtures are not staged",
+            "over a graph posterior is answered on every atom",
         ),
-        ("Counterfactual", "graph_posterior", "Frequentist", "none", "graph-posterior"),
         (
             "Counterfactual",
-            "explicit",
+            "graph_posterior",
             "Frequentist",
-            "cheap",
-            "Counterfactual cheap/full are not licensed",
+            "none",
+            "over a graph posterior is answered on every atom",
         ),
+        ("Counterfactual", "explicit", "Frequentist", "cheap", "functional refuter state"),
     ];
     for (query, structure, inference, validation, needle) in cases {
         let err = refuse_if_not_applicable(cell(query, "Dag", structure, inference, validation))
@@ -580,11 +580,15 @@ fn closed_conditional_effect_off_dag_is_enforced() {
     assert!(super::executes_unlicensed(temporal), "TemporalAdmg");
     let message = refuse_if_not_applicable(temporal).unwrap_err().to_string();
     assert!(message.contains("TemporalConditionalPulse"), "TemporalAdmg: {message}");
-    // Validation and graph-posterior mixing over the projection stay refused.
+    // Validation over the projection runs the functional refuter state, unlicensed; graph-posterior
+    // mixing over the projection stays refused.
     for validation in ["cheap", "full"] {
         let c = cell("ConditionalEffect", "TemporalAdmg", "explicit", "Frequentist", validation);
-        assert!(!super::executes_unlicensed(c), "{c:?}");
+        assert!(super::executes_unlicensed(c), "{c:?}");
     }
+    let posterior =
+        cell("ConditionalEffect", "TemporalAdmg", "graph_posterior", "Frequentist", "cheap");
+    assert!(!super::executes_unlicensed(posterior), "{posterior:?}");
     for graph in ["Cpdag", "Pag"] {
         for inference in ["Frequentist", "Bayesian"] {
             for validation in ["none", "cheap", "full"] {
@@ -620,7 +624,8 @@ fn closed_path_and_distribution_on_explicit_admg_pag_is_enforced() {
             assert!(super::executes_unlicensed(c), "PathSpecificEffect/{graph}/{inference}");
             for validation in ["cheap", "full"] {
                 let c = cell("PathSpecificEffect", graph, "explicit", inference, validation);
-                assert!(!super::executes_unlicensed(c), "{c:?}");
+                assert_eq!(classify(c), CellStatus::Refused, "{c:?}");
+                assert!(super::executes_unlicensed(c), "{c:?}");
             }
         }
         let c = cell("NestedCounterfactualEffect", graph, "explicit", "Frequentist", "none");
@@ -638,7 +643,7 @@ fn closed_path_and_distribution_on_explicit_admg_pag_is_enforced() {
             assert!(super::executes_unlicensed(c), "{graph}/{structure}");
         }
         let c = cell("InterventionalDistribution", graph, "explicit", "Frequentist", "cheap");
-        assert!(!super::executes_unlicensed(c), "{c:?}");
+        assert!(super::executes_unlicensed(c), "{c:?}");
     }
     for validation in ["cheap", "full"] {
         assert_eq!(
@@ -771,6 +776,55 @@ fn licensed_graph_posterior_frequentist_ate_is_open() {
 }
 
 #[test]
+fn functional_graph_posterior_cells_execute_unlicensed() {
+    let static_classes = ["Dag", "Admg", "TemporalAdmg", "Cpdag", "Pag"];
+    let derivatives = [
+        "AverageDerivative",
+        "PointDerivative",
+        "Elasticity",
+        "SemiElasticity",
+        "ResponseJacobian",
+    ];
+    for inference in ["Frequentist", "Bayesian"] {
+        for validation in ["none", "cheap", "full"] {
+            for graph in static_classes {
+                for query in derivatives.into_iter().chain(["Counterfactual"]) {
+                    let c = cell(query, graph, "graph_posterior", inference, validation);
+                    assert_eq!(classify(c), CellStatus::Refused, "{c:?}");
+                    assert!(super::executes_unlicensed(c), "{c:?}");
+                }
+            }
+            let c = cell("ConditionalEffect", "Admg", "graph_posterior", inference, validation);
+            assert_eq!(classify(c), CellStatus::Refused, "{c:?}");
+            assert!(super::executes_unlicensed(c), "{c:?}");
+            if validation != "none" {
+                for graph in ["Admg", "TemporalAdmg", "Cpdag", "Pag"] {
+                    let c = cell("ResponseCurve", graph, "graph_posterior", inference, validation);
+                    assert_eq!(classify(c), CellStatus::Refused, "{c:?}");
+                    assert!(super::executes_unlicensed(c), "{c:?}");
+                }
+                for graph in ["TemporalCpdag", "TemporalPag"] {
+                    for query in derivatives {
+                        let c = cell(query, graph, "graph_posterior", inference, validation);
+                        assert_eq!(classify(c), CellStatus::Refused, "{c:?}");
+                        assert!(super::executes_unlicensed(c), "{c:?}");
+                    }
+                }
+            }
+            for query in derivatives.into_iter().chain([
+                "TemporalConditionalPulse",
+                "TemporalConditionalSustained",
+                "Counterfactual",
+            ]) {
+                let c = cell(query, "TemporalDag", "graph_posterior", inference, validation);
+                assert_eq!(classify(c), CellStatus::Refused, "{c:?}");
+                assert!(super::executes_unlicensed(c), "{c:?}");
+            }
+        }
+    }
+}
+
+#[test]
 fn class_and_mediation_graph_posterior_refusals_are_named() {
     for graph in ["Cpdag", "Pag"] {
         for inference in ["Frequentist", "Bayesian"] {
@@ -786,19 +840,59 @@ fn class_and_mediation_graph_posterior_refusals_are_named() {
             }
         }
     }
-    for validation in ["none", "cheap", "full"] {
-        let err = refuse_if_not_applicable(cell(
-            "MediationEffect",
-            "Dag",
-            "graph_posterior",
-            "Bayesian",
-            validation,
-        ))
-        .unwrap_err();
-        assert!(
-            err.to_string().contains("Graph-posterior mediation mixtures are not staged"),
-            "{validation}: {err}"
-        );
+    // A mediation over a graph posterior executes at every validation for every atom kind and
+    // inference, and stays unlicensed.
+    for graph in ["Dag", "Admg", "TemporalAdmg", "Cpdag", "Pag"] {
+        for inference in ["Frequentist", "Bayesian"] {
+            for validation in ["none", "cheap", "full"] {
+                let c = cell("MediationEffect", graph, "graph_posterior", inference, validation);
+                assert_eq!(classify(c), CellStatus::Refused, "{c:?}");
+                assert!(super::executes_unlicensed(c), "{c:?}");
+            }
+        }
+    }
+}
+
+/// The cross-world and attribution queries execute over a graph posterior of every atom kind at
+/// every validation: a Dag atom, a mediation and a temporal PAG window run their own suites, and
+/// the functional queries are refitted whole by the target-native suite.
+#[test]
+fn cross_world_and_attribution_graph_posterior_cells_execute() {
+    let static_classes = vec!["Dag", "Admg", "TemporalAdmg", "Cpdag", "Pag"];
+    let attribution_classes = vec![
+        "Dag",
+        "Admg",
+        "TemporalAdmg",
+        "Cpdag",
+        "Pag",
+        "TemporalDag",
+        "TemporalCpdag",
+        "TemporalPag",
+    ];
+    for (query, graphs, suites_execute) in [
+        ("PathSpecificEffect", static_classes.clone(), true),
+        ("InterventionalDistribution", static_classes.clone(), true),
+        ("NestedCounterfactualEffect", static_classes, true),
+        ("TemporalMediationEffect", vec!["TemporalPag"], true),
+        ("AnomalyAttribution", attribution_classes.clone(), true),
+        ("ChangeAttribution", attribution_classes, true),
+    ] {
+        for graph in graphs {
+            for inference in ["Frequentist", "Bayesian"] {
+                let c = cell(query, graph, "graph_posterior", inference, "none");
+                assert_eq!(classify(c), CellStatus::Refused, "{c:?}");
+                assert!(super::executes_unlicensed(c), "{c:?}");
+                for validation in ["cheap", "full"] {
+                    let c = cell(query, graph, "graph_posterior", inference, validation);
+                    assert_eq!(super::executes_unlicensed(c), suites_execute, "{c:?}");
+                }
+            }
+        }
+    }
+    // A transport over a graph posterior of Cpdag or Pag atoms executes with the other atom kinds.
+    for graph in ["Dag", "Admg", "TemporalAdmg", "Cpdag", "Pag"] {
+        let c = cell("TransportQuery", graph, "graph_posterior", "Frequentist", "none");
+        assert!(super::executes_unlicensed(c), "{c:?}");
     }
 }
 
@@ -1202,7 +1296,7 @@ fn temporal_mediation_dbn_posterior_all_suites_are_licensed() {
 }
 
 #[test]
-fn temporal_admg_contrasts_execute_unlicensed_at_validation_none_only() {
+fn temporal_admg_contrasts_execute_unlicensed_at_every_validation() {
     for query in [
         "PulseEffect",
         "SustainedEffect",
@@ -1222,14 +1316,14 @@ fn temporal_admg_contrasts_execute_unlicensed_at_validation_none_only() {
                 }
             }
         }
-        // A posterior over lagged template atoms runs the window per atom at validation none.
+        // A posterior over lagged template atoms runs the window per atom at every validation:
+        // cheap and full run the window-native suite on each atom and mix the reports.
         for inference in ["Frequentist", "Bayesian"] {
-            let posterior = cell(query, "TemporalAdmg", "graph_posterior", inference, "none");
-            assert_eq!(classify(posterior), CellStatus::Refused, "{posterior:?}");
-            assert!(super::executes_unlicensed(posterior), "{posterior:?}");
-            for validation in ["cheap", "full"] {
-                let posterior = cell(query, "TemporalAdmg", "graph_posterior", inference, validation);
-                assert!(!super::executes_unlicensed(posterior), "{posterior:?}");
+            for validation in ["none", "cheap", "full"] {
+                let posterior =
+                    cell(query, "TemporalAdmg", "graph_posterior", inference, validation);
+                assert_eq!(classify(posterior), CellStatus::Refused, "{posterior:?}");
+                assert!(super::executes_unlicensed(posterior), "{posterior:?}");
             }
         }
     }
@@ -1240,8 +1334,114 @@ fn temporal_admg_contrasts_execute_unlicensed_at_validation_none_only() {
     let posterior =
         cell("TemporalMediationEffect", "TemporalAdmg", "graph_posterior", "Frequentist", "none");
     assert!(super::executes_unlicensed(posterior), "{posterior:?}");
+    // Cheap and full run the mediation-native suite, over a template and over a posterior.
     for validation in ["cheap", "full"] {
-        let c = cell("TemporalMediationEffect", "TemporalAdmg", "explicit", "Frequentist", validation);
+        for structure in ["explicit", "accepted", "graph_posterior"] {
+            for inference in ["Frequentist", "Bayesian"] {
+                let c = cell(
+                    "TemporalMediationEffect",
+                    "TemporalAdmg",
+                    structure,
+                    inference,
+                    validation,
+                );
+                assert_eq!(classify(c), CellStatus::Refused, "{c:?}");
+                assert!(super::executes_unlicensed(c), "{c:?}");
+            }
+        }
+    }
+}
+
+#[test]
+fn mediation_decompositions_over_mixed_graphs_and_classes_execute_at_every_validation() {
+    for (query, graph) in [
+        ("MediationEffect", "Admg"),
+        ("MediationEffect", "TemporalAdmg"),
+        ("MediationEffect", "Cpdag"),
+        ("MediationEffect", "Pag"),
+        ("TemporalMediationEffect", "TemporalPag"),
+    ] {
+        for structure in ["explicit", "accepted"] {
+            for inference in ["Frequentist", "Bayesian"] {
+                for validation in ["none", "cheap", "full"] {
+                    let c = cell(query, graph, structure, inference, validation);
+                    assert_eq!(classify(c), CellStatus::Refused, "{c:?}");
+                    assert!(super::executes_unlicensed(c), "{c:?}");
+                }
+            }
+        }
+    }
+    // A graph posterior over atoms of a mixed graph or a class is not one decomposition.
+    for graph in ["Admg", "Cpdag", "Pag"] {
+        let c = cell("MediationEffect", graph, "graph_posterior", "Frequentist", "cheap");
+        assert!(!super::executes_unlicensed(c), "{c:?}");
+    }
+}
+
+#[test]
+fn functional_queries_execute_unlicensed_under_cheap_and_full_validation() {
+    // Every structure the functional refuter state refits (a supplied or accepted one) builds
+    // and runs at cheap and full, and is never a licensed cell: no evidence row names it.
+    let attribution = ["AnomalyAttribution", "ChangeAttribution"];
+    let classes = [
+        "Dag",
+        "TemporalDag",
+        "Admg",
+        "TemporalAdmg",
+        "Cpdag",
+        "Pag",
+        "TemporalCpdag",
+        "TemporalPag",
+    ];
+    for query in attribution {
+        for graph in classes {
+            for structure in ["explicit", "accepted"] {
+                for validation in ["cheap", "full"] {
+                    for inference in ["Frequentist", "Bayesian"] {
+                        let c = cell(query, graph, structure, inference, validation);
+                        assert_eq!(classify(c), CellStatus::Refused, "{c:?}");
+                        assert!(super::executes_unlicensed(c), "{c:?}");
+                    }
+                }
+            }
+            // A graph posterior is attributed atom by atom, and its refuter suites refit the
+            // whole attribution through the posterior program.
+            for validation in ["none", "cheap", "full"] {
+                let c = cell(query, graph, "graph_posterior", "Frequentist", validation);
+                assert!(super::executes_unlicensed(c), "{c:?}");
+            }
+        }
+        // Accepted attribution on a Dag also executes at validation none.
+        let c = cell(query, "Dag", "accepted", "Frequentist", "none");
+        assert!(super::executes_unlicensed(c), "{c:?}");
+    }
+    for validation in ["cheap", "full"] {
+        for (query, graph) in [
+            ("Counterfactual", "Dag"),
+            ("Counterfactual", "Cpdag"),
+            ("Counterfactual", "Admg"),
+            ("NestedCounterfactualEffect", "Dag"),
+            ("NestedCounterfactualEffect", "Pag"),
+            ("InterventionalDistribution", "Admg"),
+            ("InterventionalDistribution", "Cpdag"),
+            ("PathSpecificEffect", "Pag"),
+            ("ConditionalEffect", "Admg"),
+            ("ConditionalEffect", "TemporalAdmg"),
+            ("Counterfactual", "TemporalDag"),
+            ("PathSpecificEffect", "TemporalCpdag"),
+            ("TemporalConditionalPulse", "TemporalDag"),
+            ("TemporalConditionalSustained", "TemporalPag"),
+        ] {
+            for structure in ["explicit", "accepted"] {
+                let c = cell(query, graph, structure, "Frequentist", validation);
+                assert_eq!(classify(c), CellStatus::Refused, "{c:?}");
+                assert!(super::executes_unlicensed(c), "{c:?}");
+            }
+        }
+    }
+    // A graph posterior over a Dag has no single estimand for a counterfactual.
+    for query in ["Counterfactual"] {
+        let c = cell(query, "Dag", "graph_posterior", "Frequentist", "cheap");
         assert!(!super::executes_unlicensed(c), "{c:?}");
     }
 }

@@ -161,9 +161,9 @@ pub use response::{
     LocalPolynomialPoint, LocalQuadraticWorkspace, diagonal_low_rank_quadratic_traces,
     gaussian_density, gaussian_local_quadratic_adjusted_influence_prechecked,
     gaussian_local_quadratic_bias_corrected, gaussian_local_quadratic_bias_corrected_influence,
-    gaussian_local_quadratic_influence,
-    gaussian_local_quadratic_influence_prechecked, gaussian_local_quadratic_influence_with,
-    gaussian_local_quadratic_weighted, silverman_bandwidth, silverman_normal_reference_factor,
+    gaussian_local_quadratic_influence, gaussian_local_quadratic_influence_prechecked,
+    gaussian_local_quadratic_influence_with, gaussian_local_quadratic_weighted,
+    silverman_bandwidth, silverman_normal_reference_factor,
 };
 pub use special::{
     NORMAL_Q975, chi_square_sf, gamma_q, gauss_hermite_standard_normal, ln_gamma, normal_ppf,
@@ -177,8 +177,9 @@ pub use synthesis::{
     random_effects_dersimonian_laird, random_effects_reml,
 };
 pub use twosls::{
-    FirstStageDiagnostics, IvBlocks, JointTwoSlsFit, TwoSlsFit, anderson_rubin_confidence_set,
-    anderson_rubin_kf_critical, anderson_rubin_statistic, f_critical, fit_2sls, fit_joint_2sls,
-    fit_wls,
+    FirstStageDiagnostics, IvBlocks, IvMoments, JointTwoSlsFit, TwoSlsFit, TwoSlsMomentFit,
+    anderson_rubin_confidence_set, anderson_rubin_confidence_set_from_moments,
+    anderson_rubin_kf_critical, anderson_rubin_statistic, f_critical, fit_2sls,
+    fit_2sls_from_moments, fit_joint_2sls, fit_wls,
 };
 pub use welford::Welford;

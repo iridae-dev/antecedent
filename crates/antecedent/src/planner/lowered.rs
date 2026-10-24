@@ -23,6 +23,7 @@ use antecedent_contract::{ClaimKind, DataClassification};
 use antecedent_core::{
     CanonicalWriter, PhysicalOperator, ScientificTarget, SemanticDigest, VariableId,
 };
+use antecedent_expr::IdentifiedEstimand;
 use antecedent_identify::{CompiledIdentificationProduct, IdentificationResult};
 
 use crate::analysis::IdentificationCache;
@@ -380,12 +381,97 @@ pub(crate) struct RetainedIdentification {
     /// product only into a study with the same key; `None` (an input with no
     /// canonical encoding) matches no study.
     pub(crate) key: Option<[u8; 32]>,
+    /// Seal of each product in [`Self::caches`], index-aligned, computed when compile
+    /// retained it: a digest over the full identification result. A checked operation
+    /// verifies the product it holds against this instead of identifying again.
+    seals: Arc<[Option<[u8; 32]>]>,
+    /// An identification no study slot holds, which the execution reads from the program: a
+    /// mediation on a temporal window, or the probe of a temporal cross-world query.
+    execution: Option<RetainedExecutionProof>,
+}
+
+/// Identification retained with the program for an execution that identifies on a window or
+/// probe derived from its query and structure, so that it is identified once.
+#[derive(Clone, Debug)]
+pub(crate) enum RetainedExecutionProof {
+    /// One proof per component (total, direct, indirect) on the unrolled ADMG window;
+    /// `None` where a component the query did not request is not identified.
+    Admg(Vec<Option<(IdentificationResult, IdentifiedEstimand)>>),
+    /// One class certificate per component on the unfolded PAG window.
+    Pag {
+        /// Certificates in component order; `None` where not fully identified.
+        envelopes: Vec<Option<antecedent_identify::TemporalClassEnvelope>>,
+    },
+    /// The one-step pulse probe of a temporal cross-world query on a temporal DAG.
+    CrossWorld {
+        /// The probe's identification.
+        identification: IdentificationResult,
+        /// The lag indexer of its unfolding.
+        indexer: antecedent_core::TemporalIndexer,
+    },
+    /// The class certificate of the cross-world probe on a temporal CPDAG or PAG.
+    CrossWorldClass {
+        /// Completions of the class and their identification.
+        envelope: Arc<antecedent_identify::TemporalClassEnvelope>,
+    },
 }
 
 impl RetainedIdentification {
+    /// Retain `caches`, sealing each product a checked operation proves from.
+    ///
+    /// # Errors
+    ///
+    /// A product cannot be encoded for its seal.
+    pub(crate) fn new(
+        product: Option<CompiledIdentificationProduct>,
+        caches: Vec<IdentificationCache>,
+        key: Option<[u8; 32]>,
+    ) -> Result<Self, crate::error::CausalError> {
+        let seals = caches
+            .iter()
+            .map(crate::analysis::identification_seal::seal_cache)
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Self {
+            product,
+            caches: Arc::from(caches),
+            key,
+            seals: Arc::from(seals),
+            execution: None,
+        })
+    }
+
+    /// The same retained products with an execution proof.
+    pub(crate) fn with_execution_proof(mut self, proof: RetainedExecutionProof) -> Self {
+        self.execution = Some(proof);
+        self
+    }
+
+    /// The execution proof, when the program retained one.
+    pub(crate) const fn execution_proof(&self) -> Option<&RetainedExecutionProof> {
+        self.execution.as_ref()
+    }
+
     /// Products preparation installs.
     pub(crate) fn caches(&self) -> &[IdentificationCache] {
         &self.caches
+    }
+
+    /// The compile-time seal of the static identification, when one was retained.
+    pub(crate) fn static_seal(&self) -> Option<[u8; 32]> {
+        self.sealed_where(|cache| matches!(cache, IdentificationCache::Static(_)))
+    }
+
+    /// The compile-time seal of the temporal identification, when one was retained.
+    pub(crate) fn temporal_seal(&self) -> Option<[u8; 32]> {
+        self.sealed_where(|cache| matches!(cache, IdentificationCache::Temporal(_)))
+    }
+
+    fn sealed_where(&self, pick: impl Fn(&IdentificationCache) -> bool) -> Option<[u8; 32]> {
+        self.caches
+            .iter()
+            .zip(self.seals.iter())
+            .find(|(cache, _)| pick(cache))
+            .and_then(|(_, seal)| *seal)
     }
 }
 
