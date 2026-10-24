@@ -43,12 +43,15 @@ WARN_POINT = 0.10
 _COUNT_KEYS = (
     "peak_rss_bytes",
     "allocation_bytes",
+    "allocation_count",
+    "peak_live_bytes",
     "copy_bytes",
     "borrow_bytes",
     "source_passes",
     "fit_count",
     "test_count",
     "retained_outputs",
+    "retained_bytes",
     "spill_bytes",
     "threads",
 )
@@ -56,7 +59,8 @@ _VARIABILITY_PARTS = ("count", "min", "median", "max")
 _LANES = ("first_answer", "reuse_throughput", "row_capacity", "exact_capacity")
 _HARDWARE = ("apple_silicon", "x86_64_linux")
 _BUILDS = ("portable", "runtime_dispatched")
-_ROW_TIERS = ("1e4", "1e5", "1e6", "1e7")
+# `control_default` is a fixed-size control run at the size it registers, with no row sweep.
+_ROW_TIERS = ("1e4", "1e5", "1e6", "1e7", "control_default")
 _THREADS = (1, 4, 16)
 _OUTCOMES = ("completed", "unsuccessful", "oom")
 _SMALL_WORKLOAD_TIER = "1e4"

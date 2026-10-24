@@ -57,7 +57,7 @@ pub mod inspect;
 pub mod interval;
 pub mod intervention;
 pub mod measurement_model;
-pub(crate) mod measurement_record;
+pub mod measurement_record;
 pub mod node;
 pub mod operator;
 pub mod parallel_axis;

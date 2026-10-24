@@ -22,7 +22,10 @@ REQUIRED = (
     "status",
     "source",
 )
-OPTIONAL = frozenset({"nearest", "candidate_command"})
+OPTIONAL = frozenset(
+    {"nearest", "candidate_command", "uncertainty", "diagnostics", "resource_scope"}
+)
+MEASURED = ("uncertainty", "diagnostics", "resource_scope")
 STATUSES = frozenset({"defined", "missing_entry_point"})
 TOP = frozenset({"schema", "predecessor_tag", "measured", "control"})
 TIME_VALUE = re.compile(
@@ -117,6 +120,9 @@ def main() -> None:
                 fail(f"{where}.candidate_command is empty")
             if nearest:
                 fail(f"{where} is defined and also names nearest")
+            for key in MEASURED:
+                if not isinstance(row.get(key), str) or not row[key].strip():
+                    fail(f"{where}.{key} must name what the timed work returns ({key})")
         else:
             if row["command"]:
                 fail(f"{where}.command must be empty when the entry point is missing")

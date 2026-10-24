@@ -12,6 +12,7 @@
 pub mod cholesky;
 pub mod dispatch;
 pub mod gram;
+pub mod native_probe;
 pub mod numeric;
 pub mod parcorr;
 pub mod portable;

@@ -16,6 +16,8 @@ A row may also carry `candidate_command`: the command for the current build when
 
 `missing_entry_point` rows have no such command. `nearest` is the closest existing file. Do not treat that file as the control.
 
+Each defined row also names the `uncertainty` it requests, the `diagnostics` it computes and the `resource_scope` of its native measurement (the process peak resident set, CPU time and faults, read around the timed section for the Python controls and from the operating system for the benches). `python3 parity/performance_lanes/run_lanes.py` runs every control in both builds with those measurements.
+
 Check the table without running the workloads:
 
 ```bash

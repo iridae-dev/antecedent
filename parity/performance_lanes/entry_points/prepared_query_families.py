@@ -11,6 +11,10 @@ Data synthesis sits outside it.
 
     python parity/performance_lanes/entry_points/prepared_query_families.py --role control
     python parity/performance_lanes/entry_points/prepared_query_families.py --role candidate
+
+`--mode solo` is the independent-call baseline for the reuse lane: every one of the eight
+retargets starts from nothing, so each repeats `prepare` and `estimate` instead of reusing
+the prepared family. The data, queries, uncertainty, claims and contrast are the same.
 """
 
 from __future__ import annotations
@@ -55,10 +59,18 @@ def synthesize(rows: int) -> dict[str, np.ndarray]:
 
 
 def main() -> None:
-    args = arguments(__doc__ or "")
+    args = arguments(
+        __doc__ or "",
+        lambda parser: parser.add_argument(
+            "--mode",
+            choices=("prepared", "solo"),
+            default="prepared",
+            help="solo repeats prepare and estimate for every retarget (independent calls)",
+        ),
+    )
     data = synthesize(args.rows or ROWS)
 
-    def section() -> Any:
+    def prepare() -> tuple[Any, Any]:
         batch = PreparedBatch.prepare(
             data,
             graph=GRAPH,
@@ -69,12 +81,18 @@ def main() -> None:
             seed=EXECUTION_SEED,
             threads=args.threads,
         )
-        estimates = batch.estimate(data, seed=EXECUTION_SEED, threads=args.threads)
+        return batch, batch.estimate(data, seed=EXECUTION_SEED, threads=args.threads)
+
+    def section() -> Any:
+        batch, estimates = prepare()
         rows = list(batch.retarget_rows() or ())
         z = np.asarray(data["z"])[rows]
         snapshot = batch.retarget_snapshot()
         reports = []
-        for tilt in TILTS:
+        for index, tilt in enumerate(TILTS):
+            if args.mode == "solo" and index > 0:
+                batch, estimates = prepare()
+                snapshot = batch.retarget_snapshot()
             claims = [
                 RetargetClaim("up", 0, np.exp(tilt * z), depends_on=["z"]),
                 RetargetClaim("down", 0, np.exp(-tilt * z), depends_on=["z"]),
