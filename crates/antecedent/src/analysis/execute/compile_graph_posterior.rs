@@ -57,6 +57,12 @@ impl super::Study {
             (DataInput::Tabular(data), CausalQuery::ConditionalEffect(q)) => {
                 self.compile_graph_posterior_conditional_effect(data, q, ctx)
             }
+            (DataInput::Tabular(data), CausalQuery::Transport(q)) => {
+                self.compile_graph_posterior_transport(data, q, ctx)
+            }
+            (DataInput::Tabular(data), CausalQuery::Interference(q)) => {
+                self.compile_graph_posterior_interference(data, q, ctx)
+            }
             (
                 DataInput::Temporal(data) | DataInput::Event(data),
                 CausalQuery::TemporalEffect(q),
@@ -246,6 +252,34 @@ impl super::Study {
         logical.compile_physical(ctx)
     }
 
+    /// Trial-transport compile: every posterior atom is a selection diagram, identified by
+    /// sID and estimated by the trial-to-target weighting of the supplied probabilities.
+    fn compile_graph_posterior_transport(
+        &self,
+        data: &TabularData,
+        q: &antecedent_core::TransportQuery,
+        ctx: &ExecutionContext,
+    ) -> Result<PhysicalExecutionPlan, CausalError> {
+        let mut logical = self.compile_logical_transport(data, q)?;
+        logical.record.discovery_algorithm =
+            Some(self.graph_posterior_discovery_algorithm("graph_posterior"));
+        logical.compile_physical(ctx)
+    }
+
+    /// Interference compile: the exposure contrast is identified by the assignment design, so
+    /// the plan is the design's own, recorded over the posterior.
+    fn compile_graph_posterior_interference(
+        &self,
+        data: &TabularData,
+        q: &antecedent_core::InterferenceQuery,
+        ctx: &ExecutionContext,
+    ) -> Result<PhysicalExecutionPlan, CausalError> {
+        let mut logical = self.compile_logical_interference(data, q)?;
+        logical.record.discovery_algorithm =
+            Some(self.graph_posterior_discovery_algorithm("graph_posterior"));
+        logical.compile_physical(ctx)
+    }
+
     /// Temporal-effect compile over a DBN or temporal-class posterior.
     fn compile_graph_posterior_temporal_effect(
         &self,
@@ -267,7 +301,12 @@ impl super::Study {
         )?;
         let class_atom =
             self.graph_posterior.as_ref().map(|gp| gp.atom_kind).is_some_and(is_class_atom);
-        if class_atom && !q.effect_modifiers.is_empty() {
+        if self.lagged_admg_atoms()? {
+            // Every atom is identified on the unrolled window of its own template and
+            // evaluated by the discrete plug-in on the lag-aligned window table.
+            logical.record.identifier = Some(Arc::from(IdentifierId::GeneralId.as_str()));
+            logical.record.estimator = Some(Arc::from(EstimatorId::FunctionalEffect.as_str()));
+        } else if class_atom && !q.effect_modifiers.is_empty() {
             // The conditional point is the completion-weighted linear producer,
             // including under a Bayesian isotropic prior. It is not the ATE g-computation.
             logical.record.identifier =
@@ -286,6 +325,27 @@ impl super::Study {
         logical.compile_physical(ctx)
     }
 
+    /// Whether the study's posterior is a lagged temporal-ADMG posterior.
+    ///
+    /// # Errors
+    ///
+    /// A `TemporalAdmg` posterior without per-atom lag masks: its atoms are contemporaneous
+    /// and read tabular rows, not a series.
+    pub(super) fn lagged_admg_atoms(&self) -> Result<bool, CausalError> {
+        let Some(posterior) = self.graph_posterior.as_ref() else { return Ok(false) };
+        if posterior.atom_kind != antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg {
+            return Ok(false);
+        }
+        if !posterior.is_lagged_temporal_admg() {
+            return Err(CausalError::Unsupported {
+                message: "a TemporalAdmg graph posterior over a series needs per-atom lag masks \
+                          and max_lag (lagged templates); contemporaneous TemporalAdmg atoms read \
+                          tabular rows",
+            });
+        }
+        Ok(true)
+    }
+
     /// Temporal-response compile over a DBN or temporal-class posterior.
     fn compile_graph_posterior_temporal_response(
         &self,
@@ -293,6 +353,13 @@ impl super::Study {
         q: &antecedent_core::ResponseQuery,
         ctx: &ExecutionContext,
     ) -> Result<PhysicalExecutionPlan, CausalError> {
+        if self.lagged_admg_atoms()? {
+            return Err(CausalError::Unsupported {
+                message: "a lagged temporal-ADMG graph posterior answers a pulse, sustained or \
+                          conditional temporal contrast and a temporal mediation; a temporal \
+                          response over latent-confounded atoms is not a per-atom window route",
+            });
+        }
         super::temporal_posterior_response::dbn_posterior_response_supported(q)?;
         let mut logical = compile_logical_temporal_response(data, &TemporalDag::empty(), q, false)?;
         if self.graph_posterior.as_ref().map(|gp| gp.atom_kind).is_some_and(is_class_atom) {
@@ -329,13 +396,25 @@ impl super::Study {
             false,
             class,
         )?;
-        logical.record.plan_id = Arc::from("temporal_mediation");
-        logical.record.identifier = Some(Arc::from("temporal.mediation"));
-        logical.record.estimator = Some(Arc::from(if self.inference.is_frequentist() {
-            EstimatorId::TemporalMediation.as_str()
+        if self.lagged_admg_atoms()? {
+            // Each atom's three components are identified on its own window by the
+            // path-specific identifier and evaluated by the discrete plug-in; one outcome
+            // horizon names the window.
+            super::temporal_admg_mediation::window_effect_query(q)?;
+            logical.record.plan_id =
+                Arc::from(super::plan_id::PlanId::TemporalAdmgMediation.as_str());
+            logical.record.identifier =
+                Some(Arc::from(IdentifierId::PathSpecificNatural.as_str()));
+            logical.record.estimator = Some(Arc::from(EstimatorId::FunctionalEffect.as_str()));
         } else {
-            EstimatorId::BayesianTemporalMediation.as_str()
-        }));
+            logical.record.plan_id = Arc::from("temporal_mediation");
+            logical.record.identifier = Some(Arc::from("temporal.mediation"));
+            logical.record.estimator = Some(Arc::from(if self.inference.is_frequentist() {
+                EstimatorId::TemporalMediation.as_str()
+            } else {
+                EstimatorId::BayesianTemporalMediation.as_str()
+            }));
+        }
         logical.record.validation_suite = self.validation_suite_id();
         logical.record.query_variables = Arc::from([q.treatment, q.outcome]);
         logical.query = CausalQuery::Mediation(q.clone());

@@ -225,13 +225,14 @@ impl super::Study {
             RouteInput::TemporalMediationDag { data, query: q, graph } => {
                 self.compile_logical_temporal_mediation_dag(data, q, graph)
             }
-            RouteInput::TemporalMediationPag => Err(CausalError::Unsupported {
-                message: "Latent-confounded TemporalPag natural mediation is outside the \
-                              existing cross-world identification theory; the linear DAG \
-                              mechanism product on completions cannot license it",
-            }),
+            RouteInput::TemporalMediationPag { data, query } => {
+                self.compile_logical_temporal_mediation_pag(data, query)
+            }
             RouteInput::TemporalMediationCpdag { data, query } => {
                 self.compile_logical_temporal_mediation_class(data, query)
+            }
+            RouteInput::TemporalMediationAdmg { data, query } => {
+                self.compile_logical_temporal_mediation_admg(data, query)
             }
             RouteInput::StaticMediationDag { data, graph, source } => {
                 self.compile_logical_static_mediation(data, graph, source)
@@ -278,6 +279,9 @@ impl super::Study {
             RouteInput::AssociationTemporal { data, query: q } => {
                 self.compile_logical_association(data, q, DataClassification::Temporal)
             }
+            RouteInput::CounterfactualClass { data, query: q } => {
+                self.compile_logical_counterfactual_class(data, q)
+            }
             RouteInput::GcmDag { data, .. } => self.compile_logical_gcm(
                 data.row_count() as u64,
                 PlanId::GcmQuery.as_str(),
@@ -286,6 +290,16 @@ impl super::Study {
             RouteInput::GcmTemporal { data } => self.compile_logical_gcm(
                 data.row_count() as u64,
                 PlanId::GcmTemporalQuery.as_str(),
+                DataClassification::Temporal,
+            ),
+            RouteInput::GcmClass { data, .. } => self.compile_logical_gcm(
+                data.row_count() as u64,
+                PlanId::GcmClassQuery.as_str(),
+                DataClassification::Tabular,
+            ),
+            RouteInput::GcmTemporalClass { data, .. } => self.compile_logical_gcm(
+                data.row_count() as u64,
+                PlanId::GcmTemporalClassQuery.as_str(),
                 DataClassification::Temporal,
             ),
             RouteInput::GcmAttributeDag { data, .. } => self.compile_logical_gcm(
@@ -1061,8 +1075,8 @@ impl super::Study {
     /// Logical plan of a conditional effect on a mixed graph.
     ///
     /// A latent-confounded `Admg` compiles the IDC contrast; a latent-free one is the
-    /// Dag conditional route. A `TemporalAdmg` is refused: the tabular rows read the
-    /// contemporaneous projection, which answers a different target than the temporal
+    /// Dag conditional route. A `TemporalAdmg` compiles as its contemporaneous projection (the
+    /// tabular rows carry no time index); the temporal
     /// conditional contrast (a `TemporalEffect` with modifiers on one series, identified by IDC
     /// on the unrolled window).
     fn compile_logical_conditional_mixed(
@@ -1071,15 +1085,13 @@ impl super::Study {
         q: &ConditionalEffectQuery,
     ) -> Result<LogicalAnalysisPlan, CausalError> {
         if let GraphRef::TemporalAdmg(temporal) = self.graph.graph_ref() {
-            let refusal = if self.inference.is_bayesian() {
-                compile_temporal_admg_conditional_bayesian(temporal, q).map(drop)
+            // The contemporaneous projection must compile (a mean contrast, identified by IDC);
+            // the plan below is then the projection's.
+            if self.inference.is_bayesian() {
+                compile_temporal_admg_conditional_bayesian(temporal, q).map(drop)?;
             } else {
-                compile_temporal_admg_conditional_frequentist(temporal, q).map(drop)
-            };
-            refusal?;
-            return Err(CausalError::Compile {
-                message: "a conditional effect on a TemporalAdmg has no compile arm".into(),
-            });
+                compile_temporal_admg_conditional_frequentist(temporal, q).map(drop)?;
+            }
         }
         let admg = mixed_admg(self)?;
         if !admg_has_bidirected(&admg) {
@@ -1150,6 +1162,93 @@ impl super::Study {
         plan.record.validation_suite = self.validation_suite_id();
         plan.record.query_variables = Arc::from([q.treatment, q.outcome]);
         plan.query = CausalQuery::Mediation(q.clone());
+        Ok(plan)
+    }
+
+    /// Logical plan of natural mediation under a temporal ADMG: the window plan of the pulse
+    /// that shares its treatment, outcome and horizon, identified by the path-specific
+    /// identifier over the unrolled window and evaluated by the functional plug-in.
+    fn compile_logical_temporal_mediation_admg(
+        &self,
+        data: &TimeSeriesData,
+        query: &MediationQuery,
+    ) -> Result<LogicalAnalysisPlan, CausalError> {
+        let GraphRef::TemporalAdmg(template) = self.graph.graph_ref() else {
+            return Err(CausalError::Compile {
+                message: "temporal ADMG mediation requires a supplied TemporalAdmg".into(),
+            });
+        };
+        let effect = super::temporal_admg_mediation::window_effect_query(query)?;
+        let mut plan = self.compile_logical_temporal_effect_admg(data, &effect, template)?;
+        plan.record.plan_id = Arc::from(PlanId::TemporalAdmgMediation.as_str());
+        plan.record.identifier = Some(Arc::from(IdentifierId::PathSpecificNatural.as_str()));
+        plan.record.estimator = Some(Arc::from(EstimatorId::FunctionalEffect.as_str()));
+        plan.record.query_variables = Arc::from([query.treatment, query.outcome]);
+        plan.query = CausalQuery::Mediation(query.clone());
+        Ok(plan)
+    }
+
+    /// Logical plan of natural mediation under a temporal PAG: the class plan of the pulse
+    /// that shares its treatment, outcome and horizon, identified by the path-specific
+    /// identifier over the ADMGs each completion of the unfolded window stands for and
+    /// evaluated by the functional plug-in.
+    fn compile_logical_temporal_mediation_pag(
+        &self,
+        data: &TimeSeriesData,
+        query: &MediationQuery,
+    ) -> Result<LogicalAnalysisPlan, CausalError> {
+        let GraphRef::TemporalPag(template) = self.graph.graph_ref() else {
+            return Err(CausalError::Compile {
+                message: "temporal PAG mediation requires a supplied TemporalPag".into(),
+            });
+        };
+        let effect = super::temporal_admg_mediation::window_effect_query(query)?;
+        if self.identifier.is_some_and(|id| id != IdentifierId::PathSpecificNatural)
+            || self.caller_selected_estimator().is_some_and(|id| id != EstimatorId::FunctionalEffect)
+        {
+            return Err(crate::compile_reason!(
+                "strategy_incompatible",
+                "mediation on a TemporalPag is identified by path_specific.natural and evaluated \
+                 by functional.effect; got identifier {:?} and estimator {:?}",
+                self.identifier,
+                self.caller_selected_estimator()
+            ));
+        }
+        if data.storage().weights().is_some() {
+            return Err(crate::compile_reason!(
+                "option_not_applicable",
+                "row sampling weights do not apply to mediation on a temporal PAG: the window \
+                 table is read from the unweighted series. Next attempt: drop the weights, or \
+                 use a TemporalDag whose linear fit reads them"
+            ));
+        }
+        if self.split.is_some() {
+            return Err(crate::compile_reason!(
+                "option_not_applicable",
+                "a supplied TemporalPag needs no discovery/estimation split: the window table is \
+                 built from the whole series. Next attempt: drop the split, or discover the \
+                 structure first and analyse the accepted graph"
+            ));
+        }
+        let variable_count = u32::try_from(data.schema().len()).map_err(|_| {
+            CausalError::Compile { message: "series schema exceeds the variable id range".into() }
+        })?;
+        antecedent_identify::temporal_pag_mediation_window(template, &effect, query, variable_count)
+            .map_err(CausalError::from)?;
+        let mut plan = compile_logical_temporal_effect_classified(
+            data,
+            &TemporalDag::empty(),
+            &effect,
+            None,
+            false,
+            DataClassification::Temporal,
+        )?;
+        plan.record.plan_id = Arc::from(PlanId::TemporalPagMediation.as_str());
+        plan.record.identifier = Some(Arc::from(IdentifierId::PathSpecificNatural.as_str()));
+        plan.record.estimator = Some(Arc::from(EstimatorId::FunctionalEffect.as_str()));
+        plan.record.validation_suite = self.validation_suite_id();
+        plan.record.query_variables = Arc::from([query.treatment, query.outcome]);
+        plan.query = CausalQuery::Mediation(query.clone());
         Ok(plan)
     }
 
@@ -1225,7 +1324,7 @@ impl super::Study {
         Ok(plan)
     }
 
-    fn compile_logical_transport(
+    pub(super) fn compile_logical_transport(
         &self,
         data: &TabularData,
         q: &TransportQuery,
@@ -1252,7 +1351,7 @@ impl super::Study {
         ))
     }
 
-    fn compile_logical_interference(
+    pub(super) fn compile_logical_interference(
         &self,
         data: &TabularData,
         q: &InterferenceQuery,
@@ -1768,6 +1867,37 @@ impl super::Study {
         ))
     }
 
+    /// Logical plan of a counterfactual on an Admg, a temporal Admg (read as its contemporaneous
+    /// projection), a Pag or a Cpdag. An Admg and a Pag are identified by ID* and evaluated by the
+    /// discrete plug-in (`general.id`, `functional.effect`); a Cpdag runs the per-unit
+    /// counterfactual on every DAG completion, so it names the structural-mechanism pair.
+    fn compile_logical_counterfactual_class(
+        &self,
+        data: &TabularData,
+        query: &antecedent_core::CounterfactualQuery,
+    ) -> Result<LogicalAnalysisPlan, CausalError> {
+        if self.refute != super::RefuteSuite::None {
+            return Err(CausalError::Unsupported {
+                message: "a counterfactual on an Admg, Pag, Cpdag or TemporalAdmg runs at \
+                          validation none; cheap/full remain Dag-only",
+            });
+        }
+        query.validate()?;
+        let (treatment, outcome) = gcm_query_vars(&self.query)?;
+        let (identifier, estimator) = match self.graph.graph_ref() {
+            GraphRef::Cpdag(_) => (IdentifierId::GcmParametric, EstimatorId::GcmFit),
+            _ => (IdentifierId::GeneralId, EstimatorId::FunctionalEffect),
+        };
+        Ok(self.study_query_plan(
+            data.row_count() as u64,
+            DataClassification::Tabular,
+            PlanId::StaticClassCounterfactual.as_str(),
+            identifier.as_str(),
+            estimator.as_str(),
+            Arc::from([treatment, outcome]),
+        ))
+    }
+
     /// Parametric SCM paths use a query- and inference-specific estimator identity.
     fn compile_logical_gcm(
         &self,
@@ -2001,7 +2131,8 @@ impl super::Study {
             | RouteInput::TemporalEffectAdmg { .. }
             | RouteInput::TemporalResponseClass { .. }
             | RouteInput::TemporalResponseAdmg { .. }
-            | RouteInput::TemporalMediationPag
+            | RouteInput::TemporalMediationPag { .. }
+            | RouteInput::TemporalMediationAdmg { .. }
             | RouteInput::TemporalMediationCpdag { .. }
             | RouteInput::PanelTemporalResponseClass { .. }
             | RouteInput::PanelTemporalEffectClass { .. }
@@ -2021,7 +2152,10 @@ impl super::Study {
             | RouteInput::IvBounds { .. }
             | RouteInput::AssociationStatic { .. }
             | RouteInput::AssociationTemporal { .. }
+            | RouteInput::CounterfactualClass { .. }
             | RouteInput::GcmTemporal { .. }
+            | RouteInput::GcmClass { .. }
+            | RouteInput::GcmTemporalClass { .. }
             | RouteInput::TemporalCrossWorldClass { .. } => {
                 self.compile_logical_from(input)?.compile_physical(ctx)
             }

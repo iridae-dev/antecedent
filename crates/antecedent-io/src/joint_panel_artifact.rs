@@ -23,6 +23,24 @@ use std::sync::Arc;
 pub const MAX_JOINT_PANEL_ARTIFACT_BYTES: usize = 256_000_000;
 /// Feature version of exact frozen generic-channel execution.
 pub const JOINT_PANEL_ARTIFACT_VERSION: u16 = 1;
+/// Feature version of frozen execution that also carries a broader mechanism family
+/// (geometric adstock, Hill saturation, group-specific saturation or spatial residuals).
+/// A reader that predates the family refuses it instead of misreading the mechanism.
+pub const JOINT_PANEL_FAMILY_ARTIFACT_VERSION: u16 = 2;
+
+/// The feature version a program needs: reviewed-family programs keep version one, so their
+/// stored form and identity are unchanged.
+fn artifact_version(data: &engine::PanelData, options: &PanelFitOptions) -> u16 {
+    let family_prior = matches!(
+        &options.inference,
+        PanelInference::Bayesian { prior, .. } if !prior.family.is_default()
+    );
+    if data.family.is_reviewed() && !family_prior {
+        JOINT_PANEL_ARTIFACT_VERSION
+    } else {
+        JOINT_PANEL_FAMILY_ARTIFACT_VERSION
+    }
+}
 
 /// Actual original source partition/cadence and encoded schema.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -277,7 +295,7 @@ impl PanelExecutionProgram {
         let kernel = source.context.kernel_policy;
         let program = Self {
             inner: Arc::new(ProgramWire {
-                version: JOINT_PANEL_ARTIFACT_VERSION,
+                version: artifact_version(source.data, source.options),
                 source: source.source,
                 data: source.data.clone(),
                 options: source.options.clone(),
@@ -342,7 +360,7 @@ impl PanelExecutionProgram {
         &self.inner.world_ids
     }
     fn validate(&self) -> Result<(), PanelArtifactError> {
-        if self.inner.version != JOINT_PANEL_ARTIFACT_VERSION {
+        if self.inner.version != artifact_version(&self.inner.data, &self.inner.options) {
             return Err(invalid("unsupported panel artifact feature version"));
         }
         self.inner.data.validate()?;
@@ -545,13 +563,7 @@ pub fn encode_panel_execution(
     program.validate()?;
     let identity = program.identity()?;
     encode_record(
-        &RecordRef {
-            version: JOINT_PANEL_ARTIFACT_VERSION,
-            identity,
-            program: &program,
-            point,
-            draws,
-        },
+        &RecordRef { version: program.inner.version, identity, program: &program, point, draws },
         ctx,
     )
 }
@@ -635,7 +647,7 @@ pub fn consume_panel_execution(
 ) -> Result<HistoricalPanelExecution, PanelArtifactError> {
     let (_lease, payload) = decode_payload(bytes, ctx)?;
     let record: Record = serde_json::from_slice(&payload).map_err(invalid)?;
-    if record.version != JOINT_PANEL_ARTIFACT_VERSION {
+    if record.version != record.program.inner.version {
         return Err(invalid("unsupported panel feature version"));
     }
     if record.identity != record.program.identity()? {

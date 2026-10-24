@@ -666,6 +666,18 @@ name = "path_specific_admg_route"
 path = "tests/path_specific_admg_route.rs"
 
 [[test]]
+name = "path_specific_pag_route"
+path = "tests/path_specific_pag_route.rs"
+
+[[test]]
+name = "temporal_pag_mediation"
+path = "tests/temporal_pag_mediation.rs"
+
+[[test]]
+name = "temporal_admg_posterior"
+path = "tests/temporal_admg_posterior.rs"
+
+[[test]]
 name = "temporal_counterfactual_posterior"
 path = "tests/temporal_counterfactual_posterior.rs"
 
@@ -837,6 +849,10 @@ path = "tests/evidence_plan_study.rs"
 [[test]]
 name = "joint_panel_streamed_memory"
 path = "tests/joint_panel_streamed_memory.rs"
+
+[[test]]
+name = "graph_posterior_exposure_routes"
+path = "tests/graph_posterior_exposure_routes.rs"
 
 [[example]]
 name = "joint_panel_workflow"

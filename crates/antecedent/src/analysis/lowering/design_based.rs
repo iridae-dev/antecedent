@@ -237,16 +237,31 @@ fn design_cell(
     let inference = inference_selection(&study.inference);
     Ok(match input {
         RouteInput::TransportMixed { data, query, class } => {
-            let identified = caches
-                .iter()
-                .find_map(|cache| match cache {
-                    IdentificationCache::Transport(identified) => Some(Arc::clone(identified)),
-                    _ => None,
-                })
-                .ok_or_else(|| CausalError::Compile {
-                    message: "transport compile retained no transport identification".into(),
-                })?;
-            let (identification, _) = Study::transport_design_identification(query, &identified)?;
+            let single = caches.iter().find_map(|cache| match cache {
+                IdentificationCache::Transport(identified) => Some(Arc::clone(identified)),
+                _ => None,
+            });
+            let identification = match single {
+                Some(identified) => {
+                    Study::transport_design_identification(query, &identified)?.0
+                }
+                // A Cpdag or Pag names no single selection diagram: the identification is the
+                // class envelope of the sID outcomes of its members.
+                None => caches
+                    .iter()
+                    .find_map(|cache| match cache {
+                        IdentificationCache::Cpdag(class) if class.transport.is_some() => {
+                            Some(class.identification.clone())
+                        }
+                        IdentificationCache::Pag(class) if class.transport.is_some() => {
+                            Some(class.identification.clone())
+                        }
+                        _ => None,
+                    })
+                    .ok_or_else(|| CausalError::Compile {
+                        message: "transport compile retained no transport identification".into(),
+                    })?,
+            };
             let (treatment, outcome) =
                 query.response.functional.primary_pair().ok_or_else(|| CausalError::Compile {
                     message: "transport response names no treatment/outcome pair".into(),
@@ -262,6 +277,8 @@ fn design_cell(
             let family = match class {
                 GraphClass::TemporalAdmg => GraphFamily::TemporalAdmg,
                 GraphClass::Dag => GraphFamily::Dag,
+                GraphClass::Cpdag => GraphFamily::Cpdag,
+                GraphClass::Pag => GraphFamily::Pag,
                 _ => GraphFamily::Admg,
             };
             let binding = binding(data, query.response.target_population.clone(), "row", outcome)?;

@@ -410,6 +410,68 @@ impl GeneralizedAdjustmentIdentifier {
     }
 }
 
+/// Identify an interventional distribution over one ADMG: IDC when the query conditions, the
+/// complete ID algorithm otherwise.
+pub(crate) fn identify_distribution_on(
+    admg: &Admg,
+    query: &CausalQuery,
+    workspace: &mut IdentificationWorkspace,
+) -> Result<IdentificationResult, IdentificationError> {
+    if matches!(query, CausalQuery::Distribution(q) if !q.conditioning.is_empty()) {
+        let idc = crate::idc::IdcIdentifier::new();
+        let prepared = idc.prepare(admg)?;
+        idc.identify(&prepared, query, workspace)
+    } else {
+        let id = crate::id::IdIdentifier::new();
+        let prepared = id.prepare(admg)?;
+        id.identify(&prepared, query, workspace)
+    }
+}
+
+impl GeneralizedAdjustmentIdentifier {
+    /// Identify an interventional distribution over the ADMGs a PAG leaves open.
+    ///
+    /// Each MAG completion is read through every ADMG that shares its m-separation model (see
+    /// the module documentation): completions whose candidates all agree on one functional
+    /// identify the distribution by it, candidates that differ yield one case per distinct
+    /// functional, and a refused candidate leaves the completion unidentified.
+    ///
+    /// # Errors
+    ///
+    /// A query the algorithm does not read, or a completion that fails to prepare.
+    pub fn identify_pag_distribution_envelope(
+        &self,
+        pag: &Pag,
+        query: &CausalQuery,
+    ) -> Result<IdentificationEnvelope<Pag>, IdentificationError> {
+        let mut workspace = IdentificationWorkspace::default();
+        self.pag_envelope_with_candidates(pag, |mag| {
+            let found = self.admg_candidates_of_mag(mag)?;
+            if found.bounded {
+                return Ok(vec![crate::generalized::not_identified(
+                    query.clone(),
+                    "the ADMG candidates of this MAG exceed the enumeration bound",
+                )]);
+            }
+            let mut forms: Vec<Option<String>> = Vec::new();
+            let mut results = Vec::new();
+            for admg in &found.members {
+                let result = identify_distribution_on(admg, query, &mut workspace)?;
+                if !carries_identified_mass(result.status) {
+                    return Ok(vec![result]);
+                }
+                let form = functional_form(&result);
+                if forms.contains(&form) {
+                    continue;
+                }
+                forms.push(form);
+                results.push(result);
+            }
+            Ok(results)
+        })
+    }
+}
+
 /// Canonical text of a result's first functional, the form candidates are compared by.
 fn functional_form(result: &IdentificationResult) -> Option<String> {
     let estimand = result.estimands.first()?;

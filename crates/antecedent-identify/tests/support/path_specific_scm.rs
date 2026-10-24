@@ -205,4 +205,3 @@ pub fn evaluate(result: &IdentificationResult, scm: &LatentScm) -> f64 {
 pub fn has_rule(result: &IdentificationResult, rule: &str) -> bool {
     result.derivation.steps.iter().any(|step| &*step.rule == rule)
 }
-

@@ -1868,15 +1868,31 @@ fn bind_exposure(settled: ClassifiedSupport) -> Result<BoundExposure, CausalErro
             }
             // A DAG is the ADMG with no latent confounding: the selection diagram of a DAG
             // is its ADMG embedding with the declared selection nodes.
-            let admg = match spine.graph.graph_ref() {
-                GraphRef::Dag(dag) => {
-                    Some(antecedent_graph::Admg::from_dag(dag).map_err(CausalError::rejected)?)
+            let admg = if spine.graph_posterior.is_some()
+                || matches!(spine.graph.class(), GraphClass::Cpdag | GraphClass::Pag)
+            {
+                // A graph posterior, a Cpdag and a Pag name no single graph: every atom or
+                // class member is run through sID on its own selection diagram when it is
+                // identified. The study keeps the declared selection targets on an edgeless
+                // diagram over the data's variables.
+                let nodes = u32::try_from(data_schema(&carry.data).len()).map_err(|_| {
+                    CausalError::Compile {
+                        message: "too many variables for a graph-posterior selection diagram"
+                            .into(),
+                    }
+                })?;
+                antecedent_graph::Admg::with_variables(nodes)
+            } else {
+                match spine.graph.graph_ref() {
+                    GraphRef::Dag(dag) => {
+                        Some(antecedent_graph::Admg::from_dag(dag).map_err(CausalError::rejected)?)
+                    }
+                    other => other.projected_admg()?,
                 }
-                other => other.projected_admg()?,
-            }
-            .ok_or(CausalError::Unsupported {
-                message: "TransportQuery requires a supplied Dag, Admg or TemporalAdmg",
-            })?;
+                .ok_or(CausalError::Unsupported {
+                    message: "TransportQuery requires a supplied Dag, Admg or TemporalAdmg",
+                })?
+            };
             let targets = carry.selection_targets.clone().unwrap_or_default();
             let diagram = antecedent_graph::SelectionDiagram::try_new(admg.clone(), targets)
                 .map_err(CausalError::rejected)?;

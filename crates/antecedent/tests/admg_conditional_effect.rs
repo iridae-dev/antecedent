@@ -327,20 +327,46 @@ fn a_post_treatment_modifier_is_refused_and_names_the_distribution_query() {
     assert!(text.contains("InterventionalDistribution"), "{text}");
 }
 
+/// Tabular rows carry no time index, so a ConditionalEffect on a TemporalAdmg is the conditional
+/// contrast of its contemporaneous projection: the same stratified difference the static ADMG
+/// gives, executing unlicensed (the temporal conditional contrast is TemporalConditionalPulse).
 #[test]
-fn a_temporal_admg_contrast_is_refused_and_names_the_licensed_routes() {
+fn a_temporal_admg_conditional_is_the_contemporaneous_projection_contrast() {
     let graph = confounded_modifier_graph();
     let temporal = TemporalAdmg::from_static_contemporaneous(&graph).unwrap();
-    let data = expand(&["z", "x", "y"], &confounded_modifier_cells());
+    let cells = confounded_modifier_cells();
+    let data = expand(&["z", "x", "y"], &cells);
+    let expected = stratified_difference(&cells);
     let ctx = ExecutionContext::for_tests(46);
-    let error = Study::tabular(data)
-        .graph(temporal)
-        .query(conditional(1, 2, &[0]))
+    for bayesian in [false, true] {
+        let study = Study::tabular(data.clone())
+            .graph(temporal.clone())
+            .query(conditional(1, 2, &[0]))
+            .inference(if bayesian { bayes() } else { InferenceMode::Frequentist })
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap();
+        assert_eq!(study.support_status(), Some(antecedent::CellStatus::Refused));
+        let result = study.run(&ctx).unwrap();
+        let tolerance = if bayesian { 0.05 } else { 1e-12 };
+        assert!((ate(&result) - expected).abs() < tolerance, "{} vs {expected}", ate(&result));
+        assert_eq!(result.support_status, Some(antecedent::CellStatus::Refused));
+        let prepared = study.prepare(&ctx).unwrap();
+        let again = prepared.estimate(&data, &ctx).unwrap();
+        assert!((ate(&again) - ate(&result)).abs() < 1e-9);
+    }
+    // A template whose variable occupies two lags has no contemporaneous projection.
+    let mut repeated = TemporalAdmg::empty();
+    let earlier = repeated.add_lagged(var(0), antecedent_core::Lag::from_raw(1)).unwrap();
+    let now = repeated.add_lagged(var(0), antecedent_core::Lag::CONTEMPORANEOUS).unwrap();
+    repeated.insert_directed(earlier, now).unwrap();
+    let refused = Study::tabular(data)
+        .graph(repeated)
+        .query(conditional(0, 0, &[]))
         .refute(RefuteSuite::None)
         .build()
-        .and_then(|study| study.run(&ctx))
-        .expect_err("a temporal contrast on a TemporalAdmg is not identified");
-    assert!(error.to_string().contains("TemporalAdmg"), "{error}");
+        .and_then(|study| study.run(&ctx));
+    assert!(refused.is_err());
 }
 
 /// The static ADMG average effect is the same Dirichlet posterior with the same procedure id,

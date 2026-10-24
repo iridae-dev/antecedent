@@ -90,13 +90,17 @@ indistinguishable from zero); full validation adds a 50% stretch and a
 split-half stationarity test. A graph posterior over TemporalAdmg atoms stays
 refused: a posterior is over contemporaneous adjacency and has no lagged
 template to unroll. A window that holds a hedge is refused with the variables
-and periods that carry it. Temporal
-mediation and ConditionalEffect on a TemporalAdmg are refused (the tabular
-ConditionalEffect is the contemporaneous projection, which answers a different
-target; mediation needs the recanting-district criterion, which has not been
-derived on the unrolled window), and so is TemporalMediationEffect on a
-TemporalPag (latent-confounded natural mediation is outside the cross-world
-identification theory). A TransportQuery reads a selection diagram. A Dag is the diagram with no latent confounding and runs the same sID identification and trial-to-target estimator (unlicensed); cheap and full validation run the transport-native suite (calibration of the supplied selection and treatment probabilities against the rows they describe, effective sample size of the weights, and a whole-procedure bootstrap range under full). A Cpdag or Pag names several diagrams and stays refused. InterferenceQuery is identified by its known assignment mechanism and exposure mapping, not by an edge, so it is stated under an Admg, TemporalAdmg (contemporaneous projection), Cpdag or Pag as well as a Dag and executes unlicensed at validation none. The static switchback and
+and periods that carry it. Natural
+mediation on one series under a TemporalAdmg is identified on the same window by
+the path-specific identifier (the recanting-district criterion applies to the
+window ADMG) and executes unlicensed with the total, natural direct and natural
+indirect effects estimated on the same resampled windows
+(`estimate.mediation.joint`); a ConditionalEffect on a TemporalAdmg read from
+tabular rows is the conditional contrast of its contemporaneous projection, not
+the temporal conditional contrast. TemporalMediationEffect on a TemporalPag is
+still refused. MediationEffect on an Admg, a Cpdag or a Pag decomposes the same
+way over the structure (the class envelope of the path-specific executors) and
+executes unlicensed at validation none. A TransportQuery reads a selection diagram. A Dag is the diagram with no latent confounding and runs the same sID identification and trial-to-target estimator (unlicensed); cheap and full validation run the transport-native suite (calibration of the supplied selection and treatment probabilities against the rows they describe, effective sample size of the weights, and a whole-procedure bootstrap range under full). A Cpdag or Pag names several diagrams and stays refused. InterferenceQuery is identified by its known assignment mechanism and exposure mapping, not by an edge, so it is stated under an Admg, TemporalAdmg (contemporaneous projection), Cpdag or Pag as well as a Dag and executes unlicensed; its cheap and full validation check the realized assignment against the declared design, report the smallest exposure probability and, under full, test by re-randomization that the contrast is unbiased around zero under the sharp null. The static switchback and
 the static analogues of the dose-grid, sequential and experiment-bridge
 designs are temporal by construction and have no static cell.
 

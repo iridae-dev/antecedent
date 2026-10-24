@@ -258,6 +258,128 @@ fn series_study(
         .unwrap()
 }
 
+/// Twelve rows over `[t, y, z, trial, sel, prop]`: eight trial rows, four target rows, and
+/// constant supplied selection and treatment probabilities.
+fn transport_data() -> TabularData {
+    let t = [1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+    let y = [3.1, 1.0, 2.9, 1.2, 3.3, 0.8, 3.0, 1.1, 0.0, 1.0, 0.5, 0.7];
+    let z = [1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0];
+    let trial = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0];
+    TabularData::from_f64_columns([
+        ("t", &t[..]),
+        ("y", &y[..]),
+        ("z", &z[..]),
+        ("trial", &trial[..]),
+        ("sel", &[0.6; 12][..]),
+        ("prop", &[0.5; 12][..]),
+    ])
+    .unwrap()
+}
+
+/// DAG atoms over the six transport columns with the covariate `z` as the selection target:
+/// `t -> y` (no population-varying ancestor of `y`), `t -> y <- z` (standardized over `z`), and
+/// a cyclic `t <-> y` atom of weight 0.2 that is not a DAG.
+fn transport_posterior() -> GraphPosterior {
+    let direct = set_edge(0, 6, 0, 1, true);
+    let standardized = set_edge(set_edge(0, 6, 0, 1, true), 6, 2, 1, true);
+    let cyclic = set_edge(set_edge(0, 6, 0, 1, true), 6, 1, 0, true);
+    let weights = vec![0.5, 0.3, 0.2];
+    let sampling = summary(&weights, "graph_posterior_transport_lowering");
+    GraphPosterior::new(
+        6,
+        weights,
+        vec![direct, standardized, cyclic],
+        vec![0.0; 36],
+        vec![0.0; 36],
+        sampling,
+    )
+    .unwrap()
+    .with_algorithm("graph_posterior_transport_lowering")
+}
+
+fn transport_study(inference: InferenceMode) -> Study {
+    let response = ResponseQuery::new(ResponseFunctional::MeanCurve {
+        outcome: VariableId::from_raw(1),
+        treatment: antecedent_core::ContinuousDomain::new(
+            VariableId::from_raw(0),
+            antecedent_core::GridSpec::Values(Arc::from([0.0, 1.0])),
+        ),
+    });
+    let query =
+        antecedent_core::TransportQuery::new(response, "trial", "target", [VariableId::from_raw(0)]);
+    Study::tabular(transport_data())
+        .graph_posterior(transport_posterior())
+        .query(CausalQuery::Transport(query))
+        .selection_targets(Arc::from([VariableId::from_raw(2)]))
+        .transport_trial(crate::TransportTrialSpec {
+            trial: VariableId::from_raw(3),
+            selection_probability: VariableId::from_raw(4),
+            treatment_probability: VariableId::from_raw(5),
+        })
+        .inference(inference)
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+}
+
+/// Eight units in four disjoint pairs under the cluster total-effect design, two covariates.
+fn interference_study(inference: InferenceMode) -> Study {
+    let data = TabularData::from_f64_columns([
+        ("y", &[4.0, 4.0, 6.0, 6.0, 1.0, 1.0, 3.0, 3.0][..]),
+        ("z", &[0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0][..]),
+    ])
+    .unwrap();
+    let edges = (0..4_u64)
+        .flat_map(|cluster| {
+            let first = cluster * 2;
+            [
+                antecedent_data::NetworkEdge::new(first, first + 1, 1.0),
+                antecedent_data::NetworkEdge::new(first + 1, first, 1.0),
+            ]
+        })
+        .collect::<Vec<_>>();
+    let network = antecedent_data::NetworkData::try_new(data.clone(), edges).unwrap();
+    let query = antecedent_core::InterferenceQuery::new(
+        antecedent_core::AssignmentDesign::ClusterRandomization {
+            clusters: Arc::from([0, 0, 1, 1, 2, 2, 3, 3]),
+            treated_clusters: 2,
+        },
+        antecedent_core::ExposureMapping::NeighborFraction,
+        antecedent_core::InterferenceFunctional::ExposureContrast {
+            outcome: VariableId::from_raw(0),
+            from: antecedent_core::ExposureLevel { own: 0.0, neighbors: 0.0 },
+            to: antecedent_core::ExposureLevel { own: 1.0, neighbors: 1.0 },
+        },
+    );
+    let weights = vec![0.5, 0.3, 0.2];
+    let sampling = summary(&weights, "graph_posterior_interference_lowering");
+    let posterior = GraphPosterior::new(
+        2,
+        weights,
+        vec![
+            set_edge(0, 2, 0, 1, true),
+            0,
+            set_edge(set_edge(0, 2, 0, 1, true), 2, 1, 0, true),
+        ],
+        vec![0.0; 4],
+        vec![0.0; 4],
+        sampling,
+    )
+    .unwrap()
+    .with_algorithm("graph_posterior_interference_lowering");
+    Study::tabular(data)
+        .graph_posterior(posterior)
+        .query(CausalQuery::Interference(query))
+        .interference(crate::InterferenceSpec {
+            network,
+            assignment: Arc::from([true, true, true, true, false, false, false, false]),
+        })
+        .inference(inference)
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+}
+
 fn pulse() -> TemporalEffectQuery {
     TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
         .with_policy(TemporalPolicy::pulse(-1))
@@ -357,6 +479,8 @@ fn representatives() -> Vec<(GraphPosteriorCell, Study)> {
                 0,
             ),
         ),
+        (GraphPosteriorCell::Transport, transport_study(InferenceMode::Frequentist)),
+        (GraphPosteriorCell::Interference, interference_study(InferenceMode::Frequentist)),
     ]
 }
 
@@ -401,7 +525,10 @@ fn every_graph_posterior_cell_lowers_a_complete_program_that_execution_stamps() 
             assert_eq!(lowered.route(), name);
             assert_eq!(lowered.depth(), LoweringDepth::Complete, "{name} lowers completely");
             match (cell, lowered.scientific().target()) {
-                (GraphPosteriorCell::CrossWorld, ProblemTarget::QueryFunctional { .. })
+                (
+                    GraphPosteriorCell::CrossWorld | GraphPosteriorCell::Interference,
+                    ProblemTarget::QueryFunctional { .. },
+                )
                 | (_, ProblemTarget::Target(_) | ProblemTarget::Targets(_)) => {}
                 (_, other) => panic!("{name} lowers no world-indexed target: {other:?}"),
             }

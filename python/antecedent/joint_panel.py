@@ -73,6 +73,66 @@ def _json(value: Any) -> str:
         raise CausalValueError(f"invalid joint panel declaration: {error}") from error
 
 
+_ADSTOCKS = ("simplex", "geometric")
+_SATURATIONS = ("michaelis_menten", "hill")
+_SPATIAL_KERNELS = ("exponential", "gaussian")
+_FAMILY_KEYS = frozenset(
+    {"adstock", "saturation", "saturation_classes", "spatial_distances", "spatial_kernel"}
+)
+
+
+def _family_declaration(
+    groups: Mapping[int, Any], family: Mapping[str, Any] | None
+) -> dict[str, Any] | None:
+    """Translate a family choice keyed by group ID into the Rust, group-ordered form.
+
+    Alignment is by group identity: ``saturation_classes`` maps every group ID to a class
+    ``0..m`` (or is ``"per_group"``), and ``spatial_distances`` maps every ordered pair of
+    group IDs to a symmetric nonnegative distance. Omitted choices are the reviewed family:
+    free three-period simplex adstock, one Michaelis-Menten half-saturation shared by every
+    group and independent Gaussian group intercepts.
+    """
+    if family is None:
+        return None
+    unknown = set(family) - _FAMILY_KEYS
+    if unknown:
+        raise CausalValueError(f"unknown panel family choices: {sorted(unknown)}")
+    ids = list(groups)
+    adstock = family.get("adstock", "simplex")
+    saturation = family.get("saturation", "michaelis_menten")
+    if adstock not in _ADSTOCKS or saturation not in _SATURATIONS:
+        raise CausalValueError(
+            f"adstock must be one of {_ADSTOCKS} and saturation one of {_SATURATIONS}"
+        )
+    classes = family.get("saturation_classes")
+    if classes is None:
+        scope: dict[str, Any] = {"kind": "shared"}
+    elif classes == "per_group":
+        scope = {"kind": "classes", "assignment": list(range(len(ids)))}
+    elif isinstance(classes, Mapping):
+        if set(classes) != set(ids):
+            raise CausalValueError("saturation_classes must assign exactly the declared groups")
+        scope = {"kind": "classes", "assignment": [int(classes[group]) for group in ids]}
+    else:
+        raise CausalValueError("saturation_classes must be None, 'per_group' or a group mapping")
+    spatial = None
+    distances = family.get("spatial_distances")
+    if distances is not None:
+        kernel = family.get("spatial_kernel", "exponential")
+        if kernel not in _SPATIAL_KERNELS:
+            raise CausalValueError(f"spatial_kernel must be one of {_SPATIAL_KERNELS}")
+        if set(distances) != set(ids) or any(set(distances[group]) != set(ids) for group in ids):
+            raise CausalValueError("spatial_distances must cover every ordered pair of groups")
+        spatial = {
+            "kernel": kernel,
+            "groups": [str(group) for group in ids],
+            "distances": [float(distances[row][column]) for row in ids for column in ids],
+        }
+    elif "spatial_kernel" in family:
+        raise CausalValueError("spatial_kernel requires spatial_distances")
+    return {"adstock": adstock, "saturation": saturation, "scope": scope, "spatial": spatial}
+
+
 @dataclass(frozen=True, slots=True)
 class PanelProgramCertificate:
     """Global numerical bounds derived from an actual retained fitted response."""
@@ -441,6 +501,7 @@ def prepare(
     functional: Mapping[str, Any] | None = None,
     assignment: Mapping[str, Any] | None = None,
     exogenous_context: bool = False,
+    family: Mapping[str, Any] | None = None,
     **execution: Any,
 ) -> PreparedPanel:
     """Compile an explicitly declared panel through ``Study.prepare_joint_panel``.
@@ -458,6 +519,19 @@ def prepare(
     ``functional`` optionally supplies finite ``terms`` (world-index, coefficient)
     and a ``reference`` index. ``assignment`` uses the existing randomized-effect
     wire contract, checked against whole source-group programs in Rust.
+
+    ``family`` optionally selects a broader mechanism family than the reviewed one
+    (three-period simplex adstock, one shared Michaelis-Menten half-saturation,
+    independent group intercepts): ``adstock`` is ``"simplex"`` or ``"geometric"``
+    (one decay per channel over the observable window), ``saturation`` is
+    ``"michaelis_menten"`` or ``"hill"`` (a free positive shape per channel),
+    ``saturation_classes`` is ``None``, ``"per_group"`` or a map from every group ID
+    to a class ``0..m`` with its own half-saturation, and ``spatial_distances`` maps
+    every ordered pair of group IDs to a distance so group intercepts are spatially
+    correlated (``spatial_kernel`` is ``"exponential"`` or ``"gaussian"``; the range
+    is fitted). Priors for the extra coordinates go in
+    ``options["inference"]["prior"]["family"]``. A family changes the fitted
+    mechanism, never the identification requirements of the target.
 
     ``seed``, ``threads``, ``max_bytes`` and ``cancel`` are caller execution policy.
     Neither ``exogenous_context`` nor a finite fit establishes a causal license.
@@ -491,6 +565,9 @@ def prepare(
         "assignment": assignment,
         "exogenous_context": exogenous_context,
     }
+    selected = _family_declaration(groups, family)
+    if selected is not None:
+        declaration["family"] = selected
     return PreparedPanel(_native.prepare_joint_panel(_json(declaration), **execution))
 
 

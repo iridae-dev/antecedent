@@ -140,6 +140,7 @@ sealed_executions! {
     MultiEnvTemporal(crate::analysis::execute::CheckedRouteOperation),
     TemporalCrossWorld(crate::analysis::execute::CheckedRouteOperation),
     TemporalAdmgEffect(crate::analysis::execute::CheckedRouteOperation),
+    ClassAttribution(crate::analysis::execute::CheckedRouteOperation),
     Association(crate::analysis::execute::CheckedAssociationOperation),
     TransportTrial(Box<crate::analysis::execute::CheckedTransportTrialOperation>),
 }
@@ -174,6 +175,7 @@ impl PreparedExecution {
                 | Self::MultiEnvTemporal(_)
                 | Self::TemporalCrossWorld(_)
                 | Self::TemporalAdmgEffect(_)
+                | Self::ClassAttribution(_)
                 | Self::Association(_)
         )
     }

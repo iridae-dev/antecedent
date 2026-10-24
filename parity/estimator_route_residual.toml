@@ -205,3 +205,48 @@ reason = "the static DAG response sealer admits this estimator for a Bayesian co
 id = "ResponseInterventionGcomp"
 served_by_specialised_sealer_for_other_shapes = true
 reason = "the static DAG response sealer admits this estimator only for a Frequentist intervention response with a complete observation, an all-observed Mean query and no custom validators; a mean curve, tiers and a CPDAG or PAG response cell fall here"
+
+[[estimator]]
+id = "GcmFit"
+served_by_specialised_sealer_for_other_shapes = true
+reason = "the counterfactual, attribution and simulation sealers admit a supplied or accepted DAG; a counterfactual on a CPDAG runs the per-unit route on every DAG completion from the shared static executor, under the lowered program of its plan"
+
+[[estimator]]
+id = "TransportTrialIpw"
+served_by_specialised_sealer_for_other_shapes = true
+reason = "the transport sealer admits an explicit or accepted Dag or Admg transport study with a retained sID proof, the supplied trial columns and no graph posterior; a transport study over a graph posterior runs from the shared posterior executor under the lowered program of its plan"
+
+[[estimator]]
+id = "TransportTrialBayesianBootstrap"
+served_by_specialised_sealer_for_other_shapes = true
+reason = "the transport sealer admits an explicit or accepted Dag or Admg transport study with a retained sID proof, the supplied trial columns and no graph posterior; a transport study over a graph posterior runs from the shared posterior executor under the lowered program of its plan"
+
+[[estimator]]
+id = "InterferenceHtHajek"
+served_by_specialised_sealer_for_other_shapes = true
+reason = "the interference sealer admits an explicit or accepted Dag interference study over a fixed network with no graph posterior, tiers or custom validators; an interference study over a graph posterior runs from the shared posterior executor under the lowered program of its plan"
+
+[[estimator]]
+id = "InterferenceClusterNeyman"
+served_by_specialised_sealer_for_other_shapes = true
+reason = "the interference sealer admits an explicit or accepted Dag interference study over a fixed network with no graph posterior, tiers or custom validators; an interference study over a graph posterior runs from the shared posterior executor under the lowered program of its plan"
+
+[[estimator]]
+id = "InterferenceSaturationExact"
+served_by_specialised_sealer_for_other_shapes = true
+reason = "the interference sealer admits an explicit or accepted Dag interference study over a fixed network with no graph posterior, tiers or custom validators; an interference study over a graph posterior runs from the shared posterior executor under the lowered program of its plan"
+
+[[estimator]]
+id = "InterferenceObservationalIpw"
+served_by_specialised_sealer_for_other_shapes = true
+reason = "the interference sealer admits an explicit or accepted Dag interference study over a fixed network with no graph posterior, tiers or custom validators; an interference study over a graph posterior runs from the shared posterior executor under the lowered program of its plan"
+
+[[estimator]]
+id = "InterferenceBayesianGaussian"
+served_by_specialised_sealer_for_other_shapes = true
+reason = "the interference sealer admits an explicit or accepted Dag interference study over a fixed network with no graph posterior, tiers or custom validators; an interference study over a graph posterior runs from the shared posterior executor under the lowered program of its plan"
+
+[[estimator]]
+id = "InterferenceClusterBayesianBootstrap"
+served_by_specialised_sealer_for_other_shapes = true
+reason = "the interference sealer admits an explicit or accepted Dag interference study over a fixed network with no graph posterior, tiers or custom validators; an interference study over a graph posterior runs from the shared posterior executor under the lowered program of its plan"

@@ -7,7 +7,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
-    Arc, CausalError, Dag, DenseNodeId, TableView, TabularData, TemporalDag, TemporalIndexer,
+    Admg, Arc, CausalError, Dag, DenseNodeId, TableView, TabularData, TemporalDag, TemporalIndexer,
     TimeSeriesData, VariableId,
 };
 
@@ -132,6 +132,118 @@ impl LagAlignedScm {
             }
         }
         Ok(Self { dag, columns: Arc::from(columns), history })
+    }
+
+    /// Unfold a mixed template into the lag-aligned numbering.
+    ///
+    /// `window` is the template unrolled over `history + 1` periods
+    /// ([`antecedent_graph::TemporalAdmg::unroll_window_over`]), whose coordinate
+    /// `period * variable_count + variable` is the dense id of the unfolding of `history` earlier
+    /// periods and one contemporaneous period. Returns the lag-aligned SCM over the directed part
+    /// of the window and the window itself in the same static numbering, contemporaneous nodes
+    /// first and carrying the series schema ids, so the table [`Self::table`] builds is the data
+    /// of the mixed graph.
+    ///
+    /// # Errors
+    ///
+    /// An empty or non-dense schema, a series too short to realize the longest lag, or a window
+    /// that is not the unfolding of `history` periods over the schema.
+    pub(super) fn unfold_mixed(
+        series: &TimeSeriesData,
+        history: u32,
+        window: &Admg,
+    ) -> Result<(Self, Admg), CausalError> {
+        let variables = series.schema().variables();
+        if variables.is_empty() {
+            return Err(CausalError::Compile {
+                message: "temporal attribution requires a lagged graph and a series".into(),
+            });
+        }
+        let variable_count = u32::try_from(variables.len()).map_err(|_| CausalError::Compile {
+            message: "series has too many variables for a lag-aligned SCM".into(),
+        })?;
+        for (index, variable) in variables.iter().enumerate() {
+            if variable.id.raw() != u32::try_from(index).unwrap_or(u32::MAX) {
+                return Err(CausalError::Compile {
+                    message: "temporal attribution requires a dense series schema".into(),
+                });
+            }
+        }
+        let history_rows = usize::try_from(history).unwrap_or(usize::MAX);
+        if history > 0 && series.row_count() <= history_rows {
+            return Err(CausalError::Compile {
+                message: "temporal attribution needs at least one row after the longest lag".into(),
+            });
+        }
+        let indexer = TemporalIndexer::new(variable_count, history, 1)?;
+        if window.node_count() != indexer.dense_len() {
+            return Err(CausalError::Compile {
+                message: "the unrolled window does not match the unfolding of the series".into(),
+            });
+        }
+        let mut contemporaneous = Vec::new();
+        let mut lagged = Vec::new();
+        for dense in 0..indexer.dense_len() {
+            let dense_id = u32::try_from(dense).map_err(|_| CausalError::Compile {
+                message: "unfolded window exceeds u32 nodes".into(),
+            })?;
+            let key = indexer.key_of(dense_id)?;
+            match key.offset.cmp(&0) {
+                std::cmp::Ordering::Equal => contemporaneous.push(dense_id),
+                std::cmp::Ordering::Less => lagged.push(dense_id),
+                std::cmp::Ordering::Greater => {
+                    return Err(CausalError::Compile {
+                        message: "lag-aligned attribution unfolds one contemporaneous slice".into(),
+                    });
+                }
+            }
+        }
+        let mut order = contemporaneous;
+        order.extend(lagged);
+        let mut to_static = vec![0u32; indexer.dense_len()];
+        let mut columns = Vec::with_capacity(order.len());
+        let mut dag = Dag::empty();
+        let mut mixed = Admg::empty();
+        for (static_index, unfolded_id) in order.iter().copied().enumerate() {
+            let static_id = u32::try_from(static_index).map_err(|_| CausalError::Compile {
+                message: "lag-aligned SCM exceeds u32 nodes".into(),
+            })?;
+            let unfolded_index = usize::try_from(unfolded_id).map_err(|_| {
+                CausalError::Compile { message: "unfolded window exceeds usize".into() }
+            })?;
+            to_static[unfolded_index] = static_id;
+            let key = indexer.key_of(unfolded_id)?;
+            let lag = u32::try_from(-i64::from(key.offset)).map_err(|_| CausalError::Compile {
+                message: "lag-aligned attribution found a forward offset".into(),
+            })?;
+            let node = antecedent_graph::NodeRef::Static(VariableId::from_raw(static_id));
+            dag.add_node(node)?;
+            mixed.add_node(node)?;
+            columns.push((key.variable, lag));
+        }
+        let relabel = |node: DenseNodeId| DenseNodeId::from_raw(to_static[node.as_usize()]);
+        for from in window.node_ids() {
+            for &to in window.children(from) {
+                for inserted in [
+                    dag.insert_directed(relabel(from), relabel(to)),
+                    mixed.insert_directed(relabel(from), relabel(to)),
+                ] {
+                    match inserted {
+                        Ok(()) | Err(antecedent_graph::GraphError::DuplicateEdge { .. }) => {}
+                        Err(error) => return Err(error.into()),
+                    }
+                }
+            }
+            for &other in window.bidirected_neighbors(from) {
+                if from.raw() < other.raw() {
+                    match mixed.insert_bidirected(relabel(from), relabel(other)) {
+                        Ok(()) | Err(antecedent_graph::GraphError::DuplicateEdge { .. }) => {}
+                        Err(error) => return Err(error.into()),
+                    }
+                }
+            }
+        }
+        Ok((Self { dag, columns: Arc::from(columns), history }, mixed))
     }
 
     /// Bayesian block-bootstrap row weights of `n` consecutive lag-aligned rows: one

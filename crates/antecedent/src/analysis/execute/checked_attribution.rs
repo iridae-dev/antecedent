@@ -7,9 +7,8 @@ use super::{
     IdentificationResult, IdentifiedExecuteExtras, IdentifiedExecuteFinish,
     IdentifiedResultContext, IdentifierId, InferenceMode, Instant, OverlapPolicy,
     PhysicalExecutionPlan, Strategy, Study, StudyResult, TableView, TabularData, TimeSeriesData,
-    VariableId, anomaly_attribution_query_with, attribute_distribution_change, bayesian_draw_count,
-    elapsed_ns, finish_identified_execute_with_context, fit_gcm, nan_effect,
-    parametric_scm_identification,
+    VariableId, anomaly_attribution_query_with, bayesian_draw_count, elapsed_ns,
+    finish_identified_execute_with_context, fit_gcm, nan_effect, parametric_scm_identification,
 };
 use crate::analysis::prepared::Inspect;
 use crate::analysis::proof_support::proof_supplies_method_and_functional;
@@ -221,6 +220,10 @@ pub(crate) struct CheckedAttributionOperation {
     lag_aligned: Option<super::temporal_attribution::LagAlignedScm>,
     /// Mechanism fit of a fitted-model route.
     mechanisms: Arc<crate::analysis::structure_route::MechanismProgram>,
+    /// Present when the source graph was a mixed graph whose attribution is identified: the
+    /// noise blocks (districts of the ancestral sub-graph) that are the Shapley players. The
+    /// static `graph` is then the directed part of the mixed graph.
+    blocks: Option<Arc<[Vec<VariableId>]>>,
 }
 
 impl std::fmt::Debug for CheckedAttributionOperation {
@@ -243,7 +246,28 @@ impl CheckedAttributionOperation {
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
         cache: &Arc<crate::analysis::prepared::CachedStaticIdentification>,
     ) -> Result<Self, CausalError> {
-        let (graph, lag_aligned) = attribution_graph(study)?;
+        Self::checked_on(study, physical, cache, attribution_graph(study)?, None)
+    }
+
+    /// The operation on the directed part of an identified mixed graph, with its noise blocks
+    /// as the Shapley players. `lag_aligned` is the unfolding when the mixed graph was temporal.
+    pub(super) fn checked_blocks(
+        study: &Study,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
+        cache: &Arc<crate::analysis::prepared::CachedStaticIdentification>,
+        resolved: (Dag, Option<super::temporal_attribution::LagAlignedScm>),
+        blocks: Vec<Vec<VariableId>>,
+    ) -> Result<Self, CausalError> {
+        Self::checked_on(study, physical, cache, resolved, Some(Arc::from(blocks)))
+    }
+
+    fn checked_on(
+        study: &Study,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
+        cache: &Arc<crate::analysis::prepared::CachedStaticIdentification>,
+        (graph, lag_aligned): (Dag, Option<super::temporal_attribution::LagAlignedScm>),
+        blocks: Option<Arc<[Vec<VariableId>]>>,
+    ) -> Result<Self, CausalError> {
         let target = match &study.query {
             CausalQuery::AnomalyAttribution(query) => {
                 query.validate()?;
@@ -269,6 +293,11 @@ impl CheckedAttributionOperation {
             }
         };
         let fitted_model = matches!(target, AttributionTarget::Model(_));
+        if blocks.is_some() && fitted_model {
+            return Err(CausalError::Compile {
+                message: "noise-block attribution supports only anomaly and change targets".into(),
+            });
+        }
         let target_query = target.query();
         if !study.custom_validators.is_empty() {
             return Err(CausalError::Unsupported {
@@ -320,7 +349,68 @@ impl CheckedAttributionOperation {
             mechanisms: study.mechanisms.clone().unwrap_or_else(|| {
                 Arc::new(crate::analysis::structure_route::MechanismProgram::standard())
             }),
+            blocks,
         })
+    }
+
+    /// The anomaly scores of `query` on `model`: one Shapley player per ancestor noise term, or
+    /// per noise block on a mixed graph.
+    fn score_anomalies(
+        &self,
+        model: &crate::gcm::CompiledCausalModel,
+        data: &TabularData,
+        query: &antecedent_core::AnomalyAttributionQuery,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<antecedent_attribution::AnomalyScores>, CausalError> {
+        match &self.blocks {
+            None => anomaly_attribution_query_with(model, data, query, ctx),
+            Some(blocks) => {
+                antecedent_attribution::score_anomalies_blocks_with(model, data, query, blocks, ctx)
+                    .map_err(CausalError::from)
+            }
+        }
+    }
+
+    /// The distribution-change attribution of `query` on `model`, with both populations refit
+    /// under `refit` when it is given: one Shapley player per mechanism, or per noise block on
+    /// a mixed graph.
+    fn change_attribution(
+        &self,
+        model: &crate::gcm::CompiledCausalModel,
+        data: &TabularData,
+        query: &antecedent_core::ChangeAttributionQuery,
+        options: &antecedent_attribution::DistributionChangeOptions,
+        refit: Option<antecedent_attribution::PopulationRefit<'_>>,
+        ctx: &ExecutionContext,
+    ) -> Result<
+        antecedent_attribution::ChangeAttributionResult,
+        antecedent_attribution::AttributionError,
+    > {
+        use antecedent_attribution::PopulationRefit;
+        if let Some(blocks) = &self.blocks {
+            return antecedent_attribution::distribution_change_blocks(
+                model,
+                data,
+                query,
+                options,
+                blocks,
+                refit.as_ref(),
+                ctx,
+            );
+        }
+        match refit {
+            None => antecedent_attribution::distribution_change(model, data, query, options, ctx),
+            Some(PopulationRefit::RowWeights { baseline, comparison }) => {
+                antecedent_attribution::distribution_change_with_row_weights(
+                    model, data, query, options, baseline, comparison, ctx,
+                )
+            }
+            Some(PopulationRefit::Counts { baseline, comparison }) => {
+                antecedent_attribution::distribution_change_with_frequency_weights(
+                    model, data, query, options, baseline, comparison, ctx,
+                )
+            }
+        }
     }
 
     /// Fit the frozen unfolding on a fresh lag-aligned table.
@@ -1000,7 +1090,7 @@ impl CheckedAttributionOperation {
         let scorer_query =
             antecedent_core::AnomalyAttributionQuery::new(query.targets.clone(), query.max_units)
                 .with_reference(query.reference);
-        let scores = anomaly_attribution_query_with(&fitted.model, data, &scorer_query, ctx)?;
+        let scores = self.score_anomalies(&fitted.model, data, &scorer_query, ctx)?;
         let outcome = *query.targets.first().ok_or_else(|| CausalError::Compile {
             message: "checked anomaly target has no outcome variable".into(),
         })?;
@@ -1055,13 +1145,16 @@ impl CheckedAttributionOperation {
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         let fitted = fit_gcm(self.graph.clone(), data)?;
-        let change = attribute_distribution_change(
-            &fitted.model,
-            data,
-            query,
-            &antecedent_attribution::DistributionChangeOptions::default(),
-            ctx,
-        )?;
+        let change = self
+            .change_attribution(
+                &fitted.model,
+                data,
+                query,
+                &antecedent_attribution::DistributionChangeOptions::default(),
+                None,
+                ctx,
+            )
+            .map_err(CausalError::from)?;
         let mut estimate = EffectEstimate::new(
             change.total_change,
             f64::NAN,
@@ -1174,7 +1267,7 @@ impl CheckedAttributionOperation {
                     continue;
                 }
             };
-            match anomaly_attribution_query_with(
+            match self.score_anomalies(
                 &fitted.model.clone().with_mechanisms(store),
                 data,
                 &scorer_query,
@@ -1254,13 +1347,15 @@ impl CheckedAttributionOperation {
             let mut rng = super::gcm_bootstrap::replicate_stream(ctx, 0xC4A6_B007, replicate);
             let baseline_counts = self.draw_row_counts(baseline_n, &mut rng);
             let comparison_counts = self.draw_row_counts(comparison_n, &mut rng);
-            match antecedent_attribution::distribution_change_with_frequency_weights(
+            match self.change_attribution(
                 model,
                 data,
                 query,
                 options,
-                &baseline_counts,
-                &comparison_counts,
+                Some(antecedent_attribution::PopulationRefit::Counts {
+                    baseline: &baseline_counts,
+                    comparison: &comparison_counts,
+                }),
                 ctx,
             ) {
                 Ok(draw) => totals.push(draw.total_change),
@@ -1320,7 +1415,7 @@ impl CheckedAttributionOperation {
             let store = registry
                 .refit_weighted(&fitted.model, data, &fitted.assignments, &weights)
                 .map_err(CausalError::rejected)?;
-            let draw_scores = anomaly_attribution_query_with(
+            let draw_scores = self.score_anomalies(
                 &fitted.model.clone().with_mechanisms(store),
                 data,
                 &scorer_query,
@@ -1415,16 +1510,19 @@ impl CheckedAttributionOperation {
             }
             let baseline_weights = self.draw_row_weights(baseline_n, &mut rng);
             let comparison_weights = self.draw_row_weights(comparison_n, &mut rng);
-            let draw = antecedent_attribution::distribution_change_with_row_weights(
-                model,
-                data,
-                query,
-                options,
-                &baseline_weights,
-                &comparison_weights,
-                ctx,
-            )
-            .map_err(CausalError::rejected)?;
+            let draw = self
+                .change_attribution(
+                    model,
+                    data,
+                    query,
+                    options,
+                    Some(antecedent_attribution::PopulationRefit::RowWeights {
+                        baseline: &baseline_weights,
+                        comparison: &comparison_weights,
+                    }),
+                    ctx,
+                )
+                .map_err(CausalError::rejected)?;
             totals.push(draw.total_change);
             let columns = components.get_or_insert_with(|| {
                 draw.contributions

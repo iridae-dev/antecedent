@@ -516,7 +516,7 @@ fn temporal_class_bayesian_mediation_cheap_and_full_run() {
 }
 
 #[test]
-fn temporal_pag_mediation_refuses_as_cross_world_theory_boundary() {
+fn temporal_pag_mediation_is_a_window_route_and_reads_one_horizon() {
     let (data, _) = confounded_mediation_series();
     let mut graph = TemporalPag::empty();
     let t1 = graph.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
@@ -525,19 +525,19 @@ fn temporal_pag_mediation_refuses_as_cross_world_theory_boundary() {
     graph.insert_directed(t1, m0).unwrap();
     graph.insert_directed(t1, y0).unwrap();
     graph.insert_directed(m0, y0).unwrap();
+    // The cell is no longer a theory boundary: it builds, and a request for two horizons is
+    // refused as such, with its next attempt.
     let error = Study::series(data)
         .graph(graph)
         .query(CausalQuery::Mediation(query(&[1, 2])))
         .refute(RefuteSuite::None)
         .bootstrap_replicates(0)
         .build()
+        .and_then(|built| built.run(&ExecutionContext::for_tests(34)))
         .unwrap_err();
     let message = error.to_string();
     assert!(
-        message.contains("Latent-confounded")
-            && message.contains("cross-world")
-            && !message.contains("1.10")
-            && !message.contains("1.7"),
-        "TemporalPag mediation must refuse as a mathematical boundary, got {message}"
+        message.contains("one outcome horizon") && !message.contains("cross-world theory"),
+        "TemporalPag mediation reads one horizon per study, got {message}"
     );
 }

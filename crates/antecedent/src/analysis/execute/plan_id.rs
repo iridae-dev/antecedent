@@ -68,10 +68,16 @@ pub(crate) enum PlanId {
     BayesianPiecewiseSurvival,
     /// Bayesian group-polynomial dose policy posterior.
     BayesianDosePolicy,
+    /// Counterfactual on a static ADMG, PAG or CPDAG.
+    StaticClassCounterfactual,
     /// GCM tabular query.
     GcmQuery,
     /// GCM temporal query.
     GcmTemporalQuery,
+    /// GCM tabular query over the members of a structure class.
+    GcmClassQuery,
+    /// GCM temporal query over the members of a temporal structure class.
+    GcmTemporalClassQuery,
     /// Temporal CPDAG cross-world.
     TemporalCpdagCrossWorld,
     /// Temporal PAG cross-world.
@@ -82,6 +88,10 @@ pub(crate) enum PlanId {
     StaticAdmgAte,
     /// Pulse, sustained or conditional contrast on a temporal ADMG, on its unrolled window.
     TemporalAdmgContrast,
+    /// Natural mediation on the unrolled window of a temporal ADMG.
+    TemporalAdmgMediation,
+    /// Natural mediation on the unfolded window of a temporal PAG.
+    TemporalPagMediation,
     /// Temporal CPDAG effect.
     TemporalCpdagEffect,
     /// Temporal PAG effect.
@@ -162,13 +172,18 @@ impl PlanId {
             Self::BayesianPeriodHistoryOutcomeModel => "bayesian.period_history_outcome_model",
             Self::SequentialCrossfitContrastWald => "sequential.crossfit_contrast.wald",
             Self::BayesianSequentialCrossfitContrast => "bayesian.sequential_crossfit_contrast",
+            Self::StaticClassCounterfactual => "static_class_counterfactual",
             Self::GcmQuery => "gcm_query",
             Self::GcmTemporalQuery => "gcm_temporal_query",
+            Self::GcmClassQuery => "gcm_class_query",
+            Self::GcmTemporalClassQuery => "gcm_temporal_class_query",
             Self::TemporalCpdagCrossWorld => "temporal_cpdag_cross_world",
             Self::TemporalPagCrossWorld => "temporal_pag_cross_world",
             Self::TemporalCrossWorldLinear => "temporal.cross_world.linear",
             Self::StaticAdmgAte => "static_admg_ate",
             Self::TemporalAdmgContrast => "temporal_admg_contrast",
+            Self::TemporalAdmgMediation => "temporal_admg_mediation",
+            Self::TemporalPagMediation => "temporal_pag_mediation",
             Self::TemporalCpdagEffect => "temporal_cpdag_effect",
             Self::TemporalPagEffect => "temporal_pag_effect",
             Self::PanelCpdagEffect => "panel_cpdag_effect",

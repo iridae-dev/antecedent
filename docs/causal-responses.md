@@ -493,7 +493,14 @@ Derivatives on a `Cpdag`, `Pag`, latent-confounded `Admg` or `TemporalAdmg` (the
 contemporaneous projection over rows, or the unrolled window of its template over
 a series) execute through the compiler and stay unlicensed: each identified
 completion, or the ADMG itself, is identified by one adjustment set valid for every
-treatment/outcome pair, and a pair with a hedge is refused with its certificate.
+treatment/outcome pair; where no adjustment set exists the front-door criterion is
+searched and the derivative is estimated with the outcome additive in the treatment, the
+mediators and the covariates (an interval that refits both stages on each replicate); a
+pair with a hedge is refused with its certificate, and a target that general ID identifies
+through neither an adjustment nor a front door is refused. Completions of a class that
+disagree publish their identified set with an Imbens-Manski band formed from their joint
+row influence, and a TemporalAdmg derivative over a series is identified per horizon on the
+unrolled window of its template and may be prepared as a handle.
 Graph-posterior, observation-adjusted, and cheap/full coordinates remain refused.
 Mean curves on `Cpdag` / `Pag` are a separate class-aware cell. The definitions below are the
 licensed forms, not a license to run every constructor argument. Repeated-

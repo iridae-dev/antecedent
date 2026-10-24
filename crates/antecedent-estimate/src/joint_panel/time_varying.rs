@@ -52,6 +52,21 @@ pub enum PanelMeanParameter {
     },
     /// Log of the shared positive half-saturation.
     LogHalfSaturation,
+    /// Logit of one channel's geometric adstock decay (geometric family).
+    GeometricDecay {
+        /// Stable channel identity.
+        channel: String,
+    },
+    /// Log of one channel's Hill shape (Hill family).
+    HillShape {
+        /// Stable channel identity.
+        channel: String,
+    },
+    /// Log of a nonreference saturation class's half-saturation (class-specific family).
+    ClassLogHalfSaturation {
+        /// Class index, 1 or more; class zero is `LogHalfSaturation`.
+        class: usize,
+    },
 }
 
 /// Every choice is prespecified; data-dependent selection remains in the procedure.
@@ -174,7 +189,10 @@ pub struct CoarserPanelContrast {
 }
 
 fn coordinates(data: &PanelData, spec: &TemporalPanelSpec) -> Result<Vec<usize>, PanelError> {
-    let base = likelihood::linear_count(data);
+    let layout = likelihood::layout(data);
+    let channel_position = |id: &String, what: &'static str| {
+        data.channels.iter().position(|entry| &entry.id == id).ok_or_else(|| invalid(what))
+    };
     let mut result = Vec::new();
     for coordinate in &spec.varying {
         let index = match coordinate {
@@ -199,17 +217,25 @@ fn coordinates(data: &PanelData, spec: &TemporalPanelSpec) -> Result<Vec<usize>,
                 1 + data.channels.len() + data.interactions.len() + level
             }
             PanelMeanParameter::Lag { channel, coordinate }
-                if data.lag_order == 2 && *coordinate < 2 =>
+                if data.lag_order == 2 && !data.family.is_geometric() && *coordinate < 2 =>
             {
-                base + 2 * data
-                    .channels
-                    .iter()
-                    .position(|entry| &entry.id == channel)
-                    .ok_or_else(|| invalid("unknown varying lag channel"))?
+                layout.lag
+                    + 2 * channel_position(channel, "unknown varying lag channel")?
                     + coordinate
             }
-            PanelMeanParameter::LogHalfSaturation => {
-                base + if data.lag_order == 2 { 2 * data.channels.len() } else { 0 }
+            PanelMeanParameter::GeometricDecay { channel }
+                if data.lag_order == 2 && data.family.is_geometric() =>
+            {
+                layout.lag + channel_position(channel, "unknown varying decay channel")?
+            }
+            PanelMeanParameter::LogHalfSaturation => layout.k0,
+            PanelMeanParameter::HillShape { channel } if data.family.is_hill() => {
+                layout.shape + channel_position(channel, "unknown varying Hill channel")?
+            }
+            PanelMeanParameter::ClassLogHalfSaturation { class }
+                if *class >= 1 && *class < data.family.classes() =>
+            {
+                layout.class + class - 1
             }
             _ => {
                 return Err(invalid(
@@ -301,6 +327,15 @@ impl TemporalPanelSpec {
                 PanelMeanParameter::LogHalfSaturation => {
                     writer.word(8);
                 }
+                PanelMeanParameter::GeometricDecay { channel } => {
+                    writer.word(9).text(channel);
+                }
+                PanelMeanParameter::HillShape { channel } => {
+                    writer.word(10).text(channel);
+                }
+                PanelMeanParameter::ClassLogHalfSaturation { class } => {
+                    writer.word(11).word(*class as u64);
+                }
             }
         }
         writer.word(self.change_points.len() as u64);
@@ -372,30 +407,31 @@ fn parameters_at(
     }
     likelihood::decode(data, &current)
 }
-fn conditional_groups(
+fn conditional_state(
     data: &likelihood::CompiledPanel<'_>,
     spec: &TemporalPanelSpec,
     choice: &TemporalModelChoice,
     values: &[f64],
-) -> Option<Vec<likelihood::GaussianGroup>> {
+    detail: likelihood::Detail,
+) -> Option<likelihood::Marginal> {
     let base = likelihood::decode(data, values.get(..likelihood::parameter_count(data))?)?;
-    data.groups
+    let residuals = data
+        .groups
         .iter()
-        .map(|group| {
-            let residuals: Vec<_> = (0..group.outcome.len())
+        .enumerate()
+        .map(|(index, group)| {
+            (0..group.outcome.len())
                 .map(|time| {
                     let p = parameters_at(data, spec, choice, values, time)?;
-                    Some(group.outcome[time] - likelihood::observed_response(data, &p, group, time))
+                    Some(
+                        group.outcome[time]
+                            - likelihood::observed_response(data, &p, group, index, time),
+                    )
                 })
-                .collect::<Option<Vec<_>>>()?;
-            likelihood::ar1_random_intercept(
-                &residuals,
-                base.rho,
-                base.innovation_sd,
-                base.group_sd,
-            )
+                .collect::<Option<Vec<_>>>()
         })
-        .collect()
+        .collect::<Option<Vec<_>>>()?;
+    likelihood::marginal(data, &base, &residuals, detail)
 }
 fn objective(
     data: &likelihood::CompiledPanel<'_>,
@@ -403,10 +439,8 @@ fn objective(
     choice: &TemporalModelChoice,
     values: &[f64],
 ) -> f64 {
-    let Some(groups) = conditional_groups(data, spec, choice, values) else {
-        return f64::NEG_INFINITY;
-    };
-    groups.iter().map(|group| group.log_likelihood).sum()
+    conditional_state(data, spec, choice, values, likelihood::Detail::Value)
+        .map_or(f64::NEG_INFINITY, |marginal| marginal.log_likelihood)
 }
 fn penalty(spec: &TemporalPanelSpec, choice: &TemporalModelChoice, delta: &[f64]) -> f64 {
     let TemporalModelChoice::Smooth { penalty } = choice else {
@@ -515,17 +549,9 @@ fn realization(
     values: &[f64],
     rng: Option<&mut antecedent_core::CausalRng>,
 ) -> Option<TemporalPanelDraw> {
-    let groups = conditional_groups(data, spec, choice, values)?;
-    let mut rng = rng;
-    let group_intercepts = groups
-        .iter()
-        .map(|group| {
-            group.intercept_mean
-                + rng
-                    .as_deref_mut()
-                    .map_or(0.0, |rng| group.intercept_variance.sqrt() * standard_normal(rng))
-        })
-        .collect();
+    let detail = if rng.is_some() { likelihood::Detail::Draw } else { likelihood::Detail::Mean };
+    let marginal = conditional_state(data, spec, choice, values, detail)?;
+    let group_intercepts = marginal.intercepts(rng)?;
     let baseline = PanelDraw {
         parameters: likelihood::decode(data, &values[..likelihood::parameter_count(data)])?,
         group_intercepts,
@@ -547,16 +573,21 @@ fn bootstrap_data(
     let mut rng =
         ctx.rng.stream(antecedent_core::derive_stream(0x5830_3342_4f4f_5453, replicate as u64));
     let base = &draw.baseline.parameters;
-    for group in &mut simulated.groups {
+    let spatial = likelihood::spatial_prior_intercepts(data, base, &mut rng)
+        .ok_or_else(|| PanelError::Numerical("spatial correlation is not factorable".into()))?;
+    for (index, group) in simulated.groups.iter_mut().enumerate() {
         check_cancelled(ctx)?;
-        let intercept = base.group_sd * standard_normal(&mut rng);
+        let intercept = match &spatial {
+            Some(draws) => draws[index],
+            None => base.group_sd * standard_normal(&mut rng),
+        };
         let mut error =
             base.innovation_sd / (1.0 - base.rho.powi(2)).sqrt() * standard_normal(&mut rng);
         for time in 0..group.outcome.len() {
             let p = &draw.parameters[time];
             error = base.rho * error + base.innovation_sd * standard_normal(&mut rng);
             group.outcome[time] =
-                likelihood::observed_response(data, p, group, time) + intercept + error;
+                likelihood::observed_response(data, p, group, index, time) + intercept + error;
         }
     }
     Ok(simulated)
@@ -1018,6 +1049,193 @@ mod tests {
         // Proper smoothing precision includes its normalization, not just a
         // penalty that would distort the model-choice posterior.
         assert!((path_log_prior(&spec, &smooth, &[0.0; 3]) - 1.5 * 2.0_f64.ln()).abs() < 1e-14);
+    }
+    #[test]
+    fn broader_family_coordinates_vary_through_the_same_path_and_refit_a_shape_change() {
+        use super::super::family::{
+            PanelAdstock, PanelFamily, PanelSaturation, PanelSaturationScope,
+        };
+        use super::super::family_tests::{hand_mean, simulate, truth};
+        let family = PanelFamily {
+            adstock: PanelAdstock::Geometric,
+            saturation: PanelSaturation::Hill,
+            scope: PanelSaturationScope::Classes { assignment: vec![0, 0, 0, 1, 1, 1] },
+            spatial: None,
+        };
+        let base = truth(&family);
+        let mut data = simulate(family, &base, 6, 24, 77);
+        let spec = TemporalPanelSpec {
+            varying: vec![PanelMeanParameter::HillShape { channel: "0".into() }],
+            change_points: vec![8, 12, 16],
+            minimum_segment: 4,
+            weak_change_gap: 4.0,
+            smooth_knots: vec![0, 8, 16, 23],
+            smoothing: vec![0.5, 2.0],
+            path_prior_sd: 1.0,
+        };
+        validate_temporal_spec(&data, &spec).unwrap();
+        let layout = likelihood::layout(&data);
+        assert_eq!(coordinates(&data, &spec).unwrap(), vec![layout.shape]);
+        // The other family coordinates map to their own positions, or are refused when the
+        // declared family lacks them.
+        let mut other = spec.clone();
+        other.varying = vec![
+            PanelMeanParameter::ClassLogHalfSaturation { class: 1 },
+            PanelMeanParameter::GeometricDecay { channel: "1".into() },
+            PanelMeanParameter::LogHalfSaturation,
+        ];
+        assert_eq!(
+            coordinates(&data, &other).unwrap(),
+            vec![layout.class, layout.lag + 1, layout.k0]
+        );
+        for refused in [
+            PanelMeanParameter::ClassLogHalfSaturation { class: 2 },
+            PanelMeanParameter::ClassLogHalfSaturation { class: 0 },
+            PanelMeanParameter::Lag { channel: "0".into(), coordinate: 0 },
+        ] {
+            other.varying = vec![refused];
+            assert!(coordinates(&data, &other).is_err());
+        }
+        let mut reviewed = data.clone();
+        reviewed.family = PanelFamily::default();
+        for refused in [
+            PanelMeanParameter::HillShape { channel: "0".into() },
+            PanelMeanParameter::GeometricDecay { channel: "0".into() },
+            PanelMeanParameter::ClassLogHalfSaturation { class: 1 },
+        ] {
+            other.varying = vec![refused];
+            assert!(coordinates(&reviewed, &other).is_err());
+        }
+        assert_ne!(spec.identity(&data).unwrap(), {
+            let mut changed = spec.clone();
+            changed.varying = vec![PanelMeanParameter::GeometricDecay { channel: "0".into() }];
+            changed.identity(&data).unwrap()
+        });
+        // A shape change at period twelve: shift the mean of every later period by the
+        // hand-computed difference between the changed and baseline Hill mechanisms.
+        let delta = 0.6;
+        let mut changed = base.clone();
+        changed.family.hill_shape[0] *= f64::exp(delta);
+        for (g, group) in data.groups.iter_mut().enumerate() {
+            for time in 12..group.outcome.len() {
+                let (after, before) = (
+                    hand_mean(&changed, &data.family, g, group, time),
+                    hand_mean(&base, &data.family, g, group, time),
+                );
+                group.outcome[time] += after - before;
+            }
+        }
+        let choice = TemporalModelChoice::Piecewise { at: 12 };
+        let mut values = likelihood::encode(&data, &base).unwrap();
+        values.push(delta);
+        let compiled = likelihood::CompiledPanel::new(&data).unwrap();
+        let before = parameters_at(&data, &spec, &choice, &values, 11).unwrap();
+        let after = parameters_at(&data, &spec, &choice, &values, 12).unwrap();
+        assert!((before.family.hill_shape[0] - 2.0).abs() < 1e-12);
+        assert!((after.family.hill_shape[0] - 2.0 * f64::exp(delta)).abs() < 1e-12);
+        assert_eq!(after.family.hill_shape[1], before.family.hill_shape[1]);
+        assert_eq!(after.family.class_half_saturation, before.family.class_half_saturation);
+        let mut unchanged = values.clone();
+        *unchanged.last_mut().unwrap() = 0.0;
+        assert!(
+            objective(&compiled, &spec, &choice, &values)
+                > objective(&compiled, &spec, &choice, &unchanged)
+        );
+        // The complete selection procedure on the same mechanism attempts every candidate.
+        let options = PanelFitOptions {
+            optimizer: super::super::PanelOptimizerOptions {
+                max_iterations: 800,
+                gradient_tolerance: 5e-2,
+            },
+            inference: PanelInference::Frequentist { draws: 0 },
+            initial: Some(base.clone()),
+        };
+        let fit =
+            fit_temporal_panel(&data, &spec, &options, &ExecutionContext::for_tests(61)).unwrap();
+        let log_likelihood = |wanted: TemporalModelChoice| {
+            fit.attempts
+                .iter()
+                .find(|attempt| attempt.choice == wanted)
+                .and_then(|attempt| attempt.log_likelihood)
+                .unwrap()
+        };
+        assert!(
+            log_likelihood(TemporalModelChoice::Piecewise { at: 12 })
+                > log_likelihood(TemporalModelChoice::NoChange) + 10.0
+        );
+        assert_eq!(fit.claim, "model_conditional_temporal_mechanism_only");
+        let path = &fit.point.parameters;
+        assert!(
+            path[20].family.hill_shape[0] / path[2].family.hill_shape[0] > 1.2,
+            "the fitted shape must rise after the change: {} then {}",
+            path[2].family.hill_shape[0],
+            path[20].family.hill_shape[0]
+        );
+    }
+    #[test]
+    fn broader_family_posterior_selects_jointly_with_the_family_coordinates_and_group_axes() {
+        use super::super::family::{
+            PanelAdstock, PanelFamily, PanelSaturation, PanelSaturationScope,
+        };
+        use super::super::family_tests::{simulate, truth};
+        use super::super::{PanelOptimizerOptions, PanelPrior, PanelSamplingOptions};
+        let family = PanelFamily {
+            adstock: PanelAdstock::Geometric,
+            saturation: PanelSaturation::Hill,
+            scope: PanelSaturationScope::Classes { assignment: vec![0, 0, 0, 1, 1, 1] },
+            spatial: None,
+        };
+        let base = truth(&family);
+        let data = simulate(family, &base, 6, 24, 78);
+        let spec = TemporalPanelSpec {
+            varying: vec![PanelMeanParameter::HillShape { channel: "0".into() }],
+            change_points: vec![8, 12, 16],
+            minimum_segment: 4,
+            weak_change_gap: 4.0,
+            smooth_knots: vec![0, 8, 16, 23],
+            smoothing: vec![0.5, 2.0],
+            path_prior_sd: 1.0,
+        };
+        let options = PanelFitOptions {
+            optimizer: PanelOptimizerOptions { max_iterations: 300, gradient_tolerance: 5e-2 },
+            inference: PanelInference::Bayesian {
+                prior: PanelPrior::default(),
+                sampler: PanelSamplingOptions {
+                    chains: 2,
+                    warmup: 30,
+                    draws: 30,
+                    proposal_scale: 0.2,
+                    max_rhat: 5.0,
+                    min_ess: 1.0,
+                },
+            },
+            initial: Some(base),
+        };
+        let fit =
+            fit_temporal_panel(&data, &spec, &options, &ExecutionContext::for_tests(62)).unwrap();
+        assert_eq!(fit.draws.len(), 60);
+        let retained = fit.draws.iter().flatten().collect::<Vec<_>>();
+        assert!(retained.len() >= 50);
+        assert!(fit.posterior_diagnostics.is_some());
+        assert_eq!(
+            fit.selection_counts.iter().map(|(_, count)| count).sum::<usize>(),
+            retained.len(),
+            "every retained draw records the specification it was drawn under"
+        );
+        for draw in retained {
+            assert_eq!(draw.parameters.len(), 24);
+            assert_eq!(draw.baseline.group_intercepts.len(), 6);
+            assert!(draw.parameters.iter().all(|p| {
+                p.family.hill_shape.len() == 2
+                    && p.family.class_half_saturation
+                        == draw.baseline.parameters.family.class_half_saturation
+                    && p.channels == draw.baseline.parameters.channels
+            }));
+            if matches!(draw.choice, TemporalModelChoice::NoChange) {
+                assert!(draw.parameters.windows(2).all(|w| w[0] == w[1]));
+            }
+        }
+        assert!(fit.uncertainty.contains("posterior"));
     }
     #[test]
     fn unsupported_specifications_and_unique_explanations_remain_separate_attempts() {

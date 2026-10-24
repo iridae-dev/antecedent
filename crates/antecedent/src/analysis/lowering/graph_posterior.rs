@@ -257,6 +257,8 @@ fn problem_target(
         CausalQuery::NestedCounterfactual(_) | CausalQuery::PathSpecific(_) => {
             FunctionalKind::PathSpecific
         }
+        CausalQuery::Transport(_) => FunctionalKind::InterventionContrast,
+        CausalQuery::Interference(_) => FunctionalKind::ExposureContrast,
         CausalQuery::Mediation(query) if query.contrast != MediationContrast::Total => {
             FunctionalKind::PathSpecific
         }
@@ -294,6 +296,9 @@ fn problem_target(
         }
         (CausalQuery::Response(query), GraphPosteriorCell::StaticResponse) => {
             static_response(schema, query, &model, inference).map(ProblemTarget::Target)
+        }
+        (CausalQuery::Transport(query), GraphPosteriorCell::Transport) => {
+            transport_contrast(schema, query, &model, inference).map(ProblemTarget::Target)
         }
         (CausalQuery::TemporalEffect(query), GraphPosteriorCell::TemporalEffect) => {
             temporal_contrast(schema, query, &model, inference).map(ProblemTarget::Target)
@@ -418,6 +423,34 @@ fn static_contrast(
     };
     let control = world(CONTROL_WORLD, at(&query.control)?, true, &binding, &time)?;
     let active = world(ACTIVE_WORLD, at(&query.active)?, false, &binding, &time)?;
+    contrast(control, active, model, inference)
+}
+
+/// Transported contrast: the inner response's treatment set to one against zero in the target
+/// population, every atom answering the same target by its own selection diagram.
+fn transport_contrast(
+    schema: &CausalSchema,
+    query: &antecedent_core::TransportQuery,
+    model: &ModelAssumptions,
+    inference: InferenceSelection,
+) -> Result<ScientificTarget, CausalError> {
+    let (treatment, outcome) =
+        query.response.functional.primary_pair().ok_or_else(unrepresented)?;
+    let binding = binding(
+        schema,
+        query.response.target_population.clone(),
+        ROW_UNIT,
+        outcome,
+        OutcomeFunctional::Mean,
+        Conditioning::unconditional(),
+    )?;
+    let time = TimeFrame::static_decision();
+    let at = |level: f64| {
+        WorldAction::at_decision([Intervention::set(treatment, Value::f64(level))])
+            .map_err(target_error)
+    };
+    let control = world(CONTROL_WORLD, at(0.0)?, true, &binding, &time)?;
+    let active = world(ACTIVE_WORLD, at(1.0)?, false, &binding, &time)?;
     contrast(control, active, model, inference)
 }
 
@@ -725,6 +758,14 @@ fn structure_prior_name(posterior: &GraphPosterior) -> String {
             writer.word(0);
         }
     }
+    // Lagged latent-confounder edges distinguish two templates with the same directed edges;
+    // a posterior without them writes nothing here, so its digest is the one it always had.
+    if let Some(masks) = &posterior.lag_bidirected_masks {
+        writer.word(2).word(masks.len() as u64);
+        for mask in masks.iter() {
+            writer.word(*mask);
+        }
+    }
     match &posterior.mark_atoms {
         Some(marks) => {
             writer.word(1).word(marks.len() as u64);
@@ -802,6 +843,17 @@ fn model_slots(query: &CausalQuery, family: &Arc<str>, recorded: &[VariableId]) 
                 slots.push(slot(ModelRole::Outcome, at_horizon, inputs, Some(query.outcome)));
             }
             slots
+        }
+        CausalQuery::Transport(query) => query.response.functional.primary_pair().map_or_else(
+            Vec::new,
+            |(treatment, outcome)| {
+                vec![slot(ModelRole::Outcome, Arc::clone(family), vec![treatment], Some(outcome))]
+            },
+        ),
+        CausalQuery::Interference(query) => {
+            let antecedent_core::InterferenceFunctional::ExposureContrast { outcome, .. } =
+                query.functional;
+            vec![slot(ModelRole::Outcome, Arc::clone(family), Vec::new(), Some(outcome))]
         }
         _ => vec![slot(
             ModelRole::Mechanism,

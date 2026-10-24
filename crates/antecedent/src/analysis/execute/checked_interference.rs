@@ -38,6 +38,8 @@ pub(crate) struct CheckedInterferenceOperation {
     estimator: EstimatorId,
     physical: std::sync::Arc<PhysicalExecutionPlan>,
     result_context: IdentifiedResultContext,
+    refute: RefuteSuite,
+    replicates: u32,
 }
 
 impl std::fmt::Debug for CheckedInterferenceOperation {
@@ -156,6 +158,8 @@ impl CheckedInterferenceOperation {
             estimator,
             physical: physical.clone(),
             result_context: IdentifiedResultContext::from_study(study),
+            refute: study.refute,
+            replicates: study.bootstrap_replicates,
         })
     }
 
@@ -249,6 +253,17 @@ impl CheckedInterferenceOperation {
                     self.cluster_bootstrap_arm(&network, ctx, draws)?
                 }
             };
+        let refutations = super::interference_refutation::refute_interference(
+            &super::interference_refutation::InterferenceRefutationInput {
+                query: &self.query,
+                network: &network,
+                assignment: &self.assignment,
+                estimated: estimated.as_ref(),
+                suite: self.refute,
+                replicates: self.replicates,
+            },
+            ctx,
+        )?;
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
@@ -262,6 +277,7 @@ impl CheckedInterferenceOperation {
                 outcome,
             )
             .identify_cached(true)
+            .refutations(refutations)
             .extra_diagnostics(vec![diagnostic])
             .wall_time_ns(elapsed_ns(started)),
         );
@@ -762,7 +778,7 @@ fn structure_width(graph: &AcceptedGraph) -> Result<usize, CausalError> {
     }
 }
 
-/// Refuses studies outside the fixed-structure, bound-network, no-validation-suite contract.
+/// Refuses studies outside the fixed-structure, bound-network contract.
 fn refuse_unsupported_interference_design(
     study: &Study,
     design: &crate::InterferenceSpec,
@@ -770,19 +786,22 @@ fn refuse_unsupported_interference_design(
     graph: &AcceptedGraph,
 ) -> Result<(), CausalError> {
     let width = structure_width(graph)?;
+    // The exposure contrast is identified by the known assignment and exposure mapping, so a
+    // graph posterior leaves it unchanged: the posterior's stub structure binds only the unit
+    // schema, as a supplied structure does.
     if !matches!(
         study.structure_source,
-        crate::support::StructureSource::Explicit | crate::support::StructureSource::Accepted
+        crate::support::StructureSource::Explicit
+            | crate::support::StructureSource::Accepted
+            | crate::support::StructureSource::GraphPosterior
     ) || study.tiered.is_some()
-        || study.graph_posterior.is_some()
-        || study.refute != RefuteSuite::None
         || !study.custom_validators.is_empty()
         || design.assignment.len() != data.row_count()
         || design.network.units().row_count() != data.row_count()
         || width != data.schema().variables().len()
     {
         return Err(CausalError::Unsupported {
-            message: "checked interference is limited to a fixed structure over the unit schema and no validation suite",
+            message: "checked interference is limited to a fixed structure over the unit schema and no custom validator",
         });
     }
     Ok(())

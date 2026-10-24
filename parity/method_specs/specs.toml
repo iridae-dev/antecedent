@@ -4827,12 +4827,12 @@ references = [
 [[spec]]
 id = "X02.temporal.frequentist"
 parent = "X02"
-gap = "temporal-identification"
-route = "none"
+gap = "validation"
+route = "method.inference.temporal.frequentist"
 target = "finite-lag group-time response"
 review_status = "not_admitted"
 admission = "not_admitted"
-decision_basis = "closed with a named next attempt: prove identification under the declared temporal assumptions or record the counterexample as the boundary"
+decision_basis = "executing_unlicensed per the counterpart inventory; reconciled from the children and route manifest by scripts/reconcile_method_specs.py"
 provenance = [
   "not_applicable: no method executes on this axis",
 ]
@@ -4853,12 +4853,12 @@ references = [
 [[spec]]
 id = "X02.temporal.bayesian"
 parent = "X02"
-gap = "temporal-identification"
-route = "none"
+gap = "validation"
+route = "method.inference.temporal.bayesian"
 target = "finite-lag group-time response"
 review_status = "not_admitted"
 admission = "not_admitted"
-decision_basis = "closed with a named next attempt: prove identification under the declared temporal assumptions or record the counterexample as the boundary"
+decision_basis = "executing_unlicensed per the counterpart inventory; reconciled from the children and route manifest by scripts/reconcile_method_specs.py"
 provenance = [
   "not_applicable: no method executes on this axis",
 ]
@@ -4879,23 +4879,25 @@ references = [
 [[spec]]
 id = "X02.broader.static.frequentist"
 parent = "X02.broader"
-gap = "theory"
-route = "none"
-target = "none"
-review_status = "blocked_research"
-admission = "refused"
-decision_basis = "closed with a named next attempt: derive the identification result for this counterpart or record the boundary proof"
+gap = "validation"
+route = "method.family.static.frequentist"
+target = "L=0 Hill, group-specific saturation and spatial-residual response"
+review_status = "not_admitted"
+admission = "not_admitted"
+decision_basis = "executing_unlicensed per the counterpart inventory; reconciled from the children and route manifest by scripts/reconcile_method_specs.py"
 provenance = [
   "not_applicable: no method executes on this axis",
 ]
 api_review = "none: no executing module"
-identifying_result = "none: broader mechanism families have no identification proof and no module"
-assumptions = "none beyond the recorded boundary: broader mechanism families have no identification proof and no module"
-sampling_units = "none: the axis defines no sampling design that this method executes over"
-estimator = "none: no estimator exists on this axis"
-diagnostics = "the typed refusal this axis raises, exercised by its fixture"
-failure_policy = "Identification is blocked. Geometric or infinite adstock, free Hill shape, group-specific saturation, spatial residuals are outside the reviewed slice and have no identification proof."
+identifying_result = "L=0 Hill, group-specific saturation and spatial-residual response; design-based joint Delta_AB under a known whole-program randomized assignment"
+assumptions = "Configurable finite channel count; explicitly prespecified sparse ValueExpr interactions read lag-weighted channels saturated by the declared family; seasonal dummies, one additive observed confounder and Gaussian group intercepts. Family choices: truncated geometric adstock (one decay per channel over the observable window) or the free three-period simplex; Michaelis-Menten or free positive Hill shape per channel; one half-saturation or one per declared group class (partially pooled under a prior); independent group intercepts or intercepts with spatial correlation tau^2 K(range) from a declared group distance matrix, aligned by group identity. L=0 fixes carryover and rho=0; geometric adstock is not defined without carryover."
+sampling_units = "independent observed groups, or groups coupled only through the declared spatial intercept correlation; outcomes within group retain the stationary AR(1) covariance (none for L=0)"
+estimator = "Selectable-family integrated Gaussian AR(1) likelihood (Woodbury marginal under spatial dependence), existing limited-memory optimizer, finite-difference curvature, group-cluster sandwich factor or the model-based inverse information under spatial dependence"
+diagnostics = "Native optimizer/curvature or Rhat/ESS/movement diagnostics; aligned full parameter, family-coordinate and group-effect realization across worlds; failed slots preserved; analytic score of every family coordinate checked against the dense Gaussian likelihood; calibration unmeasured."
+failure_policy = "Adjusted claim: the family changes the fitted mechanism only. Whole-program randomized assignment, not the family or its fit, identifies the worlds; unsupported designs stay model-conditional and a finite fit never grants a causal license. Geometric adstock without carryover, non-contiguous classes, misaligned or asymmetric spatial distances and non-integer Hill shapes in a compiled scalar expression are typed refusals. Calibration is unmeasured."
 references = [
+  "Product outcome",
+  "Principal decisions",
   "Release scope and gates",
   "X02 — Estimate the mechanism, including its uncertainty",
 ]
@@ -4903,23 +4905,25 @@ references = [
 [[spec]]
 id = "X02.broader.static.bayesian"
 parent = "X02.broader"
-gap = "theory"
-route = "none"
-target = "none"
-review_status = "blocked_research"
-admission = "refused"
-decision_basis = "closed with a named next attempt: derive the identification result for this counterpart or record the boundary proof"
+gap = "validation"
+route = "method.family.static.bayesian"
+target = "L=0 Hill, group-specific saturation and spatial-residual response"
+review_status = "not_admitted"
+admission = "not_admitted"
+decision_basis = "executing_unlicensed per the counterpart inventory; reconciled from the children and route manifest by scripts/reconcile_method_specs.py"
 provenance = [
   "not_applicable: no method executes on this axis",
 ]
 api_review = "none: no executing module"
-identifying_result = "none: broader mechanism families have no identification proof and no module"
-assumptions = "none beyond the recorded boundary: broader mechanism families have no identification proof and no module"
-sampling_units = "none: the axis defines no sampling design that this method executes over"
-estimator = "none: no estimator exists on this axis"
-diagnostics = "the typed refusal this axis raises, exercised by its fixture"
-failure_policy = "Identification is blocked. Geometric or infinite adstock, free Hill shape, group-specific saturation, spatial residuals are outside the reviewed slice and have no identification proof."
+identifying_result = "L=0 Hill, group-specific saturation and spatial-residual response; design-based joint Delta_AB under a known whole-program randomized assignment"
+assumptions = "Configurable finite channel count; explicitly prespecified sparse ValueExpr interactions read lag-weighted channels saturated by the declared family; seasonal dummies, one additive observed confounder and Gaussian group intercepts. Family choices: truncated geometric adstock (one decay per channel over the observable window) or the free three-period simplex; Michaelis-Menten or free positive Hill shape per channel; one half-saturation or one per declared group class (partially pooled under a prior); independent group intercepts or intercepts with spatial correlation tau^2 K(range) from a declared group distance matrix, aligned by group identity. L=0 fixes carryover and rho=0. Proper priors: Normal on log Hill shape, partial pooling of class log half-saturations toward the first class, log-Normal spatial range about the median distance."
+sampling_units = "independent observed groups, or groups coupled only through the declared spatial intercept correlation; outcomes within group retain the stationary AR(1) covariance (none for L=0)"
+estimator = "Selectable-family marginal likelihood with proper priors on the added coordinates and their logit and log Jacobians, existing Metropolis, conditional group-effect draws (joint under spatial dependence) and genuine chain diagnostics"
+diagnostics = "Native optimizer/curvature or Rhat/ESS/movement diagnostics; aligned full parameter, family-coordinate and group-effect realization across worlds; failed slots preserved; analytic score of every family coordinate checked against the dense Gaussian likelihood; calibration unmeasured."
+failure_policy = "Adjusted claim: the family changes the fitted mechanism only. Whole-program randomized assignment, not the family or its fit, identifies the worlds; unsupported designs stay model-conditional and a finite fit never grants a causal license. Geometric adstock without carryover, non-contiguous classes, misaligned or asymmetric spatial distances and non-integer Hill shapes in a compiled scalar expression are typed refusals. Calibration is unmeasured."
 references = [
+  "Product outcome",
+  "Principal decisions",
   "Release scope and gates",
   "X02 — Estimate the mechanism, including its uncertainty",
 ]
@@ -4927,23 +4931,25 @@ references = [
 [[spec]]
 id = "X02.broader.temporal.frequentist"
 parent = "X02.broader"
-gap = "theory"
-route = "none"
-target = "none"
-review_status = "blocked_research"
-admission = "refused"
-decision_basis = "closed with a named next attempt: derive the identification result for this counterpart or record the boundary proof"
+gap = "validation"
+route = "method.family.temporal.frequentist"
+target = "finite-lag group-time response under geometric adstock, Hill and group-specific saturation"
+review_status = "not_admitted"
+admission = "not_admitted"
+decision_basis = "executing_unlicensed per the counterpart inventory; reconciled from the children and route manifest by scripts/reconcile_method_specs.py"
 provenance = [
   "not_applicable: no method executes on this axis",
 ]
 api_review = "none: no executing module"
-identifying_result = "none: broader mechanism families have no identification proof and no module"
-assumptions = "none beyond the recorded boundary: broader mechanism families have no identification proof and no module"
-sampling_units = "none: the axis defines no sampling design that this method executes over"
-estimator = "none: no estimator exists on this axis"
-diagnostics = "the typed refusal this axis raises, exercised by its fixture"
-failure_policy = "Identification is blocked. Geometric or infinite adstock, free Hill shape, group-specific saturation, spatial residuals are outside the reviewed slice and have no identification proof."
+identifying_result = "Finite-lag group-time response under the selected family; design-based joint Delta_AB under a known whole-program randomized assignment"
+assumptions = "Configurable finite channel count; explicitly prespecified sparse ValueExpr interactions read lag-weighted channels saturated by the declared family; seasonal dummies, one additive observed confounder and Gaussian group intercepts. Family choices: truncated geometric adstock (one decay per channel over the observable window) or the free three-period simplex; Michaelis-Menten or free positive Hill shape per channel; one half-saturation or one per declared group class (partially pooled under a prior); independent group intercepts or intercepts with spatial correlation tau^2 K(range) from a declared group distance matrix, aligned by group identity. L=2 stationary within-group AR(1). Hill shape, geometric decay and class half-saturation may vary through the same prespecified piecewise or smooth path as any other mean coordinate."
+sampling_units = "independent observed groups, or groups coupled only through the declared spatial intercept correlation; outcomes within group retain the stationary AR(1) covariance (none for L=0)"
+estimator = "Complete prespecified piecewise/smooth selection over the family coordinates with full-selection parametric bootstrap, retaining failed slots"
+diagnostics = "Native optimizer/curvature or Rhat/ESS/movement diagnostics; aligned full parameter, family-coordinate and group-effect realization across worlds; failed slots preserved; analytic score of every family coordinate checked against the dense Gaussian likelihood; calibration unmeasured."
+failure_policy = "Adjusted claim: the family changes the fitted mechanism only. Whole-program randomized assignment, not the family or its fit, identifies the worlds; unsupported designs stay model-conditional and a finite fit never grants a causal license. Geometric adstock without carryover, non-contiguous classes, misaligned or asymmetric spatial distances and non-integer Hill shapes in a compiled scalar expression are typed refusals. Calibration is unmeasured."
 references = [
+  "Product outcome",
+  "Principal decisions",
   "Release scope and gates",
   "X02 — Estimate the mechanism, including its uncertainty",
 ]
@@ -4951,23 +4957,25 @@ references = [
 [[spec]]
 id = "X02.broader.temporal.bayesian"
 parent = "X02.broader"
-gap = "theory"
-route = "none"
-target = "none"
-review_status = "blocked_research"
-admission = "refused"
-decision_basis = "closed with a named next attempt: derive the identification result for this counterpart or record the boundary proof"
+gap = "validation"
+route = "method.family.temporal.bayesian"
+target = "finite-lag group-time response under geometric adstock, Hill and group-specific saturation"
+review_status = "not_admitted"
+admission = "not_admitted"
+decision_basis = "executing_unlicensed per the counterpart inventory; reconciled from the children and route manifest by scripts/reconcile_method_specs.py"
 provenance = [
   "not_applicable: no method executes on this axis",
 ]
 api_review = "none: no executing module"
-identifying_result = "none: broader mechanism families have no identification proof and no module"
-assumptions = "none beyond the recorded boundary: broader mechanism families have no identification proof and no module"
-sampling_units = "none: the axis defines no sampling design that this method executes over"
-estimator = "none: no estimator exists on this axis"
-diagnostics = "the typed refusal this axis raises, exercised by its fixture"
-failure_policy = "Identification is blocked. Geometric or infinite adstock, free Hill shape, group-specific saturation, spatial residuals are outside the reviewed slice and have no identification proof."
+identifying_result = "Finite-lag group-time response under the selected family; design-based joint Delta_AB under a known whole-program randomized assignment"
+assumptions = "Configurable finite channel count; explicitly prespecified sparse ValueExpr interactions read lag-weighted channels saturated by the declared family; seasonal dummies, one additive observed confounder and Gaussian group intercepts. Family choices: truncated geometric adstock (one decay per channel over the observable window) or the free three-period simplex; Michaelis-Menten or free positive Hill shape per channel; one half-saturation or one per declared group class (partially pooled under a prior); independent group intercepts or intercepts with spatial correlation tau^2 K(range) from a declared group distance matrix, aligned by group identity. L=2 stationary within-group AR(1). A fixed proper prior spans the no-change, piecewise and smooth models jointly with the family coordinates."
+sampling_units = "independent observed groups, or groups coupled only through the declared spatial intercept correlation; outcomes within group retain the stationary AR(1) covariance (none for L=0)"
+estimator = "Proper fixed prior across the no-change/piecewise/smooth union jointly with the family coordinates, Metropolis model/path realizations and conditional group effects"
+diagnostics = "Native optimizer/curvature or Rhat/ESS/movement diagnostics; aligned full parameter, family-coordinate and group-effect realization across worlds; failed slots preserved; analytic score of every family coordinate checked against the dense Gaussian likelihood; calibration unmeasured."
+failure_policy = "Adjusted claim: the family changes the fitted mechanism only. Whole-program randomized assignment, not the family or its fit, identifies the worlds; unsupported designs stay model-conditional and a finite fit never grants a causal license. Geometric adstock without carryover, non-contiguous classes, misaligned or asymmetric spatial distances and non-integer Hill shapes in a compiled scalar expression are typed refusals. Calibration is unmeasured."
 references = [
+  "Product outcome",
+  "Principal decisions",
   "Release scope and gates",
   "X02 — Estimate the mechanism, including its uncertainty",
 ]

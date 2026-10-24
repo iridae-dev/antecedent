@@ -52,6 +52,12 @@ fn quantity(variable: &str, population: &str, regime: &str, units: &str) -> Scie
     }
 }
 
+/// The correction inverts a prevalence or risk, so its endpoints name one.
+fn prevalence(mut quantity: ScientificQuantity) -> ScientificQuantity {
+    quantity.functional_id = "prevalence".into();
+    quantity
+}
+
 fn claim(value: f64) -> ClaimEnvelope {
     ClaimEnvelope::new(
         digest(1),
@@ -201,11 +207,21 @@ fn correction_contract(dependence: Option<SourceMappingDependence>) -> BridgeCon
     BridgeContract {
         kind: BridgeKind::LatentMeasuredOutcome,
         source: BridgeEndpoint {
-            quantity: quantity("schema:flag", "clinic-a", "observational", "probability"),
+            quantity: prevalence(quantity(
+                "schema:flag",
+                "clinic-a",
+                "observational",
+                "probability",
+            )),
             class: QuantityClass::MeasuredOutcome,
         },
         target: BridgeEndpoint {
-            quantity: quantity("construct:disease", "clinic-a", "observational", "probability"),
+            quantity: prevalence(quantity(
+                "construct:disease",
+                "clinic-a",
+                "observational",
+                "probability",
+            )),
             class: QuantityClass::LatentConstruct,
         },
         source_value: ValueKind::Mean,

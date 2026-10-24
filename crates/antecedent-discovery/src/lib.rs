@@ -84,6 +84,8 @@ pub mod selective;
 pub mod stability;
 mod static_skeleton;
 pub mod structure_mcmc;
+pub mod temporal_admg_atoms;
+pub mod temporal_admg_posterior;
 #[cfg(test)]
 mod test_tables;
 pub mod uncovered_paths;
@@ -124,6 +126,11 @@ pub use graph_posterior::{
     SamplingSummary, adjacency_mask_from_admg, adjacency_mask_from_cpdag, adjacency_masks_from_pag,
     admg_from_adjacency_mask, cpdag_from_adjacency_mask, dag_from_adjacency_mask, edge_bit,
     has_edge, mask_is_dag, n_directed_edges, pag_from_adjacency_mask, parents_of, set_edge,
+};
+pub use temporal_admg_posterior::TemporalAdmgPosterior;
+pub use temporal_admg_atoms::{
+    TemporalAdmgAtom, has_lagged_edge, lagged_edge_bit, temporal_admg_from_lagged_atoms,
+    with_lagged_edge,
 };
 pub use jpcmci_plus::JpcmciPlus;
 pub use lingam::{DirectLingam, StaticDagDiscoveryResult};

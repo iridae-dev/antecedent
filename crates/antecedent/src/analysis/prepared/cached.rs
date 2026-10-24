@@ -29,6 +29,9 @@ pub(crate) struct CachedPagIdentification {
     pub envelope: Arc<IdentificationEnvelope<Pag>>,
     /// Public aggregate identification result derived from [`Self::envelope`].
     pub identification: IdentificationResult,
+    /// The sID outcome of each envelope case, in case order, when the envelope identifies a
+    /// `TransportQuery`; `None` for every other query.
+    pub transport: Option<Arc<[antecedent_identify::TransportIdentification]>>,
 }
 
 /// Prepare-time MEC envelope for a supplied CPDAG.
@@ -38,6 +41,9 @@ pub(crate) struct CachedCpdagIdentification {
     pub envelope: Arc<IdentificationEnvelope<antecedent_graph::Dag>>,
     /// Public aggregate identification result derived from [`Self::envelope`].
     pub identification: IdentificationResult,
+    /// The sID outcome of each envelope case, in case order, when the envelope identifies a
+    /// `TransportQuery`; `None` for every other query.
+    pub transport: Option<Arc<[antecedent_identify::TransportIdentification]>>,
 }
 
 /// A class conditional effect is sealed only when every enumerated completion

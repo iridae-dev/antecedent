@@ -33,7 +33,7 @@ impl super::Study {
     ///
     /// A declared independent-subject or clustered-panel design when a draw will run: the table
     /// has no subject or cluster labels, and a row-level draw is refused under both.
-    fn window_row_resampling(
+    pub(super) fn window_row_resampling(
         &self,
         span: u32,
     ) -> Result<(RowResampling, antecedent_estimate::util::SamplingDeclaration), CausalError> {
@@ -178,7 +178,7 @@ impl super::Study {
 
 /// The disclosure of how the window was read: the premises a window contrast adds to the ones
 /// the identification carries, stated where a reader of the result will find them.
-fn window_disclosure(
+pub(super) fn window_disclosure(
     plan: &antecedent_identify::temporal_admg::TemporalAdmgWindowPlan,
     rows: usize,
     block_length: Option<usize>,

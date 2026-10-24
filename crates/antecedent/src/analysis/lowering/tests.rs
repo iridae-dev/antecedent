@@ -25,13 +25,21 @@ const FAMILIES: [&str; 7] = [
 /// Registered cells no licensed support-matrix coordinate executes: the graphless
 /// design axes, the panel and multi-environment modalities, the latent-confounded
 /// temporal PAG mediation every compile refuses, the temporal ADMG window contrasts, and the
-/// structure-discovery, attribution, simulation and association cells that execute unlicensed. Each still lowers
+/// structure-discovery, attribution, simulation and association cells that execute unlicensed, and the
+/// transport and interference graph-posterior cells. Each still lowers
 /// completely through its family; the licensed-route record simply has no row for it.
-const OUTSIDE_LICENSED_ROUTES: [&str; 26] = [
+const OUTSIDE_LICENSED_ROUTES: [&str; 35] = [
+    "PathSpecificMixed",
+    "PathSpecificCpdag",
+    "PathSpecificPag",
+    "CounterfactualClass",
+    "TemporalMediationAdmg",
     "DiscoverStatic",
     "DiscoverTemporal",
     "GcmAttributeDag",
     "GcmSimulateDag",
+    "GcmClass",
+    "GcmTemporalClass",
     "TemporalMediationPag",
     "TemporalEffectAdmg",
     "TemporalResponseAdmg",
@@ -54,6 +62,8 @@ const OUTSIDE_LICENSED_ROUTES: [&str; 26] = [
     "IvBounds",
     "AssociationStatic",
     "AssociationTemporal",
+    "GraphPosteriorTransport",
+    "GraphPosteriorInterference",
 ];
 
 /// Licensed routes the support matrix executes.
@@ -110,7 +120,7 @@ fn every_route_cell_is_registered_once_to_a_family() {
         assert!(FAMILIES.contains(family), "{} is registered to {family}", cell.as_str());
         assert!(names.insert(cell.as_str()), "{} is registered twice", cell.as_str());
     }
-    assert_eq!(names.len(), 55, "route cell inventory drifted");
+    assert_eq!(names.len(), 62, "route cell inventory drifted");
     for cell in GraphPosteriorCell::ALL {
         assert!(names.insert(RouteCell::GraphPosterior(cell).as_str()), "{}", cell.as_str());
     }

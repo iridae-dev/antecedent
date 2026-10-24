@@ -263,6 +263,55 @@ pub(crate) fn identify_pag_path_specific(
     }
 }
 
+/// Class-aware identification of an interventional distribution in every DAG completion of a
+/// CPDAG: the complete ID algorithm (IDC when the query conditions) on each completion.
+///
+/// # Errors
+///
+/// An identifier other than `general.id`, a query the algorithm does not read, or a completion
+/// that fails to prepare.
+pub(crate) fn identify_cpdag_distribution(
+    identifier: IdentifierId,
+    cpdag: &antecedent_graph::Cpdag,
+    query: &CausalQuery,
+) -> Result<IdentificationEnvelope<antecedent_graph::Dag>, CausalError> {
+    match identifier {
+        IdentifierId::GeneralId => GeneralizedAdjustmentIdentifier::new()
+            .identify_cpdag_distribution_envelope(cpdag, query)
+            .map_err(identify_err),
+        other => Err(CausalError::Compile {
+            message: format!(
+                "CPDAG distribution identification requires identifier \"general.id\"; got {:?}",
+                other.as_str()
+            ),
+        }),
+    }
+}
+
+/// Class-aware identification of an interventional distribution over a PAG: the complete ID
+/// algorithm on every ADMG that shares the m-separation model of a MAG completion.
+///
+/// # Errors
+///
+/// As [`identify_cpdag_distribution`].
+pub(crate) fn identify_pag_distribution(
+    identifier: IdentifierId,
+    pag: &Pag,
+    query: &CausalQuery,
+) -> Result<IdentificationEnvelope<Pag>, CausalError> {
+    match identifier {
+        IdentifierId::GeneralId => GeneralizedAdjustmentIdentifier::new()
+            .identify_pag_distribution_envelope(pag, query)
+            .map_err(identify_err),
+        other => Err(CausalError::Compile {
+            message: format!(
+                "PAG distribution identification requires identifier \"general.id\"; got {:?}",
+                other.as_str()
+            ),
+        }),
+    }
+}
+
 /// Class-aware identification over a PAG (generalized adjustment envelope).
 ///
 /// # Errors

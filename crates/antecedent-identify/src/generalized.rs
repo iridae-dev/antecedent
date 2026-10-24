@@ -364,6 +364,29 @@ impl GeneralizedAdjustmentIdentifier {
         })
     }
 
+    /// Identify an interventional distribution in every DAG completion of a CPDAG.
+    ///
+    /// A CPDAG assumes causal sufficiency, so each completion is a DAG read as the ADMG with
+    /// no bidirected edge; the complete ID algorithm (IDC when the query conditions) decides
+    /// it on its own. A completion that identifies a different functional leaves the
+    /// distribution partially identified over the class.
+    ///
+    /// # Errors
+    ///
+    /// A query the algorithm does not read, or a completion that fails to prepare.
+    pub fn identify_cpdag_distribution_envelope(
+        &self,
+        cpdag: &Cpdag,
+        query: &CausalQuery,
+    ) -> Result<IdentificationEnvelope<antecedent_graph::Dag>, IdentificationError> {
+        let mut workspace = IdentificationWorkspace::default();
+        self.cpdag_envelope_with(cpdag, |dag| {
+            let admg = antecedent_graph::Admg::from_dag(dag)
+                .map_err(|error| IdentificationError::msg(error.to_string()))?;
+            crate::pag_path_specific::identify_distribution_on(&admg, query, &mut workspace)
+        })
+    }
+
     pub(crate) fn cpdag_envelope_with(
         &self,
         cpdag: &Cpdag,
@@ -1130,7 +1153,7 @@ pub(crate) fn mag_to_admg(mag: &Pag) -> Option<Admg> {
 
 /// Directed edges of a MAG that are not visible (Zhang 2008, Definition 8),
 /// as `(tail, head)` pairs in dense order.
-pub(crate) fn invisible_directed_edges(mag: &Pag) -> Vec<(DenseNodeId, DenseNodeId)> {
+pub fn invisible_directed_edges(mag: &Pag) -> Vec<(DenseNodeId, DenseNodeId)> {
     let mut out = Vec::new();
     for i in 0..mag.node_count() {
         let a = DenseNodeId::from_raw(dense_u32(i));
@@ -1159,7 +1182,7 @@ pub(crate) fn invisible_directed_edges(mag: &Pag) -> Vec<(DenseNodeId, DenseNode
 /// every acyclic supergraph, so a functional that Shpitser–Pearl ID derives
 /// here holds in every represented DAG. The converse fails: the reduction is
 /// sound, not complete, for MAG identification.
-pub(crate) fn mag_to_confounded_admg(mag: &Pag) -> Option<Admg> {
+pub fn mag_to_confounded_admg(mag: &Pag) -> Option<Admg> {
     let mut admg = mag_to_admg(mag)?;
     for (a, b) in invisible_directed_edges(mag) {
         admg.insert_bidirected(a, b).ok()?;

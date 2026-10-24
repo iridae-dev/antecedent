@@ -136,6 +136,20 @@ impl Study {
             {
                 None
             }
+            // A counterfactual on a structure latent confounding or an equivalence class leaves
+            // open is identified (or run per completion) at execution; it fits no shared
+            // exogenous operation.
+            (graph, CausalQuery::Counterfactual(_))
+                if matches!(
+                    graph.class(),
+                    GraphClass::Admg
+                        | GraphClass::TemporalAdmg
+                        | GraphClass::Pag
+                        | GraphClass::Cpdag
+                ) =>
+            {
+                None
+            }
             (_, CausalQuery::Counterfactual(query)) => {
                 let graph = self
                     .graph
@@ -278,6 +292,33 @@ impl Study {
         ctx: &ExecutionContext,
         caches: &mut Vec<IdentificationCache>,
     ) -> Result<(), CausalError> {
+        if posterior.is_lagged_temporal_admg() {
+            // Lagged temporal-ADMG atoms are identified on the unrolled window of their own
+            // templates: a contrast once per atom here, a mediation (three components per
+            // atom) at each execution.
+            let (DataInput::Temporal(data) | DataInput::Event(data)) = &self.data else {
+                return Err(CausalError::Unsupported {
+                    message: "a lagged temporal-ADMG graph posterior reads a time series",
+                });
+            };
+            return match &self.query {
+                CausalQuery::TemporalEffect(query) => {
+                    let variables: Vec<_> =
+                        data.schema().variables().iter().map(|variable| variable.id).collect();
+                    caches.push(IdentificationCache::GraphPosterior(Arc::new(
+                        crate::analysis::identification_cache::build_temporal_admg_posterior_identification_cache(
+                            posterior, &variables, query, ctx,
+                        )?,
+                    )));
+                    Ok(())
+                }
+                CausalQuery::Mediation(_) => Ok(()),
+                _ => Err(CausalError::Unsupported {
+                    message: "a lagged temporal-ADMG graph posterior answers a pulse, sustained \
+                              or conditional temporal contrast and a temporal mediation",
+                }),
+            };
+        }
         match (&self.data, &self.query) {
             (DataInput::Tabular(_), CausalQuery::AverageEffect(query)) => {
                 caches.push(IdentificationCache::GraphPosterior(Arc::new(
@@ -292,6 +333,30 @@ impl Study {
             (DataInput::Tabular(_), CausalQuery::Response(query)) if !query.is_temporal() => {
                 caches
                     .push(Self::identify_tabular_response_posterior_cache(posterior, query, ctx)?);
+            }
+            (DataInput::Tabular(_), CausalQuery::Transport(query)) => {
+                // Every atom is a selection diagram: sID decides it on its own graph.
+                let targets: Vec<_> = self
+                    .selection_diagram
+                    .as_ref()
+                    .map(|diagram| diagram.selection_targets().to_vec())
+                    .unwrap_or_default();
+                caches.push(IdentificationCache::GraphPosterior(Arc::new(
+                    crate::analysis::identification_cache::build_transport_graph_posterior_identification_cache(
+                        posterior, query, &targets, ctx,
+                    )?,
+                )));
+            }
+            (DataInput::Tabular(_), CausalQuery::Interference(query)) => {
+                // The design identifies the contrast; the atoms only state their membership.
+                caches.push(IdentificationCache::GraphPosterior(Arc::new(
+                    crate::analysis::identification_cache::build_interference_graph_posterior_identification_cache(
+                        posterior,
+                        query,
+                        &self.inference,
+                        ctx,
+                    )?,
+                )));
             }
             (
                 DataInput::Temporal(data) | DataInput::Event(data),
@@ -382,6 +447,12 @@ impl Study {
                 // unrolled window; the estimand over the window coordinates is the claim
                 // execution reads.
                 push(temporal(Some(self.prepare_temporal_admg_response_identification(query)?)));
+            }
+            (DataInput::Tabular(_), CausalQuery::Transport(_))
+                if matches!(self.graph.class(), GraphClass::Cpdag | GraphClass::Pag) =>
+            {
+                // sID decides every member of the class on its own selection diagram.
+                push(self.identify_class_transport()?);
             }
             (DataInput::Tabular(_), CausalQuery::Transport(query)) => {
                 let diagram = self.selection_diagram.as_ref().ok_or(CausalError::Unsupported {

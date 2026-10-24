@@ -172,6 +172,8 @@ impl AdmgLevelFits {
 pub(super) enum ClassTag {
     Cpdag,
     Pag,
+    /// The finite window of a temporal PAG.
+    TemporalPag,
 }
 
 impl ClassTag {
@@ -180,6 +182,7 @@ impl ClassTag {
         match self {
             Self::Cpdag => "cpdag",
             Self::Pag => "pag",
+            Self::TemporalPag => "temporal_pag",
         }
     }
 
@@ -188,6 +191,7 @@ impl ClassTag {
         match self {
             Self::Cpdag => "CPDAG",
             Self::Pag => "PAG",
+            Self::TemporalPag => "TEMPORAL PAG",
         }
     }
 }

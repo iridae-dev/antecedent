@@ -14,7 +14,7 @@ use antecedent_core::{
     TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec, VariableId,
 };
 use antecedent_data::{MultiEnvironmentData, PanelData, PanelUnit, TableView, TimeSeriesData};
-use antecedent_graph::{TemporalAdmg, TemporalCpdag, TemporalDag, ensure_lagged};
+use antecedent_graph::{TemporalAdmg, TemporalCpdag, TemporalDag, TemporalPag, ensure_lagged};
 
 use super::super::registry::REGISTERED;
 use crate::analysis::execute::CheckedTemporalMediationOperation;
@@ -87,11 +87,36 @@ fn xy_admg() -> TemporalAdmg {
     graph
 }
 
+/// `x(t-1) -> m(t) -> y(t)` and `x(t-1) -> y(t)` as a temporal ADMG template.
+fn xmy_admg() -> TemporalAdmg {
+    let mut graph = TemporalAdmg::empty();
+    let x1 = graph.add_lagged(X, Lag::from_raw(1)).unwrap();
+    let m0 = graph.add_lagged(M, Lag::CONTEMPORANEOUS).unwrap();
+    let y0 = graph.add_lagged(XMY_OUTCOME, Lag::CONTEMPORANEOUS).unwrap();
+    graph.insert_directed(x1, m0).unwrap();
+    graph.insert_directed(x1, y0).unwrap();
+    graph.insert_directed(m0, y0).unwrap();
+    graph
+}
+
 fn xmy_dag() -> TemporalDag {
     let mut graph = TemporalDag::empty();
     let x1 = ensure_lagged(&mut graph, X, Lag::from_raw(1)).unwrap();
     let m0 = ensure_lagged(&mut graph, M, Lag::CONTEMPORANEOUS).unwrap();
     let y0 = ensure_lagged(&mut graph, XMY_OUTCOME, Lag::CONTEMPORANEOUS).unwrap();
+    graph.insert_directed(x1, m0).unwrap();
+    graph.insert_directed(x1, y0).unwrap();
+    graph.insert_directed(m0, y0).unwrap();
+    graph
+}
+
+/// `x(t-1) -> m(t) -> y(t)` and `x(t-1) -> y(t)` as a temporal PAG template (every mark
+/// definite).
+fn xmy_pag() -> TemporalPag {
+    let mut graph = TemporalPag::empty();
+    let x1 = graph.add_lagged(X, Lag::from_raw(1)).unwrap();
+    let m0 = graph.add_lagged(M, Lag::CONTEMPORANEOUS).unwrap();
+    let y0 = graph.add_lagged(XMY_OUTCOME, Lag::CONTEMPORANEOUS).unwrap();
     graph.insert_directed(x1, m0).unwrap();
     graph.insert_directed(x1, y0).unwrap();
     graph.insert_directed(m0, y0).unwrap();
@@ -220,6 +245,18 @@ fn cells() -> Vec<(&'static str, StudyBuilder)> {
                 .query(CausalQuery::Mediation(mediation_query())),
         ),
         (
+            "TemporalMediationAdmg",
+            Study::series(xmy_series())
+                .graph(xmy_admg())
+                .query(CausalQuery::Mediation(mediation_query())),
+        ),
+        (
+            "TemporalMediationPag",
+            Study::series(xmy_series())
+                .graph(xmy_pag())
+                .query(CausalQuery::Mediation(mediation_query())),
+        ),
+        (
             "TemporalCrossWorldDag",
             Study::series(xmy_series()).graph(xmy_dag()).query(nested_query()),
         ),
@@ -250,9 +287,7 @@ fn every_temporal_cell_lowers_completely() {
     let lowered: BTreeSet<&str> = cells().iter().map(|(name, _)| *name).collect();
     let registered: BTreeSet<&str> = REGISTERED
         .iter()
-        .filter(|(cell, family)| {
-            *family == "temporal" && *cell != super::super::RouteCell::TemporalMediationPag
-        })
+        .filter(|(_, family)| *family == "temporal")
         .map(|(cell, _)| cell.as_str())
         .collect();
     assert_eq!(lowered, registered, "every temporal cell has a fixture here");

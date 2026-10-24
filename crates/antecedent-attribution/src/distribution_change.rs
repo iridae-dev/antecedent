@@ -78,7 +78,7 @@ pub fn distribution_change(
     )
 }
 
-fn validate_distribution_change_query(
+pub(crate) fn validate_distribution_change_query(
     query: &ChangeAttributionQuery,
 ) -> Result<(), AttributionError> {
     query.validate()?;

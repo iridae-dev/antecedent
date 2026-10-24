@@ -10,7 +10,7 @@ use antecedent_core::{
     PopulationSelector, TargetForm, UnitChangeQuery, Value, VariableId,
 };
 use antecedent_data::{TabularData, TimeSeriesData};
-use antecedent_graph::{Dag, DenseNodeId, TemporalDag, ensure_lagged};
+use antecedent_graph::{Cpdag, Dag, DenseNodeId, TemporalCpdag, TemporalDag, ensure_lagged};
 
 use crate::analysis::lowering::registry::REGISTERED;
 use crate::planner::lowered::{
@@ -378,6 +378,41 @@ fn every_structural_cell_lowers_completely() {
         .expect("the contemporaneous outcome has a mechanism");
     assert_eq!(mechanism.inputs(), &[v(0)], "the lagged parent is read by its variable");
     covered.insert(temporal.route());
+    // The class cells lower the attribution their completions share.
+    let mut undirected = Cpdag::with_variables(2);
+    undirected.insert_undirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    let class = lowered(
+        &Study::tabular(shifted())
+            .graph(undirected)
+            .query(CausalQuery::AnomalyAttribution(AnomalyAttributionQuery::new([v(1)], 100)))
+            .inference(InferenceMode::Frequentist)
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap(),
+    );
+    assert_eq!(class.route(), "GcmClass");
+    assert_eq!(class.depth(), LoweringDepth::Complete);
+    covered.insert(class.route());
+    let mut lagged = TemporalCpdag::empty();
+    let parent = lagged.add_lagged(v(0), Lag::from_raw(1)).unwrap();
+    let child = lagged.add_lagged(v(1), Lag::CONTEMPORANEOUS).unwrap();
+    lagged.insert_directed(parent, child).unwrap();
+    let (x, y) = xy(|i, x| if i == 19 { 200.0 } else { 2.0 * x }, 40);
+    let series =
+        TimeSeriesData::from_f64_columns([("x", x.as_slice()), ("y", y.as_slice())], 1).unwrap();
+    let temporal_class = lowered(
+        &Study::series(series)
+            .graph(lagged)
+            .query(CausalQuery::AnomalyAttribution(AnomalyAttributionQuery::new([v(1)], 100)))
+            .inference(InferenceMode::Frequentist)
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap(),
+    );
+    assert_eq!(temporal_class.route(), "GcmTemporalClass");
+    assert_eq!(temporal_class.depth(), LoweringDepth::Complete);
+    covered.insert(temporal_class.route());
     let mediation = lowered(&mediation_study(InferenceMode::Frequentist, 0));
     assert_eq!(mediation.depth(), LoweringDepth::Complete);
     covered.insert(mediation.route());

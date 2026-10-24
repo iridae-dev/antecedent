@@ -9,6 +9,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod dbn;
+mod exposure_posterior;
 mod graph_posterior;
 mod temporal_class;
 
@@ -29,12 +30,17 @@ pub(crate) use self::dbn::{
     build_dbn_posterior_identification_cache, build_dbn_posterior_mediation_identification_cache,
     build_dbn_posterior_response_identification_cache, temporal_dag_from_dbn_atom,
 };
+pub(crate) use self::exposure_posterior::{
+    build_interference_graph_posterior_identification_cache,
+    build_transport_graph_posterior_identification_cache,
+};
 #[cfg(test)]
 pub(crate) use self::graph_posterior::CachedClassPosteriorCase;
 pub(crate) use self::graph_posterior::{
     CachedClassPosteriorAtomIdentification, CachedGraphPosteriorAtomIdentification,
     CachedGraphPosteriorIdentification, build_admg_graph_posterior_response_identification_cache,
     build_graph_posterior_identification_cache,
+    build_temporal_admg_posterior_identification_cache,
 };
 pub(crate) use self::temporal_class::{
     CachedTemporalClassPosteriorAtomIdentification, CachedTemporalClassPosteriorIdentification,
@@ -160,6 +166,7 @@ fn collect_mask_atoms(
             key: posterior.graph_keys[i],
             estimand: estimand.clone(),
             identification: identification.clone(),
+            transport: None,
         });
         Ok((GraphIdentFlag::Identified, atom))
     })?;

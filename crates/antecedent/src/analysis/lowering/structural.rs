@@ -21,13 +21,15 @@ use antecedent_core::{
     ScoreFrequentist, ScoreModel, TargetForm, TemporalPolicy, TimeFrame, VariableId, WorldBinding,
 };
 use antecedent_data::{TableView, TabularData};
-use antecedent_graph::{Dag, DenseNodeId, TemporalDag};
+use antecedent_graph::{Dag, DenseNodeId, MarkedEdge, TemporalDag};
+use std::collections::{BTreeMap, BTreeSet};
 
 use super::LoweringContext;
 use super::static_response::{
     CellProgram, RealizationChoice, Resampling, assemble, declared_uncertainty,
     inference_selection, record_estimator, retain_or_defer, retained_static, slot, union,
 };
+use crate::accepted::GraphRef;
 use crate::analysis::execute::{
     ANOMALY_DIRICHLET_BACKEND, ATTRIBUTE_DIRICHLET_BACKEND, CHANGE_DIRICHLET_BACKEND,
     COUNTERFACTUAL_DIRICHLET_BACKEND, RouteInput, StaticMediationSource, attribute_posterior_draws,
@@ -87,6 +89,12 @@ pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalEr
                 .as_temporal_dag()
                 .ok_or_else(|| super::not_lowered_by("structural", cx))?;
             lower_structural(cx, lagged_mechanisms(graph, registry(&cx.study.query)))
+        }
+        Some(RouteInput::GcmClass { .. } | RouteInput::GcmTemporalClass { .. }) => {
+            lower_structural(
+                cx,
+                class_mechanisms(cx.study.graph.graph_ref(), registry(&cx.study.query)),
+            )
         }
         _ => Err(super::not_lowered_by("structural", cx)),
     }
@@ -285,6 +293,55 @@ fn lagged_mechanisms(graph: &TemporalDag, family: &str) -> Vec<ModelSlot> {
             parents.sort_unstable();
             parents.dedup();
             slot(ModelRole::Mechanism, family, &parents, Some(node.variable()))
+        })
+        .collect()
+}
+
+/// One mechanism per variable of a structure class, reading every variable that may be one of
+/// its parents in some member: its parents in a mixed graph, its neighbors in a CPDAG or a PAG.
+/// The fit runs once per member of the class, on that member's parents.
+fn class_mechanisms(graph: GraphRef<'_>, family: &str) -> Vec<ModelSlot> {
+    let ids = |count: usize| (0..count).map(DenseNodeId::from_index);
+    let from_edges = |count: usize, edges: &[MarkedEdge]| {
+        let mut adjacent = vec![Vec::new(); count];
+        for edge in edges {
+            adjacent[edge.a.as_usize()].push(edge.b);
+            adjacent[edge.b.as_usize()].push(edge.a);
+        }
+        adjacent
+    };
+    let (nodes, adjacent): (&[NodeRef], Vec<Vec<DenseNodeId>>) = match graph {
+        GraphRef::Admg(g) => {
+            (g.nodes(), ids(g.node_count()).map(|id| g.parents(id).to_vec()).collect())
+        }
+        GraphRef::TemporalAdmg(g) => {
+            (g.nodes(), ids(g.node_count()).map(|id| g.parents(id).to_vec()).collect())
+        }
+        GraphRef::Cpdag(g) => (g.nodes(), ids(g.node_count()).map(|id| g.adjacent(id)).collect()),
+        GraphRef::Pag(g) => (
+            g.nodes(),
+            ids(g.node_count())
+                .map(|id| g.neighbors(id).map(|(other, _, _)| other).collect())
+                .collect(),
+        ),
+        GraphRef::TemporalCpdag(g) => (g.nodes(), from_edges(g.node_count(), &g.edges())),
+        GraphRef::TemporalPag(g) => (g.nodes(), from_edges(g.node_count(), &g.edges())),
+        _ => return Vec::new(),
+    };
+    let mut inputs: BTreeMap<u32, BTreeSet<u32>> = BTreeMap::new();
+    for (index, node) in nodes.iter().enumerate() {
+        let entry = inputs.entry(node.variable().raw()).or_default();
+        for other in &adjacent[index] {
+            if let Some(neighbor) = nodes.get(other.as_usize()) {
+                entry.insert(neighbor.variable().raw());
+            }
+        }
+    }
+    inputs
+        .into_iter()
+        .map(|(variable, adjacent)| {
+            let parents: Vec<VariableId> = adjacent.into_iter().map(VariableId::from_raw).collect();
+            slot(ModelRole::Mechanism, family, &parents, Some(VariableId::from_raw(variable)))
         })
         .collect()
 }

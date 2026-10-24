@@ -335,16 +335,19 @@ fn lag_distinct_dbn_fit_failure_demotes_the_correct_weight_in_either_order() {
 
 #[test]
 fn dbn_posterior_with_a_static_query_is_refused_rather_than_panicking() {
-    // A graph posterior on the prepared handle is licensed for tabular
-    // AverageEffect and series TemporalEffect only. A series study that pairs a
-    // DBN posterior with a static AverageEffect query must answer with a typed
-    // refusal at build or prepare, never reach an internal unreachable branch.
+    // A plain AverageEffect on a series reads as the lag-0 pulse and is licensed. A
+    // static AverageEffect with an effect modifier has no temporal reading: a series study
+    // that pairs a DBN posterior with it must answer with a typed refusal at build or
+    // prepare, never reach an internal unreachable branch.
     let treatment_to_outcome = 1_u64 << 1;
     let (series, _query) = confounded_series(true);
     let ctx = ExecutionContext::for_tests(73);
     let built = Study::series(series)
         .graph_posterior(dbn_posterior(&[treatment_to_outcome], &[1.0]))
-        .query(AverageEffectQuery::binary_ate(TREATMENT, OUTCOME))
+        .query(
+            AverageEffectQuery::binary_ate(TREATMENT, OUTCOME)
+                .with_effect_modifiers([CONFOUNDER]),
+        )
         .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(16)))
         .refute(RefuteSuite::None)
         .bootstrap_replicates(0)

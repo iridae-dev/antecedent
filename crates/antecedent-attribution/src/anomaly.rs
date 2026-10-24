@@ -211,6 +211,42 @@ pub fn score_anomalies_with(
     query: &AnomalyAttributionQuery,
     ctx: &ExecutionContext,
 ) -> Result<Vec<AnomalyScores>, AttributionError> {
+    score_anomalies_grouped(model, data, query, None, ctx)
+}
+
+/// [`score_anomalies_with`] whose Shapley players are noise blocks rather than single noise
+/// terms: every ancestor of a target belongs to exactly one block, and a coalition restores the
+/// factual noise of all the members of a block at once. A block is the set of mechanisms whose
+/// noise terms a latent common cause may tie together (a c-component of the ancestral
+/// sub-graph), which cannot be set to the reference one at a time without leaving the joint law
+/// of the noise. The component of a block is its member with the smallest variable id.
+///
+/// # Errors
+///
+/// As [`score_anomalies`]. A block member that is not an ancestor of the target is ignored; an
+/// ancestor that no block names, or that two blocks name, is an
+/// [`AttributionError::InvalidInput`].
+pub fn score_anomalies_blocks_with(
+    model: &CompiledCausalModel,
+    data: &TabularData,
+    query: &AnomalyAttributionQuery,
+    blocks: &[Vec<VariableId>],
+    ctx: &ExecutionContext,
+) -> Result<Vec<AnomalyScores>, AttributionError> {
+    score_anomalies_grouped(model, data, query, Some(blocks), ctx)
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "one pass per target: abduct once, then exact Shapley per row over the player groups"
+)]
+fn score_anomalies_grouped(
+    model: &CompiledCausalModel,
+    data: &TabularData,
+    query: &AnomalyAttributionQuery,
+    blocks: Option<&[Vec<VariableId>]>,
+    ctx: &ExecutionContext,
+) -> Result<Vec<AnomalyScores>, AttributionError> {
     query.validate()?;
     let n = data.row_count();
     let rows =
@@ -232,11 +268,20 @@ pub fn score_anomalies_with(
             .dense_of(target)
             .ok_or_else(|| AttributionError::missing_var("target", target))?;
         let players_dense = ancestor_nodes(model, dense);
-        ensure_player_bitset(players_dense.len())?;
-        let players: Vec<ComponentId> = players_dense
-            .iter()
-            .map(|&d| ComponentId::from_variable(model.output_layout.variables[d.as_usize()]))
-            .collect();
+        // Each ancestor is its own player, or a member of the noise block that holds it.
+        let (players, group_bit): (Vec<ComponentId>, Vec<usize>) = match blocks {
+            None => (
+                players_dense
+                    .iter()
+                    .map(|&d| {
+                        ComponentId::from_variable(model.output_layout.variables[d.as_usize()])
+                    })
+                    .collect(),
+                (0..players_dense.len()).collect(),
+            ),
+            Some(blocks) => crate::latent_blocks::group_players(model, &players_dense, blocks)?,
+        };
+        ensure_player_bitset(players.len())?;
         // Player membership by dense node, so the per-coalition noise fill is O(nodes).
         let mut is_player = vec![false; model.n_nodes()];
         for d in &players_dense {
@@ -289,6 +334,7 @@ pub fn score_anomalies_with(
                 model,
                 target: dense,
                 players: &players_dense,
+                group_bit: &group_bit,
                 eval_order: &eval_order,
                 eval_gathers: &eval_gathers,
                 player_reference,
@@ -350,6 +396,9 @@ struct NoiseShapleyPayoff<'a> {
     model: &'a CompiledCausalModel,
     target: DenseNodeId,
     players: &'a [DenseNodeId],
+    /// The coalition bit of each entry of `players`: its own position for a single noise term,
+    /// the position of its block when noise terms are grouped.
+    group_bit: &'a [usize],
     /// Ancestor nodes in topological order, with gathers aligned to that order.
     eval_order: &'a [DenseNodeId],
     eval_gathers: &'a [ParentGatherPlan],
@@ -369,7 +418,7 @@ impl CoalitionPayoff for NoiseShapleyPayoff<'_> {
         // Reference and factual noise are fixed for the row. A coalition only
         // swaps player slots; non-ancestors keep factual noise and are not evaluated.
         for (i, &node) in self.players.iter().enumerate() {
-            self.noise_buf[node.as_usize()] = if mask & (1u64 << i) != 0 {
+            self.noise_buf[node.as_usize()] = if mask & (1u64 << self.group_bit[i]) != 0 {
                 self.player_factual[i]
             } else {
                 self.player_reference[i]

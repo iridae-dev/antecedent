@@ -67,6 +67,18 @@ pub(super) fn source_quote(
         .map_err(JointPanelError::compile)?;
         add(&mut bytes, usize::try_from(plan).map_err(|_| overflow())?)?;
     }
+    if let Some(spatial) = &request.family.spatial {
+        // The request and the engine's source each retain the distance matrix.
+        add(
+            &mut bytes,
+            spatial
+                .distances
+                .len()
+                .checked_mul(16)
+                .and_then(|n| n.checked_add(spatial.groups.iter().map(String::len).sum::<usize>()))
+                .ok_or_else(overflow)?,
+        )?;
+    }
     for unit in source.units() {
         add(&mut bytes, unit_quote(unit, request)?)?;
     }
@@ -130,6 +142,17 @@ pub(super) fn retarget_quote(
                 .ok_or_else(overflow)?,
         )?;
     }
+    if let Some(spatial) = &request.family.spatial {
+        add(
+            &mut bytes,
+            spatial
+                .distances
+                .len()
+                .checked_mul(8)
+                .and_then(|n| n.checked_add(spatial.groups.iter().map(String::len).sum::<usize>()))
+                .ok_or_else(overflow)?,
+        )?;
+    }
     if let engine::PanelInference::Bayesian { prior, .. } = &request.options.inference {
         add(
             &mut bytes,
@@ -154,10 +177,13 @@ pub(super) fn retarget_quote(
                 PanelMeanParameter::Channel { id } | PanelMeanParameter::Interaction { id } => {
                     add(&mut bytes, id.len())?
                 }
-                PanelMeanParameter::Lag { channel, .. } => add(&mut bytes, channel.len())?,
+                PanelMeanParameter::Lag { channel, .. }
+                | PanelMeanParameter::GeometricDecay { channel }
+                | PanelMeanParameter::HillShape { channel } => add(&mut bytes, channel.len())?,
                 PanelMeanParameter::Intercept
                 | PanelMeanParameter::Confounder
                 | PanelMeanParameter::Season { .. }
+                | PanelMeanParameter::ClassLogHalfSaturation { .. }
                 | PanelMeanParameter::LogHalfSaturation => {}
             }
         }
@@ -306,6 +332,7 @@ pub(super) fn adapt(
         interactions: request.interactions.clone(),
         seasons: request.seasons,
         lag_order: prefix,
+        family: request.family.clone(),
     };
     writer.bytes(data.identity()?.as_bytes());
     Ok((data, SemanticDigest::from_bytes(writer.finish())))

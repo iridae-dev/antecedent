@@ -9,9 +9,9 @@
 //! plug-in of that contrast. The Bayesian object is the Dirichlet row-law
 //! posterior of the same contrast. A modifier that is a descendant of the
 //! treatment is refused: its observed law is not the law it has under the
-//! intervention. A conditional effect on a temporal ADMG read from tabular rows is refused: its
-//! temporal counterpart is a `TemporalEffect` with modifiers, identified by IDC on the unrolled
-//! window (`analysis::temporal_admg_contrast`).
+//! intervention. A conditional effect on a temporal ADMG read from tabular rows is the effect on
+//! its contemporaneous projection; the temporal conditional contrast is a `TemporalEffect` with
+//! modifiers, identified by IDC on the unrolled window (`analysis::temporal_admg_contrast`).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -40,18 +40,6 @@ use antecedent_identify::{
 };
 
 use crate::{CausalError, EstimatorId, IdentifierId};
-
-/// The static conditional-effect query on a temporal ADMG is refused. The message is the refusal.
-const TEMPORAL_IDENTIFICATION_BLOCKED: &str = "Identification is blocked for this target. A \
-     ConditionalEffect on a TemporalAdmg read from tabular rows is the contemporaneous projection, \
-     which answers a different target than a temporal conditional contrast. The temporal \
-     conditional contrast is TemporalConditionalPulse or TemporalConditionalSustained, a \
-     TemporalEffect with effect modifiers on one series: it is identified by IDC on the unrolled \
-     window of the template, with the modifiers read at the first treated period, and executes \
-     unlicensed; a window that holds a hedge is refused with the variables and periods that carry \
-     it. Next attempts: that temporal query on the series, TemporalConditionalPulse or \
-     TemporalConditionalSustained on a TemporalDag when the lag structure has no latent \
-     confounding, or the static Admg for the contemporaneous conditional effect.";
 
 /// IDC contrast of the active and control conditional laws.
 #[derive(Clone, Debug)]
@@ -210,39 +198,39 @@ pub(crate) fn compile_bayesian_admg_conditional(
     })
 }
 
-/// Refuse a frequentist conditional effect on a temporal ADMG.
+/// Compile the plug-in of a conditional effect on the contemporaneous projection of a
+/// temporal ADMG.
+///
+/// Tabular rows carry no time index, so the static conditional query on a temporal ADMG is the
+/// conditional contrast of the projection (each variable once, at lag 0, with the template's
+/// directed and bidirected edges), the same twin the licensed `AverageEffect` has. It is not
+/// the temporal conditional contrast: that one is `TemporalConditionalPulse` or
+/// `TemporalConditionalSustained` on one series, identified by IDC on the unrolled window.
 ///
 /// # Errors
 ///
-/// Always. The static conditional query on a temporal ADMG is the contemporaneous projection, a
-/// different target than the temporal conditional contrast. The call does not project `graph`
-/// onto a static ADMG.
+/// A template whose variables repeat across lags (no contemporaneous projection exists), or
+/// anything [`compile_frequentist_admg_conditional`] refuses on the projection.
 pub(crate) fn compile_temporal_admg_conditional_frequentist(
     graph: &TemporalAdmg,
     query: &ConditionalEffectQuery,
 ) -> Result<FrequentistAdmgConditional, CausalError> {
-    refuse_temporal_admg_conditional(graph, query)
+    let projected = graph.project_preserving_functional().map_err(CausalError::rejected)?;
+    compile_frequentist_admg_conditional(&projected, query)
 }
 
-/// Refuse a Bayesian conditional effect on a temporal ADMG.
+/// Compile the Dirichlet posterior of a conditional effect on the contemporaneous projection of
+/// a temporal ADMG.
 ///
 /// # Errors
 ///
-/// Always. The same refusal as the frequentist cell. No posterior is built from a static
-/// projection.
+/// As [`compile_temporal_admg_conditional_frequentist`].
 pub(crate) fn compile_temporal_admg_conditional_bayesian(
     graph: &TemporalAdmg,
     query: &ConditionalEffectQuery,
 ) -> Result<BayesianAdmgConditional, CausalError> {
-    refuse_temporal_admg_conditional(graph, query)
-}
-
-fn refuse_temporal_admg_conditional<T>(
-    graph: &TemporalAdmg,
-    query: &ConditionalEffectQuery,
-) -> Result<T, CausalError> {
-    let _ = (graph.node_count(), query.inner.treatment);
-    Err(CausalError::Compile { message: TEMPORAL_IDENTIFICATION_BLOCKED.into() })
+    let projected = graph.project_preserving_functional().map_err(CausalError::rejected)?;
+    compile_bayesian_admg_conditional(&projected, query)
 }
 
 fn identify_admg_conditional(
@@ -578,20 +566,34 @@ mod tests {
     }
 
     #[test]
-    fn temporal_admg_conditional_is_refused_while_identification_is_blocked() {
+    fn temporal_admg_conditional_is_the_contemporaneous_projection_conditional() {
         let (graph, query) = latent_parent_chain();
         let temporal = TemporalAdmg::from_static_contemporaneous(&graph).unwrap();
-        assert!(temporal.project_preserving_functional().is_ok());
-        let frequentist =
-            compile_temporal_admg_conditional_frequentist(&temporal, &query).unwrap_err();
-        let bayesian = compile_temporal_admg_conditional_bayesian(&temporal, &query).unwrap_err();
-        assert!(matches!(frequentist, CausalError::Compile { .. }));
-        assert!(matches!(bayesian, CausalError::Compile { .. }));
-        assert_eq!(frequentist.to_string(), bayesian.to_string());
-        assert!(frequentist.to_string().contains("Identification is blocked"), "{frequentist}");
-        assert!(!frequentist.to_string().contains("not_applicable"));
-        let still_compiles = compile_frequentist_admg_conditional(&graph, &query).unwrap();
-        assert_eq!(still_compiles.estimator().as_str(), "functional.effect");
+        let frequentist = compile_temporal_admg_conditional_frequentist(&temporal, &query).unwrap();
+        let bayesian = compile_temporal_admg_conditional_bayesian(&temporal, &query).unwrap();
+        let direct = compile_frequentist_admg_conditional(&graph, &query).unwrap();
+        // The projection has the same edges, so IDC derives the same identified contrast.
+        assert_eq!(frequentist.estimator().as_str(), "functional.effect");
+        assert_eq!(frequentist.identified.status, direct.identified.status);
+        assert_eq!(bayesian.identified.status, direct.identified.status);
+        assert_eq!(
+            frequentist.identified.estimand.method,
+            direct.identified.estimand.method
+        );
+        assert_eq!(bayesian.posterior.procedure(), "functional.dirichlet_row_posterior");
+        // A template whose variable repeats across lags has no contemporaneous projection.
+        let mut repeated = TemporalAdmg::empty();
+        let a = repeated
+            .add_lagged(antecedent_core::VariableId::from_raw(0), antecedent_core::Lag::from_raw(1))
+            .unwrap();
+        let b = repeated
+            .add_lagged(
+                antecedent_core::VariableId::from_raw(0),
+                antecedent_core::Lag::CONTEMPORANEOUS,
+            )
+            .unwrap();
+        repeated.insert_directed(a, b).unwrap();
+        assert!(compile_temporal_admg_conditional_frequentist(&repeated, &query).is_err());
     }
 
     #[test]

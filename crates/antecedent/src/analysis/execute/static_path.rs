@@ -349,7 +349,8 @@ impl<'a> StaticAteExecution<'a> {
         }
         match spec {
             EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte) => {
-                let mut fitter = LinearAdjustmentAte::new();
+                let mut fitter = LinearAdjustmentAte::new()
+                    .with_bootstrap_replicates(self.study.bootstrap_replicates);
                 fitter.sampling_design =
                     crate::estimator_spec::declared_sampling(self.study.sampling_design);
                 Some(fitter)
@@ -1112,7 +1113,7 @@ impl super::Study {
     }
 
     /// Frequentist plug-in or Bayesian posterior estimate of the prepared distribution.
-    fn estimate_distribution(
+    pub(super) fn estimate_distribution(
         &self,
         est: &FunctionalDistribution,
         prepared: &antecedent_estimate::PreparedFunctionalDistribution,
@@ -2357,7 +2358,7 @@ fn scenario_structural_mixture(
 /// Name every interventional probability whose bounded interval could not be
 /// formed (a boundary plug-in `p̂ ∈ {0, 1}`, a failed bootstrap, or zero
 /// spread), so a missing interval is never mistaken for a computed one.
-fn distribution_interval_diagnostics(
+pub(super) fn distribution_interval_diagnostics(
     dist: &antecedent_estimate::InterventionalDistributionEstimate,
 ) -> Vec<Diagnostic> {
     let missing: Vec<(usize, &'static str)> = dist

@@ -243,7 +243,16 @@ impl Study {
                 // A latent-confounded ADMG identifies the contrast by IDC at the two levels;
                 // `execute_admg_conditional` reads this cache. A latent-free ADMG runs the
                 // Dag route, which keeps no prepare-time cache.
-                if let GraphRef::Admg(admg) = self.graph.graph_ref() {
+                let projected;
+                let mixed = match self.graph.graph_ref() {
+                    GraphRef::Admg(admg) => Some(admg),
+                    GraphRef::TemporalAdmg(temporal) => {
+                        projected = crate::analysis::execute::temporal_admg_projection(temporal)?;
+                        Some(&projected)
+                    }
+                    _ => None,
+                };
+                if let Some(admg) = mixed {
                     if crate::analysis::execute::admg_has_bidirected(admg) {
                         let identification =
                             crate::analysis::conditional_admg::admg_conditional_identification(
@@ -443,6 +452,14 @@ impl Study {
             return Ok(Some(CachedStaticIdentification { identification, estimand }));
         }
         if matches!(self.query, CausalQuery::Counterfactual(_)) {
+            // A structure latent confounding or an equivalence class leaves open identifies at
+            // execution (ID* per ADMG, or the per-unit route per DAG completion).
+            if matches!(
+                self.graph.class(),
+                GraphClass::Admg | GraphClass::TemporalAdmg | GraphClass::Pag | GraphClass::Cpdag
+            ) {
+                return Ok(None);
+            }
             let graph = self
                 .graph
                 .as_dag()
@@ -670,7 +687,11 @@ impl Study {
             &envelope,
             self.query.clone(),
         );
-        Ok(Some(CachedPagIdentification { envelope: Arc::new(envelope), identification }))
+        Ok(Some(CachedPagIdentification {
+            envelope: Arc::new(envelope),
+            identification,
+            transport: None,
+        }))
     }
 
     /// Compute the MEC envelope once for a supplied CPDAG.
@@ -696,7 +717,11 @@ impl Study {
             &envelope,
             self.query.clone(),
         );
-        Ok(Some(CachedCpdagIdentification { envelope: Arc::new(envelope), identification }))
+        Ok(Some(CachedCpdagIdentification {
+            envelope: Arc::new(envelope),
+            identification,
+            transport: None,
+        }))
     }
 
     fn envelope_witness_ate(&self) -> Result<Option<AverageEffectQuery>, CausalError> {

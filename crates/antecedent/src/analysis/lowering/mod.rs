@@ -168,7 +168,9 @@ pub(crate) fn refuse_reentry(ctx: &ExecutionContext) -> Result<(), CausalError> 
 }
 
 /// Attach `lowered` to `plan`. A quoted design re-plans the physical record from
-/// the real width; the retained linear operation has already sized its own plan.
+/// the real width; the retained linear operation has already sized its own plan, and a plan
+/// that streams its design holds no resident design to re-quote (the streamed reduction was
+/// admitted against the limit when it was chosen).
 /// Every route that reads a table also declares its projection and scan, sized from
 /// the rows, the columns the route projects and the real design width.
 fn install(
@@ -178,7 +180,7 @@ fn install(
     ctx: &ExecutionContext,
 ) -> Result<(), CausalError> {
     let design = lowered.physical().design();
-    if design.source() == WidthSource::Quoted && plan.linear.is_none() {
+    if design.source() == WidthSource::Quoted && plan.linear.is_none() && !plan.streams_design() {
         plan.requote(design, ctx)?;
     }
     let operators = scan::ScanPlan::resident(scan_demand(study, &lowered))?.operators()?;

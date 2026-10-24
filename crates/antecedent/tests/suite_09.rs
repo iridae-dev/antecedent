@@ -3,6 +3,12 @@
 #![allow(clippy::all, reason = "each included file carries its own lint scope")]
 // consolidated-suite
 
+#[path = "class_attribution_route.rs"]
+mod class_attribution_route;
+#[path = "counterfactual_class_route.rs"]
+mod counterfactual_class_route;
+#[path = "mediation_mixed_graph.rs"]
+mod mediation_mixed_graph;
 #[path = "predictive_score_interval_facade.rs"]
 mod predictive_score_interval_facade;
 #[path = "released_surface.rs"]

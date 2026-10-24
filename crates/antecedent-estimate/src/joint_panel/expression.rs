@@ -110,6 +110,15 @@ impl Builder {
             )),
         }
     }
+    /// `expression^n` for a positive integer `n` by repeated multiplication.
+    fn power(&mut self, expression: &ValueExpr, n: i32) -> Result<ValueExpr, PanelError> {
+        let mut result = self.copy(expression)?;
+        for _ in 1..n {
+            let factor = self.copy(expression)?;
+            result = self.binary(ArithOp::Mul, result, factor)?;
+        }
+        Ok(result)
+    }
     fn sum(&mut self, mut values: Vec<ValueExpr>) -> Result<ValueExpr, PanelError> {
         if values.is_empty() {
             return self.constant(0.0);
@@ -128,6 +137,16 @@ impl Builder {
         }
         values.pop().ok_or_else(|| invalid("missing response expression"))
     }
+}
+
+/// The expression language has no power operator, so only an integer Hill shape has a
+/// certified scalar expression; any other fitted shape remains a typed refusal.
+fn integer_shape(shape: f64) -> Result<i32, PanelError> {
+    (1..=8).find(|n| (shape - f64::from(*n)).abs() <= 1e-12).ok_or_else(|| {
+        invalid(
+            "a non-integer or large Hill shape has no certified scalar expression; use bounded best-found search",
+        )
+    })
 }
 
 /// Compile a real fitted mean response into a scalar expression over exact
@@ -199,7 +218,8 @@ pub fn compile_panel_expression(
             let draw = &path[if path.len() == 1 { 0 } else { time }];
             let p = &draw.parameters;
             let mut saturated = Vec::with_capacity(data.channels.len());
-            for channel in &p.channels {
+            let half_saturation = p.half_saturation_of(data.family.class_of(group_index));
+            for (channel_index, channel) in p.channels.iter().enumerate() {
                 let values = &program
                     .channels
                     .iter()
@@ -229,9 +249,16 @@ pub fn compile_panel_expression(
                     let coefficient = builder.constant(*lag_weight)?;
                     exposure_terms.push(builder.binary(ArithOp::Mul, coefficient, value)?);
                 }
-                let numerator = builder.sum(exposure_terms)?;
+                let exposure = builder.sum(exposure_terms)?;
+                let power = match p.family.hill_shape.get(channel_index) {
+                    None => 1,
+                    Some(shape) => integer_shape(*shape)?,
+                };
+                // x^s / (x^s + k^s); s = 1 is exactly the Michaelis-Menten form.
+                let numerator =
+                    if power == 1 { exposure } else { builder.power(&exposure, power)? };
                 let copy = builder.copy(&numerator)?;
-                let k = builder.constant(p.half_saturation)?;
+                let k = builder.constant(half_saturation.powi(power))?;
                 let denominator = builder.binary(ArithOp::Add, copy, k)?;
                 saturated.push(builder.binary(ArithOp::Div, numerator, denominator)?);
             }

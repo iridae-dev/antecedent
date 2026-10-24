@@ -1527,3 +1527,76 @@ crate = "antecedent-identify"
 cargo_target = "lib"
 path = "crates/antecedent-identify/src/admg_adjustment.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "mediation-mixed-graph"
+crate = "antecedent"
+cargo_target = "suite_09"
+path = "crates/antecedent/tests/mediation_mixed_graph.rs"
+gates = ["inventory", "named"]
+suite_map_line = "suite_09: mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration"
+
+[[test]]
+id = "class-attribution-route"
+crate = "antecedent"
+cargo_target = "suite_09"
+path = "crates/antecedent/tests/class_attribution_route.rs"
+gates = ["inventory", "named"]
+suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration"
+
+[[test]]
+id = "latent-block-witness-and-block-games"
+crate = "antecedent-attribution"
+cargo_target = "latent_block_witness"
+path = "crates/antecedent-attribution/tests/latent_block_witness.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "graph-posterior-exposure-routes"
+crate = "antecedent"
+cargo_target = "graph_posterior_exposure_routes"
+path = "crates/antecedent/tests/graph_posterior_exposure_routes.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "temporal-pag-mediation-window-facade"
+crate = "antecedent"
+cargo_target = "temporal_pag_mediation"
+path = "crates/antecedent/tests/temporal_pag_mediation.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "temporal-admg-graph-posterior-facade"
+crate = "antecedent"
+cargo_target = "temporal_admg_posterior"
+path = "crates/antecedent/tests/temporal_admg_posterior.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "temporal-pag-path-specific-window-identification"
+crate = "antecedent-identify"
+cargo_target = "suite_01"
+path = "crates/antecedent-identify/tests/temporal_pag_path_specific.rs"
+gates = ["inventory", "named"]
+suite_map_line = "suite_01: admg_conditional_transport, artifact_compat_recovery_identity, counterfactual_id_search, counterfactual_id_y0_parity, cpdag_completion, discovered_transport, gac_candidate_cap, id_completeness, meta_transport_scm, mixed_source_external_parity, mixed_source_search, mz_transport_paper_reference, mz_transport_search, numeric_identification_cases, observation_recovery, ordered_response_recovery_chain, pag_path_specific_candidates, path_specific_district_scm, scenario_invariance, temporal_pag_path_specific, temporal_sequence_spec, transport_identification_status, z_transport_negative_evidence, z_transport_outcome_inspection, z_transport_two_source"
+
+[[test]]
+id = "temporal-pag-window-marginalization"
+crate = "antecedent-identify"
+cargo_target = "lib"
+path = "crates/antecedent-identify/src/temporal_pag_path_specific.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "temporal-admg-atoms-template"
+crate = "antecedent-discovery"
+cargo_target = "lib"
+path = "crates/antecedent-discovery/src/temporal_admg_atoms.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "temporal-admg-posterior-ricf-score"
+crate = "antecedent-discovery"
+cargo_target = "lib"
+path = "crates/antecedent-discovery/src/temporal_admg_posterior.rs"
+gates = ["inventory", "named"]

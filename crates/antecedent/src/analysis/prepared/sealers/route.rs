@@ -95,9 +95,42 @@ pub(super) fn temporal_cross_world(cx: &SealContext<'_>) -> SealOutcome {
 }
 
 pub(super) fn temporal_admg_effect(cx: &SealContext<'_>) -> SealOutcome {
+    // A graph posterior over lagged temporal-ADMG atoms retains its lowered program: the
+    // per-atom window identification of a contrast is frozen in the study's cache, and a
+    // mediation identifies each atom's components on its own window at each click.
+    let SealContext { analysis, plan, .. } = *cx;
+    if analysis.graph_posterior.as_ref().is_some_and(|posterior| posterior.is_lagged_temporal_admg())
+        && matches!(
+            analysis.data,
+            crate::analysis::builder::DataInput::Temporal(_)
+                | crate::analysis::builder::DataInput::Event(_)
+        )
+        && matches!(
+            analysis.query,
+            antecedent_core::CausalQuery::TemporalEffect(_)
+                | antecedent_core::CausalQuery::Mediation(_)
+        )
+    {
+        return CheckedRouteOperation::lowered(analysis, plan)
+            .map(|operation| Some(PreparedExecution::TemporalAdmgEffect(operation)));
+    }
     let sealed = match cx.route {
         Some(RouteInput::TemporalEffectAdmg { .. }) => seal(cx, RouteCell::TemporalEffectAdmg)?,
+        Some(RouteInput::TemporalResponseAdmg { .. }) => seal(cx, RouteCell::TemporalResponseAdmg)?,
+        Some(RouteInput::TemporalMediationAdmg { .. }) => {
+            seal(cx, RouteCell::TemporalMediationAdmg)?
+        }
+        Some(RouteInput::TemporalMediationPag { .. }) => seal(cx, RouteCell::TemporalMediationPag)?,
         _ => None,
     };
     Ok(sealed.map(PreparedExecution::TemporalAdmgEffect))
+}
+
+pub(super) fn class_attribution(cx: &SealContext<'_>) -> SealOutcome {
+    let sealed = match cx.route {
+        Some(RouteInput::GcmClass { .. }) => seal(cx, RouteCell::GcmClass)?,
+        Some(RouteInput::GcmTemporalClass { .. }) => seal(cx, RouteCell::GcmTemporalClass)?,
+        _ => None,
+    };
+    Ok(sealed.map(PreparedExecution::ClassAttribution))
 }

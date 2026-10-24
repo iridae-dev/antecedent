@@ -577,10 +577,14 @@ fn closed_conditional_effect_off_dag_is_enforced() {
     }
     let temporal = cell("ConditionalEffect", "TemporalAdmg", "accepted", "Frequentist", "none");
     assert_eq!(classify(temporal), CellStatus::Refused, "TemporalAdmg");
-    let err = refuse_if_not_applicable(temporal).unwrap_err();
-    let message = err.to_string();
+    assert!(super::executes_unlicensed(temporal), "TemporalAdmg");
+    let message = refuse_if_not_applicable(temporal).unwrap_err().to_string();
     assert!(message.contains("TemporalConditionalPulse"), "TemporalAdmg: {message}");
-    assert!(message.contains("static Admg"), "TemporalAdmg: {message}");
+    // Validation and graph-posterior mixing over the projection stay refused.
+    for validation in ["cheap", "full"] {
+        let c = cell("ConditionalEffect", "TemporalAdmg", "explicit", "Frequentist", validation);
+        assert!(!super::executes_unlicensed(c), "{c:?}");
+    }
     for graph in ["Cpdag", "Pag"] {
         for inference in ["Frequentist", "Bayesian"] {
             for validation in ["none", "cheap", "full"] {
@@ -627,10 +631,15 @@ fn closed_path_and_distribution_on_explicit_admg_pag_is_enforced() {
         classify(cell("InterventionalDistribution", "Admg", "explicit", "Frequentist", "none")),
         CellStatus::Licensed
     );
-    assert_eq!(
-        classify(cell("InterventionalDistribution", "Pag", "explicit", "Frequentist", "none")),
-        CellStatus::Refused
-    );
+    for graph in ["Cpdag", "Pag"] {
+        for structure in ["explicit", "accepted"] {
+            let c = cell("InterventionalDistribution", graph, structure, "Frequentist", "none");
+            assert_eq!(classify(c), CellStatus::Refused, "{graph}/{structure}");
+            assert!(super::executes_unlicensed(c), "{graph}/{structure}");
+        }
+        let c = cell("InterventionalDistribution", graph, "explicit", "Frequentist", "cheap");
+        assert!(!super::executes_unlicensed(c), "{c:?}");
+    }
     for validation in ["cheap", "full"] {
         assert_eq!(
             classify(cell(
@@ -1205,9 +1214,11 @@ fn temporal_admg_contrasts_execute_unlicensed_at_validation_none_only() {
                 let runs = cell(query, "TemporalAdmg", structure, inference, "none");
                 assert_eq!(classify(runs), CellStatus::Refused, "{runs:?}");
                 assert!(super::executes_unlicensed(runs), "{runs:?}");
+                // Cheap and full run the window-native suite and stay unlicensed.
                 for validation in ["cheap", "full"] {
-                    let refused = cell(query, "TemporalAdmg", structure, inference, validation);
-                    assert!(!super::executes_unlicensed(refused), "{refused:?}");
+                    let runs = cell(query, "TemporalAdmg", structure, inference, validation);
+                    assert_eq!(classify(runs), CellStatus::Refused, "{runs:?}");
+                    assert!(super::executes_unlicensed(runs), "{runs:?}");
                 }
             }
         }
@@ -1217,5 +1228,12 @@ fn temporal_admg_contrasts_execute_unlicensed_at_validation_none_only() {
     let mediation =
         cell("TemporalMediationEffect", "TemporalAdmg", "explicit", "Frequentist", "none");
     assert_eq!(classify(mediation), CellStatus::Refused);
-    assert!(!super::executes_unlicensed(mediation));
+    assert!(super::executes_unlicensed(mediation));
+    let posterior =
+        cell("TemporalMediationEffect", "TemporalAdmg", "graph_posterior", "Frequentist", "none");
+    assert!(!super::executes_unlicensed(posterior));
+    for validation in ["cheap", "full"] {
+        let c = cell("TemporalMediationEffect", "TemporalAdmg", "explicit", "Frequentist", validation);
+        assert!(!super::executes_unlicensed(c), "{c:?}");
+    }
 }

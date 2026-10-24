@@ -20,7 +20,7 @@
 //! * layer five does not quote a design: each horizon or completion assembles its
 //!   lagged design from the unfolded sample at execution.
 //!
-//! Latent-confounded `TemporalPag` mediation stays a typed refusal.
+//! Mediation under a temporal ADMG or PAG identifies on its window at each execution.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -91,6 +91,9 @@ const MEDIATION_DESIGN_AT_EXECUTION: &str =
     "each horizon assembles its mediator and outcome designs from the unfolded sample at execution";
 const CROSS_WORLD_DESIGN_AT_EXECUTION: &str =
     "the cross-world probe identifies and fits its mechanisms at execution";
+/// Why a temporal ADMG mediation route retains no identification.
+const WINDOW_MEDIATION_IDENTIFIES_PER_EXECUTION: &str =
+    "mediation under a temporal ADMG or PAG identifies on its window at each execution";
 /// Why a temporal cross-world route retains no identification.
 const CROSS_WORLD_IDENTIFIES_PER_EXECUTION: &str =
     "temporal cross-world queries identify on the cross-world probe at each execution";
@@ -101,12 +104,6 @@ pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalEr
         return Err(not_temporal(cx));
     };
     match input {
-        // Logical compile refuses this cell before lowering; the lowering refuses too.
-        RouteInput::TemporalMediationPag => Err(CausalError::Unsupported {
-            message: "Latent-confounded TemporalPag natural mediation is outside the existing \
-                      cross-world identification theory; the linear DAG mechanism product on \
-                      completions cannot license it",
-        }),
         RouteInput::TemporalEffectDag { query, .. }
         | RouteInput::TemporalEffectClass { query, .. }
         | RouteInput::TemporalEffectAdmg { query, .. }
@@ -120,6 +117,8 @@ pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalEr
         | RouteInput::PanelTemporalResponseClass { query, .. } => lower_response(cx, query),
         RouteInput::TemporalMediationDag { query, .. }
         | RouteInput::TemporalMediationCpdag { query, .. } => lower_mediation(cx, query),
+        RouteInput::TemporalMediationAdmg { query, .. }
+        | RouteInput::TemporalMediationPag { query, .. } => lower_mediation_window(cx, query),
         RouteInput::TemporalCrossWorldDag { .. } | RouteInput::TemporalCrossWorldClass { .. } => {
             lower_cross_world(cx)
         }
@@ -507,6 +506,39 @@ fn lower_mediation(
             models,
             claim: ClaimKind::Point,
             width: if is_class { CLASS_DESIGN_AT_EXECUTION } else { MEDIATION_DESIGN_AT_EXECUTION },
+        },
+    )
+}
+
+/// Natural mediation on one series under a temporal ADMG or PAG: identified on the unrolled
+/// or unfolded window at each execution, estimated by the discrete plug-in on the lag-aligned
+/// window table.
+fn lower_mediation_window(
+    cx: &LoweringContext<'_>,
+    query: &MediationQuery,
+) -> Result<LoweredProgram, CausalError> {
+    let mut outcome_inputs = vec![query.treatment];
+    outcome_inputs.extend(query.mediators.iter().copied());
+    let family = estimator_family(cx);
+    let mut models = vec![slot(ModelRole::Outcome, family, outcome_inputs, query.outcome)];
+    for &mediator in query.mediators.iter() {
+        models.push(slot(ModelRole::Mediator, family, vec![query.treatment], mediator));
+    }
+    assemble(
+        cx,
+        TemporalLowering {
+            target: super::query_functional(
+                cx.study,
+                FunctionalKind::PathSpecific,
+                Some(query.outcome),
+            ),
+            envelope: is_class(cx.study),
+            identification: IdentificationLayer::PerExecution {
+                reason: WINDOW_MEDIATION_IDENTIFIES_PER_EXECUTION,
+            },
+            models,
+            claim: ClaimKind::Point,
+            width: WINDOW_DESIGN_AT_EXECUTION,
         },
     )
 }

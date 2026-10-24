@@ -47,6 +47,13 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         query.validate()?;
+        // A Cpdag or Pag names no single selection diagram: sID decides each member.
+        if matches!(
+            self.graph.class(),
+            crate::accepted::GraphClass::Cpdag | crate::accepted::GraphClass::Pag
+        ) {
+            return self.execute_transport_class(data, query, physical, ctx);
+        }
         let diagram = self.selection_diagram.as_ref().ok_or(CausalError::Unsupported {
             message: "TransportQuery execute requires a selection diagram",
         })?;
@@ -290,6 +297,17 @@ impl super::Study {
                 (estimate, Some(posterior), EstimatorId::InterferenceBayesianGaussian, diagnostic)
             }
         };
+        let refutations = super::interference_refutation::refute_interference(
+            &super::interference_refutation::InterferenceRefutationInput {
+                query,
+                network: &spec.network,
+                assignment: &spec.assignment,
+                estimated: estimated.as_ref(),
+                suite: self.refute,
+                replicates: self.bootstrap_replicates,
+            },
+            ctx,
+        )?;
         let mut result = self.finish_identified_execute(
             IdentifiedExecuteFinish::new(
                 physical,
@@ -300,6 +318,7 @@ impl super::Study {
                 outcome,
                 outcome,
             )
+            .refutations(refutations)
             .extra_diagnostics(vec![diagnostic])
             .wall_time_ns(elapsed_ns(started))
             .cancelled(ctx.cancellation.is_cancelled()),
@@ -377,7 +396,7 @@ fn interference_bayesian_estimate(
 }
 
 /// Estimation-scope assumption that the supplied selection and treatment probabilities are known.
-fn known_probability_assumption() -> antecedent_core::AssumptionRecord {
+pub(super) fn known_probability_assumption() -> antecedent_core::AssumptionRecord {
     antecedent_core::AssumptionRecord {
         assumption: antecedent_core::Assumption::ParametricRestriction(
             antecedent_core::ParametricAssumption {
@@ -399,7 +418,7 @@ fn known_probability_assumption() -> antecedent_core::AssumptionRecord {
 ///
 /// When the rows are the consecutive times of one series (`series_block`), the SE is the
 /// Newey–West long-run variance of the per-row influence at the block length.
-fn frequentist_transport_estimate(
+pub(super) fn frequentist_transport_estimate(
     columns: &TrialColumns<'_>,
     (ipw, series_block): (f64, Option<usize>),
     assumptions: antecedent_core::AssumptionSet,
@@ -449,23 +468,23 @@ impl super::Study {
     /// rows are one dependent series (a `TemporalAdmg` projection), `None` for independent
     /// rows. A declared independent-subject or clustered design on the projection refuses
     /// ([`Self::functional_row_resampling`]).
-    fn transport_series_block(&self, n: usize) -> Result<Option<usize>, CausalError> {
+    pub(super) fn transport_series_block(&self, n: usize) -> Result<Option<usize>, CausalError> {
         let (resampling, _) = self.functional_row_resampling()?;
         Ok(resampling.block_length(n))
     }
 }
 
 /// The binary trial-to-target columns the IPW estimator and its bootstrap read.
-struct TrialColumns<'a> {
-    outcomes: &'a [f64],
-    treatment: &'a [bool],
-    trial: &'a [bool],
-    selection: &'a [f64],
-    propensity: &'a [f64],
+pub(super) struct TrialColumns<'a> {
+    pub(super) outcomes: &'a [f64],
+    pub(super) treatment: &'a [bool],
+    pub(super) trial: &'a [bool],
+    pub(super) selection: &'a [f64],
+    pub(super) propensity: &'a [f64],
 }
 
 /// Dirichlet Bayesian bootstrap of the trial-to-target IPW contrast over the observed trial rows.
-fn bayesian_transport_estimate(
+pub(super) fn bayesian_transport_estimate(
     cfg: &BayesianConfig,
     (transport_id, series_block): (&TransportIdentification, Option<usize>),
     columns: &TrialColumns<'_>,

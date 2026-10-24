@@ -1381,10 +1381,21 @@ fn posterior_atom_graph_wire(
                 Ok(PosteriorAtomGraphWire::TemporalClass(wire))
             }
             GraphPosteriorAtomKind::TemporalAdmg => {
-                return Err(IoError::Convert(
-                    "TemporalAdmg posterior identity keeps lag masks; they are not a temporal DAG"
-                        .into(),
-                ));
+                // A lagged temporal-ADMG atom is its stationary template: the contemporaneous
+                // ADMG, the lagged directed edges and the lagged latent-confounder edges.
+                let atom = posterior.temporal_admg_atom(index).ok_or_else(|| {
+                    IoError::Convert("posterior lag masks must align with atoms".into())
+                })?;
+                let Ok(temporal) = atom.to_template(posterior.n_vars, max_lag, ids) else {
+                    return Ok(PosteriorAtomGraphWire::Unrepresentable);
+                };
+                let GraphIdentityWire::TemporalAdmg(wire) = temporal_admg_identity(&temporal)?
+                else {
+                    return Err(IoError::Convert(
+                        "temporal ADMG posterior atom must encode as TemporalAdmg".into(),
+                    ));
+                };
+                Ok(PosteriorAtomGraphWire::TemporalAdmg(wire))
             }
             GraphPosteriorAtomKind::Pag => {
                 let mark_mask = posterior
@@ -1465,8 +1476,10 @@ fn posterior_atom_graph_wire(
             Ok(PosteriorAtomGraphWire::Pag(wire))
         }
         _ => {
-            let dag = dag_from_adjacency_mask(adjacency, posterior.n_vars)
-                .map_err(|err| IoError::Convert(err.to_string()))?;
+            // An atom that is not a DAG carries unidentified mass; it has no graph to encode.
+            let Ok(dag) = dag_from_adjacency_mask(adjacency, posterior.n_vars) else {
+                return Ok(PosteriorAtomGraphWire::Unrepresentable);
+            };
             Ok(PosteriorAtomGraphWire::Static(canonical_dag_wire(&dag)?))
         }
     }

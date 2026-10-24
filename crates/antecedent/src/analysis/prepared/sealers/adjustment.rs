@@ -43,6 +43,11 @@ pub(super) fn checked_linear(cx: &SealContext<'_>) -> SealOutcome {
                     EstimatorId::LinearAdjustmentAte,
                 ) =>
         {
+            // A plan that streams its design retains no operation: the closed-form
+            // reduction runs on the fresh path, so there is nothing to seal.
+            if plan.linear.is_none() && plan.streams_design() {
+                return Ok(None);
+            }
             let product = plan.linear.as_ref().ok_or_else(|| CausalError::Compile {
                 message: "checked linear execution requires its compiled product".into(),
             })?;

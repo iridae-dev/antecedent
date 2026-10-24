@@ -39,11 +39,15 @@ pub enum GraphPosteriorCell {
     TemporalMediation,
     /// A cross-world query over the atoms of a temporal class posterior.
     CrossWorld,
+    /// A trial-to-target transport over the atoms of a posterior, each a selection diagram.
+    Transport,
+    /// An exposure contrast over a fixed network, reported over the atoms of a posterior.
+    Interference,
 }
 
 impl GraphPosteriorCell {
     #[cfg(test)]
-    pub(crate) const ALL: [Self; 7] = [
+    pub(crate) const ALL: [Self; 9] = [
         Self::StaticResponse,
         Self::AverageEffect,
         Self::ConditionalEffect,
@@ -51,6 +55,8 @@ impl GraphPosteriorCell {
         Self::TemporalResponse,
         Self::TemporalMediation,
         Self::CrossWorld,
+        Self::Transport,
+        Self::Interference,
     ];
 
     /// Stable name, written to the licensed-route record.
@@ -64,6 +70,8 @@ impl GraphPosteriorCell {
             Self::TemporalResponse => "GraphPosteriorTemporalResponse",
             Self::TemporalMediation => "GraphPosteriorTemporalMediation",
             Self::CrossWorld => "GraphPosteriorCrossWorld",
+            Self::Transport => "GraphPosteriorTransport",
+            Self::Interference => "GraphPosteriorInterference",
         }
     }
 
@@ -75,6 +83,8 @@ impl GraphPosteriorCell {
             (DataInput::Tabular(_), CausalQuery::Response(_)) => Self::StaticResponse,
             (DataInput::Tabular(_), CausalQuery::AverageEffect(_)) => Self::AverageEffect,
             (DataInput::Tabular(_), CausalQuery::ConditionalEffect(_)) => Self::ConditionalEffect,
+            (DataInput::Tabular(_), CausalQuery::Transport(_)) => Self::Transport,
+            (DataInput::Tabular(_), CausalQuery::Interference(_)) => Self::Interference,
             (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::TemporalEffect(_)) => {
                 Self::TemporalEffect
             }
@@ -228,6 +238,7 @@ route_lowerings! {
     PathSpecificDag => static_effect as StaticEffect,
     PathSpecificMixed => static_effect as StaticEffect,
     PathSpecificCpdag => static_effect as StaticEffect,
+    CounterfactualClass => static_effect as StaticEffect,
     PathSpecificPag => static_effect as StaticEffect,
     StaticResponseDag => static_response as StaticResponse,
     StaticResponsePag => static_response as StaticResponse,
@@ -237,6 +248,8 @@ route_lowerings! {
     StaticMediationDag => structural as Structural,
     GcmDag => structural as Structural,
     GcmTemporal => structural as Structural,
+    GcmClass => structural as Structural,
+    GcmTemporalClass => structural as Structural,
     TemporalEffectDag => temporal as Temporal,
     TemporalEffectClass => temporal as Temporal,
     TemporalEffectAdmg => temporal as Temporal,
@@ -246,6 +259,7 @@ route_lowerings! {
     TemporalMediationDag => temporal as Temporal,
     TemporalMediationPag => temporal as Temporal,
     TemporalMediationCpdag => temporal as Temporal,
+    TemporalMediationAdmg => temporal as Temporal,
     TemporalCrossWorldDag => temporal as Temporal,
     TemporalCrossWorldClass => temporal as Temporal,
     MultiEnvTemporalEffect => temporal as Temporal,

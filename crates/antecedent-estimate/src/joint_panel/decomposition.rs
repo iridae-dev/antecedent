@@ -11,7 +11,8 @@ use std::sync::Arc;
 pub enum ChangeComponent {
     /// Schedules and initial exposure histories.
     Exposure,
-    /// The shared half-saturation parameter, excluded from the mechanism block.
+    /// Every saturation parameter (half-saturations and Hill shapes), excluded from the
+    /// mechanism block.
     Saturation,
     /// Scenario covariates, seasons and population weights.
     Population,
@@ -652,8 +653,9 @@ fn evaluate(
             |(a, b)| a.group == b.group && a.confounder == b.confounder && a.season == b.season,
         );
     let saturation_equal = (0..horizon).all(|time| {
-        path.before[if path.before.len() == 1 { 0 } else { time }].parameters.half_saturation
-            == path.after[if path.after.len() == 1 { 0 } else { time }].parameters.half_saturation
+        path.before[if path.before.len() == 1 { 0 } else { time }]
+            .parameters
+            .saturation_equal(&path.after[if path.after.len() == 1 { 0 } else { time }].parameters)
     });
     let inactive = usize::from(exposure_equal)
         | (usize::from(saturation_equal) << 1)
@@ -698,7 +700,7 @@ fn evaluate(
                 let draw = &mechanism[if mechanism.len() == 1 { 0 } else { time }];
                 let sat = &saturation[if saturation.len() == 1 { 0 } else { time }];
                 let mut parameters = draw.parameters.clone();
-                parameters.half_saturation = sat.parameters.half_saturation;
+                parameters.copy_saturation_from(&sat.parameters);
                 *response += weight
                     * time_weight
                     * (likelihood::program_response(

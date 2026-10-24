@@ -199,6 +199,12 @@ FACADE_KIND = {
     "crates/antecedent-design/src/program_search/continuous.rs|temporal.bayesian": "none",
     "crates/antecedent/src/analysis/joint_panel.rs|temporal.frequentist": "design_aware_resampling",
     "crates/antecedent/src/analysis/joint_panel.rs|temporal.bayesian": "posterior",
+    "crates/antecedent-estimate/src/joint_panel/inference.rs|temporal.frequentist": "design_aware_resampling",
+    "crates/antecedent-estimate/src/joint_panel/inference.rs|temporal.bayesian": "posterior",
+    "crates/antecedent-estimate/src/joint_panel/family.rs|static.frequentist": "analytic",
+    "crates/antecedent-estimate/src/joint_panel/family.rs|static.bayesian": "posterior",
+    "crates/antecedent-estimate/src/joint_panel/family.rs|temporal.frequentist": "design_aware_resampling",
+    "crates/antecedent-estimate/src/joint_panel/family.rs|temporal.bayesian": "posterior",
 }
 # What the owning sources of a declared procedure must show. `none` needs no corroboration.
 CORROBORATION = {

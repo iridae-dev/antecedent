@@ -65,6 +65,15 @@ const FAMILY_ESTIMATORS: &[EstimatorId] = &[
     EstimatorId::PropensityWeighting,
     EstimatorId::ResponseBayesian,
     EstimatorId::ResponseInterventionGcomp,
+    EstimatorId::GcmFit,
+    EstimatorId::TransportTrialIpw,
+    EstimatorId::TransportTrialBayesianBootstrap,
+    EstimatorId::InterferenceHtHajek,
+    EstimatorId::InterferenceClusterNeyman,
+    EstimatorId::InterferenceSaturationExact,
+    EstimatorId::InterferenceObservationalIpw,
+    EstimatorId::InterferenceBayesianGaussian,
+    EstimatorId::InterferenceClusterBayesianBootstrap,
 ];
 
 /// Seal a study no route-cell sealer admits, by the estimator it resolves to; a study naming none runs its route's

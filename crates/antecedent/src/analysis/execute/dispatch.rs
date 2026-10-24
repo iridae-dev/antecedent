@@ -25,9 +25,9 @@ use antecedent_core::NestedCounterfactualQuery;
 
 /// Refusal for a graph-posterior study whose data / query pair has no route.
 pub(super) const GRAPH_POSTERIOR_QUERY_REFUSAL: &str = concat!(
-    "graph-posterior analysis supports tabular average-effect, conditional-effect, or static ",
-    "response queries, and series temporal-effect, temporal-mediation, or temporal ",
-    "response queries only",
+    "graph-posterior analysis supports tabular average-effect, conditional-effect, static ",
+    "response, transport, or interference queries, and series temporal-effect, ",
+    "temporal-mediation, or temporal response queries only",
 );
 
 /// The refusal for a route whose data or query kind disagrees with the one the route was
@@ -211,6 +211,7 @@ impl super::Study {
                                 GraphClass::TemporalDag
                                     | GraphClass::TemporalCpdag
                                     | GraphClass::TemporalPag
+                                    | GraphClass::TemporalAdmg
                             )
                         ))) =>
             {
@@ -730,6 +731,9 @@ impl super::Study {
                 | antecedent_discovery::GraphPosteriorAtomKind::Pag => {
                     self.execute_temporal_class_graph_posterior(data, gp, q, physical, ctx)
                 }
+                antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg => {
+                    self.execute_temporal_admg_graph_posterior(data, gp, q, physical, ctx)
+                }
                 _ => match self.inference {
                     InferenceMode::Frequentist => {
                         self.execute_dbn_posterior_frequentist(data, gp, q, physical, ctx)
@@ -746,6 +750,9 @@ impl super::Study {
                         .execute_temporal_class_graph_posterior_mediation(
                             data, gp, q, physical, ctx,
                         ),
+                    antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg => {
+                        self.execute_temporal_admg_graph_posterior_mediation(data, gp, q, physical, ctx)
+                    }
                     _ => self.execute_dbn_posterior_mediation(data, gp, q, physical, ctx),
                 }
             }
@@ -825,6 +832,12 @@ impl super::Study {
                 if self.graph.class() == GraphClass::TemporalCpdag {
                     return self.execute_temporal_cpdag_mediation(data, q, physical, ctx);
                 }
+                if self.graph.class() == GraphClass::TemporalAdmg {
+                    return self.execute_temporal_admg_mediation(data, q, physical, ctx);
+                }
+                if self.graph.class() == GraphClass::TemporalPag {
+                    return self.execute_temporal_pag_mediation(data, q, physical, ctx);
+                }
                 let graph = physical.temporal_graph().ok_or(CausalError::Compile {
                     message: "Ready temporal mediation plan missing resolved graph".into(),
                 })?;
@@ -878,6 +891,17 @@ impl super::Study {
             }
             Some(AnalysisRoute::MultiEnvTemporalEffect) => {
                 self.execute_multi_env_effect_route(data, physical, ctx)
+            }
+            Some(AnalysisRoute::Anomaly | AnalysisRoute::ChangeAttribution)
+                if matches!(
+                    self.graph.class(),
+                    GraphClass::TemporalCpdag | GraphClass::TemporalPag | GraphClass::TemporalAdmg
+                ) =>
+            {
+                let (DataInput::Temporal(series) | DataInput::Event(series)) = data else {
+                    return Err(route_mismatch());
+                };
+                self.execute_temporal_class_attribution(series, physical, ctx)
             }
             Some(
                 AnalysisRoute::Anomaly
@@ -1035,6 +1059,12 @@ impl super::Study {
                     return self.execute_class_graph_posterior_response(data, gp, q, physical, ctx);
                 }
             },
+            CausalQuery::Transport(q) => {
+                return self.execute_transport_graph_posterior(data, gp, q, physical, ctx);
+            }
+            CausalQuery::Interference(q) => {
+                return self.execute_interference_graph_posterior(data, gp, q, physical, ctx);
+            }
             _ => return Err(CausalError::Unsupported { message: GRAPH_POSTERIOR_QUERY_REFUSAL }),
         };
         match gp.atom_kind {
@@ -1079,6 +1109,13 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         match route {
+            // A structure that stands for several (a CPDAG, a PAG) or that carries latent
+            // confounding (an ADMG) is attributed member by member.
+            AnalysisRoute::Anomaly | AnalysisRoute::ChangeAttribution
+                if self.graph.as_dag().is_none() =>
+            {
+                self.execute_class_attribution(data, physical, ctx)
+            }
             // The Frequentist mechanism-refit row bootstrap lives on the sealed
             // attribution operation; a requested replicate count on an explicit static
             // DAG runs that operation so the interval does not depend on the entry.
@@ -1270,6 +1307,15 @@ impl super::Study {
                 let CausalQuery::Counterfactual(q) = &self.query else {
                     return Err(route_mismatch());
                 };
+                if matches!(
+                    self.graph.graph_ref(),
+                    GraphRef::Admg(_)
+                        | GraphRef::TemporalAdmg(_)
+                        | GraphRef::Pag(_)
+                        | GraphRef::Cpdag(_)
+                ) {
+                    return self.execute_counterfactual_class(data, q, physical, ctx);
+                }
                 let graph = self
                     .require_execute_dag("Counterfactual execute requires a supplied static DAG")?;
                 self.execute_counterfactual(data, graph, q, physical, ctx)
@@ -1489,8 +1535,22 @@ impl super::Study {
                     ctx,
                 )
             }
+            GraphRef::Cpdag(cpdag) => self.execute_class_distribution(
+                data,
+                super::class_distribution::DistributionClass::Cpdag(cpdag),
+                q,
+                physical,
+                ctx,
+            ),
+            GraphRef::Pag(pag) => self.execute_class_distribution(
+                data,
+                super::class_distribution::DistributionClass::Pag(pag),
+                q,
+                physical,
+                ctx,
+            ),
             _ => Err(CausalError::Unsupported {
-                message: "Distribution execute requires a supplied Dag or Admg",
+                message: "Distribution execute requires a supplied Dag, Admg, Cpdag or Pag",
             }),
         }
     }
@@ -1527,11 +1587,28 @@ impl super::Study {
                 }
                 _ => Err(route_mismatch()),
             },
+            GraphClass::TemporalAdmg => {
+                // The tabular rows carry no time index: the effect is the conditional contrast
+                // of the contemporaneous projection (the temporal conditional contrast is
+                // TemporalConditionalPulse or TemporalConditionalSustained on one series).
+                let GraphRef::TemporalAdmg(temporal) = self.graph.graph_ref() else {
+                    return Err(route_mismatch());
+                };
+                let admg = temporal_admg_projection(temporal)?;
+                if admg_has_bidirected(&admg) {
+                    self.execute_admg_conditional(data, &admg, q, physical, ctx)
+                } else {
+                    let graph = physical.static_graph().ok_or(CausalError::Compile {
+                        message: "Ready TemporalAdmg (DAG-coerced) conditional plan missing \
+                                  resolved static DAG"
+                            .into(),
+                    })?;
+                    self.execute_conditional(data, graph, q, physical, ctx)
+                }
+            }
             _ => Err(CausalError::Unsupported {
-                message: "ConditionalEffect execute requires a Dag, Cpdag, Pag, or Admg; a \
-                          TemporalAdmg contrast is not identified (use TemporalConditionalPulse \
-                          or TemporalConditionalSustained on a TemporalDag, or supply the \
-                          static Admg for the contemporaneous conditional effect)",
+                message: "ConditionalEffect execute requires a Dag, Cpdag, Pag, Admg or \
+                          TemporalAdmg",
             }),
         }
     }
@@ -2219,10 +2296,17 @@ impl super::Study {
                 | CausalQuery::NestedCounterfactual(_)
         ) {
             if let DataInput::Tabular(data) = &self.data {
+                // A distribution over an equivalence class is decided member by member at
+                // each execution: its checked operation is the lowered route itself.
+                let class_distribution = matches!(self.query, CausalQuery::Distribution(_))
+                    && matches!(self.graph.graph_ref(), GraphRef::Cpdag(_) | GraphRef::Pag(_));
                 return self.admit_sealed_tabular(
                     data,
                     ctx,
-                    |prepared| prepared.has_complete_program_operation(&self.query),
+                    |prepared| {
+                        prepared.has_complete_program_operation(&self.query)
+                            || (class_distribution && prepared.retains(ExecutionKind::EstimatorRoute))
+                    },
                     "one-shot route did not retain its complete checked operation",
                 );
             }
@@ -2685,12 +2769,18 @@ impl super::Study {
         {
             if let Some(RouteInput::StaticAteDag { data, query, .. }) = route {
                 if mean_all_observed(&query.outcome_functional, &query.target_population) {
-                    return self.admit_sealed_tabular(
-                        data,
-                        ctx,
-                        |prepared| prepared.retains(ExecutionKind::CheckedLinear),
-                        "one-shot linear adjustment did not retain its checked operation",
-                    );
+                    let prepared = self.prepare(ctx)?;
+                    // A design over the resident budget streams through the closed-form
+                    // reduction and retains no operation; the ordinary dispatcher runs it.
+                    if prepared.retains(ExecutionKind::CheckedLinear) {
+                        return prepared.estimate(data, ctx).map(Box::new).map(Some);
+                    }
+                    if !prepared.plan().streams_design() {
+                        return Err(CausalError::Compile {
+                            message: "one-shot linear adjustment did not retain its checked operation"
+                                .into(),
+                        });
+                    }
                 }
             }
         }

@@ -33,14 +33,20 @@ use super::{
 use crate::planner::RouteDefaults;
 
 /// One class path-specific run: the envelope its identifier produced and what names it.
-struct ClassPathRun<'a, G> {
-    envelope: &'a IdentificationEnvelope<G>,
-    class: ClassTag,
-    envelope_diagnostic: Diagnostic,
-    certificate: crate::Identification,
-    identifier_id: IdentifierId,
-    estimator_id: EstimatorId,
-    started: Instant,
+pub(super) struct ClassPathRun<'a, G> {
+    pub(super) envelope: &'a IdentificationEnvelope<G>,
+    pub(super) class: ClassTag,
+    pub(super) envelope_diagnostic: Diagnostic,
+    pub(super) certificate: crate::Identification,
+    pub(super) identifier_id: IdentifierId,
+    pub(super) estimator_id: EstimatorId,
+    pub(super) started: Instant,
+    /// How the rows are resampled when the table's rows overlap (a lag-aligned window table);
+    /// `None` reads the study's own row resampling.
+    pub(super) resampling: Option<(
+        antecedent_estimate::RowResampling,
+        antecedent_estimate::util::SamplingDeclaration,
+    )>,
 }
 
 impl super::Study {
@@ -88,6 +94,7 @@ impl super::Study {
                 identifier_id,
                 estimator_id,
                 started,
+                resampling: None,
             },
             physical,
             ctx,
@@ -143,6 +150,7 @@ impl super::Study {
                 identifier_id,
                 estimator_id,
                 started,
+                resampling: None,
             },
             physical,
             ctx,
@@ -150,7 +158,7 @@ impl super::Study {
     }
 
     /// Estimate every identified case of a class envelope and publish the class result.
-    fn finish_class_path_specific<G>(
+    pub(super) fn finish_class_path_specific<G>(
         &self,
         data: &TabularData,
         source: PathSpecificMixedSource<'_>,
@@ -166,6 +174,7 @@ impl super::Study {
             identifier_id,
             estimator_id,
             started,
+            resampling,
         } = run;
         let (_, treatment, outcome, roles) = super::static_path::path_specific_source_parts(source);
         let identification = envelope_to_identification_result_for(envelope, self.query.clone());
@@ -181,14 +190,28 @@ impl super::Study {
                 continue;
             }
             let estimand = select_estimand(&case.result, estimator_id)?;
-            let (estimate, posterior) =
-                self.estimate_functional_effect(data, &estimand, &case.result, &roles, ctx)?;
+            let (estimate, posterior) = match resampling {
+                Some(resampling) => self.estimate_functional_effect_resampled(
+                    data,
+                    &estimand,
+                    &case.result,
+                    &roles,
+                    resampling,
+                    ctx,
+                )?,
+                None => {
+                    self.estimate_functional_effect(data, &estimand, &case.result, &roles, ctx)?
+                }
+            };
             outcomes[index] = ClassAtomOutcome::Evaluated(estimate.ate);
             if evaluated.is_empty() {
                 assumptions = estimate.provenance.assumptions.clone();
             }
             if self.bootstrap_replicates > 0 && !self.inference.is_bayesian() {
-                let (row_resampling, sampling_design) = self.functional_row_resampling()?;
+                let (row_resampling, sampling_design) = match resampling {
+                    Some(resampling) => resampling,
+                    None => self.functional_row_resampling()?,
+                };
                 let fitter = antecedent_estimate::FunctionalEffect {
                     bootstrap_replicates: self.bootstrap_replicates,
                     ..antecedent_estimate::FunctionalEffect::new()

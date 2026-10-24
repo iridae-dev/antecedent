@@ -495,7 +495,7 @@ impl PhysicalExecutionPlan {
     /// The quote exceeds the limit, no alternative is both implemented and within the
     /// limit, or the size arithmetic overflows.
     pub(crate) fn quote_route_memory(&mut self, ctx: &ExecutionContext) -> Result<(), CausalError> {
-        if self.linear.is_some() {
+        if self.linear.is_some() || self.streams_design() {
             return Ok(());
         }
         let Some(lowered) = self.lowered.clone() else {

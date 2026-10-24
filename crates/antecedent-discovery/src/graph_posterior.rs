@@ -211,6 +211,11 @@ pub struct GraphPosterior {
     pub max_lag: Option<u32>,
     /// Optional per-atom lag-edge bitmasks (DBN templates; same length as `adjacency`).
     pub lag_masks: Option<Arc<[u64]>>,
+    /// Optional per-atom lagged latent-confounder bitmasks (same length and bit layout as
+    /// [`Self::lag_masks`]): bit `(lag - 1) * n_vars² + from * n_vars + to` is
+    /// `from(t - lag) ↔ to(t)`. Present only for lagged [`GraphPosteriorAtomKind::TemporalAdmg`]
+    /// atoms, whose directed lagged edges are [`Self::lag_masks`].
+    pub lag_bidirected_masks: Option<Arc<[u64]>>,
     /// Class of every atom. [`GraphPosterior::new`] leaves this as
     /// [`GraphPosteriorAtomKind::Dag`].
     pub atom_kind: GraphPosteriorAtomKind,
@@ -349,6 +354,7 @@ impl GraphPosterior {
             lagged_edge_marginals: None,
             max_lag: None,
             lag_masks: None,
+            lag_bidirected_masks: None,
             atom_kind: GraphPosteriorAtomKind::Dag,
             mark_masks: None,
             mark_atoms: None,
@@ -477,6 +483,68 @@ impl GraphPosterior {
         }
         self.lag_masks = Some(masks);
         Ok(self)
+    }
+
+    /// Attach per-atom lagged latent-confounder bitmasks to a lagged temporal-ADMG posterior.
+    ///
+    /// The directed lagged edges are [`Self::lag_masks`] and the contemporaneous ADMG is
+    /// [`Self::atoms`]; with this the atom of position `i` is
+    /// [`Self::temporal_admg_atom`]`(i)`.
+    ///
+    /// # Errors
+    ///
+    /// The posterior is not [`GraphPosteriorAtomKind::TemporalAdmg`], carries no lag masks or
+    /// `max_lag` yet, or the masks differ in length from the atoms.
+    pub fn with_lag_bidirected_masks(
+        mut self,
+        masks: impl Into<Arc<[u64]>>,
+    ) -> Result<Self, DiscoveryError> {
+        let masks = masks.into();
+        if self.atom_kind != GraphPosteriorAtomKind::TemporalAdmg {
+            return Err(DiscoveryError::unsupported(
+                "lagged latent-confounder masks belong to TemporalAdmg atoms",
+            ));
+        }
+        if self.lag_masks.is_none() || self.max_lag.is_none() {
+            return Err(DiscoveryError::unsupported(
+                "lagged latent-confounder masks require the directed lag masks and max_lag first",
+            ));
+        }
+        if masks.len() != self.n_graphs {
+            return Err(DiscoveryError::unsupported(
+                "lag_bidirected_masks/adjacency length mismatch",
+            ));
+        }
+        self.lag_bidirected_masks = Some(masks);
+        Ok(self)
+    }
+
+    /// Whether the atoms are lagged temporal-ADMG templates: [`GraphPosteriorAtomKind::TemporalAdmg`]
+    /// atoms that carry per-atom lag masks and a `max_lag`.
+    #[must_use]
+    pub fn is_lagged_temporal_admg(&self) -> bool {
+        self.atom_kind == GraphPosteriorAtomKind::TemporalAdmg
+            && self.lag_masks.is_some()
+            && self.max_lag.is_some()
+    }
+
+    /// Atom `index` of a lagged temporal-ADMG posterior; `None` for any other posterior or an
+    /// index outside it.
+    #[must_use]
+    pub fn temporal_admg_atom(&self, index: usize) -> Option<crate::TemporalAdmgAtom> {
+        if !self.is_lagged_temporal_admg() || index >= self.n_graphs {
+            return None;
+        }
+        let directed = *self.lag_masks.as_ref()?.get(index)?;
+        let bidirected = match self.lag_bidirected_masks.as_ref() {
+            Some(masks) => *masks.get(index)?,
+            None => 0,
+        };
+        Some(crate::TemporalAdmgAtom {
+            contemporaneous: *self.atoms.get(index)?,
+            lagged_directed: directed,
+            lagged_bidirected: bidirected,
+        })
     }
 
     /// Convert to envelope ensemble (all graphs marked identified).

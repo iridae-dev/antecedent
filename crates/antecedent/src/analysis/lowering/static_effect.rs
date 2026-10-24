@@ -93,6 +93,8 @@ enum EffectQuery<'a> {
     Nested(&'a NestedCounterfactualQuery),
     /// The total, natural direct and natural indirect decomposition.
     Mediation(&'a antecedent_core::MediationQuery),
+    /// A counterfactual on a structure latent confounding or an equivalence class leaves open.
+    Counterfactual(&'a antecedent_core::CounterfactualQuery),
 }
 
 impl<'a> EffectQuery<'a> {
@@ -111,6 +113,7 @@ impl<'a> EffectQuery<'a> {
             RouteInput::DistributionDag { data, query, .. }
             | RouteInput::DistributionMixed { data, query } => (Self::Distribution(query), data),
             RouteInput::PathSpecificDag { data, query, .. } => (Self::PathSpecific(query), data),
+            RouteInput::CounterfactualClass { data, query } => (Self::Counterfactual(query), data),
             RouteInput::PathSpecificMixed { data, source }
             | RouteInput::PathSpecificCpdag { data, source }
             | RouteInput::PathSpecificPag { data, source } => (
@@ -161,6 +164,11 @@ impl<'a> EffectQuery<'a> {
                 treatment: Some(query.treatment),
                 outcome: Some(query.outcome),
                 mediators: query.mediators.to_vec(),
+                ..Roles::default()
+            },
+            Self::Counterfactual(query) => Roles {
+                treatment: query.interventions.first().and_then(Intervention::primary_variable),
+                outcome: query.outcomes.first().copied(),
                 ..Roles::default()
             },
         }
@@ -341,6 +349,13 @@ fn problem_target(
             FunctionalKind::InterventionalDistribution,
             query.outcomes.first().copied(),
         ),
+        // A population-level cross-world mean (or a per-unit counterfactual of each DAG
+        // completion): no world-indexed contrast states it, so it lowers to its typed functional.
+        EffectQuery::Counterfactual(query) => super::query_functional(
+            study,
+            FunctionalKind::Counterfactual,
+            query.outcomes.first().copied(),
+        ),
         EffectQuery::PathSpecific(query) => {
             ProblemTarget::Target(path_specific_target(query, family, inference, schema)?)
         }
@@ -398,6 +413,9 @@ fn unportable_target(study: &Study, query: EffectQuery<'_>) -> ProblemTarget {
         EffectQuery::PathSpecific(query) => (FunctionalKind::PathSpecific, Some(query.outcome)),
         EffectQuery::Nested(query) => (FunctionalKind::PathSpecific, Some(query.outcome)),
         EffectQuery::Mediation(query) => (FunctionalKind::PathSpecific, Some(query.outcome)),
+        EffectQuery::Counterfactual(query) => {
+            (FunctionalKind::Counterfactual, query.outcomes.first().copied())
+        }
     };
     super::query_functional(study, kind, outcome)
 }
@@ -908,7 +926,8 @@ fn physical_operators(
         return Ok(linear.program.physical_operators().to_vec());
     }
     let resample = statistical.resampling().is_some();
-    if design.source() == WidthSource::Quoted {
+    // A plan that streams its design holds no resident design to re-quote.
+    if design.source() == WidthSource::Quoted && !cx.plan.streams_design() {
         let mut planned = cx.plan.clone();
         planned.requote(design, cx.ctx)?;
         return linear_gaussian_physical_operators(&planned, resample);

@@ -9,7 +9,32 @@ impl super::Study {
         extra: &[VariableId],
         ctx: &ExecutionContext,
     ) -> Result<(EffectEstimate, Option<antecedent_estimate::CausalPosterior>), CausalError> {
-        let (row_resampling, sampling_design) = self.functional_row_resampling()?;
+        let resampling = self.functional_row_resampling()?;
+        self.estimate_functional_effect_resampled(
+            data,
+            estimand,
+            identification,
+            extra,
+            resampling,
+            ctx,
+        )
+    }
+
+    /// [`Self::estimate_functional_effect`] under a caller-chosen resampling of the rows, for a
+    /// table whose rows overlap by a known span (a lag-aligned window table).
+    pub(super) fn estimate_functional_effect_resampled(
+        &self,
+        data: &TabularData,
+        estimand: &IdentifiedEstimand,
+        identification: &IdentificationResult,
+        extra: &[VariableId],
+        resampling: (
+            antecedent_estimate::RowResampling,
+            antecedent_estimate::util::SamplingDeclaration,
+        ),
+        ctx: &ExecutionContext,
+    ) -> Result<(EffectEstimate, Option<antecedent_estimate::CausalPosterior>), CausalError> {
+        let (row_resampling, sampling_design) = resampling;
         let est = FunctionalEffect {
             bootstrap_replicates: self.bootstrap_replicates,
             ..FunctionalEffect::new()
@@ -50,10 +75,12 @@ impl super::Study {
     > {
         use antecedent_core::DeclaredSamplingDesign as Design;
         use antecedent_estimate::RowResampling;
-        let temporal_projection = matches!(self.graph.class(), GraphClass::TemporalAdmg)
-            || self.graph_posterior.as_ref().is_some_and(|gp| {
-                gp.atom_kind == antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg
-            });
+        let temporal_projection = matches!(
+            self.graph.class(),
+            GraphClass::TemporalAdmg | GraphClass::TemporalPag
+        ) || self.graph_posterior.as_ref().is_some_and(|gp| {
+            gp.atom_kind == antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg
+        });
         let rows =
             (RowResampling::Rows, antecedent_estimate::util::SamplingDeclaration::Undeclared);
         if !temporal_projection {

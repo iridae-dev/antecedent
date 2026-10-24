@@ -216,7 +216,7 @@ fn frequentist_body() {
             "none",
         )
         .expect("support axis"),
-        "explicit TemporalDag",
+        "every temporal DAG of its class",
     );
     refuse(
         SupportCell::from_labels(
@@ -227,7 +227,19 @@ fn frequentist_body() {
             "none",
         )
         .expect("support axis"),
-        "explicit TemporalDag",
+        "every temporal MAG completion",
+    );
+    // A posterior over structures has no member to attribute: those cells stay refused outright.
+    refuse(
+        SupportCell::from_labels(
+            "AnomalyAttribution",
+            "TemporalCpdag",
+            "graph_posterior",
+            "Frequentist",
+            "none",
+        )
+        .expect("support axis"),
+        "graph-posterior structures",
     );
 }
 

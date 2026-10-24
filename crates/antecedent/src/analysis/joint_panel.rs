@@ -127,6 +127,9 @@ pub struct JointPanelRequest {
     pub lag_order: usize,
     /// Complete numerical policy and uncertainty realization.
     pub options: PanelFitOptions,
+    /// Selected mechanism family; the default is the reviewed family. A broader family
+    /// changes the numerical mechanism only and never the identification requirements.
+    pub family: engine::PanelFamily,
     /// Ordered evaluation worlds, including an explicit reference when contrasted.
     pub worlds: Vec<JointPanelWorld>,
     /// Scientific target, checked against every program before fitting.
@@ -362,6 +365,7 @@ impl PreparedStudy<JointPanelState> {
             seasons: original.seasons,
             lag_order: original.lag_order,
             options: original.options.clone(),
+            family: original.family.clone(),
             worlds,
             target,
             assignment: original.assignment.clone(),

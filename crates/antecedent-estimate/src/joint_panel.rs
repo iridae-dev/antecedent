@@ -13,6 +13,8 @@
 pub mod decomposition;
 /// Scalar expressions derived from retained fitted panel mechanisms and schedules.
 pub mod expression;
+/// Selectable adstock, saturation, saturation-scope and spatial-residual families.
+pub mod family;
 mod inference;
 mod likelihood;
 /// Specification-conditional split of decomposed temporal laws.
@@ -23,6 +25,8 @@ pub use streaming::{
     stream_panel_law, stream_temporal_law,
 };
 #[cfg(test)]
+mod family_tests;
+#[cfg(test)]
 mod tests;
 /// Model-conditional piecewise/smooth change attempts over this same panel mechanism.
 pub mod time_varying;
@@ -30,6 +34,10 @@ pub mod time_varying;
 use std::sync::Arc;
 
 use antecedent_core::{CanonicalWriter, ExecutionContext, SemanticDigest};
+pub use family::{
+    PanelAdstock, PanelFamily, PanelFamilyParameters, PanelFamilyPrior, PanelSaturation,
+    PanelSaturationScope, PanelSpatial, PanelSpatialKernel,
+};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -44,7 +52,8 @@ pub struct PanelChannel {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PanelFeatureInputs {
-    /// Per-channel constrained carryover followed by the shared Michaelis-Menten saturation.
+    /// Per-channel constrained carryover followed by the declared family's saturation
+    /// (shared Michaelis-Menten in the reviewed family).
     LaggedSaturatedChannels,
 }
 /// One prespecified programmable numerical feature with a fitted coefficient.
@@ -56,7 +65,8 @@ pub struct PanelInteractionSpec {
     /// Explicit transformed input binding.
     pub inputs: PanelFeatureInputs,
     /// Existing portable expression syntax. Every variable reads that channel's
-    /// lag-weighted, Michaelis-Menten saturated value, never raw exposure or a second lag.
+    /// lag-weighted, saturated value under the declared family (Michaelis-Menten in the
+    /// reviewed family), never raw exposure or a second lag.
     pub expression: antecedent_io_core::query_wire::ValueExprWire,
 }
 impl PanelInteractionSpec {
@@ -126,6 +136,9 @@ pub struct PanelData {
     pub seasons: usize,
     /// Reviewed temporal mechanism is two; zero drops carryover and AR dependence for the static specialization.
     pub lag_order: usize,
+    /// Selected mechanism family; the default is the reviewed family and serializes as absent.
+    #[serde(default, skip_serializing_if = "PanelFamily::is_reviewed")]
+    pub family: PanelFamily,
 }
 
 /// One independent group, with serial dependence within its contiguous outcome periods.
@@ -168,6 +181,33 @@ pub struct PanelParameters {
     pub innovation_sd: f64,
     /// Positive shared Gaussian random-intercept standard deviation.
     pub group_sd: f64,
+    /// Parameters of the selected family; empty for the reviewed family.
+    #[serde(default, skip_serializing_if = "PanelFamilyParameters::is_reviewed")]
+    pub family: PanelFamilyParameters,
+}
+impl PanelParameters {
+    /// Half-saturation of one saturation class (class zero is the shared value).
+    #[must_use]
+    pub fn half_saturation_of(&self, class: usize) -> f64 {
+        if class == 0 { self.half_saturation } else { self.family.class_half_saturation[class - 1] }
+    }
+    /// Whether every saturation parameter equals that of another mechanism.
+    #[must_use]
+    #[allow(
+        clippy::float_cmp,
+        reason = "bitwise-equal parameters are the same reference-world component"
+    )]
+    pub fn saturation_equal(&self, other: &Self) -> bool {
+        self.half_saturation == other.half_saturation
+            && self.family.hill_shape == other.family.hill_shape
+            && self.family.class_half_saturation == other.family.class_half_saturation
+    }
+    /// Replace every saturation parameter by those of another mechanism.
+    pub fn copy_saturation_from(&mut self, other: &Self) {
+        self.half_saturation = other.half_saturation;
+        self.family.hill_shape.clone_from(&other.family.hill_shape);
+        self.family.class_half_saturation.clone_from(&other.family.class_half_saturation);
+    }
 }
 
 /// A single global mechanism and its jointly retained group effects.
@@ -211,6 +251,9 @@ pub struct PanelPrior {
     pub innovation_scale: f64,
     /// Half-Normal scale for the random-intercept standard deviation.
     pub group_scale: f64,
+    /// Priors for the coordinates of a broader family; unused by the reviewed family.
+    #[serde(default, skip_serializing_if = "PanelFamilyPrior::is_default")]
+    pub family: PanelFamilyPrior,
 }
 impl Default for PanelPrior {
     fn default() -> Self {
@@ -221,6 +264,7 @@ impl Default for PanelPrior {
             lag: Vec::new(),
             innovation_scale: 2.0,
             group_scale: 2.0,
+            family: PanelFamilyPrior::default(),
         }
     }
 }
@@ -500,6 +544,8 @@ impl PanelData {
                 return Err(invalid("group IDs, finite values, cadence or vector dimensions"));
             }
         }
+        let group_ids: Vec<&str> = self.groups.iter().map(|group| group.id.as_str()).collect();
+        self.family.validate(&group_ids, self.lag_order)?;
         Ok(())
     }
 
@@ -541,6 +587,38 @@ impl PanelData {
             writer.word(group.season.len() as u64);
             for &season in &group.season {
                 writer.word(season as u64);
+            }
+        }
+        if !self.family.is_reviewed() {
+            // Appended only for a broader family, so every reviewed-family identity is unchanged.
+            writer
+                .word(0x4641_4d49_4c59)
+                .word(u64::from(self.family.is_geometric()))
+                .word(u64::from(self.family.is_hill()));
+            match &self.family.scope {
+                PanelSaturationScope::Shared => {
+                    writer.word(0);
+                }
+                PanelSaturationScope::Classes { assignment } => {
+                    writer.word(1).word(assignment.len() as u64);
+                    for &class in assignment {
+                        writer.word(class as u64);
+                    }
+                }
+            }
+            match &self.family.spatial {
+                None => {
+                    writer.word(0);
+                }
+                Some(spatial) => {
+                    writer.word(1).word(spatial.kernel as u64).word(spatial.groups.len() as u64);
+                    for id in &spatial.groups {
+                        writer.text(id);
+                    }
+                    for distance in &spatial.distances {
+                        writer.word(distance.to_bits());
+                    }
+                }
             }
         }
         Ok(SemanticDigest::from_bytes(writer.finish()))
@@ -668,6 +746,19 @@ impl PanelFitOptions {
                 .chain(prior.lag.iter().flatten())
                 {
                     writer.word(value.to_bits());
+                }
+                if !prior.family.is_default() {
+                    let family = &prior.family;
+                    for value in family.geometric_decay.iter().chain([
+                        &family.log_hill_shape_mean,
+                        &family.log_hill_shape_sd,
+                        &family.class_log_saturation_sd,
+                        &family.log_spatial_range_sd,
+                    ]) {
+                        writer.word(value.to_bits());
+                    }
+                    writer
+                        .word(family.log_spatial_range_mean.map_or(0, |value| value.to_bits() | 1));
                 }
             }
         }

@@ -362,8 +362,28 @@ pub(crate) fn window_table(
     used: &[VariableId],
     kernel_policy: &KernelPolicy,
 ) -> Result<TabularData, CausalError> {
-    let variables = window.variables();
-    let periods = window.periods();
+    window_table_over(series, window.variables(), window.periods(), used, kernel_policy)
+}
+
+/// [`window_table`] for a window known only by its layout: `periods` consecutive times of the
+/// schema's `variables`, column `period * variables + variable`. The layout of every window
+/// numbered by a `TemporalIndexer` (the finite unfolding of a temporal PAG), which has no
+/// unrolled ADMG to read the layout from.
+///
+/// # Errors
+///
+/// As [`window_table`].
+#[allow(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "the policy is passed by reference as every kernel-policy consumer takes it"
+)]
+pub(crate) fn window_table_over(
+    series: &TimeSeriesData,
+    variables: &[VariableId],
+    periods: u32,
+    used: &[VariableId],
+    kernel_policy: &KernelPolicy,
+) -> Result<TabularData, CausalError> {
     let max_lag = periods - 1;
     let read: Vec<VariableId> =
         variables.iter().copied().filter(|variable| used.contains(variable)).collect();
@@ -378,7 +398,7 @@ pub(crate) fn window_table(
     .map_err(|error| {
         crate::compile_reason!(
             "missing_policy_required",
-            "the lag-aligned window table of a temporal ADMG contrast reads {periods} \
+            "the lag-aligned window table of a temporal window contrast reads {periods} \
              consecutive times of every template variable and cannot straddle a missing or \
              masked value ({error}); next attempt: impute or trim the series to a complete \
              stretch, or analyse the stretches separately"
@@ -387,7 +407,7 @@ pub(crate) fn window_table(
     if frame.n_effective() < MIN_WINDOWS {
         return Err(crate::compile_reason!(
             "invalid_argument",
-            "the series holds {} complete windows of {periods} times and a temporal ADMG \
+            "the series holds {} complete windows of {periods} times and a temporal window \
              contrast needs at least {MIN_WINDOWS}; next attempt: a longer series, or a shorter \
              horizon so the window spans fewer times",
             frame.n_effective()

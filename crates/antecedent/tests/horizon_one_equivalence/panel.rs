@@ -146,6 +146,7 @@ fn panel_request(data: &PanelData, lag_order: usize, steps: usize) -> JointPanel
             inference: PanelInference::Frequentist { draws: 20 },
             initial: None,
         },
+        family: antecedent_estimate::joint_panel::PanelFamily::default(),
         target: interaction_target(data, lag_order, &worlds),
         worlds,
         assignment: None,

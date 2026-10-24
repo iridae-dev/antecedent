@@ -170,7 +170,9 @@ pub(super) fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalEr
                 DataInput::Tabular(_),
                 CausalQuery::AverageEffect(_)
                 | CausalQuery::Response(_)
-                | CausalQuery::ConditionalEffect(_),
+                | CausalQuery::ConditionalEffect(_)
+                | CausalQuery::Transport(_)
+                | CausalQuery::Interference(_),
             )
             | (
                 DataInput::Temporal(_) | DataInput::Event(_),
@@ -185,8 +187,8 @@ pub(super) fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalEr
             _ => Err(crate::support_reason!(
                 "data_modality_not_licensed",
                 "graph_posterior on the prepared handle is licensed only for tabular \
-                 AverageEffect/Response/ConditionalEffect and series TemporalEffect, \
-                 TemporalMediationEffect, or temporal Response"
+                 AverageEffect/Response/ConditionalEffect/Transport/Interference and series \
+                 TemporalEffect, TemporalMediationEffect, or temporal Response"
             )),
         };
     }

@@ -92,17 +92,64 @@ const TEMPORAL_EFFECT_SERIES: &[GraphClass] = &[
     GraphClass::TemporalPag,
     GraphClass::TemporalAdmg,
 ];
-const TEMPORAL_MEDIATION: &[GraphClass] = &[GraphClass::TemporalDag, GraphClass::TemporalCpdag];
+/// The classes a temporal response runs on over one series: the temporal envelopes, and a
+/// temporal ADMG for the derivative family (a curve or intervention level on a temporal ADMG
+/// is refused at compile).
+const TEMPORAL_RESPONSE_SERIES: &[GraphClass] = &[
+    GraphClass::TemporalDag,
+    GraphClass::TemporalCpdag,
+    GraphClass::TemporalPag,
+    GraphClass::TemporalAdmg,
+];
+const TEMPORAL_MEDIATION: &[GraphClass] =
+    &[GraphClass::TemporalDag, GraphClass::TemporalCpdag, GraphClass::TemporalAdmg];
 const DAG: &[GraphClass] = &[GraphClass::Dag];
 const TEMPORAL_DAG: &[GraphClass] = &[GraphClass::TemporalDag];
+/// The classes an anomaly or change attribution runs on over a table: a Dag, each DAG of a
+/// Cpdag, each MAG completion of a Pag, and the noise blocks of an Admg (or the contemporaneous
+/// projection of a TemporalAdmg).
+const STATIC_ATTRIBUTION: &[GraphClass] = &[
+    GraphClass::Dag,
+    GraphClass::Cpdag,
+    GraphClass::Pag,
+    GraphClass::Admg,
+    GraphClass::TemporalAdmg,
+];
+/// The same over a series: a TemporalDag, each completion of a temporal class, and the noise
+/// blocks of a TemporalAdmg unrolled over the window its longest lag spans.
+const TEMPORAL_ATTRIBUTION: &[GraphClass] = &[
+    GraphClass::TemporalDag,
+    GraphClass::TemporalCpdag,
+    GraphClass::TemporalPag,
+    GraphClass::TemporalAdmg,
+];
+/// The classes an interference contrast is stated under: the design identifies it, so the
+/// structure binds only the unit schema.
+const STATIC_INTERFERENCE: &[GraphClass] = &[
+    GraphClass::Dag,
+    GraphClass::Admg,
+    GraphClass::TemporalAdmg,
+    GraphClass::Cpdag,
+    GraphClass::Pag,
+];
 /// The classes a transport request reads a selection diagram from: a DAG is the ADMG with no
 /// latent confounding.
-const SELECTION_DIAGRAM: &[GraphClass] =
-    &[GraphClass::Dag, GraphClass::Admg, GraphClass::TemporalAdmg];
+const SELECTION_DIAGRAM: &[GraphClass] = &[
+    GraphClass::Dag,
+    GraphClass::Admg,
+    GraphClass::TemporalAdmg,
+    GraphClass::Cpdag,
+    GraphClass::Pag,
+];
 const STATIC_CONDITIONAL: &[GraphClass] =
     &[GraphClass::Dag, GraphClass::Cpdag, GraphClass::Pag, GraphClass::Admg];
-const STATIC_DISTRIBUTION: &[GraphClass] =
-    &[GraphClass::Dag, GraphClass::Admg, GraphClass::TemporalAdmg];
+const STATIC_DISTRIBUTION: &[GraphClass] = &[
+    GraphClass::Dag,
+    GraphClass::Admg,
+    GraphClass::TemporalAdmg,
+    GraphClass::Cpdag,
+    GraphClass::Pag,
+];
 /// Path-restricted natural effects: identified on a Dag, in each completion of a Cpdag, over
 /// the ADMG (or the projection of a TemporalAdmg), and over the ADMGs each MAG completion of a
 /// Pag stands for.
@@ -216,8 +263,8 @@ fn kind_license(kind: CausalQueryKind) -> KindLicense {
             ..UNLICENSED
         },
         K::Counterfactual => KindLicense {
-            tabular: rule(DAG, || CausalError::Unsupported {
-                message: "counterfactual requires Dag",
+            tabular: rule(STATIC_SUPPLIED, || CausalError::Unsupported {
+                message: "counterfactual requires a Dag, Cpdag, Pag, Admg or TemporalAdmg",
             }),
             series: rule(TEMPORAL_ENVELOPES, temporal_cross_world_refusal),
             ..UNLICENSED
@@ -233,12 +280,13 @@ fn kind_license(kind: CausalQueryKind) -> KindLicense {
             ..UNLICENSED
         },
         K::AnomalyAttribution | K::ChangeAttribution => KindLicense {
-            tabular: rule(DAG, || CausalError::Unsupported {
-                message: "AnomalyAttribution and ChangeAttribution require a supplied Dag",
+            tabular: rule(STATIC_ATTRIBUTION, || CausalError::Unsupported {
+                message: "AnomalyAttribution and ChangeAttribution require a supplied Dag, \
+                          Cpdag, Pag, Admg or TemporalAdmg",
             }),
-            series: rule(TEMPORAL_DAG, || CausalError::Unsupported {
+            series: rule(TEMPORAL_ATTRIBUTION, || CausalError::Unsupported {
                 message: "AnomalyAttribution and ChangeAttribution on a time series require a \
-                          TemporalDag",
+                          TemporalDag, TemporalCpdag, TemporalPag or TemporalAdmg",
             }),
             ..UNLICENSED
         },
@@ -342,22 +390,23 @@ fn kind_license(kind: CausalQueryKind) -> KindLicense {
                 message: "PreparedStudy supports ResponseCurve on a supplied Dag, Cpdag, Pag, \
                           or Admg (or CoDetermined joint cells)",
             }),
-            series: rule(TEMPORAL_ENVELOPES, || CausalError::Unsupported {
+            series: rule(TEMPORAL_RESPONSE_SERIES, || CausalError::Unsupported {
                 message: "PreparedStudy supports temporal ResponseCurve on TemporalDag, \
-                          TemporalCpdag, or TemporalPag",
+                          TemporalCpdag, or TemporalPag, and a temporal derivative also on a \
+                          TemporalAdmg",
             }),
             panel: rule(TEMPORAL_ENVELOPES, panel_refusal),
             ..UNLICENSED
         },
         K::Transport => KindLicense {
             tabular: rule(SELECTION_DIAGRAM, || CausalError::Unsupported {
-                message: "TransportQuery requires Dag, Admg or TemporalAdmg",
+                message: "TransportQuery requires Dag, Admg, TemporalAdmg, Cpdag or Pag",
             }),
             ..UNLICENSED
         },
         K::Interference => KindLicense {
-            tabular: rule(DAG, || CausalError::Unsupported {
-                message: "InterferenceQuery requires Dag",
+            tabular: rule(STATIC_INTERFERENCE, || CausalError::Unsupported {
+                message: "InterferenceQuery requires Dag, Admg, TemporalAdmg, Cpdag or Pag",
             }),
             ..UNLICENSED
         },

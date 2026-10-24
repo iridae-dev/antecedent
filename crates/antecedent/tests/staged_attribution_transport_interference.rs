@@ -581,8 +581,15 @@ fn interference_is_stated_under_every_static_structure_class_with_the_design_ide
     let atol = pin["tolerance"]["atol"].as_f64().unwrap();
     let expected = &pin["expected"];
     for (class, graph) in graphs {
-        let study = Study::tabular(units.clone())
-            .graph(graph)
+        // A supplied `Dag` is the explicit structure the evidence rows name; the other
+        // classes (and an accepted `Dag`) execute unlicensed.
+        let builder = Study::tabular(units.clone());
+        let builder = if class == "Dag" {
+            builder.graph(Dag::with_variables(1))
+        } else {
+            builder.graph(graph)
+        };
+        let study = builder
             .query(CausalQuery::Interference(query.clone()))
             .interference(spec())
             .refute(RefuteSuite::None)
@@ -628,4 +635,96 @@ fn interference_is_stated_under_every_static_structure_class_with_the_design_ide
         Ok(study) => study.prepare(&ctx()).is_err(),
     };
     assert!(refused, "a three-variable structure over a one-column unit table must refuse");
+}
+
+/// Cheap and full validation of an exposure contrast check the realized assignment against the
+/// declared design, report the smallest exposure probability and (full) test that
+/// re-randomized contrasts are unbiased around zero under the sharp null.
+#[test]
+fn interference_validation_checks_the_assignment_the_overlap_and_the_randomization() {
+    let n = 60_usize;
+    let mut state = 0x2545_F491_4F6C_DD1D_u64;
+    let mut uniform = move || {
+        state =
+            state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+        ((state >> 11) as f64 + 0.5) / (1_u64 << 53) as f64
+    };
+    let assignment: Vec<bool> = (0..n).map(|_| uniform() < 0.5).collect();
+    let outcomes: Vec<f64> = (0..n).map(|unit| (unit % 7) as f64 + uniform()).collect();
+    let units = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
+    let mut edges = Vec::new();
+    for unit in 0..n as u64 {
+        let next = (unit + 1) % n as u64;
+        edges.push(NetworkEdge::new(unit, next, 1.0));
+        edges.push(NetworkEdge::new(next, unit, 1.0));
+    }
+    let query = InterferenceQuery::new(
+        AssignmentDesign::Bernoulli { probabilities: Arc::from([0.5]) },
+        ExposureMapping::NeighborCount,
+        InterferenceFunctional::ExposureContrast {
+            outcome: VariableId::from_raw(0),
+            from: ExposureLevel { own: 0.0, neighbors: 1.0 },
+            to: ExposureLevel { own: 1.0, neighbors: 0.0 },
+        },
+    );
+    let treated = assignment.iter().filter(|&&z| z).count() as f64;
+    let z = (treated - n as f64 * 0.5) / (n as f64 * 0.25).sqrt();
+    for (suite, names) in [
+        (RefuteSuite::None, vec![]),
+        (
+            RefuteSuite::Cheap,
+            vec!["interference.assignment_calibration", "interference.exposure_overlap"],
+        ),
+        (
+            RefuteSuite::Full,
+            vec![
+                "interference.assignment_calibration",
+                "interference.exposure_overlap",
+                "interference.randomization_unbiasedness",
+            ],
+        ),
+    ] {
+        for bayesian in [false, true] {
+            if bayesian && suite == RefuteSuite::Full {
+                // The model-based posterior has no design-based contrast to re-randomize.
+            }
+            let mut builder = Study::tabular(units.clone())
+                .graph(Dag::with_variables(1))
+                .query(CausalQuery::Interference(query.clone()))
+                .interference(InterferenceSpec {
+                    network: NetworkData::try_new(units.clone(), edges.clone()).unwrap(),
+                    assignment: Arc::from(assignment.clone()),
+                })
+                .refute(suite);
+            if bayesian {
+                builder = builder
+                    .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(200)));
+            }
+            let result = builder.build().unwrap().run(&ctx()).unwrap();
+            let got: Vec<&str> = result.refutations.iter().map(|r| r.refuter.as_ref()).collect();
+            let expected: Vec<&str> = if bayesian {
+                // Only the design checks apply to the model-based posterior.
+                names.iter().copied().filter(|n| *n == "interference.assignment_calibration").collect()
+            } else {
+                names.clone()
+            };
+            assert_eq!(got, expected, "bayesian={bayesian} {suite:?}");
+            if let Some(calibration) = result.refutations.first() {
+                assert!((calibration.original_ate - treated).abs() < 1e-12);
+                assert!((calibration.refuted_ate - n as f64 * 0.5).abs() < 1e-12);
+                assert_eq!(calibration.passed, z.abs() < 1.959_964, "z = {z}");
+            }
+            if !bayesian && suite != RefuteSuite::None {
+                // P(own 0, one treated neighbour) = 1/4 and P(own 1, no treated neighbour) = 1/8.
+                let overlap = &result.refutations[1];
+                assert!((overlap.original_ate - 0.125).abs() < 0.03, "{}", overlap.original_ate);
+            }
+            if !bayesian && suite == RefuteSuite::Full {
+                let test = &result.refutations[2];
+                assert!(test.replicates >= 100, "{}", test.replicates);
+                assert!(test.informative);
+                assert!((0.0..=1.0).contains(&test.comparison));
+            }
+        }
+    }
 }

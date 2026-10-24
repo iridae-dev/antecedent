@@ -137,6 +137,8 @@ struct Declaration {
     worlds: Vec<World>,
     interactions: Vec<Feature>,
     options: PanelFitOptions,
+    #[serde(default)]
+    family: engine::PanelFamily,
     temporal: Option<engine::time_varying::TemporalPanelSpec>,
     functional: Option<Functional>,
     assignment: Option<antecedent_io_core::query_wire::RandomizedEffectQueryWire>,
@@ -288,6 +290,7 @@ fn prepare(declaration: Declaration, ctx: &ExecutionContext) -> PyResult<PyPrepa
         seasons: declaration.seasons,
         lag_order: declaration.lag_order,
         options: declaration.options,
+        family: declaration.family,
         worlds,
         target,
         assignment,

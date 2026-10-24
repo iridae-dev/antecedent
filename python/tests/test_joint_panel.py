@@ -386,3 +386,164 @@ def test_reference_decomposition_uses_joint_fit_and_preserves_failed_slots():
     assert prepared.inspect()["fits_performed"] == 1
     with pytest.raises(CausalResourceError):
         result.decompose_reference(declaration, max_bytes=1)
+
+
+def family_request(groups, worlds, family, *, lag_order=2, inference=None):
+    return joint_panel.prepare(
+        groups,
+        channels=["a", "b", "c"],
+        outcome="y",
+        confounder="z",
+        season="season",
+        seasons=4,
+        interval_ns=604_800_000_000_000,
+        worlds=worlds,
+        interactions={"programmable": var("a") * var("b") * var("c") + minimum(var("c"), 0.25)},
+        options={
+            "optimizer": {"max_iterations": 1, "gradient_tolerance": 1e-12},
+            "inference": inference or {"kind": "frequentist", "draws": 2},
+            "initial": None,
+        },
+        lag_order=lag_order,
+        family=family,
+        seed=20261021,
+    )
+
+
+BROADER_FAMILY = {
+    "adstock": "geometric",
+    "saturation": "hill",
+    "saturation_classes": "per_group",
+    "spatial_distances": {i: {j: abs(i - j) for j in range(4)} for i in range(4)},
+}
+
+
+def test_broader_family_is_evaluated_by_the_shared_rust_mechanism_and_replays_from_the_artifact():
+    groups, worlds = declarations()
+    prepared = family_request(groups, worlds, BROADER_FAMILY)
+    result = prepared.estimate(seed=20261021)
+    report = result.report()
+    point = report["point_parameters"]
+    parameters = point["parameters"]
+    family = parameters["family"]
+    # The family's coordinates are present, sized to the declaration and positive.
+    assert len(family["hill_shape"]) == 3
+    assert len(family["class_half_saturation"]) == 3  # four per-group classes, one shared first
+    assert family["spatial_range"] > 0
+    assert all(value > 0 for value in family["hill_shape"] + family["class_half_saturation"])
+    for channel in parameters["channels"]:
+        weights = channel["lag"]
+        assert weights[1] / weights[0] == pytest.approx(weights[2] / weights[1], rel=1e-9)
+        assert weights[1] < weights[0]
+    half_saturations = [parameters["half_saturation"], *family["class_half_saturation"]]
+    # An independent evaluation of the mechanism, written without the Rust code.
+    for world, response in zip(worlds, report["point"], strict=True):
+        for time, actual in enumerate(response["means"]):
+            expected = 0.0
+            for group, (scenario, group_intercept) in enumerate(
+                zip(world["scenarios"], point["group_intercepts"], strict=True)
+            ):
+                saturated = []
+                for name, channel, shape in zip(
+                    ("a", "b", "c"), parameters["channels"], family["hill_shape"], strict=True
+                ):
+                    exposure = sum(
+                        weight
+                        * (
+                            world["channels"][name][time - lag]
+                            if lag <= time
+                            else scenario["history"][name][2 + time - lag]
+                        )
+                        for lag, weight in enumerate(channel["lag"])
+                    )
+                    k = half_saturations[group]
+                    saturated.append(exposure**shape / (exposure**shape + k**shape))
+                feature = saturated[0] * saturated[1] * saturated[2] + min(saturated[2], 0.25)
+                expected += (
+                    parameters["intercept"]
+                    + group_intercept
+                    + sum(
+                        channel["coefficient"] * value
+                        for channel, value in zip(parameters["channels"], saturated, strict=True)
+                    )
+                    + parameters["interactions"][0]["coefficient"] * feature
+                    + parameters["confounder"] * scenario["confounder"][time]
+                    + parameters["season_effects"][scenario["season"][time]]
+                ) / 4
+            assert actual == pytest.approx(expected, abs=1e-10)
+    assert not report["identified"]
+    assert report["diagnostics"]["calibration"] == "unmeasured"
+    # The frozen artifact carries the family and replays the same numbers.
+    replay = joint_panel.consume(result.export(seed=20261021), seed=20261021)
+    assert replay["point"] == report["point"]
+    assert replay["draws"] == report["draws"]
+    assert replay["grants_current_authority"] is False
+    # Retargeting reuses the fitted broader-family mechanism.
+    retargeted = prepared.retarget(worlds, seed=20261021)
+    assert retargeted.estimate(seed=20261021).report()["point"] == report["point"]
+
+
+def test_reviewed_family_declaration_is_unchanged_and_family_choices_are_checked():
+    groups, worlds = declarations()
+    reviewed = request(groups, worlds).estimate(seed=20261021).report()
+    assert "family" not in reviewed["point_parameters"]["parameters"]
+    explicit = family_request(
+        groups, worlds, {"adstock": "simplex", "saturation": "michaelis_menten"}
+    )
+    # Naming the reviewed family explicitly is the reviewed model, not a different one.
+    again = explicit.estimate(seed=20261021).report()
+    assert again["point"] == reviewed["point"]
+    assert "family" not in again["point_parameters"]["parameters"]
+    # Geometric adstock has no meaning without carryover: refused before any fit.
+    with pytest.raises(Exception, match=r"."):
+        family_request(groups, worlds, {"adstock": "geometric"}, lag_order=0)
+    with pytest.raises(Exception, match="unknown panel family"):
+        family_request(groups, worlds, {"kernel": "matern"})
+    with pytest.raises(Exception, match="saturation_classes"):
+        family_request(groups, worlds, {"saturation_classes": {0: 0, 1: 1}})
+    with pytest.raises(Exception, match="classes"):
+        family_request(groups, worlds, {"saturation_classes": {0: 0, 1: 2, 2: 2, 3: 0}})
+    with pytest.raises(Exception, match="spatial"):
+        family_request(groups, worlds, {"spatial_distances": {0: {0: 0.0}}})
+    asymmetric = {i: {j: float(i + 2 * j) * (i != j) for j in range(4)} for i in range(4)}
+    with pytest.raises(Exception, match="symmetric"):
+        family_request(groups, worlds, {"spatial_distances": asymmetric})
+
+
+def test_broader_family_posterior_uses_the_extra_priors():
+    groups, worlds = declarations()
+    inference = {
+        "kind": "bayesian",
+        "prior": {
+            "coefficient_sd": 10.0,
+            "log_half_saturation_mean": 0.0,
+            "log_half_saturation_sd": 1.0,
+            "lag": [],
+            "innovation_scale": 2.0,
+            "group_scale": 2.0,
+            "family": {
+                "geometric_decay": [2.0, 2.0],
+                "log_hill_shape_mean": 0.0,
+                "log_hill_shape_sd": 0.4,
+                "class_log_saturation_sd": 0.3,
+                "log_spatial_range_mean": None,
+                "log_spatial_range_sd": 1.0,
+            },
+        },
+        "sampler": {
+            "chains": 2,
+            "warmup": 4,
+            "draws": 8,
+            "proposal_scale": 0.01,
+            "max_rhat": 1.5,
+            "min_ess": 1.0,
+        },
+    }
+    prepared = family_request(groups, worlds, BROADER_FAMILY, inference=inference)
+    report = prepared.estimate(seed=20261021).report()
+    assert len(report["draws"]) == 16
+    sampled = [draw for draw in report["draws"] if draw is not None]
+    assert sampled
+    for draw in sampled:
+        assert len(draw) == len(worlds)
+        assert all(len(response["means"]) == 24 for response in draw)

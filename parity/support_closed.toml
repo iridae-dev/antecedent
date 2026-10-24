@@ -67,7 +67,15 @@ reason = "Bayesian joint InterventionResponse on a CoDetermined tier closure run
 [[closed]]
 queries = ["Counterfactual"]
 graph_classes = ["Admg", "TemporalAdmg", "Cpdag", "Pag"]
-reason = "Counterfactual requires a supplied static Dag."
+structures = ["explicit", "accepted"]
+validations = ["none"]
+executes_unlicensed = true
+reason = "Latent confounding breaks unit-level noise abduction, so a Counterfactual on an Admg, a TemporalAdmg (read as its contemporaneous projection) or a Pag is stated as the population-level cross-world quantity E[Y_x | X = x'] - E[Y | X = x'] (x the active level, x' the control level: the mean effect, among the units observed at the control level, of moving them to the active level) and decided by ID* (Shpitser and Pearl) from the observational joint over at most six finite-discrete variables with at most four levels each. A query that is one hard intervention against a hard control of the same variable on one outcome is expressible; the result is the identified functional evaluated on the empirical cell table, or the typed ID* refusal carrying its hedge or conflicting-subscript witness (a refusal is not a proof of non-identifiability). A Pag is read through every maximal-ancestral-graph completion and every ADMG each completion stands for; candidates with distinct functionals leave the effect an identified set, and a refused candidate leaves the completion unidentified. Frequentist uncertainty is a row bootstrap (circular blocks on a TemporalAdmg) of the identified functional and Bayesian uncertainty a Dirichlet-weighted Bayesian-bootstrap posterior of it, both re-evaluated without re-identifying. A Counterfactual on a Cpdag assumes causal sufficiency, so the per-unit counterfactual route runs on every DAG completion of the equivalence class: completions that agree publish that value with its own uncertainty, completions that disagree publish the enumeration-weighted mean with the identified set. The result keeps support status refused: no evidence row or coverage record names the cell, and the estimand is not a per-unit counterfactual on the latent-confounded classes."
+
+[[closed]]
+queries = ["Counterfactual"]
+graph_classes = ["Admg", "TemporalAdmg", "Cpdag", "Pag"]
+reason = "Counterfactual on an Admg, TemporalAdmg, Cpdag or Pag executes at validation none over a supplied or accepted structure (the rule above). Cheap and full have no cross-world refuter suite, and a graph posterior over these classes has no counterfactual route. Next attempts: validation none over a supplied structure, or an explicit Dag."
 
 [[closed]]
 queries = [
@@ -82,7 +90,7 @@ graph_classes = ["Admg", "TemporalAdmg", "Cpdag", "Pag"]
 structures = ["explicit", "accepted"]
 validations = ["none"]
 executes_unlicensed = true
-reason = "Derivatives, elasticities, directional derivatives and Jacobians on a supplied Cpdag, Pag, Admg or TemporalAdmg (read as its contemporaneous ADMG projection) execute through the compiler and stay unlicensed: no evidence row or coverage record names them. Each identified completion of a Cpdag or Pag (every DAG of the Markov class, every MAG completion of a PAG read as its most-confounded ADMG) is identified by one adjustment set valid for every treatment/outcome pair the functional names, and the continuous response estimator the functional selects (local-polynomial point derivative, Riesz average derivative, additive-GAM Jacobian and directional derivative, or the Bayesian response) is fitted on that set; completions that share an adjustment set share one fit, and completions that disagree publish the identified set of their values with no mixed band. An Admg with bidirected edges is identified by the adjustment criterion on its proper back-door graph, so a latent common cause stays in the graph; an Admg without them runs the Dag route. A completion that ID identifies only through a non-adjustment functional (front-door) is accounted as unevaluable mass because no continuous-treatment estimator evaluates such a functional, and a pair with a hedge is refused with its certificate (Shpitser and Pearl 2006). Frequentist intervals are the estimator's own sampling intervals and Bayesian intervals are credible intervals of the response posterior. Cheap and full validation and graph-posterior structures are refused."
+reason = "Derivatives, elasticities, directional derivatives and Jacobians on a supplied Cpdag, Pag, Admg or TemporalAdmg (read as its contemporaneous ADMG projection) execute through the compiler and stay unlicensed: no evidence row or coverage record names them. Each identified completion of a Cpdag or Pag (every DAG of the Markov class, every MAG completion of a PAG read as its most-confounded ADMG) is identified by one adjustment set valid for every treatment/outcome pair the functional names, and the continuous response estimator the functional selects (local-polynomial point derivative, Riesz average derivative, additive-GAM Jacobian and directional derivative, or the Bayesian response) is fitted on that set; completions that share an adjustment set share one fit, and completions that disagree publish the identified set of their values with the Imbens-Manski sampling band of the set formed from the completions' joint row influence. An Admg with bidirected edges is identified by the adjustment criterion on its proper back-door graph, so a latent common cause stays in the graph; an Admg without them runs the Dag route. Where no adjustment set exists the front-door criterion is searched (mediator sets of at most three nodes; latent common causes stay bidirected edges) and the derivative is estimated with the outcome additive in the treatment, the mediators and the covariates, the mediator terms forming the pseudo-outcome whose regression on the treatment is the intervention mean, and an interval that refits both stages on each replicate; a completion or ADMG identified by the general ID algorithm through a functional that is neither an adjustment nor a front door is accounted as unevaluable mass (or refused), and a pair with a hedge is refused with its certificate (Shpitser and Pearl 2006). A TemporalAdmg over a series runs the same identification on the unrolled window of its template, per horizon, and may be prepared as a handle. Frequentist intervals are the estimator's own sampling intervals and Bayesian intervals are credible intervals of the response posterior. Cheap and full validation and graph-posterior structures are refused."
 
 [[closed]]
 queries = [
@@ -106,8 +114,10 @@ reason = "graph-posterior structures are refused: a path, distribution, or media
 [[closed]]
 queries = ["InterventionalDistribution"]
 graph_classes = ["Cpdag", "Pag"]
-structures = ["accepted"]
-reason = "Accepted InterventionalDistribution is licensed on Dag and Admg; Cpdag/Pag remain refused."
+structures = ["explicit", "accepted"]
+validations = ["none"]
+executes_unlicensed = true
+reason = "An interventional distribution on a supplied Cpdag is decided by the complete ID algorithm (IDC when the query conditions) in every DAG completion of the equivalence class, and on a supplied Pag in every ADMG that shares the m-separation model of a MAG completion, because a MAG fixes the latent projection only up to that model. Every identified member is estimated by the finite-discrete plug-in (bootstrap) or its Dirichlet row posterior. Members that identify the same distribution keep that estimate and its uncertainty; members that disagree leave it partially identified, and the result publishes the enumeration-weighted mean atoms with the lowest and highest probability of each atom over the members (estimate.distribution.class_envelope), never a probability over members. A Cpdag member the algorithm refuses is unidentified mass; one refused ADMG candidate refuses the distribution over a Pag, since no functional is then correct for every model the Pag represents. The result keeps support status refused: no evidence row or coverage record names the cell, and cheap/full validation stays Dag-only."
 
 [[closed]]
 queries = ["MediationEffect"]
@@ -124,8 +134,16 @@ reason = "MediationEffect on an Admg, TemporalAdmg, Cpdag or Pag runs at validat
 
 [[closed]]
 queries = ["AnomalyAttribution", "ChangeAttribution"]
-graph_classes = ["Admg", "TemporalAdmg", "Cpdag", "Pag"]
-reason = "AnomalyAttribution and ChangeAttribution require a supplied static Dag. The attribution engine has no lagged latent slice."
+graph_classes = ["Admg", "TemporalAdmg", "Cpdag", "Pag", "TemporalCpdag", "TemporalPag"]
+structures = ["explicit"]
+validations = ["none"]
+executes_unlicensed = true
+reason = "Anomaly and change attribution on a supplied Cpdag, Pag, Admg, TemporalAdmg, TemporalCpdag or TemporalPag execute through the compiler and stay unlicensed: no evidence row or coverage record names them. A structure that stands for several is attributed member by member: a Cpdag in every DAG of its Markov class and a TemporalCpdag in every temporal DAG of its class, each by the Dag route; a Pag in every MAG completion and a TemporalPag in every temporal MAG completion, each read as its most-confounded mixed graph (an invisible directed edge may also carry a latent common cause), by the Dag route when no latent confounding reaches the ancestors of the target and by the noise-block route otherwise. An Admg is attributed to the c-components (districts) of its ancestral sub-graph, which is the latent projection onto the ancestors; a TemporalAdmg is read as its contemporaneous projection on tabular data and, on a series, as the template unrolled over the window the longest lag spans, with the causes that precede the window latent common causes of their in-window effects. The noise-block route fits every mechanism by regression on its parents, which identifies it exactly when no other member of its district reaches it through directed edges that stay inside the district (Tian and Pearl 2002; Shpitser and Pearl 2006), takes the residual vector of each unit as its noise, and makes each district one player: the anomaly Shapley game sets the noise of a whole district to the reference or restores it together, and the change game swaps the mechanisms of a whole district and resamples its residual rows jointly from the source population, so the dependence a latent common cause puts between the noise terms of a district is kept. A mechanism that a hedge leaves unidentified is refused as not identified, citing the hedge and the two-SCM witness: two additive-noise SCMs on the graph that agree on the observed law and give the target different values at the reference noise, hence different attributions. Members that identify the same attribution keep it; members that disagree publish the enumeration-weighted mean of the contributions, their standard deviation across members as the graph sensitivity and their per-component range as an identified set, a refused member is unidentified mass and a member whose fit failed is unevaluable mass, and member weights are enumeration weights, not posterior probabilities. Frequentist intervals and the Bayesian Dirichlet (block, on a series) row-weight posterior are those of the Dag route, per member; the class publishes a posterior only when every member published the same draws (a quantity that does not depend on the structure, such as the mean anomaly score), keeps each member's posterior on its atom otherwise and states the envelope of their credible intervals as the interval of the identified set, never a mixture, because enumeration weights are not posterior mass. The result keeps support status refused."
+
+[[closed]]
+queries = ["AnomalyAttribution", "ChangeAttribution"]
+graph_classes = ["Admg", "TemporalAdmg", "Cpdag", "Pag", "TemporalCpdag", "TemporalPag"]
+reason = "Accepted and graph-posterior structures, and cheap and full validation, are refused for attribution on a Cpdag, Pag, Admg, TemporalAdmg, TemporalCpdag or TemporalPag: the attribution repeats one supplied structure over its members, a posterior over structures has no member to attribute, and attribution has no native refuter suite. Next attempts: validation none over a supplied structure, or an explicit Dag or TemporalDag."
 
 [[closed]]
 queries = ["AnomalyAttribution", "ChangeAttribution"]
@@ -138,11 +156,6 @@ queries = ["AnomalyAttribution", "ChangeAttribution"]
 graph_classes = ["Dag"]
 validations = ["cheap", "full"]
 reason = "Attribution has no native refuter suite; ATE refuters do not apply."
-
-[[closed]]
-queries = ["AnomalyAttribution", "ChangeAttribution"]
-graph_classes = ["TemporalCpdag", "TemporalPag"]
-reason = "AnomalyAttribution and ChangeAttribution on a time graph require an explicit TemporalDag."
 
 [[closed]]
 queries = ["AnomalyAttribution", "ChangeAttribution"]
@@ -166,7 +179,15 @@ reason = "A TransportQuery on a Dag reads the Dag as the selection diagram of a 
 [[closed]]
 queries = ["TransportQuery"]
 graph_classes = ["Cpdag", "Pag"]
-reason = "A TransportQuery reads a selection diagram, which is an ADMG (a Dag is its confounder-free case). A Cpdag or Pag stands for several diagrams that can disagree on the transport formula, so it names no single diagram; the supplied-structure facade reports the per-member structural envelope. Next attempt: the Dag, Admg or TemporalAdmg the structure resolves to, or discovered_transport for the envelope. Recursive sID outside the implemented subset is NotCertified."
+structures = ["explicit", "accepted"]
+executes_unlicensed = true
+reason = "A TransportQuery reads a selection diagram, which is an ADMG. A Cpdag or Pag stands for several diagrams that can disagree on the transport formula, so sID decides every member on its own selection diagram with the declared selection targets: each DAG completion of a Cpdag (read as the ADMG with no bidirected edge), and every ADMG that shares the m-separation model of each MAG completion of a Pag. Members that certify the same formula identify the transported quantity by it; members that certify different formulas leave it partially identified, one case per distinct formula; a member sID does not certify, and a Pag completion any of whose ADMG candidates sID does not certify, is unidentified mass, never read as an identified formula. Every certified case is estimated by the trial-to-target weighting of the supplied selection and treatment probabilities, which reads a formula only through its certificate, so the identified set over the evaluated cases is the one transported contrast; a certified recursive factorization the weighting cannot evaluate is unevaluable mass. Completion weights are enumeration weights, not posterior probabilities. The result keeps support status refused; no evidence row or coverage record names the cell. Recursive sID outside the implemented subset is NotCertified."
+
+[[closed]]
+queries = ["TransportQuery"]
+graph_classes = ["Cpdag", "Pag"]
+structures = ["graph_posterior"]
+reason = "A TransportQuery over a graph posterior of Cpdag or Pag atoms is not staged: each atom names a class of selection diagrams, so the per-atom class envelope of sID outcomes mixed under the posterior is the next attempt. Supply the Cpdag or Pag itself, or a posterior of Dag, Admg or TemporalAdmg atoms."
 
 [[closed]]
 queries = ["TransportQuery"]
@@ -179,8 +200,8 @@ reason = "TransportQuery on an accepted Admg or TemporalAdmg executes the same s
 queries = ["TransportQuery"]
 graph_classes = ["Dag", "Admg", "TemporalAdmg"]
 structures = ["graph_posterior"]
-inferences = ["Bayesian"]
-reason = "TransportQuery graph-posterior mixtures are not staged."
+executes_unlicensed = true
+reason = "A TransportQuery over a graph posterior reads every posterior atom (a Dag, Admg or TemporalAdmg) as a selection diagram with the declared selection targets and decides it by sID on its own graph. An atom with a certified formula is an identified atom that retains it; an atom sID does not certify is unidentified posterior mass, and a certified recursive factorization the trial-to-target weighting cannot evaluate is unevaluable mass. The atoms mix by posterior probability under the structural aggregation policy and neither lost mass is redistributed: the published contrast is the transported contrast conditional on the atoms that identify and evaluate, with the delta-method (or Newey-West on one series) interval frequentist and the Dirichlet trial-row posterior mixed over the atoms Bayesian, and the result states the unidentified and unevaluable mass and resolves its status to graph-dependent when either exceeds the tolerance. Cheap and full run the transport-native suite once on the data. The result keeps support status refused; no evidence row or coverage record names the cell. A posterior of Cpdag or Pag atoms is refused: its atoms name no single diagram."
 
 [[closed]]
 queries = ["TransportQuery"]
@@ -194,40 +215,43 @@ reason = "TransportQuery cheap and full run the transport-native suite and stay 
 queries = ["InterferenceQuery"]
 graph_classes = ["Dag", "Admg", "TemporalAdmg", "Cpdag", "Pag"]
 structures = ["accepted"]
-validations = ["none"]
 executes_unlicensed = true
-reason = "An InterferenceQuery on an accepted structure executes the same known-assignment exposure contrast as the explicit one, but no evidence row names the accepted-structure cell, so the result keeps support status refused."
+reason = "An InterferenceQuery on an accepted structure executes the same known-assignment exposure contrast as the explicit one, but no evidence row names the accepted-structure cell, so the result keeps support status refused. Cheap and full run the interference-native suite."
 
 [[closed]]
 queries = ["InterferenceQuery"]
 graph_classes = ["Admg", "TemporalAdmg", "Cpdag", "Pag"]
 structures = ["explicit"]
-validations = ["none"]
 executes_unlicensed = true
-reason = "An InterferenceQuery on an Admg, a TemporalAdmg read as its contemporaneous projection, a Cpdag or a Pag states the exposure contrast under that structure class. The contrast is identified by the known assignment mechanism and the exposure mapping on the fixed network (the assignment is independent of the potential outcomes by design, or by the supplied exposure probabilities and the declared network exchangeability), so no edge of the structure enters the identification: a latent confounder or an unresolved orientation in the structure cannot move it, and the structure binds only the unit schema (its width must equal the unit table's). The same procedures run as on a Dag: Young-bound Horvitz-Thompson/Hajek, cluster Neyman, exact two-stage saturation or supplied-propensity observational weighting with the sampling interval frequentist, and the conjugate Gaussian or cluster Dirichlet posterior Bayesian. The result keeps support status refused; no evidence row or coverage record names the cell."
-
-[[closed]]
-queries = ["InterferenceQuery"]
-graph_classes = ["Admg", "TemporalAdmg", "Cpdag", "Pag"]
-reason = "InterferenceQuery on an Admg, TemporalAdmg, Cpdag or Pag executes unlicensed at validation none over a supplied or accepted structure (the rule above). Cheap and full have no interference-native refuter suite, and a graph posterior over these classes has no interference route. Next attempts: validation none over a supplied structure, or an explicit Dag at validation none."
+reason = "An InterferenceQuery on an Admg, a TemporalAdmg read as its contemporaneous projection, a Cpdag or a Pag states the exposure contrast under that structure class. The contrast is identified by the known assignment mechanism and the exposure mapping on the fixed network (the assignment is independent of the potential outcomes by design, or by the supplied exposure probabilities and the declared network exchangeability), so no edge of the structure enters the identification: a latent confounder or an unresolved orientation in the structure cannot move it, and the structure binds only the unit schema (its width must equal the unit table's). The same procedures run as on a Dag: Young-bound Horvitz-Thompson/Hajek, cluster Neyman, exact two-stage saturation or supplied-propensity observational weighting with the sampling interval frequentist, and the conjugate Gaussian or cluster Dirichlet posterior Bayesian. Cheap and full run the interference-native suite: the realized assignment against the declared design (a Poisson-binomial z test of the treated count under Bernoulli assignment, exact counts under complete and cluster randomization), the smallest exposure probability, and under full validation a re-randomization test that the contrast is unbiased around zero under the sharp null with the outcomes held fixed. The result keeps support status refused; no evidence row or coverage record names the cell."
 
 [[closed]]
 queries = ["InterferenceQuery"]
 graph_classes = ["Dag"]
-structures = ["graph_posterior"]
-inferences = ["Bayesian"]
-reason = "InterferenceQuery graph-posterior mixtures are not staged."
-
-[[closed]]
-queries = ["InterferenceQuery"]
-graph_classes = ["Dag"]
+structures = ["explicit"]
 validations = ["cheap", "full"]
-reason = "InterferenceQuery has no native refuter suite; ATE refuters do not apply."
+executes_unlicensed = true
+reason = "InterferenceQuery cheap and full run the interference-native suite on an explicit Dag and stay unlicensed: no evidence row or coverage record names the state. The realized assignment is checked against the declared design (a Poisson-binomial z test of the treated count under Bernoulli assignment, exact counts under complete and cluster randomization), the smallest exposure probability is reported, and full validation adds a re-randomization test that the contrast is unbiased around zero under the sharp null with the outcomes held fixed. ATE-shaped contrast refuters do not apply. Requested explicitly, the state executes; the default suite still downgrades to the licensed validation none."
+
+[[closed]]
+queries = ["InterferenceQuery"]
+graph_classes = ["Dag", "Admg", "TemporalAdmg", "Cpdag", "Pag"]
+structures = ["graph_posterior"]
+executes_unlicensed = true
+reason = "An InterferenceQuery over a graph posterior (Dag, Admg, TemporalAdmg, Cpdag or Pag atoms) executes the exposure contrast once under the declared assignment design. The contrast is identified by the known assignment mechanism and the exposure mapping on the fixed network, so no edge of any atom enters the identification and the posterior cannot move the contrast, its sampling interval or its posterior. The result carries the posterior honestly: every atom that is a member of the posterior's graph class is an identified atom with the one design identification, an atom that is not a member (a cyclic mask or an unreadable mark) is unidentified posterior mass, and the structural mixture, the mass axes and the status ladder are those of every graph-posterior route. The posterior's variables must equal the unit table's. The same procedures run as on a Dag: Young-bound Horvitz-Thompson/Hajek, cluster Neyman, exact two-stage saturation or supplied-propensity observational weighting with the sampling interval frequentist, and the conjugate Gaussian or cluster Dirichlet posterior Bayesian. Cheap and full run the interference-native suite on the one contrast. The result keeps support status refused; no evidence row or coverage record names the cell."
 
 [[closed]]
 queries = ["ConditionalEffect"]
 graph_classes = ["TemporalAdmg"]
-reason = "A ConditionalEffect on a TemporalAdmg reads tabular rows as the contemporaneous projection, which answers a different target than the temporal conditional contrast, so it is refused. The temporal conditional contrast is TemporalConditionalPulse or TemporalConditionalSustained on one series: it is identified by IDC on the unrolled window of the template and executes unlicensed (the TemporalAdmg rule below). The typed refusal names the next attempts: that temporal query on the series, TemporalConditionalPulse or TemporalConditionalSustained on a TemporalDag when the lag structure has no latent confounding, or the static Admg for the contemporaneous conditional effect."
+structures = ["explicit", "accepted"]
+validations = ["none"]
+executes_unlicensed = true
+reason = "A ConditionalEffect on a TemporalAdmg reads tabular rows, which carry no time index, so it is the conditional contrast of the contemporaneous projection of the template (each variable once, at lag 0, with the template's directed and bidirected edges), the same twin the licensed AverageEffect has: IDC at the two hard-set levels for a latent-confounded projection, the Dag conditional route for a latent-free one, evaluated by the discrete plug-in or its Dirichlet row posterior. A template whose variable repeats across lags has no projection and is refused. It is not the temporal conditional contrast, which is TemporalConditionalPulse or TemporalConditionalSustained on one series, identified by IDC on the unrolled window. The result keeps support status refused: no evidence row or coverage record names the cell."
+
+[[closed]]
+queries = ["ConditionalEffect"]
+graph_classes = ["TemporalAdmg"]
+reason = "ConditionalEffect on a TemporalAdmg runs at validation none over a supplied or accepted template (the rule above); cheap and full have no refuter suite for the IDC contrast over a modifier law, and graph-posterior mixing over TemporalAdmg atoms is not staged."
 
 [[closed]]
 queries = ["ConditionalEffect"]
@@ -252,12 +276,6 @@ reason = "A path-restricted natural effect on a supplied Pag is read through the
 
 [[closed]]
 queries = ["InterventionalDistribution"]
-graph_classes = ["Pag"]
-structures = ["explicit"]
-reason = "Path and distribution queries execute only on a supplied static Dag or Admg; a directly supplied Pag hits the static-Dag/Admg requirement."
-
-[[closed]]
-queries = ["InterventionalDistribution"]
 graph_classes = ["Admg", "TemporalAdmg"]
 structures = ["explicit"]
 validations = ["cheap", "full"]
@@ -266,7 +284,16 @@ reason = "ADMG and TemporalAdmg InterventionalDistribution are licensed at valid
 [[closed]]
 queries = ["TemporalMediationEffect"]
 graph_classes = ["TemporalPag"]
-reason = "Latent-confounded TemporalPag natural mediation is outside the existing cross-world identification theory; DAG-completion engineering cannot license it."
+structures = ["explicit", "accepted"]
+validations = ["none"]
+executes_unlicensed = true
+reason = "Natural mediation on one series under a TemporalPag is identified on the finite window of its template, as a pulse contrast is: the treatment is the pulse period's coordinate, the outcome the horizon period's coordinate, and the mediators are the declared mediator variables at every period from the pulse to the outcome. Each stationary MAG completion of the template is unfolded over the window one template lag further back and marginalized onto it by the inducing-path rule, so a cause that precedes the window stays a bidirected edge between its in-window effects, and is then read through every ADMG that shares the marginal MAG, because a MAG fixes a latent projection only up to its m-separation model and a path-specific effect is not a function of that model. The path-specific identifier decides the total, natural direct and natural indirect effects on each candidate (the edge g-formula, or Shpitser's district formula with the recanting-district criterion); the requested contrast is reported only when every candidate of every completion identifies it, as one estimate when they yield the same functional and as the identified set over the distinct functionals otherwise, and a refused candidate refuses the effect. A component other than the requested one that the identifier refuses is reported absent. The decomposition is estimated by the discrete plug-in on the lag-aligned window table with circular blocks of consecutive windows (frequentist) or one Dirichlet weight per block (Bayesian), the components on the same resampled tables when each is identified by one functional, and the result discloses estimate.mediation.joint and estimate.temporal_pag.window. The series is read as stationary over the template, and history deeper than one further template lag is the initial state. One outcome horizon per study; discrete data only. The result keeps support status refused: no evidence row or coverage record names the cell."
+
+[[closed]]
+queries = ["TemporalMediationEffect"]
+graph_classes = ["TemporalPag"]
+validations = ["cheap", "full"]
+reason = "Temporal mediation on a TemporalPag runs at validation none over a supplied or accepted template (the rule above); cheap and full have no cross-world refuter suite on a window."
 
 [[closed]]
 queries = [
@@ -280,8 +307,6 @@ queries = [
   "PointDerivative",
   "ResponseJacobian",
   "SemiElasticity",
-  "TransportQuery",
-  "InterferenceQuery",
 ]
 graph_classes = ["Dag", "Admg", "TemporalAdmg", "Cpdag", "Pag"]
 structures = ["graph_posterior"]
@@ -293,7 +318,7 @@ queries = ["TemporalMediationEffect"]
 graph_classes = ["TemporalPag"]
 structures = ["graph_posterior"]
 inferences = ["Frequentist", "Bayesian"]
-reason = "Latent-confounded TemporalPag natural mediation is outside the existing cross-world identification theory; TemporalPag graph-posterior atoms are not mixed into a mediation envelope."
+reason = "A graph posterior over TemporalPag atoms is not mixed into a mediation: each atom's window is read through the ADMG candidates of every MAG completion and publishes a set of functionals, and a posterior-weighted mean of identified sets is not defined. Next attempts: a supplied or accepted TemporalPag, or a graph posterior over lagged TemporalAdmg atoms."
 
 # -- 2026-08-19 audit. The following reasons cover cells probed end-to-end
 # (Study::build/run) and confirmed either to refuse at compile (an
@@ -304,12 +329,6 @@ reason = "Latent-confounded TemporalPag natural mediation is outside the existin
 # -- 0.9.0: n/a re-file (contract / identifier gap, not typed impossibility).
 
 # -- 0.9.0: named reasons for refused families that previously had no reason row.
-
-[[closed]]
-queries = ["InterventionalDistribution"]
-graph_classes = ["Cpdag"]
-structures = ["explicit"]
-reason = "Distribution queries execute only on a supplied static Dag or Admg; a directly supplied Cpdag hits that requirement (Admg/Pag explicit already named above)."
 
 [[closed]]
 queries = ["PathSpecificEffect", "InterventionalDistribution"]
@@ -407,12 +426,30 @@ reason = "A pulse, sustained or conditional contrast on one series under a Tempo
 queries = ["PulseEffect", "SustainedEffect", "TemporalConditionalPulse", "TemporalConditionalSustained"]
 graph_classes = ["TemporalAdmg"]
 structures = ["graph_posterior"]
-reason = "The window contrast on a TemporalAdmg (the rule above) reads one supplied or accepted template. A graph posterior over TemporalAdmg atoms is a posterior over contemporaneous adjacency and has no lagged-template atoms to unroll, so it has no window route. Next attempts: a supplied or accepted TemporalAdmg, or a TemporalDag when the lag structure has no latent confounding."
+validations = ["none"]
+executes_unlicensed = true
+reason = "A graph posterior over lagged TemporalAdmg atoms mixes the window contrast of the rule above over the posterior: an atom is a stationary template (a contemporaneous ADMG, lagged directed edges and lagged latent-confounder edges), the contrast is identified on the unrolled window of each atom's own template, the identified functional of each atom is evaluated by the discrete plug-in on the lag-aligned window table of its window length (atoms with different lags read tables of different lengths), and the atoms are mixed by posterior weight. An atom whose window holds a hedge, or whose modifier a treated period can reach, keeps its mass as unidentified mass and the mixture is then graph-dependent rather than a point. Frequentist uncertainty of one atom resamples circular blocks of consecutive windows; the standard error of a mixture of several atoms is the spread of the draw-wise mixture of their replicates at the same resampled table (atoms that read tables of different lengths publish no mixture standard error). Bayesian atoms share one Dirichlet weight per block and the aggregate posterior of a mixture of several atoms is withheld, as for a static ADMG posterior. The result keeps support status refused and discloses estimate.graph_posterior.temporal_admg_window; no evidence row or coverage record names the cell. Posteriors over contemporaneous TemporalAdmg atoms (no lag masks) read tabular rows and have no window; cheap and full validation are refused."
 
 [[closed]]
 queries = ["TemporalMediationEffect"]
 graph_classes = ["TemporalAdmg"]
-reason = "A temporal mediation contrast on TemporalAdmg is a cross-world contrast: the window-unrolled identification covers interventional contrasts only, and the recanting-district criterion for path-specific effects has not been derived on the unrolled window. Next attempts: TemporalMediationEffect on a TemporalDag or TemporalCpdag, or the pulse or sustained contrast on the TemporalAdmg, which executes unlicensed."
+structures = ["explicit", "accepted"]
+validations = ["none"]
+executes_unlicensed = true
+reason = "Natural mediation on one series under a TemporalAdmg is identified on the unrolled window of its template, as a pulse contrast is: the treatment is the pulse period's coordinate, the outcome the horizon period's coordinate, and the mediators are the declared mediator variables at every period from the pulse to the outcome. The path-specific identifier decides the total, natural direct and natural indirect effects on that window ADMG (the edge g-formula, or Shpitser's district formula with the recanting-district criterion), and a cause that precedes the window is a latent common cause of its in-window effects. The decomposition is estimated by the discrete plug-in on the lag-aligned window table with circular blocks of consecutive windows (frequentist) or one Dirichlet weight per block (Bayesian), the components on the same resampled tables, and the result discloses estimate.mediation.joint and estimate.temporal_admg.window. The requested contrast must be identified; a component the identifier refuses is reported absent. One outcome horizon per study; discrete data only. The result keeps support status refused: no evidence row or coverage record names the cell."
+
+[[closed]]
+queries = ["TemporalMediationEffect"]
+graph_classes = ["TemporalAdmg"]
+structures = ["graph_posterior"]
+validations = ["none"]
+executes_unlicensed = true
+reason = "A graph posterior over lagged TemporalAdmg atoms mixes the mediation decomposition of the rule above over the posterior: each atom (a stationary template with lagged directed and lagged latent-confounder edges) decomposes into the total, natural direct and natural indirect effects on the unrolled window of its own template by the path-specific identifier, each component is evaluated by the discrete plug-in on the lag-aligned window table of the atom's window length, and the atoms that identify a component are mixed by posterior weight for that component. An atom that leaves the requested contrast unidentified (a recanting district, a hedge) keeps its mass as unidentified mass and the mixture is graph-dependent; a component other than the requested one is mixed over the atoms that identify it and reported absent when none does. Uncertainty is that of the supplied-template window route (circular blocks of consecutive windows, or one Dirichlet weight per block), and the aggregate posterior of a mixture of several atoms is withheld. One outcome horizon per study; discrete data only. The result keeps support status refused and discloses estimate.graph_posterior.temporal_admg_window."
+
+[[closed]]
+queries = ["TemporalMediationEffect"]
+graph_classes = ["TemporalAdmg"]
+reason = "Temporal mediation on a TemporalAdmg runs at validation none over a supplied or accepted template, or over a graph posterior of lagged templates (the rules above); cheap and full have no cross-world refuter suite on a window."
 
 [[closed]]
 queries = ["TemporalConditionalPulse", "TemporalConditionalSustained"]

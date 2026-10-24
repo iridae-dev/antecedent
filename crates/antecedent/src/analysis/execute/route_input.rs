@@ -13,11 +13,12 @@ use super::{
 use crate::graph::{Admg, Cpdag, Dag, Pag, TemporalDag};
 use antecedent_core::{
     AssociationQuery, AverageEffectQuery, ConditionalEffectQuery, ContinuousDoseResponseQuery,
-    DiscoverQuery, HistoryMatchQuery, InterferenceQuery, InterventionalDistributionQuery,
-    IvBoundsQuery, LocalPolynomialRatioQuery, LongitudinalRegimeQuery, MediationQuery,
-    NestedCounterfactualQuery, PanelDidQuery, PathSpecificEffectQuery, PolicyValueQuery,
-    RandomizedEffectQuery, ResponseQuery, SequentialContrastQuery, SurvivalQuery,
-    SyntheticControlQuery, TemporalDesignQuery, TemporalEffectQuery, TransportQuery,
+    CounterfactualQuery, DiscoverQuery, HistoryMatchQuery, InterferenceQuery,
+    InterventionalDistributionQuery, IvBoundsQuery, LocalPolynomialRatioQuery,
+    LongitudinalRegimeQuery, MediationQuery, NestedCounterfactualQuery, PanelDidQuery,
+    PathSpecificEffectQuery, PolicyValueQuery, RandomizedEffectQuery, ResponseQuery,
+    SequentialContrastQuery, SurvivalQuery, SyntheticControlQuery, TemporalDesignQuery,
+    TemporalEffectQuery, TransportQuery,
 };
 use antecedent_data::{MultiEnvironmentData, PanelData, TabularData, TimeSeriesData};
 use antecedent_graph::TemporalAdmg;
@@ -188,7 +189,18 @@ pub(crate) enum RouteInput<'a> {
         query: &'a MediationQuery,
         graph: &'a TemporalDag,
     },
-    TemporalMediationPag,
+    /// Natural mediation on one series under a temporal PAG, identified on the unfolded window
+    /// of its template.
+    TemporalMediationPag {
+        data: &'a TimeSeriesData,
+        query: &'a MediationQuery,
+    },
+    /// Natural mediation on one series under a temporal ADMG, identified on the unrolled
+    /// window of its template.
+    TemporalMediationAdmg {
+        data: &'a TimeSeriesData,
+        query: &'a MediationQuery,
+    },
     TemporalMediationCpdag {
         data: &'a TimeSeriesData,
         query: &'a MediationQuery,
@@ -271,6 +283,13 @@ pub(crate) enum RouteInput<'a> {
         data: &'a TimeSeriesData,
         query: &'a AssociationQuery,
     },
+    /// A counterfactual on an ADMG, a temporal ADMG read as its contemporaneous projection, a PAG
+    /// or a CPDAG: the population-level cross-world quantity identified by ID* over the ADMGs
+    /// the structure stands for, or the per-unit counterfactual of every DAG completion.
+    CounterfactualClass {
+        data: &'a TabularData,
+        query: &'a CounterfactualQuery,
+    },
     GcmDag {
         data: &'a TabularData,
         route: AnalysisRoute,
@@ -278,6 +297,17 @@ pub(crate) enum RouteInput<'a> {
     },
     GcmTemporal {
         data: &'a TimeSeriesData,
+    },
+    /// Anomaly or change attribution over a CPDAG, a PAG or a mixed graph: repeated over the
+    /// members of the class, each attributed as a DAG or to its noise blocks.
+    GcmClass {
+        data: &'a TabularData,
+        class: GraphClass,
+    },
+    /// The same over a temporal CPDAG, a temporal PAG or a temporal ADMG, on a series.
+    GcmTemporalClass {
+        data: &'a TimeSeriesData,
+        class: GraphClass,
     },
     TemporalCrossWorldClass {
         data: &'a TimeSeriesData,
@@ -448,7 +478,10 @@ fn static_route_input<'a>(
             query: distribution(study),
             graph: dag,
         },
-        (AnalysisRoute::Distribution, GraphRef::Admg(_) | GraphRef::TemporalAdmg(_)) => {
+        (
+            AnalysisRoute::Distribution,
+            GraphRef::Admg(_) | GraphRef::TemporalAdmg(_) | GraphRef::Cpdag(_) | GraphRef::Pag(_),
+        ) => {
             RouteInput::DistributionMixed { data: tabular(study), query: distribution(study) }
         }
         (AnalysisRoute::PathSpecific, GraphRef::Dag(dag)) => RouteInput::PathSpecificDag {
@@ -631,7 +664,10 @@ fn temporal_route_input<'a>(
             }
         }
         (AnalysisRoute::TemporalMediation, GraphRef::TemporalPag(_)) => {
-            RouteInput::TemporalMediationPag
+            RouteInput::TemporalMediationPag { data: series(study), query: mediation(study) }
+        }
+        (AnalysisRoute::TemporalMediation, GraphRef::TemporalAdmg(_)) => {
+            RouteInput::TemporalMediationAdmg { data: series(study), query: mediation(study) }
         }
         (AnalysisRoute::TemporalMediation, GraphRef::TemporalCpdag(_)) => {
             RouteInput::TemporalMediationCpdag { data: series(study), query: mediation(study) }
@@ -655,7 +691,11 @@ fn design_route_input<'a>(
     Some(match (route, graph) {
         (
             AnalysisRoute::Transport,
-            GraphRef::Dag(_) | GraphRef::Admg(_) | GraphRef::TemporalAdmg(_),
+            GraphRef::Dag(_)
+            | GraphRef::Admg(_)
+            | GraphRef::TemporalAdmg(_)
+            | GraphRef::Cpdag(_)
+            | GraphRef::Pag(_),
         ) => RouteInput::TransportMixed { data: tabular(study), query: transport(study), class },
         (
             AnalysisRoute::Interference,
@@ -740,6 +780,10 @@ fn gcm_route_input<'a>(
             RouteInput::GcmDag { data: tabular(study), route, graph: dag }
         }
         (
+            AnalysisRoute::Counterfactual,
+            GraphRef::Admg(_) | GraphRef::TemporalAdmg(_) | GraphRef::Pag(_) | GraphRef::Cpdag(_),
+        ) => RouteInput::CounterfactualClass { data: tabular(study), query: counterfactual(study) },
+        (
             AnalysisRoute::Anomaly
             | AnalysisRoute::ChangeAttribution
             | AnalysisRoute::Attribute
@@ -748,6 +792,18 @@ fn gcm_route_input<'a>(
             | AnalysisRoute::Simulate,
             GraphRef::TemporalDag(_),
         ) => RouteInput::GcmTemporal { data: series(study) },
+        (
+            AnalysisRoute::Anomaly | AnalysisRoute::ChangeAttribution,
+            GraphRef::Admg(_) | GraphRef::Cpdag(_) | GraphRef::Pag(_) | GraphRef::TemporalAdmg(_),
+        ) if matches!(study.data, DataInput::Tabular(_)) => {
+            RouteInput::GcmClass { data: tabular(study), class }
+        }
+        (
+            AnalysisRoute::Anomaly | AnalysisRoute::ChangeAttribution,
+            GraphRef::TemporalAdmg(_) | GraphRef::TemporalCpdag(_) | GraphRef::TemporalPag(_),
+        ) if matches!(study.data, DataInput::Temporal(_) | DataInput::Event(_)) => {
+            RouteInput::GcmTemporalClass { data: series(study), class }
+        }
         (
             AnalysisRoute::TemporalCrossWorld,
             GraphRef::TemporalCpdag(_) | GraphRef::TemporalPag(_),
@@ -798,6 +854,11 @@ fn average_effect(study: &Study) -> &AverageEffectQuery {
 
 fn distribution(study: &Study) -> &InterventionalDistributionQuery {
     let CausalQuery::Distribution(query) = &study.query else { unreachable!() };
+    query
+}
+
+fn counterfactual(study: &Study) -> &CounterfactualQuery {
+    let CausalQuery::Counterfactual(query) = &study.query else { unreachable!() };
     query
 }
 

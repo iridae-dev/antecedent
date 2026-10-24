@@ -404,15 +404,18 @@ pub(super) fn stub_accepted_graph_for(
             antecedent_discovery::GraphPosteriorAtomKind::Pag => {
                 Ok(AcceptedGraph::temporal_pag(TemporalPag::empty()))
             }
-            antecedent_discovery::GraphPosteriorAtomKind::Admg
-            | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg => {
-                Err(CausalError::Unsupported {
-                    message: "Admg and TemporalAdmg graph posteriors require tabular data",
-                })
+            // Lagged temporal-ADMG atoms: the posterior carries the templates; the stub only
+            // names their class.
+            antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg => {
+                Ok(AcceptedGraph::temporal_admg(antecedent_graph::TemporalAdmg::empty()))
             }
+            antecedent_discovery::GraphPosteriorAtomKind::Admg => Err(CausalError::Unsupported {
+                message: "Admg graph posteriors require tabular data; a series posterior over \
+                          latent-confounded templates is a lagged TemporalAdmg posterior",
+            }),
             _ => Err(CausalError::Unsupported {
-                message: "graph-posterior stub supports only TemporalDag, TemporalCpdag, or \
-                          TemporalPag atoms on temporal/event data",
+                message: "graph-posterior stub supports only TemporalDag, TemporalCpdag, \
+                          TemporalPag, or lagged TemporalAdmg atoms on temporal/event data",
             }),
         },
         DataInput::MultiEnv(_) | DataInput::Panel(_) => Err(CausalError::Unsupported {

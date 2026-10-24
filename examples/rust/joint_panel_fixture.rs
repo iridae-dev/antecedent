@@ -187,6 +187,7 @@ pub fn request(data: &PanelData, confounded: bool, inference: PanelInference) ->
             inference,
             initial: None,
         },
+        family: antecedent_estimate::joint_panel::PanelFamily::default(),
         worlds,
         target,
         assignment: None,

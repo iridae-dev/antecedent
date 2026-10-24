@@ -92,6 +92,7 @@ fn fixture() -> (PanelData, JointPanelRequest) {
             inference: PanelInference::Frequentist { draws: 0 },
             initial: None,
         },
+        family: engine::PanelFamily::default(),
         worlds,
         target,
         assignment: None,
@@ -235,6 +236,7 @@ fn three_channel_prepared() -> PreparedStudy<JointPanelState> {
             seasons: 1,
             lag_order: 2,
             options: base.options,
+            family: engine::PanelFamily::default(),
             worlds,
             target,
             assignment: None,
@@ -1077,4 +1079,103 @@ fn unidentified_finer_decomposition_executes_actual_coarser_response_and_preserv
     assert!(executed.require_unique_attribution().is_err());
     assert_eq!(executed.compiled_response().dependency_identity(), result.dependency_identity());
     assert_eq!(result.prepared().fits_performed(), 1);
+}
+
+#[test]
+fn broader_family_runs_through_the_compiler_and_the_frozen_artifact_replays_every_slot() {
+    let (source, mut request) = fixture();
+    let spatial = engine::PanelSpatial {
+        kernel: engine::PanelSpatialKernel::Exponential,
+        groups: (0..4).map(|group| group.to_string()).collect(),
+        distances: (0..4_i32)
+            .flat_map(|a| (0..4_i32).map(move |b| f64::from((a - b).abs())))
+            .collect(),
+    };
+    request.family = engine::PanelFamily {
+        adstock: engine::PanelAdstock::Geometric,
+        saturation: engine::PanelSaturation::Hill,
+        scope: engine::PanelSaturationScope::Classes { assignment: vec![0, 1, 1, 0] },
+        spatial: Some(spatial),
+    };
+    let geometric = |theta: f64| {
+        let sum = 1.0 + theta + theta * theta;
+        [1.0 / sum, theta / sum, theta * theta / sum]
+    };
+    let initial = engine::PanelParameters {
+        intercept: 1.0,
+        channels: vec![
+            engine::PanelChannelParameters {
+                id: "0".into(),
+                coefficient: 1.0,
+                lag: geometric(0.5),
+            },
+            engine::PanelChannelParameters {
+                id: "1".into(),
+                coefficient: 0.8,
+                lag: geometric(0.3),
+            },
+        ],
+        interactions: vec![engine::PanelInteractionParameter { id: "ab".into(), coefficient: 0.5 }],
+        confounder: 0.2,
+        season_effects: vec![0.0],
+        half_saturation: 1.5,
+        rho: 0.2,
+        innovation_sd: 0.5,
+        group_sd: 0.5,
+        family: engine::PanelFamilyParameters {
+            hill_shape: vec![1.5, 1.0],
+            class_half_saturation: vec![2.5],
+            spatial_range: 2.0,
+        },
+    };
+    // A permissive stopping rule fixes the declared start, so every slot is exercised.
+    request.options = PanelFitOptions {
+        optimizer: PanelOptimizerOptions { max_iterations: 2, gradient_tolerance: 1e100 },
+        inference: PanelInference::FrequentistBootstrap { draws: 2 },
+        initial: Some(initial.clone()),
+    };
+    let ctx = ExecutionContext::for_tests(7);
+    let prepared = Study::prepare_joint_panel(source, request, &ctx).unwrap();
+    assert_eq!(prepared.model_data().family.classes(), 2);
+    assert!(prepared.model_data().family.spatial.is_some());
+    assert!(!prepared.inspect().identification.is_identified_claim());
+    let result = prepared.estimate(&ctx).unwrap();
+    let JointPanelFit::Invariant(fit) = &result.fit else {
+        panic!("an invariant mechanism was requested");
+    };
+    let family = &fit.point.parameters.family;
+    assert_eq!(family.hill_shape, initial.family.hill_shape);
+    assert_eq!(family.class_half_saturation.len(), 1);
+    assert!((family.spatial_range - 2.0).abs() < 1e-12);
+    assert!(result.draws.iter().all(Option::is_some));
+    for draw in fit.draws.iter().flatten() {
+        assert_eq!(draw.group_intercepts.len(), 4);
+        assert!(draw.parameters.family.spatial_range > 0.0);
+    }
+    // The frozen program carries the family; an independent consumer reproduces every slot.
+    let bytes = result.export(&ctx).unwrap();
+    let historical =
+        antecedent_io::joint_panel_artifact::consume_panel_execution(&bytes, &ctx).unwrap();
+    assert_eq!(historical.point(), result.point.as_slice());
+    assert_eq!(historical.draws(), result.draws.as_slice());
+    assert!(!historical.grants_current_authority());
+    let current = result.consume_current(&bytes, &ctx).unwrap();
+    assert_eq!(current.point, result.point);
+}
+
+#[test]
+fn reviewed_family_is_the_request_default_and_a_family_change_refits() {
+    let (source, request) = fixture();
+    assert!(request.family.is_reviewed());
+    let reviewed = request.clone();
+    let mut hill = request;
+    hill.family.saturation = engine::PanelSaturation::Hill;
+    let ctx = ExecutionContext::for_tests(3);
+    let (a, b) = (
+        Study::prepare_joint_panel(source.clone(), reviewed, &ctx).unwrap(),
+        Study::prepare_joint_panel(source, hill, &ctx).unwrap(),
+    );
+    // The family is part of the source identity, so a cached reviewed fit is never reused.
+    assert_ne!(a.inspect().source_identity, b.inspect().source_identity);
+    assert!(a.model_data().family.is_reviewed() && !b.model_data().family.is_reviewed());
 }

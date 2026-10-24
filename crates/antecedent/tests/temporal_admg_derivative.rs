@@ -217,3 +217,132 @@ fn a_treatment_sharing_a_latent_cause_with_the_outcome_is_refused_as_a_hedge() {
     let error = outcome.expect_err("a hedge must not be estimated");
     assert!(error.is_identification_refusal(), "{error}");
 }
+
+fn derivative_at(horizons: Vec<u32>) -> CausalQuery {
+    CausalQuery::Response(
+        ResponseQuery::new(ResponseFunctional::PointDerivative {
+            outcome: v(Y),
+            treatment: v(X),
+            at: 2.0,
+            order: 1,
+            scale: DerivativeScale::Identity,
+        })
+        .with_temporal(
+            TemporalResponseSpec::new(horizons, TemporalPolicy::pulse(-1), None).unwrap(),
+        ),
+    )
+}
+
+#[test]
+fn several_horizons_publish_one_slope_each_and_a_horizon_without_a_path_is_zero() {
+    // `x(t-1)` reaches `y(t)` (horizon 1) and has no path to `y(t+1)` (horizon 2), whose
+    // parents in the template are `x(t)` and `z(t)`. The independent reference for each
+    // horizon is the regression of `y` at that horizon on the treatment and the confounders.
+    let [x, y, z, w] = columns();
+    let slope = |horizon: usize| {
+        let rows = N - horizon;
+        let regress = |c: &Vec<f64>| c[..rows].to_vec();
+        ols(&[regress(&x), regress(&z), regress(&w)], &y[horizon..])[1]
+    };
+    let (first, second) = (slope(1), slope(2));
+    assert!((first - 2.0).abs() < 0.2 && second.abs() < 1.0, "{first} {second}");
+    let result = Study::series(series())
+        .graph(template())
+        .query(derivative_at(vec![1, 2]))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(32)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(14))
+        .unwrap();
+    let ResponseIdentification::PointIdentified(ResponseValue::Vector(values)) =
+        &result.response().unwrap().estimate
+    else {
+        panic!("several horizons publish a vector of slopes");
+    };
+    assert_eq!(values.len(), 2);
+    assert!((values[0] - first).abs() < 0.2, "{} vs {first}", values[0]);
+    assert!((values[1] - second).abs() < 0.6, "{} vs {second}", values[1]);
+    assert!(matches!(
+        result.response().unwrap().uncertainty,
+        ResponseUncertainty::PointwiseBand { .. }
+    ));
+}
+
+#[test]
+fn a_prepared_handle_runs_and_refreshes_the_temporal_derivative() {
+    let data = series();
+    let study = Study::series(data.clone())
+        .graph(template())
+        .query(derivative())
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let ctx = ExecutionContext::for_tests(15);
+    let fresh = study.run(&ctx).unwrap();
+    let prepared = study.prepare(&ctx).unwrap();
+    let click = prepared.estimate_series(&data, &ctx).unwrap();
+    assert!((value(&click) - value(&fresh)).abs() < 1e-9, "{} {}", value(&click), value(&fresh));
+}
+
+/// `x(t-1) -> m(t-1) -> y(t)` with a latent common cause of `x(t-1)` and `y(t)`, so the window
+/// has no adjustment set and the slope is identified through the front door.
+fn front_door_columns() -> [Vec<f64>; 3] {
+    let mut x = vec![0.0; N];
+    let mut m = vec![0.0; N];
+    let mut y = vec![0.0; N];
+    let mut latent = vec![0.0; N];
+    for t in 0..N {
+        let clock = t as f64;
+        latent[t] = (clock * 0.77 + 2.0).cos();
+        x[t] = 1.0 + (clock * 0.71).sin() + 0.2 * (clock * 0.13).cos() + 0.8 * latent[t];
+        m[t] = 0.5 + 0.9 * x[t] + 0.5 * (clock * 1.9).sin();
+    }
+    for t in 1..N {
+        y[t] = 3.0 + 2.0 * m[t - 1] + 0.7 * latent[t - 1] + 0.05 * (t as f64 * 3.1).cos();
+    }
+    [x, m, y]
+}
+
+#[test]
+fn a_front_door_slope_on_the_window_is_estimated_not_refused() {
+    let [x, m, y] = front_door_columns();
+    let data = TimeSeriesData::from_f64_columns(
+        [("x", x.as_slice()), ("y", y.as_slice()), ("m", m.as_slice())],
+        1,
+    )
+    .unwrap();
+    // Reference: slope of the mediator on the treatment times the mediator's coefficient in
+    // the outcome regression given the treatment, on the lag-aligned rows.
+    let lagged = |c: &Vec<f64>| c[..N - 1].to_vec();
+    let outcome = y[1..].to_vec();
+    let reference =
+        ols(&[lagged(&x)], &lagged(&m))[1] * ols(&[lagged(&m), lagged(&x)], &outcome)[1];
+    let naive = ols(&[lagged(&x)], &outcome)[1];
+    assert!((reference - 1.8).abs() < 0.05, "{reference}");
+    assert!((naive - reference).abs() > 0.2, "the latent cause must bias the naive slope");
+    let mut graph = TemporalAdmg::empty();
+    let x1 = graph.add_lagged(v(X), Lag::from_raw(1)).unwrap();
+    let m1 = graph.add_lagged(v(2), Lag::from_raw(1)).unwrap();
+    let y0 = graph.add_lagged(v(Y), Lag::CONTEMPORANEOUS).unwrap();
+    graph.insert_directed(x1, m1).unwrap();
+    graph.insert_directed(m1, y0).unwrap();
+    graph.insert_bidirected(x1, y0).unwrap();
+    let result = Study::series(data)
+        .graph(graph)
+        .query(derivative())
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(32)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(16))
+        .unwrap();
+    let got = value(&result);
+    assert!((got - reference).abs() < 0.2, "{got} vs the front-door reference {reference}");
+    assert!((got - naive).abs() > 0.05, "{got} is the confounded slope {naive}");
+    assert!(
+        !matches!(result.response().unwrap().uncertainty, ResponseUncertainty::None),
+        "the block bootstrap must publish an interval"
+    );
+}

@@ -18,14 +18,14 @@
 //! component is the class result of its own contrast, so a component that is only partially
 //! identified keeps its own identified set.
 
-use antecedent_core::{MediationContrast, MediationQuery};
-use antecedent_estimate::{FunctionalEffect, TemporalMediationEstimate};
+use antecedent_core::{MediationContrast, MediationQuery, VariableId};
+use antecedent_estimate::{FunctionalEffect, RowResampling, TemporalMediationEstimate};
 use antecedent_graph::Admg;
 
 use super::{
     CausalError, CausalPosterior, CausalQuery, Diagnostic, DiagnosticKind, DiagnosticSeverity,
     EffectEstimate, EstimatorId, ExecutionContext, IdentificationResult, IdentifiedExecuteExtras,
-    IdentifiedExecuteFinish, IdentifiedEstimand, Instant, PathSpecificMixedSource,
+    IdentifiedExecuteFinish, IdentifiedEstimand, IdentifierId, Instant, PathSpecificMixedSource,
     PhysicalExecutionPlan, Strategy, StudyResult, TabularData, elapsed_ns,
     identify_admg_query, report_identify_compute, run_functional, select_estimand,
 };
@@ -42,7 +42,7 @@ const COMPONENTS: [(MediationContrast, &str); 3] = [
 ];
 
 /// The slot a requested contrast reads its value from.
-fn component_slot(contrast: MediationContrast) -> usize {
+pub(super) fn component_slot(contrast: MediationContrast) -> usize {
     match contrast {
         MediationContrast::Total => 0,
         MediationContrast::Direct | MediationContrast::NaturalDirect => 1,
@@ -97,7 +97,7 @@ fn joint_fields(columns: &[(&str, &[f64])]) -> Vec<(&'static str, String)> {
     fields
 }
 
-fn joint_diagnostic(
+pub(super) fn joint_diagnostic(
     columns: &[(&str, &[f64])],
     draws: usize,
     kind: &str,
@@ -117,6 +117,61 @@ fn joint_diagnostic(
         ),
     )
     .with_fields(fields)
+}
+
+/// Identify the three components of `query` over `admg`; a component other than the requested
+/// one that the identifier refuses as not identified is `None`.
+///
+/// # Errors
+///
+/// The requested contrast is not identified, or the proof has no estimand the plug-in reads.
+pub(super) fn identify_components(
+    admg: &Admg,
+    query: &MediationQuery,
+    identifier_id: IdentifierId,
+    estimator_id: EstimatorId,
+) -> Result<Vec<Option<(IdentificationResult, IdentifiedEstimand)>>, CausalError> {
+    let requested = component_slot(query.contrast);
+    let mut identified = Vec::new();
+    for (slot, (contrast, _)) in COMPONENTS.iter().enumerate() {
+        let mut component = query.clone();
+        component.contrast = *contrast;
+        match identify_admg_query(identifier_id, admg, &CausalQuery::Mediation(component)) {
+            Ok(identification) => {
+                let estimand = select_estimand(&identification, estimator_id)?;
+                identified.push(Some((identification, estimand)));
+            }
+            Err(error)
+                if slot != requested && error.reason_code() == Some("effect_not_identified") =>
+            {
+                identified.push(None);
+            }
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(identified)
+}
+
+/// What the estimation of the identified components reads and reports.
+pub(super) struct ComponentRun<'a> {
+    /// One proof per component (total, direct, indirect); `None` where not identified.
+    pub(super) identified: Vec<Option<(IdentificationResult, IdentifiedEstimand)>>,
+    /// Slot of the requested contrast.
+    pub(super) requested: usize,
+    /// Columns the functionals read.
+    pub(super) roles: Vec<VariableId>,
+    /// Treatment and outcome the result reports.
+    pub(super) reported: (VariableId, VariableId),
+    /// How the rows are resampled.
+    pub(super) resampling: (RowResampling, antecedent_estimate::util::SamplingDeclaration),
+    /// Name of the structure the disclosure speaks of.
+    pub(super) structure: &'a str,
+    /// Strategy the result records.
+    pub(super) strategy: (IdentifierId, EstimatorId),
+    /// When the execution began.
+    pub(super) started: Instant,
+    /// Disclosures the caller adds.
+    pub(super) extra_diagnostics: Vec<Diagnostic>,
 }
 
 impl super::Study {
@@ -147,32 +202,52 @@ impl super::Study {
                 ),
             });
         }
-        let requested = component_slot(query.contrast);
         let mut roles = vec![query.treatment, query.outcome];
         roles.extend(query.mediators.iter().copied());
-
         report_identify_compute(ctx);
-        let mut identified: Vec<Option<(IdentificationResult, IdentifiedEstimand)>> = Vec::new();
-        for (slot, (contrast, _)) in COMPONENTS.iter().enumerate() {
-            let mut component = query.clone();
-            component.contrast = *contrast;
-            match identify_admg_query(
-                identifier_id,
-                admg,
-                &CausalQuery::Mediation(component),
-            ) {
-                Ok(identification) => {
-                    let estimand = select_estimand(&identification, estimator_id)?;
-                    identified.push(Some((identification, estimand)));
-                }
-                Err(error) if slot != requested && error.reason_code() == Some("effect_not_identified") => {
-                    identified.push(None);
-                }
-                Err(error) => return Err(error),
-            }
-        }
+        let identified = identify_components(admg, query, identifier_id, estimator_id)?;
+        self.estimate_components(
+            data,
+            ComponentRun {
+                identified,
+                requested: component_slot(query.contrast),
+                roles,
+                reported: (query.treatment, query.outcome),
+                resampling: self.functional_row_resampling()?,
+                structure: "structure",
+                strategy: (identifier_id, estimator_id),
+                started,
+                extra_diagnostics: Vec::new(),
+            },
+            physical,
+            ctx,
+        )
+    }
 
-        let (row_resampling, sampling_design) = self.functional_row_resampling()?;
+    /// Estimate the identified components on the same rows and publish the decomposition with
+    /// the joint disclosure.
+    ///
+    /// # Errors
+    ///
+    /// A plug-in that cannot evaluate a required empirical cell.
+    pub(super) fn estimate_components(
+        &self,
+        data: &TabularData,
+        run: ComponentRun<'_>,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let ComponentRun {
+            mut identified,
+            requested,
+            roles,
+            reported: (treatment, outcome),
+            resampling: (row_resampling, sampling_design),
+            structure,
+            strategy: (identifier_id, estimator_id),
+            started,
+            extra_diagnostics,
+        } = run;
         let fitter = FunctionalEffect {
             bootstrap_replicates: self.bootstrap_replicates,
             ..FunctionalEffect::new()
@@ -215,8 +290,9 @@ impl super::Study {
 
         // Paired draws: the bootstrap replicates (frequentist) or the Dirichlet draws
         // (Bayesian) of every identified component, evaluated at the same resampled tables.
-        let mut diagnostics = Vec::new();
-        let present: Vec<usize> = (0..COMPONENTS.len()).filter(|&i| estimates[i].is_some()).collect();
+        let mut diagnostics = extra_diagnostics;
+        let present: Vec<usize> =
+            (0..COMPONENTS.len()).filter(|&i| estimates[i].is_some()).collect();
         if self.inference.is_bayesian() {
             let columns: Vec<(&str, &[f64])> = present
                 .iter()
@@ -233,7 +309,7 @@ impl super::Study {
                         &columns,
                         first.len(),
                         "Bayesian-bootstrap",
-                        "structure",
+                        structure,
                     ));
                 }
             }
@@ -254,19 +330,19 @@ impl super::Study {
                     &named,
                     rows.len(),
                     "circular-block or row bootstrap",
-                    "structure",
+                    structure,
                 ));
             }
         }
 
         let value = |slot: usize| estimates[slot].as_ref().map(|(estimate, _)| estimate.ate);
         let (total, direct, mediated) = (value(0), value(1), value(2));
-        let (estimate, posterior) = estimates[requested]
-            .take()
-            .ok_or_else(|| CausalError::Compile { message: "requested contrast has no estimate".into() })?;
-        let (mut identification, estimand) = identified[requested]
-            .take()
-            .ok_or_else(|| CausalError::Compile { message: "requested contrast has no proof".into() })?;
+        let (estimate, posterior) = estimates[requested].take().ok_or_else(|| {
+            CausalError::Compile { message: "requested contrast has no estimate".into() }
+        })?;
+        let (mut identification, estimand) = identified[requested].take().ok_or_else(|| {
+            CausalError::Compile { message: "requested contrast has no proof".into() }
+        })?;
         identification.query = self.query.clone();
         let decomposition = TemporalMediationEstimate {
             effect: estimate.clone(),
@@ -281,8 +357,8 @@ impl super::Study {
                 estimand,
                 estimate,
                 Strategy::new(identifier_id, estimator_id),
-                query.treatment,
-                query.outcome,
+                treatment,
+                outcome,
             )
             .identify_cached(false)
             .mediation(Some(decomposition))
@@ -343,7 +419,7 @@ impl super::Study {
                 Ok(other) => {
                     values[slot] = Some(other.effect());
                     if let Some(posterior) = other.posterior.as_ref() {
-                        columns.push((name, posterior.draws.values.to_vec()));
+                        columns.push((*name, posterior.draws.values.to_vec()));
                     }
                 }
                 Err(error) if error.reason_code() == Some("effect_not_identified") => {}

@@ -290,9 +290,12 @@ mod tests {
         assert_eq!(routes.confounder, Some(v(3)));
         assert!(routes.routes.iter().any(|r| r.family().family_id() == "sensitivity"));
         let robust = SensitivityFinding { robust: true, ..finding };
-        let refused =
-            failure_routes(&failed(0, 1), &graph, &observed, "pop", Some(&robust)).unwrap_err();
-        assert_eq!(refused.detail, "identification_repair.not_a_failure");
+        // The sensitivity family refuses a robust finding, so that route is absent; the
+        // other routes of the failed identification remain and no confounder is named.
+        let without =
+            failure_routes(&failed(0, 1), &graph, &observed, "pop", Some(&robust)).unwrap();
+        assert_eq!(without.confounder, None);
+        assert!(!without.routes.iter().any(|r| r.family().family_id() == "sensitivity"));
     }
 
     #[test]

@@ -35,10 +35,14 @@ mod numeric_identification_cases;
 mod observation_recovery;
 #[path = "ordered_response_recovery_chain.rs"]
 mod ordered_response_recovery_chain;
+#[path = "pag_path_specific_candidates.rs"]
+mod pag_path_specific_candidates;
 #[path = "path_specific_district_scm.rs"]
 mod path_specific_district_scm;
 #[path = "scenario_invariance.rs"]
 mod scenario_invariance;
+#[path = "temporal_pag_path_specific.rs"]
+mod temporal_pag_path_specific;
 #[path = "temporal_sequence_spec.rs"]
 mod temporal_sequence_spec;
 #[path = "transport_identification_status.rs"]

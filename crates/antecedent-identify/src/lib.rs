@@ -22,6 +22,7 @@ pub mod auto;
 pub mod backdoor;
 pub mod bounds;
 mod class_envelope_cache;
+mod class_transport;
 pub mod compiled_product;
 pub mod counterfactual_id;
 pub mod cross_world;
@@ -62,6 +63,7 @@ pub mod temporal_backdoor;
 pub mod temporal_generalized;
 pub mod temporal_iv;
 mod temporal_mag;
+mod temporal_pag_path_specific;
 pub mod temporal_mediation;
 mod temporal_window;
 pub mod tiered;
@@ -230,10 +232,15 @@ pub use experimental_recovery::{
 pub use frontdoor::{FrontDoorIdentifier, FrontDoorSearchConfig};
 pub use generalized::{
     CAPPED_COMPLETION_DIAGNOSTIC_CODE, GeneralizedAdjustmentConfig,
-    GeneralizedAdjustmentIdentifier, MAG_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
+    GeneralizedAdjustmentIdentifier, MAG_SEARCH_BOUNDED_DIAGNOSTIC_CODE, invisible_directed_edges,
+    mag_to_confounded_admg,
 };
 pub use hedge::{HedgeCertificate, HedgeProblem};
 pub use pag_path_specific::{AdmgCandidates, PAG_ADMG_SEARCH_BOUNDED_DIAGNOSTIC_CODE};
+pub use temporal_pag_path_specific::{
+    TEMPORAL_PAG_WINDOW_NOT_MAG_DIAGNOSTIC_CODE, TemporalPagMediationWindow,
+    temporal_pag_mediation_window,
+};
 pub use id::{IdIdentifier, ScheduleContrast};
 pub use idc::IdcIdentifier;
 pub use identifier::{IdentificationWorkspace, Identifier};
@@ -257,6 +264,10 @@ pub use temporal_mediation::TemporalMediationIdentifier;
 pub use tiered::{
     NO_LATENT_TO_OUTCOME, TIERED_JOINT_ADJUSTMENT_REFUSE, identify_tiered, identify_tiered_joint,
     identify_tiered_joint_on, identify_tiered_on,
+};
+pub use class_transport::{
+    CLASS_TRANSPORT_CANDIDATES_BOUNDED_REASON, CLASS_TRANSPORT_METHOD,
+    ClassTransportEnvelope, PAG_TRANSPORT_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
 };
 pub use transport::{
     MissingEvidenceCertificate, NotCertifiedCertificate, PopulationFactor, TransportCertificate,

@@ -1035,3 +1035,115 @@ fn static_panel_coarser_prefix_keeps_the_original_temporal_clock() {
     );
     assert_eq!(prepared.fits_performed(), 1);
 }
+
+fn broader_family() -> antecedent_estimate::joint_panel::PanelFamily {
+    use antecedent_estimate::joint_panel::{PanelAdstock, PanelFamily, PanelSaturation};
+    PanelFamily {
+        adstock: PanelAdstock::Geometric,
+        saturation: PanelSaturation::Hill,
+        scope: PanelFamily::per_group_saturation(4),
+        spatial: None,
+    }
+}
+
+#[test]
+fn broader_families_inherit_the_randomized_design_claim_and_leave_confounded_panels_unlicensed() {
+    use antecedent::analysis::joint_panel::{
+        JointPanelDesignOutcome, declare_joint_panel_exogenous_context,
+    };
+    use antecedent_estimate::joint_panel::PanelOptimizerOptions;
+    let ctx = cached_context(20_261_021);
+    let bounded = PanelOptimizerOptions { max_iterations: 600, gradient_tolerance: 1e-2 };
+    let prepare = |family: Option<antecedent_estimate::joint_panel::PanelFamily>| {
+        let data = fixture::whole_program_source();
+        let mut request = fixture::request(&data, false, PanelInference::Frequentist { draws: 0 });
+        request.target = declare_joint_panel_exogenous_context(&request.target);
+        request.assignment = Some(fixture::whole_program_randomization());
+        request.options.optimizer = bounded;
+        if let Some(family) = family {
+            request.family = family;
+        }
+        Study::prepare_joint_panel(data, request, &ctx).unwrap()
+    };
+    let reviewed = prepare(None);
+    let broader = prepare(Some(broader_family()));
+    // The design-based claim concerns the declared worlds and assignment, not the mechanism
+    // family: the same attempt identifies the same worlds under either family.
+    for prepared in [&reviewed, &broader] {
+        let inspection = prepared.inspect();
+        assert!(inspection.identification.is_identified_claim());
+        let attempt = inspection
+            .design_attempts
+            .iter()
+            .find(|attempt| attempt.id == "randomized.multi_arm_itt.whole_program")
+            .unwrap();
+        assert!(matches!(attempt.outcome, JointPanelDesignOutcome::Identified));
+        assert!(attempt.worlds.iter().all(|world| world.identified));
+    }
+    assert_ne!(reviewed.inspect().source_identity, broader.inspect().source_identity);
+    let result = broader.estimate(&ctx).unwrap();
+    result.require_identified().unwrap();
+    let JointPanelFit::Invariant(fit) = &result.fit else { panic!("invariant mechanism") };
+    let family = &fit.point.parameters.family;
+    assert_eq!((family.hill_shape.len(), family.class_half_saturation.len()), (2, 3));
+    for channel in &fit.point.parameters.channels {
+        assert!((channel.lag[1] / channel.lag[0] - channel.lag[2] / channel.lag[1]).abs() < 1e-8);
+    }
+    assert!(result.point.iter().all(|world| world.means.iter().all(|value| value.is_finite())));
+    assert_eq!(broader.estimate(&ctx).unwrap().point, result.point);
+    assert_eq!(broader.fits_performed(), 1);
+    // The same family on the confounded panel still earns no causal license from its fit.
+    let data = fixture::source(true);
+    let mut request = fixture::request(&data, true, PanelInference::Frequentist { draws: 0 });
+    request.family = broader_family();
+    request.options.optimizer = bounded;
+    let confounded = Study::prepare_joint_panel(data, request, &ctx).unwrap();
+    assert!(!confounded.inspect().identification.is_identified_claim());
+    let fitted = confounded.estimate(&ctx).unwrap();
+    assert!(fitted.require_identified().is_err());
+}
+
+#[test]
+fn temporal_panel_fits_a_broader_family_through_the_same_selection_procedure() {
+    use antecedent_estimate::joint_panel::{
+        PanelOptimizerOptions,
+        time_varying::{PanelMeanParameter, TemporalPanelSpec},
+    };
+    let ctx = cached_context(20_261_023);
+    let data = fixture::source(false);
+    let mut request = fixture::request(&data, false, PanelInference::Frequentist { draws: 0 });
+    request.family = broader_family();
+    request.options.optimizer =
+        PanelOptimizerOptions { max_iterations: 600, gradient_tolerance: 1e-2 };
+    request.temporal = Some(TemporalPanelSpec {
+        // A shape change is a temporal mechanism of the Hill family; the shared lag and
+        // class structure stay fixed across the change.
+        varying: vec![PanelMeanParameter::HillShape { channel: "0".into() }],
+        change_points: vec![8, 12, 16],
+        minimum_segment: 4,
+        weak_change_gap: 4.0,
+        smooth_knots: vec![0, 8, 16, 23],
+        smoothing: vec![1.0],
+        path_prior_sd: 1.0,
+    });
+    let prepared = Study::prepare_joint_panel(data, request, &ctx).unwrap();
+    assert_eq!(prepared.fits_performed(), 0);
+    let result = prepared.estimate(&ctx).unwrap();
+    let JointPanelFit::Varying(fit) = &result.fit else { panic!("retained temporal program") };
+    assert_eq!(fit.point.parameters.len(), 24);
+    assert!(fit.attempts.iter().any(|attempt| attempt.converged));
+    assert!(fit.point.parameters.iter().all(|parameters| {
+        parameters.family.hill_shape.len() == 2
+            && parameters.family.class_half_saturation.len() == 3
+    }));
+    // Only the declared coordinate may move along the path.
+    let first = &fit.point.parameters[0];
+    assert!(
+        fit.point.parameters.iter().all(|p| p.family.hill_shape[1] == first.family.hill_shape[1]
+            && p.family.class_half_saturation == first.family.class_half_saturation
+            && p.channels == first.channels)
+    );
+    assert_eq!(fit.claim, "model_conditional_temporal_mechanism_only");
+    assert!(!prepared.inspect().identification.is_identified_claim());
+    assert!(result.point.iter().all(|world| world.means.len() == 24));
+}

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Local marginal likelihood, cluster sandwich and explicit-prior posterior sampling.
-use super::likelihood::{self, GaussianGroup};
+use super::likelihood;
 use super::{
     PanelData, PanelDraw, PanelError, PanelFit, PanelFitDiagnostics, PanelFitOptions,
     PanelInference, PanelOptimizerOptions, PanelPrior, check_cancelled, invalid,
@@ -210,38 +210,32 @@ fn cluster_factor(
         })
         .collect())
 }
-fn group_states(
+fn marginal_state(
     data: &likelihood::CompiledPanel<'_>,
     x: &[f64],
-) -> Option<(super::PanelParameters, Vec<GaussianGroup>)> {
+    detail: likelihood::Detail,
+) -> Option<(super::PanelParameters, likelihood::Marginal)> {
     let p = likelihood::decode(data, x)?;
-    let states = (0..data.groups.len())
-        .map(|group| likelihood::group_likelihood(data, group, &p))
-        .collect::<Option<Vec<_>>>()?;
-    Some((p, states))
+    let residuals = likelihood::residuals(data, &p);
+    let marginal = likelihood::marginal(data, &p, &residuals, detail)?;
+    Some((p, marginal))
 }
 fn conditional_draw(
     data: &likelihood::CompiledPanel<'_>,
     x: &[f64],
     rng: &mut antecedent_core::CausalRng,
 ) -> Option<PanelDraw> {
-    let (parameters, groups) = group_states(data, x)?;
-    let group_intercepts: Vec<_> = groups
-        .into_iter()
-        .map(|group| group.intercept_mean + group.intercept_variance.sqrt() * standard_normal(rng))
-        .collect();
-    group_intercepts
-        .iter()
-        .all(|value| value.is_finite())
-        .then_some(PanelDraw { parameters, group_intercepts })
+    let (parameters, marginal) = marginal_state(data, x, likelihood::Detail::Draw)?;
+    let group_intercepts = marginal.intercepts(Some(rng))?;
+    Some(PanelDraw { parameters, group_intercepts })
 }
 fn point(data: &likelihood::CompiledPanel<'_>, x: &[f64]) -> Result<PanelDraw, PanelError> {
-    let (parameters, groups) = group_states(data, x)
+    let (parameters, marginal) = marginal_state(data, x, likelihood::Detail::Mean)
         .ok_or_else(|| PanelError::Numerical("invalid point mechanism".into()))?;
-    Ok(PanelDraw {
-        parameters,
-        group_intercepts: groups.into_iter().map(|group| group.intercept_mean).collect(),
-    })
+    let group_intercepts = marginal
+        .intercepts(None)
+        .ok_or_else(|| PanelError::Numerical("invalid point mechanism".into()))?;
+    Ok(PanelDraw { parameters, group_intercepts })
 }
 
 pub(super) fn validate_prior(prior: &PanelPrior) -> Result<(), PanelError> {
@@ -260,17 +254,29 @@ pub(super) fn validate_prior(prior: &PanelPrior) -> Result<(), PanelError> {
             "positive finite coefficient, scale, log(k) and Dirichlet prior parameters",
         ));
     }
-    Ok(())
+    prior.family.validate()
+}
+/// `log sigmoid(z)`, stable for large `|z|`.
+fn log_sigmoid(z: f64) -> f64 {
+    -((-z).max(0.0) + (-(-z).abs()).exp().ln_1p())
 }
 pub(super) fn log_prior(data: &PanelData, x: &[f64], prior: &PanelPrior) -> f64 {
     let Some(p) = likelihood::decode(data, x) else {
         return f64::NEG_INFINITY;
     };
-    let linear = likelihood::linear_count(data);
+    let layout = likelihood::layout(data);
+    let linear = layout.base;
     let mut value =
         -0.5 * x[..linear].iter().map(|value| (value / prior.coefficient_sd).powi(2)).sum::<f64>();
-    let tail = if data.lag_order == 2 { linear + 2 * data.channels.len() } else { linear };
-    if data.lag_order == 2 {
+    if data.lag_order == 2 && data.family.is_geometric() {
+        // Beta(a, b) on theta = sigmoid(x): the logit Jacobian theta(1-theta) turns the
+        // exponents a-1 and b-1 into a and b in unconstrained coordinates.
+        let [a, b] = prior.family.geometric_decay;
+        for index in 0..data.channels.len() {
+            let logit = x[layout.lag + index];
+            value += a * log_sigmoid(logit) + b * log_sigmoid(-logit);
+        }
+    } else if data.lag_order == 2 {
         // The additive-logratio simplex Jacobian is prod(weights). Dirichlet
         // exponent alpha−1 therefore becomes alpha in unconstrained coordinates.
         for (index, channel) in p.channels.iter().enumerate() {
@@ -280,16 +286,28 @@ pub(super) fn log_prior(data: &PanelData, x: &[f64], prior: &PanelPrior) -> f64 
                 weights.iter().zip(alpha).map(|(weight, alpha)| alpha * weight.ln()).sum::<f64>();
         }
     }
-    value -=
-        0.5 * ((x[tail] - prior.log_half_saturation_mean) / prior.log_half_saturation_sd).powi(2);
+    value -= 0.5
+        * ((x[layout.k0] - prior.log_half_saturation_mean) / prior.log_half_saturation_sd).powi(2);
+    let family = &prior.family;
+    for shape in &x[layout.shape..layout.shape + layout.shape_len] {
+        value -= 0.5 * ((shape - family.log_hill_shape_mean) / family.log_hill_shape_sd).powi(2);
+    }
+    // Classes are partially pooled toward the first class on the log scale.
+    for class in &x[layout.class..layout.class + layout.class_len] {
+        value -= 0.5 * ((class - x[layout.k0]) / family.class_log_saturation_sd).powi(2);
+    }
     // Uniform rho on (-1,1), half-Normal sigma/tau. The scale/rho Jacobians
     // are part of the posterior; a prior on log scales would be a different law.
     if data.lag_order == 2 {
         value += (1.0 - p.rho * p.rho).ln();
     }
-    let scale_offset = tail + if data.lag_order == 2 { 2 } else { 1 };
-    value += x[scale_offset] - 0.5 * (p.innovation_sd / prior.innovation_scale).powi(2);
-    value += x[scale_offset + 1] - 0.5 * (p.group_sd / prior.group_scale).powi(2);
+    value += x[layout.sigma] - 0.5 * (p.innovation_sd / prior.innovation_scale).powi(2);
+    value += x[layout.tau] - 0.5 * (p.group_sd / prior.group_scale).powi(2);
+    if let Some(range) = layout.range {
+        let center =
+            family.log_spatial_range_mean.unwrap_or_else(|| data.family.median_distance().ln());
+        value -= 0.5 * ((x[range] - center) / family.log_spatial_range_sd).powi(2);
+    }
     if value.is_finite() { value } else { f64::NEG_INFINITY }
 }
 
@@ -429,14 +447,20 @@ fn bootstrap_draws(
             ctx.rng.stream(antecedent_core::derive_stream(0x5830_3242_4f4f_5453, replicate as u64));
         let mut simulated = data.source.clone();
         let p = &fitted.parameters;
-        for group in &mut simulated.groups {
-            let intercept = p.group_sd * standard_normal(&mut rng);
+        // Spatially correlated intercepts are drawn jointly before any group's innovations.
+        let spatial = likelihood::spatial_prior_intercepts(data, p, &mut rng)
+            .ok_or_else(|| PanelError::Numerical("spatial correlation is not factorable".into()))?;
+        for (index, group) in simulated.groups.iter_mut().enumerate() {
+            let intercept = match &spatial {
+                Some(draws) => draws[index],
+                None => p.group_sd * standard_normal(&mut rng),
+            };
             let mut error =
                 p.innovation_sd / (1.0 - p.rho.powi(2)).sqrt() * standard_normal(&mut rng);
             for time in 0..group.outcome.len() {
                 error = p.rho * error + p.innovation_sd * standard_normal(&mut rng);
                 group.outcome[time] =
-                    likelihood::observed_response(data, p, group, time) + intercept + error;
+                    likelihood::observed_response(data, p, group, index, time) + intercept + error;
             }
         }
         let compiled = likelihood::CompiledPanel::new(&simulated)?;
@@ -466,11 +490,24 @@ fn frequentist_draws(
     ctx: &ExecutionContext,
 ) -> Result<Vec<Option<PanelDraw>>, PanelError> {
     Ok({
-        diagnostics.cluster_rank_bound =
-            Some((data.groups.len() - 1).min(likelihood::parameter_count(data)));
-        diagnostics.uncertainty = "local group-cluster Gaussian global-parameter approximation plus conditional Gaussian random-effect uncertainty; neither a posterior nor a calibrated interval; the cluster covariance may be rank deficient".into();
-        if let Some(inverse) = inverse.filter(|_| local.converged) {
-            let factor = cluster_factor(data, &local.values, inverse, ctx)?;
+        let spatial = data.family.spatial.is_some();
+        if spatial {
+            // Groups are not independent clusters under a spatial residual law, so the
+            // group-cluster sandwich is not a valid covariance; the model-based inverse
+            // observed information of the full spatial likelihood is used instead.
+            diagnostics.cluster_rank_bound = None;
+            diagnostics.uncertainty = "model-based Gaussian global-parameter approximation from the inverse observed information of the spatially dependent likelihood plus joint conditional Gaussian spatial random-effect uncertainty; neither a posterior nor a calibrated interval".into();
+        } else {
+            diagnostics.cluster_rank_bound =
+                Some((data.groups.len() - 1).min(likelihood::parameter_count(data)));
+            diagnostics.uncertainty = "local group-cluster Gaussian global-parameter approximation plus conditional Gaussian random-effect uncertainty; neither a posterior nor a calibrated interval; the cluster covariance may be rank deficient".into();
+        }
+        let factor = match inverse.filter(|_| local.converged) {
+            Some(inverse) if spatial => model_factor(inverse, local.values.len()),
+            Some(inverse) => Some(cluster_factor(data, &local.values, inverse, ctx)?),
+            None => None,
+        };
+        if let Some(factor) = factor {
             let mut output = Vec::with_capacity(draws);
             for slot in 0..draws {
                 check_cancelled(ctx)?;
@@ -491,6 +528,12 @@ fn frequentist_draws(
             vec![None; draws]
         }
     })
+}
+/// Columns of the lower Cholesky factor of a covariance, in the shape of the cluster factor.
+fn model_factor(covariance: &[f64], p: usize) -> Option<Vec<Vec<f64>>> {
+    let mut lower = vec![0.0; p * p];
+    cholesky_spd_into(covariance, p, &mut lower).ok()?;
+    Some((0..p).map(|column| (0..p).map(|row| lower[row * p + column]).collect()).collect())
 }
 fn posterior_draws(
     data: &likelihood::CompiledPanel<'_>,

@@ -19,7 +19,8 @@ pub use dispatch::{
 // The raw static estimate and identification entries run without a lowered program or a
 // contract; only the compiled paths inside the crate reach them.
 pub(crate) use dispatch::{
-    estimate_static_effect, identify_admg, identify_admg_derivative, identify_cpdag_path_specific,
+    estimate_static_effect, identify_admg, identify_admg_derivative, identify_cpdag_distribution,
+    identify_cpdag_path_specific, identify_pag_distribution,
     identify_pag, identify_pag_path_specific, identify_static, not_identified_admg,
 };
 pub use ids::{

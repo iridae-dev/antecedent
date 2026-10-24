@@ -330,7 +330,7 @@ fn an_arrow_c_stream_batch_larger_than_the_pool_is_refused_with_the_producer_rem
     let refused = reader.next_chunk().unwrap_err();
     let (stage, required, _) = refusal(&refused);
     assert_eq!(stage, MemoryStage::DecodedBatch);
-    assert!(required >= 200_000 * 16);
+    assert!(required >= 1_500_000, "the projected column alone is 1.6 MB: {required}");
     let remedy = refused.next_attempt().unwrap();
     assert!(
         remedy.contains("from the producer") && remedy.contains("max_chunksize=1000"),

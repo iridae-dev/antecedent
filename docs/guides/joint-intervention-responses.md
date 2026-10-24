@@ -33,6 +33,26 @@ observed confounder and Gaussian AR(1) dependence within groups. The zero-lag
 reduction fixes the lag and serial parameters. Frequentist and Bayesian
 realizations preserve their distinct uncertainty meanings.
 
+Broader mechanism families are selectable and default to the family above, so a
+request that does not name one reproduces the reviewed fit exactly. Python passes
+`family=` to `joint_panel.prepare`; Rust sets `JointPanelRequest::family`. The
+choices are truncated geometric adstock (one decay per channel over the observable
+window) in place of the free simplex; a free positive Hill shape per channel in
+place of Michaelis–Menten; one half-saturation per declared class of groups (all
+groups, or one class per group), partially pooled toward the first class under a
+prior; and spatially correlated group intercepts with a fitted kernel range from a
+declared group distance matrix. Frequentist uncertainty under spatial dependence
+uses the model-based inverse information, because groups are no longer
+independent clusters; the parametric bootstrap repeats the whole fit, including
+temporal change selection, and the Bayesian realization places proper priors on
+every added coordinate. Hill shape, geometric decay and class half-saturation can
+vary through the same piecewise or smooth temporal path. A compiled scalar
+response expression supports integer Hill shapes only; other shapes are refused.
+
+A family changes the fitted mechanism, never what identifies a world. Worlds are
+identified by the declared design, such as a known whole-program randomized
+assignment; a fit of any family leaves a confounded panel unlicensed.
+
 ## Compile, execute and reuse
 
 Rust callers use `Study::prepare_joint_panel` or an existing prepared study's

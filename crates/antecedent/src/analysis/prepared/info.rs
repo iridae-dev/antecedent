@@ -191,8 +191,10 @@ pub enum RetainedOperation<'a> {
     MultiEnvTemporal,
     /// Temporal cross-world query, sealed to its lowered program.
     TemporalCrossWorld,
-    /// Temporal ADMG effect, sealed to its lowered program.
+    /// Temporal ADMG effect or derivative response, sealed to its lowered program.
     TemporalAdmgEffect,
+    /// Anomaly or change attribution over a structure class, sealed to its lowered program.
+    ClassAttribution,
     /// Noncausal association of the observed data, sealed to its lowered program.
     Association,
 }
@@ -269,6 +271,7 @@ impl RetainedOperation<'_> {
             Self::MultiEnvTemporal => "multi_env_temporal",
             Self::TemporalCrossWorld => "temporal_cross_world",
             Self::TemporalAdmgEffect => "temporal_admg_effect",
+            Self::ClassAttribution => "class_attribution",
             Self::Association => "association",
         }
     }
@@ -379,6 +382,7 @@ impl PreparedStudy {
             E::MultiEnvTemporal(_) => R::MultiEnvTemporal,
             E::TemporalCrossWorld(_) => R::TemporalCrossWorld,
             E::TemporalAdmgEffect(_) => R::TemporalAdmgEffect,
+            E::ClassAttribution(_) => R::ClassAttribution,
             E::Association(_) => R::Association,
         }
     }

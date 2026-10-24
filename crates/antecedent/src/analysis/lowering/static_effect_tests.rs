@@ -7,8 +7,9 @@ use std::collections::BTreeSet;
 
 use antecedent_contract::ClaimKind;
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ExecutionContext, Intervention,
-    InterventionalDistributionQuery, PathSpecificEffectQuery, TargetForm, Value, VariableId,
+    AverageEffectQuery, CausalQuery, ConditionalEffectQuery, CounterfactualQuery, ExecutionContext,
+    Intervention, InterventionalDistributionQuery, PathSpecificEffectQuery, TargetForm, Value,
+    VariableId,
 };
 use antecedent_data::TabularData;
 use antecedent_graph::{Admg, Cpdag, Dag, DenseNodeId, Pag};
@@ -353,6 +354,17 @@ fn representatives() -> Vec<(&'static str, Study)> {
             base(mediated_data())
                 .graph(mediated_pag)
                 .query(CausalQuery::PathSpecific(path_query())),
+        ),
+        // `t -> m -> y` with `t <-> y`: ID* identifies the effect on the treated by the front door.
+        build(
+            "CounterfactualClass",
+            base(mediated_data())
+                .graph(mediated_admg.clone())
+                .query(CausalQuery::Counterfactual(
+                    CounterfactualQuery::new(v(2), [Intervention::set(v(0), Value::f64(1.0))])
+                        .with_control_level(0.0),
+                ))
+                .bootstrap_replicates(0),
         ),
         build(
             "PathSpecificMixed",

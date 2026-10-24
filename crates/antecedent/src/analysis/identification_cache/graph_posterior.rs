@@ -28,6 +28,9 @@ pub(crate) struct CachedGraphPosteriorAtomIdentification {
     pub estimand: IdentifiedEstimand,
     /// Full per-atom identification result.
     pub identification: IdentificationResult,
+    /// The certified sID transport proof of this atom's selection diagram, retained only
+    /// by a `TransportQuery` posterior: the trial-to-target estimator reads its formula.
+    pub transport: Option<Arc<antecedent_identify::TransportIdentification>>,
 }
 
 /// One completion case inside a CPDAG/PAG posterior atom.
@@ -233,6 +236,86 @@ fn build_admg_graph_posterior_identification_cache(
         })()
     })?;
     collect_mask_atoms(posterior, ctx, &by_mask)
+}
+
+/// Identify every atom of a lagged temporal-ADMG posterior on the unrolled window of its own
+/// template (the complete ID algorithm, as a supplied `TemporalAdmg` contrast is).
+///
+/// Atoms are keyed by posterior position: two atoms that differ only in their lagged edges
+/// share a contemporaneous mask, so the posterior's graph keys do not tell them apart. An atom
+/// whose template the window cannot hold, or whose contrast the window leaves unidentified (a
+/// hedge, a modifier a treated period can reach), keeps its mass as unidentified mass.
+///
+/// # Errors
+///
+/// A posterior that is not a lagged temporal-ADMG posterior, a population other than the
+/// observed one (a property of the query, not of an atom), or cancellation.
+pub(crate) fn build_temporal_admg_posterior_identification_cache(
+    posterior: &GraphPosterior,
+    variables: &[antecedent_core::VariableId],
+    query: &antecedent_core::TemporalEffectQuery,
+    ctx: &ExecutionContext,
+) -> Result<CachedGraphPosteriorIdentification, CausalError> {
+    use crate::analysis::temporal_admg_contrast::identify_window_contrast;
+
+    if !posterior.is_lagged_temporal_admg() {
+        return Err(CausalError::Compile {
+            message: "a lagged temporal-ADMG identification requires TemporalAdmg atoms with \
+                      per-atom lag masks"
+                .into(),
+        });
+    }
+    if query.target_population != antecedent_core::TargetPopulation::AllObserved {
+        return Err(CausalError::Compile {
+            message: "a contrast over lagged temporal-ADMG atoms answers for the observed \
+                      population; a reweighted or local target population is a different \
+                      estimand"
+                .into(),
+        });
+    }
+    let max_lag = posterior.max_lag.unwrap_or(0);
+    let variable_count = u32::try_from(variables.len()).map_err(|_| CausalError::Compile {
+        message: "series schema exceeds the variable id range".into(),
+    })?;
+    crate::analysis::execute::report_identify_compute(ctx);
+    let mapped = map_posterior_graphs(posterior, ctx, |i, _inner| {
+        let Some(atom) = posterior.temporal_admg_atom(i) else { return Ok(None) };
+        let Ok(template) = atom.to_template(posterior.n_vars, max_lag, variables) else {
+            return Ok(None);
+        };
+        let Ok(contrast) = identify_window_contrast(&template, query, variable_count) else {
+            return Ok(None);
+        };
+        Ok::<Option<(IdentifiedEstimand, IdentificationResult)>, CausalError>(Some((
+            contrast.estimand,
+            contrast.identification,
+        )))
+    })?;
+    let mut weights = Vec::with_capacity(posterior.n_graphs);
+    let mut flags = Vec::with_capacity(posterior.n_graphs);
+    let mut keys = Vec::with_capacity(posterior.n_graphs);
+    let mut atoms = Vec::new();
+    for (i, found) in mapped.into_iter().enumerate() {
+        let key = super::dbn_envelope_key(i)?;
+        keys.push(key);
+        weights.push(posterior.weights[i]);
+        if let Some((estimand, identification)) = found {
+            flags.push(GraphIdentFlag::Identified);
+            atoms.push(CachedGraphPosteriorAtomIdentification {
+                key,
+                estimand,
+                identification,
+                transport: None,
+            });
+        } else {
+            flags.push(GraphIdentFlag::Unidentified);
+        }
+    }
+    Ok(CachedGraphPosteriorIdentification {
+        graphs: WeightedGraphSamples::new(weights, flags, keys)?,
+        atoms: Arc::from(atoms),
+        class_atoms: Arc::from([]),
+    })
 }
 
 /// Identify every CPDAG/PAG posterior atom with the existing class ATE envelope.

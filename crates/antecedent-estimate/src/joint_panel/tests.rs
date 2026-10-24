@@ -51,6 +51,7 @@ pub(super) fn fixture() -> (PanelData, PanelDraw, serde_json::Value) {
         rho: 0.45,
         innovation_sd: 0.2,
         group_sd: 0.35,
+        family: PanelFamilyParameters::default(),
     };
     let group_intercepts = truth["variants"]["interaction"]["latent_truth"]
         .as_array()
@@ -74,6 +75,7 @@ pub(super) fn fixture() -> (PanelData, PanelDraw, serde_json::Value) {
             groups,
             seasons: 4,
             lag_order: 2,
+            family: PanelFamily::default(),
         },
         PanelDraw { parameters, group_intercepts },
         truth,
@@ -297,7 +299,9 @@ fn configured_three_channel_programmable_features_use_exact_axis_and_shared_draw
         + 0.7 * 0.4
         + 0.2;
     let compiled = CompiledPanel::new(&data).unwrap();
-    assert!((response(&compiled, &draw.parameters, &exposures, 0.4, 1) - expected).abs() < 1e-12);
+    assert!(
+        (response(&compiled, &draw.parameters, &exposures, 0.4, 1, 0) - expected).abs() < 1e-12
+    );
     let encoded = encode(&data, &draw.parameters).unwrap();
     assert_eq!(encoded.len(), 20); // 3D + I + S + 5, not a fixed two-channel design.
     assert_eq!(decode(&data, &encoded).unwrap().channels.len(), 3);

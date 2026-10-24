@@ -2549,6 +2549,16 @@ fn advertised_estimator(study: &Study, resolved_estimator: Option<&str>) -> Opti
             })
         })
         .map(|id| id.as_str())
+        .or_else(|| {
+            // A temporal response (a derivative included) has one estimator per inference
+            // mode and the builder binds no placeholder; the plan's choice is the one the
+            // program runs, so the contract names it.
+            let temporal = matches!(&study.query, CausalQuery::Response(q) if q.temporal.is_some());
+            resolved_estimator
+                .filter(|_| temporal)
+                .and_then(|name| name.parse::<crate::EstimatorId>().ok())
+                .map(|id| id.as_str())
+        })
 }
 
 /// Inferential commitments of the compiled program. `resolved_estimator` is

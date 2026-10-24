@@ -514,8 +514,157 @@ fn completions_that_disagree_publish_the_identified_set_of_the_independent_refer
         panic!("disagreeing completions must publish their identified set");
     };
     assert!((set.lower[0] - values[0]).abs() < 1e-9 && (set.upper[0] - values[1]).abs() < 1e-9);
+    // The sampling band of the identified set: the Imbens-Manski interval of the completions'
+    // slopes, from their joint row influence. It contains the set, and each independent
+    // reference is inside it.
+    let ResponseUncertainty::Scalar { lower, upper, level, interpretation, .. } =
+        &result.response().unwrap().uncertainty
+    else {
+        panic!("an identified set of unequal derivative completions must publish a sampling band");
+    };
+    assert_eq!(*interpretation, antecedent_core::IntervalInterpretation::Confidence);
+    assert!(*level > 0.0 && *level < 1.0);
+    assert!(*lower <= values[0] && *upper >= values[1], "[{lower}, {upper}] vs {values:?}");
     assert!(
-        matches!(result.response().unwrap().uncertainty, ResponseUncertainty::None),
-        "no sampling band is published for an identified set of unequal completions"
+        *lower <= adjusted && adjusted <= *upper && *lower <= unadjusted && unadjusted <= *upper
     );
+    assert!(
+        *upper - *lower > values[1] - values[0],
+        "the band must widen the set by sampling error"
+    );
+    let interval = result
+        .structural_response
+        .as_ref()
+        .and_then(|mixture| mixture.identified_set_interval)
+        .expect("the identified-set interval is retained");
+    assert_eq!(
+        interval.method,
+        antecedent_estimate::IdentifiedSetIntervalMethod::ImbensManskiInfluence
+    );
+    assert_eq!(interval.completions, 2);
+}
+
+/// `x -> m -> y` with a latent common cause of `x` and `y`, so no adjustment set exists and
+/// the mean is identified only through the front door.
+///
+/// `x = 1 + sin(.71 i) + .2 cos(.13 i) + .8 l`, `m = .5 + .9 x + .5 sin(1.9 i)`,
+/// `y = 3 + 2 m + .7 l + e` with the latent `l = cos(.77 i + 2)`; the structural slope of
+/// `E[y | do(x)]` is `.9 * 2 = 1.8`.
+fn front_door_columns() -> (Vec<f64>, Vec<f64>, Vec<f64>) {
+    let n = 900;
+    let mut x = Vec::with_capacity(n);
+    let mut m = Vec::with_capacity(n);
+    let mut y = Vec::with_capacity(n);
+    for i in 0..n {
+        let t = i as f64;
+        let latent = (t * 0.77 + 2.0).cos();
+        let xi = 1.0 + (t * 0.71).sin() + 0.2 * (t * 0.13).cos() + 0.8 * latent;
+        let mi = 0.5 + 0.9 * xi + 0.5 * (t * 1.9).sin();
+        x.push(xi);
+        m.push(mi);
+        y.push(3.0 + 2.0 * mi + 0.7 * latent + 0.05 * (t * 3.1).cos());
+    }
+    (x, m, y)
+}
+
+fn front_door_study(
+    inference: InferenceMode,
+    functional: &F,
+    replicates: u32,
+) -> (Study, TabularData) {
+    let (x, m, y) = front_door_columns();
+    let data = TabularData::from_f64_columns([
+        ("x", x.as_slice()),
+        ("m", m.as_slice()),
+        ("y", y.as_slice()),
+    ])
+    .unwrap();
+    let mut graph = Admg::with_variables(3);
+    graph.insert_directed(d(0), d(1)).unwrap();
+    graph.insert_directed(d(1), d(2)).unwrap();
+    graph.insert_bidirected(d(0), d(2)).unwrap();
+    let study = Study::tabular(data.clone())
+        .graph(graph)
+        .query(CausalQuery::Response(ResponseQuery::new(functional.clone())))
+        .inference(inference)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(replicates)
+        .build()
+        .unwrap();
+    (study, data)
+}
+
+#[test]
+fn a_front_door_identified_derivative_is_estimated_not_refused() {
+    // Independent reference: the front-door product of the slope of the mediator on the
+    // treatment and the coefficient of the mediator in the outcome regression given the
+    // treatment, each from the normal equations. The unadjusted slope is confounded.
+    let (x, m, y) = front_door_columns();
+    let mediator_on_treatment = ols(&[&x], &m)[1];
+    let outcome_on_mediator = ols(&[&m, &x], &y)[1];
+    let front_door = mediator_on_treatment * outcome_on_mediator;
+    let naive = ols(&[&x], &y)[1];
+    assert!((front_door - 1.8).abs() < 0.05, "{front_door}");
+    assert!((naive - front_door).abs() > 0.2, "the latent cause must bias the naive slope");
+    let at = x.iter().sum::<f64>() / x.len() as f64;
+    let point = F::PointDerivative {
+        outcome: v(2),
+        treatment: v(0),
+        at,
+        order: 1,
+        scale: DerivativeScale::Identity,
+    };
+    let average = F::AverageDerivative {
+        outcome: v(2),
+        treatment: v(0),
+        weighting: DerivativeWeighting::Observed,
+    };
+    let ctx = ExecutionContext::for_tests(23);
+    for (key, functional) in [("point", point), ("average", average)] {
+        let (frequentist, _) = front_door_study(InferenceMode::Frequentist, &functional, 40);
+        let result = frequentist.run(&ctx).unwrap();
+        let got = published(&result, key)[0];
+        assert!(
+            (got - front_door).abs() < 0.15,
+            "{key}: {got} vs front-door reference {front_door}"
+        );
+        assert!((got - naive).abs() > 0.1, "{key}: {got} is the confounded slope {naive}");
+        let (lower, upper) = interval(&result, key);
+        assert!(
+            lower[0] <= got && got <= upper[0],
+            "{key}: [{}, {}] around {got}",
+            lower[0],
+            upper[0]
+        );
+        assert!(upper[0] - lower[0] > 0.0);
+        let (bayes, _) = front_door_study(
+            InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(40)),
+            &functional,
+            0,
+        );
+        let posterior = bayes.run(&ctx).unwrap();
+        let mean = published(&posterior, key)[0];
+        assert!((mean - front_door).abs() < 0.15, "{key}: posterior mean {mean}");
+        let ResponseUncertainty::Scalar { interpretation, lower, upper, .. } =
+            &posterior.response().unwrap().uncertainty
+        else {
+            panic!("{key}: a posterior interval is required");
+        };
+        assert_eq!(*interpretation, antecedent_core::IntervalInterpretation::Credible);
+        assert!(lower <= upper);
+    }
+}
+
+#[test]
+fn a_front_door_derivative_can_be_prepared_and_refreshed() {
+    let functional = F::AverageDerivative {
+        outcome: v(2),
+        treatment: v(0),
+        weighting: DerivativeWeighting::Observed,
+    };
+    let (study, data) = front_door_study(InferenceMode::Frequentist, &functional, 0);
+    let ctx = ExecutionContext::for_tests(29);
+    let fresh = study.run(&ctx).unwrap();
+    let click = study.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap();
+    assert_eq!(published(&click, "click"), published(&fresh, "fresh"));
 }

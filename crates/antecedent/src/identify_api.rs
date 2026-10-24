@@ -347,16 +347,53 @@ fn identify_source_temporal_pag(
     strategy: IdentifierId,
     structure_version: u32,
 ) -> Result<Identification, CausalError> {
-    if matches!(query, CausalQuery::Mediation(_)) {
-        return Err(CausalError::Unsupported {
-            message: "Latent-confounded TemporalPag natural mediation is outside the \
-                      existing cross-world identification theory",
-        });
+    if let CausalQuery::Mediation(mediation) = query {
+        return identify_temporal_pag_mediation(pag, mediation, strategy, structure_version);
     }
     let q = temporal_class_identify_query(query, "TemporalPag")?;
     let mut envelope = identify_temporal_pag(strategy, pag, &q)?;
     refine_temporal_class_identification(&mut envelope, query, q.horizon_steps)?;
     audit_temporal_class_horizons(&mut envelope, structure, query, strategy, &q)?;
+    Ok(Identification::TemporalEnvelope { envelope, strategy, structure_version })
+}
+
+/// Natural mediation under a temporal PAG: the envelope of the window's completions, each
+/// read through the ADMGs sharing its MAG. The window is numbered over the variables the
+/// template and the query name, the schema a study with rows takes from its series.
+fn identify_temporal_pag_mediation(
+    pag: &antecedent_graph::TemporalPag,
+    mediation: &antecedent_core::MediationQuery,
+    strategy: IdentifierId,
+    structure_version: u32,
+) -> Result<Identification, CausalError> {
+    mediation.validate()?;
+    let [horizon] = mediation.horizons.as_ref() else {
+        return Err(CausalError::Unsupported {
+            message: "mediation under a temporal PAG reads one outcome horizon; next attempt: \
+                      one study per horizon",
+        });
+    };
+    let mut effect =
+        antecedent_core::TemporalEffectQuery::pulse(mediation.treatment, mediation.outcome, 1.0)
+            .with_horizon_steps(*horizon);
+    effect.control = mediation.control.clone();
+    effect.active = mediation.active.clone();
+    effect.target_population = mediation.target_population.clone();
+    let largest = pag
+        .nodes()
+        .iter()
+        .filter_map(|node| match node {
+            antecedent_graph::NodeRef::Lagged { variable, .. } => Some(variable.raw()),
+            _ => None,
+        })
+        .chain([mediation.treatment.raw(), mediation.outcome.raw()])
+        .chain(mediation.mediators.iter().map(|mediator| mediator.raw()))
+        .max()
+        .unwrap_or(0);
+    let window =
+        antecedent_identify::temporal_pag_mediation_window(pag, &effect, mediation, largest + 1)?;
+    let envelope = antecedent_identify::GeneralizedAdjustmentIdentifier::new()
+        .identify_temporal_pag_path_specific_envelope(pag, &window)?;
     Ok(Identification::TemporalEnvelope { envelope, strategy, structure_version })
 }
 

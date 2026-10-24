@@ -84,7 +84,8 @@ pub(super) use crate::strategy_table::{
     DEFAULT_PATH_IDENTIFIER_ID, DEFAULT_RESPONSE_IDENTIFIER_ID, EstimatorId, IdentifierId,
     StaticEstimateInput, StaticEstimateWorkspaces, estimate_provenance_step,
     estimate_static_effect, identify_admg, identify_admg_query, identify_cpdag,
-    identify_cpdag_path_specific, identify_pag, identify_pag_path_specific,
+    identify_cpdag_distribution, identify_cpdag_path_specific, identify_pag,
+    identify_pag_distribution, identify_pag_path_specific,
     identify_provenance_step, identify_static,
     identify_static_query, identify_static_query_with_rd, identify_temporal_cpdag_configured,
     identify_temporal_pag_configured, require_identified, select_claim, select_estimand,
@@ -250,7 +251,11 @@ mod admg_posterior;
 mod admg_posterior_response;
 mod attribution_path;
 mod checked_attribution;
+mod class_attribution;
 mod temporal_attribution;
+mod temporal_admg_mediation;
+mod temporal_pag_mediation;
+mod temporal_admg_posterior;
 pub(crate) use attribution_path::{CheckedCounterfactualPlan, CounterfactualProcedure};
 pub(crate) use checked_attribution::{
     CheckedAttributionOperation, attribute_bootstrap_supported, attribute_posterior_draws,
@@ -345,6 +350,11 @@ pub(crate) use checked_synthetic_control::{
 pub(crate) use checked_temporal_design::CheckedTemporalDesignOperation;
 pub(crate) use checked_temporal_mediation::CheckedTemporalMediationOperation;
 mod atom_mix;
+mod interference_posterior;
+mod transport_class;
+mod transport_posterior;
+mod class_counterfactual;
+mod class_distribution;
 mod class_envelope_se;
 mod class_path_specific;
 mod class_posterior;
@@ -376,6 +386,7 @@ use mediation_streams::{MediationRoute, mediation_block_stream, mediation_mechan
 mod checked_static_response;
 mod dispatch;
 mod identified_set_diagnostics;
+mod interference_refutation;
 mod mediation_mixed;
 mod multi_env_path;
 mod pag_path;

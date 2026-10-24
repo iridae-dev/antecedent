@@ -36,6 +36,7 @@ pub mod distribution_change;
 pub mod error;
 pub mod feature_relevance;
 pub mod intrinsic_influence;
+pub mod latent_blocks;
 pub mod mechanism_change;
 pub mod path;
 pub mod population;
@@ -49,7 +50,7 @@ pub mod unit_change;
 
 pub use anomaly::{
     AnomalyScores, ArrowStrength, PopulationDoContrast, arrow_strengths, population_do_contrast,
-    score_anomalies, score_anomalies_with,
+    score_anomalies, score_anomalies_blocks_with, score_anomalies_with,
 };
 pub use builder::ChangeAttribution;
 pub use distribution_change::{
@@ -63,6 +64,10 @@ pub use intrinsic_influence::{
     IntrinsicAllocation, IntrinsicBudget, IntrinsicInfluenceQuery, IntrinsicInfluenceResult,
     IntrinsicMethod, NoiseIndependence, PartialStderr, ShapleyMethod, SourceInfluence,
     UncertaintyComponent, intrinsic_influence,
+};
+pub use latent_blocks::{
+    HEDGE_WITNESS_ID, HEDGE_WITNESS_TEST, MechanismHedge, NoiseBlockIdentification, NoiseBlockPlan,
+    distribution_change_blocks, plan_noise_blocks,
 };
 pub use mechanism_change::{
     MIN_BLOCK_PERMUTATIONS, MechanismChangeMethod, MechanismChangePosterior,
