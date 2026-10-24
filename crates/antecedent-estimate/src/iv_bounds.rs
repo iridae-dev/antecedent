@@ -18,9 +18,12 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{ExecutionContext, IvBoundsQuery, StreamDomain, Value, VariableId};
-use antecedent_data::{ColumnView, DiscreteColumn, TableView, TabularData};
+use antecedent_data::{
+    ColumnView, DiscreteColumn, ResamplingPlan, TableView, TabularData,
+    fill_resample_index_replicate,
+};
 use antecedent_identify::{BinaryIvLaw, binary_iv_ate_bounds};
-use antecedent_kernels::{bayesian_bootstrap_weights, sample_std, unbiased_index};
+use antecedent_kernels::{bayesian_bootstrap_weights, sample_std};
 
 use crate::error::EstimationError;
 use crate::identified_set::{
@@ -301,8 +304,10 @@ impl IvBoundsEstimator {
             if ctx.cancellation.is_cancelled() {
                 return Err(EstimationError::unsupported("IV bounds posterior cancelled"));
             }
-            let mut rng =
-                ctx.rng.stream_for(StreamDomain::Estimate, POSTERIOR_STREAM ^ draw as u64);
+            let mut rng = ctx.rng.stream_for(
+                StreamDomain::Estimate,
+                antecedent_core::derive_stream(POSTERIOR_STREAM, draw as u64),
+            );
             let exponential = bayesian_bootstrap_weights(&mut rng, rows, false);
             let cells = prepared.cells(|row| prepared.weight[row] * exponential[row]);
             match observed_law(&cells).and_then(|(law, _)| bounds_of(law)) {
@@ -366,15 +371,23 @@ impl IvBoundsEstimator {
         let _admitted = crate::util::admit_array::<f64>(ctx, replicates, 2)?;
         let mut draws: Vec<Vec<f64>> = Vec::with_capacity(replicates);
         let mut infeasible = 0_usize;
+        let mut drawn = Vec::with_capacity(rows);
         for replicate in 0..replicates {
             if ctx.cancellation.is_cancelled() {
                 return Err(EstimationError::unsupported("IV bounds bootstrap cancelled"));
             }
-            let mut rng =
-                ctx.rng.stream_for(StreamDomain::Estimate, BOOTSTRAP_STREAM ^ replicate as u64);
+            fill_resample_index_replicate(
+                ResamplingPlan::IidBootstrap,
+                rows,
+                None,
+                ctx,
+                BOOTSTRAP_STREAM,
+                replicate as u64,
+                &mut drawn,
+            )?;
             let mut multiplicity = vec![0.0_f64; rows];
-            for _ in 0..rows {
-                multiplicity[unbiased_index(&mut rng, rows)] += 1.0;
+            for id in &drawn {
+                multiplicity[id.get() as usize] += 1.0;
             }
             let cells = prepared.cells(|row| prepared.weight[row] * multiplicity[row]);
             match observed_law(&cells).and_then(|(law, _)| bounds_of(law)) {
@@ -669,5 +682,58 @@ mod tests {
         assert!(interval.lower <= posterior.lower_mean && interval.upper >= posterior.upper_mean);
         let few = estimator.estimate_bayesian(&prepared, 5, &ctx).unwrap_err();
         assert!(few.to_string().contains("at least 20"), "{few}");
+    }
+
+    #[test]
+    fn row_bootstrap_replicates_of_neighbouring_bases_are_distinct_streams() {
+        // A base combined with the replicate id by exclusive-or maps every (base, replicate)
+        // pair with equal XOR to one stream: 0x...5001 ^ 3 == 0x...5002 ^ 0.
+        let ctx = ExecutionContext::for_tests(46);
+        let rows = 64;
+        let draw = |base: u64, replicate: u64| {
+            let mut out = Vec::new();
+            fill_resample_index_replicate(
+                ResamplingPlan::IidBootstrap,
+                rows,
+                None,
+                &ctx,
+                base,
+                replicate,
+                &mut out,
+            )
+            .unwrap();
+            out.iter().map(|id| id.get()).collect::<Vec<_>>()
+        };
+        let mut seen = std::collections::HashSet::new();
+        for base in [BOOTSTRAP_STREAM, POSTERIOR_STREAM, BOOTSTRAP_STREAM + 0x10] {
+            for replicate in 0..16_u64 {
+                assert!(
+                    seen.insert(draw(base, replicate)),
+                    "base {base:#x} replicate {replicate} repeats another stream"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn posterior_draws_do_not_reuse_the_bootstrap_replicate_streams() {
+        let ctx = ExecutionContext::for_tests(49);
+        let posterior = |draw: u64| {
+            ctx.rng
+                .stream_for(
+                    StreamDomain::Estimate,
+                    antecedent_core::derive_stream(POSTERIOR_STREAM, draw),
+                )
+                .next_u64()
+        };
+        let mut seen = std::collections::HashSet::new();
+        for draw in 0..64_u64 {
+            assert!(seen.insert(posterior(draw)), "draw {draw} repeats another draw");
+        }
+        let xor =
+            |base: u64, id: u64| ctx.rng.stream_for(StreamDomain::Estimate, base ^ id).next_u64();
+        // The old derivation: these two draws were the same stream.
+        assert_eq!(xor(BOOTSTRAP_STREAM, 3), xor(POSTERIOR_STREAM, 0));
+        assert_ne!(posterior(3), posterior(0));
     }
 }

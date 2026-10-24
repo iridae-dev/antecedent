@@ -7,6 +7,10 @@
 mod predictive_score_interval_facade;
 #[path = "released_surface.rs"]
 mod released_surface;
+#[path = "route_diagnostics.rs"]
+mod route_diagnostics;
+#[path = "sampling_design_declaration.rs"]
+mod sampling_design_declaration;
 #[path = "resampling_accuracy.rs"]
 mod resampling_accuracy;
 #[path = "z_transport_repair.rs"]

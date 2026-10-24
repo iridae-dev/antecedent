@@ -1691,6 +1691,18 @@ pub struct StudyResult {
 }
 
 impl StudyResult {
+    /// Route-native diagnostic records the result carries, in diagnostic order.
+    ///
+    /// Passed and failed checks are both included, each with its measured or unreported
+    /// unevaluable mass, so the records match what a refusal of the same route reports.
+    #[must_use = "dropped records are not on the result"]
+    pub fn route_diagnostics(&self) -> Vec<antecedent_core::diagnostic::RouteNativeDiagnostic> {
+        self.diagnostics
+            .iter()
+            .filter_map(antecedent_core::diagnostic::RouteNativeDiagnostic::from_diagnostic)
+            .collect()
+    }
+
     /// Identity of the lowered program whose dispatch produced this result.
     ///
     /// `None` for a result that no lowered dispatch produced. A prepared handle's

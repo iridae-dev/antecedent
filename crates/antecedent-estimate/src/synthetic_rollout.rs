@@ -256,8 +256,9 @@ pub fn conformal_synthetic_control_at_level(
         return Err(invalid("conformal synthetic control needs at least one post-period"));
     }
     if ((pre.len() + 1) as f64) * alpha < 1.0 {
+        let needed = (1.0 / alpha).ceil() as usize - 1;
         return Err(refused(format!(
-            "the requested conformal level needs enough pre-periods that one over pre-periods plus one is no greater than alpha; the panel has {}; next attempt: a longer pre-period, or the placebo-variance interval",
+            "the requested conformal level needs at least {needed} pre-periods so that one over pre-periods plus one is no greater than alpha; the panel has {}; next attempt: a longer pre-period, or the placebo-variance interval",
             pre.len()
         )));
     }

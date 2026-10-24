@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-
 /// Build a GCM / parametric-SCM estimand and identification result for `treatment`/`outcome`.
 ///
 /// The estimate itself is computed elsewhere (by the fitted parametric SCM, not by evaluating
@@ -397,9 +396,7 @@ pub(crate) fn admg_has_bidirected(admg: &Admg) -> bool {
 pub(crate) fn temporal_admg_projection(
     graph: &antecedent_graph::TemporalAdmg,
 ) -> Result<Admg, CausalError> {
-    graph
-        .project_preserving_functional()
-        .map_err(CausalError::rejected)
+    graph.project_preserving_functional().map_err(CausalError::rejected)
 }
 
 /// The directed part of an ADMG as a DAG.
@@ -420,8 +417,7 @@ pub(super) fn admg_without_latents_to_dag(admg: &Admg) -> Result<Dag, CausalErro
     for i in 0..admg.node_count() {
         let from = DenseNodeId::from_raw(u32::try_from(i).unwrap_or(u32::MAX));
         for &to in admg.children(from) {
-            dag.insert_directed(from, to)
-                .map_err(CausalError::rejected)?;
+            dag.insert_directed(from, to).map_err(CausalError::rejected)?;
         }
     }
     Ok(dag)
@@ -458,6 +454,41 @@ pub(super) fn merge_posterior_notes<'a>(
             }
         }
     }
+}
+
+/// Route records of the checks every one of `posteriors` passed, as result diagnostics.
+///
+/// A check is recorded only when each posterior passed it; a posterior with no passed
+/// records contributes none, so a check that any posterior did not pass is never claimed.
+/// The record's unevaluable mass is the largest any posterior measured, and an unreported
+/// mass on any posterior leaves the shared mass unreported.
+pub(super) fn passed_route_diagnostics<'a>(
+    posteriors: impl IntoIterator<Item = &'a CausalPosterior>,
+) -> Vec<Diagnostic> {
+    use antecedent_core::diagnostic::{RouteCheck, RouteMass, RouteNativeDiagnostic};
+    let mut shared: Option<Vec<RouteNativeDiagnostic>> = None;
+    for posterior in posteriors {
+        let records =
+            bayesian_path::passed_route_records(&posterior.diagnostics, posterior.unevaluable_mass);
+        shared = Some(match shared {
+            None => records,
+            Some(earlier) => earlier
+                .into_iter()
+                .filter_map(|record| {
+                    let kind = record.kind()?;
+                    let other = records.iter().find(|candidate| candidate.kind() == Some(kind))?;
+                    let mass =
+                        match (record.unevaluable_mass().get(), other.unevaluable_mass().get()) {
+                            (Some(left), Some(right)) => RouteMass::new(left.max(right))
+                                .unwrap_or_else(|_| RouteMass::unreported()),
+                            _ => RouteMass::unreported(),
+                        };
+                    Some(RouteNativeDiagnostic::check(kind, RouteCheck::new(false, mass)))
+                })
+                .collect(),
+        });
+    }
+    shared.unwrap_or_default().into_iter().map(RouteNativeDiagnostic::to_diagnostic).collect()
 }
 
 /// Result diagnostics derived from posterior inference notes.
@@ -773,7 +804,10 @@ impl super::Study {
     }
 }
 
-#[allow(clippy::too_many_lines, reason = "assembles one StudyResult from the finish record: diagnostics are pushed in a fixed order against one seen-code set, then provenance, estimate and certificate are read from the same record")]
+#[allow(
+    clippy::too_many_lines,
+    reason = "assembles one StudyResult from the finish record: diagnostics are pushed in a fixed order against one seen-code set, then provenance, estimate and certificate are read from the same record"
+)]
 fn finish_identified_execute_with_context(
     context: &IdentifiedResultContext,
     tabular_data: Option<&TabularData>,
@@ -820,6 +854,11 @@ fn finish_identified_execute_with_context(
     for diagnostic in
         posterior_note_diagnostics(extras.posterior.iter().chain(structural_posteriors))
     {
+        push_unique_diagnostic(&mut diagnostics, &mut seen, diagnostic);
+    }
+    // Every Bayesian result states the convergence, ESS and R-hat checks its posterior passed,
+    // with the identified mass that was not evaluated, whichever executor produced it.
+    for diagnostic in passed_route_diagnostics(extras.posterior.iter()) {
         push_unique_diagnostic(&mut diagnostics, &mut seen, diagnostic);
     }
     if let (Some(mode), Some(n)) = (context.latency_mode, extras.n_draws) {

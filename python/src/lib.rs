@@ -1220,7 +1220,7 @@ pub(crate) struct AteAnalysisResult {
     #[pyo3(get)]
     diagnostics: Vec<String>,
     /// Route-native diagnostics on the result, one `(route, outcome, failed, unevaluable_mass)`
-    /// row per `route.*` diagnostic; the mass is `None` when the route did not report one.
+    /// row per route record (passed or failed, whatever the diagnostic's code); the mass is `None` when the route did not report one.
     #[pyo3(get)]
     route_diagnostics: Vec<(String, String, bool, Option<f64>)>,
     /// Number of provenance nodes recorded for this run.

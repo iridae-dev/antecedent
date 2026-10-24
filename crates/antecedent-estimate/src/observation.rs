@@ -12,7 +12,7 @@
 
 use std::sync::Arc;
 
-use antecedent_core::diagnostic::{RouteMass, RouteNativeDiagnostic};
+use antecedent_core::diagnostic::{RouteCheck, RouteKind, RouteMass, RouteNativeDiagnostic};
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
     AssumptionStatus, CausalResponse, Diagnostic, DiagnosticKind, DiagnosticScope,
@@ -281,6 +281,44 @@ pub struct ObservationAdjustedOutcome {
     /// Share of rows at or past [`Self::tail_restriction`] (before it for left censoring):
     /// the mass whose events cannot be observed. `Some` exactly when `tail_restriction` is.
     pub tail_mass: Option<f64>,
+    /// The censoring check a censoring correction passed: every observed row's censoring
+    /// survival reached the positivity floor (a row below it is a refusal, never a pass).
+    /// Its unevaluable mass is [`Self::tail_mass`], or a measured zero when no tail was
+    /// restricted. `None` for the selected-outcome mechanism, which has no censoring.
+    pub censoring: Option<RouteNativeDiagnostic>,
+}
+
+impl ObservationAdjustedOutcome {
+    /// Result diagnostics for the censoring checks of this correction.
+    ///
+    /// The restricted-tail model restriction (when the censoring survival reached the floor
+    /// within follow-up) and the passed censoring check, each carrying its unevaluable mass.
+    /// Empty for the selected-outcome mechanism.
+    #[must_use = "dropped diagnostics are not on the result"]
+    pub fn censoring_diagnostics(&self) -> Vec<Diagnostic> {
+        let mut diagnostics = Vec::new();
+        if let Some(tau) = self.tail_restriction {
+            diagnostics.push(
+                Diagnostic::new(
+                    "response.observation_censoring_tail_unidentified",
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Warning,
+                    format!(
+                        "the censoring survival reaches the positivity floor at {tau}; every unit still at risk there was censored, so no event beyond that boundary is observable and the published mean is the restricted mean of the outcome up to it, not the unrestricted mean"
+                    ),
+                )
+                .with_route(RouteNativeDiagnostic::model_restriction(
+                    self.tail_mass
+                        .and_then(|mass| RouteMass::new(mass).ok())
+                        .unwrap_or_else(RouteMass::unreported),
+                )),
+            );
+        }
+        if let Some(check) = self.censoring {
+            diagnostics.push(check.to_diagnostic());
+        }
+        diagnostics
+    }
 }
 
 /// Explicit observation-mechanism estimator.
@@ -482,6 +520,7 @@ impl ObservationMechanismEstimator {
             ));
         }
         let adjusted = self.adjusted_outcome(data, query, delayed_entry)?;
+        let censoring_diagnostics = adjusted.censoring_diagnostics();
         let adjusted_data = data
             .with_replaced_float(outcome, Arc::from(adjusted.values))
             .map_err(EstimationError::from)?;
@@ -526,24 +565,7 @@ impl ObservationMechanismEstimator {
                 "every selection indicator is 1, so the selected-outcome correction is the raw recorded outcome; a mis-coded indicator would look like no selection",
             ));
         }
-        if let Some(tau) = adjusted.tail_restriction {
-            response.support.warnings.push(
-                Diagnostic::new(
-                    "response.observation_censoring_tail_unidentified",
-                    DiagnosticKind::Scientific,
-                    DiagnosticSeverity::Warning,
-                    format!(
-                        "the censoring survival reaches the positivity floor at {tau}; every unit still at risk there was censored, so no event beyond that boundary is observable and the published mean is the restricted mean of the outcome up to it, not the unrestricted mean"
-                    ),
-                )
-                .with_route(RouteNativeDiagnostic::model_restriction(
-                    adjusted
-                        .tail_mass
-                        .and_then(|mass| RouteMass::new(mass).ok())
-                        .unwrap_or_else(RouteMass::unreported),
-                )),
-            );
-        }
+        response.support.warnings.extend(censoring_diagnostics);
         Ok(response)
     }
 
@@ -642,6 +664,7 @@ impl ObservationMechanismEstimator {
             method: subset.method,
             tail_restriction: subset.tail_restriction,
             tail_mass: subset.tail_mass,
+            censoring: subset.censoring,
         };
         let series = data.with_replaced_float(outcome, Arc::from(values))?;
         Ok((series, adjusted))
@@ -963,6 +986,7 @@ impl ObservationMechanismEstimator {
                 method: Arc::from("observation.selected.complete_collapse.v1"),
                 tail_restriction: None,
                 tail_mass: None,
+                censoring: None,
             });
         }
         let (probabilities, outcome_predictions) = match self.options.selected_correction {
@@ -1007,6 +1031,7 @@ impl ObservationMechanismEstimator {
             }),
             tail_restriction: None,
             tail_mass: None,
+            censoring: None,
         })
     }
 
@@ -1243,11 +1268,17 @@ impl ObservationMechanismEstimator {
         // of Y* is the IPCW mean. Dropping the zeros would be complete-case
         // analysis, not IPCW.
         let values = observed.iter().zip(&weights).map(|(&y, &w)| y * w).collect();
+        let unevaluable_mass =
+            RouteMass::new(tail_mass.unwrap_or(0.0)).unwrap_or_else(|_| RouteMass::unreported());
         Ok(ObservationAdjustedOutcome {
             values,
             weights,
             tail_restriction,
             tail_mass,
+            censoring: Some(RouteNativeDiagnostic::check(
+                RouteKind::Censoring,
+                RouteCheck::new(false, unevaluable_mass),
+            )),
             method: Arc::from(if n_cov > 0 {
                 if reverse {
                     "observation.left_censored.cox_ipcw_sign_reversal.v1"
@@ -1653,6 +1684,26 @@ mod tests {
         TabularData::from_f64_columns([("a", x), ("y", y), ("r", r), ("x", x)]).unwrap()
     }
 
+    /// The passed censoring check and its unevaluable mass as the result diagnostics carry them.
+    fn assert_passed_censoring(adjusted: &ObservationAdjustedOutcome) {
+        let records: Vec<RouteNativeDiagnostic> = adjusted
+            .censoring_diagnostics()
+            .iter()
+            .filter_map(RouteNativeDiagnostic::from_diagnostic)
+            .collect();
+        let passed = records
+            .iter()
+            .find(|record| record.kind() == Some(RouteKind::Censoring))
+            .expect("a censoring correction states the censoring check it passed");
+        assert!(!passed.failed(), "{passed:?}");
+        assert_eq!(passed.unevaluable_mass().get(), Some(adjusted.tail_mass.unwrap_or(0.0)));
+        assert_eq!(
+            records.iter().any(|record| record.is_model_restriction()),
+            adjusted.tail_restriction.is_some(),
+            "the restricted tail is a model restriction, and only then: {records:?}"
+        );
+    }
+
     #[test]
     fn selected_aipw_nuisances_are_fit_without_the_row_they_are_applied_to() {
         // The property cross-fitting exists to provide. Row 0 falls in fold 0, so the
@@ -1886,6 +1937,7 @@ mod tests {
         // driven straight to zero, so no event beyond tau=3 is ever observable and the
         // fit must say so instead of staying silent.
         assert_eq!(adjusted.tail_restriction, Some(3.0));
+        assert_passed_censoring(&adjusted);
 
         // What the estimator actually returns is the restricted mean E[Y * 1{Y<3}],
         // computed here independently of the implementation: censored rows contribute
@@ -1928,6 +1980,7 @@ mod tests {
             .unwrap();
         assert_eq!(adjusted.method.as_ref(), "observation.right_censored.cox_ipcw.v1");
         assert_eq!(adjusted.tail_restriction, Some(1.0));
+        assert_passed_censoring(&adjusted);
         let mean = adjusted.values.iter().sum::<f64>() / n as f64;
         // Uncensored rows carry unit weight (no censoring precedes them), so the result is
         // the restricted mean E[Y · 1{Y < 1}] of the grid, far from E[Y] = 1.
@@ -1958,6 +2011,8 @@ mod tests {
             )
             .unwrap();
         assert_eq!(adjusted.tail_restriction, None);
+        assert_passed_censoring(&adjusted);
+        assert_eq!(adjusted.censoring_diagnostics().len(), 1);
     }
 
     #[test]

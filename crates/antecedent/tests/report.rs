@@ -426,11 +426,12 @@ fn a_noncausal_claim_says_so_and_never_reads_as_an_effect() {
         let rendered = scenario.render(format);
         assert!(rendered.contains("noncausal association"), "{rendered}");
         assert!(rendered.contains("Identification is not claimed"), "{rendered}");
-        // Markdown escapes the underscore of a value it prints.
-        assert!(
-            rendered.contains("not_claimed") || rendered.contains("not\\_claimed"),
-            "{rendered}"
-        );
+        // Markdown escapes the underscore of a value it prints; HTML prints it raw.
+        let printed = match format {
+            ReportFormat::Markdown => "not\\_claimed",
+            _ => "not_claimed",
+        };
+        assert!(rendered.contains(printed), "{rendered}");
         assert!(!rendered.contains("publishes a value of kind"), "{rendered}");
         assert!(!rendered.contains("Identification status is"), "{rendered}");
     }

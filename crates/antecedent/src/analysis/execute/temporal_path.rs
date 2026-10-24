@@ -1574,6 +1574,9 @@ impl super::Study {
         for diagnostic in posterior_note_diagnostics(&horizon_posteriors) {
             push_unique_diagnostic(&mut diagnostics, &mut seen_diagnostic_codes, diagnostic);
         }
+        for diagnostic in super::passed_route_diagnostics(&horizon_posteriors) {
+            push_unique_diagnostic(&mut diagnostics, &mut seen_diagnostic_codes, diagnostic);
+        }
         if !attach_scalar_posterior && self.inference.is_bayesian() {
             diagnostics.push(Diagnostic::new(
                 "estimate.temporal.sequence_posterior_not_attached",
@@ -4122,6 +4125,7 @@ fn apply_temporal_observation_result(
         DiagnosticSeverity::Info,
         adjusted.method.clone(),
     ));
+    response.support.warnings.extend(adjusted.censoring_diagnostics());
 }
 
 /// How a class-observation response reports its band: from the outer circular-block

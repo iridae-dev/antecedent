@@ -109,7 +109,8 @@ pub use project::{IdRemap, dedupe_variable_ids};
 pub use reference::ReferencePointPolicy;
 pub use resample::{
     PermutationScheme, ResamplingPlan, circular_block_length, fill_circular_block_indexes,
-    fill_declared_plan, fill_resample_index_batch, fill_resample_indexes, resample_timeseries,
+    fill_declared_plan, fill_resample_index_batch, fill_resample_index_replicate,
+    fill_resample_indexes, resample_timeseries,
 };
 pub use sample::{
     DropSummary, GappedSample, LagMap, LaggedColumn, LaggedPreparedSample, LaggedSamplePlan,

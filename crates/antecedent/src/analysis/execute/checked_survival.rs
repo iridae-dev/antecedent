@@ -161,7 +161,18 @@ impl CheckedSurvivalOperation {
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
                     format!("minimum supplied censoring survival: {minimum:.6}"),
-                ))).collect()).bootstrap_replicates_ok(intervals.as_ref().map(|value| value.replicates_ok)),
+                ))).chain(minimum_censoring_survival.map(|_| {
+                    // Every row's supplied censoring survival cleared the positivity floor on the
+                    // whole grid (a row below it is a refusal), so no mass was left unevaluated.
+                    antecedent_core::diagnostic::RouteNativeDiagnostic::check(
+                        antecedent_core::diagnostic::RouteKind::Censoring,
+                        antecedent_core::diagnostic::RouteCheck::new(
+                            false,
+                            antecedent_core::diagnostic::RouteMass::zero(),
+                        ),
+                    )
+                    .to_diagnostic()
+                })).collect()).bootstrap_replicates_ok(intervals.as_ref().map(|value| value.replicates_ok)),
         );
         result.estimate = crate::PrimaryEstimate::NotAnEffect;
         result.payload = crate::result::ResultPayload::Survival(self.survival_payload(

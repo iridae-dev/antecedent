@@ -761,7 +761,6 @@ pub(crate) fn ate_result_from_analysis(
         route_diagnostics: result
             .diagnostics
             .iter()
-            .filter(|d| d.code.starts_with("route."))
             .filter_map(antecedent_core::diagnostic::RouteNativeDiagnostic::from_diagnostic)
             .map(|record| {
                 (
