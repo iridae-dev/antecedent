@@ -132,14 +132,26 @@ fn prepare(
     )?)
 }
 
+/// Total sample rows per regime table: `ANTECEDENT_LANE_ROWS` (the performance lanes' row
+/// tier) split in the registered 50/50 and 20/80 proportions, else the registered 50 and 100.
+fn regime_counts() -> [(i64, usize, usize); 2] {
+    let Some(rows) =
+        std::env::var("ANTECEDENT_LANE_ROWS").ok().and_then(|v| v.parse::<usize>().ok())
+    else {
+        return [(0, 25, 25), (1, 20, 80)];
+    };
+    // Multiples of ten keep both proportions exact, so the example's checks still hold.
+    let half = (rows / 20).max(1) * 10;
+    [(0, half / 2, half / 2), (1, half / 5, half - half / 5)]
+}
+
 /// Runs the example end to end; `main` calls it and the example test suite runs it.
 pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     let (diagram, functional) = identify()?;
     let ctx = ExecutionContext::for_tests(7);
     let mut means = Vec::new();
     for x in [0, 1] {
-        let prepared =
-            prepare(functional.clone(), diagram.clone(), "v1", [(0, 25, 25), (1, 20, 80)], x)?;
+        let prepared = prepare(functional.clone(), diagram.clone(), "v1", regime_counts(), x)?;
         let before = prepared.inspect();
         slots(&before.reasoning, true);
         let result = prepared.estimate_checked(&before.identities.execution, &ctx)?;
