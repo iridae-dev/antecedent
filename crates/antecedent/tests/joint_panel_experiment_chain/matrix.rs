@@ -14,6 +14,7 @@ pub(super) fn exercise(
     original: &JointPanelResult,
     ctx: &ExecutionContext,
 ) {
+    verify_fitless_native_law_adapter(original, ctx);
     let horizon = original.request().worlds[0].program.horizon();
     let functionals = [
         JointPanelResponseFunctional::TerminalMean,
@@ -56,7 +57,6 @@ pub(super) fn exercise(
             }
         }
     }
-    verify_fitless_native_law_adapter(original, ctx);
     assert_eq!(prepared.fits_performed(), 1);
 }
 

@@ -480,18 +480,78 @@ impl JointPanelResult {
         if !terminal_only {
             return self.projected_scientific_source(payload, weights);
         }
-        let bytes = super::projection::source_payload_quote(&payload)?;
+        let bytes = super::projection::source_payload_quote(&payload)?
+            .checked_add(
+                u64::try_from(self.request().worlds.len())
+                    .map_err(JointPanelError::compile)?
+                    .checked_mul(512)
+                    .ok_or_else(|| {
+                        engine::PanelError::Resource("terminal projection overhead overflow".into())
+                    })?,
+            )
+            .ok_or_else(|| {
+                engine::PanelError::Resource("terminal projection quote overflow".into())
+            })?;
         source::check_memory(&self.context, bytes)?;
         let retention = std::sync::Arc::new(
             self.context
                 .acquire_admission(0, bytes)
                 .map_err(|error| engine::PanelError::Resource(error.to_string()))?,
         );
-        antecedent_design::scientific_source::ScientificDecisionSource::new(
+        self.terminal_scientific_source_admitted(payload, retention)
+    }
+    fn terminal_scientific_source_admitted(
+        &self,
+        payload: antecedent_design::scientific_source::ScientificSourcePayload,
+        retention: std::sync::Arc<antecedent_core::execution::AdmissionLease>,
+    ) -> Result<antecedent_design::scientific_source::ScientificDecisionSource, JointPanelError>
+    {
+        use antecedent_design::scientific_source::{
+            ScientificDecisionSource, ScientificProjectionBasis, ScientificProjectionOutput,
+            ScientificSourcePayload, ScientificSourceProjection,
+        };
+        let coordinates = match &payload {
+            ScientificSourcePayload::Means(means) => means.coordinates.clone(),
+            ScientificSourcePayload::Law(law) => law
+                .quantities()
+                .iter()
+                .cloned()
+                .map(ScientificQuantity::try_from)
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(JointPanelError::compile)?,
+        };
+        if coordinates.len() != self.request().worlds.len() {
+            return Err(JointPanelError::compile(
+                "terminal response must have one coordinate per original whole world",
+            ));
+        }
+        let worlds = contracts::target_worlds(&self.request().target)?;
+        let mut basis = Vec::with_capacity(coordinates.len());
+        let mut outputs = Vec::with_capacity(coordinates.len());
+        for (index, (program, quantity)) in
+            self.request().worlds.iter().zip(coordinates).enumerate()
+        {
+            let world = worlds.iter().find(|w| w.id() == program.world).ok_or_else(|| {
+                JointPanelError::compile("terminal response has a foreign original world")
+            })?;
+            let mut input = quantity.clone();
+            input.functional_id = "mean".into();
+            input.regime_id =
+                format!("compiled_world:{}:{}", self.request().target.identity(), world.id().raw());
+            input.horizon = world.time().horizon_steps().unwrap_or(0);
+            basis.push(ScientificProjectionBasis {
+                world: world.id(),
+                variable: world.binding().outcome().outcome(),
+                quantity: input,
+            });
+            outputs.push(ScientificProjectionOutput { quantity, terms: vec![(index, 1.0)] });
+        }
+        ScientificDecisionSource::new_projected(
             self.request().target.clone(),
             self.identification().clone(),
             self.dependency_identity(),
             payload,
+            ScientificSourceProjection { basis, outputs },
         )
         .map(|source| source.retain_admission(retention))
         .map_err(JointPanelError::compile)

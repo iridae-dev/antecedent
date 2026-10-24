@@ -265,6 +265,16 @@ fn assert_temporal_projection_binding(result: &JointPanelResult) {
     let pool = result.context.admission();
     let before = pool.available().bytes();
     let terminal = result.project_mean_source(&JointPanelResponseFunctional::TerminalMean).unwrap();
+    assert_eq!(terminal.target().identity(), result.request().target.identity());
+    assert_eq!(terminal.identification().identity(), result.identification().identity());
+    let authenticated = terminal.projection().expect("terminal whole-world projection is retained");
+    assert_eq!(authenticated.basis.len(), result.request().worlds.len());
+    assert!(authenticated.outputs.iter().enumerate().all(|(i, o)| o.terms == vec![(i, 1.0)]));
+    assert_eq!(
+        super::JointLawExperimentResult::quantity(&terminal).unwrap(),
+        result.experiment_quantity(&JointPanelResponseFunctional::TerminalMean).unwrap()
+    );
+    assert!(terminal.authorize(JointPanelScientificScope::IdentifiedCausal).is_err());
     let retained = pool.available().bytes();
     assert!(retained < before);
     let shared = terminal.clone();
@@ -800,31 +810,51 @@ fn dose_time_refuses_implicit_extra_channel_and_unassigned_exposure_continuation
 
 #[test]
 fn reference_decomposition_inherits_exact_hybrid_proofs_and_refuses_unearned_transport() {
-    use super::explanation::{ChangeComponent, DecompositionEndpoint, MechanismPeriodMap, PanelDecompositionRequest};
+    use super::explanation::{
+        ChangeComponent, DecompositionEndpoint, MechanismPeriodMap, PanelDecompositionRequest,
+    };
     let (panel, proof, data) = static_source_fixture();
     let ctx = ExecutionContext::for_tests(71);
-    let result = panel.with_static_source_proof(proof, &data, &ctx).unwrap().estimate(&ctx).unwrap();
+    let result =
+        panel.with_static_source_proof(proof, &data, &ctx).unwrap().estimate(&ctx).unwrap();
     let worlds = &result.request().worlds;
     let groups = result.prepared().model_data().groups.len();
     let mut request = PanelDecompositionRequest {
-        before: DecompositionEndpoint { program: worlds[0].program.clone(), population_weights: vec![1.0 / groups as f64; groups] },
-        after: DecompositionEndpoint { program: worlds[worlds.len()-1].program.clone(), population_weights: vec![1.0 / groups as f64; groups] },
+        before: DecompositionEndpoint {
+            program: worlds[0].program.clone(),
+            population_weights: vec![1.0 / groups as f64; groups],
+        },
+        after: DecompositionEndpoint {
+            program: worlds[worlds.len() - 1].program.clone(),
+            population_weights: vec![1.0 / groups as f64; groups],
+        },
         time_weights: vec![1.0],
-        order: [ChangeComponent::Exposure, ChangeComponent::Saturation, ChangeComponent::Population, ChangeComponent::Mechanism],
+        order: [
+            ChangeComponent::Exposure,
+            ChangeComponent::Saturation,
+            ChangeComponent::Population,
+            ChangeComponent::Mechanism,
+        ],
     };
     let periods = MechanismPeriodMap { before: vec![0], after: vec![0] };
     let checked = result.decompose_reference_checked(&request, &periods, &ctx).unwrap();
     checked.require_identified_reference().unwrap();
     assert_eq!(checked.hybrids.len(), 16);
     assert!(checked.hybrids.iter().all(|world| world.source_world.is_some()));
-    assert!((checked.decomposition.point.shapley[0] - checked.decomposition.point.total).abs() < 1e-10);
-    for index in [1, 2, 3] { assert!(checked.decomposition.point.shapley[index].abs() < 1e-10); }
+    assert!(
+        (checked.decomposition.point.shapley[0] - checked.decomposition.point.total).abs() < 1e-10
+    );
+    for index in [1, 2, 3] {
+        assert!(checked.decomposition.point.shapley[index].abs() < 1e-10);
+    }
     request.after.population_weights.fill(0.0);
     request.after.population_weights[0] = 1.0;
     let unsupported = result.decompose_reference_checked(&request, &periods, &ctx).unwrap();
     assert!(!unsupported.is_identified_reference());
     assert!(unsupported.require_identified_reference().is_err());
-    assert!(unsupported.hybrids.iter().filter(|world| world.mask & 4 != 0).all(|world| world.unresolved.iter().any(|premise| premise.contains("population transport"))));
+    assert!(unsupported.hybrids.iter().filter(|world| world.mask & 4 != 0).all(|world| {
+        world.unresolved.iter().any(|premise| premise.contains("population transport"))
+    }));
 }
 
 #[test]
@@ -833,57 +863,132 @@ fn compiled_component_bindings_consume_identified_worlds_and_reject_hybrid_and_o
     use antecedent_design::scientific_source::ScientificConsumptionScope;
     let (panel, proof, data) = static_source_fixture();
     let ctx = ExecutionContext::for_tests(72);
-    let result = panel.with_static_source_proof(proof, &data, &ctx).unwrap().estimate(&ctx).unwrap();
+    let result =
+        panel.with_static_source_proof(proof, &data, &ctx).unwrap().estimate(&ctx).unwrap();
     let worlds = &result.request().worlds;
     let before = worlds[0].world;
-    let after = worlds[worlds.len()-1].world;
+    let after = worlds[worlds.len() - 1].world;
     let mut bindings = ReferenceComponentBindings {
-        exposure: result.request().columns.channels.clone(), saturation: vec![], mechanism: vec![],
+        exposure: result.request().columns.channels.clone(),
+        saturation: vec![],
+        mechanism: vec![],
         hybrids: std::array::from_fn(|mask| if mask & 1 == 0 { before } else { after }),
-        order: [ChangeComponent::Exposure, ChangeComponent::Saturation, ChangeComponent::Population, ChangeComponent::Mechanism],
+        order: [
+            ChangeComponent::Exposure,
+            ChangeComponent::Saturation,
+            ChangeComponent::Population,
+            ChangeComponent::Mechanism,
+        ],
     };
-    let checked = result.decompose_compiled_components(&bindings,ScientificConsumptionScope::IdentifiedCausal,false,&ctx).unwrap();
-    assert_eq!(checked.question_identity,checked.source.question_identity());
-    let bytes=result.export(&ctx).unwrap();
-    let current=result.consume_current(&bytes,&ctx).unwrap();
-    let replayed=current.decompose_compiled_components(&bindings,ScientificConsumptionScope::IdentifiedCausal,false,&ctx).unwrap();
-    assert_eq!(checked.decomposition.point,replayed.decomposition.point);
-    let historical=antecedent_io::joint_panel_artifact::consume_panel_execution(&bytes,&ctx).unwrap();
-    let historical_values=std::array::from_fn(|mask| {
-        let index=worlds.iter().position(|world| world.world==bindings.hybrids[mask]).unwrap();
+    let checked = result
+        .decompose_compiled_components(
+            &bindings,
+            ScientificConsumptionScope::IdentifiedCausal,
+            false,
+            &ctx,
+        )
+        .unwrap();
+    assert_eq!(checked.question_identity, checked.source.question_identity());
+    let bytes = result.export(&ctx).unwrap();
+    let current = result.consume_current(&bytes, &ctx).unwrap();
+    let replayed = current
+        .decompose_compiled_components(
+            &bindings,
+            ScientificConsumptionScope::IdentifiedCausal,
+            false,
+            &ctx,
+        )
+        .unwrap();
+    assert_eq!(checked.decomposition.point, replayed.decomposition.point);
+    let historical =
+        antecedent_io::joint_panel_artifact::consume_panel_execution(&bytes, &ctx).unwrap();
+    let historical_values = std::array::from_fn(|mask| {
+        let index = worlds.iter().position(|world| world.world == bindings.hybrids[mask]).unwrap();
         *historical.point()[index].means.last().unwrap()
     });
-    let independent=engine::decomposition::decompose_values(historical_values,bindings.order).unwrap();
-    assert_eq!(checked.decomposition.point,independent);
+    let independent =
+        engine::decomposition::decompose_values(historical_values, bindings.order).unwrap();
+    assert_eq!(checked.decomposition.point, independent);
 
-    assert!((checked.decomposition.point.shapley[0]-checked.decomposition.point.total).abs()<1e-10);
-    for index in [1,2,3] { assert!(checked.decomposition.point.shapley[index].abs()<1e-10); }
-    bindings.hybrids[1]=before;
-    assert!(result.decompose_compiled_components(&bindings,ScientificConsumptionScope::IdentifiedCausal,false,&ctx).is_err());
-    bindings.hybrids[1]=after;
+    assert!(
+        (checked.decomposition.point.shapley[0] - checked.decomposition.point.total).abs() < 1e-10
+    );
+    for index in [1, 2, 3] {
+        assert!(checked.decomposition.point.shapley[index].abs() < 1e-10);
+    }
+    bindings.hybrids[1] = before;
+    assert!(
+        result
+            .decompose_compiled_components(
+                &bindings,
+                ScientificConsumptionScope::IdentifiedCausal,
+                false,
+                &ctx
+            )
+            .is_err()
+    );
+    bindings.hybrids[1] = after;
     bindings.mechanism.push(bindings.exposure[0]);
-    assert!(result.decompose_compiled_components(&bindings,ScientificConsumptionScope::IdentifiedCausal,false,&ctx).is_err());
+    assert!(
+        result
+            .decompose_compiled_components(
+                &bindings,
+                ScientificConsumptionScope::IdentifiedCausal,
+                false,
+                &ctx
+            )
+            .is_err()
+    );
 }
 
 #[test]
 fn unidentified_finer_decomposition_executes_actual_coarser_response_and_preserves_refusal() {
-    use super::explanation::{ChangeComponent, DecompositionEndpoint, IdentifiedReferenceAttempt, JointPanelExplanationRequest, MechanismPeriodMap, PanelDecompositionRequest};
-    let (data, request) = fixture();
-    let ctx=ExecutionContext::for_tests(73);
-    let result=Study::prepare_joint_panel(data,request,&ctx).unwrap().estimate(&ctx).unwrap();
-    let worlds=&result.request().worlds;
-    let request=PanelDecompositionRequest {
-        before:DecompositionEndpoint { program:worlds[0].program.clone(),population_weights:vec![0.25;4] },
-        after:DecompositionEndpoint { program:worlds[3].program.clone(),population_weights:vec![0.25;4] },
-        time_weights:vec![1.0/6.0;6],
-        order:[ChangeComponent::Exposure,ChangeComponent::Saturation,ChangeComponent::Population,ChangeComponent::Mechanism],
+    use super::explanation::{
+        ChangeComponent, DecompositionEndpoint, IdentifiedReferenceAttempt,
+        JointPanelExplanationRequest, MechanismPeriodMap, PanelDecompositionRequest,
     };
-    let fallback=JointPanelExplanationRequest { explanation:engine::time_varying::PanelExplanation::Mechanism, world:worlds[3].world,reference_world:worlds[0].world,before:(0,1),after:(4,5) };
-    let attempt=result.attempt_identified_reference_decomposition(&request,&MechanismPeriodMap { before:vec![0;6],after:vec![0;6] },fallback,&ctx).unwrap();
-    let IdentifiedReferenceAttempt::Coarser { requested, executed }=attempt else { panic!("unidentified finer claim was accepted"); };
+    let (data, request) = fixture();
+    let ctx = ExecutionContext::for_tests(73);
+    let result = Study::prepare_joint_panel(data, request, &ctx).unwrap().estimate(&ctx).unwrap();
+    let worlds = &result.request().worlds;
+    let request = PanelDecompositionRequest {
+        before: DecompositionEndpoint {
+            program: worlds[0].program.clone(),
+            population_weights: vec![0.25; 4],
+        },
+        after: DecompositionEndpoint {
+            program: worlds[3].program.clone(),
+            population_weights: vec![0.25; 4],
+        },
+        time_weights: vec![1.0 / 6.0; 6],
+        order: [
+            ChangeComponent::Exposure,
+            ChangeComponent::Saturation,
+            ChangeComponent::Population,
+            ChangeComponent::Mechanism,
+        ],
+    };
+    let fallback = JointPanelExplanationRequest {
+        explanation: engine::time_varying::PanelExplanation::Mechanism,
+        world: worlds[3].world,
+        reference_world: worlds[0].world,
+        before: (0, 1),
+        after: (4, 5),
+    };
+    let attempt = result
+        .attempt_identified_reference_decomposition(
+            &request,
+            &MechanismPeriodMap { before: vec![0; 6], after: vec![0; 6] },
+            fallback,
+            &ctx,
+        )
+        .unwrap();
+    let IdentifiedReferenceAttempt::Coarser { requested, executed } = attempt else {
+        panic!("unidentified finer claim was accepted");
+    };
     assert!(!requested.is_identified_reference());
     assert!(executed.point.is_finite());
     assert!(executed.require_unique_attribution().is_err());
-    assert_eq!(executed.compiled_response().dependency_identity(),result.dependency_identity());
-    assert_eq!(result.prepared().fits_performed(),1);
+    assert_eq!(executed.compiled_response().dependency_identity(), result.dependency_identity());
+    assert_eq!(result.prepared().fits_performed(), 1);
 }
