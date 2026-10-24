@@ -91,7 +91,7 @@ impl PyJointPanelResult {
         Ok(PyPanelExperiment { inner })
     }
 }
-#[derive(Deserialize)]
+#[derive(Deserialize, serde::Serialize)]
 #[serde(deny_unknown_fields)]
 struct Action {
     id: String,
@@ -112,13 +112,13 @@ struct FutureDeclaration {
     actions: Vec<Action>,
     candidates: Vec<Future>,
 }
-struct Utility {
-    actions: Vec<Action>,
-}
-impl antecedent_design::decision::Utility<usize, facade::PanelExperimentDecisionState> for Utility {
+struct Utility;
+impl antecedent_design::decision::Utility<Action, facade::PanelExperimentDecisionState>
+    for Utility
+{
     fn evaluate_batch(
         &self,
-        actions: &[usize],
+        actions: &[Action],
         states: &[facade::PanelExperimentDecisionState],
         out: &mut [f64],
     ) -> Result<(), antecedent_design::DesignError> {
@@ -127,10 +127,7 @@ impl antecedent_design::decision::Utility<usize, facade::PanelExperimentDecision
                 "terminal utility output axes".into(),
             ));
         }
-        for (i, a) in actions.iter().enumerate() {
-            let action = self.actions.get(*a).ok_or_else(|| {
-                antecedent_design::DesignError::Shape("terminal action index".into())
-            })?;
+        for (i, action) in actions.iter().enumerate() {
             for (j, state) in states.iter().enumerate() {
                 if action.coefficients.len() != state.responses.len() {
                     return Err(antecedent_design::DesignError::Shape(
@@ -184,10 +181,14 @@ impl PyPanelExperiment {
         {
             return Err(crate::value_err("invalid bounded terminal action utility"));
         }
-        let count = d.actions.len();
+        if d.actions.iter().map(|a| &a.id).collect::<std::collections::BTreeSet<_>>().len()
+            != d.actions.len()
+        {
+            return Err(crate::value_err("terminal action identities must be unique"));
+        }
         let problem = antecedent_design::decision::DecisionProblem::new(
-            (0..count).collect(),
-            std::sync::Arc::new(Utility { actions: d.actions }),
+            d.actions,
+            std::sync::Arc::new(Utility),
             vec![],
         );
         let candidates = d
@@ -356,10 +357,14 @@ impl PyDesignExperiment {
         {
             return Err(crate::value_err("invalid bounded terminal action utility"));
         }
-        let count = d.actions.len();
+        if d.actions.iter().map(|a| &a.id).collect::<std::collections::BTreeSet<_>>().len()
+            != d.actions.len()
+        {
+            return Err(crate::value_err("terminal action identities must be unique"));
+        }
         let problem = antecedent_design::decision::DecisionProblem::new(
-            (0..count).collect(),
-            std::sync::Arc::new(Utility { actions: d.actions }),
+            d.actions,
+            std::sync::Arc::new(Utility),
             vec![],
         );
         let candidates = d
@@ -530,10 +535,14 @@ impl PyNativeExperiment {
         {
             return Err(crate::value_err("invalid bounded terminal action utility"));
         }
-        let count = d.actions.len();
+        if d.actions.iter().map(|a| &a.id).collect::<std::collections::BTreeSet<_>>().len()
+            != d.actions.len()
+        {
+            return Err(crate::value_err("terminal action identities must be unique"));
+        }
         let problem = antecedent_design::decision::DecisionProblem::new(
-            (0..count).collect(),
-            std::sync::Arc::new(Utility { actions: d.actions }),
+            d.actions,
+            std::sync::Arc::new(Utility),
             vec![],
         );
         let candidates = d

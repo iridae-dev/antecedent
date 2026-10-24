@@ -2,6 +2,7 @@ schema = 1
 id = "response.joint_panel.reference_decomposition"
 owner = "X03.2"
 status = "implemented_calibration_unmeasured"
+closure_kind = "delivered"
 components = ["exposure", "saturation", "population", "mechanism"]
 hybrids = 16
 orderings = 24

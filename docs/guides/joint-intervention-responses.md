@@ -383,3 +383,13 @@ enforces monotonicity, and a finite sampled first-stage check is not a global
 posterior support certificate. The native output makes no claim that ratio
 posterior moments exist. Any downstream expected-utility update must establish
 its required moments separately.
+
+Future-study receipts also retain `admissible_action_identity`, computed from
+the actual serialized terminal action domain used in every future-data update.
+For deterministic operational restrictions, derive that domain from the actual
+constrained decision's admissible actions before ranking studies. Excluded actions
+stay excluded in the future-data calculation. The acceptance matrix checks the
+constrained ranking against its own reference, including exact zero information
+value when only one action remains. Python receipts bind declared action names,
+intercepts and coefficients, so renaming or changing an action cannot inherit
+another action domain's identity.

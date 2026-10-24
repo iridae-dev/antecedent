@@ -6,9 +6,11 @@ import math
 from dataclasses import replace
 
 import pytest
+from antecedent import decision
 from antecedent import joint_panel as jp
 from antecedent import scientific_bridge as sb
 from antecedent.evidence_ledger import EvidenceLedger, SourceDeclaration, SourceRevision
+from antecedent.joint_distribution import ScientificQuantity
 
 
 @pytest.mark.parametrize("local", [False, True])
@@ -184,6 +186,60 @@ def test_native_target_experiment_update_decision_next_study_and_current_replay(
     )["candidates"]
     assert ranking[0]["id"] == "cheap"
     assert ranking[0]["gross_evsi"] == ranking[1]["gross_evsi"]
+    coordinates = tuple(ScientificQuantity.from_wire(q) for q in report["quantities"])
+    zero = decision.x(0) - decision.x(0)
+    expression = decision.const(-mean)
+    for i, c in enumerate(coefficients):
+        expression = expression + decision.x(i) * c
+    terminal = decision.Contract(
+        actions=(
+            decision.Action("hold", inputs=coordinates, utility=zero, kind="policy"),
+            decision.Action("act", inputs=coordinates, utility=expression, kind="policy"),
+        ),
+        utility_units=target.units,
+        criterion=decision.Criterion.expected_utility(),
+        target_population=target.population_id,
+        constraints=(
+            decision.Constraint(
+                "binding_capacity", zero + 1.0, bound=0.0, units="capacity", applies_to=("act",)
+            ),
+        ),
+    )
+    terminal_result = updated.decide(terminal, ledger)
+    feasible = [a["id"] for a in terminal_result["actions"] if a["admissible"]]
+    assert feasible == ["hold"]
+    candidates = [
+        {"id": "cheap", "sample_size": 4, "observation_variance": 1.0, "cost_utility": 0.01}
+    ]
+    hold = {"id": "hold", "intercept": 0.0, "coefficients": [0.0] * len(coefficients)}
+    restricted = updated.rank_next_samples(
+        actions=[hold], candidates=candidates, ledger=ledger, replicates=8
+    )["candidates"][0]
+    assert restricted["gross_evsi"] == pytest.approx(0.0, abs=1e-12)
+    assert restricted["net_value"] == pytest.approx(-0.01, abs=1e-12)
+    assert restricted["admissible_action_identity"] != ranking[0]["admissible_action_identity"]
+    renamed = updated.rank_next_samples(
+        actions=[{**hold, "id": "different_action"}],
+        candidates=candidates,
+        ledger=ledger,
+        replicates=8,
+    )["candidates"][0]
+    changed = updated.rank_next_samples(
+        actions=[{**hold, "coefficients": coefficients}],
+        candidates=candidates,
+        ledger=ledger,
+        replicates=8,
+    )["candidates"][0]
+    assert (
+        len(
+            {
+                restricted["admissible_action_identity"],
+                renamed["admissible_action_identity"],
+                changed["admissible_action_identity"],
+            }
+        )
+        == 3
+    )
     artifact = updated.export(ledger)
     updated.verify_current(artifact, ledger)
     prepared.consume_current(result.export())

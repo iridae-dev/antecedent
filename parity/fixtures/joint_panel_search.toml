@@ -2,6 +2,7 @@ schema = 1
 id = "response.joint_panel.certified_search_and_selection"
 owner = "X04.3"
 status = "implemented_calibration_unmeasured"
+closure_kind = "delivered"
 compiler = "Frozen point-response AST with actual schedules, initial histories, saturation, lag weights, interactions, population weights and response-time functional; no caller shape assertions."
 certificate = "Outward-rounded interval branch-and-bound, compiler-proved monotonicity and separability, concave supporting-plane primal/dual bounds with nonnegative feasible multipliers."
 constraints = "Explicit bounded raw controls, hard linear operational restrictions and resource budget; feasible incumbent required."
