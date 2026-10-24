@@ -14,6 +14,8 @@ use std::fmt;
 use antecedent_contract::rewrite_legality::{
     FrameLedger, PreservationAxis, Rewrite, check_executed, combine_ids,
 };
+use antecedent_core::ExecutionContext;
+use antecedent_core::execution::{MapExecutionError, PipelineReceipt, PipelineStep};
 use thiserror::Error;
 
 /// Largest draw count whose integer value is exact as `f64` (`2^53`).
@@ -467,6 +469,18 @@ pub enum TileError {
         /// Earliest axis the streamed cells alter.
         axis: PreservationAxis,
     },
+    /// The execution context was cancelled between row chunks.
+    #[error("tiled prediction was cancelled between row chunks")]
+    Cancelled,
+    /// The admission pool could not hold the live row chunks of a pipelined tile.
+    #[error(
+        "tiled prediction needs {bytes} bytes for its live row chunks; next attempt: use fewer \
+         rows per chunk, a smaller window, or a larger pool"
+    )]
+    ChunkBudget {
+        /// Bytes the live chunks would hold.
+        bytes: u64,
+    },
 }
 
 /// Stream [`TileRequest::reduction`] in declared order.
@@ -499,6 +513,111 @@ pub fn stream_tile(
         reduction: frame.reduction,
         emitted,
         invariant_evaluations: hoisted.evaluations,
+    })
+}
+
+/// A pipelined tile: the stream's summary and what the pipeline kept alive.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PipelinedTile {
+    /// Counts of the whole tile; `invariant_evaluations` is per row chunk, as each chunk
+    /// forms its own encodings.
+    pub summary: StreamSummary,
+    /// Row chunks consumed, the most alive at once, and the producers used.
+    pub receipt: PipelineReceipt,
+}
+
+/// [`stream_tile`] with row chunks produced by leased workers ahead of the sink.
+///
+/// Rows are independent, so the tile is cut into chunks of `rows_per_chunk` rows; workers
+/// evaluate chunks while `emit` receives them in declared order on the caller. At most
+/// `window` chunks are alive at once, so a sink that stalls stops the producers instead of
+/// letting evaluated cells pile up. The bytes of `window` chunks are leased from the context's
+/// admission pool first. The emitted values equal [`stream_tile`]'s, bit for bit.
+///
+/// A tile whose axis order does not put the row axis first for its reduction is not
+/// row-separable in emission order; it is streamed serially as one chunk.
+///
+/// # Errors
+///
+/// The refusals of [`stream_tile`] (each chunk is validated and audited as a tile),
+/// [`TileError::ChunkBudget`], and [`TileError::Cancelled`].
+pub fn stream_tile_pipelined(
+    request: &TileRequest<'_>,
+    ctx: &ExecutionContext,
+    rows_per_chunk: u64,
+    window: usize,
+    mut emit: impl FnMut(StreamedValue),
+) -> Result<PipelinedTile, TileError> {
+    let rows_first = match request.reduction {
+        Reduction::Full => request.order.axes()[0] == EvalAxis::Row,
+        Reduction::DrawMean => request.order.without_draw()[0] == EvalAxis::Row,
+        Reduction::DrawCovariance => true,
+    };
+    let rows_per_chunk = rows_per_chunk.max(1);
+    if !rows_first || request.row_count <= rows_per_chunk {
+        let summary = stream_tile(request, emit)?;
+        let receipt = PipelineReceipt { items_consumed: 1, peak_live: 1, workers: 1 };
+        return Ok(PipelinedTile { summary, receipt });
+    }
+    // Validate the whole request once so a refusal emits nothing.
+    Frame::prepare(request)?;
+    let outcomes = len_u64(request.outcomes)?;
+    let cells_per_row = match request.reduction {
+        Reduction::Full => product(&[request.draw_count, request.grid_count, outcomes])?,
+        Reduction::DrawMean => product(&[request.grid_count, outcomes])?,
+        Reduction::DrawCovariance => {
+            let component = product(&[request.grid_count, outcomes])?;
+            product(&[component, component])?
+        }
+    };
+    let chunk_bytes = product(&[
+        rows_per_chunk,
+        cells_per_row,
+        size_of::<StreamedValue>() as u64,
+        window.max(1) as u64,
+    ])?;
+    let _held = ctx
+        .acquire_admission(0, chunk_bytes)
+        .map_err(|_| TileError::ChunkBudget { bytes: chunk_bytes })?;
+    let chunks = request.row_count.div_ceil(rows_per_chunk);
+    let chunks = as_usize(chunks)?;
+    let mut emitted = 0u64;
+    let mut invariant = 0u64;
+    let piped = ctx.pipeline_indexed(
+        chunks,
+        window,
+        |index, _| {
+            let offset = index as u64 * rows_per_chunk;
+            let sub = TileRequest {
+                row_start: request.row_start + offset,
+                row_count: rows_per_chunk.min(request.row_count - offset),
+                ..*request
+            };
+            let mut values = Vec::new();
+            let summary = stream_tile(&sub, |value| values.push(value))?;
+            Ok::<_, TileError>((values, summary))
+        },
+        |_, (values, summary)| {
+            emitted += summary.emitted;
+            invariant = summary.invariant_evaluations;
+            for value in values {
+                emit(value);
+            }
+            Ok(PipelineStep::Continue)
+        },
+    );
+    let receipt = match piped {
+        Ok(receipt) => receipt,
+        Err(MapExecutionError::Work(error)) => return Err(error),
+        Err(MapExecutionError::Admission(_)) => return Err(TileError::Cancelled),
+    };
+    Ok(PipelinedTile {
+        summary: StreamSummary {
+            reduction: request.reduction,
+            emitted,
+            invariant_evaluations: invariant,
+        },
+        receipt,
     })
 }
 
@@ -1878,5 +1997,56 @@ mod tests {
             audit.see(*cell);
         }
         assert!(audit.admit(&mean_frame).is_err());
+    }
+
+    #[test]
+    fn a_stalled_sink_keeps_live_row_chunks_at_the_window_and_values_match_the_serial_stream() {
+        use antecedent_core::ExecutionContext;
+        use antecedent_core::execution::AdmissionPool;
+
+        let rows = 64usize;
+        let features: Vec<f64> = (0..rows).map(|i| i as f64 * 0.25).collect();
+        let coefficients = [1.0, 0.5, 2.0, 1.5, -1.0, 0.25];
+        let outcomes = [OutcomeDraws { id: 1, coefficients: &coefficients }];
+        let failed = [false, false, false];
+        let grid = [point(0, 0.0, 1.0), point(1, 1.0, 1.0)];
+        for reduction in [Reduction::Full, Reduction::DrawMean, Reduction::DrawCovariance] {
+            let mut whole = request(
+                &features,
+                &outcomes,
+                &failed,
+                &grid,
+                Encoding::Polynomial { degree: 0 },
+                AxisOrder::row_major(),
+                reduction,
+            );
+            whole.row_count = rows as u64;
+            whole.row_width = 1;
+            // Two coefficients per draw: one encoding term, one row feature.
+            let coefficients = [1.0, 0.5, 2.0, 1.5, -1.0, 0.25];
+            let outcomes = [OutcomeDraws { id: 1, coefficients: &coefficients }];
+            whole.outcomes = &outcomes;
+            let (serial, _) = collect(&whole).unwrap();
+
+            let pool = AdmissionPool::fixed(4, 1 << 24);
+            let ctx = ExecutionContext::production(1, 4).with_admission(pool.clone());
+            let mut got = Vec::new();
+            let mut first = true;
+            let tile = stream_tile_pipelined(&whole, &ctx, 4, 3, |value| {
+                if std::mem::take(&mut first) {
+                    std::thread::sleep(std::time::Duration::from_millis(80));
+                }
+                got.push(value);
+            })
+            .unwrap();
+            assert_eq!(got.len(), serial.len(), "{reduction:?}");
+            for (left, right) in got.iter().zip(&serial) {
+                assert_eq!(format!("{left:?}"), format!("{right:?}"));
+            }
+            assert_eq!(tile.summary.emitted, serial.len() as u64);
+            assert!(tile.receipt.peak_live <= 3, "{reduction:?}: {}", tile.receipt.peak_live);
+            assert_eq!(tile.receipt.items_consumed, 16);
+            assert_eq!(pool.available().bytes(), 1 << 24);
+        }
     }
 }

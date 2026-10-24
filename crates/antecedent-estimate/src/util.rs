@@ -20,6 +20,7 @@ use antecedent_stats::{
     form_xtx, invert_square,
 };
 
+use crate::adaptive_resample_waves::{DriveError, StopReason, WaveStoppingRule, run_waves_serial};
 use crate::bootstrap_wave::{fill_worker_replicate, retained_index_slots};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
@@ -386,6 +387,84 @@ where
         return evaluate_bootstrap_parallel(ctx, &rows, n_rep, make_scratch, estimate);
     }
     evaluate_bootstrap_serial(ctx, &rows, n_rep, make_scratch, estimate)
+}
+
+/// A bootstrap run by the tolerance-based wave procedure: the standard error with its failure
+/// accounting, the percentile interval of the successes, and the per-wave record.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct WaveBootstrap {
+    /// Standard error and counts, as the fixed-count bootstrap reports them.
+    pub se: BootstrapSeResult,
+    /// Type-7 percentile interval of the successes at the rule's level.
+    pub interval: Option<(f64, f64)>,
+    /// One record per completed wave.
+    pub waves: Vec<crate::adaptive_resample_waves::WaveRecord>,
+    /// Estimated relative Monte Carlo error of the standard error.
+    pub se_rel_mc_error: Option<f64>,
+    /// Estimated relative Monte Carlo error of the interval half-width.
+    pub half_width_rel_mc_error: Option<f64>,
+}
+
+/// IID bootstrap that stops on the Monte Carlo tolerances of `rule` and returns the interval.
+///
+/// The replicate rows are those of [`bootstrap_se_with_scratch`] on the same seed, evaluated on
+/// the caller in waves of `rule.wave_size` with one reused scratch. An estimator error aborts.
+/// The rule's cap is the replicate request.
+///
+/// # Errors
+/// An unusable rule, an index buffer the pool cannot fund, or an estimator error.
+pub fn bootstrap_interval_with_scratch<S, F>(
+    rule: &WaveStoppingRule,
+    ctx: &ExecutionContext,
+    stream_base: u64,
+    n: usize,
+    make_scratch: impl Fn() -> S,
+    estimate: F,
+) -> Result<WaveBootstrap, EstimationError>
+where
+    F: Fn(&mut S, &[usize]) -> Result<Option<f64>, EstimationError>,
+{
+    let cancelled_result = || WaveBootstrap {
+        se: finalize_bootstrap_se_ex(&[], 0, true, false),
+        interval: None,
+        waves: Vec::new(),
+        se_rel_mc_error: None,
+        half_width_rel_mc_error: None,
+    };
+    if rule.max_replicates == 0 || n == 0 {
+        return Ok(WaveBootstrap { se: BootstrapSeResult::skipped(), ..cancelled_result() });
+    }
+    if ctx.cancellation.is_cancelled() {
+        return Ok(cancelled_result());
+    }
+    let Some(_lease) = admit_bootstrap_scratch(ctx, n, 1)? else {
+        return Ok(cancelled_result());
+    };
+    let rows = ReplicateRows::Rows { n, ctx, stream_base };
+    let mut state = (make_scratch(), Vec::<usize>::new());
+    let run = run_waves_serial(rule, ctx, stream_base, &mut state, |(scratch, idx), id, _rng| {
+        let replicate = usize::try_from(id)
+            .map_err(|_| EstimationError::data_msg("bootstrap replicate id exceeds usize"))?;
+        rows.fill(replicate, idx)?;
+        estimate(scratch, idx)
+    });
+    match run {
+        Ok(run) => Ok(WaveBootstrap {
+            se: finalize_bootstrap_se_ex(
+                &run.successes,
+                run.attempted,
+                run.stop == StopReason::Cancelled,
+                run.stop == StopReason::Converged,
+            ),
+            interval: run.interval,
+            waves: run.waves,
+            se_rel_mc_error: run.se_rel_mc_error,
+            half_width_rel_mc_error: run.half_width_rel_mc_error,
+        }),
+        Err(DriveError::Estimator(error)) => Err(error),
+        Err(DriveError::Wave(error)) => Err(EstimationError::data_msg(error.to_string())),
+    }
 }
 
 fn design_err(error: SamplingDesignError) -> EstimationError {
@@ -923,6 +1002,45 @@ impl ReplicateRows<'_> {
     }
 }
 
+/// The enabled adaptive budget, run as a wave procedure: one replicate per wave on the caller,
+/// stopping once the budget's success floor is reached. The replicates drawn and the standard
+/// error are those of the fixed-count loop on the same seed; a replicate whose estimator errs
+/// aborts the bootstrap.
+fn evaluate_bootstrap_waves<S, F>(
+    ctx: &ExecutionContext,
+    rows: &ReplicateRows<'_>,
+    n_rep: usize,
+    make_scratch: impl Fn() -> S,
+    estimate: F,
+) -> Result<BootstrapSeResult, EstimationError>
+where
+    F: Fn(&mut S, &[usize]) -> Result<Option<f64>, EstimationError>,
+{
+    let max_replicates = u32::try_from(n_rep)
+        .map_err(|_| EstimationError::data_msg("bootstrap replicate count exceeds u32"))?;
+    let rule = WaveStoppingRule::success_floor_rule(
+        max_replicates,
+        ctx.adaptive_bootstrap.required_replicates(),
+    );
+    let mut state = (make_scratch(), Vec::<usize>::new());
+    let run = run_waves_serial(&rule, ctx, 0, &mut state, |(scratch, idx), id, _rng| {
+        let replicate = usize::try_from(id)
+            .map_err(|_| EstimationError::data_msg("bootstrap replicate id exceeds usize"))?;
+        rows.fill(replicate, idx)?;
+        estimate(scratch, idx)
+    });
+    match run {
+        Ok(run) => Ok(finalize_bootstrap_se_ex(
+            &run.successes,
+            run.attempted,
+            run.stop == StopReason::Cancelled,
+            run.stop == StopReason::Converged,
+        )),
+        Err(DriveError::Estimator(error)) => Err(error),
+        Err(DriveError::Wave(error)) => Err(EstimationError::data_msg(error.to_string())),
+    }
+}
+
 fn evaluate_bootstrap_serial<S, F>(
     ctx: &ExecutionContext,
     rows: &ReplicateRows<'_>,
@@ -933,6 +1051,9 @@ fn evaluate_bootstrap_serial<S, F>(
 where
     F: Fn(&mut S, &[usize]) -> Result<Option<f64>, EstimationError>,
 {
+    if ctx.adaptive_bootstrap.enabled {
+        return evaluate_bootstrap_waves(ctx, rows, n_rep, make_scratch, estimate);
+    }
     let mut scratch = make_scratch();
     let mut ates = Vec::with_capacity(n_rep);
     let mut idx = Vec::new();

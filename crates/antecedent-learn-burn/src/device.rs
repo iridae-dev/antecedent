@@ -4,7 +4,7 @@
 //! The default build stays on `NdArray<f32>`. Cargo feature `wgpu` compiles Burn 0.16.1's
 //! WGPU backend, which selects Metal on Apple platforms. That feature is not default, so
 //! the CPU wheel does not link the device library. Burn's `metal` feature (Candle) and
-//! NVIDIA CUDA / cuDF are not this candidate. This module does not read a clock.
+//! NVIDIA CUDA / cuDF are not this candidate. Only the staged WGPU fit reads clocks.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -12,25 +12,15 @@ use std::collections::hash_map::DefaultHasher;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 
-#[cfg(feature = "wgpu")]
-use burn::module::AutodiffModule;
-#[cfg(feature = "wgpu")]
-use burn::nn::Linear;
-#[cfg(feature = "wgpu")]
-use burn::optim::{AdamConfig, GradientsParams, Optimizer};
-#[cfg(feature = "wgpu")]
-use burn::tensor::activation::sigmoid;
-#[cfg(feature = "wgpu")]
-use burn::tensor::backend::Backend;
-
 use super::{LearnBurnError, MlpSpec, TrainedMlp};
 
 #[cfg(feature = "wgpu")]
-type WgpuBackend = burn::backend::Wgpu<f32, i32>;
+pub(crate) type WgpuBackend = burn::backend::Wgpu<f32, i32>;
 #[cfg(feature = "wgpu")]
-type WgpuTrain = burn::backend::Autodiff<WgpuBackend>;
+pub(crate) type WgpuTrain = burn::backend::Autodiff<WgpuBackend>;
 
-const NOT_MEASURED_REASON: &str = "This platform has not been measured. No clock was read. \
+const NOT_MEASURED_REASON: &str = "A description reads no clock. Stage timings come from \
+     staged::run_workload and the accelerator_stage_timing example. \
      NVIDIA CUDA and cuDF are out of scope. The ndarray CPU path is unchanged.";
 
 const NEXT_PLATFORM: &str =
@@ -55,12 +45,12 @@ pub enum GraphicsApi {
 }
 
 /// Speed evidence this crate stores.
-///
-/// There is no elapsed-time variant. This platform has not been measured.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Measurement {
-    /// No clock was read for the candidate or the CPU comparison.
+    /// No clock was read for this value.
     NotMeasured,
+    /// Wall clocks of the stages the fit ran.
+    Staged(super::staged::StageTimings),
 }
 
 /// Static description of the WGPU candidate. Constructing it does not initialize a device.
@@ -72,9 +62,9 @@ pub struct CandidateDescription {
     pub compiled: bool,
     /// Graphics API the candidate would use on this host.
     pub graphics_api: GraphicsApi,
-    /// Always [`Measurement::NotMeasured`].
+    /// Always [`Measurement::NotMeasured`]: a description reads no clock.
     pub measurement: Measurement,
-    /// Why this crate records no timing.
+    /// Why a description records no timing, and where timings come from.
     pub reason: &'static str,
     /// The next place a measurement, including transfer, could be taken.
     pub next_platform: &'static str,
@@ -640,7 +630,7 @@ pub struct PortableFit {
     pub rng_lock: RngLockScope,
     /// Device and model ownership after the fit returns.
     pub ownership: RuntimeOwnership,
-    /// Always [`Measurement::NotMeasured`].
+    /// [`Measurement::Staged`] for a device fit; the CPU comparison reads no clock.
     pub measurement: Measurement,
     /// Host loss copies that completed. Equal to the epoch count on success. Not a duration.
     pub epochs_synced: usize,
@@ -744,12 +734,14 @@ impl From<LearnBurnError> for DeviceError {
 /// Fit on Burn's WGPU backend and return host portable weights.
 ///
 /// Available only with the `wgpu` feature. The default `WgpuDevice` is created here and
-/// dropped before return. Each epoch copies the scalar loss to the host. This function
-/// does not read a clock; [`PortableFit::measurement`] is [`Measurement::NotMeasured`].
+/// dropped before return. Each epoch copies the scalar loss to the host. The fit is
+/// [`super::staged::fit_staged`], so [`PortableFit::measurement`] is
+/// [`Measurement::Staged`] with the clocks of prepare, upload, fit, synchronize, and download.
 ///
 /// # Errors
 ///
-/// The same input and divergence failures as [`super::train`].
+/// The same input and divergence failures as [`super::train`], and a device panic
+/// (adapter loss, allocation failure) as [`LearnBurnError::Device`].
 #[cfg(feature = "wgpu")]
 pub fn fit_portable_wgpu(
     x_colmajor: &[f64],
@@ -758,54 +750,32 @@ pub fn fit_portable_wgpu(
     y: &[f64],
     spec: &MlpSpec,
 ) -> Result<PortableFit, LearnBurnError> {
-    let prepared = prepare_fit(x_colmajor, nrows, ncols, y, spec)?;
-    let _guard = super::TRAIN_LOCK.lock().map_err(|_| LearnBurnError::LockPoisoned)?;
-    <WgpuBackend as Backend>::seed(prepared.seed);
+    fit_portable_wgpu_cancellable(x_colmajor, nrows, ncols, y, spec, &|| false)
+}
+
+/// [`fit_portable_wgpu`] that polls `stop` before every epoch.
+///
+/// # Errors
+///
+/// As [`fit_portable_wgpu`], plus [`LearnBurnError::Cancelled`].
+#[cfg(feature = "wgpu")]
+pub fn fit_portable_wgpu_cancellable(
+    x_colmajor: &[f64],
+    nrows: usize,
+    ncols: usize,
+    y: &[f64],
+    spec: &MlpSpec,
+    stop: &dyn Fn() -> bool,
+) -> Result<PortableFit, LearnBurnError> {
     let device = burn::backend::wgpu::WgpuDevice::default();
-    let mut model = super::Mlp::<WgpuTrain>::new(&device, ncols, prepared.hidden);
-    let mut optim = AdamConfig::new().init();
-    let x_t = super::tensor2(&prepared.x_rm, [nrows, ncols], &device);
-    let y_t = super::tensor2(&prepared.y_f, [nrows, 1], &device);
-    for epoch in 0..prepared.epochs {
-        let pred = model.forward(x_t.clone());
-        let loss = if prepared.binary {
-            let p = sigmoid(pred.clone()).clamp(1e-6, 1.0 - 1e-6);
-            let ones = p.ones_like();
-            y_t.clone()
-                .mul(p.clone().log())
-                .add(ones.clone().sub(y_t.clone()).mul(ones.sub(p).log()))
-                .mean()
-                .mul_scalar(-1.0)
-        } else {
-            pred.sub(y_t.clone()).powf_scalar(2.0).mean()
-        };
-        let loss_value = loss
-            .clone()
-            .into_data()
-            .as_slice::<f32>()
-            .map_err(|error| LearnBurnError::Loss(format!("{error:?}")))?
-            .first()
-            .copied()
-            .unwrap_or(f32::NAN);
-        record_host_loss(epoch, loss_value)?;
-        let grads = loss.backward();
-        let grads = GradientsParams::from_grads(grads, &model);
-        model = optim.step(prepared.learning_rate, model, grads);
-    }
-    let model = model.valid();
-    let trained = portable_from_inner(
-        &model,
-        prepared.binary,
-        ncols,
-        prepared.x_center,
-        prepared.x_scale,
-        prepared.y_center,
-        prepared.y_scale,
-    )?;
+    let staged = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        super::staged::fit_staged::<WgpuTrain>(&device, x_colmajor, nrows, ncols, y, spec, stop)
+    }))
+    .map_err(|payload| LearnBurnError::Device(panic_text(payload.as_ref())))??;
     Ok(PortableFit {
-        model: trained,
+        model: staged.model,
         backend: LearnerBackend::Wgpu,
-        transfers: transfer_plan(prepared.epochs),
+        transfers: transfer_plan(spec.epochs),
         loss_sync: LossSync::HostEveryEpoch,
         rng_lock: RngLockScope::EntireFit,
         ownership: RuntimeOwnership {
@@ -814,129 +784,19 @@ pub fn fit_portable_wgpu(
             model: ModelOwner::HostPortable,
             cache: CacheLifetime::NotCached,
         },
-        measurement: Measurement::NotMeasured,
-        epochs_synced: prepared.epochs,
+        measurement: Measurement::Staged(staged.timings),
+        epochs_synced: staged.losses.len(),
     })
 }
 
+/// Text of a caught panic payload.
 #[cfg(feature = "wgpu")]
-struct PreparedFit {
-    binary: bool,
-    hidden: usize,
-    epochs: usize,
-    learning_rate: f64,
-    seed: u64,
-    x_center: Vec<f64>,
-    x_scale: Vec<f64>,
-    y_center: f64,
-    y_scale: f64,
-    x_rm: Vec<f32>,
-    y_f: Vec<f32>,
-}
-
-#[cfg(feature = "wgpu")]
-fn prepare_fit(
-    x_colmajor: &[f64],
-    nrows: usize,
-    ncols: usize,
-    y: &[f64],
-    spec: &MlpSpec,
-) -> Result<PreparedFit, LearnBurnError> {
-    let MlpSpec { binary, hidden, epochs, learning_rate, seed } = *spec;
-    if nrows == 0 || ncols == 0 {
-        return Err(LearnBurnError::EmptyDesign);
-    }
-    if x_colmajor.len() < nrows.saturating_mul(ncols) || y.len() != nrows {
-        return Err(LearnBurnError::ShapeMismatch);
-    }
-    if hidden == 0 || epochs == 0 {
-        return Err(LearnBurnError::Architecture);
-    }
-    if x_colmajor[..nrows * ncols].iter().chain(y).any(|v| !v.is_finite()) {
-        return Err(LearnBurnError::NonFiniteInput);
-    }
-    #[allow(clippy::float_cmp, reason = "a binary target is exactly the labels 0 and 1")]
-    let not_a_label = |v: f64| v != 0.0 && v != 1.0;
-    if binary && y.iter().any(|&v| not_a_label(v)) {
-        return Err(LearnBurnError::BinaryLabels);
-    }
-    if !learning_rate.is_finite() || learning_rate <= 0.0 {
-        return Err(LearnBurnError::LearningRate);
-    }
-    let (x_center, x_scale) = super::column_standardization(x_colmajor, nrows, ncols);
-    let (y_center, y_scale) = if binary { (0.0, 1.0) } else { super::target_standardization(y) };
-    let x_std = super::standardized(x_colmajor, nrows, ncols, &x_center, &x_scale);
-    let x_rm = super::colmajor_to_rowmajor_f32(&x_std, nrows, ncols);
-    #[allow(
-        clippy::cast_possible_truncation,
-        reason = "the network trains in f32, so narrowing the standardized target is the intended precision"
-    )]
-    let y_f: Vec<f32> = y.iter().map(|&v| ((v - y_center) / y_scale) as f32).collect();
-    Ok(PreparedFit {
-        binary,
-        hidden,
-        epochs,
-        learning_rate,
-        seed,
-        x_center,
-        x_scale,
-        y_center,
-        y_scale,
-        x_rm,
-        y_f,
-    })
-}
-
-#[cfg(feature = "wgpu")]
-fn portable_from_inner<B: Backend>(
-    model: &super::Mlp<B>,
-    binary: bool,
-    ncols: usize,
-    x_center: Vec<f64>,
-    x_scale: Vec<f64>,
-    y_center: f64,
-    y_scale: f64,
-) -> Result<TrainedMlp, LearnBurnError> {
-    let trained = TrainedMlp {
-        l1: extract_portable(&model.l1)?,
-        l2: extract_portable(&model.l2)?,
-        out: extract_portable(&model.out)?,
-        binary,
-        ncols,
-        x_center,
-        x_scale,
-        y_center,
-        y_scale,
-    };
-    let all_finite = [&trained.l1, &trained.l2, &trained.out]
-        .iter()
-        .all(|layer| layer.weight.iter().chain(&layer.bias).all(|value| value.is_finite()));
-    if !all_finite {
-        return Err(LearnBurnError::NonFiniteWeights);
-    }
-    Ok(trained)
-}
-
-#[cfg(feature = "wgpu")]
-fn extract_portable<B: Backend>(layer: &Linear<B>) -> Result<super::DenseLayer, LearnBurnError> {
-    let weight = layer.weight.val();
-    let dims = weight.dims();
-    let din = dims[0];
-    let dout = dims[1];
-    let w = weight
-        .into_data()
-        .as_slice::<f32>()
-        .map_err(|error| LearnBurnError::Weight(format!("{error:?}")))?
-        .to_vec();
-    let bias = layer.bias.as_ref().ok_or(LearnBurnError::MissingBias)?.val().into_data();
-    let b = bias
-        .as_slice::<f32>()
-        .map_err(|error| LearnBurnError::Bias(format!("{error:?}")))?
-        .to_vec();
-    if w.len() != din.saturating_mul(dout) || b.len() != dout {
-        return Err(LearnBurnError::WeightShape);
-    }
-    Ok(super::DenseLayer { din, dout, weight: w, bias: b })
+pub(crate) fn panic_text(payload: &(dyn std::any::Any + Send)) -> String {
+    payload
+        .downcast_ref::<&str>()
+        .map(|s| (*s).to_string())
+        .or_else(|| payload.downcast_ref::<String>().cloned())
+        .unwrap_or_else(|| "device runtime panicked".to_string())
 }
 
 #[cfg(test)]
@@ -972,8 +832,8 @@ mod tests {
         assert_eq!(description.graphics_api, GraphicsApi::MetalViaWgpu);
         assert_eq!(description.measurement, Measurement::NotMeasured);
         assert_eq!(description.compiled, cfg!(feature = "wgpu"));
-        assert!(description.reason.contains("not been measured"));
-        assert!(!description.reason.contains("ms"));
+        assert!(description.reason.contains("reads no clock"));
+        assert!(description.reason.contains("accelerator_stage_timing"));
         assert!(description.next_platform.contains("Apple"));
         assert!(description.next_platform.contains("Metal"));
         assert!(!description.next_platform.contains("CUDA"));

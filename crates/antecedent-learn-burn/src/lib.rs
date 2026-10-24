@@ -1,8 +1,9 @@
 //! Burn-backed MLP. Hidden behind `antecedent-learn`'s `neural_net` spec.
 //!
 //! The public surface is column-major `f64` in / `f64` out. The default build trains and
-//! predicts on the CPU `NdArray<f32>` backend. The opt-in `wgpu` feature is the unmeasured
-//! device candidate.
+//! predicts on the CPU `NdArray<f32>` backend. The opt-in `wgpu` feature adds Burn's WGPU
+//! device backend, selected by [`policy`], and `accelerate` adds Apple Accelerate BLAS under
+//! the same ndarray backend. [`staged`] times each stage of either.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -17,7 +18,10 @@ use burn::tensor::activation::{relu, sigmoid};
 use burn::tensor::{Tensor, TensorData, backend::Backend};
 
 pub mod accelerator_probe;
+pub mod admission;
 pub mod device;
+pub mod policy;
+pub mod staged;
 
 type TrainBackend = Autodiff<NdArray<f32>>;
 type InferBackend = NdArray<f32>;
@@ -89,6 +93,10 @@ pub enum LearnBurnError {
     Bias(String),
     /// Extracted weight or bias length does not match the layer.
     WeightShape,
+    /// Cancellation was observed between epochs. No model was produced.
+    Cancelled,
+    /// The device runtime failed (allocation, adapter, or kernel). No model was produced.
+    Device(String),
 }
 
 impl std::fmt::Display for LearnBurnError {
@@ -112,6 +120,8 @@ impl std::fmt::Display for LearnBurnError {
             Self::MissingBias => f.write_str("neural_net layer missing bias"),
             Self::Bias(detail) => write!(f, "neural_net bias: {detail}"),
             Self::WeightShape => f.write_str("neural_net extracted weight shape mismatch"),
+            Self::Cancelled => f.write_str("neural_net fit cancelled"),
+            Self::Device(detail) => write!(f, "neural_net device: {detail}"),
         }
     }
 }

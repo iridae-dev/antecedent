@@ -169,6 +169,35 @@ impl CrossfitPlan {
         ctx.map_indexed(self.folds, |fold, inner| f(self.rows(fold), inner))
     }
 
+    /// Fit folds on leased workers and consume their results in fold order on the caller,
+    /// with at most `window` fold results alive (being produced, waiting, or being consumed).
+    ///
+    /// A consumer that stalls stops the fold fits after `window` folds instead of letting
+    /// every fold's nuisance output pile up. The lowest-fold error wins.
+    ///
+    /// # Errors
+    ///
+    /// The error of the lowest failing fold or of `consume`, or a cancellation.
+    pub(crate) fn pipeline_folds<T: Send, E: Send>(
+        &self,
+        ctx: &antecedent_core::ExecutionContext,
+        window: usize,
+        produce: impl Fn(FoldRows<'_>, &antecedent_core::ExecutionContext) -> Result<T, E> + Sync,
+        mut consume: impl FnMut(usize, T) -> Result<(), E>,
+    ) -> Result<
+        antecedent_core::execution::PipelineReceipt,
+        antecedent_core::execution::MapExecutionError<E>,
+    > {
+        ctx.pipeline_indexed(
+            self.folds,
+            window,
+            |fold, inner| produce(self.rows(fold), inner),
+            |fold, value| {
+                consume(fold, value).map(|()| antecedent_core::execution::PipelineStep::Continue)
+            },
+        )
+    }
+
     /// Release the fold ids.
     pub(crate) fn into_fold_ids(self) -> Vec<u32> {
         self.fold_ids
@@ -417,5 +446,43 @@ mod tests {
         )
         .unwrap();
         assert_eq!(plan.fold_ids(), direct.as_slice());
+    }
+
+    #[test]
+    fn a_stalled_fold_consumer_keeps_live_fold_results_at_the_window() {
+        use antecedent_core::ExecutionContext;
+        use antecedent_core::execution::AdmissionPool;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let ids: Vec<u32> = (0..240).map(|i| i % 12).collect();
+        let plan = CrossfitPlan::from_fold_ids(12, ids);
+        let pool = AdmissionPool::fixed(4, 1 << 20);
+        let ctx = ExecutionContext::production(1, 4).with_admission(pool.clone());
+        let live = AtomicUsize::new(0);
+        let peak = AtomicUsize::new(0);
+        let mut order = Vec::new();
+        let receipt = plan
+            .pipeline_folds(
+                &ctx,
+                3,
+                |rows, _| {
+                    peak.fetch_max(live.fetch_add(1, Ordering::SeqCst) + 1, Ordering::SeqCst);
+                    Ok::<_, ()>(rows.valid.to_vec())
+                },
+                |fold, valid| {
+                    if fold == 0 {
+                        std::thread::sleep(std::time::Duration::from_millis(80));
+                    }
+                    assert!(valid.iter().all(|&i| i % 12 == fold));
+                    order.push(fold);
+                    live.fetch_sub(1, Ordering::SeqCst);
+                    Ok(())
+                },
+            )
+            .unwrap();
+        assert_eq!(order, (0..12).collect::<Vec<_>>());
+        assert!(peak.load(Ordering::SeqCst) <= 3, "{peak:?}");
+        assert!(receipt.peak_live <= 3);
+        assert_eq!(pool.available().threads(), 4);
     }
 }

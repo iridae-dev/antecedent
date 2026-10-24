@@ -32,6 +32,12 @@ pub(crate) const NEIGHBORHOOD_SENSITIVITY: u64 = 0xA7E0_000D_0000;
 pub(crate) const FUNCTIONAL_SUBSET_80: u64 = 0xF012_0000;
 /// Functional-stability 50% subsets.
 pub(crate) const FUNCTIONAL_SUBSET_50: u64 = 0xF013_0000;
+/// Window-contrast contiguous 80% stretches.
+pub(crate) const WINDOW_STRETCH_80: u64 = 0xF016_0000;
+/// Window-contrast contiguous 50% stretches.
+pub(crate) const WINDOW_STRETCH_50: u64 = 0xF017_0000;
+/// Window-contrast treatment rotations.
+pub(crate) const WINDOW_PLACEBO_SHIFT: u64 = 0xF018_0000;
 
 /// Discovery null calibration.
 pub(crate) const STABILITY_NULL: u64 = 0x5011;

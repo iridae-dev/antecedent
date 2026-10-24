@@ -16,6 +16,7 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+pub mod admg_adjustment;
 pub mod assumptions;
 pub mod auto;
 pub mod backdoor;
@@ -44,6 +45,7 @@ pub mod idc;
 pub mod identifier;
 pub(crate) mod intervention_support;
 pub mod iv;
+mod pag_path_specific;
 pub mod path_specific;
 mod pow2;
 pub mod prepared;
@@ -192,6 +194,12 @@ mod mag_id_bruteforce;
 #[doc(hidden)]
 pub mod oracle_dot;
 
+pub use admg_adjustment::{
+    TemporalAdmgAdjustment, identify_admg_front_door_derivative, identify_admg_response_adjustment,
+    identify_cpdag_derivative_pairs, identify_pag_derivative_pairs,
+    identify_temporal_admg_front_door_derivative, identify_temporal_admg_response_adjustment,
+    upgrade_id_only_derivative_cases,
+};
 pub use auto::{AutoIdentifier, PreparedAutoGraph};
 pub use backdoor::{AdjustmentSearchConfig, BackdoorIdentifier, PreparedIdentificationGraph};
 pub use bounds::{BinaryIvLaw, binary_iv_ate_bounds};
@@ -225,6 +233,7 @@ pub use generalized::{
     GeneralizedAdjustmentIdentifier, MAG_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
 };
 pub use hedge::{HedgeCertificate, HedgeProblem};
+pub use pag_path_specific::{AdmgCandidates, PAG_ADMG_SEARCH_BOUNDED_DIAGNOSTIC_CODE};
 pub use id::{IdIdentifier, ScheduleContrast};
 pub use idc::IdcIdentifier;
 pub use identifier::{IdentificationWorkspace, Identifier};

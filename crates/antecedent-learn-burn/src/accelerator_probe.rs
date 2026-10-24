@@ -8,10 +8,10 @@
 //! tensor placement, Adam, host loss, weight copy, host forward, physical scatter). Those
 //! steps are private and fused inside `train`, which returns no clocks.
 //!
-//! Cargo feature `wgpu` compiles `probe_wgpu_small_fold`. That function returns `NotLinked`
-//! and does not read a clock. The WGPU fit entry point fuses prepare, upload, fit,
-//! synchronize, and download, so those stages are not separately callable. Burn's `metal`
-//! feature is Candle and is not enabled. On Apple, WGPU's graphics API is Metal.
+//! [`probe_cpu_workload`] and, with the `wgpu` feature, [`probe_wgpu_workload`] run any
+//! [`Workload`](super::staged::Workload) through [`super::staged`], which times prepare,
+//! upload, fit, synchronize, download, predict, and output on the named backend. Burn's
+//! `metal` feature is Candle and is not enabled. On Apple, WGPU's graphics API is Metal.
 //!
 //! This is one small fold. It is not the frozen whole-workload control.
 //!
@@ -146,41 +146,6 @@ pub struct SmallFoldProbe {
     pub assembled: Vec<f64>,
 }
 
-/// Why staged WGPU timing did not run.
-///
-/// Compiled only with the `wgpu` feature. Constructing it does not read a clock.
-#[cfg(feature = "wgpu")]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[must_use = "staged WGPU timing did not run"]
-pub enum NotLinked {
-    /// Prepare, upload, fit, synchronize, and download are fused and not separately public.
-    StageBoundariesPrivate,
-}
-
-#[cfg(feature = "wgpu")]
-const NOT_LINKED_REASON: &str = "staged WGPU timing is not linked. \
-     fit_portable_wgpu fuses prepare, upload, fit, synchronize, and download; \
-     those stages are not separately public. No clock was read. \
-     Burn's metal feature is Candle and is not this path.";
-
-#[cfg(feature = "wgpu")]
-impl NotLinked {
-    /// Static reason. No clock is read.
-    #[must_use = "the text is the NotLinked reason"]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::StageBoundariesPrivate => NOT_LINKED_REASON,
-        }
-    }
-}
-
-#[cfg(feature = "wgpu")]
-impl std::fmt::Display for NotLinked {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str(self.as_str())
-    }
-}
-
 /// Time one small fold on the default `NdArray<f32>` backend.
 ///
 /// # Errors
@@ -207,14 +172,37 @@ pub fn probe_small_fold() -> Result<SmallFoldProbe, LearnBurnError> {
     })
 }
 
-/// Staged WGPU timing is not callable from this crate's public device API.
+/// Time `workload` on the default `NdArray<f32>` backend through the staged fit.
 ///
-/// No clock is read. Burn's `WGPU` backend is the `wgpu` feature (`Metal` on Apple). It is
-/// not Burn's Candle `metal` feature.
+/// # Errors
+///
+/// Any [`super::staged::fit_staged`] failure.
+#[must_use = "an error means no complete set of stage clocks"]
+pub fn probe_cpu_workload(
+    workload: &super::staged::Workload,
+) -> Result<super::staged::WorkloadRun, LearnBurnError> {
+    let device = <NdArray<f32> as Backend>::Device::default();
+    super::staged::run_workload::<TrainBackend>(&device, workload, &|| false)
+}
+
+/// Time `workload` on Burn's WGPU backend (Metal on Apple) through the staged fit.
+///
+/// A device panic (no adapter, allocation failure) is returned as
+/// [`LearnBurnError::Device`].
+///
+/// # Errors
+///
+/// Any [`super::staged::fit_staged`] failure, or a device panic.
 #[cfg(feature = "wgpu")]
-#[must_use = "staged WGPU timing did not run"]
-pub const fn probe_wgpu_small_fold() -> NotLinked {
-    NotLinked::StageBoundariesPrivate
+#[must_use = "an error means no complete set of stage clocks"]
+pub fn probe_wgpu_workload(
+    workload: &super::staged::Workload,
+) -> Result<super::staged::WorkloadRun, LearnBurnError> {
+    let device = burn::backend::wgpu::WgpuDevice::default();
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        super::staged::run_workload::<device::WgpuTrain>(&device, workload, &|| false)
+    }))
+    .map_err(|payload| LearnBurnError::Device(device::panic_text(payload.as_ref())))?
 }
 
 fn measured<T>(work: impl FnOnce() -> T) -> (Duration, T) {
@@ -596,11 +584,19 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "wgpu")]
     #[test]
-    fn wgpu_small_fold_is_not_linked_and_reads_no_clock() {
-        let reason = super::probe_wgpu_small_fold();
-        assert_eq!(reason, super::NotLinked::StageBoundariesPrivate);
-        assert!(reason.as_str().contains("No clock was read"));
+    fn cpu_workload_probe_times_all_stages_and_fills_every_row() {
+        let workload = crate::staged::Workload {
+            nrows: 48,
+            folds: 2,
+            epochs: 3,
+            hidden: 4,
+            ..crate::staged::Workload::SMALL
+        };
+        let run = super::probe_cpu_workload(&workload).expect("ndarray workload");
+        assert_eq!(run.physical.len(), 48);
+        assert!(run.physical.iter().all(|value| value.is_finite()));
+        assert!(run.timings.total() > std::time::Duration::ZERO);
+        assert!(run.folds.iter().all(|fold| fold.losses.len() == 3));
     }
 }

@@ -7,7 +7,8 @@ use antecedent_core::{
     AverageEffectQuery, Intervention, PopulationRegistry, TargetPopulation, VariableId,
 };
 use antecedent_data::materialize::{
-    EstimatorStreamNeed, PreparationControls, PreparationProduct, PreparationReceipt, prepare_table,
+    EstimatorStreamNeed, PreparationBudget, PreparationControls, PreparationProduct,
+    PreparationReceipt, prepare_table,
 };
 use antecedent_data::{MissingPolicy, TableView, TabularData};
 use antecedent_expr::{EstimandMethod, IdentifiedEstimand};
@@ -121,6 +122,38 @@ pub(crate) fn validate_ate_query_with_targets(
     Ok(())
 }
 
+thread_local! {
+    static AMBIENT_BUDGET: std::cell::Cell<Option<PreparationBudget>> =
+        const { std::cell::Cell::new(None) };
+}
+
+/// Run `prepare` with every estimator preparation on this thread admitted against `budget`.
+///
+/// Inside the call, [`admit_estimator_columns`] compares the payload with the budget: a
+/// payload over it is refused, and one inside it yields a receipt whose route is a proved
+/// bound (`route_bound = "proved"`, `budget_bytes` recorded). Outside it the payload is
+/// unmetered and only the rows are proved. The previous budget is restored on return or
+/// unwind, so nesting is safe.
+///
+/// The planner wraps an estimator's prepare in this with
+/// [`PreparationBudget::from_limits`] of the study's execution context.
+pub fn with_preparation_budget<T>(budget: PreparationBudget, prepare: impl FnOnce() -> T) -> T {
+    struct Restore(Option<PreparationBudget>);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            AMBIENT_BUDGET.with(|slot| slot.set(self.0));
+        }
+    }
+    let _restore = Restore(AMBIENT_BUDGET.with(|slot| slot.replace(Some(budget))));
+    prepare()
+}
+
+/// The budget [`with_preparation_budget`] set on this thread, if any.
+#[must_use]
+pub fn ambient_preparation_budget() -> Option<PreparationBudget> {
+    AMBIENT_BUDGET.with(std::cell::Cell::get)
+}
+
 /// What every estimator in this crate reads: one finite table, never a scan.
 ///
 /// An estimator declares this to [`admit_estimator_columns`]. A frame it cannot
@@ -134,8 +167,8 @@ pub(crate) struct AdmittedColumns<'a> {
     pub data: &'a TabularData,
     /// Complete-case mask over `data`'s rows, computed once by preparation.
     pub row_mask: Vec<bool>,
-    /// Preparation receipt. No byte budget is compared here, so the route is not
-    /// described as bounded.
+    /// Preparation receipt. A byte budget is compared only under a workflow context;
+    /// without one the route is not described as bounded.
     pub receipt: PreparationReceipt,
 }
 
@@ -158,6 +191,10 @@ pub(crate) fn assert_records_preparation(estimate: &crate::EffectEstimate, rows:
     assert_eq!(summary.rows_admitted, Some(rows));
     assert_eq!(summary.route_bound, "rows_only");
     assert!(!summary.receipt_digest.is_empty());
+    // The resource facts are the receipt's: a finite payload that no budget was compared with.
+    assert!(summary.admitted_bytes.is_some_and(|bytes| bytes > 0));
+    assert_eq!(summary.budget_bytes, None);
+    assert_eq!(summary.delivery.as_deref(), Some("finite"));
 }
 
 /// Run the accepted preparation path, then hand the estimator the same finite table.
@@ -175,7 +212,8 @@ pub(crate) fn admit_estimator_columns<'a>(
     ids: &[VariableId],
     stream: EstimatorStreamNeed,
 ) -> Result<AdmittedColumns<'a>, EstimationError> {
-    let mut controls = PreparationControls::finite_resident();
+    let mut controls = ambient_preparation_budget()
+        .map_or_else(PreparationControls::finite_resident, PreparationControls::finite_within);
     controls.stream = stream;
     let PreparationProduct { row_mask, receipt, .. } =
         prepare_table(data, ids, MissingPolicy::CompleteCase, &[], controls)?;
@@ -359,11 +397,15 @@ pub(crate) fn direct_adjustment_design(
             .checked_mul(ncols)
             .ok_or_else(|| EstimationError::data_msg("design size overflow"))?
     ];
+    record_physical(PhysicalEvent::Allocation, 1);
+    record_physical(PhysicalEvent::AllocatedBytes, size_of_val(matrix.as_slice()) as u64);
     matrix[..nrows].fill(1.0);
     for (dest, (_, values)) in matrix[nrows..].chunks_exact_mut(nrows).zip(&columns) {
         selected.copy_into(values, dest)?;
     }
     let mut y = vec![0.0; nrows];
+    record_physical(PhysicalEvent::Allocation, 1);
+    record_physical(PhysicalEvent::AllocatedBytes, size_of_val(y.as_slice()) as u64);
     selected.copy_into(column(outcome)?, &mut y)?;
     let roles =
         std::iter::once(DesignColumnRole::Intercept).chain(columns.iter().map(|(role, _)| *role));
@@ -371,6 +413,13 @@ pub(crate) fn direct_adjustment_design(
     record_physical(PhysicalEvent::Copy, 3);
     record_physical(
         PhysicalEvent::CopiedBytes,
+        (size_of_val(matrix.as_slice())
+            + size_of_val(y.as_slice())
+            + size_of_val(selected.indices.as_slice())) as u64,
+    );
+    record_physical(PhysicalEvent::Allocation, 3);
+    record_physical(
+        PhysicalEvent::AllocatedBytes,
         (size_of_val(matrix.as_slice())
             + size_of_val(y.as_slice())
             + size_of_val(selected.indices.as_slice())) as u64,
@@ -386,6 +435,46 @@ pub(crate) fn direct_adjustment_design(
         smooths: Vec::new(),
         standardization: StandardizationRecord::default(),
     })
+}
+
+#[cfg(test)]
+mod metered_preparation_tests {
+    use super::*;
+
+    fn table() -> TabularData {
+        TabularData::from_f64_columns([
+            ("t", &[0.0, 1.0, 0.0, 1.0][..]),
+            ("y", &[2.0, 4.0, 8.0, 16.0][..]),
+        ])
+        .unwrap()
+    }
+
+    #[test]
+    fn a_budget_turns_the_row_bound_into_a_proved_bound_and_a_tight_one_refuses() {
+        let data = table();
+        let ids = [VariableId::from_raw(0), VariableId::from_raw(1)];
+        let unmetered = admit_estimator_columns(&data, &ids, FINITE_TABLE_ONLY).unwrap();
+        assert!(!unmetered.receipt.is_bounded_end_to_end_route());
+        assert_eq!(preparation_summary(&unmetered.receipt).budget_bytes, None);
+
+        let metered = with_preparation_budget(PreparationBudget::new(1 << 20), || {
+            assert_eq!(ambient_preparation_budget(), Some(PreparationBudget::new(1 << 20)));
+            admit_estimator_columns(&data, &ids, FINITE_TABLE_ONLY).map(|admitted| admitted.receipt)
+        })
+        .unwrap();
+        assert!(metered.is_bounded_end_to_end_route());
+        let summary = preparation_summary(&metered);
+        assert_eq!(summary.route_bound, "proved");
+        assert_eq!(summary.budget_bytes, Some(1 << 20));
+        assert!(summary.admitted_bytes.is_some_and(|bytes| bytes > 0 && bytes <= 1 << 20));
+
+        let refused = with_preparation_budget(PreparationBudget::new(1), || {
+            admit_estimator_columns(&data, &ids, FINITE_TABLE_ONLY)
+                .map(|admitted| admitted.row_mask)
+        });
+        assert!(refused.is_err(), "a payload over the budget is refused");
+        assert_eq!(ambient_preparation_budget(), None, "the budget does not outlive the call");
+    }
 }
 
 #[cfg(test)]

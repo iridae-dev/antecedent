@@ -35,6 +35,8 @@ mod numeric_identification_cases;
 mod observation_recovery;
 #[path = "ordered_response_recovery_chain.rs"]
 mod ordered_response_recovery_chain;
+#[path = "path_specific_district_scm.rs"]
+mod path_specific_district_scm;
 #[path = "scenario_invariance.rs"]
 mod scenario_invariance;
 #[path = "temporal_sequence_spec.rs"]

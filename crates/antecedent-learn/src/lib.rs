@@ -81,7 +81,7 @@ pub(crate) use ridge::RidgeLearner;
 #[cfg(test)]
 pub(crate) use spec::FOREST_PROBABILITY_MIN_LEAF;
 pub use spec::{
-    ElasticNetSpec, ForestSpec, GbtSpec, LearnerSpec, LinearSpec, LogisticSpec, NeuralSpec,
+    DevicePolicy, ElasticNetSpec, ForestSpec, GbtSpec, LearnerSpec, LinearSpec, LogisticSpec, NeuralSpec,
     RidgeSpec, resolve, resolve_for,
 };
 pub use transform::{FittedTransformer, Identity, TransformerFactory};
@@ -474,7 +474,8 @@ mod tests {
         let (x, y) = line_design(n);
         let ctx = ExecutionContext::for_tests(1);
         let view = DesignView::from_column_major(&x, n, 2).unwrap();
-        let spec = NeuralSpec { hidden: 8, epochs: 60, learning_rate: 0.05 };
+        let spec =
+            NeuralSpec { hidden: 8, epochs: 60, learning_rate: 0.05, ..NeuralSpec::default() };
         let factory =
             resolve_for(LearnerSpec::NeuralNet(spec), PredictionTask::Regression).unwrap();
         let fitted = factory.fit(view, TargetView::new(&y), None, &ctx).unwrap();
@@ -491,6 +492,57 @@ mod tests {
         let fitted = clf.fit(view, TargetView::new(&t), None, &ctx).unwrap();
         fitted.predict(view, &mut out, &ctx).unwrap();
         assert!(out.iter().all(|p| *p > 0.0 && *p < 1.0));
+    }
+
+    #[cfg(feature = "ml-neural")]
+    #[test]
+    fn neural_device_policy_labels_the_route_that_ran() {
+        use crate::DevicePolicy;
+        let n = 24usize;
+        let (x, y) = line_design(n);
+        let ctx = ExecutionContext::for_tests(1);
+        let view = DesignView::from_column_major(&x, n, 2).unwrap();
+        let with = |device| NeuralSpec { hidden: 4, epochs: 5, device, ..NeuralSpec::default() };
+        let fit = |device| {
+            resolve_for(LearnerSpec::NeuralNet(with(device)), PredictionTask::Regression)
+                .unwrap()
+                .fit(view, TargetView::new(&y), None, &ctx)
+        };
+        // The default request keeps the plain label and the same weights.
+        let cpu = fit(DevicePolicy::Cpu).unwrap();
+        assert_eq!(cpu.provenance().implementation, "burn");
+        // A small fit under `auto` stays on the host and says why. It never claims a device.
+        let auto = fit(DevicePolicy::Auto).unwrap();
+        let label = auto.provenance().implementation;
+        assert!(label.contains("device=host-cpu") && label.contains("requested=auto"), "{label}");
+        assert!(label.contains("fallback="), "{label}");
+        assert!(!label.contains("wgpu"), "{label}");
+        let (mut a, mut b) = (vec![0.0; n], vec![0.0; n]);
+        cpu.predict(view, &mut a, &ctx).unwrap();
+        auto.predict(view, &mut b, &ctx).unwrap();
+        assert_eq!(a, b, "the fallback is the same seeded cpu fit");
+        // `gpu` without a linked device runtime is refused with its reason.
+        #[cfg(not(feature = "ml-neural-wgpu"))]
+        {
+            let Err(error) = fit(DevicePolicy::Gpu) else { panic!("gpu must be refused") };
+            let text = error.to_string();
+            assert!(text.contains("runtime_not_compiled"), "{text}");
+            assert!(text.contains("device=gpu"), "{text}");
+        }
+        // Device selection is part of the spec identity; the default is not.
+        assert_eq!(LearnerSpec::NeuralNet(with(DevicePolicy::Cpu)).identity(), {
+            LearnerSpec::NeuralNet(NeuralSpec { device: DevicePolicy::Cpu, ..with(DevicePolicy::Cpu) })
+                .identity()
+        });
+        assert_ne!(
+            LearnerSpec::NeuralNet(with(DevicePolicy::Cpu)).identity(),
+            LearnerSpec::NeuralNet(with(DevicePolicy::Gpu)).identity()
+        );
+        let json = serde_json::to_string(&LearnerSpec::NeuralNet(with(DevicePolicy::Cpu))).unwrap();
+        assert!(!json.contains("device"), "{json}");
+        let round: LearnerSpec =
+            serde_json::from_str(r#"{"kind":"neural_net","device":"auto"}"#).unwrap();
+        assert!(matches!(round, LearnerSpec::NeuralNet(s) if s.device == DevicePolicy::Auto));
     }
 
     #[cfg(feature = "ml-forest")]

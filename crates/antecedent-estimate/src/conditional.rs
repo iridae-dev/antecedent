@@ -271,9 +271,9 @@ impl ConditionalLinearAdjustment {
         ids.extend_from_slice(&extra_z);
         let crate::prepare::AdmittedColumns { data, row_mask, receipt } =
             crate::prepare::admit_estimator_columns(data, &ids, crate::prepare::FINITE_TABLE_ONLY)?;
-        let t = data.float64_masked(query.treatment, &row_mask).map_err(EstimationError::from)?;
-        let y = data.float64_masked(query.outcome, &row_mask).map_err(EstimationError::from)?;
-        let w = data.float64_masked(w_id, &row_mask).map_err(EstimationError::from)?;
+        let t = data.float64_selected(query.treatment, &row_mask).map_err(EstimationError::from)?;
+        let y = data.float64_selected(query.outcome, &row_mask).map_err(EstimationError::from)?;
+        let w = data.float64_selected(w_id, &row_mask).map_err(EstimationError::from)?;
         let n = t.len();
         if n < 8 {
             return Err(EstimationError::data_msg("too few complete rows for conditional ATE"));
@@ -290,9 +290,9 @@ impl ConditionalLinearAdjustment {
             design[3 * n + i] = t[i] * w[i];
         }
         for (k, &z) in extra_z.iter().enumerate() {
-            let zcol = data.float64_masked(z, &row_mask).map_err(EstimationError::from)?;
             let base = (4 + k) * n;
-            design[base..base + n].copy_from_slice(&zcol);
+            data.float64_selected_into(z, &row_mask, &mut design[base..base + n])
+                .map_err(EstimationError::from)?;
         }
 
         let mut ws = LeastSquaresWorkspace::default();
@@ -336,7 +336,7 @@ impl ConditionalLinearAdjustment {
         let influence: Vec<f64> = contrast_leverage
             .iter()
             .zip(&residuals)
-            .zip(&w)
+            .zip(w.iter())
             .map(|((g_inv_x, residual), wi)| {
                 n_f * g_inv_x * residual + modifier_term * (wi - w_bar)
             })
@@ -384,7 +384,7 @@ impl ConditionalLinearAdjustment {
             means: [mu0, mu1],
             influence: [if0, if1],
             row_index,
-            treatment: t.clone(),
+            treatment: t.into_owned(),
         };
 
         Ok((

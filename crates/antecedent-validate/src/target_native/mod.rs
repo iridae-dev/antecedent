@@ -432,10 +432,16 @@ impl TargetRefutationPlan {
         let mut refuters: Vec<TargetRefuterKind> = Vec::new();
         if family == TargetFamily::Attribution {
             // No treatment or outcome to permute or swap: the whole contribution vector is
-            // refuted by refitting the attribution program on perturbed data.
+            // refuted by refitting the attribution program on perturbed data (Bayesian
+            // quadrants add prior sensitivity).
             refuters.push(K::SubsetStability);
             if suite != TargetSuite::Cheap {
                 refuters.push(K::BootstrapStability);
+            }
+            // A posterior over mechanisms is also checked against the prior it was fitted
+            // under: the whole contribution vector is refitted at each alternative scale.
+            if quadrant.bayesian {
+                refuters.push(K::PriorSensitivity);
             }
             return Self { target, suite, refuters: refuters.into() };
         }

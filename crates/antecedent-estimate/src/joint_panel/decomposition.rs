@@ -172,6 +172,60 @@ pub struct DecompositionJointUncertainty {
     /// Sample variance of the total change; equals the sum of the joint covariance.
     pub total_variance: f64,
 }
+/// Running joint moments of the contributions, in the exact arithmetic order of a retained law.
+#[derive(Default)]
+struct MomentAccumulator {
+    count: u32,
+    means: [[f64; 4]; 2],
+    products: [[[f64; 4]; 4]; 2],
+    total_mean: f64,
+    total_product: f64,
+}
+impl MomentAccumulator {
+    fn push(&mut self, draw: &ReferenceDecomposition) -> Option<()> {
+        self.count = self.count.checked_add(1)?;
+        let n = f64::from(self.count);
+        let total_delta = draw.total - self.total_mean;
+        self.total_mean += total_delta / n;
+        self.total_product += total_delta * (draw.total - self.total_mean);
+        for (kind, values) in [draw.shapley, draw.sequential].iter().enumerate() {
+            let delta: [f64; 4] = std::array::from_fn(|j| values[j] - self.means[kind][j]);
+            for j in 0..4 {
+                self.means[kind][j] += delta[j] / n;
+            }
+            for j in 0..4 {
+                for k in 0..4 {
+                    self.products[kind][j][k] += delta[j] * (values[k] - self.means[kind][k]);
+                }
+            }
+        }
+        Some(())
+    }
+    fn finish(mut self, requested: usize) -> Option<DecompositionJointUncertainty> {
+        if self.count < 2 {
+            return None;
+        }
+        let denominator = f64::from(self.count - 1);
+        for product in &mut self.products {
+            for row in product {
+                for value in row {
+                    *value /= denominator;
+                }
+            }
+        }
+        Some(DecompositionJointUncertainty {
+            weighted_finite_law: false,
+            requested,
+            complete: usize::try_from(self.count).ok()?,
+            shapley_mean: self.means[0],
+            sequential_mean: self.means[1],
+            shapley_covariance: self.products[0],
+            sequential_covariance: self.products[1],
+            total_variance: self.total_product / denominator,
+        })
+    }
+}
+
 impl PanelDecomposition {
     /// Descriptive joint uncertainty from the retained law. A covariance is not a
     /// coverage claim. Failed slots remain visible; fewer than two complete slots
@@ -181,50 +235,11 @@ impl PanelDecomposition {
         if let Some(weights) = &self.weights {
             return weighted_joint_uncertainty(&self.draws, weights);
         }
-        let mut count = 0_u32;
-        let mut means = [[0.0; 4]; 2];
-        let mut products = [[[0.0; 4]; 4]; 2];
-        let mut total_mean = 0.0;
-        let mut total_product = 0.0;
+        let mut accumulator = MomentAccumulator::default();
         for draw in self.draws.iter().flatten() {
-            count = count.checked_add(1)?;
-            let n = f64::from(count);
-            let total_delta = draw.total - total_mean;
-            total_mean += total_delta / n;
-            total_product += total_delta * (draw.total - total_mean);
-            for (kind, values) in [draw.shapley, draw.sequential].iter().enumerate() {
-                let delta: [f64; 4] = std::array::from_fn(|j| values[j] - means[kind][j]);
-                for j in 0..4 {
-                    means[kind][j] += delta[j] / n;
-                }
-                for j in 0..4 {
-                    for k in 0..4 {
-                        products[kind][j][k] += delta[j] * (values[k] - means[kind][k]);
-                    }
-                }
-            }
+            accumulator.push(draw)?;
         }
-        if count < 2 {
-            return None;
-        }
-        let denominator = f64::from(count - 1);
-        for product in &mut products {
-            for row in product {
-                for value in row {
-                    *value /= denominator;
-                }
-            }
-        }
-        Some(DecompositionJointUncertainty {
-            weighted_finite_law: false,
-            requested: self.draws.len(),
-            complete: usize::try_from(count).ok()?,
-            shapley_mean: means[0],
-            sequential_mean: means[1],
-            shapley_covariance: products[0],
-            sequential_covariance: products[1],
-            total_variance: total_product / denominator,
-        })
+        accumulator.finish(self.draws.len())
     }
     /// Retained admission, excluding the caller's separately owned input law.
     #[must_use]
@@ -379,26 +394,7 @@ pub fn decompose_panel_law(
     ctx: &ExecutionContext,
 ) -> Result<PanelDecomposition, PanelError> {
     check_cancelled(ctx)?;
-    data.validate()?;
-    let horizon = request.time_weights.len();
-    if horizon == 0
-        || request.time_weights.iter().any(|v| !v.is_finite())
-        || request.time_weights.iter().all(|v| *v == 0.0)
-        || request.before.program.horizon() != horizon
-        || request.after.program.horizon() != horizon
-    {
-        return Err(invalid("decomposition requires one explicit nonzero common time functional"));
-    }
-    validate_order(request.order)?;
-    for endpoint in [&request.before, &request.after] {
-        super::validate_panel_programs(data, std::slice::from_ref(&endpoint.program))?;
-        if endpoint.population_weights.len() != data.groups.len()
-            || endpoint.population_weights.iter().any(|w| !w.is_finite() || *w < 0.0)
-            || (endpoint.population_weights.iter().sum::<f64>() - 1.0).abs() > 1e-12
-        {
-            return Err(invalid("population weights must cover source groups and sum to one"));
-        }
-    }
+    validate_request(data, request)?;
     let compiled = likelihood::CompiledPanel::new(data)?;
     let result_bytes = (draws.len() as u64)
         .checked_add(1)
@@ -437,6 +433,146 @@ pub fn decompose_panel_law(
             .push(draw.as_ref().map(|path| evaluate(&compiled, request, path, ctx)).transpose()?);
     }
     Ok(PanelDecomposition { point, draws: results, weights: None, retention })
+}
+
+fn validate_request(
+    data: &PanelData,
+    request: &PanelDecompositionRequest,
+) -> Result<(), PanelError> {
+    data.validate()?;
+    let horizon = request.time_weights.len();
+    if horizon == 0
+        || request.time_weights.iter().any(|v| !v.is_finite())
+        || request.time_weights.iter().all(|v| *v == 0.0)
+        || request.before.program.horizon() != horizon
+        || request.after.program.horizon() != horizon
+    {
+        return Err(invalid("decomposition requires one explicit nonzero common time functional"));
+    }
+    validate_order(request.order)?;
+    for endpoint in [&request.before, &request.after] {
+        super::validate_panel_programs(data, std::slice::from_ref(&endpoint.program))?;
+        if endpoint.population_weights.len() != data.groups.len()
+            || endpoint.population_weights.iter().any(|w| !w.is_finite() || *w < 0.0)
+            || (endpoint.population_weights.iter().sum::<f64>() - 1.0).abs() > 1e-12
+        {
+            return Err(invalid("population weights must cover source groups and sum to one"));
+        }
+    }
+    Ok(())
+}
+
+/// Point decomposition and joint moments of a law, without retaining any per-draw table.
+#[derive(Clone, Debug, PartialEq)]
+pub struct StreamedDecomposition {
+    /// Point mechanism decomposition.
+    pub point: ReferenceDecomposition,
+    /// The moments [`PanelDecomposition::joint_uncertainty`] would report for the retained law.
+    pub joint: Option<DecompositionJointUncertainty>,
+    /// Law slots, including failed ones.
+    pub requested: usize,
+    /// Failed parent slots, left failed.
+    pub failed: usize,
+}
+
+/// Streamed [`decompose_invariant_law`]: each draw's paired path is formed, evaluated, folded
+/// into the joint moments and dropped, so neither the paired paths nor the per-draw
+/// decompositions of the whole law are ever held. Moments equal the retained route's.
+///
+/// # Errors
+/// Invalid period maps, inputs, numerical failure, resources or cancellation.
+pub fn decompose_invariant_law_streamed(
+    data: &PanelData,
+    request: &PanelDecompositionRequest,
+    periods: &MechanismPeriodMap,
+    point: &PanelDraw,
+    draws: &[Option<PanelDraw>],
+    ctx: &ExecutionContext,
+) -> Result<StreamedDecomposition, PanelError> {
+    decompose_law_streamed(
+        data,
+        request,
+        periods,
+        point,
+        draws,
+        |draw| periods.from_invariant(draw),
+        ctx,
+    )
+}
+
+/// Streamed [`decompose_temporal_law`], keeping selection and path coupling per draw.
+///
+/// # Errors
+/// Invalid period maps, inputs, numerical failure, resources or cancellation.
+pub fn decompose_temporal_law_streamed(
+    data: &PanelData,
+    request: &PanelDecompositionRequest,
+    periods: &MechanismPeriodMap,
+    point: &super::time_varying::TemporalPanelDraw,
+    draws: &[Option<super::time_varying::TemporalPanelDraw>],
+    ctx: &ExecutionContext,
+) -> Result<StreamedDecomposition, PanelError> {
+    decompose_law_streamed(
+        data,
+        request,
+        periods,
+        point,
+        draws,
+        |draw| periods.from_temporal(draw),
+        ctx,
+    )
+}
+
+fn decompose_law_streamed<T>(
+    data: &PanelData,
+    request: &PanelDecompositionRequest,
+    periods: &MechanismPeriodMap,
+    point: &T,
+    draws: &[Option<T>],
+    map: impl Fn(&T) -> Result<PairedPanelPath, PanelError>,
+    ctx: &ExecutionContext,
+) -> Result<StreamedDecomposition, PanelError> {
+    check_cancelled(ctx)?;
+    if periods.before.len() != request.time_weights.len()
+        || periods.after.len() != request.time_weights.len()
+    {
+        return Err(invalid("mechanism maps do not match the response horizon"));
+    }
+    validate_request(data, request)?;
+    let compiled = likelihood::CompiledPanel::new(data)?;
+    // One paired path and one decomposition are live at a time.
+    let path_bytes = likelihood::parameter_bytes(data)?
+        .checked_add(data.groups.len().checked_mul(8).ok_or_else(|| invalid("quote overflow"))?)
+        .and_then(|n| n.checked_add(std::mem::size_of::<PanelDraw>()))
+        .and_then(|n| n.checked_mul(request.time_weights.len()))
+        .and_then(|n| n.checked_mul(4))
+        .ok_or_else(|| invalid("paired mechanism path quote overflow"))?;
+    let scratch_bytes = super::response_workspace_bytes(&compiled)?
+        .checked_add(likelihood::parameter_bytes(data)? as u64)
+        .and_then(|n| n.checked_add(scenario_workspace_bytes(request).ok()?))
+        .and_then(|n| n.checked_add(path_bytes as u64))
+        .and_then(|n| n.checked_add(std::mem::size_of::<ReferenceDecomposition>() as u64 * 2))
+        .ok_or_else(|| invalid("decomposition workspace overflow"))?;
+    super::check_memory(ctx, scratch_bytes)?;
+    let _scratch = ctx
+        .acquire_admission(0, scratch_bytes)
+        .map_err(|error| PanelError::Resource(error.to_string()))?;
+    let point = evaluate(&compiled, request, &map(point)?, ctx)?;
+    let mut accumulator = MomentAccumulator::default();
+    let mut failed = 0;
+    let mut overflow = false;
+    for draw in draws {
+        check_cancelled(ctx)?;
+        match draw {
+            None => failed += 1,
+            Some(draw) => {
+                let decomposed = evaluate(&compiled, request, &map(draw)?, ctx)?;
+                overflow |= accumulator.push(&decomposed).is_none();
+            }
+        }
+    }
+    let joint = if overflow { None } else { accumulator.finish(draws.len()) };
+    Ok(StreamedDecomposition { point, joint, requested: draws.len(), failed })
 }
 
 fn scenario_workspace_bytes(request: &PanelDecompositionRequest) -> Result<u64, PanelError> {
@@ -998,6 +1134,75 @@ mod tests {
             assert!(draw.shapley[2].abs() < 1e-12);
         }
         assert!(result.joint_uncertainty().is_some());
+    }
+
+    #[test]
+    fn streamed_moments_equal_the_retained_law_without_holding_paths_or_tables() {
+        use super::super::time_varying::{TemporalModelChoice, TemporalPanelDraw};
+        let (data, draw, _) = super::super::tests::fixture();
+        let programs = super::super::tests::programs(&data);
+        let request = PanelDecompositionRequest {
+            before: DecompositionEndpoint {
+                program: programs[0].clone(),
+                population_weights: vec![0.25; 4],
+            },
+            after: DecompositionEndpoint {
+                program: programs[3].clone(),
+                population_weights: vec![0.25; 4],
+            },
+            time_weights: vec![1.0 / 24.0; 24],
+            order: ORDER,
+        };
+        let periods = MechanismPeriodMap { before: vec![0; 24], after: (0..24).collect() };
+        let temporal = |choice, shift: f64| {
+            let parameters = (0..24)
+                .map(|time| {
+                    let mut value = draw.parameters.clone();
+                    value.intercept += shift * time as f64;
+                    value.half_saturation *= 1.0 + shift;
+                    value
+                })
+                .collect();
+            TemporalPanelDraw { baseline: draw.clone(), parameters, choice }
+        };
+        let point = temporal(TemporalModelChoice::NoChange, 0.0);
+        let laws = vec![
+            Some(temporal(TemporalModelChoice::Piecewise { at: 12 }, 0.1)),
+            None,
+            Some(temporal(TemporalModelChoice::Smooth { penalty: 1.0 }, 0.2)),
+            Some(temporal(TemporalModelChoice::Piecewise { at: 8 }, 0.35)),
+        ];
+        let ctx = ExecutionContext::for_tests(86);
+        let retained =
+            decompose_temporal_law(&data, &request, &periods, &point, &laws, &ctx).unwrap();
+        let streamed =
+            decompose_temporal_law_streamed(&data, &request, &periods, &point, &laws, &ctx)
+                .unwrap();
+        assert_eq!(streamed.point, retained.point);
+        assert_eq!(streamed.joint, retained.joint_uncertainty());
+        assert!(streamed.joint.is_some());
+        assert_eq!((streamed.requested, streamed.failed), (4, 1));
+        // A stationary law streams through the same period map and agrees with its retained form.
+        let stationary = MechanismPeriodMap { before: vec![0; 24], after: vec![0; 24] };
+        let draws = vec![Some(draw.clone()), None, Some(draw.clone())];
+        let retained =
+            decompose_invariant_law(&data, &request, &stationary, &draw, &draws, &ctx).unwrap();
+        let streamed =
+            decompose_invariant_law_streamed(&data, &request, &stationary, &draw, &draws, &ctx)
+                .unwrap();
+        assert_eq!(streamed.point, retained.point);
+        assert_eq!(streamed.joint, retained.joint_uncertainty());
+        // A bad period map or a cancelled context refuses before any draw is evaluated.
+        let short = MechanismPeriodMap { before: vec![0; 3], after: vec![0; 3] };
+        assert!(
+            decompose_invariant_law_streamed(&data, &request, &short, &draw, &draws, &ctx).is_err()
+        );
+        let cancelled = ExecutionContext::for_tests(86);
+        cancelled.cancellation.cancel();
+        assert!(
+            decompose_temporal_law_streamed(&data, &request, &periods, &point, &laws, &cancelled)
+                .is_err()
+        );
     }
 
     #[test]

@@ -257,6 +257,9 @@ pub struct PropensityEstimationWorkspace {
     pub matching_index_builds: u32,
     /// Clipped propensity scores for matching bootstrap (raw scores stay on `propensity`).
     pub clip_scratch: Vec<f64>,
+    /// Most operations an exact matching pass may take, when the caller declares one. A pass
+    /// whose quote exceeds it is refused before any index or buffer is built.
+    pub exact_work_limit: Option<u64>,
 }
 
 impl PropensityEstimationWorkspace {
@@ -418,7 +421,7 @@ pub(crate) fn prepare_propensity_problem_with_levels(
     }
     let zero_weight_rows =
         sampling.map(|weights| weights.drop_zero_weight_rows(&mut row_mask)).transpose()?;
-    let t_source = data.float64_masked(treatment, &row_mask).map_err(EstimationError::from)?;
+    let t_source = data.float64_selected(treatment, &row_mask).map_err(EstimationError::from)?;
     if t_source.is_empty() {
         return Err(EstimationError::data_msg("no complete-case rows for propensity design"));
     }

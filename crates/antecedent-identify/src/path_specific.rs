@@ -32,9 +32,16 @@
 //! one ordinary factor `P(w | a, b)`.
 //!
 //! On an ADMG a directed witness still refuses (latent variables cannot remove
-//! one). The district-level criterion (Shpitser 2013's recanting district) is
-//! not implemented: without a witness, a bidirected edge on an outcome ancestor
-//! is refused as unsupported by the edge g-formula.
+//! one). A bidirected edge among the outcome's ancestors replaces the node-wise
+//! edge g-formula by Shpitser's (2013) district formula: with `V* = An(Y)` in the
+//! graph without the treatment, each side is `Σ_{V* \ Y} Π_D Q[D]`, where `D` runs
+//! over the districts of the subgraph on `V*` and the kernel `Q[D] = P(D | do(V \ D))`
+//! is identified by the complete ID algorithm, read at the treatment level of the
+//! edges that leave the treatment into `D`. A district that receives a selected
+//! and a complementary treatment edge is a recanting district: its kernel would be
+//! needed at both treatment levels at once, which no observational law pins down,
+//! and the effect is refused. A district whose kernel ID cannot identify (a hedge)
+//! refuses the effect for the same reason the total effect would.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -51,7 +58,7 @@ use antecedent_expr::{
 use antecedent_graph::{Admg, BitSet, Dag, DenseNodeId, GraphWorkspace};
 
 use crate::error::IdentificationError;
-use crate::id::IdIdentifier;
+use crate::id::{AssignedIds, AssignedProblem, IdIdentifier, identify_assigned_problems};
 use crate::identifier::IdentificationWorkspace;
 use crate::prepared::PreparedAdmg;
 use crate::result::{
@@ -210,6 +217,15 @@ impl PathSpecificIdentifier {
         // predecessor, so one level would reach every factor), so use the edge
         // g-formula instead.
         if !hops.complement.is_empty() {
+            let v_star = outcome_ancestors_without_treatment(admg, t, y);
+            if v_star.iter().any(|v| !admg.bidirected_neighbors(v).is_empty()) {
+                return district_g_formula(
+                    DistrictRequest { prepared, q, query, t, y, keep_out: &keep_out, v_star },
+                    derivation,
+                    perf,
+                    &mut workspace.graph,
+                );
+            }
             let (arena, functional) = edge_g_formula(prepared, q, t, y, &keep_out)?;
             derivation.push(
                 "path_specific.edge_gformula",
@@ -469,6 +485,192 @@ fn recanting_witness(selected: &[DenseNodeId], complement: &[DenseNodeId]) -> Op
         .copied()
         .filter(|child| complement.contains(child))
         .min_by_key(|child| child.raw())
+}
+
+/// Ancestors of the outcome (the outcome included) reached without passing through the
+/// treatment: the nodes whose factors the path-specific functional multiplies.
+fn outcome_ancestors_without_treatment(admg: &Admg, t: DenseNodeId, y: DenseNodeId) -> BitSet {
+    let n = admg.node_count();
+    let (mut seeds, mut active) = (BitSet::with_len(n), BitSet::full(n));
+    seeds.insert(y);
+    active.remove(t);
+    admg.ancestors_within(&seeds, &active, None, &mut GraphWorkspace::default())
+}
+
+/// What the district formula reads.
+struct DistrictRequest<'a> {
+    prepared: &'a PreparedAdmg,
+    q: &'a PathSpecificEffectQuery,
+    query: CausalQuery,
+    t: DenseNodeId,
+    y: DenseNodeId,
+    /// Treatment children whose edge starts a selected path.
+    keep_out: &'a HashSet<DenseNodeId>,
+    /// `An(Y)` without the treatment.
+    v_star: BitSet,
+}
+
+/// District formula for a path-specific natural effect on an ADMG whose outcome ancestors
+/// carry latent confounding (Shpitser 2013).
+///
+/// Each district of the subgraph on `V*` contributes its kernel `Q[D] = P(D | do(V \ D))`,
+/// identified by ID with the treatment bound to the level of the edges that enter `D`: the
+/// active level when a selected treatment edge enters `D`, the control level otherwise. The
+/// reference side is the ordinary interventional mean at the control level. A district
+/// entered by a selected and a complementary treatment edge is a recanting district, and a
+/// district whose kernel ID cannot identify leaves the effect unidentified.
+fn district_g_formula(
+    request: DistrictRequest<'_>,
+    mut derivation: DerivationTrace,
+    mut perf: IdentificationPerformanceRecord,
+    ws: &mut GraphWorkspace,
+) -> Result<IdentificationResult, IdentificationError> {
+    let DistrictRequest { prepared, q, query, t, y, keep_out, v_star } = request;
+    let admg = prepared.admg();
+    let n = admg.node_count();
+    let active = crate::intervention_support::require_set_value(&q.active, "path-specific")?;
+    let control = crate::intervention_support::require_set_value(&q.control, "path-specific")?;
+    let children = admg.children(t).to_vec();
+    let districts = prepared.c_components(&v_star);
+
+    let mut problems = Vec::with_capacity(districts.len() + 1);
+    for district in &districts {
+        let selected = children.iter().any(|c| district.contains(*c) && keep_out.contains(c));
+        let complementary = children.iter().any(|c| district.contains(*c) && !keep_out.contains(c));
+        if selected && complementary {
+            derivation.push(
+                "path_specific.recanting_district",
+                format!(
+                    "district {{{}}} receives a treatment edge on a selected path and one off it: \
+                     its kernel is needed at both treatment levels, so a recanting district \
+                     blocks nonparametric path-specific ID",
+                    district.iter().map(|d| d.raw().to_string()).collect::<Vec<_>>().join(",")
+                ),
+            );
+            return Ok(IdentificationResult::not_identified(
+                query,
+                derivation,
+                prepared.declared_assumptions().clone(),
+                perf,
+            ));
+        }
+        let level = if selected { active.clone() } else { control.clone() };
+        let mut intervened = BitSet::full(n);
+        intervened.difference_with(district);
+        problems.push(AssignedProblem {
+            y: district.clone(),
+            x: intervened,
+            assign: Arc::from([(t, level)]),
+        });
+    }
+    derivation.push(
+        "path_specific.districts",
+        format!(
+            "{} district(s) of the outcome ancestors; kernels identified by general ID at the \
+             treatment level of the edges that enter each district",
+            districts.len()
+        ),
+    );
+
+    let (mut outcome, mut treatment) = (BitSet::with_len(n), BitSet::with_len(n));
+    outcome.insert(y);
+    treatment.insert(t);
+    problems.push(AssignedProblem {
+        y: outcome,
+        x: treatment,
+        assign: Arc::from([(t, control.clone())]),
+    });
+
+    let mut arena = CausalExprArena::new();
+    let functionals = match identify_assigned_problems(
+        prepared,
+        &mut arena,
+        &mut derivation,
+        &mut perf,
+        ws,
+        &problems,
+    )? {
+        AssignedIds::Identified(functionals) => functionals,
+        AssignedIds::Hedge(hedge) => {
+            derivation.push(
+                "path_specific.district_hedge",
+                format!(
+                    "a district kernel has a hedge (F of {} nodes, F' of {} nodes) and is not \
+                     identified",
+                    hedge.f.len(),
+                    hedge.f_prime.len()
+                ),
+            );
+            return Ok(IdentificationResult::not_identified(
+                query,
+                derivation,
+                prepared.declared_assumptions().clone(),
+                perf,
+            ));
+        }
+    };
+    let Some((&reference, kernels)) = functionals.split_last() else {
+        return Err(IdentificationError::unsupported("path-specific district formula is empty"));
+    };
+
+    let body = if kernels.len() == 1 {
+        kernels[0]
+    } else {
+        let list = arena.intern_list(kernels.to_vec());
+        arena.intern(ExprNode::Product(list))
+    };
+    let summed: Vec<VariableId> = v_star
+        .iter()
+        .filter(|&v| v != y)
+        .map(|v| prepared.dense_to_var(v))
+        .collect::<Result<_, _>>()?;
+    let distribution = if summed.is_empty() {
+        body
+    } else {
+        let variables = arena.intern_var_set(summed);
+        arena.intern(ExprNode::SumOut { variables, expr: body })
+    };
+    let left = arena.intern(ExprNode::Expectation {
+        function: OutcomeExprId::identity(q.outcome),
+        distribution,
+    });
+    let right = arena.intern(ExprNode::Expectation {
+        function: OutcomeExprId::identity(q.outcome),
+        distribution: reference,
+    });
+    let contrast = arena.intern(ExprNode::Contrast { left, right, op: ContrastOp::Difference });
+    arena.set_derivation(
+        contrast,
+        DerivationMeta::rule(
+            "path_specific.district_gformula",
+            Some(Arc::from(
+                "product of district kernels read at the treatment level of the edges entering \
+                 each district, minus the all-control interventional mean",
+            )),
+        ),
+    );
+    let functional =
+        arena.simplify(contrast).map_err(|e| IdentificationError::msg(e.to_string()))?;
+    derivation.push(
+        "path_specific.district_gformula",
+        "district formula with the active level on districts entered by a selected treatment edge",
+    );
+    let estimand = IdentifiedEstimand::new(
+        Arc::from(EstimandMethod::PathSpecificNatural.as_str()),
+        Arc::from([]),
+        Arc::from([]),
+        Arc::clone(&q.path_nodes),
+        functional,
+        None,
+    );
+    Ok(IdentificationResult::identified(
+        query,
+        vec![estimand],
+        arena,
+        derivation,
+        crate::id::with_causal_markov(prepared, "path_specific.district_gformula"),
+        perf,
+    ))
 }
 
 /// Edge g-formula for a path-specific natural effect (Avin, Shpitser & Pearl
@@ -978,10 +1180,11 @@ mod tests {
         }
     }
 
-    /// Latent confounding on an outcome ancestor needs the district formula,
-    /// which is not implemented: refuse rather than emit a node-wise product.
+    /// A mediator-outcome bidirected edge puts the mediator (off the natural direct effect)
+    /// and the outcome (on it) in one district entered by both kinds of treatment edge:
+    /// a recanting district, refused rather than answered with a node-wise product.
     #[test]
-    fn edge_g_formula_refuses_bidirected_ancestor() {
+    fn mediator_outcome_confounding_is_a_recanting_district() {
         let mut admg = Admg::with_variables(3);
         let (t, m, y) =
             (DenseNodeId::from_raw(0), DenseNodeId::from_raw(1), DenseNodeId::from_raw(2));
@@ -994,8 +1197,9 @@ mod tests {
         let q = PathSpecificEffectQuery::binary(VariableId::from_raw(0), VariableId::from_raw(2))
             .with_path_nodes([VariableId::from_raw(1)]);
         let mut ws = IdentificationWorkspace::default();
-        let err = id.identify(&prep, &CausalQuery::PathSpecific(q), &mut ws).unwrap_err();
-        assert!(err.to_string().contains("bidirected"), "{err}");
+        let res = id.identify(&prep, &CausalQuery::PathSpecific(q), &mut ws).unwrap();
+        assert_eq!(res.status, IdentificationStatus::NotIdentified);
+        assert!(has_rule(&res, "path_specific.recanting_district"), "{:?}", res.derivation.steps);
     }
 
     #[test]

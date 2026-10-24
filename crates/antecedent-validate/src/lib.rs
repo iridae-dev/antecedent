@@ -41,6 +41,7 @@ pub mod target_native;
 mod tipping;
 pub mod unobserved_common_cause;
 pub mod validator;
+pub mod vector_sensitivity;
 
 pub use assumption_range::{AssumptionRange, RangePoint, SensitivityAssumption};
 pub use bayesian_checks::{
@@ -127,6 +128,10 @@ pub use target_native::{
 };
 pub use unobserved_common_cause::UnobservedCommonCause;
 pub use validator::{PreparedRefutation, Validator};
+pub use vector_sensitivity::{
+    OvbPosterior, PosteriorEValue, evalue_posterior_range, evalue_vector_range,
+    ovb_posterior_range, ovb_vector_range, rosenbaum_vector_range,
+};
 
 #[cfg(test)]
 mod test_support;

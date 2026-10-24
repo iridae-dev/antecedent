@@ -22,7 +22,8 @@
 use std::sync::Arc;
 
 use antecedent_core::{KernelPolicy, Lag, VariableId};
-use antecedent_data::{LaggedColumn, LaggedSampleWorkspace, TimeSeriesData};
+use antecedent_data::{LaggedColumn, TimeSeriesData};
+use antecedent_model::history_operators::HistoryScan;
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
 use crate::error::EstimationError;
@@ -58,11 +59,9 @@ impl TemporalLinearPredictor {
         let mut cols = Vec::with_capacity(1 + parents.len());
         cols.push(LaggedColumn { variable: target, lag: Lag::CONTEMPORANEOUS });
         cols.extend_from_slice(&parents);
-        let plan = data
-            .plan_lagged_sample(max_lag, Arc::<[LaggedColumn]>::from(cols))
+        let mut scan = HistoryScan::plan(data, max_lag, Arc::<[LaggedColumn]>::from(cols))
             .map_err(EstimationError::from)?;
-        let mut ws = LaggedSampleWorkspace::default();
-        let prep = plan.prepare(data, &mut ws, policy).map_err(EstimationError::from)?;
+        let prep = scan.complete(data, policy).map_err(EstimationError::from)?;
         let n = prep.n;
         let y = prep.column(0);
         let ncols = 1 + parents.len();
@@ -116,11 +115,9 @@ impl TemporalLinearPredictor {
         let mut cols = Vec::with_capacity(1 + self.parents.len());
         cols.push(LaggedColumn { variable: self.target, lag: Lag::CONTEMPORANEOUS });
         cols.extend_from_slice(&self.parents);
-        let plan = data
-            .plan_lagged_sample(self.max_lag, Arc::<[LaggedColumn]>::from(cols))
+        let mut scan = HistoryScan::plan(data, self.max_lag, Arc::<[LaggedColumn]>::from(cols))
             .map_err(EstimationError::from)?;
-        let mut ws = LaggedSampleWorkspace::default();
-        let prep = plan.prepare(data, &mut ws, policy).map_err(EstimationError::from)?;
+        let prep = scan.complete(data, policy).map_err(EstimationError::from)?;
         let n = prep.n;
         let mut out = vec![0.0; n];
         for (i, slot) in out.iter_mut().enumerate() {

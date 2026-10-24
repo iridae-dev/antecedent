@@ -536,15 +536,16 @@ fn prepare_problem(
     }
     let crate::prepare::AdmittedColumns { data, row_mask: mask, receipt } =
         crate::prepare::admit_estimator_columns(data, &ids, crate::prepare::FINITE_TABLE_ONLY)?;
-    let outcome_values = data.float64_masked(outcome, &mask).map_err(EstimationError::from)?;
+    let outcome_values =
+        data.float64_selected(outcome, &mask).map_err(EstimationError::from)?.into_owned();
     let n = outcome_values.len();
     if n == 0 {
         return Err(invalid("joint_cells.no_rows", "no complete-case rows for joint cells"));
     }
     let mut cell = vec![0u32; n];
     for (j, &id) in treatments.iter().enumerate() {
-        let column = data.float64_masked(id, &mask).map_err(EstimationError::from)?;
-        for (code, &value) in cell.iter_mut().zip(&column) {
+        let column = data.float64_selected(id, &mask).map_err(EstimationError::from)?;
+        for (code, &value) in cell.iter_mut().zip(column.iter()) {
             if (value - 1.0).abs() <= 1e-12 {
                 *code |= 1 << j;
             } else if value.abs() > 1e-12 {
@@ -558,8 +559,8 @@ fn prepare_problem(
     let ncols = 1 + adjustment.len();
     let mut design = vec![1.0; n * ncols];
     for (j, &z) in adjustment.iter().enumerate() {
-        let column = data.float64_masked(z, &mask).map_err(EstimationError::from)?;
-        design[(1 + j) * n..(2 + j) * n].copy_from_slice(&column);
+        data.float64_selected_into(z, &mask, &mut design[(1 + j) * n..(2 + j) * n])
+            .map_err(EstimationError::from)?;
     }
     let mut row_index = Vec::with_capacity(n);
     for (i, &keep) in mask.iter().enumerate() {

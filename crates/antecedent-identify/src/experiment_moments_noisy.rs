@@ -11,12 +11,15 @@
 use antecedent_core::{Value, VariableId};
 
 use crate::experiment_moments::{
-    AssembledExperimentConstraints, RegimeSample, TargetConstraintBlock, UnitColumn,
-    assemble_experiment_constraints,
+    AssembledExperimentConstraints, MissingPair, MomentAssemblyRefusal, RegimeSample,
+    TargetConstraintBlock, UnitColumn, assemble_experiment_constraints,
 };
 use crate::experiment_regime::{
     AcceptedRegimeContract, DependencePremise, ExperimentRegime, PopulationId, RegimeContract,
     RegimeContractDecision, RegimeIntervention, SourceIdentity, UnitMask, validate_regime_contract,
+};
+use crate::experimental_recovery::{
+    AssembledCoefficientRecovery, WeakStability, recover_assembled_coefficients,
 };
 
 fn unit(raw: u32) -> VariableId {
@@ -128,22 +131,36 @@ fn training_contract() -> AcceptedRegimeContract {
 }
 
 fn assemble_training() -> AssembledExperimentConstraints {
-    let data: Vec<Columns> = TRAINING
+    assemble_designs(&TRAINING, 1000)
+}
+
+/// Simulate one sample per `(clamp set, source)` design and assemble the constraints.
+fn try_assemble_designs(
+    designs: &[(&[u32], u64)],
+    seed: u64,
+) -> Result<AssembledExperimentConstraints, MomentAssemblyRefusal> {
+    let contract = accepted(
+        designs.iter().map(|(targets, source)| regime(&[0, 1, 2], targets, *source)).collect(),
+    );
+    let data: Vec<Columns> = designs
         .iter()
         .enumerate()
-        .map(|(index, (targets, _))| simulate(ROWS, targets, 1000 + index as u64))
+        .map(|(index, (targets, _))| simulate(ROWS, targets, seed + index as u64))
         .collect();
     let cols: Vec<[UnitColumn<'_>; 3]> = data.iter().map(columns).collect();
     let samples: Vec<RegimeSample<'_>> = cols
         .iter()
-        .zip(TRAINING.iter())
+        .zip(designs)
         .map(|(c, (_, source))| RegimeSample {
             columns: c.as_slice(),
             source: SourceIdentity::from_raw(*source),
         })
         .collect();
-    assemble_experiment_constraints(&training_contract(), &samples, u64::MAX)
-        .expect("covering independent regimes assemble")
+    assemble_experiment_constraints(&contract, &samples, u64::MAX)
+}
+
+fn assemble_designs(designs: &[(&[u32], u64)], seed: u64) -> AssembledExperimentConstraints {
+    try_assemble_designs(designs, seed).expect("covering independent regimes assemble")
 }
 
 fn block(assembled: &AssembledExperimentConstraints, target: u32) -> &TargetConstraintBlock {
@@ -342,5 +359,198 @@ fn integer_samples_match_the_exact_rational_moments() {
                 near(moments.covariance[index], exact, 1e-9, "exact rational covariance");
             }
         }
+    }
+}
+
+// Whole-procedure checks on entire held-out intervention regimes. The design below
+// clamps one unit at a time, so no joint clamp is ever sampled by the assembly.
+
+/// Clamp x, y or z alone. Every direct effect is identified from these.
+const SINGLES: [(&[u32], u64); 3] = [(&[0], 11), (&[1], 12), (&[2], 13)];
+
+/// Structural direct effects, `truth[into * 3 + from]`.
+fn truth_matrix() -> [f64; 9] {
+    let mut k = [0.0; 9];
+    k[3] = B_YX;
+    k[6] = B_ZX;
+    k[7] = B_ZY;
+    k
+}
+
+/// Solve `a x = b` for `n` unknowns and `cols` right-hand sides stored row-major.
+fn solve_small(mut a: Vec<f64>, mut b: Vec<f64>, n: usize, cols: usize) -> Vec<f64> {
+    for col in 0..n {
+        let pivot = (col..n)
+            .max_by(|p, q| a[*p * n + col].abs().total_cmp(&a[*q * n + col].abs()))
+            .expect("a pivot row");
+        for c in 0..n {
+            a.swap(col * n + c, pivot * n + c);
+        }
+        for c in 0..cols {
+            b.swap(col * cols + c, pivot * cols + c);
+        }
+        for row in (col + 1)..n {
+            let factor = a[row * n + col] / a[col * n + col];
+            for c in col..n {
+                a[row * n + c] -= factor * a[col * n + c];
+            }
+            for c in 0..cols {
+                b[row * cols + c] -= factor * b[col * cols + c];
+            }
+        }
+    }
+    let mut x = vec![0.0; n * cols];
+    for c in 0..cols {
+        for row in (0..n).rev() {
+            let tail: f64 = ((row + 1)..n).map(|k| a[row * n + k] * x[k * cols + c]).sum();
+            x[row * cols + c] = (b[row * cols + c] - tail) / a[row * n + row];
+        }
+    }
+    x
+}
+
+fn free_units(clamped: &[usize]) -> Vec<usize> {
+    (0..3).filter(|unit| !clamped.contains(unit)).collect()
+}
+
+/// Total effect of each clamped unit on each passive unit when `clamped` is held,
+/// `(I - K_FF)^-1 K_FJ`, laid out `[passive][clamped]`.
+fn clamp_response(k: &[f64; 9], clamped: &[usize]) -> Vec<f64> {
+    let free = free_units(clamped);
+    let (f, j) = (free.len(), clamped.len());
+    let mut a = vec![0.0; f * f];
+    let mut b = vec![0.0; f * j];
+    for (p, &row) in free.iter().enumerate() {
+        for (q, &col) in free.iter().enumerate() {
+            a[p * f + q] = if p == q { 1.0 } else { 0.0 } - k[row * 3 + col];
+        }
+        for (q, &col) in clamped.iter().enumerate() {
+            b[p * j + q] = k[row * 3 + col];
+        }
+    }
+    solve_small(a, b, f, j)
+}
+
+/// Least-squares response of each passive column on the clamped columns of a
+/// sample, laid out `[passive][clamped]`.
+fn empirical_response(data: &Columns, clamped: &[usize]) -> Vec<f64> {
+    let cols = [&data.x, &data.y, &data.z];
+    let n = data.x.len() as f64;
+    let mean = |column: &Vec<f64>| column.iter().sum::<f64>() / n;
+    let cross = |a: usize, b: usize| {
+        let (ma, mb) = (mean(cols[a]), mean(cols[b]));
+        cols[a].iter().zip(cols[b]).map(|(u, v)| (u - ma) * (v - mb)).sum::<f64>() / n
+    };
+    let free = free_units(clamped);
+    let (f, j) = (free.len(), clamped.len());
+    let mut sxx = vec![0.0; j * j];
+    let mut sxy = vec![0.0; j * f];
+    for (p, &a) in clamped.iter().enumerate() {
+        for (q, &b) in clamped.iter().enumerate() {
+            sxx[p * j + q] = cross(a, b);
+        }
+        for (q, &b) in free.iter().enumerate() {
+            sxy[p * f + q] = cross(a, b);
+        }
+    }
+    let beta = solve_small(sxx, sxy, j, f);
+    let mut out = vec![0.0; f * j];
+    for p in 0..j {
+        for q in 0..f {
+            out[q * j + p] = beta[p * f + q];
+        }
+    }
+    out
+}
+
+/// Direct-effect matrix `K[into * 3 + from]` read from the recovered blocks. A
+/// target without a recovered block keeps zeros and is the caller's to check.
+fn recovered_matrix(assembled: &AssembledExperimentConstraints) -> [f64; 9] {
+    let mut k = [0.0; 9];
+    for block in &assembled.blocks {
+        let AssembledCoefficientRecovery::Coefficients { target, sources, values } =
+            recover_assembled_coefficients(block, None, WeakStability::NotDeclared)
+        else {
+            panic!("the block into {:?} did not solve", block.target);
+        };
+        let into = usize::try_from(target.raw()).expect("small unit");
+        for (source, value) in sources.iter().zip(&values) {
+            let from = usize::try_from(source.raw()).expect("small unit");
+            k[into * 3 + from] = *value;
+        }
+    }
+    k
+}
+
+fn clamp_units(clamped: &[usize]) -> Vec<u32> {
+    clamped.iter().map(|&unit| u32::try_from(unit).expect("small unit")).collect()
+}
+
+#[test]
+fn recovery_from_single_clamps_predicts_entire_held_out_joint_regimes() {
+    let assembled = assemble_designs(&SINGLES, 3000);
+    assert!(assembled.uncovered.is_empty());
+    let recovered = recovered_matrix(&assembled);
+    let truth = truth_matrix();
+    for (index, expected) in truth.iter().enumerate() {
+        near(recovered[index], *expected, 0.03, &format!("recovered direct effect {index}"));
+    }
+    // None of these clamp sets is a training regime. Each sample is a fresh stream.
+    let held_out: [(&[usize], u64); 3] = [(&[0, 1], 77_001), (&[1, 2], 77_002), (&[0, 2], 77_003)];
+    for (clamped, seed) in held_out {
+        let predicted = clamp_response(&recovered, clamped);
+        let exact = clamp_response(&truth, clamped);
+        let sample = simulate(ROWS, &clamp_units(clamped), seed);
+        let observed = empirical_response(&sample, clamped);
+        assert_eq!(predicted.len(), observed.len());
+        for ((value, truth_value), sample_value) in predicted.iter().zip(&exact).zip(&observed) {
+            near(*value, *truth_value, 0.03, "held-out response against the truth");
+            near(*value, *sample_value, 0.03, "held-out response against the sample");
+        }
+    }
+}
+
+#[test]
+fn a_wrong_direct_effect_is_visible_in_the_held_out_joint_regime() {
+    // The held-out comparison must be able to fail: bias the effect of y on z by 0.2
+    // and the joint clamp of x and y no longer matches the sample it never saw.
+    let assembled = assemble_designs(&SINGLES, 3000);
+    let mut biased = recovered_matrix(&assembled);
+    biased[7] += 0.2;
+    let clamped: &[usize] = &[0, 1];
+    let observed = empirical_response(&simulate(ROWS, &clamp_units(clamped), 77_001), clamped);
+    let predicted = clamp_response(&biased, clamped);
+    assert!((predicted[1] - observed[1]).abs() > 0.1, "{predicted:?} against {observed:?}");
+}
+
+#[test]
+fn inadequate_designs_refuse_or_leave_pairs_uncovered_and_fill_nothing() {
+    // One clamp alone covers no target: y and z are never clamped.
+    match try_assemble_designs(&[(&[0], 21)], 4000) {
+        Err(MomentAssemblyRefusal::InadequateInterventionCoverage { missing }) => {
+            assert_eq!(missing.len(), 4);
+            for (from, into) in [(1, 0), (1, 2), (2, 0), (2, 1)] {
+                assert!(missing.contains(&MissingPair { from: unit(from), into: unit(into) }));
+            }
+        }
+        other => panic!("one clamp cannot cover any target: {other:?}"),
+    }
+    // Clamping x and z leaves y never clamped: only the equation into y is covered.
+    let partial = assemble_designs(&[(&[0], 22), (&[2], 23)], 4100);
+    assert_eq!(
+        partial.uncovered,
+        vec![
+            MissingPair { from: unit(1), into: unit(0) },
+            MissingPair { from: unit(1), into: unit(2) },
+        ]
+    );
+    assert!(partial.blocks.iter().all(|block| block.target == unit(1)));
+    assert_eq!(partial.blocks.len(), 1);
+    let recovered = recovered_matrix(&partial);
+    near(recovered[3], B_YX, 0.03, "effect of x on y");
+    near(recovered[5], 0.0, 0.03, "effect of z on y");
+    // The equations into x and z have no block, so nothing was filled for them.
+    for entry in [1, 2, 6, 7] {
+        assert!(recovered[entry].abs() < f64::EPSILON, "entry {entry} was filled");
     }
 }

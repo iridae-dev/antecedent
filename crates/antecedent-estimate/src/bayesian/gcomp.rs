@@ -318,26 +318,28 @@ impl BayesianGComputationAte {
         ids.extend_from_slice(&estimand.adjustment_set);
         let crate::prepare::AdmittedColumns { data, row_mask: mask, receipt } =
             crate::prepare::admit_estimator_columns(data, &ids, crate::prepare::FINITE_TABLE_ONLY)?;
-        let t = data.float64_masked(q.treatment, &mask)?;
-        let y = data.float64_masked(q.outcome, &mask)?;
+        let t = data.float64_selected(q.treatment, &mask)?;
+        let y = data.float64_selected(q.outcome, &mask)?;
         if t.len() < 8 {
             return Err(EstimationError::data_msg("too few conditional complete rows"));
         }
-        let mut modifier_covariates = Vec::with_capacity(q.effect_modifiers.len());
-        let mut interaction_covariates = Vec::with_capacity(q.effect_modifiers.len());
+        let mut modifier_covariates: Vec<(VariableId, std::borrow::Cow<'_, [f64]>)> =
+            Vec::with_capacity(q.effect_modifiers.len());
+        let mut interaction_covariates: Vec<(VariableId, std::borrow::Cow<'_, [f64]>)> =
+            Vec::with_capacity(q.effect_modifiers.len());
         for &modifier in q.effect_modifiers.iter() {
-            let w = data.float64_masked(modifier, &mask)?;
+            let w = data.float64_selected(modifier, &mask)?;
             let mean = w.iter().sum::<f64>() / w.len() as f64;
-            let interaction: Vec<_> = t.iter().zip(&w).map(|(t, w)| t * (w - mean)).collect();
+            let interaction: Vec<_> = t.iter().zip(w.iter()).map(|(t, w)| t * (w - mean)).collect();
             modifier_covariates.push((modifier, w));
-            interaction_covariates.push((modifier, interaction));
+            interaction_covariates.push((modifier, std::borrow::Cow::Owned(interaction)));
         }
         let mut covs = modifier_covariates;
         covs.extend(interaction_covariates);
         for &id in estimand.adjustment_set.iter().filter(|&&id| !q.effect_modifiers.contains(&id)) {
-            covs.push((id, data.float64_masked(id, &mask)?));
+            covs.push((id, data.float64_selected(id, &mask)?));
         }
-        let refs: Vec<_> = covs.iter().map(|(id, values)| (*id, values.as_slice())).collect();
+        let refs: Vec<_> = covs.iter().map(|(id, values)| (*id, &values[..])).collect();
         let rows: Vec<_> =
             mask.iter().enumerate().filter_map(|(i, &keep)| keep.then_some(i)).collect();
         prep.design = CompiledDesign::linear_adjustment(&t, &refs, &y, &rows)?;

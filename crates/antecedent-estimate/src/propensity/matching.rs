@@ -12,12 +12,18 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent_core::execution::AdmissionLease;
+use antecedent_core::search_budget::{
+    ExactMatching, MatchingDistance as QuotedDistance, SearchBudgetError,
+};
 use antecedent_core::{
     AssumptionSet, AverageEffectQuery, ExecutionContext, PopulationRegistry, TargetPopulation,
 };
 use antecedent_data::TabularData;
 use antecedent_expr::IdentifiedEstimand;
-use antecedent_stats::{FaerBackend, GlmOptions, MatchingDistance, MatchingIndex, StatsError};
+use antecedent_stats::{
+    BoxTreeIndex, FaerBackend, GlmOptions, MatchingDistance, MatchingIndex, StatsError,
+};
 
 use super::levels::OtherLevels;
 use super::prepare::{
@@ -420,6 +426,102 @@ pub(crate) struct MatchedDiffs {
     pub(crate) queries: Vec<usize>,
 }
 
+/// What one exact matching pass is quoted before it allocates anything.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[cfg_attr(
+    not(test),
+    allow(dead_code, reason = "the figures are asserted against the declared charge in tests")
+)]
+pub(crate) struct MatchingQuote {
+    /// Bytes of the donor index: features, row ids and the search layout.
+    pub(crate) index_bytes: u64,
+    /// Bytes of the output and scratch buffers one pass creates, leased from the caller.
+    pub(crate) pass_bytes: u64,
+    /// Operations of the exact index build plus a full exact scan per query.
+    pub(crate) work: u64,
+}
+
+/// Quote an exact matching pass from the declared charge of
+/// [`ExactMatching`](antecedent_core::search_budget::ExactMatching), then lease the pass buffers
+/// from the caller's admission pool.
+///
+/// The work is refused when it exceeds `work_limit`; the bytes are refused when the caller's
+/// free memory cannot hold them. Both refusals come before the index is built or any buffer is
+/// resized. A shape the index itself rejects (zero dimension, absolute distance in more than one
+/// dimension) is not quoted and is refused by the index with its own message.
+fn quote_exact_matching(
+    shape: (usize, usize, usize),
+    distance: MatchingDistance,
+    matches: usize,
+    work_limit: Option<u64>,
+    ctx: &ExecutionContext,
+) -> Result<Option<(MatchingQuote, AdmissionLease)>, EstimationError> {
+    let (n_donors, n_queries, dim) = shape;
+    let overflow = || EstimationError::data_msg("exact matching quote overflows u64");
+    let widen = |value: usize| u64::try_from(value).map_err(|_| overflow());
+    let quoted = match distance {
+        MatchingDistance::Absolute => QuotedDistance::Absolute,
+        MatchingDistance::Euclidean => QuotedDistance::Euclidean,
+    };
+    let estimate =
+        match ExactMatching::new(widen(n_donors)?, widen(n_queries)?, widen(dim)?, quoted)
+            .estimate()
+        {
+            Ok(estimate) => estimate,
+            Err(SearchBudgetError::Unrepresentable { .. }) => return Err(overflow()),
+            Err(_) => return Ok(None),
+        };
+    let limit_bytes =
+        ctx.memory_limit_bytes().unwrap_or(u64::MAX).min(ctx.admission.available().bytes());
+    if let Some(limit_work) = work_limit {
+        if estimate.work() > limit_work {
+            return Err(StatsError::WorkLimit {
+                message: "exact matching index build and scan",
+                required_work: estimate.work(),
+                limit_work,
+            }
+            .into());
+        }
+    }
+    let word = size_of::<f64>() as u64;
+    let slots = widen(n_queries)?.checked_mul(widen(matches)?).ok_or_else(overflow)?;
+    let per_query = widen(n_queries)?;
+    let scalar = matches == 1 && dim == 1 && matches!(distance, MatchingDistance::Absolute);
+    // Matched donor and query rows, distances, differences, and the sorted copy of the scalar
+    // scores that the scalar pass builds beside the cached index.
+    let sorted_scores =
+        if scalar { widen(n_donors)?.checked_mul(2 * word).ok_or_else(overflow)? } else { 0 };
+    let pass_bytes = slots
+        .checked_mul(2)
+        .and_then(|rows| per_query.checked_mul(3).and_then(|columns| rows.checked_add(columns)))
+        .and_then(|cells| cells.checked_mul(word))
+        .and_then(|bytes| bytes.checked_add(sorted_scores))
+        .ok_or_else(overflow)?;
+    if pass_bytes > limit_bytes {
+        return Err(StatsError::ResourceLimit {
+            message: "exact matching pass buffers",
+            required_bytes: pass_bytes,
+            limit_bytes,
+        }
+        .into());
+    }
+    let lease = ctx.acquire_admission(0, pass_bytes).map_err(|error| match error {
+        antecedent_core::execution::AdmissionError::Cancelled => {
+            EstimationError::from(StatsError::Cancelled)
+        }
+        _ => StatsError::ResourceLimit {
+            message: "exact matching pass buffers",
+            required_bytes: pass_bytes,
+            limit_bytes: ctx.admission.available().bytes(),
+        }
+        .into(),
+    })?;
+    Ok(Some((
+        MatchingQuote { index_bytes: estimate.memory_bytes(), pass_bytes, work: estimate.work() },
+        lease,
+    )))
+}
+
 /// Match each `query` row to its `matches` nearest `donor` rows; returns bias-corrected
 /// `query_y[q] − mean(donor_y[matched])` and the local donor indices used (for `Kᵢ`).
 ///
@@ -430,7 +532,9 @@ pub(crate) struct MatchedDiffs {
 /// Reuses [`PropensityEstimationWorkspace`]'s cached [`MatchingIndex`] when donor geometry
 /// is unchanged. One-dimensional absolute distance is answered by [`SortedScalarIndex`]:
 /// the same donor a forward scan keeps, including ties, calipers, and replacement.
-/// Multivariate queries stay on the cached index and its memory guard.
+/// Multivariate queries stay on the cached index and its memory guard. Before either is built,
+/// the pass is quoted from the caller's budget ([`quote_exact_matching`]): its buffers are
+/// leased and its work is checked against the workspace's declared ceiling.
 #[expect(
     clippy::too_many_arguments,
     reason = "the two sides of the match, the metric, the neighbour count, the caliper and the execution state are independent inputs"
@@ -444,6 +548,49 @@ pub(crate) fn match_diffs(
     caliper: Option<f64>,
     workspace: &mut PropensityEstimationWorkspace,
     ctx: &ExecutionContext,
+) -> Result<MatchedDiffs, EstimationError> {
+    match_diffs_with(
+        donors,
+        queries,
+        dim,
+        distance,
+        matches,
+        caliper,
+        workspace,
+        ctx,
+        SpatialIndex::SplitPlane,
+    )
+}
+
+/// Exact multivariate search structure a matching pass may use.
+///
+/// Both answer exactly as a linear scan does, including ties. The bounding-box tree is only
+/// built when the caller's budget also holds it; otherwise the pass stays on the cached
+/// split-plane index, whose memory guard is unchanged.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[cfg_attr(not(test), allow(dead_code, reason = "selected by benchmarks and tests"))]
+pub(crate) enum SpatialIndex {
+    /// The cached [`MatchingIndex`] (split-plane k-d tree).
+    SplitPlane,
+    /// [`BoxTreeIndex`], when the memory guard permits it.
+    BoundingBox,
+}
+
+/// [`match_diffs`] with an explicit multivariate [`SpatialIndex`].
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the two sides of the match, the metric, the neighbour count, the caliper, the execution state and the index choice are independent inputs"
+)]
+pub(crate) fn match_diffs_with(
+    donors: MatchSide<'_>,
+    queries: MatchSide<'_>,
+    dim: usize,
+    distance: MatchingDistance,
+    matches: usize,
+    caliper: Option<f64>,
+    workspace: &mut PropensityEstimationWorkspace,
+    ctx: &ExecutionContext,
+    spatial: SpatialIndex,
 ) -> Result<MatchedDiffs, EstimationError> {
     let MatchSide { features: donor_features, outcome: donor_outcome } = donors;
     let MatchSide { features: query_features, outcome: query_outcome } = queries;
@@ -460,10 +607,17 @@ pub(crate) fn match_diffs(
              donor arm has {n_donors}"
         )));
     }
+    let n_queries = query_outcome.len();
+    let _quoted_pass = quote_exact_matching(
+        (n_donors, n_queries, dim),
+        distance,
+        matches,
+        workspace.exact_work_limit,
+        ctx,
+    )?;
     // Building the cached index is what enforces the memory guard and the reuse
     // counter. Scalar queries are answered afterwards by the sorted index.
     workspace.ensure_matching_index(donor_features, dim, distance, ctx)?;
-    let n_queries = query_outcome.len();
     let slots = n_queries.checked_mul(matches).ok_or_else(|| {
         EstimationError::data_msg("matching queries times matches per query overflow usize")
     })?;
@@ -487,9 +641,34 @@ pub(crate) fn match_diffs(
             )?;
         } else {
             // Multivariate Euclidean search keeps `MatchingIndex` and its memory guard.
-            // An exact spatial index is a separate attempt and does not lift that guard.
+            // `antecedent_stats::BoxTreeIndex` is the exact bounding-box candidate, measured
+            // beside it by the `matching_spatial` benchmark; it does not replace this path or
+            // lift the guard until those records support a change.
+            let boxed = if spatial == SpatialIndex::BoundingBox
+                && matches!(distance, MatchingDistance::Euclidean)
+            {
+                match BoxTreeIndex::exact_within(donor_features, dim, ctx) {
+                    Ok(boxed) => Some(boxed),
+                    // The guard refuses this index: the cached split-plane index answers.
+                    Err(StatsError::ResourceLimit { .. }) => None,
+                    Err(error) => return Err(stats_err(error)),
+                }
+            } else {
+                None
+            };
             let index = workspace.matching_index.as_ref().expect("ensured");
-            if matches == 1 {
+            if let Some(boxed) = boxed {
+                match_with_box_tree(
+                    &boxed,
+                    query_features,
+                    n_queries,
+                    matches,
+                    caliper,
+                    &mut donor_rows,
+                    &mut distances,
+                    ctx,
+                )?;
+            } else if matches == 1 {
                 index
                     .match_all_within(
                         query_features,
@@ -660,6 +839,50 @@ fn match_scalar_sorted(
             distances[q] = distance;
         } else {
             donor_rows[q] = usize::MAX;
+            distances[q] = f64::INFINITY;
+        }
+    }
+    Ok(())
+}
+
+/// [`match_nearest_k`] and the single-neighbour pass answered by a [`BoxTreeIndex`], with the
+/// same output contract.
+#[expect(clippy::too_many_arguments, reason = "mirrors the split-plane passes it replaces")]
+fn match_with_box_tree(
+    index: &BoxTreeIndex,
+    query_features: &[f64],
+    n_queries: usize,
+    matches: usize,
+    caliper: Option<f64>,
+    donor_rows: &mut [usize],
+    distances: &mut [f64],
+    ctx: &ExecutionContext,
+) -> Result<(), EstimationError> {
+    if matches == 1 {
+        index
+            .match_all_within(query_features, n_queries, caliper, donor_rows, distances, ctx)
+            .map_err(stats_err)?;
+        return Ok(());
+    }
+    let mut found = Vec::with_capacity(matches);
+    for (q, query) in query_features.chunks_exact(index.dim()).enumerate() {
+        if q % MATCH_CANCELLATION_CHUNK == 0 && ctx.cancellation.is_cancelled() {
+            return Err(stats_err(StatsError::Cancelled));
+        }
+        index.nearest_k(query, matches, &mut found).map_err(stats_err)?;
+        let farthest = found.last().map_or(f64::INFINITY, |&(_, d)| d);
+        let within = found.len() == matches
+            && farthest.is_finite()
+            && caliper.is_none_or(|limit| farthest <= limit);
+        if within {
+            for (slot, &(row, _)) in
+                donor_rows[q * matches..(q + 1) * matches].iter_mut().zip(&found)
+            {
+                *slot = row;
+            }
+            distances[q] = farthest;
+        } else {
+            donor_rows[q * matches] = usize::MAX;
             distances[q] = f64::INFINITY;
         }
     }
@@ -2101,6 +2324,178 @@ mod tests {
         .unwrap();
         assert_eq!(inside.queries, vec![2]);
         assert_eq!(inside.donors, vec![scalar_scan(&features[3..], features[2]).0]);
+    }
+
+    fn quote_arms(donors: usize, queries: usize, dim: usize) -> [Vec<f64>; 4] {
+        let features = |count: usize, phase: f64| -> Vec<f64> {
+            (0..count * dim).map(|i| ((i as f64 + 1.0) * 0.731 + phase).sin()).collect()
+        };
+        let outcome = |count: usize, phase: f64| -> Vec<f64> {
+            (0..count).map(|i| ((i as f64 + 1.0) * 0.17 + phase).cos()).collect()
+        };
+        [features(donors, 0.0), outcome(donors, 0.3), features(queries, 1.1), outcome(queries, 0.9)]
+    }
+
+    #[test]
+    fn exact_matching_pass_is_quoted_from_the_declared_charge_and_leased_from_the_budget() {
+        let (donors, queries, dim, matches) = (200usize, 150usize, 3usize, 2usize);
+        let mut ctx = ExecutionContext::for_tests(5);
+        ctx.set_memory_limit(Some(1 << 30));
+        let (quote, lease) = quote_exact_matching(
+            (donors, queries, dim),
+            MatchingDistance::Euclidean,
+            matches,
+            None,
+            &ctx,
+        )
+        .unwrap()
+        .expect("a legal shape is quoted");
+        let declared = ExactMatching::new(
+            donors as u64,
+            queries as u64,
+            dim as u64,
+            QuotedDistance::Euclidean,
+        )
+        .estimate()
+        .unwrap();
+        assert_eq!((quote.index_bytes, quote.work), (declared.memory_bytes(), declared.work()));
+        // Two row slots per match and three per-query columns, eight bytes each.
+        let words = 2 * queries * matches + 3 * queries;
+        assert_eq!(quote.pass_bytes, (words * 8) as u64);
+        assert_eq!(ctx.admission.available().bytes(), (1 << 30) - quote.pass_bytes);
+        drop(lease);
+        assert_eq!(ctx.admission.available().bytes(), 1 << 30);
+        // The scalar pass also builds a sorted copy of the donor scores.
+        let (scalar, _lease) =
+            quote_exact_matching((donors, queries, 1), MatchingDistance::Absolute, 1, None, &ctx)
+                .unwrap()
+                .unwrap();
+        assert_eq!(scalar.pass_bytes, ((2 * queries + 3 * queries) * 8 + donors * 16) as u64);
+        // A shape the index itself rejects is not quoted.
+        assert!(
+            quote_exact_matching((donors, queries, 2), MatchingDistance::Absolute, 1, None, &ctx)
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn matching_pass_over_the_budget_or_the_work_limit_builds_and_resizes_nothing() {
+        let (donors, queries, dim, matches) = (200usize, 150usize, 3usize, 2usize);
+        let [donor_x, donor_y, query_x, query_y] = quote_arms(donors, queries, dim);
+        let run = |workspace: &mut PropensityEstimationWorkspace, ctx: &ExecutionContext| {
+            match_diffs(
+                MatchSide { features: &donor_x, outcome: &donor_y },
+                MatchSide { features: &query_x, outcome: &query_y },
+                dim,
+                MatchingDistance::Euclidean,
+                matches,
+                None,
+                workspace,
+                ctx,
+            )
+        };
+        let pass_bytes = ((2 * queries * matches + 3 * queries) * 8) as u64;
+
+        let mut short = ExecutionContext::for_tests(6);
+        short.set_memory_limit(Some(pass_bytes - 1));
+        let mut workspace = PropensityEstimationWorkspace::default();
+        match run(&mut workspace, &short) {
+            Err(crate::error::EstimationError::Stats(StatsError::ResourceLimit {
+                message,
+                required_bytes,
+                limit_bytes,
+            })) => {
+                assert_eq!(message, "exact matching pass buffers");
+                assert_eq!((required_bytes, limit_bytes), (pass_bytes, pass_bytes - 1));
+            }
+            other => panic!("expected a pass-buffer refusal, got {:?}", other.map(|_| ())),
+        }
+        assert_eq!(workspace.matching_index_builds, 0);
+        assert_eq!(workspace.matching_donor_rows.capacity(), 0);
+        assert_eq!(short.admission.available().bytes(), pass_bytes - 1);
+
+        // Room for the buffers and the donor index: the pass runs and returns every byte.
+        let mut roomy = ExecutionContext::for_tests(6);
+        roomy.set_memory_limit(Some(pass_bytes + 64 * 1024));
+        let matched = run(&mut workspace, &roomy).unwrap();
+        assert_eq!(matched.queries.len(), queries);
+        assert_eq!(workspace.matching_index_builds, 1);
+        assert_eq!(roomy.admission.available().bytes(), pass_bytes + 64 * 1024);
+
+        // The caller's work ceiling is checked against the same quote.
+        let work = ExactMatching::new(
+            donors as u64,
+            queries as u64,
+            dim as u64,
+            QuotedDistance::Euclidean,
+        )
+        .estimate()
+        .unwrap()
+        .work();
+        let ctx = ExecutionContext::for_tests(7);
+        let mut limited = PropensityEstimationWorkspace::default();
+        limited.exact_work_limit = Some(work - 1);
+        match run(&mut limited, &ctx) {
+            Err(crate::error::EstimationError::Stats(StatsError::WorkLimit {
+                required_work,
+                limit_work,
+                ..
+            })) => assert_eq!((required_work, limit_work), (work, work - 1)),
+            other => panic!("expected a work refusal, got {:?}", other.map(|_| ())),
+        }
+        assert_eq!(limited.matching_index_builds, 0);
+        assert_eq!(limited.matching_donor_rows.capacity(), 0);
+        limited.exact_work_limit = Some(work);
+        assert_eq!(run(&mut limited, &ctx).unwrap().queries.len(), queries);
+        assert_eq!(limited.matching_index_builds, 1);
+    }
+
+    #[test]
+    fn bounding_box_index_gives_the_split_plane_answers_where_the_guard_permits_it() {
+        let dim = 3usize;
+        let lattice = |count: usize, levels: u64, seed: u64| -> Vec<f64> {
+            let mut state = seed;
+            (0..count * dim)
+                .map(|_| {
+                    state = state
+                        .wrapping_mul(6_364_136_223_846_793_005)
+                        .wrapping_add(1_442_695_040_888_963_407);
+                    ((state >> 33) % levels) as f64
+                })
+                .collect()
+        };
+        let donor_x = lattice(300, 4, 3);
+        let query_x = lattice(120, 6, 5);
+        let donor_y: Vec<f64> = (0..300).map(|i| (i as f64 * 0.37).sin()).collect();
+        let query_y: Vec<f64> = (0..120).map(|i| (i as f64 * 0.11).cos()).collect();
+        let ctx = ExecutionContext::for_tests(8);
+        for matches in [1usize, 3] {
+            for caliper in [None, Some(1.5)] {
+                let run = |spatial: SpatialIndex| {
+                    match_diffs_with(
+                        MatchSide { features: &donor_x, outcome: &donor_y },
+                        MatchSide { features: &query_x, outcome: &query_y },
+                        dim,
+                        MatchingDistance::Euclidean,
+                        matches,
+                        caliper,
+                        &mut PropensityEstimationWorkspace::default(),
+                        &ctx,
+                        spatial,
+                    )
+                    .unwrap()
+                };
+                let split = run(SpatialIndex::SplitPlane);
+                let boxed = run(SpatialIndex::BoundingBox);
+                assert_eq!(split.donors, boxed.donors);
+                assert_eq!(split.queries, boxed.queries);
+                assert_eq!(split.diffs.len(), boxed.diffs.len());
+                for (a, b) in split.diffs.iter().zip(&boxed.diffs) {
+                    assert_eq!(a.to_bits(), b.to_bits());
+                }
+            }
+        }
     }
 
     /// Multivariate matching still builds `MatchingIndex`, whose memory guard refuses a

@@ -218,11 +218,11 @@ pub struct DecisionResult {
     pub assumptions: Vec<String>,
 }
 
-struct Table {
+pub(crate) struct Table {
     /// `utilities[a][i]` for action `a`, draw `i`.
-    utilities: Vec<Vec<f64>>,
+    pub(crate) utilities: Vec<Vec<f64>>,
     /// Normalized weights.
-    weights: Vec<f64>,
+    pub(crate) weights: Vec<f64>,
 }
 
 /// Each source coordinate, parsed once. A wire that does not convert is skipped,
@@ -358,6 +358,20 @@ fn weighted_mean(values: &[f64], weights: &[f64]) -> Result<f64, DecisionEvalErr
     })
 }
 
+/// Whether a hard constraint excludes an action: `held` is the weighted probability that
+/// the constraint held, and `positive_violation` whether a draw of positive weight broke it.
+/// A constraint that must hold with probability one fails on any positive-weight violation;
+/// any other fails when the held mass falls short of the requirement by more than rounding.
+pub(crate) fn constraint_fails(min_probability: f64, held: f64, positive_violation: bool) -> bool {
+    #[allow(clippy::float_cmp, reason = "probability one is the declared sure-hold case")]
+    let sure = min_probability == 1.0;
+    if sure {
+        positive_violation
+    } else {
+        held + MASS_TOLERANCE * held.max(min_probability) < min_probability
+    }
+}
+
 fn positive_mass_max(values: &[f64], weights: &[f64]) -> f64 {
     values.iter().zip(weights).filter(|(_, w)| **w > 0.0).map(|(v, _)| *v).fold(0.0, f64::max)
 }
@@ -404,7 +418,6 @@ fn evaluate_contract_validated(
     }
     let parsed = parsed_quantities(source);
     let table = build_table_with(contract, source, None, &parsed)?;
-    let n = source.n_draws();
     // An exact finite law has no sampling error: its draws are the distribution.
     let exact = source.metadata().calibration == DistributionCalibration::Exact;
     let weights = &table.weights;
@@ -440,12 +453,7 @@ fn evaluate_contract_validated(
                     positive_violation = true;
                 }
             }
-            let fails = if constraint.min_probability == 1.0 {
-                positive_violation
-            } else {
-                held + MASS_TOLERANCE * held.max(constraint.min_probability)
-                    < constraint.min_probability
-            };
+            let fails = constraint_fails(constraint.min_probability, held, positive_violation);
             if fails {
                 exclusions[index].push(ConstraintExclusion {
                     constraint_id: constraint.id.clone(),
@@ -455,6 +463,39 @@ fn evaluate_contract_validated(
             }
         }
     }
+    let receipt = {
+        let identity_meta = &source.metadata().identity;
+        SourceReceipt {
+            provider_id: identity_meta.provider_id.clone(),
+            snapshot_id: identity_meta.snapshot_id.clone(),
+            rng_id: identity_meta.rng_id.clone(),
+            causal_contract_id: identity_meta.causal_contract_id.clone(),
+        }
+    };
+    rank_table(contract, identity, &table, exclusions, exact, receipt)
+}
+
+/// Fold per-draw action utilities and constraint exclusions into a ranked result.
+///
+/// `table` holds one utility per action and draw with normalized weights;
+/// `exclusions[a]` lists the hard constraints action `a` failed. Both the
+/// joint-law evaluation and the batched executor end here, so the criteria,
+/// regret, value of perfect information and ties are decided once.
+#[allow(clippy::float_cmp, reason = "Ties of the finite-law criterion values")]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one table ranked in order: admit, score each action, aggregate, assemble the record"
+)]
+pub(crate) fn rank_table(
+    contract: &DecisionContract,
+    identity: String,
+    table: &Table,
+    mut exclusions: Vec<Vec<ConstraintExclusion>>,
+    exact: bool,
+    receipt: SourceReceipt,
+) -> Result<DecisionResult, DecisionEvalError> {
+    let n = table.weights.len();
+    let weights = &table.weights;
     let admissible: Vec<usize> =
         (0..contract.actions.len()).filter(|i| exclusions[*i].is_empty()).collect();
 
@@ -572,7 +613,6 @@ fn evaluate_contract_validated(
             action: contract.actions[admissible[0]].id.clone(),
         });
     }
-    let identity_meta = &source.metadata().identity;
     Ok(DecisionResult {
         contract_identity: identity,
         criterion: contract.criterion,
@@ -581,12 +621,7 @@ fn evaluate_contract_validated(
         evpi,
         n_draws: n,
         effective_draws: antecedent_kernels::kish_ess(weights),
-        source: SourceReceipt {
-            provider_id: identity_meta.provider_id.clone(),
-            snapshot_id: identity_meta.snapshot_id.clone(),
-            rng_id: identity_meta.rng_id.clone(),
-            causal_contract_id: identity_meta.causal_contract_id.clone(),
-        },
+        source: receipt,
         criterion_label: law_criterion_label(contract.criterion),
         assumptions: vec![
             "draws are aligned joint realizations of every input quantity".into(),
@@ -1159,5 +1194,36 @@ mod tests {
                 assert_eq!(hoisted.source_mode, once.source_mode);
             }
         }
+    }
+
+    #[test]
+    fn the_admitted_evaluator_agrees_with_the_whole_artifact_evaluation() {
+        use antecedent_core::ExecutionContext;
+        use antecedent_core::execution::AdmissionPool;
+        let (mut contract, artifact) = fixture();
+        let ctx = ExecutionContext::for_tests(1);
+        for criterion in [
+            DecisionCriterion::PosteriorExpectedUtility,
+            DecisionCriterion::ExpectedRegret,
+            DecisionCriterion::ThresholdProbability { threshold: 2.0 },
+            DecisionCriterion::Quantile { p: 0.5 },
+        ] {
+            contract.criterion = criterion;
+            let whole = evaluate_contract(&contract, &artifact).unwrap();
+            let admitted =
+                crate::decision_evaluation::evaluate_artifact_admitted(&contract, &artifact, &ctx)
+                    .unwrap();
+            assert_eq!(admitted, whole, "{criterion:?}");
+        }
+        contract.criterion = DecisionCriterion::PosteriorExpectedUtility;
+        let starved = ExecutionContext::for_tests(1).with_admission(AdmissionPool::fixed(1, 8));
+        let refused =
+            crate::decision_evaluation::evaluate_artifact_admitted(&contract, &artifact, &starved);
+        assert!(matches!(refused, Err(DecisionEvalError::Contract(_))), "{refused:?}");
+        contract.criterion = DecisionCriterion::MinimaxOverIdentifiedSet;
+        assert!(matches!(
+            crate::decision_evaluation::evaluate_artifact_admitted(&contract, &artifact, &ctx),
+            Err(DecisionEvalError::StructureInputsRequired(_))
+        ));
     }
 }

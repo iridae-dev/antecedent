@@ -18,12 +18,13 @@ use antecedent_core::{
     TargetPopulation, TemporalEffectQuery, VariableId,
 };
 use antecedent_data::{
-    DiscoveryEstimationSplit, LaggedColumn, LaggedSampleWorkspace, SamplingRegularity,
-    TemporalIndexer, TimeIndex, TimeSeriesData,
+    DiscoveryEstimationSplit, LaggedColumn, SamplingRegularity, TemporalIndexer, TimeIndex,
+    TimeSeriesData,
 };
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_model::history_operators::{
-    ActionTiming, CensoringAssignmentWeight, HistoryConstruction, HistoryOperatorError, Horizon,
+    ActionTiming, CensoringAssignmentWeight, HistoryConstruction, HistoryOperatorError,
+    HistoryScan, Horizon,
 };
 use antecedent_stats::{CompiledDesign, DenseLinearAlgebra};
 
@@ -426,17 +427,13 @@ impl TemporalLinearAdjustment {
         }
 
         let max_lag = cols.iter().map(|c| c.lag.raw()).max().unwrap_or(0);
-        let plan = data
-            .plan_lagged_sample(max_lag, Arc::<[LaggedColumn]>::from(cols))
+        let mut scan = HistoryScan::plan(data, max_lag, Arc::<[LaggedColumn]>::from(cols))
             .map_err(EstimationError::from)?;
-        let mut sample_ws = LaggedSampleWorkspace::default();
         let (prep, complete) = if allow_gaps {
-            let gapped = plan
-                .prepare_with_gaps(data, &mut sample_ws, policy)
-                .map_err(EstimationError::from)?;
+            let gapped = scan.with_gaps(data, policy).map_err(EstimationError::from)?;
             (gapped.sample, Some(gapped.complete))
         } else {
-            (plan.prepare(data, &mut sample_ws, policy).map_err(EstimationError::from)?, None)
+            (scan.complete(data, policy).map_err(EstimationError::from)?, None)
         };
 
         let split = match split {
@@ -1273,18 +1270,11 @@ pub fn temporal_conditional_marginal_effect_with_gaps(
         adjustment.push(key.variable);
     }
     let max_lag = cols.iter().map(|c| c.lag.raw()).max().unwrap_or(0);
-    let plan = data
-        .plan_lagged_sample(max_lag, Arc::<[LaggedColumn]>::from(cols))
+    let mut scan = HistoryScan::plan(data, max_lag, Arc::<[LaggedColumn]>::from(cols))
         .map_err(EstimationError::from)?;
-    let mut sample_ws = LaggedSampleWorkspace::default();
-    let (prep, selection) = if allow_gaps {
-        let (prep, complete) = plan
-            .prepare_complete_windows(data, &mut sample_ws, policy)
-            .map_err(EstimationError::from)?;
-        (prep, Some(GapSelection { first_time: max_lag as usize, complete }))
-    } else {
-        (plan.prepare(data, &mut sample_ws, policy).map_err(EstimationError::from)?, None)
-    };
+    let (prep, complete) = scan.windows(data, policy, allow_gaps).map_err(EstimationError::from)?;
+    let selection =
+        complete.map(|complete| GapSelection { first_time: max_lag as usize, complete });
     let n = prep.n;
     if n < 8 {
         return Err(EstimationError::data_msg(
@@ -1403,11 +1393,9 @@ pub fn temporal_linear_slopes(
         adjustment.push(key.variable);
     }
     let max_lag = cols.iter().map(|c| c.lag.raw()).max().unwrap_or(0);
-    let plan = data
-        .plan_lagged_sample(max_lag, Arc::<[LaggedColumn]>::from(cols))
+    let mut scan = HistoryScan::plan(data, max_lag, Arc::<[LaggedColumn]>::from(cols))
         .map_err(EstimationError::from)?;
-    let mut sample_ws = LaggedSampleWorkspace::default();
-    let prep = plan.prepare(data, &mut sample_ws, policy).map_err(EstimationError::from)?;
+    let prep = scan.complete(data, policy).map_err(EstimationError::from)?;
     let n = prep.n;
     if n < 8 {
         return Err(EstimationError::data_msg("too few aligned rows for a temporal linear slope"));
@@ -1488,11 +1476,9 @@ pub fn nested_direct_fit_moments(
         LaggedColumn { variable: mediator, lag: y_lag },
         LaggedColumn { variable: outcome, lag: y_lag },
     ];
-    let plan = data
-        .plan_lagged_sample(1, Arc::<[LaggedColumn]>::from(cols))
+    let mut scan = HistoryScan::plan(data, 1, Arc::<[LaggedColumn]>::from(cols))
         .map_err(EstimationError::from)?;
-    let mut sample_ws = LaggedSampleWorkspace::default();
-    let prep = plan.prepare(data, &mut sample_ws, policy).map_err(EstimationError::from)?;
+    let prep = scan.complete(data, policy).map_err(EstimationError::from)?;
     let n = prep.n;
     if n < 8 {
         return Err(EstimationError::data_msg("too few aligned rows for a temporal linear slope"));

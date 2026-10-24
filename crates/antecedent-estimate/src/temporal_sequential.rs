@@ -27,9 +27,10 @@ use antecedent_core::{
     AssumptionStatus, CausalRng, ExecutionContext, IdentificationStatus, Lag, ParametricAssumption,
     TargetPopulation, TemporalEffectQuery, TemporalNodeKey, TemporalPolicy, VariableId,
 };
-use antecedent_data::{LaggedColumn, LaggedSampleWorkspace, TemporalIndexer, TimeSeriesData};
+use antecedent_data::{LaggedColumn, TemporalIndexer, TimeSeriesData};
 use antecedent_expr::{EstimandMethod, IdentifiedEstimand};
 use antecedent_graph::{DenseNodeId, TemporalDag};
+use antecedent_model::history_operators::HistoryScan;
 use antecedent_prob::{BayesLikelihood, PosteriorDraws, PosteriorQuantityKind, PosteriorSchema};
 use antecedent_stats::{
     CompiledDesign, DenseLinearAlgebra, DesignColumnMap, DesignColumnRole, FaerBackend,
@@ -809,15 +810,8 @@ impl SequentialSetup {
                 }
             }
         }
-        let plan = data.plan_lagged_sample(max_lag, Arc::from(columns.clone()))?;
-        let mut workspace = LaggedSampleWorkspace::default();
-        let (sample, window_complete) = if gaps {
-            let (sample, complete) =
-                plan.prepare_complete_windows(data, &mut workspace, &ctx.kernel_policy)?;
-            (sample, Some(complete))
-        } else {
-            (plan.prepare(data, &mut workspace, &ctx.kernel_policy)?, None)
-        };
+        let mut scan = HistoryScan::plan(data, max_lag, Arc::from(columns.clone()))?;
+        let (sample, window_complete) = scan.windows(data, &ctx.kernel_policy, gaps)?;
         let n = sample.n;
         if n < 3 {
             return Err(EstimationError::unsupported(
@@ -1445,15 +1439,10 @@ fn estimate_sequential_with_gaps(
                     }
                 }
                 let max_lag = columns.iter().map(|c| c.lag.raw()).max().unwrap_or(0);
-                let plan = data.plan_lagged_sample(max_lag, Arc::from(columns))?;
-                let mut workspace = LaggedSampleWorkspace::default();
-                let (sample, segments) = if gaps {
-                    let (sample, complete) =
-                        plan.prepare_complete_windows(data, &mut workspace, &ctx.kernel_policy)?;
-                    (sample, Some(crate::serial_dependence::window_segments(&complete)))
-                } else {
-                    (plan.prepare(data, &mut workspace, &ctx.kernel_policy)?, None)
-                };
+                let mut scan = HistoryScan::plan(data, max_lag, Arc::from(columns))?;
+                let (sample, complete) = scan.windows(data, &ctx.kernel_policy, gaps)?;
+                let segments =
+                    complete.map(|complete| crate::serial_dependence::window_segments(&complete));
                 let covs: Vec<_> = parent_columns
                     .iter()
                     .enumerate()

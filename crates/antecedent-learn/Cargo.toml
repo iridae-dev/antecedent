@@ -21,8 +21,12 @@ calibration-internal = []
 ml-gbdt = ["dep:forust-ml"]
 ml-forest = ["dep:smartcore"]
 ml-full = ["ml-gbdt", "ml-forest"]
-# L: not in ml-full. A CPU-only Burn `NdArray<f32>` MLP: there is no GPU/WGPU backend.
+# L: not in ml-full. A Burn `NdArray<f32>` MLP on the CPU; the device backend is the opt-in
+# `ml-neural-wgpu` feature.
 ml-neural = ["dep:antecedent-learn-burn"]
+# Opt-in device distribution: links Burn's WGPU backend so `device = "gpu" | "auto"` can
+# select an adapter. Never part of a CPU wheel.
+ml-neural-wgpu = ["ml-neural", "antecedent-learn-burn/wgpu"]
 
 [dependencies]
 antecedent-core = { workspace = true }

@@ -338,3 +338,36 @@ fn every_quadrant_has_a_catalogue_for_every_family() {
         }
     }
 }
+
+#[test]
+fn an_attribution_catalogue_has_no_treatment_keyed_refuter_and_reads_the_prior_when_bayesian() {
+    for quadrant in [
+        TargetQuadrant::STATIC_FREQUENTIST,
+        TargetQuadrant::STATIC_BAYESIAN,
+        TargetQuadrant::TEMPORAL_FREQUENTIST,
+        TargetQuadrant::TEMPORAL_BAYESIAN,
+    ] {
+        let target = RefutationTarget::new(
+            TargetFamily::Attribution,
+            quadrant,
+            ["mean_score", "noise:x", "noise:y"],
+            [2; 32],
+        )
+        .unwrap();
+        for suite in [TargetSuite::Cheap, TargetSuite::Placebo, TargetSuite::Full] {
+            let plan = TargetRefutationPlan::for_target(target.clone(), suite);
+            let kinds = plan.refuters();
+            for treatment_keyed in [
+                TargetRefuterKind::PlaceboTreatment,
+                TargetRefuterKind::PlaceboOutcome,
+                TargetRefuterKind::RandomCommonCause,
+                TargetRefuterKind::NegativeControlExposure,
+                TargetRefuterKind::PreTrend,
+            ] {
+                assert!(!kinds.contains(&treatment_keyed), "{suite:?} {treatment_keyed:?}");
+            }
+            assert!(kinds.contains(&TargetRefuterKind::SubsetStability));
+            assert_eq!(quadrant.bayesian, kinds.contains(&TargetRefuterKind::PriorSensitivity));
+        }
+    }
+}

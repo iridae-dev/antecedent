@@ -195,7 +195,18 @@ pub(super) enum TrajectoryDrawReading {
     /// One block plan or one cluster draw, shared across mechanisms and horizons
     /// on a common calendar. A joint resampling draw, not a posterior.
     CommonCalendarResample,
+    /// One joint Gaussian draw of every horizon's coefficients, tied by the long-run
+    /// covariance of the stacked estimating-equation scores on the shared calendar. A joint
+    /// trajectory law, conditional on the stated Gaussian approximation.
+    JointGaussianTrajectory,
 }
+
+/// Wording of [`TrajectoryDrawReading::JointGaussianTrajectory`].
+pub(super) const JOINT_TRAJECTORY_STATEMENT: &str = "The horizons are one joint trajectory law: \
+     draw r of every horizon is the same joint draw of all horizon coefficients, with each \
+     horizon's posterior mean and covariance and the cross-horizon dependence of the shared \
+     series, innovations and parameters carried by the long-run covariance of the stacked \
+     normal-equation scores.";
 
 impl TrajectoryDrawReading {
     /// Wording the published result uses for this reading.
@@ -204,6 +215,7 @@ impl TrajectoryDrawReading {
         match self {
             Self::IndependentProduct => INDEPENDENT_DRAW_STATEMENT,
             Self::CommonCalendarResample => calendar_coupling_statement(),
+            Self::JointGaussianTrajectory => JOINT_TRAJECTORY_STATEMENT,
         }
     }
 }
@@ -284,6 +296,35 @@ pub(super) fn temporal_bayesian_tempering_assumption(
                  intermediate treatments and innovations, so its residuals are MA(h-1) whenever \
                  the outcome or treatment is persistent; the prior keeps full weight; \
                  heteroskedasticity and mean misspecification are not corrected"
+            )),
+        }),
+        source: AssumptionSource::AlgorithmDefault {
+            algorithm: Arc::from("response.temporal.bayesian"),
+        },
+        scope: AssumptionScope::Estimation,
+        status: AssumptionStatus::Declared,
+    }
+}
+
+/// The joint-trajectory assumption `response.temporal.bayesian` publishes when several
+/// horizons share one joint coefficient law. It keeps the record id of the per-horizon
+/// Gaussian model so consumers that strip the surface's band assumptions strip it too.
+#[must_use]
+pub(super) fn temporal_bayesian_joint_trajectory_assumption(
+    block_length: usize,
+) -> AssumptionRecord {
+    let coupling = TrajectoryDrawReading::JointGaussianTrajectory.statement();
+    AssumptionRecord {
+        assumption: Assumption::ParametricRestriction(ParametricAssumption {
+            id: Arc::from(TEMPORAL_BAYESIAN_PRODUCT_POSTERIOR_ID),
+            description: Arc::from(format!(
+                "Gaussian linear-additive unfolded outcome model at each horizon. Pointwise \
+                 posterior intervals and the simultaneous credible band (support diagnostics \
+                 response.simultaneous_band.*) are conditional on the observed adjustment and \
+                 treatment distribution. {coupling} The cross-horizon dependence is estimated \
+                 at dependence block length {block_length} and each horizon's joint marginal is \
+                 the Gaussian with its posterior mean and covariance, so tail shape beyond \
+                 second moments is the Gaussian one."
             )),
         }),
         source: AssumptionSource::AlgorithmDefault {

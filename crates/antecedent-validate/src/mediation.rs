@@ -6,9 +6,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, MediationContrast, MediationQuery};
-use antecedent_data::{
-    LaggedColumn, LaggedSampleWorkspace, TableView, TabularData, TimeIndex, TimeSeriesData,
-};
+use antecedent_data::{LaggedColumn, TableView, TabularData, TimeIndex, TimeSeriesData};
 use antecedent_estimate::{TemporalMediationEstimate, TemporalMediationEstimator};
 use antecedent_expr::IdentifiedEstimand;
 
@@ -212,13 +210,8 @@ pub fn refute_temporal_mediation_with_gaps(
     ];
     columns.extend_from_slice(adjustment);
     let max_lag = columns.iter().map(|c| c.lag.raw()).max().unwrap_or(1);
-    let plan = data.plan_lagged_sample(max_lag, Arc::from(columns))?;
-    let mut workspace = LaggedSampleWorkspace::default();
-    let sample = if gaps {
-        plan.prepare_complete_windows(data, &mut workspace, &ctx.kernel_policy)?.0
-    } else {
-        plan.prepare(data, &mut workspace, &ctx.kernel_policy)?
-    };
+    let mut scan = antecedent_estimate::HistoryScan::plan(data, max_lag, Arc::from(columns))?;
+    let (sample, _) = scan.windows(data, &ctx.kernel_policy, gaps)?;
     let t = sample.column(0);
     let mut levels = t.to_vec();
     levels.sort_by(f64::total_cmp);

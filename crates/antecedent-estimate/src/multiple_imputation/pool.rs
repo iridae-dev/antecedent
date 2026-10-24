@@ -247,6 +247,277 @@ pub fn stack_posterior(
     })
 }
 
+/// Rubin's-rules combination of `m` vector-valued complete-data estimates and their
+/// covariance matrices.
+///
+/// This is the pooling for an estimand with several coordinates that are reported together
+/// (the cells of a conditional effect, the points of a response curve, the components of a
+/// mediation decomposition, the levels of a distribution): `Q̄ = mean(q)`, within covariance
+/// `Ū = mean(U)`, between covariance `B = Σ(q − Q̄)(q − Q̄)ᵀ / (m − 1)` and total covariance
+/// `T = Ū + (1 + 1/m) B`. Each coordinate is also pooled as a scalar
+/// ([`Self::coordinates`]), so its degrees of freedom, fraction of missing information and
+/// interval are those of [`rubin_pool`]. A joint hypothesis uses [`Self::wald`].
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct RubinVectorPooled {
+    /// Number of imputations `m`.
+    pub imputations: usize,
+    /// Number of coordinates `p`.
+    pub dim: usize,
+    /// Pooled point `Q̄`, length `p`.
+    pub point: Vec<f64>,
+    /// Within-imputation covariance `Ū`, row-major `p × p`.
+    pub within: Vec<f64>,
+    /// Between-imputation covariance `B`, row-major `p × p`.
+    pub between: Vec<f64>,
+    /// Total covariance `T = Ū + (1 + 1/m) B`, row-major `p × p`.
+    pub total: Vec<f64>,
+    /// Each coordinate pooled as a scalar, in coordinate order.
+    pub coordinates: Vec<RubinPooled>,
+    /// Average relative increase in variance `r̄ = (1 + 1/m) tr(B Ū⁻¹) / p`; infinite when
+    /// `Ū` is singular.
+    pub average_relative_increase: f64,
+}
+
+/// A pooled multivariate Wald statistic (Li, Raghunathan and Rubin 1991, the `D₁` statistic).
+///
+/// `statistic` is referred to an `F` law with `df_numerator` and `df_denominator` degrees of
+/// freedom; an infinite denominator is the chi-square reference over `df_numerator`.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct PooledWald {
+    /// `D₁ = (Q̄ − θ₀)ᵀ Ū⁻¹ (Q̄ − θ₀) / (p (1 + r̄))`.
+    pub statistic: f64,
+    /// Numerator degrees of freedom `p`.
+    pub df_numerator: f64,
+    /// Denominator degrees of freedom `ν₂`.
+    pub df_denominator: f64,
+}
+
+fn symmetric_enough(matrix: &[f64], dim: usize) -> bool {
+    (0..dim).all(|i| {
+        (0..i).all(|j| {
+            let (upper, lower) = (matrix[j * dim + i], matrix[i * dim + j]);
+            (upper - lower).abs() <= 1e-8 * (1.0 + upper.abs().max(lower.abs()))
+        })
+    })
+}
+
+fn multiply_square(a: &[f64], b: &[f64], dim: usize) -> Vec<f64> {
+    let mut out = vec![0.0; dim * dim];
+    for i in 0..dim {
+        for k in 0..dim {
+            let left = a[i * dim + k];
+            for j in 0..dim {
+                out[i * dim + j] += left * b[k * dim + j];
+            }
+        }
+    }
+    out
+}
+
+/// Combine vector estimates `points` and their covariance matrices by Rubin's rules.
+///
+/// # Errors
+///
+/// Fewer than two imputations, points or covariances of differing shape, a non-finite
+/// entry, a covariance that is not symmetric with a nonnegative diagonal, or a complete-data
+/// degrees of freedom that is not positive.
+pub fn rubin_pool_vector(
+    points: &[Vec<f64>],
+    covariances: &[Vec<f64>],
+    df_complete: Option<f64>,
+) -> Result<RubinVectorPooled, MultipleImputationError> {
+    let m = points.len();
+    if m < 2 {
+        return Err(MultipleImputationError::invalid(
+            "multiple_imputation.too_few_imputations",
+            format!("Rubin's rules need at least two imputations, got {m}"),
+        ));
+    }
+    let dim = points[0].len();
+    if dim == 0 || covariances.len() != m || points.iter().any(|q| q.len() != dim) {
+        return Err(MultipleImputationError::invalid(
+            "multiple_imputation.pool_shape",
+            format!(
+                "{m} points of {dim} coordinates need {m} covariance matrices of {dim} by {dim}"
+            ),
+        ));
+    }
+    if covariances.iter().any(|u| u.len() != dim * dim) {
+        return Err(MultipleImputationError::invalid(
+            "multiple_imputation.pool_shape",
+            format!("every covariance must hold {dim} by {dim} entries"),
+        ));
+    }
+    if points.iter().flatten().any(|q| !q.is_finite())
+        || covariances.iter().flatten().any(|u| !u.is_finite())
+    {
+        return Err(MultipleImputationError::invalid(
+            "multiple_imputation.pool_non_finite",
+            "an imputation's point or covariance entry is not finite",
+        ));
+    }
+    for covariance in covariances {
+        if !symmetric_enough(covariance, dim) || (0..dim).any(|i| covariance[i * dim + i] < 0.0) {
+            return Err(MultipleImputationError::invalid(
+                "multiple_imputation.pool_non_finite",
+                "an imputation's covariance is not symmetric with a nonnegative diagonal",
+            ));
+        }
+    }
+    let m_f = count(m);
+    let point: Vec<f64> =
+        (0..dim).map(|i| points.iter().map(|q| q[i]).sum::<f64>() / m_f).collect();
+    let mut within = vec![0.0; dim * dim];
+    for covariance in covariances {
+        for (slot, value) in within.iter_mut().zip(covariance) {
+            *slot += value / m_f;
+        }
+    }
+    let mut between = vec![0.0; dim * dim];
+    for q in points {
+        for i in 0..dim {
+            for j in 0..dim {
+                between[i * dim + j] += (q[i] - point[i]) * (q[j] - point[j]) / (m_f - 1.0);
+            }
+        }
+    }
+    let inflate = 1.0 + 1.0 / m_f;
+    let total: Vec<f64> = within.iter().zip(&between).map(|(u, b)| u + inflate * b).collect();
+    let coordinates = (0..dim)
+        .map(|i| {
+            let column: Vec<f64> = points.iter().map(|q| q[i]).collect();
+            let variances: Vec<f64> = covariances.iter().map(|u| u[i * dim + i]).collect();
+            rubin_pool(&column, &variances, df_complete)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let average_relative_increase =
+        antecedent_stats::invert_square(&within, dim).map_or(f64::INFINITY, |inverse| {
+            let product = multiply_square(&between, &inverse, dim);
+            let trace: f64 = (0..dim).map(|i| product[i * dim + i]).sum();
+            inflate * trace / count(dim)
+        });
+    Ok(RubinVectorPooled {
+        imputations: m,
+        dim,
+        point,
+        within,
+        between,
+        total,
+        coordinates,
+        average_relative_increase,
+    })
+}
+
+impl RubinVectorPooled {
+    /// Pooled standard error of coordinate `index`, `√T[index, index]`.
+    #[must_use]
+    pub fn standard_error(&self, index: usize) -> Option<f64> {
+        (index < self.dim).then(|| self.total[index * self.dim + index].sqrt())
+    }
+
+    /// The pooled `D₁` Wald statistic of the hypothesis `θ = null`.
+    ///
+    /// # Errors
+    ///
+    /// `null` of the wrong length, or a within-imputation covariance that is singular (the
+    /// statistic needs its inverse).
+    pub fn wald(&self, null: &[f64]) -> Result<PooledWald, MultipleImputationError> {
+        if null.len() != self.dim {
+            return Err(MultipleImputationError::invalid(
+                "multiple_imputation.pool_shape",
+                format!("the hypothesis has {} coordinates, the estimate {}", null.len(), self.dim),
+            ));
+        }
+        let inverse = antecedent_stats::invert_square(&self.within, self.dim).ok_or_else(|| {
+            MultipleImputationError::invalid(
+                "multiple_imputation.within_singular",
+                "the within-imputation covariance is singular, so the joint Wald statistic is \
+                 not defined; test the coordinates one at a time",
+            )
+        })?;
+        let gap: Vec<f64> = self.point.iter().zip(null).map(|(q, n)| q - n).collect();
+        let mut quadratic = 0.0;
+        for i in 0..self.dim {
+            for j in 0..self.dim {
+                quadratic += gap[i] * inverse[i * self.dim + j] * gap[j];
+            }
+        }
+        let k = count(self.dim);
+        let r = self.average_relative_increase;
+        let t = k * (count(self.imputations) - 1.0);
+        let df_denominator = if r == 0.0 {
+            f64::INFINITY
+        } else if t > 4.0 {
+            4.0 + (t - 4.0) * (1.0 + (1.0 - 2.0 / t) / r).powi(2)
+        } else {
+            t * (1.0 + 1.0 / k) * (1.0 + 1.0 / r).powi(2) / 2.0
+        };
+        Ok(PooledWald { statistic: quadratic / (k * (1.0 + r)), df_numerator: k, df_denominator })
+    }
+}
+
+/// The posterior draws of several quantities, stacked over `m` imputations.
+///
+/// Each quantity is stacked as in [`stack_posterior`]; `covariance` is the sample covariance
+/// of the stacked mixture across quantities, which keeps the within- and between-imputation
+/// dependence between them (draw `d` of every quantity in one imputation is one joint draw).
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct StackedQuantities {
+    /// One stacked posterior per quantity, in quantity order.
+    pub quantities: Vec<StackedPosterior>,
+    /// Row-major `p × p` covariance of the stacked mixture.
+    pub covariance: Vec<f64>,
+}
+
+/// Stack the joint posterior draws of several quantities over imputations.
+///
+/// `per_imputation[j][q]` is the draw vector of quantity `q` under imputation `j`.
+///
+/// # Errors
+///
+/// The refusals of [`stack_posterior`], or imputations that report different quantity counts.
+pub fn stack_posterior_quantities(
+    per_imputation: &[Vec<Vec<f64>>],
+) -> Result<StackedQuantities, MultipleImputationError> {
+    let Some(first) = per_imputation.first() else {
+        return Err(MultipleImputationError::invalid(
+            "multiple_imputation.too_few_imputations",
+            "a stacked posterior needs at least two imputations, got 0",
+        ));
+    };
+    let dim = first.len();
+    if dim == 0 || per_imputation.iter().any(|quantities| quantities.len() != dim) {
+        return Err(MultipleImputationError::invalid(
+            "multiple_imputation.stack_shape",
+            "every imputation must report the same, nonzero number of quantities",
+        ));
+    }
+    let mut quantities = Vec::with_capacity(dim);
+    for q in 0..dim {
+        let columns: Vec<&[f64]> = per_imputation.iter().map(|j| j[q].as_slice()).collect();
+        quantities.push(stack_posterior(&columns)?);
+    }
+    let total = quantities[0].draws.len();
+    let mut covariance = vec![0.0; dim * dim];
+    for i in 0..dim {
+        for j in i..dim {
+            let value = quantities[i]
+                .draws
+                .iter()
+                .zip(&quantities[j].draws)
+                .map(|(a, b)| (a - quantities[i].mean) * (b - quantities[j].mean))
+                .sum::<f64>()
+                / (count(total) - 1.0);
+            covariance[i * dim + j] = value;
+            covariance[j * dim + i] = value;
+        }
+    }
+    Ok(StackedQuantities { quantities, covariance })
+}
+
 #[allow(clippy::cast_precision_loss, reason = "imputation and draw counts are far below 2^52")]
 fn count(n: usize) -> f64 {
     n as f64

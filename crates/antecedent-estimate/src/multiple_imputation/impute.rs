@@ -129,6 +129,11 @@ pub struct Imputer {
     missing_rows: Vec<Vec<usize>>,
     observed_rows: Vec<Vec<usize>>,
     visit: Vec<usize>,
+    /// Neighbouring time steps on each side whose values enter a conditional model; zero for
+    /// exchangeable rows.
+    lags: usize,
+    /// Observed rows with a full neighbourhood, per variable; read only when `lags > 0`.
+    fit_rows: Vec<Vec<usize>>,
 }
 
 impl Imputer {
@@ -268,7 +273,114 @@ impl Imputer {
             missing_rows,
             observed_rows,
             visit,
+            lags: 0,
+            fit_rows: Vec::new(),
         })
+    }
+
+    /// Condition every variable's imputation model on the values `lags` time steps before and
+    /// after the row, for a series whose rows are ordered in time.
+    ///
+    /// The model of variable `j` regresses it on the other variables at the same step and on
+    /// every variable at steps `t - lags ..= t - 1` and `t + 1 ..= t + lags`, read from the
+    /// current completed columns, so the lag columns of an imputed cell are the imputed value
+    /// itself. A series is not a sample of exchangeable rows; the conditional model is the full
+    /// conditional of a stationary process of order `lags`, and the parameter draw resamples
+    /// contiguous blocks (declare them as the imputation's [`ImputationUnits::Groups`]). Fit
+    /// rows are the observed rows whose whole neighbourhood lies inside the series; a missing
+    /// cell closer to an end than `lags` is drawn with the nearest end row standing in for the
+    /// absent neighbour.
+    ///
+    /// # Errors
+    ///
+    /// The joint normal model (it has no lagged form); no lags; or a variable with too few
+    /// interior observed rows to identify its conditional model.
+    pub fn with_dynamics(mut self, lags: usize) -> Result<Self, MultipleImputationError> {
+        if lags == 0 {
+            return Err(MultipleImputationError::invalid(
+                "multiple_imputation.dynamics_lags",
+                "a dynamic imputation model conditions on at least one neighbouring time step",
+            ));
+        }
+        if self.spec.model == ImputationModel::JointNormal {
+            return Err(MultipleImputationError::not_applicable(
+                "multiple_imputation.dynamics_joint_normal",
+                "the joint normal model draws each row from one mean and covariance and has no \
+                 lagged form",
+                USE_CHAINED_EQUATIONS,
+            ));
+        }
+        self.lags = lags;
+        let width = self.width();
+        let interior = |i: usize| i >= lags && i + lags < self.rows;
+        let mut fit_rows = Vec::with_capacity(self.names.len());
+        for (j, observed) in self.observed_rows.iter().enumerate() {
+            let rows: Vec<usize> = observed.iter().copied().filter(|&i| interior(i)).collect();
+            if !self.missing_rows[j].is_empty() && rows.len() < width + 2 {
+                return Err(MultipleImputationError::not_applicable(
+                    "multiple_imputation.not_identified",
+                    format!(
+                        "variable `{}` has {} observed cells with a full neighbourhood of {lags} \
+                         steps; its dynamic conditional model has {width} coefficients and needs \
+                         at least {}",
+                        self.names[j],
+                        rows.len(),
+                        width + 2
+                    ),
+                    DECLARE_COMPLETE_CASE,
+                ));
+            }
+            fit_rows.push(rows);
+        }
+        self.fit_rows = fit_rows;
+        Ok(self)
+    }
+
+    /// Neighbouring steps on each side that enter a conditional model (zero for rows).
+    #[must_use]
+    pub const fn lags(&self) -> usize {
+        self.lags
+    }
+
+    /// Coefficients of one conditional model: the intercept, the other variables at the same
+    /// step, and every variable at each neighbouring step.
+    fn width(&self) -> usize {
+        let p = self.names.len();
+        p + 2 * self.lags * p
+    }
+
+    /// Rows variable `j`'s conditional model is fitted on: its observed rows, or those with a
+    /// full neighbourhood under a dynamic model.
+    fn fit_rows_of(&self, j: usize) -> &[usize] {
+        if self.lags == 0 { &self.observed_rows[j] } else { &self.fit_rows[j] }
+    }
+
+    /// Writes row `i`'s design for variable `j` from the current completed columns: the
+    /// intercept, the other variables at row `i`, then each variable at the neighbouring
+    /// rows `i - lags ..= i - 1` and `i + 1 ..= i + lags` (the nearest end row stands in for a
+    /// neighbour beyond the series).
+    fn design_row(&self, j: usize) -> impl Fn(usize, &mut [f64], &[Vec<f64>]) + '_ {
+        let lags = self.lags;
+        let last = self.rows.saturating_sub(1);
+        move |i: usize, out: &mut [f64], current: &[Vec<f64>]| {
+            out[0] = 1.0;
+            let mut c = 1;
+            for (other, column) in current.iter().enumerate() {
+                if other != j {
+                    out[c] = column[i];
+                    c += 1;
+                }
+            }
+            for step in 1..=lags {
+                let before = i.saturating_sub(step);
+                let after = (i + step).min(last);
+                for column in current {
+                    out[c] = column[before];
+                    out[c + 1] = column[after];
+                    c += 2;
+                }
+            }
+        }
     }
 
     /// The declared specification.
@@ -319,9 +431,10 @@ impl Imputer {
     #[must_use]
     pub fn imputation_bytes(&self) -> u64 {
         let p = self.names.len();
+        let k = self.width();
         // The completed columns, the per-row design of one conditional model, the row
         // weights and the scratch of the solves.
-        let cells = self.rows.saturating_mul(2 * p + 4).saturating_add(8 * p * p + 64);
+        let cells = self.rows.saturating_mul(2 * p + 4).saturating_add(8 * k * k + 64);
         u64::try_from(cells.saturating_mul(size_of::<f64>())).unwrap_or(u64::MAX)
     }
 
@@ -410,20 +523,10 @@ impl Imputer {
         current: &mut [Vec<f64>],
         rng: &mut CausalRng,
     ) -> Result<(), MultipleImputationError> {
-        let p = self.names.len();
-        let k = p; // intercept + the p - 1 other variables
+        let k = self.width(); // intercept, the p - 1 other variables, then every neighbour
         let weights = self.row_weights(rng);
-        let design = |i: usize, out: &mut [f64], current: &[Vec<f64>]| {
-            out[0] = 1.0;
-            let mut c = 1;
-            for (other, column) in current.iter().enumerate() {
-                if other != j {
-                    out[c] = column[i];
-                    c += 1;
-                }
-            }
-        };
-        let observed = &self.observed_rows[j];
+        let design = self.design_row(j);
+        let observed = self.fit_rows_of(j);
         let mut x = vec![0.0; k];
         let kind = self.kinds[j];
         match kind {
@@ -480,8 +583,8 @@ impl Imputer {
         current: &[Vec<f64>],
         design: &DesignRow<'_>,
     ) -> Result<Vec<f64>, MultipleImputationError> {
-        let k = self.names.len();
-        let observed = &self.observed_rows[j];
+        let k = self.width();
+        let observed = self.fit_rows_of(j);
         let mut beta = vec![0.0; k];
         let mut x = vec![0.0; k];
         for _ in 0..LOGISTIC_ITERATIONS {

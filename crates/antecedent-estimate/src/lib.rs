@@ -143,7 +143,9 @@ pub mod se;
 pub mod sequential_aipw_inference;
 pub mod sequential_crossfit;
 pub mod serial_dependence;
+mod joint_coefficients;
 pub mod staggered_event_study;
+pub mod streamed_adjustment;
 pub mod statistical_transport;
 pub mod survival;
 pub mod survival_posterior;
@@ -317,7 +319,7 @@ pub use functional_distribution::{
 pub use glm_adjustment::{GlmAdjustmentAte, GlmAdjustmentWorkspace, PreparedGlmProblem};
 pub use identified_set::{
     IdentifiedSetInterval, IdentifiedSetIntervalMethod, imbens_manski_critical_value,
-    imbens_manski_posterior_draws, imbens_manski_shared_replicates,
+    imbens_manski_influence, imbens_manski_posterior_draws, imbens_manski_shared_replicates,
 };
 pub use interference::{
     BayesianInterferenceEstimate, ClusterTotalInterval, InterferenceEstimate,
@@ -389,7 +391,10 @@ pub use recovery_sampled::{
     SampledRecoveryResult, derive_sampled_recovery, estimate_sampled_recovery,
     refuse_component_variance_only, replay_sampled_recovery, sampled_recovery_route_frozen,
 };
-pub use response::{ContinuousResponseEstimator, ContinuousResponseOptions, ResponseInfluence};
+pub use response::{
+    ContinuousResponseEstimator, ContinuousResponseOptions, FrontDoorDerivativeInference,
+    ResponseInfluence,
+};
 pub use retarget::{
     DirectedAncestry, RetargetRefusal, RetargetResult, changes_target, check_depends_on,
     exceedance_cdf_values, retarget, summarize_functional, weighted_overlap_fields,
@@ -458,6 +463,7 @@ pub use temporal_sequential::{
 pub use temporal_sequential_tuples::{
     PreparedSequenceLevel, SequenceColumnReplacement, prepare_sequence_level,
 };
+pub use antecedent_model::history_operators::HistoryScan;
 pub use temporal_slope_design::{
     SlopeFit, SlopePosterior, SlopePosteriorSpec, SlopeRefitScratch, TemporalSlopeDesign,
 };

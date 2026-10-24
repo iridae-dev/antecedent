@@ -1366,6 +1366,60 @@ impl FunctionalEffect {
         })
     }
 
+    /// Replicate values of several prepared functionals on the same resampled rows.
+    ///
+    /// Row `b` of the result holds, in input order, each functional's refit on replicate
+    /// `b`, so the columns are the shared replicates a class-level identified-set interval
+    /// reads. A replicate where any functional fails to evaluate is dropped for all of them.
+    /// Empty when no replicates are requested.
+    ///
+    /// # Errors
+    ///
+    /// Prepared functionals over different row counts, or a resampling the design refuses.
+    pub fn shared_replicate_draws(
+        &self,
+        prepared: &[&PreparedFunctionalEffect],
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<Vec<f64>>, EstimationError> {
+        let Some(first) = prepared.first() else {
+            return Ok(Vec::new());
+        };
+        if self.bootstrap_replicates == 0 {
+            return Ok(Vec::new());
+        }
+        let n = first.bootstrap_columns.n();
+        if prepared.iter().any(|p| p.bootstrap_columns.n() != n) {
+            return Err(EstimationError::data_msg(
+                "shared replicates need functionals prepared on the same rows",
+            ));
+        }
+        let draws = std::sync::Mutex::new(Vec::<Vec<f64>>::new());
+        self.resample(ctx, 0xF02D_u64, n, |idx| {
+            let mut row = Vec::with_capacity(prepared.len());
+            for p in prepared {
+                let columns = p.bootstrap_columns.gather(idx);
+                let provider = provider_from_columns(
+                    &columns,
+                    idx.len(),
+                    &p.bootstrap_factors,
+                    &p.bootstrap_signatures,
+                    None,
+                )?;
+                match p.evaluate(&provider) {
+                    Ok(v) if v.is_finite() => row.push(v),
+                    _ => return Ok(None),
+                }
+            }
+            let head = row[0];
+            draws
+                .lock()
+                .map_err(|_| EstimationError::data_msg("shared replicate store poisoned"))?
+                .push(row);
+            Ok(Some(head))
+        })?;
+        draws.into_inner().map_err(|_| EstimationError::data_msg("shared replicate store poisoned"))
+    }
+
     /// Bayesian bootstrap of the identified functional. All CPT factors are
     /// derived from a shared Rubin (1981) Dirichlet(1, ..., 1) draw over
     /// empirical rows.
@@ -1410,6 +1464,30 @@ impl FunctionalEffect {
             values.push(value);
         }
         functional_posterior(values, prepared.assumptions.clone(), identification)
+    }
+
+    /// Check that several prepared functionals read the same rows, which is what makes their
+    /// Bayesian-bootstrap posteriors and bootstrap replicates paired draw by draw: every
+    /// functional consumes the same seeded stream of row weights (or row indices) over the
+    /// same `n`, so draw `k` of each is evaluated at the same resampled table.
+    ///
+    /// # Errors
+    ///
+    /// Prepared functionals over different complete-row counts.
+    pub fn assert_same_rows(
+        &self,
+        prepared: &[&PreparedFunctionalEffect],
+    ) -> Result<(), EstimationError> {
+        let Some(first) = prepared.first() else {
+            return Ok(());
+        };
+        let n = first.bootstrap_columns.n();
+        if prepared.iter().any(|p| p.bootstrap_columns.n() != n) {
+            return Err(EstimationError::data_msg(
+                "paired draws need functionals prepared on the same complete rows",
+            ));
+        }
+        Ok(())
     }
 }
 

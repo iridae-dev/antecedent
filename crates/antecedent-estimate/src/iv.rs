@@ -440,36 +440,39 @@ fn prepare_iv_problem(
     ids.extend_from_slice(&estimand.adjustment_set);
     let crate::prepare::AdmittedColumns { data, row_mask, receipt: preparation } =
         crate::prepare::admit_estimator_columns(data, &ids, crate::prepare::FINITE_TABLE_ONLY)?;
-    let t = data.float64_masked(treatment, &row_mask).map_err(EstimationError::from)?;
-    let y = data.float64_masked(outcome, &row_mask).map_err(EstimationError::from)?;
+    // Each selected column is gathered once, straight into the allocation the problem keeps.
+    let t = data.float64_selected_arc(treatment, &row_mask).map_err(EstimationError::from)?;
+    let y = data.float64_selected_arc(outcome, &row_mask).map_err(EstimationError::from)?;
     let nrows = t.len();
 
     let z_ncols = 1 + estimand.instruments.len();
-    let mut instruments_matrix = vec![0.0; nrows * z_ncols];
-    instruments_matrix[..nrows].fill(1.0);
+    let mut instruments_matrix = antecedent_data::design_layout::zeroed_shared(nrows * z_ncols);
+    let instruments_dest = shared_slice(&mut instruments_matrix)?;
+    instruments_dest[..nrows].fill(1.0);
     for (i, &z_id) in estimand.instruments.iter().enumerate() {
-        let col = data.float64_masked(z_id, &row_mask).map_err(EstimationError::from)?;
         let base = (1 + i) * nrows;
-        instruments_matrix[base..base + nrows].copy_from_slice(&col[..nrows]);
+        data.float64_selected_into(z_id, &row_mask, &mut instruments_dest[base..base + nrows])
+            .map_err(EstimationError::from)?;
     }
 
     let x_ncols = 1 + estimand.adjustment_set.len();
-    let mut exogenous_matrix = vec![0.0; nrows * x_ncols];
-    exogenous_matrix[..nrows].fill(1.0);
+    let mut exogenous_matrix = antecedent_data::design_layout::zeroed_shared(nrows * x_ncols);
+    let exogenous_dest = shared_slice(&mut exogenous_matrix)?;
+    exogenous_dest[..nrows].fill(1.0);
     for (i, &x_id) in estimand.adjustment_set.iter().enumerate() {
-        let col = data.float64_masked(x_id, &row_mask).map_err(EstimationError::from)?;
         let base = (1 + i) * nrows;
-        exogenous_matrix[base..base + nrows].copy_from_slice(&col[..nrows]);
+        data.float64_selected_into(x_id, &row_mask, &mut exogenous_dest[base..base + nrows])
+            .map_err(EstimationError::from)?;
     }
 
     Ok(PreparedIvProblem {
-        instruments_matrix: Arc::from(instruments_matrix),
+        instruments_matrix,
         z_ncols,
-        exogenous_matrix: Arc::from(exogenous_matrix),
+        exogenous_matrix,
         x_ncols,
         nrows,
-        treatment: Arc::from(t),
-        outcome: Arc::from(y),
+        treatment: t,
+        outcome: y,
         method: Arc::clone(&estimand.method),
         instruments: Arc::clone(&estimand.instruments),
         adjustment_set: Arc::clone(&estimand.adjustment_set),
@@ -477,6 +480,12 @@ fn prepare_iv_problem(
         treatment_delta,
         preparation,
     })
+}
+
+/// The unique contents of a freshly built shared design slice.
+fn shared_slice(shared: &mut Arc<[f64]>) -> Result<&mut [f64], EstimationError> {
+    Arc::get_mut(shared)
+        .ok_or_else(|| EstimationError::data_msg("a freshly built shared design is not unique"))
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1153,6 +1162,26 @@ mod tests {
             y[i] = yi;
         }
         (build_iv_data(n, t, y, z), instrumental_estimand())
+    }
+
+    #[test]
+    fn iv_preparation_gathers_each_selected_column_once_into_what_it_keeps() {
+        use antecedent_core::execution_attempt::{PhysicalEvent, observe_execution};
+
+        let n = 200;
+        let (data, estimand) = continuous_iv_scm(n, 41);
+        let query = query();
+        let attempt =
+            observe_execution(|| TwoStageLeastSquares::new().prepare(&data, &estimand, &query));
+        let problem = attempt.result.expect("prepared");
+        assert_eq!(problem.nrows, n);
+        // Treatment, outcome and the one instrument are the retained buffers: one copy each,
+        // straight into the allocation the problem keeps. No temporary column exists.
+        assert_eq!(attempt.report.physical(PhysicalEvent::Copy), Some(3));
+        assert_eq!(attempt.report.physical(PhysicalEvent::CopiedBytes), Some((3 * n * 8) as u64));
+        let z = data.float64_masked(VariableId::from_raw(2), &vec![true; n]).expect("z");
+        assert_eq!(&problem.instruments_matrix[n..2 * n], z.as_slice());
+        assert!(problem.instruments_matrix[..n].iter().all(|v| *v == 1.0));
     }
 
     /// `Z ∈ {0,1} → T → Y` with `U` confounding `T-Y`. True structural effect = 2.0.

@@ -121,6 +121,32 @@ impl ForestSpec {
     }
 }
 
+/// Where the neural fit runs.
+///
+/// `Cpu` is the default and never touches a device. `Gpu` requires a device distribution and
+/// a usable adapter and is refused, with the reason, otherwise. `Auto` uses the device when
+/// every check passes and the work is large enough to pay for the copies, and otherwise runs
+/// on the CPU and records why in the learner provenance.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum DevicePolicy {
+    /// Host CPU.
+    #[default]
+    Cpu,
+    /// Device, or refuse.
+    Gpu,
+    /// Device when it applies, else CPU with a recorded reason.
+    Auto,
+}
+
+impl DevicePolicy {
+    /// Whether this is the CPU default.
+    #[must_use]
+    pub const fn is_cpu(&self) -> bool {
+        matches!(self, Self::Cpu)
+    }
+}
+
 /// Neural net (Burn in L). Public name is not the provider.
 #[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -131,11 +157,15 @@ pub struct NeuralSpec {
     pub epochs: u32,
     /// Adam step size.
     pub learning_rate: f64,
+    /// Where the fit runs. Omitted from the serialized form when it is the CPU default, so
+    /// existing specs and their digests are unchanged.
+    #[serde(skip_serializing_if = "DevicePolicy::is_cpu")]
+    pub device: DevicePolicy,
 }
 
 impl Default for NeuralSpec {
     fn default() -> Self {
-        Self { hidden: 32, epochs: 40, learning_rate: 0.05 }
+        Self { hidden: 32, epochs: 40, learning_rate: 0.05, device: DevicePolicy::Cpu }
     }
 }
 
@@ -184,7 +214,13 @@ impl LearnerSpec {
                 s.min_samples_leaf.map_or_else(|| "task".to_string(), |leaf| leaf.to_string())
             ),
             Self::NeuralNet(s) => {
-                format!("neural:{}:{}:{}", s.hidden, s.epochs, s.learning_rate.to_bits())
+                let base =
+                    format!("neural:{}:{}:{}", s.hidden, s.epochs, s.learning_rate.to_bits());
+                match s.device {
+                    DevicePolicy::Cpu => base,
+                    DevicePolicy::Gpu => format!("{base}:gpu"),
+                    DevicePolicy::Auto => format!("{base}:auto"),
+                }
             }
         }
     }

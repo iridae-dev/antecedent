@@ -47,6 +47,7 @@ impl ContinuousResponseEstimator {
             levels: Vec::with_capacity(samples.len()),
             gradients: Vec::with_capacity(samples.len()),
             influence: Vec::new(),
+            keep: samples.first().map(|sample| sample.keep.clone()).unwrap_or_default(),
             all_treatments,
             n: samples.first().map_or(0, CompleteSample::len),
         };
@@ -466,14 +467,16 @@ pub(super) struct PluginGradientRun {
         not(feature = "calibration-internal"),
         allow(dead_code, reason = "read only by the calibration-internal band")
     )]
-    influence: Vec<PluginGradientInfluence>,
+    pub(super) influence: Vec<PluginGradientInfluence>,
     pub(super) all_treatments: Vec<f64>,
+    /// Original data-frame row index of each shared complete-case row.
+    pub(super) keep: Vec<usize>,
     /// Shared complete-case row count.
     #[cfg_attr(
         not(feature = "calibration-internal"),
         allow(dead_code, reason = "read only by the calibration-internal band")
     )]
-    n: usize,
+    pub(super) n: usize,
 }
 
 /// Coefficient-sandwich influence of one outcome's gradient coordinates.
@@ -481,9 +484,9 @@ pub(super) struct PluginGradientRun {
     not(feature = "calibration-internal"),
     allow(dead_code, reason = "read only by the calibration-internal band")
 )]
-struct PluginGradientInfluence {
+pub(super) struct PluginGradientInfluence {
     /// One centred column per treatment coordinate.
-    columns: Vec<Vec<f64>>,
+    pub(super) columns: Vec<Vec<f64>>,
 }
 
 /// Influence of each plug-in gradient coordinate `∂μ̂/∂a_j (at)`.

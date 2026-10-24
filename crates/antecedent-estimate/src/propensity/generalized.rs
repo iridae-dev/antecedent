@@ -626,8 +626,11 @@ impl PreparedLevels {
         ids.extend_from_slice(&estimand.adjustment_set);
         let crate::prepare::AdmittedColumns { data, row_mask: mask, receipt: preparation } =
             crate::prepare::admit_estimator_columns(data, &ids, crate::prepare::FINITE_TABLE_ONLY)?;
-        let t = data.float64_masked(query.treatment, &mask).map_err(EstimationError::from)?;
-        let outcome = data.float64_masked(query.outcome, &mask).map_err(EstimationError::from)?;
+        let t = data.float64_selected(query.treatment, &mask).map_err(EstimationError::from)?;
+        let outcome = data
+            .float64_selected(query.outcome, &mask)
+            .map_err(EstimationError::from)?
+            .into_owned();
         let n = t.len();
         if n == 0 {
             return Err(EstimationError::data_msg(
@@ -638,7 +641,7 @@ impl PreparedLevels {
         let mut rows_by_level = vec![0u64; levels.len()];
         let mut undeclared = 0u64;
         let mut first_undeclared = None;
-        for &value in &t {
+        for &value in t.iter() {
             if let Some(index) = levels.iter().position(|&l| l == value) {
                 category.push(u32::try_from(index).unwrap_or(u32::MAX));
                 rows_by_level[index] += 1;
@@ -672,8 +675,8 @@ impl PreparedLevels {
         let mut design = vec![0.0; n * ncols];
         design[..n].fill(1.0);
         for (j, &z) in estimand.adjustment_set.iter().enumerate() {
-            let column = data.float64_masked(z, &mask).map_err(EstimationError::from)?;
-            design[(1 + j) * n..(2 + j) * n].copy_from_slice(&column);
+            data.float64_selected_into(z, &mask, &mut design[(1 + j) * n..(2 + j) * n])
+                .map_err(EstimationError::from)?;
         }
         let mut row_index = Vec::with_capacity(n);
         for (i, _) in mask.iter().enumerate().filter(|&(_, &keep)| keep) {

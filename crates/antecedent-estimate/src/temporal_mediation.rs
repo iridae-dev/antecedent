@@ -19,8 +19,9 @@ use antecedent_core::{
     AssumptionSet, Diagnostic, ExecutionContext, IdentificationStatus, Lag, MediationContrast,
     MediationQuery, TemporalNodeKey,
 };
-use antecedent_data::{LaggedColumn, LaggedSampleWorkspace, TimeSeriesData};
+use antecedent_data::{LaggedColumn, TimeSeriesData};
 use antecedent_expr::IdentifiedEstimand;
+use antecedent_model::history_operators::HistoryScan;
 use antecedent_stats::{FaerBackend, LeastSquaresWorkspace};
 
 use crate::adjustment::{EffectEstimate, intervention_f64};
@@ -533,18 +534,13 @@ impl TemporalMediationEstimator {
         );
         let ncols = cols.len();
         let max_lag = cols.iter().map(|c| c.lag.raw()).max().unwrap_or(1);
-        let plan =
-            data.plan_lagged_sample(max_lag, Arc::from(cols)).map_err(EstimationError::from)?;
-        let mut ws = LaggedSampleWorkspace::default();
-        let (prep, window_complete) = if gaps {
-            let (prep, complete) = plan
-                .prepare_complete_windows(data, &mut ws, &ctx.kernel_policy)
-                .map_err(EstimationError::from)?;
-            // A series whose windows are all intact is the contiguous case.
-            (prep, Some(complete).filter(|complete| !complete.iter().all(|intact| *intact)))
-        } else {
-            (plan.prepare(data, &mut ws, &ctx.kernel_policy).map_err(EstimationError::from)?, None)
-        };
+        let mut scan =
+            HistoryScan::plan(data, max_lag, Arc::from(cols)).map_err(EstimationError::from)?;
+        let (prep, window_complete) =
+            scan.windows(data, &ctx.kernel_policy, gaps).map_err(EstimationError::from)?;
+        // A series whose windows are all intact is the contiguous case.
+        let window_complete =
+            window_complete.filter(|complete| !complete.iter().all(|intact| *intact));
         let n = prep.n;
         if n < 4 {
             return Err(EstimationError::data_msg("insufficient effective samples for mediation"));

@@ -240,6 +240,23 @@ use super::plan::resolve_one;
 /// Deterministic AR(2)-ish series: `t` is a mildly autocorrelated continuous
 /// treatment, `y` depends on `t` lagged 1 and 2 steps. Non-degenerate `t` mean.
 fn synthetic_series(n: usize) -> (TimeSeriesData, TemporalDag) {
+    series_with_noise(n, 0.0, 0)
+}
+
+/// Standard-normal-ish draw (sum of twelve uniforms) from a seeded linear congruential state.
+fn lcg_normal(state: &mut u64) -> f64 {
+    let mut uniform = || {
+        *state =
+            state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+        ((*state >> 11) as f64) / ((1_u64 << 53) as f64)
+    };
+    (0..12).map(|_| uniform()).sum::<f64>() - 6.0
+}
+
+/// `synthetic_series` with innovations of standard deviation `sd` on the treatment and the
+/// outcome (`sd = 0` is the deterministic series).
+fn series_with_noise(n: usize, sd: f64, seed: u64) -> (TimeSeriesData, TemporalDag) {
+    let mut noise_state = seed.wrapping_mul(2_654_435_761).wrapping_add(17);
     let mut b = CausalSchemaBuilder::new();
     for name in ["t", "y"] {
         b.add_variable(
@@ -258,6 +275,10 @@ fn synthetic_series(n: usize) -> (TimeSeriesData, TemporalDag) {
     for i in 2..n {
         t[i] = 0.3 + 0.2 * t[i - 1] + 0.05 * (i as f64).sin();
         y[i] = 1.0 + 2.0 * t[i - 1] + 3.0 * t[i - 2] + 0.01 * (i as f64).cos();
+        if sd > 0.0 {
+            t[i] += 0.5 * sd * lcg_normal(&mut noise_state) + 0.6 * (t[i - 1] - 0.375);
+            y[i] += sd * lcg_normal(&mut noise_state);
+        }
     }
     let cols = vec![
         OwnedColumn::Float64(
@@ -1433,4 +1454,102 @@ fn bayesian_response_refuses_an_ordinary_or_non_gaussian_likelihood_and_names_th
         assert!(text.contains("Next attempt"), "{text}");
         assert!(text.contains("GaussianIdentity"), "{text}");
     }
+}
+
+fn intervention_surface_query(horizons: Vec<u32>) -> ResponseQuery {
+    ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(1),
+        interventions: Arc::from(vec![Intervention::set(VariableId::from_raw(0), Value::f64(1.0))]),
+    })
+    .with_temporal(TemporalResponseSpec::new(horizons, TemporalPolicy::pulse(0), None).unwrap())
+}
+
+/// Two-horizon Bayesian intervention response on a noisy series: the cell means and, when
+/// retained, the joint draws of the two cells.
+fn two_horizon_bayesian(seed: u64) -> (Vec<f64>, Option<antecedent_core::CredibleDraws>) {
+    let (data, graph) = series_with_noise(260, 1.0, seed);
+    let (e1, i1) = identify(&graph, 1);
+    let (e2, i2) = identify(&graph, 2);
+    let response = TemporalResponseEstimator::new()
+        .estimate_bayesian(
+            &data,
+            TemporalIdentification {
+                horizons: &[(&e1, &i1), (&e2, &i2)],
+                status: IdentificationStatus::NonparametricallyIdentified,
+                assumptions: AssumptionSet::new(),
+            },
+            &intervention_surface_query(vec![1, 2]),
+            &crate::BayesianGComputationAte::conjugate(),
+            &ExecutionContext::for_tests(7),
+        )
+        .unwrap();
+    let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
+        &response.estimate
+    else {
+        panic!("expected surface");
+    };
+    let draws = match response.uncertainty {
+        ResponseUncertainty::PointwiseBand { draws, .. } => draws,
+        _ => panic!("expected a pointwise band"),
+    };
+    (mean.to_vec(), draws)
+}
+
+fn sd_of(values: &[f64]) -> f64 {
+    let n = values.len() as f64;
+    let m = values.iter().sum::<f64>() / n;
+    (values.iter().map(|v| (v - m) * (v - m)).sum::<f64>() / (n - 1.0)).sqrt()
+}
+
+fn corr_of(a: &[f64], b: &[f64]) -> f64 {
+    let n = a.len() as f64;
+    let (ma, mb) = (a.iter().sum::<f64>() / n, b.iter().sum::<f64>() / n);
+    let cov: f64 = a.iter().zip(b).map(|(x, y)| (x - ma) * (y - mb)).sum();
+    let va: f64 = a.iter().map(|x| (x - ma) * (x - ma)).sum();
+    let vb: f64 = b.iter().map(|y| (y - mb) * (y - mb)).sum();
+    cov / (va * vb).sqrt()
+}
+
+#[test]
+fn a_nonlinear_cross_horizon_functional_of_the_joint_draws_matches_repeated_simulation() {
+    // Independent reference: the sampling spread of the same functional of the two cell
+    // estimates over fresh simulated series from one data-generating process.
+    let ratio = |a: f64, b: f64| b / a;
+    let (mut ref_ratio, mut ref_first, mut ref_second) = (Vec::new(), Vec::new(), Vec::new());
+    for seed in 1..=60 {
+        let (mean, _) = two_horizon_bayesian(1_000 + seed);
+        ref_ratio.push(ratio(mean[0], mean[1]));
+        ref_first.push(mean[0]);
+        ref_second.push(mean[1]);
+    }
+    let reference_sd = sd_of(&ref_ratio);
+    let reference_corr = corr_of(&ref_first, &ref_second);
+
+    // One observed series: the joint draws are retained for both horizons together.
+    let (mean, draws) = two_horizon_bayesian(5);
+    let draws = draws.expect("a joint trajectory law retains its draws for a functional");
+    assert_eq!(draws.n_coordinates(), 2);
+    let (c1, c2) = (draws.column(0).unwrap(), draws.column(1).unwrap());
+    let joint: Vec<f64> = c1.iter().zip(c2).map(|(a, b)| ratio(*a, *b)).collect();
+    let joint_sd = sd_of(&joint);
+    assert!(
+        joint_sd / reference_sd > 0.5 && joint_sd / reference_sd < 1.8,
+        "joint sd {joint_sd} vs simulation sd {reference_sd}"
+    );
+    // The cell draws carry the dependence the simulation shows.
+    let joint_corr = corr_of(c1, c2);
+    assert!(
+        (joint_corr - reference_corr).abs() < 0.3,
+        "joint correlation {joint_corr} vs simulation {reference_corr}"
+    );
+    // Pairing the same marginals independently (a rotated index) is the product of marginals;
+    // where the simulation shows real dependence it is farther from the reference.
+    let half = c2.len() / 2;
+    let rotated: Vec<f64> =
+        c1.iter().zip(c2.iter().cycle().skip(half)).map(|(a, b)| ratio(*a, *b)).collect();
+    if reference_corr.abs() > 0.4 {
+        let miss = |sd: f64| (sd / reference_sd).ln().abs();
+        assert!(miss(joint_sd) < miss(sd_of(&rotated)), "joint must beat the product of marginals");
+    }
+    assert!(mean.iter().all(|m| m.is_finite()));
 }

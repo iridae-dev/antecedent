@@ -217,6 +217,80 @@ pub(crate) fn identify_interventional_metered(
     }
 }
 
+/// One ID subproblem with its own hard-set binding: `P(y | do(x))` where the free
+/// do-labels are `assign`.
+pub(crate) struct AssignedProblem {
+    /// Outcome set.
+    pub(crate) y: BitSet,
+    /// Intervened set.
+    pub(crate) x: BitSet,
+    /// Hard-set values baked into the emitted factors.
+    pub(crate) assign: Arc<[(DenseNodeId, Value)]>,
+}
+
+/// Result of identifying a list of [`AssignedProblem`]s in one run.
+pub(crate) enum AssignedIds {
+    /// One functional per problem, in order, all in the caller's arena.
+    Identified(Vec<ExprId>),
+    /// ID line 5 for the first problem that failed, carrying that problem.
+    Hedge(HedgeCertificate),
+}
+
+/// Identify each problem with the complete ID algorithm over one shared memo and arena.
+///
+/// Each problem keeps its own `assign`: the same intervened node can be bound to a
+/// different level in each emitted functional. The district formula of a path-specific
+/// effect needs this, since each district's kernel reads the treatment at the level of the
+/// treatment edges that enter that district.
+///
+/// # Errors
+///
+/// Overlapping or empty sets, or unknown variables.
+pub(crate) fn identify_assigned_problems(
+    prepared: &PreparedAdmg,
+    arena: &mut CausalExprArena,
+    derivation: &mut DerivationTrace,
+    perf: &mut IdentificationPerformanceRecord,
+    ws: &mut GraphWorkspace,
+    problems: &[AssignedProblem],
+) -> Result<AssignedIds, IdentificationError> {
+    let mut memo: HashMap<SubproblemKey, IdOutcome> = HashMap::new();
+    let active = BitSet::full(prepared.admg().node_count());
+    let mut meter = IdMeter::unmetered();
+    let mut run = IdRun {
+        prepared,
+        ancestors: AncestorMemo::default(),
+        arena,
+        memo: &mut memo,
+        derivation,
+        perf,
+        ws,
+        meter: &mut meter,
+    };
+    let mut functionals = Vec::with_capacity(problems.len());
+    for problem in problems {
+        require_disjoint(&problem.y, &problem.x)?;
+        match id_recurse(
+            &mut run,
+            IdQuery {
+                y: &problem.y,
+                x: &problem.x,
+                v: &active,
+                dist: &DistCtx::Marginal,
+                assign: Arc::clone(&problem.assign),
+            },
+        )? {
+            IdOutcome::Expr(expression) => functionals.push(expression),
+            IdOutcome::Fail(hedge) => {
+                return Ok(AssignedIds::Hedge(hedge.with_problem(
+                    crate::hedge::HedgeProblem::capture(prepared, &problem.x, &problem.y)?,
+                )));
+            }
+        }
+    }
+    Ok(AssignedIds::Identified(functionals))
+}
+
 /// The two sides of a hard-set schedule contrast: the scheduled treatment nodes and the
 /// level each side sets them all to.
 #[derive(Debug, Clone, Copy)]

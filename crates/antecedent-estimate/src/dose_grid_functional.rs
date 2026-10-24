@@ -670,52 +670,61 @@ fn grid_rows(
             &error.to_string(),
         )
     })?;
-    let fits = execution.map_indexed_with_scratch(
-        request.grid.len(),
-        LocalQuadraticWorkspace::default,
-        |index, inner, workspace| {
-            if inner.cancellation.is_cancelled() {
-                return Err(antecedent_stats::StatsError::Cancelled.into());
-            }
-            let at = request.grid[index];
-            let fit = fit_at(workspace, request, at)?;
-            let residual = fit.influences.iter().sum::<f64>().abs();
-            Ok::<_, EstimationError>((
-                fit.point,
-                fit.robust_standard_error,
-                fit.robust_first_derivative_standard_error,
-                residual,
-            ))
-        },
-    )?;
     let mut levels = Vec::new();
     let mut derivatives = Vec::new();
-    for (index, &at) in request.grid.iter().enumerate() {
-        let (point, level_se, derivative_se, residual) = &fits[index];
-        numerical.fits += 1;
-        numerical.max_abs_influence_sum = numerical.max_abs_influence_sum.max(*residual);
-        if request.functional == DoseFunctional::Derivative {
-            let standard_error = *derivative_se;
-            derivatives.push(DoseDerivative {
-                dose: at,
-                support: labels[index],
-                derivative: point.first_derivative,
-                standard_error,
-                local_ess: ess[index],
-                interval: interval(point.first_derivative, standard_error),
-            });
-        } else {
-            let standard_error = *level_se;
-            levels.push(DoseLevel {
-                dose: at,
-                support: labels[index],
-                level: point.value,
-                standard_error,
-                local_ess: ess[index],
-                interval: interval(point.value, standard_error),
-            });
-        }
-    }
+    // Grid points are fitted ahead of the row assembly by at most `2 * workers` results, so a
+    // slow consumer holds a bounded number of fits instead of one per grid point.
+    execution
+        .pipeline_indexed_with_scratch(
+            request.grid.len(),
+            workers.saturating_mul(2),
+            LocalQuadraticWorkspace::default,
+            |index, inner, workspace| {
+                if inner.cancellation.is_cancelled() {
+                    return Err(antecedent_stats::StatsError::Cancelled.into());
+                }
+                let at = request.grid[index];
+                let fit = fit_at(workspace, request, at)?;
+                let residual = fit.influences.iter().sum::<f64>().abs();
+                Ok::<_, EstimationError>((
+                    fit.point,
+                    fit.robust_standard_error,
+                    fit.robust_first_derivative_standard_error,
+                    residual,
+                ))
+            },
+            |index, (point, level_se, derivative_se, residual)| {
+                let at = request.grid[index];
+                numerical.fits += 1;
+                numerical.max_abs_influence_sum = numerical.max_abs_influence_sum.max(residual);
+                if request.functional == DoseFunctional::Derivative {
+                    derivatives.push(DoseDerivative {
+                        dose: at,
+                        support: labels[index],
+                        derivative: point.first_derivative,
+                        standard_error: derivative_se,
+                        local_ess: ess[index],
+                        interval: interval(point.first_derivative, derivative_se),
+                    });
+                } else {
+                    levels.push(DoseLevel {
+                        dose: at,
+                        support: labels[index],
+                        level: point.value,
+                        standard_error: level_se,
+                        local_ess: ess[index],
+                        interval: interval(point.value, level_se),
+                    });
+                }
+                Ok(antecedent_core::execution::PipelineStep::Continue)
+            },
+        )
+        .map_err(|error| match error {
+            antecedent_core::execution::MapExecutionError::Work(error) => error,
+            antecedent_core::execution::MapExecutionError::Admission(_) => {
+                antecedent_stats::StatsError::Cancelled.into()
+            }
+        })?;
     Ok((levels, derivatives))
 }
 

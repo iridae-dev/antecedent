@@ -17,7 +17,7 @@ use antecedent_stats::{
 use crate::EstimationError;
 use crate::tiled_prediction::{
     AxisOrder, Encoding, GridPoint, OutcomeDraws, Reduction, StreamSummary, StreamedValue,
-    TileRequest, stream_tile,
+    TileRequest, stream_tile_pipelined,
 };
 use crate::util::range;
 
@@ -35,6 +35,9 @@ fn non_derivative_functional() -> EstimationError {
 /// One streamed response grid.
 ///
 /// Rows are visited and reduced. The row × draw × grid block is not stored.
+/// Rows per pipelined chunk of the response grid.
+const RESPONSE_ROWS_PER_CHUNK: u64 = 4096;
+
 struct ResponseGrid<'a> {
     /// Draw-major coefficients: draw `k` occupies `[k * width, (k + 1) * width)`.
     coefficients: &'a [f64],
@@ -86,12 +89,15 @@ fn aligned_coefficient_draws(columns: &[&[f64]]) -> Result<(Vec<f64>, Vec<bool>)
     Ok((coefficients, failed))
 }
 
-/// Stream the response grid through [`stream_tile`].
+/// Stream the response grid through [`stream_tile_pipelined`]: row chunks are evaluated by
+/// leased workers ahead of the reduction, at most one chunk per thread alive, and reduced in row
+/// order so the sums match the serial stream bit for bit.
 ///
 /// Each returned column is one grid point and contains every draw. A failed draw stays at its
 /// index as NaN. Encodings are formed once per grid point.
 fn stream_response_grid(
     request: &ResponseGrid<'_>,
+    ctx: &antecedent_core::ExecutionContext,
 ) -> Result<(Vec<Vec<f64>>, StreamSummary), EstimationError> {
     let n_draws = request.failed_draws.len();
     let n_grid = request.coordinates.len();
@@ -129,7 +135,8 @@ fn stream_response_grid(
     };
     let family = request.family;
     let mut refused = false;
-    let summary = stream_tile(&tile, |emitted| {
+    let window = usize::try_from(ctx.parallelism.max_threads.get()).unwrap_or(1).max(1);
+    let summary = stream_tile_pipelined(&tile, ctx, RESPONSE_ROWS_PER_CHUNK, window, |emitted| {
         let StreamedValue::Full { draw, grid_id, value, .. } = emitted else {
             refused = true;
             return;
@@ -145,7 +152,8 @@ fn stream_response_grid(
         }
         sums[grid_index * n_draws + draw_index] += family.mean_from_eta(value);
     })
-    .map_err(|error| EstimationError::data_msg(error.to_string()))?;
+    .map_err(|error| EstimationError::data_msg(error.to_string()))?
+    .summary;
     if refused {
         return Err(EstimationError::data_msg(
             "Bayesian response tile emitted an index outside the grid",
@@ -331,17 +339,20 @@ impl ContinuousResponseEstimator {
             let row_width = u64::try_from(weights.len() - 2).map_err(|_| {
                 EstimationError::data_msg("Bayesian response row width does not fit u64")
             })?;
-            stream_response_grid(&ResponseGrid {
-                coefficients: &coefficients,
-                failed_draws: &failed_draws,
-                row_features: &weights[2..],
-                row_count: 1,
-                row_width,
-                coordinates: &grid,
-                encoding_degree: 1,
-                family,
-                average_rows: false,
-            })?
+            stream_response_grid(
+                &ResponseGrid {
+                    coefficients: &coefficients,
+                    failed_draws: &failed_draws,
+                    row_features: &weights[2..],
+                    row_count: 1,
+                    row_width,
+                    coordinates: &grid,
+                    encoding_degree: 1,
+                    family,
+                    average_rows: false,
+                },
+                ctx,
+            )?
         } else {
             // A primary shift puts the dose on each row. Otherwise the dose is the grid coordinate.
             let encoding_degree = u64::from(primary_shift.is_none());
@@ -382,17 +393,20 @@ impl ContinuousResponseEstimator {
             let row_width = u64::try_from(row_width_usize).map_err(|_| {
                 EstimationError::data_msg("Bayesian response row width does not fit u64")
             })?;
-            stream_response_grid(&ResponseGrid {
-                coefficients: &coefficients,
-                failed_draws: &failed_draws,
-                row_features: &row_features,
-                row_count,
-                row_width,
-                coordinates: &grid,
-                encoding_degree,
-                family,
-                average_rows: true,
-            })?
+            stream_response_grid(
+                &ResponseGrid {
+                    coefficients: &coefficients,
+                    failed_draws: &failed_draws,
+                    row_features: &row_features,
+                    row_count,
+                    row_width,
+                    coordinates: &grid,
+                    encoding_degree,
+                    family,
+                    average_rows: true,
+                },
+                ctx,
+            )?
         };
         for values in columns {
             let (mean, lo, hi, sd) = crate::bayesian::summarize_linear_response_draws(
@@ -1067,17 +1081,20 @@ mod tests {
         let failed = [false, true];
         let features = [0.5_f64, 1.5];
         let doses = [0.0_f64, 1.0];
-        let (columns, summary) = stream_response_grid(&ResponseGrid {
-            coefficients: &coefficients,
-            failed_draws: &failed,
-            row_features: &features,
-            row_count: 2,
-            row_width: 1,
-            coordinates: &doses,
-            encoding_degree: 1,
-            family: GlmFamily::GaussianIdentity,
-            average_rows: true,
-        })
+        let (columns, summary) = stream_response_grid(
+            &ResponseGrid {
+                coefficients: &coefficients,
+                failed_draws: &failed,
+                row_features: &features,
+                row_count: 2,
+                row_width: 1,
+                coordinates: &doses,
+                encoding_degree: 1,
+                family: GlmFamily::GaussianIdentity,
+                average_rows: true,
+            },
+            &antecedent_core::ExecutionContext::for_tests(0),
+        )
         .unwrap();
         let stored: usize = columns.iter().map(Vec::len).sum();
         assert_eq!(summary.invariant_evaluations, 2);
@@ -1098,17 +1115,20 @@ mod tests {
         let failed = [false, false];
         let features = [0.25_f64];
         let doses = [0.0_f64, 3.0];
-        let (columns, summary) = stream_response_grid(&ResponseGrid {
-            coefficients: &coefficients,
-            failed_draws: &failed,
-            row_features: &features,
-            row_count: 1,
-            row_width: 1,
-            coordinates: &doses,
-            encoding_degree: 1,
-            family: GlmFamily::GaussianIdentity,
-            average_rows: false,
-        })
+        let (columns, summary) = stream_response_grid(
+            &ResponseGrid {
+                coefficients: &coefficients,
+                failed_draws: &failed,
+                row_features: &features,
+                row_count: 1,
+                row_width: 1,
+                coordinates: &doses,
+                encoding_degree: 1,
+                family: GlmFamily::GaussianIdentity,
+                average_rows: false,
+            },
+            &antecedent_core::ExecutionContext::for_tests(0),
+        )
         .unwrap();
         assert_eq!(summary.invariant_evaluations, 2);
         assert_eq!(summary.emitted, 4);
@@ -1118,34 +1138,40 @@ mod tests {
         assert_eq!(bits(columns[1][1]), bits(24.75));
 
         let link = GlmFamily::BinomialLogit;
-        let (linked, _) = stream_response_grid(&ResponseGrid {
-            coefficients: &[1.0_f64, 2.0, 4.0],
-            failed_draws: &[false],
-            row_features: &[0.5_f64, 1.5],
-            row_count: 2,
-            row_width: 1,
-            coordinates: &[0.0_f64],
-            encoding_degree: 1,
-            family: link,
-            average_rows: true,
-        })
+        let (linked, _) = stream_response_grid(
+            &ResponseGrid {
+                coefficients: &[1.0_f64, 2.0, 4.0],
+                failed_draws: &[false],
+                row_features: &[0.5_f64, 1.5],
+                row_count: 2,
+                row_width: 1,
+                coordinates: &[0.0_f64],
+                encoding_degree: 1,
+                family: link,
+                average_rows: true,
+            },
+            &antecedent_core::ExecutionContext::for_tests(0),
+        )
         .unwrap();
         let per_row = (link.mean_from_eta(3.0_f64) + link.mean_from_eta(7.0_f64)) / 2.0_f64;
         assert_eq!(bits(linked[0][0]), bits(per_row));
         assert_ne!(bits(per_row), bits(link.mean_from_eta(5.0_f64)));
 
         // Degree 0: the dose column is a row feature (shifted treatment), and a failed draw stays.
-        let (shifted, shift_summary) = stream_response_grid(&ResponseGrid {
-            coefficients: &[1.0_f64, 2.0, 9.0, 0.0],
-            failed_draws: &[false, true],
-            row_features: &[10.0_f64, 30.0],
-            row_count: 2,
-            row_width: 1,
-            coordinates: &[0.0_f64],
-            encoding_degree: 0,
-            family: GlmFamily::GaussianIdentity,
-            average_rows: true,
-        })
+        let (shifted, shift_summary) = stream_response_grid(
+            &ResponseGrid {
+                coefficients: &[1.0_f64, 2.0, 9.0, 0.0],
+                failed_draws: &[false, true],
+                row_features: &[10.0_f64, 30.0],
+                row_count: 2,
+                row_width: 1,
+                coordinates: &[0.0_f64],
+                encoding_degree: 0,
+                family: GlmFamily::GaussianIdentity,
+                average_rows: true,
+            },
+            &antecedent_core::ExecutionContext::for_tests(0),
+        )
         .unwrap();
         assert_eq!(shift_summary.invariant_evaluations, 1);
         assert_eq!(shift_summary.emitted, 4);

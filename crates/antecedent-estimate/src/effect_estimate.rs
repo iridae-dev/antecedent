@@ -147,6 +147,14 @@ pub struct PreparationSummary {
     pub rows_admitted: Option<u64>,
     /// Lower-case hex digest of the preparation plan.
     pub receipt_digest: String,
+    /// Payload bytes the preparation admitted (a finite table's payload, or a scan's
+    /// scratch). `None` when the summary was read back from a wire that recorded none.
+    pub admitted_bytes: Option<u64>,
+    /// Byte budget the payload was compared with. `None` when no budget was compared.
+    pub budget_bytes: Option<u64>,
+    /// Stable name of what the estimator was given: `finite`, `materialized_from_scan`
+    /// or `scan`. `None` when the summary was read back from a wire that recorded none.
+    pub delivery: Option<String>,
 }
 
 impl PreparationSummary {
@@ -160,11 +168,25 @@ impl PreparationSummary {
                 "not_an_end_to_end_route"
             }
         };
+        use antecedent_data::materialize::{AdmissionRecord, DeliveryRecord};
+        let (admitted_bytes, budget_bytes) = match receipt.admission() {
+            AdmissionRecord::Materialized { bytes, budget } => (bytes, Some(budget)),
+            AdmissionRecord::Unmetered { bytes } => (bytes, None),
+            AdmissionRecord::Streaming { scratch_bytes, budget } => (scratch_bytes, Some(budget)),
+        };
+        let delivery = match receipt.delivery() {
+            DeliveryRecord::Finite { .. } => "finite",
+            DeliveryRecord::MaterializedFromScan { .. } => "materialized_from_scan",
+            DeliveryRecord::Scan => "scan",
+        };
         Self {
             backend: receipt.path().as_str().to_owned(),
             route_bound: route_bound.to_owned(),
             rows_admitted: receipt.proved_rows(),
             receipt_digest: receipt.digest().to_owned(),
+            admitted_bytes: Some(admitted_bytes),
+            budget_bytes,
+            delivery: Some(delivery.to_owned()),
         }
     }
 
@@ -177,7 +199,30 @@ impl PreparationSummary {
         rows_admitted: Option<u64>,
         receipt_digest: String,
     ) -> Self {
-        Self { backend, route_bound, rows_admitted, receipt_digest }
+        Self {
+            backend,
+            route_bound,
+            rows_admitted,
+            receipt_digest,
+            admitted_bytes: None,
+            budget_bytes: None,
+            delivery: None,
+        }
+    }
+
+    /// The same summary with the resource facts of its receipt (required outside this
+    /// crate because the type is `#[non_exhaustive]`).
+    #[must_use]
+    pub fn with_resources(
+        mut self,
+        admitted_bytes: Option<u64>,
+        budget_bytes: Option<u64>,
+        delivery: Option<String>,
+    ) -> Self {
+        self.admitted_bytes = admitted_bytes;
+        self.budget_bytes = budget_bytes;
+        self.delivery = delivery;
+        self
     }
 }
 

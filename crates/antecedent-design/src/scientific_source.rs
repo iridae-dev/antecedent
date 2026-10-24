@@ -366,18 +366,50 @@ impl ScientificDecisionSource {
         scope: ScientificConsumptionScope,
     ) -> Result<ScopedDecisionResult, ScientificSourceError> {
         self.authorize(scope)?;
-        let mut result = match self.payload.as_ref() {
+        let result = match self.payload.as_ref() {
             ScientificSourcePayload::Means(source) => evaluate_contract_on_means(contract, source),
             ScientificSourcePayload::Law(source) => evaluate_contract(contract, source),
         }
         .map_err(|error| ScientificSourceError::Decision(Box::new(error)))?;
+        Ok(self.scoped(result, scope))
+    }
+    /// [`Self::evaluate`] through the demand executor: a stored law is read in batches and
+    /// its per-action utilities are held under `ctx`'s admission pool, and a mean source
+    /// answers an affine demand without a draw. Cancellation of `ctx` stops the draws.
+    ///
+    /// # Errors
+    /// As [`Self::evaluate`], and a refusal naming the memory budget when the pool cannot
+    /// hold the evaluation.
+    pub fn evaluate_admitted(
+        &self,
+        contract: &DecisionContract,
+        scope: ScientificConsumptionScope,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<ScopedDecisionResult, ScientificSourceError> {
+        self.authorize(scope)?;
+        let result = match self.payload.as_ref() {
+            ScientificSourcePayload::Means(source) => {
+                crate::decision_evaluation::evaluate_mean_source_admitted(contract, source, ctx)
+            }
+            ScientificSourcePayload::Law(source) => {
+                crate::decision_evaluation::evaluate_artifact_admitted(contract, source, ctx)
+            }
+        }
+        .map_err(|error| ScientificSourceError::Decision(Box::new(error)))?;
+        Ok(self.scoped(result, scope))
+    }
+    fn scoped(
+        &self,
+        mut result: DecisionResult,
+        scope: ScientificConsumptionScope,
+    ) -> ScopedDecisionResult {
         result.assumptions.push(format!(
             "scientific_scope={scope:?}; target={}; identification={}; dependency={}",
             self.target.identity(),
             self.identification.identity(),
             self.dependency
         ));
-        Ok(ScopedDecisionResult {
+        ScopedDecisionResult {
             result,
             scope,
             target_identity: self.target.identity(),
@@ -386,7 +418,7 @@ impl ScientificDecisionSource {
             question_identity: self.question_identity(),
             projection: self.projection.clone(),
             _retention: self.retention.clone(),
-        })
+        }
     }
     /// Execute the existing finite-search owner under an explicit scientific scope.
     ///

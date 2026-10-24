@@ -29,9 +29,10 @@
 use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, IdentificationStatus, Lag, TemporalNodeKey, VariableId};
-use antecedent_data::{LaggedColumn, LaggedSampleWorkspace};
+use antecedent_data::LaggedColumn;
 use antecedent_expr::EstimandMethod;
 use antecedent_graph::DenseNodeId;
+use antecedent_model::history_operators::HistoryScan;
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
 use crate::EstimationError;
@@ -198,9 +199,8 @@ pub fn prepare_sequence_level(
         column_of[i] = columns.len();
         columns.push(LaggedColumn { variable: key.variable, lag: Lag::from_raw(lag) });
     }
-    let plan = data.plan_lagged_sample(max_lag, Arc::from(columns.clone()))?;
-    let mut workspace = LaggedSampleWorkspace::default();
-    let sample = plan.prepare(data, &mut workspace, &ctx.kernel_policy)?;
+    let mut scan = HistoryScan::plan(data, max_lag, Arc::from(columns.clone()))?;
+    let sample = scan.complete(data, &ctx.kernel_policy)?;
     let n = sample.n;
     if n < 3 {
         return Err(EstimationError::unsupported(

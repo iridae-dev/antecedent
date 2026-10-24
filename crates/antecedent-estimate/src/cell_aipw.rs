@@ -249,11 +249,13 @@ fn prepare_cells(
     }
     let crate::prepare::AdmittedColumns { data, row_mask: mask, receipt } =
         crate::prepare::admit_estimator_columns(data, &ids, crate::prepare::FINITE_TABLE_ONLY)?;
-    let t_cols: Vec<Vec<f64>> = treatments
+    // Read-only columns borrow the table when the cohort is one run; the outcome and the
+    // design are retained, so each is gathered exactly once into what is kept.
+    let t_cols: Vec<std::borrow::Cow<'_, [f64]>> = treatments
         .iter()
-        .map(|&id| data.float64_masked(id, &mask).map_err(EstimationError::from))
+        .map(|&id| data.float64_selected(id, &mask).map_err(EstimationError::from))
         .collect::<Result<_, _>>()?;
-    let y = data.float64_masked(outcome, &mask).map_err(EstimationError::from)?;
+    let y = data.float64_selected(outcome, &mask).map_err(EstimationError::from)?.into_owned();
     let n = y.len();
     if n == 0 {
         return Err(EstimationError::data_msg("no complete-case rows for cell AIPW"));
@@ -273,7 +275,7 @@ fn prepare_cells(
                 "continuous cell grid must be finite, increasing, non-empty and use a distinct coordinate",
             ));
         }
-        let d = data.float64_masked(spec.variable, &mask).map_err(EstimationError::from)?;
+        let d = data.float64_selected(spec.variable, &mask).map_err(EstimationError::from)?;
         let snapped: Vec<usize> = d.iter().map(|&v| nearest_index(spec.grid, v)).collect();
         n_cells *= spec.grid.len();
         extra = Some(snapped);
@@ -310,9 +312,9 @@ fn prepare_cells(
     let mut design = vec![0.0; n * ncols];
     design[..n].fill(1.0);
     for (j, &z) in adjustment.iter().enumerate() {
-        let col = data.float64_masked(z, &mask).map_err(EstimationError::from)?;
         let base = (1 + j) * n;
-        design[base..base + n].copy_from_slice(&col[..n]);
+        data.float64_selected_into(z, &mask, &mut design[base..base + n])
+            .map_err(EstimationError::from)?;
     }
     let mut row_index = Vec::with_capacity(n);
     for (i, &keep) in mask.iter().enumerate() {

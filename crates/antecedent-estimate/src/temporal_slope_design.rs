@@ -16,8 +16,9 @@
 use std::sync::Arc;
 
 use antecedent_core::{CausalRng, KernelPolicy, TargetPopulation, TemporalEffectQuery, VariableId};
-use antecedent_data::{LaggedColumn, LaggedSampleWorkspace, TemporalIndexer, TimeSeriesData};
+use antecedent_data::{LaggedColumn, TemporalIndexer, TimeSeriesData};
 use antecedent_expr::IdentifiedEstimand;
+use antecedent_model::history_operators::HistoryScan;
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
 use crate::adjustment::intervention_f64;
@@ -164,11 +165,9 @@ impl TemporalSlopeDesign {
             &mut cols,
         )?;
         let max_lag = cols.iter().map(|c| c.lag.raw()).max().unwrap_or(0);
-        let plan = data
-            .plan_lagged_sample(max_lag, Arc::<[LaggedColumn]>::from(cols))
+        let mut scan = HistoryScan::plan(data, max_lag, Arc::<[LaggedColumn]>::from(cols))
             .map_err(EstimationError::from)?;
-        let mut sample_ws = LaggedSampleWorkspace::default();
-        let prep = plan.prepare(data, &mut sample_ws, policy).map_err(EstimationError::from)?;
+        let prep = scan.complete(data, policy).map_err(EstimationError::from)?;
         let n = prep.n;
         if n < MIN_SLOPE_ROWS {
             return Err(EstimationError::data_msg(
@@ -249,18 +248,11 @@ impl TemporalSlopeDesign {
             &mut cols,
         )?;
         let max_lag = cols.iter().map(|c| c.lag.raw()).max().unwrap_or(0);
-        let plan = data
-            .plan_lagged_sample(max_lag, Arc::<[LaggedColumn]>::from(cols))
+        let mut scan = HistoryScan::plan(data, max_lag, Arc::<[LaggedColumn]>::from(cols))
             .map_err(EstimationError::from)?;
-        let mut sample_ws = LaggedSampleWorkspace::default();
-        let (prep, complete) = if allow_gaps {
-            plan.prepare_complete_windows(data, &mut sample_ws, policy)
-                .map_err(EstimationError::from)?
-        } else {
-            let prep = plan.prepare(data, &mut sample_ws, policy).map_err(EstimationError::from)?;
-            let complete = vec![true; prep.n];
-            (prep, complete)
-        };
+        let (prep, complete) =
+            scan.windows(data, policy, allow_gaps).map_err(EstimationError::from)?;
+        let complete = complete.unwrap_or_else(|| vec![true; prep.n]);
         let n = prep.n;
         if n < MIN_SLOPE_ROWS {
             return Err(EstimationError::data_msg(
@@ -520,6 +512,375 @@ impl TemporalSlopeDesign {
             modifier_mean: self.modifier_mean_over(0..self.rows),
         })
     }
+
+    /// Series time of each design row (the intact windows in time order).
+    fn row_times(&self) -> Vec<usize> {
+        self.windows
+            .complete
+            .iter()
+            .enumerate()
+            .filter(|(_, intact)| **intact)
+            .map(|(w, _)| self.windows.first_time + w)
+            .collect()
+    }
+
+    /// One coherent joint draw of the coefficients of several designs read from the same series.
+    ///
+    /// Each design keeps exactly the tempered Gaussian marginal of [`Self::posterior`]. The
+    /// designs are tied together by the dependence of their estimating equations: the
+    /// normal-equation scores of every column of every design, placed on the series time axis
+    /// (zero where a design has no intact window), give the Bartlett-weighted long-run
+    /// covariance `C` of the stacked scores at the dependence block length. The sandwich
+    /// `A C A'` with `A = diag(G_k^{-1})` is the joint covariance of the coefficients. Each
+    /// block is whitened by the Cholesky factor of its own sandwich diagonal, which leaves the
+    /// cross-design correlation of the whitened coordinates; a draw is one standard-normal
+    /// vector for the whole stack, correlated by that structure and then mapped back through
+    /// each design's own marginal factor. Shared noise, shared regressors and shared parameters
+    /// of the regressions are therefore one dependence structure, not independent per-design
+    /// draws. Draw `d` reads the semantic stream `derive_stream(stream, d)`.
+    ///
+    /// Returns one [`SlopePosterior`] per design (draw `d` of every design is the same joint
+    /// draw) and the dependence block length of the stacked scores.
+    ///
+    /// # Errors
+    ///
+    /// A singular design, a non-positive prior scale, fewer than two draws, or a joint
+    /// dependence structure that is not positive definite after a bounded ridge.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "fit each design, stack the scores on the series axis, estimate the joint dependence, then draw"
+    )]
+    pub fn joint_posterior(
+        designs: &[&Self],
+        spec: SlopePosteriorSpec,
+        stream: u64,
+        rng: &antecedent_core::RngFactory,
+    ) -> Result<(Vec<SlopePosterior>, usize), EstimationError> {
+        let SlopePosteriorSpec { prior_scale, draws, structural_span } = spec;
+        if draws < 2 {
+            return Err(EstimationError::stats_msg(
+                "a temporal slope posterior needs at least two draws",
+            ));
+        }
+        if designs.is_empty() {
+            return Err(EstimationError::unsupported("a joint posterior needs a design"));
+        }
+        struct Part {
+            mean: Vec<f64>,
+            inverse: Vec<f64>,
+            marginal_factor: Vec<f64>,
+            tempering: f64,
+            effective_rows: f64,
+            scores: Vec<Vec<f64>>,
+            times: Vec<usize>,
+        }
+        let mut parts = Vec::with_capacity(designs.len());
+        for design in designs {
+            let mut ws = LeastSquaresWorkspace::default();
+            let fit = FaerBackend
+                .least_squares(&design.matrix, design.rows, design.cols, &design.outcome, &mut ws)
+                .map_err(crate::util::stats_err)?;
+            let (mean, inverse, sigma2) = design.ridge_mean(&fit.coefficients, prior_scale)?;
+            let scores = crate::temporal_block::normal_equation_scores_of_residuals(
+                &design.matrix,
+                design.rows,
+                design.cols,
+                &fit.residuals,
+            );
+            let slope_scores: Vec<&[f64]> = scores.iter().skip(1).map(Vec::as_slice).collect();
+            let all_scores: Vec<&[f64]> = scores.iter().map(Vec::as_slice).collect();
+            let block = crate::temporal_block::dependence_block_length(
+                structural_span,
+                design.rows,
+                &all_scores,
+            );
+            let effective_rows = crate::temporal_block::score_effective_rows(&slope_scores, block);
+            let tempering = if effective_rows.is_finite() && effective_rows > 0.0 {
+                (design.rows as f64 / effective_rows).max(1.0)
+            } else {
+                1.0
+            };
+            let covariance: Vec<f64> = inverse.iter().map(|v| v * sigma2 * tempering).collect();
+            let marginal_factor = antecedent_stats::cholesky_spd(&covariance, design.cols)
+                .ok_or_else(|| {
+                    EstimationError::stats_msg(
+                        "the temporal slope posterior covariance is not positive definite",
+                    )
+                })?;
+            parts.push(Part {
+                mean,
+                inverse,
+                marginal_factor,
+                tempering,
+                effective_rows,
+                scores,
+                times: design.row_times(),
+            });
+        }
+        let widths: Vec<usize> = designs.iter().map(|d| d.cols).collect();
+        let total: usize = widths.iter().sum();
+        let offsets: Vec<usize> = widths
+            .iter()
+            .scan(0usize, |acc, w| {
+                let start = *acc;
+                *acc += w;
+                Some(start)
+            })
+            .collect();
+        let dependence: Vec<DependencePart<'_>> = parts
+            .iter()
+            .map(|part| DependencePart {
+                inverse: &part.inverse,
+                scores: &part.scores,
+                times: &part.times,
+            })
+            .collect();
+        let (joint_factor, block) = joint_dependence_factor(&dependence, structural_span)?;
+        let mut out: Vec<Vec<Vec<f64>>> =
+            designs.iter().map(|_| Vec::with_capacity(draws)).collect();
+        let mut z = vec![0.0; total];
+        for d in 0..draws {
+            let mut stream_rng: CausalRng = rng.stream_for(
+                antecedent_core::StreamDomain::Bayesian,
+                antecedent_core::derive_stream(stream, d as u64),
+            );
+            for slot in &mut z {
+                *slot = antecedent_kernels::standard_normal(&mut stream_rng);
+            }
+            let v: Vec<f64> = (0..total)
+                .map(|i| (0..=i).map(|j| joint_factor[i * total + j] * z[j]).sum())
+                .collect();
+            for (k, part) in parts.iter().enumerate() {
+                let (offset, width) = (offsets[k], widths[k]);
+                let draw: Vec<f64> = (0..width)
+                    .map(|i| {
+                        part.mean[i]
+                            + (0..=i)
+                                .map(|j| part.marginal_factor[i * width + j] * v[offset + j])
+                                .sum::<f64>()
+                    })
+                    .collect();
+                out[k].push(draw);
+            }
+        }
+        let posteriors = parts
+            .into_iter()
+            .zip(out)
+            .zip(designs)
+            .map(|((part, draws), design)| SlopePosterior {
+                mean: part.mean,
+                draws,
+                tempering: part.tempering,
+                effective_rows: part.effective_rows,
+                modifier_mean: design.modifier_mean_over(0..design.rows),
+            })
+            .collect();
+        Ok((posteriors, block))
+    }
+}
+
+/// One regression's contribution to a joint dependence structure: the matrix `A` that maps the
+/// regression's summed estimating-equation scores to its coefficient error (`G⁻¹`, or any
+/// positive multiple of the coefficient covariance), those scores column by column, and the
+/// series time of each score.
+pub(crate) struct DependencePart<'a> {
+    /// Row-major `width × width` map from score sums to coefficient error, up to a scalar.
+    pub inverse: &'a [f64],
+    /// Normal-equation scores, one series per coefficient column, over the regression's rows.
+    pub scores: &'a [Vec<f64>],
+    /// Series time of each row.
+    pub times: &'a [usize],
+}
+
+/// Lower Cholesky factor (row-major `total × total`, `total` the summed widths) of the
+/// cross-regression correlation of whitened coefficient errors, and the block length used.
+///
+/// The scores of every regression are placed on the series time axis (zero where a regression
+/// has no row) and stacked. Their Bartlett-weighted long-run covariance at the dependence
+/// block length, pushed through `A`, is the joint sandwich covariance of the coefficient
+/// errors. Each block is whitened by the Cholesky factor of its own sandwich diagonal, so the
+/// diagonal blocks of the result are the identity and the off-diagonal blocks are the
+/// dependence that shared innovations, shared regressors and a shared series put between the
+/// regressions. A cross block that is not jointly positive definite is shrunk toward zero.
+///
+/// # Errors
+///
+/// A singular sandwich block, or a result that no bounded shrinkage makes positive definite.
+#[allow(
+    clippy::too_many_lines,
+    reason = "stack the scores, estimate the long-run covariance, push through the sandwich, whiten and factor"
+)]
+pub(crate) fn joint_dependence_factor(
+    parts: &[DependencePart<'_>],
+    structural_span: usize,
+) -> Result<(Vec<f64>, usize), EstimationError> {
+    let widths: Vec<usize> = parts.iter().map(|part| part.scores.len()).collect();
+    let first = parts.iter().filter_map(|p| p.times.first().copied()).min().unwrap_or(0);
+    let last = parts.iter().filter_map(|p| p.times.last().copied()).max().unwrap_or(0);
+    let span = last + 1 - first;
+    let total: usize = widths.iter().sum();
+    // Stacked score series on the series time axis.
+    let mut stacked: Vec<Vec<f64>> = Vec::with_capacity(total);
+    for part in parts {
+        for score in part.scores.iter() {
+            let mut axis = vec![0.0; span];
+            for (&time, &value) in part.times.iter().zip(score) {
+                axis[time - first] = value;
+            }
+            stacked.push(axis);
+        }
+    }
+    let views: Vec<&[f64]> = stacked.iter().map(Vec::as_slice).collect();
+    let block = crate::temporal_block::dependence_block_length(structural_span, span, &views)
+        .max(1)
+        .min(span);
+    // Bartlett long-run covariance of the stacked scores.
+    let mut long_run = vec![0.0; total * total];
+    for lag in 0..block {
+        let weight = if lag == 0 { 1.0 } else { 1.0 - lag as f64 / block as f64 };
+        for i in 0..total {
+            for j in 0..total {
+                let gamma: f64 = (lag..span).map(|t| stacked[i][t] * stacked[j][t - lag]).sum();
+                if lag == 0 {
+                    long_run[i * total + j] += gamma;
+                } else {
+                    long_run[i * total + j] += weight * gamma;
+                    long_run[j * total + i] += weight * gamma;
+                }
+            }
+        }
+    }
+    // Sandwich A C A' with A = blockdiag(inverse_k).
+    let offsets: Vec<usize> = widths
+        .iter()
+        .scan(0usize, |acc, w| {
+            let start = *acc;
+            *acc += w;
+            Some(start)
+        })
+        .collect();
+    let mut sandwich = vec![0.0; total * total];
+    for (a, (&oa, &wa)) in offsets.iter().zip(&widths).enumerate() {
+        for (b, (&ob, &wb)) in offsets.iter().zip(&widths).enumerate() {
+            for i in 0..wa {
+                for j in 0..wb {
+                    let mut value = 0.0;
+                    for k in 0..wa {
+                        for l in 0..wb {
+                            value += parts[a].inverse[i * wa + k]
+                                * long_run[(oa + k) * total + ob + l]
+                                * parts[b].inverse[j * wb + l];
+                        }
+                    }
+                    sandwich[(oa + i) * total + ob + j] = value;
+                }
+            }
+        }
+    }
+    // Whiten each block by the Cholesky factor of its own sandwich diagonal.
+    let mut sandwich_factors = Vec::with_capacity(parts.len());
+    for (&offset, &width) in offsets.iter().zip(&widths) {
+        let mut diagonal = vec![0.0; width * width];
+        for i in 0..width {
+            for j in 0..width {
+                diagonal[i * width + j] = sandwich[(offset + i) * total + offset + j];
+            }
+        }
+        let scale = (0..width).map(|i| diagonal[i * width + i]).fold(0.0_f64, f64::max);
+        let mut factor = None;
+        for ridge in [0.0, 1e-10, 1e-8, 1e-6] {
+            let mut jittered = diagonal.clone();
+            for i in 0..width {
+                jittered[i * width + i] += ridge * scale.max(f64::MIN_POSITIVE);
+            }
+            if let Some(found) = antecedent_stats::cholesky_spd(&jittered, width) {
+                factor = Some(found);
+                break;
+            }
+        }
+        sandwich_factors.push(factor.ok_or_else(|| {
+            EstimationError::stats_msg(
+                "the joint temporal slope dependence has a singular design block",
+            )
+        })?);
+    }
+    // V = W_a Σ_ab W_b' with W = factor^{-1}; diagonal blocks are the identity.
+    let mut correlation = vec![0.0; total * total];
+    for a in 0..parts.len() {
+        for b in 0..parts.len() {
+            let (oa, wa, ob, wb) = (offsets[a], widths[a], offsets[b], widths[b]);
+            if a == b {
+                for i in 0..wa {
+                    correlation[(oa + i) * total + oa + i] = 1.0;
+                }
+                continue;
+            }
+            // left = La^{-1} Σ_ab  (wa x wb), then block = left Lb^{-T}.
+            let mut left = vec![0.0; wa * wb];
+            for col in 0..wb {
+                for i in 0..wa {
+                    let mut value = sandwich[(oa + i) * total + ob + col];
+                    for k in 0..i {
+                        value -= sandwich_factors[a][i * wa + k] * left[k * wb + col];
+                    }
+                    left[i * wb + col] = value / sandwich_factors[a][i * wa + i];
+                }
+            }
+            for row in 0..wa {
+                for j in 0..wb {
+                    let mut value = left[row * wb + j];
+                    for k in 0..j {
+                        value -= sandwich_factors[b][j * wb + k]
+                            * correlation[(oa + row) * total + ob + k];
+                    }
+                    correlation[(oa + row) * total + ob + j] =
+                        value / sandwich_factors[b][j * wb + j];
+                }
+            }
+        }
+    }
+    // Make the whole matrix symmetric from the upper blocks and factor it.
+    for i in 0..total {
+        for j in 0..i {
+            let upper = correlation[j * total + i];
+            let lower = correlation[i * total + j];
+            let same_block = offsets
+                .iter()
+                .zip(&widths)
+                .any(|(&o, &w)| i >= o && i < o + w && j >= o && j < o + w);
+            if !same_block {
+                let value = 0.5 * (upper + lower);
+                correlation[j * total + i] = value;
+                correlation[i * total + j] = value;
+            }
+        }
+    }
+    let mut joint_factor = None;
+    for ridge in [0.0_f64, 1e-10, 1e-8, 1e-6, 1e-4] {
+        let mut jittered = correlation.clone();
+        // Shrink the cross blocks toward zero rather than widening the marginals.
+        if ridge > 0.0 {
+            for i in 0..total {
+                for j in 0..total {
+                    let same_block = offsets
+                        .iter()
+                        .zip(&widths)
+                        .any(|(&o, &w)| i >= o && i < o + w && j >= o && j < o + w);
+                    if !same_block {
+                        jittered[i * total + j] *= 1.0 - ridge.sqrt();
+                    }
+                }
+            }
+        }
+        if let Some(found) = antecedent_stats::cholesky_spd(&jittered, total) {
+            joint_factor = Some(found);
+            break;
+        }
+    }
+    let joint_factor = joint_factor.ok_or_else(|| {
+        EstimationError::stats_msg("the joint temporal slope dependence is not positive definite")
+    })?;
+    Ok((joint_factor, block))
 }
 
 /// Append the identified adjustment nodes of `estimand` at their lag from the
@@ -612,6 +973,80 @@ mod tests {
         let mean_slope: f64 = first.draws.iter().map(|d| d[1]).sum::<f64>() / 400.0;
         assert!((mean_slope - ridge.coefficients[1]).abs() < 0.05);
         assert!(first.tempering >= 1.0);
+    }
+
+    /// Deterministic standard-normal-ish noise (sum of uniforms) from a seeded LCG.
+    fn noise(seed: u64, n: usize) -> Vec<f64> {
+        let mut state = seed;
+        let mut uniform = || {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            ((state >> 11) as f64) / ((1_u64 << 53) as f64)
+        };
+        (0..n).map(|_| (0..12).map(|_| uniform()).sum::<f64>() - 6.0).collect()
+    }
+
+    fn slope_design(x: &[f64], y: Vec<f64>) -> TemporalSlopeDesign {
+        let rows = x.len();
+        let mut matrix = vec![1.0; rows * 2];
+        matrix[rows..].copy_from_slice(x);
+        TemporalSlopeDesign {
+            matrix,
+            outcome: y,
+            rows,
+            cols: 2,
+            layout: SlopeLayout::Slopes { treatments: 1 },
+            windows: GappedAlignedRows { first_time: 2, complete: vec![true; rows] },
+        }
+    }
+
+    fn correlation(a: &[f64], b: &[f64]) -> f64 {
+        let n = a.len() as f64;
+        let (ma, mb) = (a.iter().sum::<f64>() / n, b.iter().sum::<f64>() / n);
+        let cov: f64 = a.iter().zip(b).map(|(x, y)| (x - ma) * (y - mb)).sum();
+        let va: f64 = a.iter().map(|x| (x - ma) * (x - ma)).sum();
+        let vb: f64 = b.iter().map(|y| (y - mb) * (y - mb)).sum();
+        cov / (va * vb).sqrt()
+    }
+
+    fn joint_slope_columns(shared_noise: bool) -> (Vec<f64>, Vec<f64>, f64, f64) {
+        let n = 400;
+        let x1 = noise(1, n);
+        let u = noise(2, n);
+        let x2: Vec<f64> = x1.iter().zip(&u).map(|(a, b)| 0.9 * a + 0.44 * b).collect();
+        let e1 = noise(3, n);
+        let e2 = if shared_noise { e1.clone() } else { noise(4, n) };
+        let y1: Vec<f64> = x1.iter().zip(&e1).map(|(x, e)| 1.0 + 2.0 * x + e).collect();
+        let y2: Vec<f64> = x2.iter().zip(&e2).map(|(x, e)| 0.5 - 1.0 * x + e).collect();
+        let (d1, d2) = (slope_design(&x1, y1), slope_design(&x2, y2));
+        let rng = antecedent_core::RngFactory::from_seed(5);
+        let spec = SlopePosteriorSpec { prior_scale: 1_000.0, draws: 6000, structural_span: 1 };
+        let (joint, _) = TemporalSlopeDesign::joint_posterior(&[&d1, &d2], spec, 9, &rng).unwrap();
+        let marginal = d1.posterior(spec, 9, &rng).unwrap();
+        let sd = |draws: &[Vec<f64>]| {
+            let v: Vec<f64> = draws.iter().map(|d| d[1]).collect();
+            let m = v.iter().sum::<f64>() / v.len() as f64;
+            (v.iter().map(|x| (x - m) * (x - m)).sum::<f64>() / (v.len() - 1) as f64).sqrt()
+        };
+        let a: Vec<f64> = joint[0].draws.iter().map(|d| d[1]).collect();
+        let b: Vec<f64> = joint[1].draws.iter().map(|d| d[1]).collect();
+        (a, b, sd(&joint[0].draws), sd(&marginal.draws))
+    }
+
+    #[test]
+    fn joint_draws_carry_shared_noise_dependence_and_keep_each_marginal() {
+        // Same innovations drive both regressions and the regressors are correlated, so the
+        // two slope errors are strongly correlated; independent innovations give none. Both
+        // are checked against the exact finite-sample value (the regressor correlation for
+        // shared noise, zero for independent noise), not against the paired-marginal draws.
+        let (a, b, joint_sd, marginal_sd) = joint_slope_columns(true);
+        let shared = correlation(&a, &b);
+        assert!(shared > 0.7, "shared-noise slope correlation {shared}");
+        assert!((joint_sd / marginal_sd - 1.0).abs() < 0.08, "{joint_sd} vs {marginal_sd}");
+        let (a, b, _, _) = joint_slope_columns(false);
+        let independent = correlation(&a, &b);
+        assert!(independent.abs() < 0.25, "independent-noise slope correlation {independent}");
     }
 
     #[test]

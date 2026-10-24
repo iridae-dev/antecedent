@@ -78,3 +78,7 @@ harness = false
 [[bench]]
 name = "temporal_response"
 harness = false
+
+[[bench]]
+name = "propensity_bootstrap_measured"
+harness = false

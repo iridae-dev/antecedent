@@ -67,6 +67,7 @@ mod witness;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
+use antecedent_core::search_budget::{FunctionalEnumeration, SearchBudgetError};
 use antecedent_core::{
     CounterfactualEventQuery, DEFAULT_SEARCH_MEMORY_BYTES, EvidenceCatalog, ExecutionContext,
     ExogenousCoupling, RegimeId, SearchBudget, SearchLimits, SearchReceipt, SearchStop,
@@ -100,7 +101,8 @@ pub const COUNTERFACTUAL_TRANSPORT_MAX_SOURCES: usize = 4;
 pub const COUNTERFACTUAL_TRANSPORT_MAX_CONTROLLABLE: usize = 4;
 /// Most catalog regimes.
 pub const COUNTERFACTUAL_TRANSPORT_MAX_REGIMES: usize = 64;
-/// Most joint level cells of the variables a derivation sums over.
+/// Former ceiling on the joint level cells of the variables a derivation sums over. No longer
+/// enforced: a summation is quoted from the caller's search budget.
 pub const COUNTERFACTUAL_TRANSPORT_MAX_SUM_CELLS: usize = 1 << 16;
 /// Most joint cells of the declared levels (the dense evaluation table).
 pub const COUNTERFACTUAL_TRANSPORT_MAX_CELLS: usize = 1 << 16;
@@ -1336,6 +1338,44 @@ impl Search<'_> {
         })
     }
 
+    /// Quote the summation over `cardinalities` from the declared exact-enumeration charge and
+    /// check it against what the caller's budget still allows: the cells are the work, one
+    /// binary64 per cell is the storage. The storage is leased from the context's pool and
+    /// returned at once, which proves the pool can fund it before any evaluator allocates the
+    /// table. Nothing is allocated here.
+    fn admit_summation(
+        &mut self,
+        cardinalities: impl Iterator<Item = u64>,
+    ) -> Result<(), SearchStop> {
+        let mut enumeration = FunctionalEnumeration::new();
+        for cardinality in cardinalities {
+            enumeration = enumeration.factor(cardinality);
+        }
+        let estimate = match enumeration.estimate() {
+            Ok(estimate) => estimate,
+            // No summed symbol is one empty product term.
+            Err(SearchBudgetError::MissingFactors) => return Ok(()),
+            Err(_) => {
+                self.stop.get_or_insert(SearchStop::Memory);
+                return Err(SearchStop::Memory);
+            }
+        };
+        let stop = if estimate.work()
+            > u64::try_from(self.budget.operations_remaining()).unwrap_or(u64::MAX)
+        {
+            Some(SearchStop::Operations)
+        } else {
+            self.budget.lease_storage(estimate.memory_bytes()).err()
+        };
+        match stop {
+            Some(stop) => {
+                self.stop.get_or_insert(stop);
+                Err(stop)
+            }
+            None => Ok(()),
+        }
+    }
+
     fn stage(&mut self, name: &str) {
         self.stages.push(format!("stage:{name}"));
     }
@@ -1407,13 +1447,9 @@ fn derive_conjunction(
             }
             match missing {
                 None => {
-                    let cells = symbols
-                        .iter()
-                        .map(|&(_, v)| problem.levels[v].len())
-                        .try_fold(1usize, usize::checked_mul);
-                    if cells.is_none_or(|c| c > COUNTERFACTUAL_TRANSPORT_MAX_SUM_CELLS) {
-                        return Err(Abort::Error(bounds_exceeded()));
-                    }
+                    search.admit_summation(
+                        symbols.iter().map(|&(_, v)| problem.levels[v].len() as u64),
+                    )?;
                     return Ok(Some(CounterfactualFunctional::Sum(CounterfactualSum {
                         symbols: symbols
                             .iter()
@@ -2127,6 +2163,51 @@ pub fn verify_counterfactual_transport_witness(
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    fn search_under(limits: SearchLimits, memory: u64, ctx: &ExecutionContext) -> Search<'_> {
+        Search {
+            budget: SearchBudget::with_memory(limits, memory, ctx).unwrap(),
+            stop: None,
+            stages: Vec::new(),
+            failures: Vec::new(),
+        }
+    }
+
+    /// A summation is quoted before anything exists: work against the operations the caller's
+    /// budget still allows, storage against the lease the pool can fund.
+    #[test]
+    fn summation_is_refused_from_the_callers_budget_before_any_storage_is_leased() {
+        let mut ctx = ExecutionContext::for_tests(1);
+        ctx.set_memory_limit(Some(1 << 20));
+        let limits = SearchLimits { operations: 100, depth: 4 };
+        // 4 * 5 * 3 = 60 cells: 60 operations and 480 bytes fit.
+        let mut search = search_under(limits, 1 << 20, &ctx);
+        assert_eq!(search.admit_summation([4u64, 5, 3].into_iter()), Ok(()));
+        assert_eq!(ctx.admission().available().bytes(), 1 << 20);
+        // Spend operations, and the same summation no longer fits the remainder.
+        for _ in 0..50 {
+            search.charge(1, 0).unwrap();
+        }
+        assert_eq!(search.admit_summation([4u64, 5, 3].into_iter()), Err(SearchStop::Operations));
+        assert_eq!(search.stop, Some(SearchStop::Operations));
+        // Storage above the search's memory cap is refused with the pool untouched.
+        let mut capped = search_under(limits, 400, &ctx);
+        assert_eq!(capped.admit_summation([4u64, 5, 3].into_iter()), Err(SearchStop::Memory));
+        assert_eq!(ctx.admission().available().bytes(), 1 << 20);
+        // A product that overflows u64 is refused, never taken as zero.
+        let mut huge =
+            search_under(SearchLimits { operations: usize::MAX, depth: 4 }, u64::MAX, &ctx);
+        assert_eq!(huge.admit_summation([u64::MAX, 2].into_iter()), Err(SearchStop::Memory));
+        // No summed symbol is one empty term.
+        assert_eq!(huge.admit_summation(std::iter::empty()), Ok(()));
+        // The pool, not only the cap, decides: a pool that cannot fund the cells refuses.
+        let mut small = ExecutionContext::for_tests(1);
+        small.set_memory_limit(Some(100));
+        let mut pooled = search_under(limits, 1 << 20, &small);
+        assert_eq!(pooled.admit_summation([4u64, 5, 3].into_iter()), Err(SearchStop::Memory));
+        assert_eq!(small.admission().available().bytes(), 100);
+    }
     use super::*;
     use antecedent_core::{
         CounterfactualEvent, DistributionAvailability, EvidenceKind, EvidenceRegime, RegimeKind,

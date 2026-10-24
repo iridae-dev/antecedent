@@ -15,6 +15,13 @@ pub mod decomposition;
 pub mod expression;
 mod inference;
 mod likelihood;
+/// Specification-conditional split of decomposed temporal laws.
+pub mod selection_uncertainty;
+mod streaming;
+pub use streaming::{
+    PanelProjectedLaw, PanelStreamReceipt, project_panel_law, project_temporal_law,
+    stream_panel_law, stream_temporal_law,
+};
 #[cfg(test)]
 mod tests;
 /// Model-conditional piecewise/smooth change attempts over this same panel mechanism.

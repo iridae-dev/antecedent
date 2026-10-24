@@ -301,7 +301,7 @@ pub fn linear_adjustment_fit(
 }
 
 /// Treatment partial R²s probed by the extreme-scenario curve.
-const R2DZ_GRID: [f64; 9] = [0.0, 0.01, 0.02, 0.05, 0.1, 0.15, 0.2, 0.3, 0.5];
+pub(crate) const R2DZ_GRID: [f64; 9] = [0.0, 0.01, 0.02, 0.05, 0.1, 0.15, 0.2, 0.3, 0.5];
 
 /// The omitted-variable-bias analysis of `summary` as an [`AssumptionRange`] on `target`.
 ///

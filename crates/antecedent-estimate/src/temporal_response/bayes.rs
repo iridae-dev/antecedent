@@ -1,12 +1,18 @@
 //! Bayesian temporal response estimation.
 //!
-//! Horizons are separate fits. Independent draws may be paired by index for a
-//! simultaneous band; that product of marginals is not a joint trajectory posterior,
-//! and shared time labels do not make it one.
+//! Horizons are separate fits, each with its own tempered posterior. Several horizons are
+//! then tied into one joint trajectory law: the coefficient draws of every horizon are
+//! replaced by one joint Gaussian draw that keeps each horizon's posterior mean and
+//! covariance and takes its cross-horizon dependence from the long-run covariance of the
+//! stacked normal-equation scores of all horizons on the shared series calendar. Pairing
+//! independent per-horizon draws by index is a product of marginals, not a joint trajectory
+//! posterior, and shared time labels do not make it one; it remains only as the disclosed
+//! fallback when the joint dependence cannot be formed.
 
 use std::sync::Arc;
 
 use crate::error::EstimationError;
+use crate::joint_coefficients::{CoefficientDraws, joint_draws};
 use crate::serial_dependence::{DependenceScope, SerialDependence};
 use crate::temporal_adjustment::TemporalLinearAdjustment;
 use crate::white_innovation_posterior::{
@@ -24,7 +30,8 @@ use super::{
     TemporalIdentification, TemporalResponseEstimator, assumptions::HorizonTempering,
     assumptions::INDEPENDENT_DRAW_STATEMENT, assumptions::TEMPORAL_BAYESIAN_TEMPERING_CAPPED,
     assumptions::TEMPORAL_BAYESIAN_TEMPERING_DIAGNOSTIC,
-    assumptions::TEMPORAL_BAYESIAN_TEMPERING_INESTIMABLE, assumptions::is_tempering_record,
+    assumptions::TEMPORAL_BAYESIAN_TEMPERING_INESTIMABLE, assumptions::TrajectoryDrawReading,
+    assumptions::is_tempering_record, assumptions::temporal_bayesian_joint_trajectory_assumption,
     assumptions::temporal_bayesian_product_posterior_assumption,
     assumptions::temporal_bayesian_tempering_assumption, band::max_deviation_band_columns,
     band::publish_simultaneous_band, plan::TemporalInterventionPlan,
@@ -36,6 +43,11 @@ use super::{
 /// Support diagnostic id of the residual test behind an untempered temporal curve.
 pub(crate) const WHITE_INNOVATION_SUPPORT_DIAGNOSTIC: &str =
     "response.temporal_bayesian.white_innovation";
+
+/// Warning code recorded when the cross-horizon dependence could not be formed and the
+/// horizons kept independent draws.
+pub(crate) const TEMPORAL_BAYESIAN_JOINT_UNAVAILABLE: &str =
+    "response.temporal_bayesian.joint_unavailable";
 
 /// Why an ordinary or non-Gaussian likelihood is refused, and the attempt that would reach the
 /// same end-state.
@@ -144,6 +156,7 @@ impl TemporalResponseEstimator {
         let mut horizons = Vec::new();
         let mut levels = Vec::new();
         let mut tempering: Vec<HorizonTempering> = Vec::new();
+        let mut fits: Vec<Result<HorizonFit, EstimationError>> = Vec::new();
         for (h, (&horizon_steps, &(estimand, indexer))) in
             temporal.horizons.iter().zip(identifications).enumerate()
         {
@@ -158,7 +171,7 @@ impl TemporalResponseEstimator {
                 target_population: TargetPopulation::AllObserved,
                 effect_modifiers: std::sync::Arc::from([]),
             };
-            let prep = TemporalLinearAdjustment::new().prepare(
+            let (prep, aligned) = TemporalLinearAdjustment::new().prepare_aligned(
                 data,
                 estimand,
                 &pulse,
@@ -179,6 +192,7 @@ impl TemporalResponseEstimator {
                 identification_status,
             )?);
             let mut weights = design_column_means(&prep.design);
+            let base_weights = weights.clone();
             let grid = if let Some((level, shift)) = intervention {
                 vec![level.unwrap_or(weights[1] + shift)]
             } else {
@@ -241,6 +255,7 @@ impl TemporalResponseEstimator {
             if intervention.is_some() {
                 levels.push(grid[0]);
             }
+            fits.push(HorizonFit::of(&posterior, &prep, aligned, base_weights, grid.clone()));
             let mut row = Vec::new();
             for dose in grid {
                 weights[1] = dose;
@@ -250,6 +265,40 @@ impl TemporalResponseEstimator {
                 row.push((summary, values));
             }
             rows.push(row);
+        }
+        // Tie the horizons into one joint trajectory law. A single horizon is its own posterior.
+        let mut joint_block = None;
+        let mut joint_unavailable = None;
+        if rows.len() > 1 {
+            let span = temporal
+                .horizons
+                .iter()
+                .copied()
+                .max()
+                .unwrap_or(1)
+                .saturating_add(temporal.max_history_lag.unwrap_or(0));
+            let span = usize::try_from(span).unwrap_or(usize::MAX);
+            let outcome = fits.into_iter().collect::<Result<Vec<_>, _>>().and_then(|fits| {
+                joint_trajectory_draws(&fits, span, estimator.seed, &ctx.rng).map(|j| (fits, j))
+            });
+            match outcome {
+                Ok((fits, (theta, block))) => {
+                    for ((fit, columns), row) in fits.iter().zip(&theta).zip(rows.iter_mut()) {
+                        let mut weights = fit.base.clone();
+                        for (cell, &dose) in row.iter_mut().zip(&fit.grid) {
+                            weights[1] = dose;
+                            let values = combine_columns(columns, &weights);
+                            let summary = crate::bayesian::summarize_linear_response_draws(
+                                values.clone(),
+                                0.95,
+                            )?;
+                            *cell = (summary, values);
+                        }
+                    }
+                    joint_block = Some(block);
+                }
+                Err(error) => joint_unavailable = Some(error.to_string()),
+            }
         }
         let mut mean = Vec::new();
         let mut lower = Vec::new();
@@ -270,11 +319,11 @@ impl TemporalResponseEstimator {
                 band_columns.push(values.clone());
             }
         }
-        // Horizons are separate conjugate fits with independent draws. Pairing draw r
-        // across horizons samples a product of marginals, used only for the simultaneous
-        // band. That alignment is not a joint trajectory posterior, and shared time
-        // labels do not make it one. Within a horizon every dose shares one coefficient
-        // draw.
+        // With several horizons the draws above are one joint trajectory law (draw r of every
+        // horizon is the same joint draw), so the simultaneous band is a band of the joint
+        // posterior. Only when the joint dependence could not be formed are the horizons
+        // independent fits whose index pairing is a product of marginals, not a joint
+        // trajectory posterior. Within a horizon every dose shares one coefficient draw.
         let n_joint = cell_draws.iter().map(|values| values.len()).min().unwrap_or(0);
         let cell_draws: Vec<&[f64]> = cell_draws.iter().map(|values| &values[..n_joint]).collect();
         let simultaneous = max_deviation_band_columns(&mean, &cell_draws, 0.95);
@@ -299,12 +348,15 @@ impl TemporalResponseEstimator {
             "each horizon's posterior is the long-run-tempered generalized posterior (support \
              diagnostic response.temporal_bayesian.tempering)"
         };
+        let coupling = if joint_block.is_some() {
+            TrajectoryDrawReading::JointGaussianTrajectory.statement()
+        } else {
+            INDEPENDENT_DRAW_STATEMENT
+        };
         let simultaneous_detail = format!(
             "simultaneous CREDIBLE band: max studentized deviation of the posterior draws of the \
              whole grid around the posterior mean; doses at one horizon share each coefficient \
-             draw, while horizons are separate fits whose independent draws are paired by index \
-             (a product of per-horizon posteriors, not a joint horizon posterior). \
-             {INDEPENDENT_DRAW_STATEMENT} Conditional on the observed adjustment distribution; \
+             draw, and {coupling} Conditional on the observed adjustment distribution; \
              {posterior_basis}"
         );
         publish_simultaneous_band(&mut support, simultaneous, &simultaneous_detail);
@@ -376,15 +428,33 @@ impl TemporalResponseEstimator {
                 ),
             ));
         }
-        assumptions.push(temporal_bayesian_product_posterior_assumption());
+        if let Some(block) = joint_block {
+            assumptions.push(temporal_bayesian_joint_trajectory_assumption(block));
+        } else {
+            assumptions.push(temporal_bayesian_product_posterior_assumption());
+        }
+        if let Some(reason) = joint_unavailable {
+            support.warnings.push(Diagnostic::new(
+                TEMPORAL_BAYESIAN_JOINT_UNAVAILABLE,
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Warning,
+                format!(
+                    "the cross-horizon dependence of the posterior could not be formed ({reason}); \
+                     the horizons keep independent draws, so their pairing is a product of \
+                     marginals and not a joint trajectory posterior"
+                ),
+            ));
+        }
         if whiteness.is_none() {
             assumptions
                 .push(temporal_bayesian_tempering_assumption(&temporal.horizons, &tempering));
         }
-        let band_draws = if intervention.is_some() {
-            retained_response_draws(&band_columns, temporal.horizons.len())
-        } else {
+        let band_draws = if intervention.is_none() {
             None
+        } else if joint_block.is_some() {
+            retained_joint_trajectory_draws(&band_columns, temporal.horizons.len())
+        } else {
+            retained_response_draws(&band_columns, temporal.horizons.len())
         };
         Ok(CausalResponse {
             estimand: query.functional.clone(),
@@ -408,6 +478,74 @@ impl TemporalResponseEstimator {
             interaction_structurally_zero: false,
         })
     }
+}
+
+/// One horizon's retained fit: the coefficient draws and scores that tie it to the other
+/// horizons, the design-row average the response reads, and the dose cells.
+struct HorizonFit {
+    draws: CoefficientDraws,
+    /// Design-row average before the dose overlay.
+    base: Vec<f64>,
+    /// Dose cells of this horizon.
+    grid: Vec<f64>,
+}
+
+impl HorizonFit {
+    fn of(
+        posterior: &crate::bayesian::CausalPosterior,
+        prep: &crate::PreparedEstimationProblem,
+        aligned: crate::temporal_block::AlignedRows,
+        base: Vec<f64>,
+        grid: Vec<f64>,
+    ) -> Result<Self, EstimationError> {
+        if aligned.rows != prep.design.nrows || base.len() != prep.design.ncols {
+            return Err(EstimationError::unsupported(
+                "the design rows do not map one-to-one onto series times",
+            ));
+        }
+        let times = (0..aligned.rows).map(|r| aligned.first_time + r).collect();
+        Ok(Self { draws: CoefficientDraws::of(posterior, &prep.design, times)?, base, grid })
+    }
+}
+
+/// `sum_j weights[j] * columns[j]` draw by draw.
+fn combine_columns(columns: &[Vec<f64>], weights: &[f64]) -> Vec<f64> {
+    let n = columns.first().map_or(0, Vec::len);
+    let mut values = vec![0.0; n];
+    for (column, &weight) in columns.iter().zip(weights) {
+        for (value, &coefficient) in values.iter_mut().zip(column) {
+            *value += weight * coefficient;
+        }
+    }
+    values
+}
+
+/// Joint draws of every horizon's coefficients: `theta[h][j]` is draw column `j` of horizon `h`,
+/// and draw `r` of every column is one draw of the whole trajectory (see
+/// [`crate::joint_coefficients`]). Returns the draws and the dependence block length.
+fn joint_trajectory_draws(
+    fits: &[HorizonFit],
+    structural_span: usize,
+    seed: u64,
+    rng: &antecedent_core::RngFactory,
+) -> Result<(Vec<Vec<Vec<f64>>>, usize), EstimationError> {
+    let draws: Vec<&CoefficientDraws> = fits.iter().map(|fit| &fit.draws).collect();
+    joint_draws(&draws, structural_span, seed, rng)
+}
+
+/// Draws retained for a single-coordinate intervention response over several horizons whose
+/// columns are one joint trajectory law: column `h` is the response at horizon `h` and draw
+/// `r` of every column is the same draw of the trajectory, so a functional across horizons
+/// can be evaluated draw by draw.
+pub(super) fn retained_joint_trajectory_draws(
+    columns: &[Vec<f64>],
+    horizon_count: usize,
+) -> Option<CredibleDraws> {
+    let n_draws = columns.first()?.len();
+    (columns.len() == horizon_count
+        && n_draws >= 2
+        && columns.iter().all(|column| column.len() == n_draws))
+    .then(|| CredibleDraws::columns(n_draws, columns))
 }
 
 /// Draws retained for a single-coordinate intervention response.
@@ -435,12 +573,16 @@ pub(super) fn retained_response_draws(
 mod tests {
     use antecedent_core::Assumption;
 
+    use crate::joint_coefficients::CoefficientDraws;
     use crate::temporal_response::assumptions::{
         INDEPENDENT_DRAW_STATEMENT, TEMPORAL_BAYESIAN_PRODUCT_POSTERIOR_ID, TrajectoryDrawReading,
         temporal_bayesian_product_posterior_assumption,
     };
 
-    use super::retained_response_draws;
+    use super::{
+        HorizonFit, joint_trajectory_draws, retained_joint_trajectory_draws,
+        retained_response_draws,
+    };
 
     #[test]
     fn independent_horizon_draws_are_a_product_posterior_not_a_trajectory() {
@@ -463,5 +605,104 @@ mod tests {
         assert!(retained_response_draws(std::slice::from_ref(&column), 1).is_some());
         let columns = vec![column, vec![9.0, 8.0, 7.0]];
         assert!(retained_response_draws(&columns, 2).is_none());
+        // The same columns are retained once they are one joint trajectory law.
+        assert!(retained_joint_trajectory_draws(&columns, 2).is_some());
+        assert!(retained_joint_trajectory_draws(&columns, 3).is_none());
+    }
+
+    fn noise(state: &mut u64) -> f64 {
+        let mut uniform = || {
+            *state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            ((*state >> 11) as f64) / ((1_u64 << 53) as f64)
+        };
+        (0..12).map(|_| uniform()).sum::<f64>() - 6.0
+    }
+
+    fn ar1(n: usize, state: &mut u64) -> Vec<f64> {
+        let mut y = vec![0.0; n];
+        for t in 1..n {
+            y[t] = 0.7 * y[t - 1] + noise(state);
+        }
+        y
+    }
+
+    /// No-intercept regressions of `y[t + h]` on `y[t]` at horizons 1 and 2: slopes, their
+    /// standard errors, and per-horizon fits carrying scores on the series calendar.
+    fn two_horizon_fits(y: &[f64]) -> (Vec<f64>, Vec<HorizonFit>) {
+        let mut slopes = Vec::new();
+        let mut fits = Vec::new();
+        for h in 1..=2usize {
+            let rows = y.len() - h;
+            let sxx: f64 = (0..rows).map(|t| y[t] * y[t]).sum();
+            let sxy: f64 = (0..rows).map(|t| y[t] * y[t + h]).sum();
+            let slope = sxy / sxx;
+            let resid: Vec<f64> = (0..rows).map(|t| y[t + h] - slope * y[t]).collect();
+            let sigma2 = resid.iter().map(|e| e * e).sum::<f64>() / rows as f64;
+            let se = (sigma2 / sxx).sqrt();
+            slopes.push(slope);
+            // Independent Gaussian marginal draws, as the per-horizon fits produce.
+            let mut state = 90_u64 + h as u64;
+            let draws: Vec<f64> = (0..4000).map(|_| slope + se * noise(&mut state)).collect();
+            fits.push(HorizonFit {
+                draws: CoefficientDraws {
+                    coef: vec![draws],
+                    scores: vec![(0..rows).map(|t| y[t] * resid[t]).collect()],
+                    times: (0..rows).collect(),
+                },
+                base: vec![1.0],
+                grid: vec![1.0],
+            });
+        }
+        (slopes, fits)
+    }
+
+    fn correlation(a: &[f64], b: &[f64]) -> f64 {
+        let n = a.len() as f64;
+        let (ma, mb) = (a.iter().sum::<f64>() / n, b.iter().sum::<f64>() / n);
+        let cov: f64 = a.iter().zip(b).map(|(x, y)| (x - ma) * (y - mb)).sum();
+        let va: f64 = a.iter().map(|x| (x - ma) * (x - ma)).sum();
+        let vb: f64 = b.iter().map(|y| (y - mb) * (y - mb)).sum();
+        cov / (va * vb).sqrt()
+    }
+
+    #[test]
+    fn joint_trajectory_dependence_matches_the_sampling_dependence_of_the_horizons() {
+        // Independent reference: the correlation of the horizon-1 and horizon-2 slope
+        // estimates over many independent replications of the same process. The joint draws
+        // from ONE observed series must reproduce it; independent per-horizon draws have
+        // correlation zero.
+        let mut state = 4242_u64;
+        let (mut first, mut second) = (Vec::new(), Vec::new());
+        for _ in 0..600 {
+            let (slopes, _) = two_horizon_fits(&ar1(300, &mut state));
+            first.push(slopes[0]);
+            second.push(slopes[1]);
+        }
+        let reference = correlation(&first, &second);
+        assert!(reference > 0.6, "reference correlation {reference}");
+
+        let (_, fits) = two_horizon_fits(&ar1(300, &mut state));
+        let independent = correlation(&fits[0].draws.coef[0], &fits[1].draws.coef[0]);
+        assert!(independent.abs() < 0.1, "per-horizon draws are independent: {independent}");
+        let rng = antecedent_core::RngFactory::from_seed(3);
+        let (theta, block) = joint_trajectory_draws(&fits, 3, 11, &rng).unwrap();
+        assert!(block >= 1);
+        let joint = correlation(&theta[0][0], &theta[1][0]);
+        assert!((joint - reference).abs() < 0.15, "joint {joint} vs reference {reference}");
+        // Each horizon keeps its own marginal mean and spread.
+        for (h, fit) in fits.iter().enumerate() {
+            let mean = |v: &[f64]| v.iter().sum::<f64>() / v.len() as f64;
+            let sd = |v: &[f64]| {
+                let m = mean(v);
+                (v.iter().map(|x| (x - m) * (x - m)).sum::<f64>() / (v.len() - 1) as f64).sqrt()
+            };
+            assert!((mean(&theta[h][0]) - mean(&fit.draws.coef[0])).abs() < 0.01);
+            assert!((sd(&theta[h][0]) / sd(&fit.draws.coef[0]) - 1.0).abs() < 0.08);
+        }
+        // The draws are reproducible.
+        let (again, _) = joint_trajectory_draws(&fits, 3, 11, &rng).unwrap();
+        assert_eq!(theta, again);
     }
 }

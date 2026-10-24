@@ -422,19 +422,19 @@ pub(crate) fn prepare_frontdoor_problem(
     ids.extend_from_slice(&estimand.mediators);
     let crate::prepare::AdmittedColumns { data, row_mask, receipt: preparation } =
         crate::prepare::admit_estimator_columns(data, &ids, crate::prepare::FINITE_TABLE_ONLY)?;
-    let t = data.float64_masked(treatment, &row_mask).map_err(EstimationError::from)?;
-    let y = data.float64_masked(outcome, &row_mask).map_err(EstimationError::from)?;
+    // Each selected column is gathered once, straight into the allocation the problem keeps.
+    let t = data.float64_selected_arc(treatment, &row_mask).map_err(EstimationError::from)?;
+    let y = data.float64_selected_arc(outcome, &row_mask).map_err(EstimationError::from)?;
     let mut mediators = Vec::with_capacity(estimand.mediators.len());
     for &mid in estimand.mediators.iter() {
-        let m = data.float64_masked(mid, &row_mask).map_err(EstimationError::from)?;
-        mediators.push(Arc::<[f64]>::from(m));
+        mediators.push(data.float64_selected_arc(mid, &row_mask).map_err(EstimationError::from)?);
     }
     let nrows = t.len();
 
     Ok(PreparedFrontDoorProblem {
-        treatment: Arc::from(t),
+        treatment: t,
         mediators: Arc::from(mediators),
-        outcome: Arc::from(y),
+        outcome: y,
         nrows,
         method: Arc::clone(&estimand.method),
         mediator_ids: Arc::clone(&estimand.mediators),

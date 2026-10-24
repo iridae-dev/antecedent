@@ -20,10 +20,26 @@
 //! allocated, and the lease travels with the table.
 //!
 //! The sampling design governs the unit the parameter draw resamples: rows for independent
-//! rows, whole subjects or clusters for trajectories and clustered panels. A dependent time
-//! series is refused: its blocks are not exchangeable units of an imputation model.
+//! rows, whole subjects or clusters for trajectories and clustered panels. The rows of a
+//! dependent time series are not exchangeable units, so [`bind_units`] refuses one; a single
+//! series is imputed instead by a lagged model ([`Imputer::with_dynamics`]: each variable given
+//! the others at the same step and every variable at the neighbouring steps) whose parameter
+//! draw resamples contiguous blocks ([`bind_series_units`]).
 //!
 //! Missing not at random is refused with a sensitivity analysis as the next attempt.
+//!
+//! A route whose answer has several coordinates (the cells of a conditional effect, a response
+//! curve, a mediation decomposition, the levels of a distribution) runs [`run_vector`], which
+//! pools the coordinates jointly ([`rubin_pool_vector`], with the pooled Wald statistic) or
+//! stacks their joint posterior draws ([`stack_posterior_quantities`]).
+//!
+//! Every run retains its assumptions with its uncertainty: [`ImputationAssumptions`] records
+//! the imputation model, the number of tables, the sweeps, the seed, the missingness
+//! assumption, the resampling unit and the declared sampling design, and every variable's
+//! kind and imputed-cell count. [`ImputationAssumptions::digest`] is the identity of that
+//! record, so a compiler plan, a Python result or an artifact can carry the digest and compare
+//! it. The pooled estimates carry the within-, between- and total variance (or covariance),
+//! the degrees of freedom and the fraction of missing information.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -41,7 +57,10 @@ use antecedent_data::{ImputationSpec, MissingnessAssumption};
 use crate::EstimationError;
 
 pub use impute::{CompletedTable, ImputationColumn, ImputedVariable, Imputer, VariableKind};
-pub use pool::{RubinPooled, StackedPosterior, rubin_pool, stack_posterior};
+pub use pool::{
+    PooledWald, RubinPooled, RubinVectorPooled, StackedPosterior, StackedQuantities, rubin_pool,
+    rubin_pool_vector, stack_posterior, stack_posterior_quantities,
+};
 
 /// Most variables one imputation model reads.
 pub const MAX_IMPUTATION_VARIABLES: usize = 64;
@@ -287,6 +306,50 @@ pub fn bind_units(
     }
 }
 
+/// Bind a single time series to the unit its imputation's parameter draw resamples: contiguous
+/// blocks of `block_length` rows, labelled in time order.
+///
+/// A series is not a sample of exchangeable rows, so the draw resamples blocks (the
+/// [`ResamplingRule::ContiguousBlock`] of the dependent time-series design) and the imputation
+/// model conditions on neighbouring steps ([`Imputer::with_dynamics`]). The declared design,
+/// when there is one, must be the dependent time series.
+///
+/// # Errors
+///
+/// A declared design other than the dependent time series, or a design that does not resample
+/// contiguous blocks.
+pub fn bind_series_units(
+    design: Option<DeclaredSamplingDesign>,
+    rows: usize,
+    block_length: usize,
+) -> Result<ImputationUnits, MultipleImputationError> {
+    let design_error = |error: antecedent_core::sampling_design::SamplingDesignError| {
+        MultipleImputationError::invalid("multiple_imputation.sampling_design", error.to_string())
+    };
+    match design {
+        None => {}
+        Some(DeclaredSamplingDesign::DependentTimeSeries) => {
+            DeclaredSamplingDesign::DependentTimeSeries
+                .apply_resampling(ResamplingRule::ContiguousBlock)
+                .map_err(design_error)?;
+        }
+        Some(other) => {
+            return Err(MultipleImputationError::invalid(
+                "multiple_imputation.sampling_design",
+                format!(
+                    "a single time series is imputed under the dependent time-series design, \
+                     not `{}`",
+                    other.as_str()
+                ),
+            ));
+        }
+    }
+    let block = block_length.max(1);
+    let groups: Vec<u32> =
+        (0..rows).map(|i| u32::try_from(i / block).unwrap_or(u32::MAX)).collect();
+    Ok(ImputationUnits::Groups(Arc::from(groups)))
+}
+
 /// What one completed table's fit reports.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
@@ -366,10 +429,86 @@ impl PooledEstimate {
     }
 }
 
+const ASSUMPTIONS_TAG: &str = "antecedent.estimate.multiple_imputation.assumptions";
+
+/// The model and design assumptions an imputation run rests on.
+///
+/// A pooled estimate is valid under these and no others. The record is part of the result:
+/// two runs that differ in any field are different analyses and have different
+/// [`Self::digest`]s.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ImputationAssumptions {
+    /// The declared specification: model, tables, sweeps, seed and missingness assumption.
+    pub spec: ImputationSpec,
+    /// Unit the parameter draws resampled (`row` or `group`).
+    pub unit: &'static str,
+    /// Number of units resampled.
+    pub units: usize,
+    /// Rows of the data.
+    pub rows: usize,
+    /// Every variable of the imputation model: name, conditional model kind, cells imputed.
+    pub variables: Vec<ImputedVariable>,
+    /// The sampling design the caller declared, when one was.
+    pub design: Option<DeclaredSamplingDesign>,
+    /// Neighbouring time steps on each side the conditional models read (a series); zero for
+    /// exchangeable rows.
+    pub lags: usize,
+}
+
+impl ImputationAssumptions {
+    /// The assumptions `imputer` was built under, with the sampling design the caller declared.
+    #[must_use]
+    pub fn of(imputer: &Imputer, design: Option<DeclaredSamplingDesign>) -> Self {
+        Self {
+            spec: *imputer.spec(),
+            unit: imputer.units().name(),
+            units: imputer.unit_count(),
+            rows: imputer.rows(),
+            variables: imputer.variables(),
+            design,
+            lags: imputer.lags(),
+        }
+    }
+
+    /// Whether the imputation is valid under the declared missingness assumption.
+    #[must_use]
+    pub fn valid_under_declared_assumption(&self) -> bool {
+        self.spec.assumption == MissingnessAssumption::MissingAtRandom
+    }
+
+    /// Canonical digest of the whole record.
+    #[must_use]
+    pub fn digest(&self) -> String {
+        let mut writer = antecedent_core::CanonicalWriter::new(ASSUMPTIONS_TAG);
+        writer
+            .text(self.spec.model.name())
+            .word(u64::from(self.spec.imputations))
+            .word(u64::from(self.spec.iterations))
+            .word(self.spec.seed)
+            .text(self.spec.assumption.name())
+            .text(self.unit)
+            .word(self.units as u64)
+            .word(self.rows as u64)
+            .opt_text(self.design.map(DeclaredSamplingDesign::as_str))
+            .word(self.variables.len() as u64);
+        for variable in &self.variables {
+            writer.text(&variable.name).text(variable.kind.name()).word(variable.missing as u64);
+        }
+        // Rows keep the digest they have always had; a lagged model is another analysis.
+        if self.lags > 0 {
+            writer.text("dynamics").word(self.lags as u64);
+        }
+        writer.finish_hex()
+    }
+}
+
 /// The whole impute-fit-pool procedure.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct MultipleImputationRun {
+    /// The assumptions the run rests on.
+    pub assumptions: ImputationAssumptions,
     /// The declared specification.
     pub spec: ImputationSpec,
     /// Unit the parameter draws resampled (`row` or `group`).
@@ -382,6 +521,177 @@ pub struct MultipleImputationRun {
     pub fits: Vec<ImputationFit>,
     /// The pooled estimate.
     pub pooled: PooledEstimate,
+}
+
+impl MultipleImputationRun {
+    /// The run with the sampling design the caller declared recorded in its assumptions.
+    #[must_use]
+    pub fn with_design(mut self, design: Option<DeclaredSamplingDesign>) -> Self {
+        self.assumptions.design = design;
+        self
+    }
+
+    /// Digest of the assumptions the run rests on ([`ImputationAssumptions::digest`]).
+    #[must_use]
+    pub fn assumptions_digest(&self) -> String {
+        self.assumptions.digest()
+    }
+}
+
+/// What one completed table's fit reports when the answer has several coordinates.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct VectorImputationFit {
+    /// Point estimate of every coordinate.
+    pub point: Vec<f64>,
+    /// Row-major `p × p` sampling covariance, for a frequentist fit.
+    pub covariance: Option<Vec<f64>>,
+    /// Complete-data degrees of freedom, when the estimator has a finite one.
+    pub df_complete: Option<f64>,
+    /// Posterior draws of every coordinate (`draws[q]` is quantity `q`), for a Bayesian fit.
+    pub draws: Option<Vec<Vec<f64>>>,
+}
+
+impl VectorImputationFit {
+    /// A frequentist fit.
+    #[must_use]
+    pub const fn frequentist(
+        point: Vec<f64>,
+        covariance: Vec<f64>,
+        df_complete: Option<f64>,
+    ) -> Self {
+        Self { point, covariance: Some(covariance), df_complete, draws: None }
+    }
+
+    /// A Bayesian fit with the joint draws of its coordinates; the point is their means.
+    #[must_use]
+    pub fn bayesian(draws: Vec<Vec<f64>>) -> Self {
+        let point = draws
+            .iter()
+            .map(|column| {
+                #[allow(clippy::cast_precision_loss, reason = "draw counts are far below 2^52")]
+                let n = column.len().max(1) as f64;
+                column.iter().sum::<f64>() / n
+            })
+            .collect();
+        Self { point, covariance: None, df_complete: None, draws: Some(draws) }
+    }
+}
+
+/// How vector fits were pooled.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub enum PooledVectorEstimate {
+    /// Rubin's rules over frequentist fits.
+    Rubin(RubinVectorPooled),
+    /// Equal-weight mixture over Bayesian fits.
+    Stacked(StackedQuantities),
+}
+
+impl PooledVectorEstimate {
+    /// Pooled point of every coordinate.
+    #[must_use]
+    pub fn point(&self) -> Vec<f64> {
+        match self {
+            Self::Rubin(pooled) => pooled.point.clone(),
+            Self::Stacked(stacked) => stacked.quantities.iter().map(|q| q.mean).collect(),
+        }
+    }
+
+    /// Row-major total covariance (Rubin's `T`, or the mixture covariance).
+    #[must_use]
+    pub fn total_covariance(&self) -> &[f64] {
+        match self {
+            Self::Rubin(pooled) => &pooled.total,
+            Self::Stacked(stacked) => &stacked.covariance,
+        }
+    }
+}
+
+/// The impute-fit-pool procedure for an answer with several coordinates.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct MultipleImputationVectorRun {
+    /// The assumptions the run rests on.
+    pub assumptions: ImputationAssumptions,
+    /// Per-imputation fits, in imputation order.
+    pub fits: Vec<VectorImputationFit>,
+    /// The pooled estimate.
+    pub pooled: PooledVectorEstimate,
+}
+
+impl MultipleImputationVectorRun {
+    /// The run with the sampling design the caller declared recorded in its assumptions.
+    #[must_use]
+    pub fn with_design(mut self, design: Option<DeclaredSamplingDesign>) -> Self {
+        self.assumptions.design = design;
+        self
+    }
+}
+
+/// Impute every table, fit `fit` on each and pool the vector fits jointly.
+///
+/// The same tables as [`run`]: one is held at a time, and the fits must all be frequentist
+/// (point and covariance) or all Bayesian (joint draws).
+///
+/// # Errors
+///
+/// An imputation refusal, a fit error, or fits that cannot be pooled.
+pub fn run_vector<F, E>(
+    imputer: &Imputer,
+    ctx: &ExecutionContext,
+    mut fit: F,
+) -> Result<MultipleImputationVectorRun, MultipleImputationFailure<E>>
+where
+    F: FnMut(&CompletedTable, &ExecutionContext) -> Result<VectorImputationFit, E>,
+{
+    let imputations = imputer.spec().imputations;
+    let mut fits = Vec::with_capacity(usize::try_from(imputations).unwrap_or(0));
+    for index in 0..imputations {
+        let table = imputer.impute(index, ctx).map_err(MultipleImputationFailure::Imputation)?;
+        let result = fit(&table, ctx)
+            .map_err(|error| MultipleImputationFailure::Fit { imputation: index, error })?;
+        drop(table);
+        fits.push(result);
+    }
+    let pooled = pool_vector_fits(&fits).map_err(MultipleImputationFailure::Imputation)?;
+    Ok(MultipleImputationVectorRun {
+        assumptions: ImputationAssumptions::of(imputer, None),
+        fits,
+        pooled,
+    })
+}
+
+/// Pool vector fits: Rubin's rules when every fit has a covariance, a stacked posterior when
+/// every fit has draws.
+///
+/// # Errors
+///
+/// Fits that mix the two kinds or differ in their number of coordinates, or that the pooling
+/// rules refuse.
+pub fn pool_vector_fits(
+    fits: &[VectorImputationFit],
+) -> Result<PooledVectorEstimate, MultipleImputationError> {
+    if !fits.is_empty() && fits.iter().all(|fit| fit.draws.is_some()) {
+        let draws: Vec<Vec<Vec<f64>>> = fits.iter().filter_map(|fit| fit.draws.clone()).collect();
+        return stack_posterior_quantities(&draws).map(PooledVectorEstimate::Stacked);
+    }
+    if !fits.is_empty() && fits.iter().all(|fit| fit.covariance.is_some()) {
+        let points: Vec<Vec<f64>> = fits.iter().map(|fit| fit.point.clone()).collect();
+        let covariances: Vec<Vec<f64>> =
+            fits.iter().filter_map(|fit| fit.covariance.clone()).collect();
+        let df = fits
+            .iter()
+            .map(|fit| fit.df_complete)
+            .try_fold(f64::INFINITY, |acc, df| df.map(|df| acc.min(df)));
+        return rubin_pool_vector(&points, &covariances, df.filter(|df| df.is_finite()))
+            .map(PooledVectorEstimate::Rubin);
+    }
+    Err(MultipleImputationError::invalid(
+        "multiple_imputation.mixed_fits",
+        "every completed table's fit must report a covariance (frequentist) or posterior draws \
+         (Bayesian); the fits mix the two or report neither",
+    ))
 }
 
 /// A refusal of the procedure: the imputation itself, or the caller's fit on imputation
@@ -428,6 +738,7 @@ where
     }
     let pooled = pool_fits(&fits).map_err(MultipleImputationFailure::Imputation)?;
     Ok(MultipleImputationRun {
+        assumptions: ImputationAssumptions::of(imputer, None),
         spec,
         unit: imputer.units().name(),
         units: imputer.unit_count(),

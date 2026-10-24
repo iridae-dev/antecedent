@@ -18,9 +18,12 @@
 //! A likelihood or an update also probes the provider body. The probe is the
 //! log-density or update call the recipe names. A declaration that lists the
 //! capability is not that call; the body must answer it. The probe does not
-//! fit a model. This module does not evaluate a density, update a posterior,
-//! compute a score, or integrate a functional. Row selections are physical
-//! `u64` indices. They are not converted to `usize`.
+//! fit a model. This module declares and accepts; [`execution`] runs. A
+//! [`BoundRecipe`] becomes a [`execution::RecipeRun`] that evaluates the
+//! likelihood, updates the posterior, solves the estimating equations, forms the
+//! orthogonal score and integrates exactly, re-checking the provider on every
+//! call. Row selections are physical `u64` indices. They are not converted to
+//! `usize`.
 //!
 //! Accepting a provider is not identification and is not calibration. It does
 //! not open a support-matrix route. `recipe_license` emits the route and test
@@ -28,6 +31,8 @@
 
 use std::collections::BTreeSet;
 use std::fmt;
+
+pub mod execution;
 
 use antecedent_core::{
     CapabilityRequest, FailedCapabilityAttempt, InferenceSelection, ProviderCapability,

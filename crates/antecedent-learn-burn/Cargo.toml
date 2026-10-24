@@ -13,7 +13,11 @@ workspace = true
 default = []
 # Opt-in. Not part of `default`, so the ndarray CPU wheel does not link it.
 wgpu = ["burn/wgpu"]
+# Opt-in. Apple Accelerate BLAS under the ndarray backend: same `NdArray<f32>` type and
+# CPU residency, no device transfer. A separate candidate from `wgpu`.
+accelerate = ["burn/accelerate"]
 
 [dependencies]
+antecedent-core = { workspace = true }
 blake3 = { workspace = true }
 burn = { workspace = true }

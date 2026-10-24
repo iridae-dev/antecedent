@@ -224,28 +224,39 @@ pub(crate) fn cross_fit_aipw_nuisances(
         t,
         weights,
     };
-    let fold_parts = plan
-        .map_folds(ctx, |rows, inner| fit_aipw_fold(&models, rows, inner))
-        .map_err(|error| {
-            if ctx.cancellation.is_cancelled() { nuisance_cancelled() } else { learn_err(error) }
-        })?;
-
     let mut mu0 = vec![0.0; nrows];
     let mut mu1 = vec![0.0; nrows];
     let mut ehat = vec![0.0; nrows];
     let mut treat_prov = Vec::with_capacity(folds);
-    for part in fold_parts {
-        treat_prov.extend(part.provenance);
-        for (i, pred) in part.valid.iter().copied().zip(part.mu0) {
-            mu0[usize::try_from(i).expect("row id")] = pred;
+    // Folds are fitted ahead of the scatter by at most one result per thread, so the fold
+    // outputs alive at once are bounded by the window, not by the fold count.
+    let window = usize::try_from(ctx.parallelism.max_threads.get()).unwrap_or(1).max(1);
+    plan.pipeline_folds(
+        ctx,
+        window,
+        |rows, inner| fit_aipw_fold(&models, rows, inner),
+        |_, part| {
+            treat_prov.extend(part.provenance);
+            for (i, pred) in part.valid.iter().copied().zip(part.mu0) {
+                mu0[usize::try_from(i).expect("row id")] = pred;
+            }
+            for (i, pred) in part.valid.iter().copied().zip(part.mu1) {
+                mu1[usize::try_from(i).expect("row id")] = pred;
+            }
+            for (i, pred) in part.valid.iter().copied().zip(part.ehat) {
+                ehat[usize::try_from(i).expect("row id")] = pred;
+            }
+            Ok(())
+        },
+    )
+    .map_err(|error| match error {
+        antecedent_core::execution::MapExecutionError::Work(error)
+            if !ctx.cancellation.is_cancelled() =>
+        {
+            learn_err(error)
         }
-        for (i, pred) in part.valid.iter().copied().zip(part.mu1) {
-            mu1[usize::try_from(i).expect("row id")] = pred;
-        }
-        for (i, pred) in part.valid.iter().copied().zip(part.ehat) {
-            ehat[usize::try_from(i).expect("row id")] = pred;
-        }
-    }
+        _ => nuisance_cancelled(),
+    })?;
     let treat = CrossFittedPrediction {
         predictions: ehat.clone(),
         fold_assignment: fold_ids,

@@ -200,15 +200,36 @@ impl GeneralizedAdjustmentIdentifier {
         pag: &Pag,
         mut identify: impl FnMut(&Pag) -> Result<IdentificationResult, IdentificationError>,
     ) -> Result<IdentificationEnvelope<Pag>, IdentificationError> {
+        self.pag_envelope_with_candidates(pag, |completion| identify(completion).map(|r| vec![r]))
+    }
+
+    /// The completion envelope where one MAG completion can carry several cases: `identify`
+    /// returns one result per distinct functional the completion leaves open, and the
+    /// completion's mass is shared equally between them.
+    pub(crate) fn pag_envelope_with_candidates(
+        &self,
+        pag: &Pag,
+        mut identify: impl FnMut(&Pag) -> Result<Vec<IdentificationResult>, IdentificationError>,
+    ) -> Result<IdentificationEnvelope<Pag>, IdentificationError> {
         let (limits, ctx) = self.config.completion_search();
         let mut sampler =
             CompletionSampler::with_budget(pag, self.config.max_completions, limits, &ctx)
                 .map_err(IdentificationError::from)?;
         let mut cases = Vec::new();
-        let w = ProbabilityMass(self.config.per_completion_weight);
         for completion in sampler.by_ref() {
-            let result = identify(&completion.graph)?;
-            cases.push(GraphIdentificationCase { graph: completion.graph, result, weight: w });
+            let results = identify(&completion.graph)?;
+            #[allow(
+                clippy::cast_precision_loss,
+                reason = "a completion carries a handful of candidate functionals"
+            )]
+            let w = ProbabilityMass(self.config.per_completion_weight / results.len().max(1) as f64);
+            for result in results {
+                cases.push(GraphIdentificationCase {
+                    graph: completion.graph.clone(),
+                    result,
+                    weight: w,
+                });
+            }
         }
         let mut envelope = IdentificationEnvelope::from_cases(cases);
         envelope.push_features(pag_circle_features(pag));
@@ -315,6 +336,31 @@ impl GeneralizedAdjustmentIdentifier {
         self.cpdag_envelope_with(cpdag, |graph| {
             let prepared = backdoor.prepare(graph)?;
             backdoor.identify(&prepared, &cq, &mut workspace)
+        })
+    }
+
+    /// Identify a path-restricted natural effect, or a natural direct effect, in every DAG
+    /// completion of a CPDAG.
+    ///
+    /// A CPDAG assumes causal sufficiency, so each completion is a DAG and the
+    /// Avin-Shpitser-Pearl identifier decides it on its own: a completion with a recanting
+    /// witness carries unidentified mass, and completions that identify different
+    /// functionals leave the effect partially identified over the class.
+    ///
+    /// # Errors
+    ///
+    /// A query the path-specific identifier does not read, or a completion that fails to
+    /// prepare.
+    pub fn identify_cpdag_path_specific_envelope(
+        &self,
+        cpdag: &Cpdag,
+        query: &CausalQuery,
+    ) -> Result<IdentificationEnvelope<antecedent_graph::Dag>, IdentificationError> {
+        let identifier = crate::path_specific::PathSpecificIdentifier::new();
+        let mut workspace = IdentificationWorkspace::default();
+        self.cpdag_envelope_with(cpdag, |graph| {
+            let prepared = identifier.prepare_dag(graph)?;
+            identifier.identify(&prepared, query, &mut workspace)
         })
     }
 

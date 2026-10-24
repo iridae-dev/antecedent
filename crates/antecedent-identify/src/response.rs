@@ -234,7 +234,7 @@ impl ResponseIdentifier {
     }
 }
 
-fn response_pairs(
+pub(crate) fn response_pairs(
     functional: &ResponseFunctional,
 ) -> Result<Vec<(VariableId, VariableId)>, IdentificationError> {
     let pairs = match functional {

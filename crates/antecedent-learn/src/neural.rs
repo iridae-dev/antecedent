@@ -5,6 +5,10 @@
 use antecedent_core::ExecutionContext;
 use antecedent_core::StreamDomain;
 use antecedent_learn_burn::TrainedMlp;
+use antecedent_learn_burn::policy::{
+    AutoPolicy, ComputePolicy, FitRequest, PolicyContext, PolicyError, SystemProbe,
+    fit_with_policy, system_device_pool,
+};
 
 use crate::dense::{gather_physical, materialize_dense_colmajor};
 use crate::design::{DesignView, TargetView};
@@ -12,7 +16,17 @@ use crate::error::LearnError;
 use crate::learner::{
     FittedPredictor, LearnerCapabilities, LearnerFactory, LearnerProvenance, PredictionTask,
 };
-use crate::spec::NeuralSpec;
+use crate::spec::{DevicePolicy, NeuralSpec};
+
+impl NeuralSpec {
+    fn device_name(&self) -> &'static str {
+        match self.device {
+            DevicePolicy::Cpu => "cpu",
+            DevicePolicy::Gpu => "gpu",
+            DevicePolicy::Auto => "auto",
+        }
+    }
+}
 
 /// Neural-net factory. Provider identity stays out of `antecedent-estimate`.
 #[derive(Clone, Copy, Debug)]
@@ -66,27 +80,53 @@ impl LearnerFactory for NeuralNetLearner {
         let mut rng = ctx.rng.stream_for(StreamDomain::Learner, crate::streams::NEURAL);
         let seed = rng.next_u64();
         let binary = matches!(self.task, PredictionTask::BinaryProbability);
-        let model = antecedent_learn_burn::train(
-            &design,
-            nrows,
-            ncols,
-            &gathered_y,
-            &antecedent_learn_burn::MlpSpec {
-                binary,
-                hidden: self.spec.hidden as usize,
-                epochs: self.spec.epochs as usize,
-                learning_rate: self.spec.learning_rate,
-                seed,
-            },
-        )
-        .map_err(|error| LearnError::Backend(error.to_string()))?;
-        Ok(Box::new(NeuralNetPredictor { model, task: self.task }))
+        let mlp = antecedent_learn_burn::MlpSpec {
+            binary,
+            hidden: self.spec.hidden as usize,
+            epochs: self.spec.epochs as usize,
+            learning_rate: self.spec.learning_rate,
+            seed,
+        };
+        let policy = match self.spec.device {
+            DevicePolicy::Cpu => ComputePolicy::Cpu,
+            DevicePolicy::Gpu => ComputePolicy::Gpu,
+            DevicePolicy::Auto => ComputePolicy::Auto,
+        };
+        let request = FitRequest::neural(policy, &mlp, nrows, ncols);
+        // The default CPU route polls no token, so cancellation accounting and the existing
+        // fit are unchanged. A device route polls once per epoch.
+        let stop = || policy != ComputePolicy::Cpu && ctx.cancellation.is_cancelled();
+        let context = PolicyContext {
+            probe: &SystemProbe,
+            device_pool: system_device_pool(),
+            auto: AutoPolicy::default(),
+            stop: &stop,
+        };
+        let fit = fit_with_policy(&request, &design, nrows, ncols, &gathered_y, &mlp, &context)
+            .map_err(|error| match error {
+                PolicyError::Refused(reason) => LearnError::Backend(format!(
+                    "neural_net device={}: {reason} [{}]",
+                    self.spec.device_name(),
+                    reason.code()
+                )),
+                PolicyError::Fit(antecedent_learn_burn::LearnBurnError::Cancelled) => {
+                    LearnError::Cancelled
+                }
+                other => LearnError::Backend(other.to_string()),
+            })?;
+        Ok(Box::new(NeuralNetPredictor {
+            model: fit.model,
+            task: self.task,
+            implementation: fit.provenance.implementation_label(),
+        }))
     }
 }
 
 struct NeuralNetPredictor {
     model: TrainedMlp,
     task: PredictionTask,
+    /// Library, device, dtype, and any fallback of the route that fit this model.
+    implementation: String,
 }
 
 impl FittedPredictor for NeuralNetPredictor {
@@ -109,7 +149,7 @@ impl FittedPredictor for NeuralNetPredictor {
         let _ = self.task;
         LearnerProvenance {
             spec: "neural_net".into(),
-            implementation: "burn".into(),
+            implementation: self.implementation.clone(),
             version: "0.16".into(),
         }
     }

@@ -855,7 +855,7 @@ fn evaluate_temporal_inner(
         ctx.acquire_admission(0, bytes).map_err(|error| PanelError::Resource(error.to_string()))?;
     evaluate_temporal_bound(data, draw, programs, ctx)
 }
-fn evaluate_temporal_bound(
+pub(super) fn evaluate_temporal_bound(
     data: &likelihood::CompiledPanel<'_>,
     draw: &TemporalPanelDraw,
     programs: &[PanelProgram],

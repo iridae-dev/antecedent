@@ -322,12 +322,13 @@ impl SharpRegressionDiscontinuity {
         let ids = [query.outcome, running_variable, query.treatment];
         let crate::prepare::AdmittedColumns { data, row_mask, receipt: preparation } =
             crate::prepare::admit_estimator_columns(data, &ids, crate::prepare::FINITE_TABLE_ONLY)?;
+        // Read-only: the window below is the only retained copy.
         let outcome_full =
-            data.float64_masked(query.outcome, &row_mask).map_err(EstimationError::from)?;
+            data.float64_selected(query.outcome, &row_mask).map_err(EstimationError::from)?;
         let running_full =
-            data.float64_masked(running_variable, &row_mask).map_err(EstimationError::from)?;
+            data.float64_selected(running_variable, &row_mask).map_err(EstimationError::from)?;
         let treatment_full =
-            data.float64_masked(query.treatment, &row_mask).map_err(EstimationError::from)?;
+            data.float64_selected(query.treatment, &row_mask).map_err(EstimationError::from)?;
         let assignment_verified_rows =
             verify_sharp_assignment(&treatment_full, &running_full, cutoff)?;
 

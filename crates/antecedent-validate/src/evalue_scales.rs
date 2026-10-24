@@ -225,7 +225,7 @@ pub fn evalue_bounds(
 }
 
 /// Probed confounder strengths (risk-ratio scale, equal with treatment and outcome).
-const STRENGTH_GRID: [f64; 10] = [1.0, 1.25, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 7.5, 10.0];
+pub(crate) const STRENGTH_GRID: [f64; 10] = [1.0, 1.25, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 7.5, 10.0];
 
 /// The Ding–`VanderWeele` bounding factor of a confounder with risk ratio `strength` on both
 /// treatment and outcome: `B = s² / (2s − 1)`. The most the confounder can shift the risk

@@ -15,6 +15,17 @@
 //! * `half_width_rel_tol` bounds the Monte Carlo error of the percentile interval half-width,
 //!   estimated from order statistics around each endpoint rank (Maritz and Jarrett 1978 style
 //!   band of one standard error).
+//! * `success_floor` is the replicate floor of a bootstrap standard error, a fixed count of
+//!   successes. It is the rule [`WaveStoppingRule::success_floor_rule`] declares.
+//!
+//! # Production use
+//!
+//! Every production bootstrap (`util::bootstrap_se_with_scratch` and the cluster and block
+//! designs behind `util::bootstrap_by_design`) evaluates an enabled
+//! [`antecedent_core::AdaptiveBootstrapBudget`] through [`run_waves_serial`]: the budget's
+//! floor is the rule's `success_floor`, one replicate is a wave, the replicate rows are those of
+//! the fixed-count loop, failures stay in the attempt count, and an estimator error aborts. The
+//! tolerance rules above are used by callers that report an interval.
 //!
 //! Both are errors of the resampling Monte Carlo, never of the estimator's sampling error.
 //! A tolerance on a degenerate sample (zero spread) cannot be assessed and counts as not met.
@@ -80,6 +91,9 @@ pub struct WaveStoppingRule {
     pub se_rel_tol: Option<f64>,
     /// Relative Monte Carlo error target of the interval half-width. `None` is not tested.
     pub half_width_rel_tol: Option<f64>,
+    /// Successes after which the run may stop: the replicate floor of a bootstrap standard
+    /// error. `None` is not tested. Every declared condition must hold at once.
+    pub success_floor: Option<u32>,
     /// Nominal level of the percentile interval, strictly inside `(0, 1)`.
     pub level: f64,
     /// Largest tolerated cumulative failed fraction of attempted replicates, in `[0, 1]`.
@@ -226,6 +240,9 @@ impl WaveStoppingRule {
         if !(0.0..=1.0).contains(&self.max_failure_fraction) {
             return bad("failure fraction must lie in [0, 1]");
         }
+        if self.success_floor == Some(0) {
+            return bad("success floor must be positive");
+        }
         let tolerances = [self.se_rel_tol, self.half_width_rel_tol];
         if tolerances.into_iter().flatten().any(|tol| !(tol.is_finite() && tol > 0.0)) {
             return bad("relative tolerances must be positive and finite");
@@ -233,12 +250,34 @@ impl WaveStoppingRule {
         Ok(())
     }
 
+    /// The rule of a bootstrap standard error that stops at a success floor: one replicate per
+    /// wave, stopping as soon as `floor` successes are in hand, never refusing on the failure
+    /// fraction (the caller's summary applies its own), and returning completed replicates on
+    /// cancellation.
+    #[must_use]
+    pub const fn success_floor_rule(max_replicates: u32, floor: u32) -> Self {
+        Self {
+            wave_size: 1,
+            min_replicates: 0,
+            max_replicates,
+            se_rel_tol: None,
+            half_width_rel_tol: None,
+            success_floor: Some(floor),
+            level: 0.95,
+            max_failure_fraction: 1.0,
+            on_cancel: CancelPolicy::ReturnPartial,
+        }
+    }
+
     fn tolerances_met(&self, successes: &[f64]) -> bool {
-        if self.se_rel_tol.is_none() && self.half_width_rel_tol.is_none() {
+        if self.se_rel_tol.is_none()
+            && self.half_width_rel_tol.is_none()
+            && self.success_floor.is_none()
+        {
             return false;
         }
         let ok = u32::try_from(successes.len()).unwrap_or(u32::MAX);
-        if ok < self.min_replicates.max(2) {
+        if ok < self.min_replicates.max(2) || self.success_floor.is_some_and(|floor| ok < floor) {
             return false;
         }
         let within = |tol: Option<f64>, error: Option<f64>| match tol {
@@ -329,12 +368,26 @@ enum Replicate {
     EstimatorError(String),
 }
 
-/// A replicate saw the token trip.
-struct Interrupted;
+/// Why a wave did not finish.
+enum Halt {
+    /// A replicate saw the token trip.
+    Cancelled,
+    /// An estimator error that the caller's procedure treats as fatal.
+    Failed(EstimationError),
+}
 
-fn classify(outcome: Result<Option<f64>, EstimationError>) -> Result<Replicate, Interrupted> {
+/// Why a driven run ended in an error.
+#[derive(Debug)]
+pub(crate) enum DriveError {
+    /// The rule refused or the run was cancelled under [`CancelPolicy::Refuse`].
+    Wave(WaveError),
+    /// A replicate's estimator failed and the caller aborts on that.
+    Estimator(EstimationError),
+}
+
+fn classify(outcome: Result<Option<f64>, EstimationError>) -> Result<Replicate, Halt> {
     match outcome {
-        Err(EstimationError::Data(DataError::Cancelled)) => Err(Interrupted),
+        Err(EstimationError::Data(DataError::Cancelled)) => Err(Halt::Cancelled),
         Err(error) => Ok(Replicate::EstimatorError(error.to_string())),
         Ok(None) => Ok(Replicate::Declined),
         Ok(Some(value)) if value.is_finite() => Ok(Replicate::Success(value)),
@@ -408,13 +461,13 @@ fn run_wave(
     first_replicate: u32,
     count: u32,
     estimate: &(impl Fn(u64, &mut CausalRng) -> Result<Option<f64>, EstimationError> + Sync),
-) -> Result<Vec<Replicate>, Interrupted> {
-    let len = usize::try_from(count).map_err(|_| Interrupted)?;
+) -> Result<Vec<Replicate>, Halt> {
+    let len = usize::try_from(count).map_err(|_| Halt::Cancelled)?;
     ctx.map_indexed(len, |local, inner| {
         if inner.cancellation.is_cancelled() {
-            return Err(Interrupted);
+            return Err(Halt::Cancelled);
         }
-        let local = u32::try_from(local).map_err(|_| Interrupted)?;
+        let local = u32::try_from(local).map_err(|_| Halt::Cancelled)?;
         let id = u64::from(first_replicate) + u64::from(local);
         let mut rng = wave_replicate_rng(inner, stream_base, id);
         classify(estimate(id, &mut rng))
@@ -449,17 +502,73 @@ pub fn run_adaptive_waves(
     stream_base: u64,
     estimate: impl Fn(u64, &mut CausalRng) -> Result<Option<f64>, EstimationError> + Sync,
 ) -> Result<WaveRun, WaveError> {
-    rule.validate()?;
+    drive_waves(rule, ctx, |first, count| run_wave(ctx, stream_base, first, count, &estimate))
+        .map_err(|error| match error {
+            DriveError::Wave(error) => error,
+            DriveError::Estimator(_) => {
+                WaveError::InvalidRule("an estimator error escaped the failure accounting")
+            }
+        })
+}
+
+/// Run waves on the caller's thread with one reused scratch, aborting on an estimator error.
+///
+/// This is the production form for a bootstrap standard error whose estimator keeps a per-run
+/// scratch (a gather buffer, a workspace) and whose caller treats an estimator error as fatal
+/// rather than as a failed replicate. `estimate(scratch, id, rng)` evaluates replicate `id`:
+/// `Ok(Some(value))` is a success, `Ok(None)` a declined replicate, a non-finite value a failed
+/// one, and any error aborts the whole run and is returned as [`DriveError::Estimator`]. The
+/// stopping rule, failure accounting and cancellation are those of [`run_adaptive_waves`]: the
+/// token is observed before each wave and before each replicate, and a replicate that trips it
+/// is still part of its completed wave.
+///
+/// # Errors
+///
+/// The errors of [`run_adaptive_waves`], or the first estimator error.
+pub(crate) fn run_waves_serial<S>(
+    rule: &WaveStoppingRule,
+    ctx: &ExecutionContext,
+    stream_base: u64,
+    scratch: &mut S,
+    mut estimate: impl FnMut(&mut S, u64, &mut CausalRng) -> Result<Option<f64>, EstimationError>,
+) -> Result<WaveRun, DriveError> {
+    drive_waves(rule, ctx, |first, count| {
+        let mut outcomes = Vec::with_capacity(usize::try_from(count).unwrap_or(0));
+        for local in 0..count {
+            if ctx.cancellation.is_cancelled() {
+                return Err(Halt::Cancelled);
+            }
+            let id = u64::from(first) + u64::from(local);
+            let mut rng = wave_replicate_rng(ctx, stream_base, id);
+            outcomes.push(match estimate(scratch, id, &mut rng) {
+                Err(error) => return Err(Halt::Failed(error)),
+                Ok(None) => Replicate::Declined,
+                Ok(Some(value)) if value.is_finite() => Replicate::Success(value),
+                Ok(Some(_)) => Replicate::NonFinite,
+            });
+        }
+        Ok(outcomes)
+    })
+}
+
+fn drive_waves(
+    rule: &WaveStoppingRule,
+    ctx: &ExecutionContext,
+    mut run_one: impl FnMut(u32, u32) -> Result<Vec<Replicate>, Halt>,
+) -> Result<WaveRun, DriveError> {
+    rule.validate().map_err(DriveError::Wave)?;
     let mut ledger = Ledger::default();
     let mut next = 0u32;
     let mut wave = 0u32;
     while next < rule.max_replicates {
         if ctx.cancellation.is_cancelled() {
-            return cancelled(ledger, rule);
+            return cancelled(ledger, rule).map_err(DriveError::Wave);
         }
         let count = rule.wave_size.min(rule.max_replicates - next);
-        let Ok(outcomes) = run_wave(ctx, stream_base, next, count, &estimate) else {
-            return cancelled(ledger, rule);
+        let outcomes = match run_one(next, count) {
+            Ok(outcomes) => outcomes,
+            Err(Halt::Cancelled) => return cancelled(ledger, rule).map_err(DriveError::Wave),
+            Err(Halt::Failed(error)) => return Err(DriveError::Estimator(error)),
         };
         ledger.absorb(wave, next, outcomes);
         next += count;
@@ -470,12 +579,12 @@ pub fn run_adaptive_waves(
             );
         }
         if f64::from(ledger.failed) > rule.max_failure_fraction * f64::from(ledger.attempted) {
-            return Err(WaveError::FailureFraction {
+            return Err(DriveError::Wave(WaveError::FailureFraction {
                 wave,
                 attempted: ledger.attempted,
                 failed: ledger.failed,
                 max_fraction: rule.max_failure_fraction,
-            });
+            }));
         }
         wave += 1;
         if next < rule.max_replicates && rule.tolerances_met(&ledger.successes) {
@@ -491,7 +600,7 @@ mod tests {
 
     use antecedent_core::{CausalRng, ExecutionContext, StreamDomain, derive_stream};
     use antecedent_data::DataError;
-    use antecedent_kernels::unbiased_index;
+    use antecedent_kernels::{sample_std, unbiased_index};
 
     use super::{
         CancelPolicy, StopReason, WaveError, WaveStoppingRule, half_width_relative_mc_error,
@@ -506,6 +615,7 @@ mod tests {
             max_replicates,
             se_rel_tol: None,
             half_width_rel_tol: None,
+            success_floor: None,
             level: 0.95,
             max_failure_fraction: 0.5,
             on_cancel: CancelPolicy::ReturnPartial,
@@ -796,5 +906,312 @@ mod tests {
         }
         let mean_deviation = deviations.iter().sum::<f64>() / deviations.len() as f64;
         assert!(mean_deviation.abs() <= tolerance, "mean deviation {mean_deviation}");
+    }
+
+    /// Slope of a simple regression of `y` on `x` over the listed rows.
+    fn slope(x: &[f64], y: &[f64], rows: &[usize]) -> f64 {
+        let n = rows.len() as f64;
+        let mx = rows.iter().map(|&i| x[i]).sum::<f64>() / n;
+        let my = rows.iter().map(|&i| y[i]).sum::<f64>() / n;
+        let sxy: f64 = rows.iter().map(|&i| (x[i] - mx) * (y[i] - my)).sum();
+        let sxx: f64 = rows.iter().map(|&i| (x[i] - mx) * (x[i] - mx)).sum();
+        sxy / sxx
+    }
+
+    #[test]
+    fn serial_runner_equals_the_parallel_runner_and_reuses_one_scratch() {
+        use super::run_waves_serial;
+        let ctx = ExecutionContext::for_tests(71);
+        let data = normal_sample(&ctx, 25, 1.0);
+        let parallel = run_adaptive_waves(&rule(8, 60), &ctx, 5, |_, rng| {
+            Ok(Some(bootstrap_mean(&data, rng)))
+        })
+        .unwrap();
+        let mut scratch: Vec<u64> = Vec::new();
+        let serial = run_waves_serial(&rule(8, 60), &ctx, 5, &mut scratch, |seen, id, rng| {
+            seen.push(id);
+            Ok(Some(bootstrap_mean(&data, rng)))
+        })
+        .unwrap();
+        bits_eq(&serial.successes, &parallel.successes);
+        assert_eq!(serial.waves, parallel.waves);
+        assert_eq!(scratch, (0..60u64).collect::<Vec<_>>(), "one scratch saw every id once");
+    }
+
+    #[test]
+    fn success_floor_stops_after_exactly_the_floor_and_keeps_failures_in_the_count() {
+        use super::run_waves_serial;
+        let ctx = ExecutionContext::for_tests(73);
+        let floor_rule = WaveStoppingRule::success_floor_rule(100, 17);
+        let mut unit = ();
+        let stopped = run_waves_serial(&floor_rule, &ctx, 2, &mut unit, |(), id, rng| {
+            if id == 2 || id == 5 { Ok(None) } else { Ok(Some(rng.next_f64())) }
+        })
+        .unwrap();
+        assert_eq!(stopped.stop, StopReason::Converged);
+        assert_eq!((stopped.ok, stopped.failed, stopped.attempted), (17, 2, 19));
+        let full = run_waves_serial(&rule(1, 100), &ctx, 2, &mut unit, |(), id, rng| {
+            if id == 2 || id == 5 { Ok(None) } else { Ok(Some(rng.next_f64())) }
+        })
+        .unwrap();
+        bits_eq(&stopped.successes, &full.successes[..17]);
+        // A floor above the cap never stops: the fixed-B branch.
+        let capped = WaveStoppingRule::success_floor_rule(30, 40);
+        let run =
+            run_waves_serial(&capped, &ctx, 2, &mut unit, |(), _, rng| Ok(Some(rng.next_f64())))
+                .unwrap();
+        assert_eq!((run.stop, run.attempted), (StopReason::MaxReplicates, 30));
+        let mut zero = WaveStoppingRule::success_floor_rule(30, 1);
+        zero.success_floor = Some(0);
+        assert!(zero.validate().is_err());
+    }
+
+    #[test]
+    fn serial_runner_aborts_on_an_estimator_error_and_returns_completed_replicates_on_cancel() {
+        use super::{DriveError, run_waves_serial};
+        let ctx = ExecutionContext::for_tests(79);
+        let mut unit = ();
+        let aborted = run_waves_serial(&rule(1, 50), &ctx, 0, &mut unit, |(), id, rng| {
+            if id == 4 {
+                Err(EstimationError::data_msg("malformed replicate"))
+            } else {
+                Ok(Some(rng.next_f64()))
+            }
+        });
+        match aborted {
+            Err(DriveError::Estimator(error)) => assert!(error.to_string().contains("malformed")),
+            other => panic!("expected an estimator abort, got {other:?}"),
+        }
+        let token = ctx.cancellation.clone();
+        let partial = run_waves_serial(&rule(1, 50), &ctx, 0, &mut unit, |(), id, rng| {
+            if id == 6 {
+                token.cancel();
+            }
+            Ok(Some(rng.next_f64()))
+        })
+        .unwrap();
+        assert_eq!((partial.stop, partial.attempted, partial.ok), (StopReason::Cancelled, 7, 7));
+    }
+
+    #[test]
+    fn enabled_budget_bootstraps_run_through_the_wave_procedure() {
+        use antecedent_core::AdaptiveBootstrapBudget;
+
+        use crate::bootstrap_wave::fill_worker_replicate;
+        use crate::util::bootstrap_se_with_scratch;
+
+        let plain = ExecutionContext::for_tests(7);
+        let mut ctx = ExecutionContext::for_tests(7);
+        let data = normal_sample(&plain, 30, 1.0);
+        let n = data.len();
+        let mean_of =
+            |rows: &[usize]| rows.iter().map(|&i| data[i]).sum::<f64>() / rows.len() as f64;
+        let reference = |count: u32| -> Vec<f64> {
+            (0..u64::from(count))
+                .map(|id| {
+                    let mut rows = Vec::new();
+                    fill_worker_replicate(n, id, &plain, 3, &mut rows).unwrap();
+                    mean_of(&rows)
+                })
+                .collect()
+        };
+        // ε = 0.2 gives the floor ceil(1 + 1 / (2 · 0.04)) = 14 successes.
+        let budget =
+            AdaptiveBootstrapBudget { enabled: true, min_replicates: 2, se_rel_epsilon: 0.2 };
+        assert_eq!(budget.required_replicates(), 14);
+        let fixed_se =
+            bootstrap_se_with_scratch(60, &ctx, 3, n, || (), |(), rows| Ok(Some(mean_of(rows))))
+                .unwrap();
+        assert!(!fixed_se.early_stopped);
+        assert_eq!(fixed_se.replicates_ok, 60);
+        assert_eq!(fixed_se.se.unwrap().to_bits(), sample_std(&reference(60)).to_bits());
+
+        ctx.adaptive_bootstrap = budget;
+        let calls = std::sync::atomic::AtomicU32::new(0);
+        let stopped = bootstrap_se_with_scratch(
+            60,
+            &ctx,
+            3,
+            n,
+            || (),
+            |(), rows| {
+                let call = calls.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                // The first two replicates decline; they stay in the attempt count.
+                Ok(if call < 2 { None } else { Some(mean_of(rows)) })
+            },
+        )
+        .unwrap();
+        assert!(stopped.early_stopped && !stopped.cancelled);
+        assert_eq!((stopped.replicates_ok, stopped.replicates_failed), (14, 2));
+        assert_eq!(calls.load(std::sync::atomic::Ordering::Relaxed), 16);
+        // The successes are replicates 2..16 of the fixed run, so the SE is their sample SD.
+        assert_eq!(stopped.se.unwrap().to_bits(), sample_std(&reference(16)[2..]).to_bits());
+
+        // An estimator error aborts the bootstrap, and a cancelled token is a partial result.
+        let aborted = bootstrap_se_with_scratch(
+            60,
+            &ctx,
+            3,
+            n,
+            || (),
+            |(), _| Err(EstimationError::data_msg("estimator refused")),
+        );
+        assert!(aborted.unwrap_err().to_string().contains("estimator refused"));
+        let token = ctx.cancellation.clone();
+        let cancelled = bootstrap_se_with_scratch(
+            60,
+            &ctx,
+            3,
+            n,
+            || (),
+            |(), rows| {
+                token.cancel();
+                Ok(Some(mean_of(rows)))
+            },
+        )
+        .unwrap();
+        assert!(cancelled.cancelled && !cancelled.early_stopped);
+        assert_eq!(cancelled.replicates_ok, 1);
+    }
+
+    #[test]
+    fn regression_slope_procedure_fits_resamples_stops_and_reports_the_interval() {
+        use crate::bootstrap_wave::fill_worker_replicate;
+        use crate::statistical_transport::percentile_interval;
+
+        let ctx = ExecutionContext::for_tests(83);
+        let n = 200;
+        let x = normal_sample(&ctx, n, 1.0);
+        let noise = {
+            let mut rng = ctx.rng.stream(0xBEEF);
+            (0..n)
+                .map(|_| {
+                    let (u, v) = (1.0 - rng.next_f64(), rng.next_f64());
+                    (-2.0 * u.ln()).sqrt() * (std::f64::consts::TAU * v).cos()
+                })
+                .collect::<Vec<f64>>()
+        };
+        let y: Vec<f64> = x.iter().zip(&noise).map(|(x, e)| 1.0 + 2.0 * x + e).collect();
+        // The full-sample fit is made once, outside the waves.
+        let everything: Vec<usize> = (0..n).collect();
+        let fitted = slope(&x, &y, &everything);
+        let mx = x.iter().sum::<f64>() / n as f64;
+        let sxx: f64 = x.iter().map(|v| (v - mx) * (v - mx)).sum();
+        let residual_variance = {
+            let my = y.iter().sum::<f64>() / n as f64;
+            let intercept = my - fitted * mx;
+            y.iter().zip(&x).map(|(y, x)| (y - intercept - fitted * x).powi(2)).sum::<f64>()
+                / (n as f64 - 2.0)
+        };
+        let analytic_se = (residual_variance / sxx).sqrt();
+
+        let evaluations = std::sync::atomic::AtomicU32::new(0);
+        let mut adaptive = rule(50, 4000);
+        adaptive.min_replicates = 100;
+        adaptive.se_rel_tol = Some(0.05);
+        adaptive.half_width_rel_tol = Some(0.25);
+        let run = run_adaptive_waves(&adaptive, &ctx, 9, |id, _| {
+            evaluations.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            let mut rows = Vec::new();
+            fill_worker_replicate(n, id, &ctx, 9, &mut rows).unwrap();
+            Ok(Some(slope(&x, &y, &rows)))
+        })
+        .unwrap();
+        assert_eq!(run.stop, StopReason::Converged);
+        assert_eq!(run.failed, 0);
+        assert!(run.attempted < 4000, "stopped at {}", run.attempted);
+        assert_eq!(
+            evaluations.load(std::sync::atomic::Ordering::Relaxed),
+            run.attempted,
+            "each replicate is one refit; the full-sample fit is not repeated by the waves"
+        );
+        let (lower, upper) = run.interval.expect("interval");
+        assert_eq!((lower, upper), percentile_interval(&run.successes, 0.95).unwrap());
+        assert!(lower < fitted && fitted < upper, "{lower} {fitted} {upper}");
+        let se = run.se.unwrap();
+        assert!((se / analytic_se - 1.0).abs() < 0.25, "bootstrap {se} vs analytic {analytic_se}");
+        let half_width = (upper - lower) / 2.0;
+        assert!((half_width / (1.96 * analytic_se) - 1.0).abs() < 0.3, "{half_width}");
+        assert!(run.se_rel_mc_error.unwrap() <= 0.05);
+        assert!(run.half_width_rel_mc_error.unwrap() <= 0.25);
+        // The interval at the stop is the percentile interval of the replicates drawn so far,
+        // and those are the leading replicates of a run that never stops.
+        let never = run_adaptive_waves(&rule(50, run.attempted), &ctx, 9, |id, _| {
+            let mut rows = Vec::new();
+            fill_worker_replicate(n, id, &ctx, 9, &mut rows).unwrap();
+            Ok(Some(slope(&x, &y, &rows)))
+        })
+        .unwrap();
+        bits_eq(&run.successes, &never.successes);
+        assert_eq!(run.interval, never.interval);
+    }
+
+    #[test]
+    fn production_interval_bootstrap_stops_on_tolerance_and_returns_the_interval() {
+        use crate::bootstrap_wave::fill_worker_replicate;
+        use crate::util::bootstrap_interval_with_scratch;
+
+        let ctx = ExecutionContext::for_tests(91);
+        let data = normal_sample(&ctx, 60, 1.0);
+        let n = data.len();
+        let mean_of =
+            |rows: &[usize]| rows.iter().map(|&i| data[i]).sum::<f64>() / rows.len() as f64;
+        let mut tolerant = rule(50, 4000);
+        tolerant.min_replicates = 100;
+        tolerant.se_rel_tol = Some(0.05);
+        tolerant.half_width_rel_tol = Some(0.25);
+        let run = bootstrap_interval_with_scratch(
+            &tolerant,
+            &ctx,
+            4,
+            n,
+            || (),
+            |(), rows| Ok(Some(mean_of(rows))),
+        )
+        .unwrap();
+        assert!(run.se.early_stopped && !run.se.cancelled);
+        let attempted = run.se.replicates_ok + run.se.replicates_failed;
+        assert!(attempted >= 100 && attempted < 4000, "{attempted}");
+        assert_eq!(run.waves.len() as u32 * 50, attempted);
+        // The successes are the leading replicates of the fixed-count bootstrap on this seed.
+        let reference: Vec<f64> = (0..u64::from(attempted))
+            .map(|id| {
+                let mut rows = Vec::new();
+                fill_worker_replicate(n, id, &ctx, 4, &mut rows).unwrap();
+                mean_of(&rows)
+            })
+            .collect();
+        assert_eq!(run.se.se.unwrap().to_bits(), sample_std(&reference).to_bits());
+        let expected = crate::statistical_transport::percentile_interval(&reference, 0.95);
+        assert_eq!(run.interval, expected);
+        let (lower, upper) = run.interval.unwrap();
+        let analytic =
+            (data.iter().map(|v| v * v).sum::<f64>() / n as f64).sqrt() / (n as f64).sqrt();
+        assert!(lower < upper && ((upper - lower) / 2.0 / (1.96 * analytic) - 1.0).abs() < 0.4);
+        assert!(run.se_rel_mc_error.unwrap() <= 0.05);
+        assert!(run.half_width_rel_mc_error.unwrap() <= 0.25);
+        // Estimator errors abort; an unreachable tolerance runs the whole request.
+        let aborted = bootstrap_interval_with_scratch(
+            &tolerant,
+            &ctx,
+            4,
+            n,
+            || (),
+            |(), _| Err(EstimationError::data_msg("estimator refused")),
+        );
+        assert!(aborted.is_err());
+        let mut never = rule(25, 100);
+        never.se_rel_tol = Some(1e-9);
+        let full = bootstrap_interval_with_scratch(
+            &never,
+            &ctx,
+            4,
+            n,
+            || (),
+            |(), rows| Ok(Some(mean_of(rows))),
+        )
+        .unwrap();
+        assert!(!full.se.early_stopped);
+        assert_eq!(full.se.replicates_ok, 100);
     }
 }
