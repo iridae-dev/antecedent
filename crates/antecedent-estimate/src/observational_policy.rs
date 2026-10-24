@@ -37,7 +37,8 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{CausalRng, ExecutionContext};
+use antecedent_core::identity::{CanonicalWriter, ReusableProduct};
+use antecedent_core::{CausalRng, ExecutionContext, SemanticDigest};
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, GlmOptions, LeastSquaresWorkspace};
 
 use crate::aipw::predict_colmajor;
@@ -45,6 +46,10 @@ use crate::crossfit_plan::{
     CrossfitPlan, FoldRows, FoldSource, SHARED_FOLD_ID_ERRORS, rows_colmajor,
 };
 use crate::error::EstimationError;
+use crate::nuisance_cache::{
+    FoldIdentity, NuisanceCacheKey, NuisanceKeyBuilder, NuisanceOptions, ProviderDependency,
+};
+use crate::nuisance_keys::{PROVIDER_VERSION, glm_numerical};
 use crate::propensity::{CategoryTrainingRows, fit_category_probabilities};
 use crate::util::{refuse, stats_err};
 
@@ -267,23 +272,102 @@ impl ObservationalPolicyValue {
                 Splits::folds(&prepared, self.folds, ctx.rng.master_seed())?
             }
         };
+        // The split nuisances do not depend on the policy being scored, so a batch of policies
+        // over the same rows, support and splits fits them once.
+        let fits = crate::crossfit_cache::reuse_in_active_scope(
+            || self.nuisance_key(&prepared, &plan, ctx.rng.master_seed()),
+            (16 * k as u64).saturating_mul(n as u64).saturating_add(1024),
+            &|| if ctx.cancellation.is_cancelled() { Err(policy_cancelled()) } else { Ok(()) },
+            || self.fit_splits(&prepared, &plan, ctx),
+        )?;
         let mut scored = Scored::new(n, k);
-        let mut learning_rows = usize::MAX;
-        let mut workspace = FitWorkspace::default();
-        for split in plan.splits() {
-            if ctx.cancellation.is_cancelled() {
-                return Err(refuse(
-                    antecedent_core::reason_code!("cancelled_no_claim"),
-                    "policy_value.cancelled",
-                    "the cross-fitted policy-value fit was cancelled before every split was fit; no estimate is reported",
-                ));
-            }
-            learning_rows = learning_rows.min(split.train.len());
-            let nuisance = self.fit_split(&prepared, split.train, split.valid, &mut workspace)?;
-            scored.add_split(self, &prepared, split.valid, &nuisance);
+        for (split, nuisance) in plan.splits().zip(fits.nuisances.iter()) {
+            scored.add_split(self, &prepared, split.valid, nuisance);
         }
         scored.flatten_action_scores();
-        self.finish(&prepared, scored, learning_rows)
+        self.finish(&prepared, scored, fits.learning_rows)
+    }
+
+    /// Fit the propensity and outcome models of every split.
+    fn fit_splits(
+        &self,
+        prepared: &Prepared,
+        plan: &Splits,
+        ctx: &ExecutionContext,
+    ) -> Result<PolicyFits, EstimationError> {
+        let mut learning_rows = usize::MAX;
+        let mut workspace = FitWorkspace::default();
+        let mut nuisances = Vec::with_capacity(plan.parts.len());
+        for split in plan.splits() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(policy_cancelled());
+            }
+            learning_rows = learning_rows.min(split.train.len());
+            nuisances.push(self.fit_split(prepared, split.train, split.valid, &mut workspace)?);
+        }
+        Ok(PolicyFits { nuisances, learning_rows })
+    }
+
+    /// Key of the split nuisances, from the actual design, observed actions, outcome, declared
+    /// support, realized splits, propensity inputs and seed. `None` when a part does not hash
+    /// (then the fit is not shared).
+    fn nuisance_key(
+        &self,
+        prepared: &Prepared,
+        plan: &Splits,
+        seed: u64,
+    ) -> Option<NuisanceCacheKey> {
+        let parts = plan.parts.len();
+        let mut validated_in = vec![u32::try_from(parts).ok()?; prepared.n];
+        let mut splits = CanonicalWriter::new("antecedent.policy.splits");
+        splits.word(parts as u64);
+        for (index, (train, valid)) in plan.parts.iter().enumerate() {
+            for &row in valid {
+                *validated_in.get_mut(row)? = u32::try_from(index).ok()?;
+            }
+            splits.word(train.len() as u64);
+            for &row in train {
+                splits.word(row as u64);
+            }
+            splits.word(valid.len() as u64);
+            for &row in valid {
+                splits.word(row as u64);
+            }
+        }
+        let actions: Vec<f64> = prepared.category.iter().map(|&c| f64::from(c)).collect();
+        let options = NuisanceOptions::new("policy_nuisance")
+            .text("glm", &format!("{:?}", self.glm_options))
+            .text("evaluation", self.evaluation.as_str())
+            .digest(
+                "support",
+                Some(SemanticDigest::of_reals("antecedent.policy.support", &self.support)),
+            )
+            .digest(
+                "known_propensity",
+                prepared.known_propensity.as_deref().map(|known| {
+                    SemanticDigest::of_reals("antecedent.policy.known_propensity", known)
+                }),
+            )
+            .digest("splits", Some(SemanticDigest::from_bytes(splits.finish())));
+        NuisanceKeyBuilder::new(ReusableProduct::PolicyNuisance)
+            .design_matrix(prepared.n, prepared.ncols, &prepared.design)
+            .rows_by_id(prepared.row_index.iter().map(|row| row.get()))
+            .folds(
+                FoldIdentity::of_fold_ids(
+                    u32::try_from(parts).ok()?.checked_add(1)?,
+                    &validated_in,
+                )
+                .ok()?,
+            )
+            .treatment_values("observed_action", &[&actions])
+            .outcome(&prepared.outcome)
+            .weights(None)
+            .provider(ProviderDependency::named("policy_value", PROVIDER_VERSION))
+            .options(&options)
+            .seed(seed)
+            .numerical(glm_numerical(&self.glm_options)?)
+            .build()
+            .ok()
     }
 
     fn validate(&self) -> Result<(), EstimationError> {
@@ -519,6 +603,20 @@ impl ObservationalPolicyValue {
 struct FitWorkspace {
     glm: LeastSquaresWorkspace,
     ols: LeastSquaresWorkspace,
+}
+
+/// The split nuisances of one policy-value request, and the fewest rows any split trained on.
+struct PolicyFits {
+    nuisances: Vec<SplitNuisance>,
+    learning_rows: usize,
+}
+
+fn policy_cancelled() -> EstimationError {
+    refuse(
+        antecedent_core::reason_code!("cancelled_no_claim"),
+        "policy_value.cancelled",
+        "the cross-fitted policy-value fit was cancelled before every split was fit; no estimate is reported",
+    )
 }
 
 /// Out-of-sample propensities and outcome regressions of one split's scored rows, action `c`

@@ -413,6 +413,12 @@ fn a_retained_identification_is_reused_only_by_a_study_with_the_same_identificat
         ),
         ("completion cap", edited(&|study| study.max_completions = Some(3))),
         (
+            "lag-zero average effect",
+            edited(&|study| {
+                config(study).lag_zero_average_effect = Some(AverageEffectQuery::binary_ate(t, y));
+            }),
+        ),
+        (
             "class prior",
             edited(&|study| study.class_prior = Some(ClassPrior::from_ordered(vec![1.0]).unwrap())),
         ),

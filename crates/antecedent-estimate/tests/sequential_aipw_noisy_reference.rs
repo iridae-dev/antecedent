@@ -12,12 +12,11 @@
 #![allow(clippy::cast_precision_loss, reason = "a 53-bit integer converts exactly")]
 
 use antecedent_core::{
-    DesignDependencyId, ExecutionContext, NumericalPolicy, ProviderId, SemanticDigest,
-    SourceDependencyId,
+    ExecutionContext, NumericalPolicy, ProviderId, SemanticDigest, SourceDependencyId,
 };
 use antecedent_estimate::nuisance_cache::{
-    CertifiedSource, DesignDependency, FoldAssignment, FoldRow, NumericalDependencies,
-    NumericalDependency, ProviderDependency, TargetDependency, TreatmentDependency,
+    CertifiedSource, FoldAssignment, FoldRow, NuisanceOptions, NumericalDependencies,
+    NumericalDependency, ProviderDependency, TargetDependency,
 };
 use antecedent_estimate::score_posterior::ScorePosteriorOptions;
 use antecedent_estimate::sequential_aipw_inference::{
@@ -78,19 +77,19 @@ fn digest(mark: u8) -> SemanticDigest {
     SemanticDigest::from_bytes(bytes)
 }
 
-fn identity() -> SequentialIdentity {
+fn identity(panel: SequentialPanel<'_>) -> SequentialIdentity {
     let rows: Vec<FoldRow> = (0..SUBJECTS)
         .map(|row| FoldRow::new(row as u64, u32::from(matches!(row % 4, 1 | 2))))
         .collect();
     let floor = NumericalDependency::try_new(MIN_PROBABILITY, 0.05).expect("floor");
-    SequentialIdentity::try_new(
+    SequentialIdentity::from_panel(
+        panel,
         CertifiedSource::new(SourceDependencyId::from_raw(11), digest(3)),
         TargetDependency::new(digest(1)),
-        DesignDependency::new(DesignDependencyId::from_raw(7)),
         FoldAssignment::try_new(2, &rows, &[]).expect("folds"),
-        TreatmentDependency::try_new("regimes", digest(5)).expect("treatment"),
         ProviderDependency::new(ProviderId::from_raw(4), digest(6)),
         NumericalDependencies::try_new(NumericalPolicy::strict(), &[floor]).expect("numerical"),
+        &NuisanceOptions::new("noisy_reference"),
     )
     .expect("identity")
 }
@@ -114,8 +113,9 @@ fn noisy_contrast_matches_the_independent_reference() {
     let treated = StaticRegime::new(ActionLevel::One, ActionLevel::One);
     let untreated = StaticRegime::new(ActionLevel::Zero, ActionLevel::Zero);
     let mut store = SequentialNuisanceStore::new();
-    let result = estimate_sequential_contrast(view, &identity(), treated, untreated, &mut store)
-        .expect("contrast");
+    let result =
+        estimate_sequential_contrast(view, &identity(view), treated, untreated, &mut store)
+            .expect("contrast");
 
     close(result.active_mean, 3.577_003_395_896_987_6, 1.0e-4);
     close(result.control_mean, 1.346_150_090_756_641_5, 1.0e-4);

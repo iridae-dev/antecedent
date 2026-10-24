@@ -4,12 +4,14 @@
 //! [`SharedBatchDesign`]: one fold seed/count every query cross-fits with and, when
 //! every query shares a certified adjustment set, one compiled `[1 | Z…]` covariate
 //! design. Each query draws its own `crossfit_fold_plan` from that shared seed.
-//! Cross-fitted AIPW nuisances are shared through one
+//! Cross-fitted nuisances (AIPW, learner-backed DML and doubly robust) are shared through one
 //! [`antecedent_estimate::CrossfitNuisanceCache`] per estimate: a propensity or
 //! outcome fit is reused only when every input it reads is bit-identical (rows,
-//! treatment coding, adjustment design, fold plan, learner options and, for the
-//! outcome, the outcome column), so a shared result equals the per-query fit bit
-//! for bit. See [`SharedBatchDesign`].
+//! treatment coding, adjustment design, sampling weights, fold plan, learner options and, for
+//! the outcome, the outcome column), so a shared result equals the per-query fit bit
+//! for bit. The cache is charged to the caller's [`ExecutionContext`] admission pool: its
+//! keys and predictions evict under a small budget, and a fit that cannot be retained runs
+//! unshared. See [`SharedBatchDesign`].
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -341,12 +343,47 @@ impl SharedBatchDesign {
                         .into(),
                 });
             }
+            // The shared design replaces the query's own prepared design, so it must carry the
+            // same complete-case rows with the same values in every column.
+            let ncols = problem.design_ncols;
+            let own = design_frame(&problem.row_index, &problem.design_matrix, ncols)?;
+            let shared = design_frame(&problem.row_index, &design, ncols)?;
+            antecedent_contract::rewrite_legality::check_executed(
+                antecedent_contract::rewrite_legality::Rewrite::SHARED_ROW_DESIGN_PREPARATION,
+                &own,
+                &[shared],
+            )
+            .map_err(|refusal| CausalError::Compile { message: refusal.to_string() })?;
             problem.design_matrix = design.into();
             problem.shared_design = true;
             return Ok(true);
         }
         Ok(false)
     }
+}
+
+/// Executed frame of a column-major design: each complete-case row with its values.
+fn design_frame(
+    row_index: &[antecedent_data::GlobalId],
+    design: &[f64],
+    ncols: usize,
+) -> Result<antecedent_contract::rewrite_legality::FrameFingerprint, CausalError> {
+    use antecedent_contract::rewrite_legality::{FrameLedger, value_row_id};
+    let n = row_index.len();
+    let refused = |refusal: antecedent_contract::rewrite_legality::RewriteRefusal| {
+        CausalError::Compile { message: refusal.to_string() }
+    };
+    let mut ledger =
+        FrameLedger::try_new("complete_case_design", "static_cross_section", "unweighted")
+            .map_err(refused)?;
+    for (i, row) in row_index.iter().enumerate() {
+        let id = value_row_id(
+            row.get(),
+            (0..ncols).map(|c| design.get(c * n + i).copied().unwrap_or(f64::NAN)),
+        );
+        ledger.record(&id, "0", &row.get().to_string(), "unweighted");
+    }
+    Ok(ledger.fingerprint())
 }
 
 fn common_adjustment(sets: &[Arc<[VariableId]>]) -> Option<&[VariableId]> {
@@ -590,7 +627,7 @@ impl BatchStudy {
         }
         let data = subset_estimate_rows(&self.data, self.screen.as_ref())?;
         let shared = self.compile_shared_ate(&data, queries, ctx.rng.master_seed())?;
-        let nuisances = CrossfitNuisanceCache::new();
+        let nuisances = CrossfitNuisanceCache::charged_to(ctx);
         let completed = ctx
             .try_map_indexed(queries.len(), |index, inner| {
                 if inner.cancellation.is_cancelled() {
@@ -636,7 +673,7 @@ impl BatchStudy {
         }
         let data = subset_estimate_rows(&self.data, self.screen.as_ref())?;
         let shared = self.compile_shared_ate(&data, queries, ctx.rng.master_seed())?;
-        let nuisances = CrossfitNuisanceCache::new();
+        let nuisances = CrossfitNuisanceCache::charged_to(ctx);
         let mut plans = Vec::with_capacity(queries.len());
         for query in queries {
             let mut study = self.study_for_data(&data, query)?;
@@ -918,7 +955,7 @@ impl PreparedBatch {
         let data = subset_estimate_rows(data, self.screen.as_ref())?;
         let shared =
             self.shared_design.as_ref().map(|s| s.rebind(&data).map(Arc::new)).transpose()?;
-        let nuisances = CrossfitNuisanceCache::new();
+        let nuisances = CrossfitNuisanceCache::charged_to(ctx);
         let completed = ctx
             .try_map_indexed(self.plans.len(), |index, inner| {
                 if inner.cancellation.is_cancelled() {
@@ -2022,5 +2059,54 @@ mod shared_fold_tests {
         assert_eq!(a.fold_seed, 7);
         // Rebinding to a same-size table keeps the seed, hence the assignment.
         assert_eq!(a.rebind(&data).unwrap().fold_ids, a.fold_ids);
+    }
+}
+
+#[cfg(test)]
+mod shared_preparation_legality_tests {
+    use std::sync::Arc;
+
+    use antecedent_core::{AverageEffectQuery, VariableId};
+    use antecedent_data::TabularData;
+    use antecedent_expr::{ExprId, IdentifiedEstimand};
+
+    use super::SharedBatchDesign;
+
+    fn table(altered_row: Option<usize>) -> TabularData {
+        let n = 60;
+        let mut z: Vec<f64> = (0..n).map(|i| (i as f64) * 0.1).collect();
+        if let Some(row) = altered_row {
+            z[row] += 1.0;
+        }
+        let t: Vec<f64> = (0..n).map(|i| f64::from(u8::from(i % 2 == 0))).collect();
+        let y: Vec<f64> = (0..n).map(|i| 2.0 * t[i] + 0.5 * (i as f64) * 0.1).collect();
+        TabularData::from_f64_columns([("z", &z[..]), ("t", &t[..]), ("y", &y[..])]).expect("table")
+    }
+
+    #[test]
+    fn a_shared_design_must_carry_the_query_rows_and_values() {
+        let z = VariableId::from_raw(0);
+        let sets: Vec<Arc<[VariableId]>> = vec![Arc::from(vec![z])];
+        let estimand = IdentifiedEstimand::backdoor(
+            "backdoor.adjustment",
+            Arc::from(vec![z]),
+            ExprId::from_raw(0),
+        );
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(1), VariableId::from_raw(2));
+        let estimator = antecedent_estimate::AipwAte::new();
+        let base = table(None);
+
+        let mut honest = estimator.prepare(&base, &estimand, &query).expect("prepared");
+        let shared = SharedBatchDesign::compile(&base, &sets, 5, 1).expect("shared design");
+        assert!(shared.apply_to_propensity(&mut honest).expect("same rows and values"));
+
+        let forged = SharedBatchDesign::compile(&table(Some(17)), &sets, 5, 1).expect("forged");
+        let mut problem = estimator.prepare(&base, &estimand, &query).expect("prepared");
+        let before = problem.design_matrix.clone();
+        let refused = format!("{:?}", forged.apply_to_propensity(&mut problem).unwrap_err());
+        assert!(refused.contains("rewrite_legality"), "{refused}");
+        assert_eq!(problem.design_matrix, before, "a refused share leaves the design untouched");
+        assert!(!problem.shared_design);
     }
 }

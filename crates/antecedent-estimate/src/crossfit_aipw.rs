@@ -198,8 +198,9 @@ fn build_scores_pass(
     problem.propensity.validate_for_execution()?;
     let penalized = problem.propensity.fold_penalty();
     let unpenalized = penalized.is_none();
-    // Nuisances fit under sampling weights are not the unweighted fits a shared cache holds.
-    let share = share && unpenalized && problem.sampling_weights.is_none();
+    // A penalized propensity selects its penalty per fold and is never shared. Sampling weights
+    // are part of the key, so a weighted fit is shared only with the same weights.
+    let share = share && unpenalized;
     let sampling = problem.sampling_weights.as_ref().map(|s| &*s.weights);
     let local_ctx =
         (penalized.is_some() && ctx.is_none()).then(|| ExecutionContext::production(fold_seed, 1));
@@ -247,15 +248,18 @@ fn build_scores_pass(
     // deadlock. A failed build leaves every slot empty.
     let fold_ids: Arc<[u32]> = Arc::from(fold_ids);
     let lease = if share {
-        crate::crossfit_cache::PropensityLease::acquire(|| crate::crossfit_cache::PropensityKey {
-            design: Arc::clone(&problem.design_matrix),
-            nrows: n,
-            ncols,
-            treatment: Arc::clone(&problem.treatment),
-            fold_ids: Arc::clone(&fold_ids),
-            folds,
-            glm_options: *glm_options,
-        })
+        crate::crossfit_cache::PropensityLease::acquire(
+            || {
+                crate::nuisance_keys::glm_crossfit_inputs(
+                    problem,
+                    &fold_ids,
+                    folds,
+                    glm_options,
+                    sampling,
+                )
+            },
+            n,
+        )
     } else {
         None
     };
@@ -268,7 +272,10 @@ fn build_scores_pass(
         thresholds.iter().map(|&c| Arc::from(transform_outcome(&problem.outcome, c))).collect();
     let outcome_leases: Vec<Option<crate::crossfit_cache::OutcomeLease>> = y_sources
         .iter()
-        .map(|y| lease.as_ref().and_then(|l| l.outcome(|| Arc::clone(y))))
+        .zip(thresholds)
+        .map(|(y, &c)| {
+            lease.as_ref().and_then(|l| l.outcome(crate::nuisance_keys::outcome_target(c), y))
+        })
         .collect();
     let mut outcome_slots = outcome_leases
         .iter()
@@ -741,6 +748,249 @@ mod tests {
         let unscoped = build(&base, &est.glm_options);
         assert_eq!(table_bits(&unscoped), table_bits(&solo));
         assert_eq!(cache.stats(), stats);
+    }
+
+    #[test]
+    fn nuisance_reuse_is_refused_for_the_same_values_on_other_rows() {
+        use crate::crossfit_cache::CrossfitNuisanceCache;
+        let (data, estimand) = confounded(400, 63);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let est = AipwAte::new();
+        let base = est.prepare(&data, &estimand, &query).unwrap();
+        let build = |p: &PreparedPropensityProblem| {
+            crossfit_binary_scores(p, &query, 5, &est.glm_options, est.backend).unwrap()
+        };
+        // Identical design, treatment and folds, but the values come from other rows.
+        let mut moved = base.clone();
+        moved.row_index = base
+            .row_index
+            .iter()
+            .map(|row| antecedent_data::GlobalId::new(row.get() + 10_000))
+            .collect();
+        let solo_moved = build(&moved);
+
+        let cache = CrossfitNuisanceCache::new();
+        let (_, _) = cache.scope(|| build(&base));
+        assert_eq!(cache.completed_fold_fits(), 10);
+        let (_, _) = cache.scope(|| build(&base));
+        assert_eq!(cache.completed_fold_fits(), 10);
+        let (refit, _) = cache.scope(|| build(&moved));
+        assert_eq!(cache.completed_fold_fits(), 20, "other rows must not borrow the fit");
+        assert_eq!(table_bits(&refit), table_bits(&solo_moved));
+        let stats = cache.stats();
+        assert_eq!((stats.propensity_fits, stats.propensity_reuses), (2, 1));
+    }
+
+    /// Fold-fit work `build` adds to `cache` when run inside its scope.
+    fn fold_fits_added(
+        cache: &Arc<crate::crossfit_cache::CrossfitNuisanceCache>,
+        build: impl FnOnce() -> ScoreTable,
+    ) -> (usize, ScoreTable) {
+        let before = cache.completed_fold_fits();
+        let (table, _) = cache.scope(build);
+        (cache.completed_fold_fits() - before, table)
+    }
+
+    #[test]
+    fn every_input_a_fit_reads_is_part_of_its_key_and_a_changed_input_is_a_miss() {
+        use crate::crossfit_cache::CrossfitNuisanceCache;
+        use crate::sampling_weights::SamplingWeights;
+        let (data, estimand) = confounded(400, 71);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let weights: Vec<f64> = (0..400).map(|row| 0.5 + f64::from(row % 7) * 0.25).collect();
+        let est = AipwAte::new().with_sampling_weights(SamplingWeights::new(weights).unwrap());
+        let base = est.prepare(&data, &estimand, &query).unwrap();
+        assert!(base.sampling_weights.is_some());
+        let build = |p: &PreparedPropensityProblem, glm: &GlmOptions| {
+            crossfit_binary_scores(p, &query, 5, glm, est.backend).unwrap()
+        };
+        let glm = est.glm_options;
+
+        let cache = CrossfitNuisanceCache::new();
+        let (first, table) = fold_fits_added(&cache, || build(&base, &glm));
+        assert_eq!(first, 10, "propensity and outcome regressions, five folds each");
+        assert_eq!(table_bits(&table), table_bits(&build(&base, &glm)), "shared equals solo");
+        let (again, reused) = fold_fits_added(&cache, || build(&base, &glm));
+        assert_eq!(again, 0, "the same weighted problem reads the retained fits");
+        assert_eq!(table_bits(&reused), table_bits(&table));
+
+        // Each case changes exactly one input; `added` is the work a miss costs: both stages
+        // when a propensity input changed, only the regressions when only the outcome did.
+        type Edit = Box<dyn Fn(&mut PreparedPropensityProblem)>;
+        let n = base.nrows;
+        let cases: Vec<(&str, usize, Edit)> = vec![
+            ("outcome", 5, Box::new(|p| p.outcome = p.outcome.iter().map(|y| y + 0.125).collect())),
+            (
+                "design entry",
+                10,
+                Box::new(move |p| {
+                    let mut design = p.design_matrix.to_vec();
+                    design[n + 3] += 1e-6;
+                    p.design_matrix = Arc::from(design);
+                }),
+            ),
+            (
+                "treatment entry",
+                10,
+                Box::new(|p| {
+                    let mut t = p.treatment.to_vec();
+                    t[0] = 1.0 - t[0];
+                    p.treatment = Arc::from(t);
+                }),
+            ),
+            (
+                "sampling weight",
+                10,
+                Box::new(|p| {
+                    let held = p.sampling_weights.as_mut().unwrap();
+                    let mut w = held.weights.to_vec();
+                    w[5] += 0.5;
+                    held.weights = Arc::from(w);
+                }),
+            ),
+            ("weights removed", 10, Box::new(|p| p.sampling_weights = None)),
+            (
+                "row identity",
+                10,
+                Box::new(|p| {
+                    p.row_index = p
+                        .row_index
+                        .iter()
+                        .map(|row| antecedent_data::GlobalId::new(row.get() + 50_000))
+                        .collect();
+                }),
+            ),
+            (
+                "supplied fold assignment",
+                10,
+                Box::new(move |p| {
+                    p.fold_assignment = Some(Arc::from(
+                        (0..n).map(|row| u32::try_from((row * 3) % 5).unwrap()).collect::<Vec<_>>(),
+                    ));
+                }),
+            ),
+            ("fold seed", 10, Box::new(|p| p.fold_seed = p.fold_seed.wrapping_add(17))),
+        ];
+        for (name, added, edit) in &cases {
+            let mut changed = base.clone();
+            edit(&mut changed);
+            let solo = build(&changed, &glm);
+            let (work, shared) = fold_fits_added(&cache, || build(&changed, &glm));
+            assert_eq!(work, *added, "{name}: a changed input must miss");
+            assert_eq!(table_bits(&shared), table_bits(&solo), "{name}: shared equals solo");
+            let (repeat, _) = fold_fits_added(&cache, || build(&changed, &glm));
+            assert_eq!(repeat, 0, "{name}: the changed problem is itself retained");
+        }
+        let other_options = GlmOptions { max_iter: glm.max_iter + 1, ..glm };
+        let (options, _) = fold_fits_added(&cache, || build(&base, &other_options));
+        assert_eq!(options, 10, "GLM options");
+        let (back, _) = fold_fits_added(&cache, || build(&base, &glm));
+        assert_eq!(back, 0, "the original key is still retained");
+    }
+
+    #[test]
+    fn retained_nuisances_are_charged_to_the_shared_pool_evicted_and_refused_under_small_budgets() {
+        use crate::crossfit_cache::CrossfitNuisanceCache;
+        use antecedent_core::execution::AdmissionPool;
+        let (data, estimand) = confounded(300, 73);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let est = AipwAte::new();
+        let first = est.prepare(&data, &estimand, &query).unwrap();
+        let mut second = first.clone();
+        second.fold_seed = first.fold_seed.wrapping_add(1);
+        let build = |p: &PreparedPropensityProblem| {
+            crossfit_binary_scores(p, &query, 5, &est.glm_options, est.backend).unwrap()
+        };
+        let (solo_first, solo_second) = (table_bits(&build(&first)), table_bits(&build(&second)));
+
+        // Size one build's retention on an unconstrained pool.
+        let roomy = CrossfitNuisanceCache::new();
+        let _ = roomy.scope(|| build(&first));
+        let one_build = roomy.retained_bytes();
+        assert!(one_build > 8 * 300, "keys and predictions are counted: {one_build}");
+
+        // Room for one build and a half: the second build evicts the first.
+        let budget = one_build + one_build / 2;
+        let pool = AdmissionPool::fixed(1, budget);
+        let ctx = ExecutionContext::for_tests(73).with_admission(pool.clone());
+        let cache = CrossfitNuisanceCache::charged_to(&ctx);
+        let (a, _) = cache.scope(|| build(&first));
+        assert_eq!(table_bits(&a), solo_first);
+        assert_eq!(cache.retained_bytes(), one_build);
+        assert_eq!(pool.available().bytes(), budget - one_build, "retention is a pool lease");
+        let (b, _) = cache.scope(|| build(&second));
+        assert_eq!(table_bits(&b), solo_second);
+        assert_eq!(cache.stats().evictions, 2, "the first build's propensity and outcome went");
+        assert_eq!(cache.retained_bytes(), one_build);
+        assert_eq!(pool.available().bytes(), budget - one_build);
+        let before = cache.completed_fold_fits();
+        let _ = cache.scope(|| build(&first));
+        assert_eq!(cache.completed_fold_fits() - before, 10, "the evicted fits are refit");
+        drop(cache);
+        assert_eq!(pool.available().bytes(), budget, "a dropped cache returns every byte");
+
+        // A pool too small for any entry retains nothing and still answers correctly.
+        let tiny = AdmissionPool::fixed(1, 64);
+        let ctx = ExecutionContext::for_tests(73).with_admission(tiny.clone());
+        let cache = CrossfitNuisanceCache::charged_to(&ctx);
+        let (table, _) = cache.scope(|| build(&first));
+        assert_eq!(table_bits(&table), solo_first);
+        assert_eq!(cache.retained_entries(), 0);
+        assert!(cache.stats().refused_retentions >= 1);
+        assert_eq!(tiny.available().bytes(), 64);
+    }
+
+    #[test]
+    fn concurrent_batches_on_a_small_pool_never_exceed_it_and_match_solo_fits() {
+        use crate::crossfit_cache::CrossfitNuisanceCache;
+        use antecedent_core::execution::AdmissionPool;
+        let (data, estimand) = confounded(300, 79);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let est = AipwAte::new();
+        let problems: Vec<PreparedPropensityProblem> = (0..3)
+            .map(|k| {
+                let mut p = est.prepare(&data, &estimand, &query).unwrap();
+                p.fold_seed = p.fold_seed.wrapping_add(k);
+                p
+            })
+            .collect();
+        let build = |p: &PreparedPropensityProblem| {
+            crossfit_binary_scores(p, &query, 5, &est.glm_options, est.backend).unwrap()
+        };
+        let solo: Vec<_> = problems.iter().map(|p| table_bits(&build(p))).collect();
+        let roomy = CrossfitNuisanceCache::new();
+        let _ = roomy.scope(|| build(&problems[0]));
+        let one_build = roomy.retained_bytes();
+        let budget = one_build + one_build / 2;
+        let pool = AdmissionPool::fixed(1, budget);
+        let ctx = ExecutionContext::for_tests(79).with_admission(pool.clone());
+        let cache = CrossfitNuisanceCache::charged_to(&ctx);
+        std::thread::scope(|workers| {
+            for worker in 0..4usize {
+                let (cache, pool, problems, solo, build) =
+                    (&cache, &pool, &problems, &solo, &build);
+                workers.spawn(move || {
+                    for round in 0..3usize {
+                        let which = (worker + round) % problems.len();
+                        let (table, _) = cache.scope(|| build(&problems[which]));
+                        assert_eq!(
+                            table_bits(&table),
+                            solo[which],
+                            "worker {worker} round {round}"
+                        );
+                        assert!(cache.retained_bytes() <= budget);
+                        assert!(pool.available().bytes() <= budget);
+                    }
+                });
+            }
+        });
+        assert!(cache.retained_bytes() <= budget);
+        drop(cache);
+        assert_eq!(pool.available().bytes(), budget);
     }
 
     #[test]

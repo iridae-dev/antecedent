@@ -229,3 +229,83 @@ fn prepare_cells_refuses_queries_outside_discrete_joint_cells_naming_analyze() {
         .prepare_cells(&[joint, cells(vec![set(T1, 1.0), set(T2, 0.0)])], &ctx)
         .expect("discrete joint cells batch");
 }
+
+/// Every `(treatment, confounder)` cell occurs 40 times. `y` and `y_other` are exact linear
+/// functions of treatment and confounder, so the linear nuisances recover them exactly.
+fn dml_table() -> (TabularData, Dag) {
+    let (mut t, mut z, mut y, mut y_other) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+    for _ in 0..40 {
+        for treatment in [0.0, 1.0] {
+            for confounder in [-1.0, 1.0] {
+                t.push(treatment);
+                z.push(confounder);
+                y.push(1.0 + confounder + treatment * (2.0 + 0.5 * confounder));
+                y_other.push(0.5 - 2.0 * confounder + treatment * 1.25);
+            }
+        }
+    }
+    let pairs = [("t", t), ("y", y), ("z", z), ("y_other", y_other)];
+    let borrowed: Vec<(&str, &[f64])> = pairs.iter().map(|(n, v)| (*n, v.as_slice())).collect();
+    let data = TabularData::from_f64_columns(borrowed).unwrap();
+    let mut graph = Dag::with_variables(4);
+    for (from, to) in [(2, 0), (2, 1), (0, 1), (2, 3), (0, 3)] {
+        graph.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
+    }
+    (data, graph)
+}
+
+fn dml() -> antecedent_estimate::DmlAte {
+    antecedent_estimate::DmlAte::new()
+        .with_outcome(
+            antecedent_learn::LearnerSpec::Linear(antecedent_learn::LinearSpec::default()),
+        )
+        .with_folds(4)
+}
+
+#[test]
+fn a_dml_batch_fits_each_learner_nuisance_once_and_matches_independent_runs() {
+    use antecedent_learn::fit_counts::count_resolved_fits;
+    let (data, graph) = dml_table();
+    let ctx = ExecutionContext::for_tests(97);
+    let run_batch = |queries: &[AverageEffectQuery]| {
+        count_resolved_fits(|| {
+            BatchStudy::new(data.clone(), graph.clone())
+                .estimator_spec(dml())
+                .refute(RefuteSuite::None)
+                .estimate_many(queries, &ctx)
+                .unwrap()
+        })
+    };
+    let alone = |query: &AverageEffectQuery| {
+        count_resolved_fits(|| {
+            Study::tabular(data.clone())
+                .graph(graph.clone())
+                .query(query.clone())
+                .estimator(dml())
+                .refute(RefuteSuite::None)
+                .build()
+                .unwrap()
+                .run(&ctx)
+                .unwrap()
+        })
+    };
+    let same_estimate = |a: &StudyResult, b: &StudyResult, what: &str| {
+        let (a, b) = (a.estimate.as_effect().unwrap(), b.estimate.as_effect().unwrap());
+        assert_eq!(a.ate.to_bits(), b.ate.to_bits(), "{what}: ate");
+        assert_eq!(a.se_analytic().to_bits(), b.se_analytic().to_bits(), "{what}: se");
+    };
+    let (outcome_one, outcome_two) = (ate(0, 1), ate(0, 3));
+    let (single, single_fits) = alone(&outcome_one);
+    assert_eq!(single_fits, 12, "three nuisances in four folds");
+    // Two identical queries share one bundle: the same number of fits as one query.
+    let (twice, twice_fits) = run_batch(&[outcome_one.clone(), outcome_one.clone()]);
+    assert_eq!(twice_fits, single_fits, "the second query reads the first's nuisances");
+    for result in &twice {
+        same_estimate(result, &single, "shared DML bundle");
+    }
+    // Another outcome column is another key, so it is fit again and still equals its own run.
+    let (other, other_fits) = alone(&outcome_two);
+    let (mixed, mixed_fits) = run_batch(&[outcome_one, outcome_two]);
+    assert_eq!(mixed_fits, single_fits + other_fits, "a changed outcome never borrows a bundle");
+    same_estimate(&mixed[1], &other, "separate DML bundle");
+}

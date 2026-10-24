@@ -146,6 +146,24 @@ impl CanonicalWriter {
         self
     }
 
+    /// A count-prefixed sequence of `u32` values, each widened to one word.
+    pub fn u32s(&mut self, values: &[u32]) -> &mut Self {
+        self.word(values.len() as u64);
+        for &value in values {
+            self.word(u64::from(value));
+        }
+        self
+    }
+
+    /// A count-prefixed sequence of `u64` words.
+    pub fn words(&mut self, values: &[u64]) -> &mut Self {
+        self.word(values.len() as u64);
+        for &value in values {
+            self.word(value);
+        }
+        self
+    }
+
     /// A count-prefixed sequence of texts: the length as a word, then each as [`Self::text`].
     pub fn texts<S: AsRef<str>>(&mut self, values: &[S]) -> &mut Self {
         self.word(values.len() as u64);
@@ -418,6 +436,20 @@ impl SemanticDigest {
     pub fn to_hex(&self) -> String {
         to_hex(&self.bytes)
     }
+
+    /// Digest of a real vector under `tag`: its length, then every `to_bits` word.
+    ///
+    /// Equality is bitwise, so a single changed bit anywhere in `values` changes the digest.
+    #[must_use]
+    pub fn of_reals(tag: &str, values: &[f64]) -> Self {
+        Self::from_bytes(CanonicalWriter::new(tag).reals(values).finish())
+    }
+
+    /// Digest of a `u32` vector under `tag`: its length, then every element.
+    #[must_use]
+    pub fn of_u32s(tag: &str, values: &[u32]) -> Self {
+        Self::from_bytes(CanonicalWriter::new(tag).u32s(values).finish())
+    }
 }
 
 impl fmt::Display for SemanticDigest {
@@ -509,6 +541,171 @@ impl ContractIdentities {
             IdentityRef::new(IdentityDomain::DataSnapshot, self.data_snapshot),
         ]);
         Arc::from(out)
+    }
+}
+
+/// One input a reusable product's key must cover.
+///
+/// A product keyed without an axis it reads would be served to a request that differs
+/// only on that axis. [`ReusableProduct::required_axes`] states what each product reads, and
+/// a key reports what it covers, so an omission is a checked difference rather than a review
+/// comment.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[non_exhaustive]
+pub enum DependencyAxis {
+    /// Scientific target: functional, thresholds, contrast.
+    Target,
+    /// Schema variables and observation contract.
+    Schema,
+    /// Graph, structure class, prior and tier background.
+    Model,
+    /// Numeric design matrix and its shape.
+    Design,
+    /// Row identities of the complete cases.
+    Rows,
+    /// Realized fold assignment, not only its seed.
+    Folds,
+    /// Outcome values the fit is trained to.
+    Outcome,
+    /// Treatment values and coding.
+    Treatment,
+    /// Sampling or target weights.
+    Weights,
+    /// Provider identity and version.
+    Provider,
+    /// Learner, GLM and estimator options.
+    Options,
+    /// Randomness the fit consumes.
+    Seed,
+    /// Inference mode.
+    Inference,
+    /// Numerical policy and named tolerances.
+    Numerical,
+}
+
+impl DependencyAxis {
+    /// Every axis, in declaration order.
+    pub const ALL: [Self; 14] = [
+        Self::Target,
+        Self::Schema,
+        Self::Model,
+        Self::Design,
+        Self::Rows,
+        Self::Folds,
+        Self::Outcome,
+        Self::Treatment,
+        Self::Weights,
+        Self::Provider,
+        Self::Options,
+        Self::Seed,
+        Self::Inference,
+        Self::Numerical,
+    ];
+}
+
+/// A product that is computed once and served again.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[non_exhaustive]
+pub enum ReusableProduct {
+    /// Identification retained with a lowered program.
+    RetainedIdentification,
+    /// Cross-fitted propensity scores of a generalized linear model.
+    PropensityFit,
+    /// Cross-fitted arm-specific outcome regressions.
+    OutcomeFit,
+    /// Learner-backed cross-fitted nuisance bundle (DML and doubly robust).
+    LearnerBundle,
+    /// Blocked out-of-fold nuisances of a sequential contrast.
+    SequentialNuisance,
+    /// Per-split multi-action propensity and arm outcome means of an observational policy value.
+    PolicyNuisance,
+}
+
+impl ReusableProduct {
+    /// Every product, in declaration order.
+    pub const ALL: [Self; 6] = [
+        Self::RetainedIdentification,
+        Self::PropensityFit,
+        Self::OutcomeFit,
+        Self::LearnerBundle,
+        Self::SequentialNuisance,
+        Self::PolicyNuisance,
+    ];
+
+    /// Axes this product reads. A key for it must cover every one.
+    #[must_use]
+    pub const fn required_axes(self) -> &'static [DependencyAxis] {
+        use DependencyAxis as A;
+        match self {
+            Self::RetainedIdentification => {
+                &[A::Target, A::Schema, A::Model, A::Options, A::Inference]
+            }
+            Self::PropensityFit => &[
+                A::Design,
+                A::Rows,
+                A::Folds,
+                A::Treatment,
+                A::Weights,
+                A::Provider,
+                A::Options,
+                A::Numerical,
+            ],
+            Self::OutcomeFit => &[
+                A::Target,
+                A::Design,
+                A::Rows,
+                A::Folds,
+                A::Outcome,
+                A::Treatment,
+                A::Weights,
+                A::Provider,
+                A::Options,
+                A::Numerical,
+            ],
+            Self::LearnerBundle => &[
+                A::Design,
+                A::Rows,
+                A::Folds,
+                A::Outcome,
+                A::Treatment,
+                A::Weights,
+                A::Provider,
+                A::Options,
+                A::Seed,
+                A::Numerical,
+            ],
+            Self::PolicyNuisance => &[
+                A::Design,
+                A::Rows,
+                A::Folds,
+                A::Outcome,
+                A::Treatment,
+                A::Weights,
+                A::Provider,
+                A::Options,
+                A::Seed,
+                A::Numerical,
+            ],
+            Self::SequentialNuisance => &[
+                A::Target,
+                A::Design,
+                A::Rows,
+                A::Folds,
+                A::Outcome,
+                A::Treatment,
+                A::Weights,
+                A::Provider,
+                A::Options,
+                A::Seed,
+                A::Numerical,
+            ],
+        }
+    }
+
+    /// Axes `product` reads that `covered` does not name, in axis order.
+    #[must_use]
+    pub fn omitted_axes(self, covered: &[DependencyAxis]) -> Vec<DependencyAxis> {
+        self.required_axes().iter().copied().filter(|axis| !covered.contains(axis)).collect()
     }
 }
 
@@ -642,5 +839,38 @@ mod tests {
         assert_eq!(digest_from_lower_hex(&upper), None);
         assert_eq!(digest_from_hex(&lower[..62]), None);
         assert_eq!(digest_from_hex(&format!("{}g", &lower[..63])), None);
+    }
+
+    #[test]
+    fn real_vector_digest_tracks_every_bit_length_and_tag() {
+        let base = SemanticDigest::of_reals("t", &[1.0, 2.0, 3.0]);
+        assert_eq!(base, SemanticDigest::of_reals("t", &[1.0, 2.0, 3.0]));
+        assert_ne!(
+            base,
+            SemanticDigest::of_reals("t", &[1.0, 2.0, f64::from_bits(3.0f64.to_bits() + 1)])
+        );
+        assert_ne!(base, SemanticDigest::of_reals("t", &[1.0, 2.0]));
+        assert_ne!(base, SemanticDigest::of_reals("u", &[1.0, 2.0, 3.0]));
+        assert_ne!(SemanticDigest::of_reals("t", &[0.0]), SemanticDigest::of_reals("t", &[-0.0]));
+        assert_ne!(SemanticDigest::of_u32s("t", &[1, 2]), SemanticDigest::of_u32s("t", &[2, 1]));
+    }
+
+    #[test]
+    fn every_reusable_product_reads_axes_and_omissions_are_reported() {
+        for product in ReusableProduct::ALL {
+            let required = product.required_axes();
+            assert!(!required.is_empty());
+            assert!(product.omitted_axes(required).is_empty());
+            for axis in required {
+                let without: Vec<_> = required.iter().copied().filter(|a| a != axis).collect();
+                assert_eq!(product.omitted_axes(&without), vec![*axis]);
+            }
+        }
+        for axis in DependencyAxis::ALL {
+            assert!(
+                ReusableProduct::ALL.iter().any(|p| p.required_axes().contains(&axis)),
+                "{axis:?} is read by no product"
+            );
+        }
     }
 }

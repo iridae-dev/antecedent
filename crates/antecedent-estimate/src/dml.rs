@@ -909,7 +909,7 @@ mod tests {
         let again = estimator.fit(&problem, &ctx, AssumptionSet::new()).unwrap();
         assert_eq!(first.ate.to_bits(), again.ate.to_bits());
         // Concurrent callers must initialize one shared bundle, not four fits.
-        problem.learner_cache.lock().unwrap().clear();
+        problem.learner_cache.clear();
         let bundles = std::thread::scope(|scope| {
             let jobs: Vec<_> = (0..4)
                 .map(|_| {
@@ -928,9 +928,8 @@ mod tests {
             jobs.into_iter().map(|job| job.join().unwrap()).collect::<Vec<_>>()
         });
         assert!(bundles.iter().all(|bundle| Arc::ptr_eq(bundle, &bundles[0])));
-        // A caller can alter fold metadata after physical preparation sharing. These
-        // clones deliberately share learner_cache, so its own bundle key must separate
-        // every fold input, not rely on the preparation-cache equality guard.
+        // A caller can alter fold metadata after preparation. These clones deliberately
+        // share learner_cache, so its bundle key must separate every fold input.
         for coordinate in 0..3 {
             let mut changed = problem.clone();
             match coordinate {
@@ -959,9 +958,10 @@ mod tests {
         }
         // Hold every entry as concurrent callers would during initialization. An
         // additional key must fit correctly without expanding retained capacity.
-        let active_entries = problem.learner_cache.lock().unwrap().clone();
-        let busy = Arc::clone(&active_entries[0]);
-        *problem.learner_cache.lock().unwrap() = vec![Arc::clone(&busy); 8];
+        let held = problem.learner_cache.hold_all();
+        let retained = problem.learner_cache.len();
+        assert!(retained >= 2, "the changed-input bundles above are retained");
+        problem.learner_cache.set_limits(retained, crate::crossfit_cache::MAX_RETAINED_BYTES);
         let mut uncached = problem.clone();
         uncached.fold_seed = 999;
         for _ in 0..2 {
@@ -970,9 +970,10 @@ mod tests {
                     .unwrap()
             });
             assert_eq!(fits, 15, "full in-flight cache computes extra keys without retaining them");
-            assert_eq!(problem.learner_cache.lock().unwrap().len(), 8);
+            assert_eq!(problem.learner_cache.len(), retained);
         }
-        problem.learner_cache.lock().unwrap().clear();
+        drop(held);
+        problem.learner_cache.clear();
         let mut reassigned = problem.clone();
         let assignments: Arc<[u32]> =
             (0..problem.nrows).map(|i| ((i / 2) % 5) as u32).collect::<Vec<_>>().into();

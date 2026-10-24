@@ -32,6 +32,10 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
+use std::sync::Arc;
+
+use antecedent_core::SemanticDigest;
+use antecedent_core::identity::{CanonicalWriter, ReusableProduct};
 
 use antecedent_stats::{
     DenseLinearAlgebra, FaerBackend, GlmDesignRef, GlmFamily, GlmOptions, LeastSquaresWorkspace,
@@ -39,11 +43,19 @@ use antecedent_stats::{
 };
 use thiserror::Error;
 
+use crate::error::EstimationError;
 use crate::nuisance_cache::{
     BlockedOutOfFoldPredictions, CertifiedSource, DesignDependency, FoldAssignment,
-    NuisanceCacheError, NuisanceCacheKey, NumericalDependencies, PredictedRow, ProviderDependency,
-    TargetDependency, TreatmentDependency,
+    NuisanceCacheError, NuisanceCacheKey, NuisanceKeyBuilder, NuisanceOptions,
+    NumericalDependencies, PredictedRow, ProviderDependency, TargetDependency, TreatmentDependency,
 };
+
+impl From<EstimationError> for SequentialCrossfitError {
+    /// Only the shared nuisance cache's own lock failure reaches here.
+    fn from(_: EstimationError) -> Self {
+        refused("the shared nuisance cache is unavailable; next attempt: fit without a cache scope")
+    }
+}
 
 /// Name of the positivity floor inside [`NumericalDependencies`].
 pub const MIN_PROBABILITY: &str = "min_probability";
@@ -184,35 +196,136 @@ pub struct SequentialPanel<'a> {
 }
 
 /// Dependencies that must all match before two contrasts share a fit.
+///
+/// The design, the actions, the outcome and the folds are derived from the panel itself by
+/// [`Self::from_panel`], and [`estimate_sequential_contrast`] refuses a panel whose values
+/// differ from the one the identity was derived from. There is no way to assert a design or
+/// outcome identity the values do not carry.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SequentialIdentity {
     source: CertifiedSource,
-    target: TargetDependency,
-    design: DesignDependency,
-    folds: FoldAssignment,
-    treatment: TreatmentDependency,
-    provider: ProviderDependency,
+    folds: Arc<FoldAssignment>,
     numerical: NumericalDependencies,
+    panel: SemanticDigest,
+    keys: [NuisanceCacheKey; ROLE_COUNT],
+}
+
+/// Roles a sequential contrast can store.
+const ROLE_COUNT: usize = 8;
+
+const fn role_index(role: SequentialRole) -> usize {
+    match role {
+        SequentialRole::BaselinePropensity => 0,
+        SequentialRole::FollowUpPropensity => 1,
+        SequentialRole::TerminalOutcome { second: ActionLevel::Zero } => 2,
+        SequentialRole::TerminalOutcome { second: ActionLevel::One } => 3,
+        SequentialRole::NestedOutcome { first: ActionLevel::Zero, second: ActionLevel::Zero } => 4,
+        SequentialRole::NestedOutcome { first: ActionLevel::Zero, second: ActionLevel::One } => 5,
+        SequentialRole::NestedOutcome { first: ActionLevel::One, second: ActionLevel::Zero } => 6,
+        SequentialRole::NestedOutcome { first: ActionLevel::One, second: ActionLevel::One } => 7,
+    }
+}
+
+fn every_role() -> [SequentialRole; ROLE_COUNT] {
+    use ActionLevel::{One, Zero};
+    [
+        SequentialRole::BaselinePropensity,
+        SequentialRole::FollowUpPropensity,
+        SequentialRole::TerminalOutcome { second: Zero },
+        SequentialRole::TerminalOutcome { second: One },
+        SequentialRole::NestedOutcome { first: Zero, second: Zero },
+        SequentialRole::NestedOutcome { first: Zero, second: One },
+        SequentialRole::NestedOutcome { first: One, second: Zero },
+        SequentialRole::NestedOutcome { first: One, second: One },
+    ]
+}
+
+/// Digest of every value of a panel, in column order.
+fn panel_fingerprint(panel: SequentialPanel<'_>) -> SemanticDigest {
+    let mut writer = CanonicalWriter::new("antecedent.sequential.panel");
+    writer.word(panel.baseline.len() as u64);
+    for column in panel.baseline {
+        writer.reals(column);
+    }
+    writer.reals(panel.first_treatment);
+    writer.word(panel.intermediate.len() as u64);
+    for column in panel.intermediate {
+        writer.reals(column);
+    }
+    writer.reals(panel.second_treatment).reals(panel.outcome);
+    SemanticDigest::from_bytes(writer.finish())
 }
 
 impl SequentialIdentity {
-    /// Bind the dependencies. `numerical` must name [`MIN_PROBABILITY`] in `(0, 0.5]`.
+    /// Bind the dependencies and derive the design, action and outcome identities from `panel`.
+    /// `numerical` must name [`MIN_PROBABILITY`] in `(0, 0.5]`. `options` are the fitting
+    /// options the caller varies (the regimes' coding, a provider tuning); each role adds its
+    /// own name, the column counts and the source.
+    ///
+    /// The cross-fit consumes no randomness: the folds are explicit, so the seed dependency
+    /// is fixed at zero.
     ///
     /// # Errors
     ///
-    /// [`SequentialCrossfitError::Refused`] when the floor is missing or outside that range.
+    /// [`SequentialCrossfitError::Refused`] when the floor is missing or outside that range, or
+    /// the panel or the folds cannot be used; [`SequentialCrossfitError::Cache`] when a
+    /// dependency does not hash.
     #[must_use = "a refused identity is not a reuse key"]
-    pub fn try_new(
+    pub fn from_panel(
+        panel: SequentialPanel<'_>,
         source: CertifiedSource,
         target: TargetDependency,
-        design: DesignDependency,
         folds: FoldAssignment,
-        treatment: TreatmentDependency,
         provider: ProviderDependency,
         numerical: NumericalDependencies,
+        options: &NuisanceOptions,
     ) -> Result<Self, SequentialCrossfitError> {
         let _ = floor_of(&numerical)?;
-        Ok(Self { source, target, design, folds, treatment, provider, numerical })
+        let n = checked_panel(panel)?;
+        require_panel_rows(&folds, n)?;
+        let columns: Vec<&[f64]> =
+            panel.baseline.iter().chain(panel.intermediate.iter()).copied().collect();
+        let design = DesignDependency::from_columns(&columns)?;
+        let actions = TreatmentDependency::of_values(
+            "sequential_actions",
+            &[panel.first_treatment, panel.second_treatment],
+        )?;
+        let options = options
+            .clone()
+            .word("baseline_columns", panel.baseline.len() as u64)
+            .word("intermediate_columns", panel.intermediate.len() as u64)
+            .text("source", &format!("{:?}", source.id()))
+            .digest("source_content", Some(source.content()));
+        let identity = folds.identity();
+        let mut keys = Vec::with_capacity(ROLE_COUNT);
+        for role in every_role() {
+            let role_options = options.clone().text("role", &format!("{role:?}"));
+            keys.push(
+                NuisanceKeyBuilder::new(ReusableProduct::SequentialNuisance)
+                    .target(target)
+                    .design(design)
+                    .rows_of_folds(&folds)
+                    .folds(identity)
+                    .treatment(actions.clone())
+                    .outcome(panel.outcome)
+                    .weights(None)
+                    .provider(provider)
+                    .options(&role_options)
+                    .seed(0)
+                    .numerical(numerical.clone())
+                    .build()?,
+            );
+        }
+        let Ok(keys) = <[NuisanceCacheKey; ROLE_COUNT]>::try_from(keys) else {
+            return Err(refused("the sequential roles were not all keyed"));
+        };
+        Ok(Self {
+            source,
+            folds: Arc::new(folds),
+            numerical,
+            panel: panel_fingerprint(panel),
+            keys,
+        })
     }
 
     /// Certified source. A different id or content is a different fit.
@@ -223,7 +336,7 @@ impl SequentialIdentity {
 
     /// Fold assignment the contrast evaluates.
     #[must_use]
-    pub const fn folds(&self) -> &FoldAssignment {
+    pub fn folds(&self) -> &FoldAssignment {
         &self.folds
     }
 
@@ -232,16 +345,48 @@ impl SequentialIdentity {
     pub fn fit_key(&self, role: SequentialRole) -> SequentialFitKey {
         SequentialFitKey {
             source: self.source,
-            cache: NuisanceCacheKey::new(
-                self.target,
-                self.design,
-                self.folds.clone(),
-                self.treatment.clone(),
-                self.provider,
-                self.numerical.clone(),
-            ),
+            cache: self.keys[role_index(role)].clone(),
             role,
+            folds: CarriedFolds(Arc::clone(&self.folds)),
         }
+    }
+
+    /// Refuse a panel whose values are not the ones this identity was derived from.
+    fn require_panel(&self, panel: SequentialPanel<'_>) -> Result<(), SequentialCrossfitError> {
+        if panel_fingerprint(panel) == self.panel {
+            Ok(())
+        } else {
+            Err(refused(
+                "the panel differs from the one this identity was derived from; \
+                 next attempt: derive the identity from this panel with from_panel",
+            ))
+        }
+    }
+}
+
+/// The checked fold assignment a key was built for, carried for leakage checks only. The
+/// compact [`crate::nuisance_cache::FoldIdentity`] in the nuisance key is what separates two
+/// fits, so this never takes part in equality or ordering.
+#[derive(Clone, Debug)]
+struct CarriedFolds(Arc<FoldAssignment>);
+
+impl PartialEq for CarriedFolds {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for CarriedFolds {}
+
+impl PartialOrd for CarriedFolds {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for CarriedFolds {
+    fn cmp(&self, _: &Self) -> std::cmp::Ordering {
+        std::cmp::Ordering::Equal
     }
 }
 
@@ -275,6 +420,7 @@ pub struct SequentialFitKey {
     source: CertifiedSource,
     cache: NuisanceCacheKey,
     role: SequentialRole,
+    folds: CarriedFolds,
 }
 
 impl SequentialFitKey {
@@ -294,6 +440,12 @@ impl SequentialFitKey {
     #[must_use]
     pub const fn role(&self) -> SequentialRole {
         self.role
+    }
+
+    /// The fold assignment the fit is certified against.
+    #[must_use]
+    pub fn folds(&self) -> &FoldAssignment {
+        &self.folds.0
     }
 }
 
@@ -390,7 +542,7 @@ impl SequentialFit {
 /// that allocation in place.
 #[derive(Debug)]
 pub struct SequentialNuisanceStore {
-    fits: BTreeMap<SequentialFitKey, SequentialFit>,
+    fits: BTreeMap<SequentialFitKey, Arc<SequentialFit>>,
     computed: u64,
 }
 
@@ -410,7 +562,16 @@ impl SequentialNuisanceStore {
     /// The stored fit, borrowed. A miss is [`None`].
     #[must_use = "a cache miss is not a stored fit"]
     pub fn lookup(&self, key: &SequentialFitKey) -> Option<&SequentialFit> {
-        self.fits.get(key)
+        self.fits.get(key).map(|fit| &**fit)
+    }
+
+    /// Hold a fit that was certified when it was produced, in this call or by another contrast
+    /// of the cache scope. `computed` counts it as produced here.
+    fn adopt(&mut self, key: SequentialFitKey, fit: Arc<SequentialFit>, computed: bool) {
+        self.fits.insert(key, fit);
+        if computed {
+            self.computed = self.computed.saturating_add(1);
+        }
     }
 
     /// Store out-of-fold predictions for `key`.
@@ -430,15 +591,14 @@ impl SequentialNuisanceStore {
         coefficients: &[FoldCoefficients],
         blocks: &[BlockedOutOfFoldPredictions],
     ) -> Result<(), SequentialCrossfitError> {
-        let fit = assemble_fit(key.cache().folds(), coefficients, blocks)?;
+        let fit = assemble_fit(key.folds(), coefficients, blocks)?;
         if let Some(existing) = self.fits.get(&key) {
             if same_fit(existing, &fit) {
                 return Ok(());
             }
             return Err(NuisanceCacheError::ConflictingFit.into());
         }
-        self.fits.insert(key, fit);
-        self.computed = self.computed.saturating_add(1);
+        self.adopt(key, Arc::new(fit), true);
         Ok(())
     }
 }
@@ -496,19 +656,37 @@ pub fn estimate_sequential_contrast(
     store: &mut SequentialNuisanceStore,
 ) -> Result<SequentialContrast, SequentialCrossfitError> {
     let n = checked_panel(panel)?;
+    identity.require_panel(panel)?;
     require_panel_rows(identity.folds(), n)?;
     let floor = floor_of(&identity.numerical)?;
     let mut workspace = LeastSquaresWorkspace::default();
     let mut fits_reused = 0u64;
     let computed_before = store.computed();
+    let fit_bytes = (n as u64).saturating_mul(32).saturating_add(4096);
     for role in contrast_roles(active, control) {
         let key = identity.fit_key(role);
         if store.lookup(&key).is_some() {
             fits_reused = fits_reused.saturating_add(1);
             continue;
         }
-        let produced = produce_role(panel, identity, floor, role, store, &mut workspace)?;
-        store.certify(key, &produced.coefficients, &produced.blocks)?;
+        // A contrast of an active cache scope borrows a fit another contrast certified under
+        // the same key; the certified leakage checks ran when it was produced, against folds of
+        // the same identity.
+        let produced_here = std::cell::Cell::new(false);
+        let fit = crate::crossfit_cache::reuse_in_active_scope(
+            || Some(key.cache().clone()),
+            fit_bytes,
+            &|| Ok(()),
+            || {
+                produced_here.set(true);
+                let produced = produce_role(panel, identity, floor, role, store, &mut workspace)?;
+                assemble_fit(identity.folds(), &produced.coefficients, &produced.blocks)
+            },
+        )?;
+        if !produced_here.get() {
+            fits_reused = fits_reused.saturating_add(1);
+        }
+        store.adopt(key, fit, produced_here.get());
     }
     let active_scores = score_regime(store, identity, panel, active, floor)?;
     let control_scores = score_regime(store, identity, panel, control, floor)?;
@@ -1258,26 +1436,26 @@ fn score_scale(scores: &[f64]) -> Result<f64, SequentialCrossfitError> {
 
 #[cfg(test)]
 mod tests {
+    use antecedent_core::execution::AdmissionPool;
     use antecedent_core::{
-        DesignDependencyId, NumericalPolicy, ProviderId, SemanticDigest, SourceDependencyId,
+        ExecutionContext, NumericalPolicy, ProviderId, SemanticDigest, SourceDependencyId,
     };
 
+    use crate::crossfit_cache::CrossfitNuisanceCache;
     use crate::nuisance_cache::{FoldRow, NumericalDependency};
 
     use super::{
-        ActionLevel, BlockedOutOfFoldPredictions, CertifiedSource, DesignDependency,
-        FoldAssignment, FoldCoefficients, MIN_PROBABILITY, NuisanceCacheError,
+        ActionLevel, BlockedOutOfFoldPredictions, CertifiedSource, FoldAssignment,
+        FoldCoefficients, MIN_PROBABILITY, NuisanceCacheError, NuisanceOptions,
         NumericalDependencies, PredictedRow, ProviderDependency, SequentialContrast,
         SequentialCrossfitError, SequentialIdentity, SequentialNuisanceStore, SequentialPanel,
-        SequentialRole, StaticRegime, TargetDependency, TreatmentDependency,
-        estimate_sequential_contrast,
+        SequentialRole, StaticRegime, TargetDependency, estimate_sequential_contrast,
     };
 
     const SUBJECTS: usize = 16;
 
     struct Marks {
         target: u8,
-        design: u64,
         treatment: &'static str,
         provider: u64,
         floor: f64,
@@ -1289,7 +1467,6 @@ mod tests {
         fn balanced() -> Self {
             Self {
                 target: 1,
-                design: 7,
                 treatment: "regimes",
                 provider: 4,
                 floor: 0.05,
@@ -1299,16 +1476,28 @@ mod tests {
         }
 
         fn identity(&self) -> SequentialIdentity {
+            let (first, second, outcome) = balanced_columns();
+            self.identity_for(SequentialPanel {
+                baseline: &[],
+                first_treatment: &first,
+                intermediate: &[],
+                second_treatment: &second,
+                outcome: &outcome,
+            })
+        }
+
+        /// The identity derived from the values of `panel`.
+        fn identity_for(&self, panel: SequentialPanel<'_>) -> SequentialIdentity {
             let floor = NumericalDependency::try_new(MIN_PROBABILITY, self.floor).expect("floor");
-            SequentialIdentity::try_new(
+            SequentialIdentity::from_panel(
+                panel,
                 CertifiedSource::new(SourceDependencyId::from_raw(11), digest(self.source)),
                 TargetDependency::new(digest(self.target)),
-                DesignDependency::new(DesignDependencyId::from_raw(self.design)),
                 folds(self.swap_folds),
-                TreatmentDependency::try_new(self.treatment, digest(5)).expect("treatment"),
                 ProviderDependency::new(ProviderId::from_raw(self.provider), digest(6)),
                 NumericalDependencies::try_new(NumericalPolicy::strict(), &[floor])
                     .expect("numerical"),
+                &NuisanceOptions::new("sequential").text("treatment", self.treatment),
             )
             .expect("identity")
         }
@@ -1449,9 +1638,131 @@ mod tests {
 
     #[test]
     fn changed_design_does_not_share_a_fit() {
-        let mut marks = Marks::balanced();
-        marks.design = 8;
-        assert_resplit(&marks.identity());
+        let covariate: Vec<f64> =
+            (0..SUBJECTS).map(|row| f64::from(u8::try_from(row).expect("row"))).collect();
+        let (first, second, outcome) = balanced_columns();
+        let baseline: [&[f64]; 1] = [&covariate];
+        let widened = Marks::balanced().identity_for(SequentialPanel {
+            baseline: &baseline,
+            first_treatment: &first,
+            intermediate: &[],
+            second_treatment: &second,
+            outcome: &outcome,
+        });
+        let original = Marks::balanced().identity();
+        let role = SequentialRole::BaselinePropensity;
+        assert_ne!(original.fit_key(role), widened.fit_key(role));
+        assert_ne!(original.fit_key(role).cache().design(), widened.fit_key(role).cache().design());
+        // An identity derived from other values cannot be run on this panel.
+        let mut store = SequentialNuisanceStore::new();
+        let error = estimate_sequential_contrast(
+            SequentialPanel {
+                baseline: &[],
+                first_treatment: &first,
+                intermediate: &[],
+                second_treatment: &second,
+                outcome: &outcome,
+            },
+            &widened,
+            treated(),
+            untreated(),
+            &mut store,
+        )
+        .expect_err("a panel the identity was not derived from");
+        assert!(matches!(error, SequentialCrossfitError::Refused { .. }), "{error}");
+        assert_eq!(store.computed(), 0);
+    }
+
+    #[test]
+    fn changed_outcome_does_not_share_a_fit() {
+        let (first, second, mut outcome) = balanced_columns();
+        outcome[3] += 0.5;
+        let shifted = Marks::balanced().identity_for(SequentialPanel {
+            baseline: &[],
+            first_treatment: &first,
+            intermediate: &[],
+            second_treatment: &second,
+            outcome: &outcome,
+        });
+        let original = Marks::balanced().identity();
+        let role = SequentialRole::TerminalOutcome { second: ActionLevel::One };
+        assert_ne!(original.fit_key(role), shifted.fit_key(role));
+        assert_ne!(
+            original.fit_key(role).cache().outcome(),
+            shifted.fit_key(role).cache().outcome()
+        );
+        let mut store = SequentialNuisanceStore::new();
+        let (first, second, outcome) = balanced_columns();
+        let stale = estimate_sequential_contrast(
+            SequentialPanel {
+                baseline: &[],
+                first_treatment: &first,
+                intermediate: &[],
+                second_treatment: &second,
+                outcome: &outcome,
+            },
+            &shifted,
+            treated(),
+            untreated(),
+            &mut store,
+        );
+        assert!(matches!(stale, Err(SequentialCrossfitError::Refused { .. })));
+    }
+
+    #[test]
+    fn contrasts_in_one_cache_scope_share_certified_fits_and_a_changed_input_does_not() {
+        let cache = CrossfitNuisanceCache::new();
+        let identity = Marks::balanced().identity();
+        let (mut a, mut b, mut c) = (
+            SequentialNuisanceStore::new(),
+            SequentialNuisanceStore::new(),
+            SequentialNuisanceStore::new(),
+        );
+        let mut other = Marks::balanced();
+        other.source = 9;
+        let other = other.identity();
+        let (first, second, third) = cache
+            .scope(|| {
+                (
+                    run(&identity, &mut a, treated(), untreated()),
+                    run(&identity, &mut b, untreated(), treated()),
+                    run(&other, &mut c, treated(), untreated()),
+                )
+            })
+            .0;
+        assert_eq!((first.fits_computed, first.fits_reused), (6, 0));
+        assert_eq!((second.fits_computed, second.fits_reused), (0, 6));
+        close(second.contrast, -3.0);
+        assert_eq!((third.fits_computed, third.fits_reused), (6, 0), "another source refits");
+        let stats = cache.stats();
+        assert_eq!((stats.bundle_fits, stats.bundle_reuses), (12, 6));
+        // Outside a scope nothing is shared.
+        let mut d = SequentialNuisanceStore::new();
+        assert_eq!(run(&identity, &mut d, treated(), untreated()).fits_computed, 6);
+        assert_eq!(cache.stats(), stats);
+    }
+
+    #[test]
+    fn a_small_shared_pool_refuses_retention_and_each_contrast_fits_for_itself() {
+        let pool = AdmissionPool::fixed(1, 64);
+        let ctx = ExecutionContext::for_tests(1).with_admission(pool.clone());
+        let cache = CrossfitNuisanceCache::charged_to(&ctx);
+        let identity = Marks::balanced().identity();
+        let (mut a, mut b) = (SequentialNuisanceStore::new(), SequentialNuisanceStore::new());
+        let (first, second) = cache
+            .scope(|| {
+                (
+                    run(&identity, &mut a, treated(), untreated()),
+                    run(&identity, &mut b, treated(), untreated()),
+                )
+            })
+            .0;
+        assert_eq!(first.fits_computed, 6);
+        assert_eq!(second.fits_computed, 6, "nothing was retained to reuse");
+        close(second.contrast, first.contrast);
+        assert_eq!(cache.retained_entries(), 0);
+        assert!(cache.stats().refused_retentions >= 12);
+        assert_eq!(pool.available().bytes(), 64);
     }
 
     #[test]
@@ -1498,10 +1809,9 @@ mod tests {
         let fit = store.lookup(&key).expect("baseline");
         for block in fit.blocks() {
             for row in block.rows() {
-                let assigned = key.cache().folds().fold_of(row.row_id());
+                let assigned = key.folds().fold_of(row.row_id());
                 assert_eq!(assigned, Some(block.evaluation_fold()));
-                let training =
-                    key.cache().folds().is_training_row(block.evaluation_fold(), row.row_id());
+                let training = key.folds().is_training_row(block.evaluation_fold(), row.row_id());
                 assert!(!training);
             }
             let ids: Vec<u64> = block.rows().iter().map(PredictedRow::row_id).collect();
@@ -1514,7 +1824,6 @@ mod tests {
 
     #[test]
     fn a_fold_missing_an_action_is_refused() {
-        let identity = Marks::balanced().identity();
         let (first, _, outcome) = balanced_columns();
         let second = vec![1.0; SUBJECTS];
         let panel = SequentialPanel {
@@ -1524,6 +1833,7 @@ mod tests {
             second_treatment: &second,
             outcome: &outcome,
         };
+        let identity = Marks::balanced().identity_for(panel);
         let error = estimate_sequential_contrast(
             panel,
             &identity,
@@ -1542,7 +1852,6 @@ mod tests {
     fn an_action_probability_outside_the_floor_is_refused() {
         let mut marks = Marks::balanced();
         marks.floor = 0.3;
-        let identity = marks.identity();
         let (_, second, outcome) = balanced_columns();
         let first: Vec<f64> = (0..SUBJECTS).map(|row| f64::from(u8::from(row % 8 >= 2))).collect();
         let panel = SequentialPanel {
@@ -1552,6 +1861,7 @@ mod tests {
             second_treatment: &second,
             outcome: &outcome,
         };
+        let identity = marks.identity_for(panel);
         let error = estimate_sequential_contrast(
             panel,
             &identity,
@@ -1581,18 +1891,25 @@ mod tests {
     fn conflicting_certification_keeps_the_stored_fit() {
         let folds = FoldAssignment::try_new(2, &[FoldRow::new(0, 0), FoldRow::new(1, 1)], &[])
             .expect("two rows");
-        let narrow = SequentialIdentity::try_new(
+        let panel = SequentialPanel {
+            baseline: &[],
+            first_treatment: &[0.0, 1.0],
+            intermediate: &[],
+            second_treatment: &[0.0, 1.0],
+            outcome: &[1.0, 2.0],
+        };
+        let narrow = SequentialIdentity::from_panel(
+            panel,
             CertifiedSource::new(SourceDependencyId::from_raw(11), digest(3)),
             TargetDependency::new(digest(1)),
-            DesignDependency::new(DesignDependencyId::from_raw(7)),
             folds,
-            TreatmentDependency::try_new("regimes", digest(5)).expect("treatment"),
             ProviderDependency::new(ProviderId::from_raw(4), digest(6)),
             NumericalDependencies::try_new(
                 NumericalPolicy::strict(),
                 &[NumericalDependency::try_new(MIN_PROBABILITY, 0.05).expect("floor")],
             )
             .expect("numerical"),
+            &NuisanceOptions::new("sequential"),
         )
         .expect("narrow identity");
         let key = narrow.fit_key(SequentialRole::BaselinePropensity);

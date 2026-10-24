@@ -30,8 +30,8 @@ pub(crate) fn query_digest(query: &CausalQuery) -> [u8; 32] {
 /// modifiers), the data modality and schema variables, the structure of any graph
 /// class or the atoms and weights of a graph posterior, the tier background, the
 /// completion cap and class prior, the selection diagram and transport trial, the
-/// identifier, estimator and regression-discontinuity design, and the inference
-/// mode.
+/// lag-0 average effect a series build compiled, the identifier, estimator and
+/// regression-discontinuity design, and the inference mode.
 ///
 /// `None` when an input has no canonical encoding (a graph whose identity wire
 /// cannot be built). Such a study never reuses a retained product.
@@ -119,6 +119,17 @@ pub(crate) fn retention_key(study: &Study) -> Option<[u8; 32]> {
             writer.word(0);
         }
     }
+    // The average effect a series build compiled into its lag-0 pulse contrast: identification
+    // is retained for that compiled query, and the executed contract discloses this reading.
+    match study.lag_zero_average_effect.as_ref() {
+        Some(average) => {
+            writer.word(1);
+            average.encode(&mut writer);
+        }
+        None => {
+            writer.word(0);
+        }
+    }
     writer
         .opt_text(study.identifier.as_ref().map(crate::IdentifierId::as_str))
         .opt_text(study.estimator.as_ref().map(crate::EstimatorId::as_str))
@@ -150,4 +161,89 @@ fn variable_set(writer: &mut CanonicalWriter, variables: &[VariableId]) {
     for variable in &sorted {
         variable.encode(writer);
     }
+}
+
+/// The audit of what identification reads.
+///
+/// Every field of [`Study`] and its shared configuration is named here and classified. Adding a
+/// field to either struct stops this function compiling until the new field is classified: either
+/// [`retention_key`] writes it, or the comment says why identification never reads it. That is
+/// what keeps a retained identification from being served to a study that differs in an input it
+/// reads.
+#[cfg(test)]
+#[allow(
+    dead_code,
+    reason = "compiled for its exhaustive destructuring; calling it would assert nothing at run time"
+)]
+fn audit_identification_inputs(study: &Study) {
+    let crate::analysis::execute::StudyConfig {
+        // Not read by identification: caller-facing notes and sinks.
+        refute_default_downgrade: _,
+        latency_bootstrap_not_applied: _,
+        stage_sink: _,
+        // Estimation options: identification chooses an estimand, never reads these.
+        estimator_spec_identity: _,
+        response_options: _,
+        observation_options: _,
+        draw_controls: _,
+        observation_delayed_entry: _,
+        // Written by `retention_key`.
+        rd: _,
+        selection_diagram: _,
+        transport_trial: _,
+        lag_zero_average_effect: _,
+        // A built study never carries this: the build refuses it.
+        continuous_cell: _,
+        // Products of identification, not inputs to it.
+        transport_identification_cache: _,
+        // A structure search and a mechanism fit are executed after identification and neither
+        // changes the estimand it selects.
+        discovery: _,
+        mechanisms: _,
+        posterior_provenance: _,
+    } = &*study.config;
+    let Study {
+        // Written by `retention_key`.
+        data: _,
+        graph: _,
+        graph_posterior: _,
+        class_prior: _,
+        max_completions: _,
+        query: _,
+        identifier: _,
+        estimator: _,
+        estimator_spec: _,
+        inference: _,
+        tiered: _,
+        // Shared configuration, destructured above.
+        config: _,
+        // Derived from the query and graph at build.
+        structure_source: _,
+        support_status: _,
+        // Refutation, resampling, validation and presentation choices run after identification.
+        refute: _,
+        bootstrap_replicates: _,
+        retain_joint_horizons: _,
+        split: _,
+        custom_validators: _,
+        latency_mode: _,
+        // Estimation-stage declarations: overlap, population, row binding, missing values,
+        // sampling design, interference network and the batch's shared design.
+        overlap_policy: _,
+        population_registry: _,
+        participants: _,
+        missing: _,
+        sampling_design: _,
+        interference: _,
+        shared_batch_design: _,
+        // Products of identification, not inputs to it.
+        identification_cache: _,
+        pag_identification_cache: _,
+        cpdag_identification_cache: _,
+        temporal_identification_cache: _,
+        temporal_class_identification_cache: _,
+        graph_posterior_identification_cache: _,
+        dbn_posterior_identification_cache: _,
+        temporal_class_posterior_identification_cache: _,
+    } = study;
 }

@@ -69,6 +69,13 @@ impl RetentionPolicy {
         self.result_mode().no_longer_serves()
     }
 
+    /// Whether fitted nuisance state may be retained under this policy's result mode
+    /// ([`RetentionMode::retains_fitted_state`]).
+    #[must_use]
+    pub const fn retains_fitted_state(self) -> bool {
+        self.result_mode().retains_fitted_state()
+    }
+
     /// Accept `operation` under this policy's result mode, or refuse it.
     ///
     /// # Errors
@@ -128,6 +135,18 @@ impl RetentionMode {
             Self::SummaryOnly => matches!(operation, RetainedOperation::ReuseSummary),
             Self::DiskBacked => matches!(operation, RetainedOperation::ReadDiskArtifact),
         }
+    }
+
+    /// Whether fitted nuisance state (cross-fitted predictions, learner bundles, the keys that
+    /// name them) may be retained for reuse under this mode.
+    ///
+    /// Reuse of such state is reuse of full state, so only [`Self::FullReusable`] allows it. A
+    /// summary-only or disk-backed result retains none: a nuisance cache built for it holds
+    /// zero entries (`CrossfitNuisanceCache::bounded(None, 0, 0)`), so every fit runs unshared and
+    /// no hidden cache keeps what the mode dropped.
+    #[must_use]
+    pub const fn retains_fitted_state(self) -> bool {
+        self.serves(RetainedOperation::ReuseFullState)
     }
 
     /// Later operations this mode can no longer serve, relative to full reusable state.
@@ -419,5 +438,26 @@ mod tests {
         assert!(empty_window.require(RetainedOperation::RowReconstruction).is_err());
         assert!(empty_window.require(RetainedOperation::ExactRowEviction).is_err());
         assert!(empty_window.require(RetainedOperation::ReuseSummary).is_ok());
+    }
+
+    #[test]
+    fn only_full_reusable_state_lets_fitted_nuisances_be_retained() {
+        assert!(RetentionMode::FullReusable.retains_fitted_state());
+        assert!(!RetentionMode::SummaryOnly.retains_fitted_state());
+        assert!(!RetentionMode::DiskBacked.retains_fitted_state());
+        for mode in RetentionMode::ALL {
+            assert_eq!(
+                mode.retains_fitted_state(),
+                mode.require(RetainedOperation::ReuseFullState).is_ok(),
+                "{mode}"
+            );
+        }
+        assert!(RetentionPolicy::RawHistory.retains_fitted_state());
+        assert!(RetentionPolicy::BoundedWindow { max_rows: 3 }.retains_fitted_state());
+        assert!(!RetentionPolicy::BoundedWindow { max_rows: 0 }.retains_fitted_state());
+        assert!(!RetentionPolicy::SufficientStatisticsOnly.retains_fitted_state());
+        let refusal =
+            RetentionMode::SummaryOnly.require(RetainedOperation::ReuseFullState).unwrap_err();
+        assert_eq!(refusal.to_string(), "summary-only cannot serve reuse of full state");
     }
 }

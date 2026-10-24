@@ -25,13 +25,12 @@ use super::{
 };
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
-    DesignDependencyId, NumericalPolicy, ProviderId, SemanticDigest, SourceDependencyId,
-    reason_code,
+    NumericalPolicy, SemanticDigest, SourceDependencyId, reason_code,
 };
 use antecedent_estimate::EstimationError;
 use antecedent_estimate::nuisance_cache::{
-    CertifiedSource, DesignDependency, FoldAssignment, FoldRow, NumericalDependencies,
-    NumericalDependency, ProviderDependency, TargetDependency, TreatmentDependency,
+    CertifiedSource, FoldAssignment, FoldRow, NuisanceOptions, NumericalDependencies,
+    NumericalDependency, ProviderDependency, TargetDependency,
 };
 use antecedent_estimate::score_posterior::ScorePosteriorOptions;
 use antecedent_estimate::sequential_aipw_inference::{
@@ -247,7 +246,7 @@ impl CheckedSequentialContrastOperation {
             second_treatment: &columns.second,
             outcome: &columns.outcome,
         };
-        let identity = self.crossfit_identity(columns)?;
+        let identity = self.crossfit_identity(panel, columns)?;
         let mut store = SequentialNuisanceStore::new();
         estimate_sequential_contrast(
             panel,
@@ -259,9 +258,11 @@ impl CheckedSequentialContrastOperation {
         .map_err(crossfit)
     }
 
-    /// The reuse key of the nuisance fits: the data, the regimes, the folds and the floor.
+    /// The reuse key of the nuisance fits: derived from the panel's own values, the regimes,
+    /// the folds and the floor.
     fn crossfit_identity(
         &self,
+        panel: SequentialPanel<'_>,
         columns: &ContrastColumns,
     ) -> Result<SequentialIdentity, CausalError> {
         let query = &self.query;
@@ -283,19 +284,16 @@ impl CheckedSequentialContrastOperation {
         ];
         let floor = NumericalDependency::try_new(MIN_PROBABILITY, query.min_probability)
             .map_err(|e| invalid(e.to_string()))?;
-        SequentialIdentity::try_new(
+        SequentialIdentity::from_panel(
+            panel,
             CertifiedSource::new(SourceDependencyId::from_raw(1), digest("source", &hashed)),
-            TargetDependency::new(digest("target", &[regimes.as_slice()])),
-            DesignDependency::new(DesignDependencyId::from_raw(
-                (query.baseline.len() * 1024 + query.intermediate.len()) as u64,
-            )),
+            TargetDependency::of_functional("static_regimes", &regimes),
             FoldAssignment::try_new(query.fold_count, &rows, &[])
                 .map_err(|e| invalid(e.to_string()))?,
-            TreatmentDependency::try_new("static_regimes", digest("coding", &[regimes.as_slice()]))
-                .map_err(|e| invalid(e.to_string()))?,
-            ProviderDependency::new(ProviderId::from_raw(1), digest("provider", &[])),
+            ProviderDependency::named("sequential_crossfit", env!("CARGO_PKG_VERSION")),
             NumericalDependencies::try_new(NumericalPolicy::strict(), &[floor])
                 .map_err(|e| invalid(e.to_string()))?,
+            &NuisanceOptions::new("sequential_contrast"),
         )
         .map_err(crossfit)
     }

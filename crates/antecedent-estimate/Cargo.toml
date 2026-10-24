@@ -31,6 +31,7 @@ calibration-internal = []
 
 [dependencies]
 antecedent-graph = { workspace = true }
+antecedent-contract = { workspace = true }
 antecedent-core = { workspace = true }
 antecedent-data = { workspace = true }
 antecedent-expr = { workspace = true }
@@ -46,7 +47,6 @@ serde = { workspace = true }
 
 [dev-dependencies]
 antecedent-core = { workspace = true, features = ["test-support"] }
-antecedent-contract = { workspace = true }
 antecedent-test-support = { workspace = true }
 criterion = { workspace = true }
 serde_json = { workspace = true }

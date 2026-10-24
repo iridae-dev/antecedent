@@ -383,28 +383,6 @@ pub(crate) fn aipw_scores(t: &[f64], y: &[f64], e: &[f64], mu0: &[f64], mu1: &[f
 /// Immutable predictions shared across compatible estimators.
 pub(crate) type AipwPredictions = (Vec<f64>, Vec<f64>, Vec<f64>, CrossFittedPrediction);
 
-/// A prepared-input key owns its buffers so allocator reuse cannot create stale hits.
-#[derive(Debug)]
-pub(crate) struct AipwCacheEntry {
-    design: std::sync::Arc<[f64]>,
-    outcome_values: std::sync::Arc<[f64]>,
-    treatment_values: std::sync::Arc<[f64]>,
-    nrows: usize,
-    ncols: usize,
-    outcome: LearnerSpec,
-    treatment: LearnerSpec,
-    folds: usize,
-    seed: u64,
-    row_index: std::sync::Arc<[antecedent_data::GlobalId]>,
-    fold_assignment: Option<std::sync::Arc<[u32]>>,
-    fold_units: Option<std::sync::Arc<[u32]>>,
-    fold_unit_kind: crate::cluster_dml_aipw::IndependenceUnit,
-    fold_seed: u64,
-    /// Sampling weights the nuisances were fit under (compared by identity).
-    weights: Option<std::sync::Arc<[f64]>>,
-    result: std::sync::Mutex<Option<std::sync::Arc<AipwPredictions>>>,
-}
-
 /// Per-row fold ids for the retained AIPW nuisances: the recorded assignment when the
 /// problem carries one, otherwise a fresh seeded plan stratified by treatment arm.
 #[allow(
@@ -460,6 +438,14 @@ fn require_populated_arms(treatment: &[f64]) -> Result<(), EstimationError> {
     ))
 }
 
+/// The learner-backed cross-fitted nuisances of `problem`, fit once per key.
+///
+/// The key is derived from the design, outcome and treatment columns, the weights, the row
+/// identities, the realized folds and the fold-plan inputs, both learner specifications and the
+/// seed ([`crate::nuisance_keys::learner_bundle_key`]), so a changed input is a miss and an
+/// identical request (even from another prepared problem of the same cache scope) reads the
+/// retained bundle. Retention is charged to the pool of `ctx`, or to the pool of the cache the
+/// problem shares; when it cannot be retained the bundle is fit for this caller alone.
 pub(crate) fn cached_aipw_nuisances(
     problem: &crate::propensity::PreparedPropensityProblem,
     outcome: LearnerSpec,
@@ -467,87 +453,46 @@ pub(crate) fn cached_aipw_nuisances(
     folds: usize,
     ctx: &ExecutionContext,
 ) -> Result<std::sync::Arc<AipwPredictions>, EstimationError> {
-    use std::sync::Arc;
     let check_cancel = || {
         if ctx.cancellation.is_cancelled() { Err(nuisance_cancelled()) } else { Ok(()) }
     };
     check_cancel()?;
     require_populated_arms(&problem.treatment)?;
-    let entry = problem.learner_cache.entry(
-        |entry| {
-            Arc::ptr_eq(&entry.design, &problem.design_matrix)
-                && Arc::ptr_eq(&entry.outcome_values, &problem.outcome)
-                && Arc::ptr_eq(&entry.treatment_values, &problem.treatment)
-                && entry.nrows == problem.nrows
-                && entry.ncols == problem.design_ncols
-                && entry.outcome == outcome
-                && entry.treatment == treatment
-                && entry.folds == folds
-                && entry.seed == ctx.rng.master_seed()
-                && Arc::ptr_eq(&entry.row_index, &problem.row_index)
-                && entry.fold_units == problem.fold_units
-                && entry.fold_unit_kind == problem.fold_unit_kind
-                && entry.fold_seed == problem.fold_seed
-                && match (&entry.weights, problem.sampling_weights.as_ref()) {
-                    (None, None) => true,
-                    (Some(a), Some(b)) => Arc::ptr_eq(a, &b.weights),
-                    _ => false,
-                }
-                && match (&entry.fold_assignment, &problem.fold_assignment) {
-                    (None, None) => true,
-                    (Some(a), Some(b)) => Arc::ptr_eq(a, b),
-                    _ => false,
-                }
-        },
-        || AipwCacheEntry {
-            design: Arc::clone(&problem.design_matrix),
-            outcome_values: Arc::clone(&problem.outcome),
-            treatment_values: Arc::clone(&problem.treatment),
-            nrows: problem.nrows,
-            ncols: problem.design_ncols,
-            outcome,
-            treatment,
-            folds,
-            seed: ctx.rng.master_seed(),
-            row_index: Arc::clone(&problem.row_index),
-            fold_assignment: problem.fold_assignment.clone(),
-            fold_units: problem.fold_units.clone(),
-            fold_unit_kind: problem.fold_unit_kind,
-            fold_seed: problem.fold_seed,
-            weights: problem.sampling_weights.as_ref().map(|s| Arc::clone(&s.weights)),
-            result: std::sync::Mutex::new(None),
-        },
-    )?;
-    // Only callers for this exact key wait on the fit. Failure leaves it retryable.
-    let mut slot = loop {
-        check_cancel()?;
-        match entry.result.try_lock() {
-            Ok(slot) => break slot,
-            Err(std::sync::TryLockError::WouldBlock) => {
-                std::thread::sleep(std::time::Duration::from_millis(5))
-            }
-            Err(std::sync::TryLockError::Poisoned(_)) => {
-                return Err(EstimationError::stats_msg("nuisance fit lock poisoned"));
-            }
-        }
-    };
-    check_cancel()?;
-    if let Some(result) = slot.as_ref() {
-        return Ok(Arc::clone(result));
-    }
     let fold_ids = retained_fold_ids(problem, folds, ctx)?;
-    let result = Arc::new(cross_fit_aipw_nuisances(
-        AipwLearners { outcome, treatment },
-        NuisanceDesign::of(problem),
-        &problem.outcome,
-        &problem.treatment,
-        (folds, fold_ids),
-        ctx,
-        problem.sampling_weights.as_ref().map(|s| &*s.weights),
-    )?);
-    check_cancel()?;
-    *slot = Some(Arc::clone(&result));
-    Ok(result)
+    // Four f64 vectors of one value per row, the fold ids, and the per-fold provenance.
+    let payload = (problem.nrows as u64).saturating_mul(4 * 8 + 2).saturating_add(4096);
+    let key = crate::nuisance_keys::learner_bundle_key(
+        problem,
+        outcome,
+        treatment,
+        folds,
+        ctx.rng.master_seed(),
+        &fold_ids,
+    );
+    let compute = || {
+        check_cancel()?;
+        cross_fit_aipw_nuisances(
+            AipwLearners { outcome, treatment },
+            NuisanceDesign::of(problem),
+            &problem.outcome,
+            &problem.treatment,
+            (folds, fold_ids.clone()),
+            ctx,
+            problem.sampling_weights.as_ref().map(|s| &*s.weights),
+        )
+    };
+    let Some(key) = key else {
+        return compute().map(std::sync::Arc::new);
+    };
+    let (bundle, reused) =
+        problem.learner_cache.get_or_compute(key, payload, Some(ctx), &check_cancel, compute)?;
+    if reused {
+        antecedent_core::execution_attempt::record_physical(
+            antecedent_core::execution_attempt::PhysicalEvent::CacheHit,
+            1,
+        );
+    }
+    Ok(bundle)
 }
 
 #[cfg(test)]
