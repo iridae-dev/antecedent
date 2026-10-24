@@ -4,8 +4,11 @@
 //! robust learner, matching, a causal forest, the temporal and design estimators
 //! whose configuration a cell sealer does not admit, and the rest) is sealed here to
 //! the lowered program of its plan, by the estimator it resolves to. The table lists
-//! every `EstimatorId`; the retained-route gate fails when an id is missing, so an
-//! estimator added without being assigned to a sealer cannot prepare.
+//! the estimators no specialised sealer serves and those whose specialised sealer
+//! declines some shapes (marked in the list), and equals
+//! `parity/estimator_route_residual.toml`; the retained-route gate checks both that and
+//! that every other `EstimatorId` is served by a specialised sealer, so an estimator
+//! added without a sealer cannot prepare.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -14,26 +17,14 @@ use crate::analysis::execute::CheckedRouteOperation;
 use crate::analysis::prepared::PreparedExecution;
 use crate::strategy_table::EstimatorId;
 
-/// Every estimator this sealer admits.
+/// Every estimator this sealer admits: the residual no specialised sealer serves, and the
+/// estimators a specialised sealer admits only for some shapes.
 const FAMILY_ESTIMATORS: &[EstimatorId] = &[
-    EstimatorId::LinearAdjustmentAte,
-    EstimatorId::PropensityWeighting,
-    EstimatorId::PropensityMatching,
     EstimatorId::PropensityStratification,
     EstimatorId::DistanceMatching,
-    EstimatorId::Aipw,
-    EstimatorId::GlmAdjustment,
-    EstimatorId::FrontDoorTwoStage,
     EstimatorId::FrontDoorFunctional,
-    EstimatorId::IvWald,
-    EstimatorId::Iv2Sls,
     EstimatorId::BayesianIvJointLinear,
-    EstimatorId::RdSharp,
     EstimatorId::BayesianRdLocalLinear,
-    EstimatorId::BayesianGcomp,
-    EstimatorId::BayesianBasisGcomp,
-    EstimatorId::BayesianRobustAte,
-    EstimatorId::BayesianConditional,
     EstimatorId::TemporalLinearAdjustment,
     EstimatorId::BayesianTemporalGcomp,
     EstimatorId::BayesianTemporalWhiteInnovation,
@@ -43,70 +34,26 @@ const FAMILY_ESTIMATORS: &[EstimatorId] = &[
     EstimatorId::BayesianTemporalLaggedInstrument,
     EstimatorId::TemporalSequentialGcomp,
     EstimatorId::FunctionalDistribution,
-    EstimatorId::FunctionalEffect,
     EstimatorId::StaticMediationLinear,
-    EstimatorId::ConditionalLinearAdjustment,
     EstimatorId::TemporalMediation,
     EstimatorId::TemporalResponseBayesian,
-    EstimatorId::ResponseBayesian,
     EstimatorId::BayesianTemporalMediation,
-    EstimatorId::ResponseKennedyDr,
     EstimatorId::ResponseRieszAde,
     EstimatorId::ResponseGamDerivative,
-    EstimatorId::ResponseInterventionGcomp,
-    EstimatorId::CellAipw,
     EstimatorId::TemporalResponseGcomp,
-    EstimatorId::GcmFit,
-    EstimatorId::GcmFitBayesian,
-    EstimatorId::GcmAttributionBayesian,
-    EstimatorId::TransportTrialIpw,
-    EstimatorId::TransportTrialBayesianBootstrap,
-    EstimatorId::InterferenceHtHajek,
-    EstimatorId::InterferenceClusterNeyman,
-    EstimatorId::InterferenceSaturationExact,
-    EstimatorId::InterferenceObservationalIpw,
-    EstimatorId::InterferenceBayesianGaussian,
-    EstimatorId::InterferenceClusterBayesianBootstrap,
-    EstimatorId::RandomizedHt,
-    EstimatorId::ContinuousDoseKernel,
-    EstimatorId::RandomizedFixedCupedHt,
-    EstimatorId::RandomizedAncova,
-    EstimatorId::RandomizedWaldCace,
-    EstimatorId::RandomizedSwitchbackHt,
-    EstimatorId::RandomizedNeyman,
-    EstimatorId::RandomizedDrPolicy,
-    EstimatorId::RandomizedIpwPolicy,
-    EstimatorId::RandomizedMultiActionIpwPolicy,
-    EstimatorId::RandomizedSurvivalProductLimit,
-    EstimatorId::LongitudinalIpwRegime,
-    EstimatorId::LongitudinalGFormulaRegime,
-    EstimatorId::LongitudinalSequentialDrRegime,
-    EstimatorId::LongitudinalMarginalStructuralModel,
     EstimatorId::Dml,
     EstimatorId::DrLearner,
     EstimatorId::CausalForest,
-    EstimatorId::BayesianPanelDid,
-    EstimatorId::BayesianSyntheticControl,
-    EstimatorId::BayesianLocalRatio,
-    EstimatorId::BayesianPiecewiseSurvival,
-    EstimatorId::BayesianRandomizedQuantile,
-    EstimatorId::BayesianDosePolicy,
-    EstimatorId::BayesianRandomizedFinitePopulation,
-    EstimatorId::BayesianRandomizedSuperpopulation,
-    EstimatorId::BayesianComplierEffect,
-    EstimatorId::BayesianSwitchback,
-    EstimatorId::BayesianBinaryPolicyValue,
-    EstimatorId::BayesianSequentialRegimeValue,
-    EstimatorId::SequentialCrossfitContrastWald,
-    EstimatorId::BayesianSequentialCrossfitContrast,
-    EstimatorId::PeriodHistoryMatching,
-    EstimatorId::BayesianPeriodHistoryOutcomeModel,
-    EstimatorId::TemporalDesignExcursion,
-    EstimatorId::BayesianTemporalDesignExcursion,
-    EstimatorId::TemporalRegimeSurvival,
-    EstimatorId::BayesianTemporalRegimeSurvival,
     EstimatorId::IvBoundsSharp,
     EstimatorId::BayesianIvBounds,
+    EstimatorId::Aipw,
+    EstimatorId::CellAipw,
+    EstimatorId::ConditionalLinearAdjustment,
+    EstimatorId::LinearAdjustmentAte,
+    EstimatorId::RdSharp,
+    EstimatorId::BayesianConditional,
+    EstimatorId::BayesianGcomp,
+    EstimatorId::ResponseKennedyDr,
 ];
 
 /// Seal a study no route-cell sealer admits, by the estimator it resolves to; a study naming none runs its route's
@@ -144,4 +91,28 @@ pub(super) fn estimator_route(cx: &SealContext<'_>) -> SealOutcome {
 )]
 pub(super) fn fresh_run(_cx: &SealContext<'_>) -> SealOutcome {
     Ok(None)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::FAMILY_ESTIMATORS;
+    use std::collections::BTreeSet;
+
+    /// The table equals the committed residual list, one row per estimator id.
+    #[test]
+    fn the_family_table_is_the_committed_residual() {
+        let path =
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../../parity/estimator_route_residual.toml");
+        let text = std::fs::read_to_string(path).expect("the residual list is committed");
+        let listed: BTreeSet<String> = text
+            .lines()
+            .filter_map(|line| line.strip_prefix("id = \""))
+            .filter_map(|rest| rest.strip_suffix('"'))
+            .map(str::to_owned)
+            .collect();
+        let table: BTreeSet<String> =
+            FAMILY_ESTIMATORS.iter().map(|id| format!("{id:?}")).collect();
+        assert_eq!(table.len(), FAMILY_ESTIMATORS.len(), "an estimator is listed twice");
+        assert_eq!(table, listed);
+    }
 }

@@ -297,10 +297,17 @@ pub(super) fn seal_execution(cx: &SealContext<'_>) -> Result<PreparedExecution, 
         }
         return Ok(execution);
     }
+    let estimator = cx
+        .source
+        .estimator
+        .or_else(|| cx.source.estimator_spec.as_deref().map(crate::EstimatorSpec::id))
+        .or_else(|| cx.binding.estimator.named());
     Err(CausalError::Compile {
-        message: "no sealer admits this study; it names an estimator or route outside the \
-                  sealer table"
-            .into(),
+        message: format!(
+            "no sealer admits this study; it names an estimator or route outside the sealer \
+             table (estimator {estimator:?}, route parsed: {})",
+            cx.route.is_some(),
+        ),
     })
 }
 

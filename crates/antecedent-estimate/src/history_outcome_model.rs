@@ -78,6 +78,20 @@ fn period_design_matrix(
     (matrix, outcome)
 }
 
+/// The calendar periods holding at least one treated and one control unit, in order.
+fn periods_with_both_arms(units: &[HistoryUnit]) -> Vec<i64> {
+    let mut arms: BTreeMap<i64, (usize, usize)> = BTreeMap::new();
+    for unit in units {
+        let entry = arms.entry(unit.period()).or_default();
+        if unit.is_treated() {
+            entry.0 += 1;
+        } else {
+            entry.1 += 1;
+        }
+    }
+    arms.iter().filter(|(_, (t, c))| *t > 0 && *c > 0).map(|(period, _)| *period).collect()
+}
+
 /// Build the outcome-model design for the effect on the treated.
 ///
 /// # Errors
@@ -107,17 +121,7 @@ pub fn prepare_history_outcome_model(
              frequentist history-matched contrast, which reads them",
         ));
     }
-    let mut arms: BTreeMap<i64, (usize, usize)> = BTreeMap::new();
-    for unit in units {
-        let entry = arms.entry(unit.period()).or_default();
-        if unit.is_treated() {
-            entry.0 += 1;
-        } else {
-            entry.1 += 1;
-        }
-    }
-    let kept: Vec<i64> =
-        arms.iter().filter(|(_, (t, c))| *t > 0 && *c > 0).map(|(period, _)| *period).collect();
+    let kept = periods_with_both_arms(units);
     if kept.is_empty() {
         return Err(EstimationError::data_msg(
             "no calendar period has both treated and control units",

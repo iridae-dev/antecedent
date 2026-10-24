@@ -1,0 +1,152 @@
+# Estimators the family-wide sealer admits: those no specialised sealer serves.
+# One row per EstimatorId, with the reason. The Rust table `FAMILY_ESTIMATORS` in
+# crates/antecedent/src/analysis/prepared/sealers/estimator.rs must equal this list,
+# and `scripts/gate_retained_routes.py` checks that every other estimator id is
+# served by a specialised sealer, by name or through the route cell its family lowers as.
+# A row that a specialised sealer also names carries
+# `served_by_specialised_sealer_for_other_shapes = true`: the sealer admits some shapes of
+# the estimator and declines the ones its reason lists, which fall to the family sealer.
+
+[[estimator]]
+id = "PropensityStratification"
+reason = "a learner or matching estimator no cell sealer names: the adjustment sealers admit only the checked linear, GLM, propensity and AIPW estimators, and this one runs from the shared static executor"
+
+[[estimator]]
+id = "DistanceMatching"
+reason = "a learner or matching estimator no cell sealer names: the adjustment sealers admit only the checked linear, GLM, propensity and AIPW estimators, and this one runs from the shared static executor"
+
+[[estimator]]
+id = "FrontDoorFunctional"
+reason = "no cell sealer names this estimator; it runs from the shared static executor under the lowered program of its plan"
+
+[[estimator]]
+id = "BayesianIvJointLinear"
+reason = "the specialist sealer admits these by study shape and the Bayesian prior, not by estimator id; the id is not named in any sealer"
+
+[[estimator]]
+id = "BayesianRdLocalLinear"
+reason = "the specialist sealer admits these by study shape and the Bayesian prior, not by estimator id; the id is not named in any sealer"
+
+[[estimator]]
+id = "TemporalLinearAdjustment"
+reason = "no temporal sealer names this estimator: the temporal sealers admit the pulse and sustained DAG configurations they check, and this one runs from the shared temporal executor"
+
+[[estimator]]
+id = "BayesianTemporalGcomp"
+reason = "no temporal sealer names this estimator: the temporal sealers admit the pulse and sustained DAG configurations they check, and this one runs from the shared temporal executor"
+
+[[estimator]]
+id = "BayesianTemporalWhiteInnovation"
+reason = "no temporal sealer names this estimator: the temporal sealers admit the pulse and sustained DAG configurations they check, and this one runs from the shared temporal executor"
+
+[[estimator]]
+id = "TemporalGlmLinkContrast"
+reason = "no temporal sealer names this estimator: the temporal sealers admit the pulse and sustained DAG configurations they check, and this one runs from the shared temporal executor"
+
+[[estimator]]
+id = "BayesianTemporalGlmLinkContrast"
+reason = "no temporal sealer names this estimator: the temporal sealers admit the pulse and sustained DAG configurations they check, and this one runs from the shared temporal executor"
+
+[[estimator]]
+id = "TemporalLaggedInstrument"
+reason = "no temporal sealer names this estimator: the temporal sealers admit the pulse and sustained DAG configurations they check, and this one runs from the shared temporal executor"
+
+[[estimator]]
+id = "BayesianTemporalLaggedInstrument"
+reason = "no temporal sealer names this estimator: the temporal sealers admit the pulse and sustained DAG configurations they check, and this one runs from the shared temporal executor"
+
+[[estimator]]
+id = "TemporalSequentialGcomp"
+reason = "no temporal sealer names this estimator: the temporal sealers admit the pulse and sustained DAG configurations they check, and this one runs from the shared temporal executor"
+
+[[estimator]]
+id = "FunctionalDistribution"
+reason = "no cell sealer names this estimator; it runs from the shared static executor under the lowered program of its plan"
+
+[[estimator]]
+id = "StaticMediationLinear"
+reason = "no cell sealer names this estimator; it runs from the shared static executor under the lowered program of its plan"
+
+[[estimator]]
+id = "TemporalMediation"
+reason = "no temporal sealer names this estimator: the temporal sealers admit the pulse and sustained DAG configurations they check, and this one runs from the shared temporal executor"
+
+[[estimator]]
+id = "TemporalResponseBayesian"
+reason = "no temporal sealer names this estimator: the temporal sealers admit the pulse and sustained DAG configurations they check, and this one runs from the shared temporal executor"
+
+[[estimator]]
+id = "BayesianTemporalMediation"
+reason = "no temporal sealer names this estimator: the temporal sealers admit the pulse and sustained DAG configurations they check, and this one runs from the shared temporal executor"
+
+[[estimator]]
+id = "ResponseRieszAde"
+reason = "no cell sealer names this estimator; it runs from the shared static executor under the lowered program of its plan"
+
+[[estimator]]
+id = "ResponseGamDerivative"
+reason = "no cell sealer names this estimator; it runs from the shared static executor under the lowered program of its plan"
+
+[[estimator]]
+id = "TemporalResponseGcomp"
+reason = "no temporal sealer names this estimator: the temporal sealers admit the pulse and sustained DAG configurations they check, and this one runs from the shared temporal executor"
+
+[[estimator]]
+id = "Dml"
+reason = "a learner or matching estimator no cell sealer names: the adjustment sealers admit only the checked linear, GLM, propensity and AIPW estimators, and this one runs from the shared static executor"
+
+[[estimator]]
+id = "DrLearner"
+reason = "a learner or matching estimator no cell sealer names: the adjustment sealers admit only the checked linear, GLM, propensity and AIPW estimators, and this one runs from the shared static executor"
+
+[[estimator]]
+id = "CausalForest"
+reason = "a learner or matching estimator no cell sealer names: the adjustment sealers admit only the checked linear, GLM, propensity and AIPW estimators, and this one runs from the shared static executor"
+
+[[estimator]]
+id = "IvBoundsSharp"
+reason = "no cell sealer names this estimator; it runs from the shared static executor under the lowered program of its plan"
+
+[[estimator]]
+id = "BayesianIvBounds"
+reason = "no cell sealer names this estimator; it runs from the shared static executor under the lowered program of its plan"
+
+[[estimator]]
+id = "Aipw"
+served_by_specialised_sealer_for_other_shapes = true
+reason = "the AIPW sealer admits a mean ATE on a DAG, or on a co-determined tiered ADMG, with a Mean functional over all observed units, distinct numeric arms, no spec excluding undeclared levels, Frequentist inference and an overlap policy requiring diagnostics; a Bayesian study, a CPDAG, PAG or mixed cell, another target population or functional, and a trimmed-overlap fit fall here"
+
+[[estimator]]
+id = "CellAipw"
+served_by_specialised_sealer_for_other_shapes = true
+reason = "the cell-AIPW sealer admits a Frequentist DAG response or co-determined joint cell with no custom validators, no shared batch design and no continuous cell; a Bayesian study, a study with custom validators, a shared batch design or a continuous cell, and a non-explicit, non-accepted structure fall here"
+
+[[estimator]]
+id = "ConditionalLinearAdjustment"
+served_by_specialised_sealer_for_other_shapes = true
+reason = "the conditional sealer admits a Frequentist conditional effect with exactly one effect modifier, no custom validators, explicit or accepted structure, a None, Cheap or Full refuter suite and its class proof; a multi-modifier query, custom validators, another refuter suite and a cell whose class proof is missing fall here"
+
+[[estimator]]
+id = "LinearAdjustmentAte"
+served_by_specialised_sealer_for_other_shapes = true
+reason = "the linear sealer admits a Frequentist DAG ATE with an identification cache and a retainable plain linear query (compiled_linear::can_retain); a CPDAG, PAG or mixed cell, a tiered or graph-posterior study, a query the compiled linear product cannot retain and a Bayesian study fall here"
+
+[[estimator]]
+id = "RdSharp"
+served_by_specialised_sealer_for_other_shapes = true
+reason = "the sharp-RD sealer admits a Frequentist DAG ATE with an RD configuration, no custom validators, explicit or accepted structure and a None, Cheap, PlaceboAndRcc or Full suite; a study without the configuration, with custom validators or tiers and any Bayesian study fall here"
+
+[[estimator]]
+id = "BayesianConditional"
+served_by_specialised_sealer_for_other_shapes = true
+reason = "the Bayesian conditional sealer admits a Bayesian DAG conditional effect with an identification cache, no custom validators, explicit or accepted structure and a None, Cheap or Full suite; a CPDAG, PAG or mixed conditional cell, custom validators and tiered studies fall here"
+
+[[estimator]]
+id = "BayesianGcomp"
+served_by_specialised_sealer_for_other_shapes = true
+reason = "the Bayesian g-computation sealer admits a Bayesian DAG ATE with an identification cache, a Mean functional and an all, treated or untreated population; another functional or population, and a cell that is not a DAG ATE, fall here"
+
+[[estimator]]
+id = "ResponseKennedyDr"
+served_by_specialised_sealer_for_other_shapes = true
+reason = "the static DAG response sealer admits this estimator only for a Frequentist mean curve with no refuter suite, no custom validators, a complete observation, an all-observed Mean query and a DAG; an intervention response, a refuter suite, custom validators, tiers and a CPDAG or PAG response cell fall here"

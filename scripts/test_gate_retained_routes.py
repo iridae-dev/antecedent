@@ -18,6 +18,7 @@ COPIED_FILES = (
     "parity/capabilities/route_manifest.toml",
     "parity/licensed_routes.toml",
     "parity/reason_codes.toml",
+    "parity/estimator_route_residual.toml",
 )
 LOWERING = f"{ANALYSIS}/lowering"
 SEALERS = f"{ANALYSIS}/prepared/sealers"
@@ -74,6 +75,16 @@ CASES = {
         "    PreparedExecution::FreshRun(op)\n}\n"),
     "estimator missing from the family table": lambda d: replace(
         d, f"{SEALERS}/estimator.rs", "    EstimatorId::Dml,\n", ""),
+    "estimator a sealer serves added to the residual": lambda d: append(
+        d, "parity/estimator_route_residual.toml",
+        '\n[[estimator]]\nid = "CausalImpactGone"\nreason = "x"\n'),
+    "served estimator in the residual without the flag": lambda d: replace(
+        d, "parity/estimator_route_residual.toml",
+        "served_by_specialised_sealer_for_other_shapes = true\n"
+        'reason = "the AIPW sealer', 'reason = "the AIPW sealer'),
+    "estimator served by nothing and not in the residual": lambda d: replace(
+        d, "parity/estimator_route_residual.toml",
+        '[[estimator]]\nid = "Dml"', '[[estimator]]\nid = "DmlGone"'),
     "estimator sealers not last": lambda d: replace(
         d, f"{SEALERS}/mod.rs",
         "    sealer(ExecutionKind::EstimatorRoute, estimator::estimator_route),\n", ""),

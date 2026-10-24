@@ -347,8 +347,30 @@ def manifest_problems(root: Path, cells: dict[str, str], posterior: list[str], k
     return problems
 
 
-def estimator_table_problems(root: Path) -> list[str]:
-    """Every EstimatorId is assigned to the estimator-family sealer's table."""
+# Estimator ids a cell sealer serves through the route cell its family lowers as: the cell
+# sealer admits the study by cell, and the operation it seals selects the estimator. First
+# match wins.
+ESTIMATOR_FAMILY_CELLS = (
+    (r"^Interference", "InterferenceDag"),
+    (r"Survival$|PiecewiseSurvival|RandomizedSurvival", "Survival"),
+    (r"TemporalDesign|TemporalRegimeSurvival", "TemporalDesign"),
+    (r"Policy|BinaryPolicyValue", "PolicyValue"),
+    (r"ContinuousDose|DosePolicy", "ContinuousDoseResponse"),
+    (r"Randomized|ComplierEffect|Switchback", "RandomizedEffect"),
+    (r"Longitudinal|SequentialRegimeValue", "LongitudinalRegime"),
+    (r"PanelDid", "PanelDid"),
+    (r"SyntheticControl", "SyntheticControl"),
+    (r"LocalRatio|LocalPolynomial", "LocalPolynomialRatio"),
+    (r"SequentialCrossfit", "SequentialContrast"),
+    (r"PeriodHistory", "HistoryMatch"),
+    (r"^TransportTrial", "TransportMixed"),
+    (r"^Gcm", "GcmDag"),
+)
+ESTIMATOR_RESIDUAL = "parity/estimator_route_residual.toml"
+
+
+def estimator_table_problems(root: Path, served: dict[str, set[str]]) -> list[str]:
+    """The family sealer's table is the committed residual; every other id has a specialised sealer."""
     ids_text = rust_mask(_read(root, ESTIMATOR_IDS) or "")
     start = ids_text.find("pub enum EstimatorId")
     block = ids_text[start : ids_text.find("\n}", start)] if start >= 0 else ""
@@ -357,16 +379,56 @@ def estimator_table_problems(root: Path) -> list[str]:
     start = table_text.find("FAMILY_ESTIMATORS: &[EstimatorId] = &[")
     table = table_text[start : table_text.find("\n];", start)] if start >= 0 else ""
     listed = set(re.findall(r"EstimatorId::([A-Z][A-Za-z0-9]*)", table))
-    if not ids or not listed:
-        return [f"{ESTIMATOR_TABLE}: estimator ids or the family table not found; update the gate"]
+    residual_text = _read(root, ESTIMATOR_RESIDUAL)
+    if not ids or not listed or residual_text is None:
+        return [f"{ESTIMATOR_TABLE} or {ESTIMATOR_RESIDUAL}: not found; update the gate"]
+    rows = tomllib.loads(residual_text).get("estimator", [])
+    residual = {row["id"] for row in rows}
+    flagged = {
+        row["id"] for row in rows if row.get("served_by_specialised_sealer_for_other_shapes") is True
+    }
     problems = [
-        f"estimator {name} is admitted by no sealer; add it to the estimator-family table"
-        for name in sorted(ids - listed)
+        f"{ESTIMATOR_RESIDUAL}: {row['id']} needs a reason"
+        for row in rows
+        if not str(row.get("reason", "")).strip()
     ]
+    problems.extend(f"the estimator-family table lists {n}, which is not an EstimatorId" for n in sorted(listed - ids))
+    problems.extend(f"{ESTIMATOR_RESIDUAL} lists {n}, which is not an EstimatorId" for n in sorted(residual - ids))
     problems.extend(
-        f"the estimator-family table lists {name}, which is not an EstimatorId"
-        for name in sorted(listed - ids)
+        f"the estimator-family table lists {n}, which {ESTIMATOR_RESIDUAL} does not" for n in sorted(listed - residual)
     )
+    problems.extend(
+        f"{ESTIMATOR_RESIDUAL} lists {n}, which the estimator-family table omits" for n in sorted(residual - listed)
+    )
+    sealer_sources = "".join(
+        rust_mask(path.read_text(encoding="utf-8"))
+        for path in sorted((root / ANALYSIS / "prepared" / "sealers").glob("*.rs"))
+        if path.name != "estimator.rs"
+    )
+    specialised_cells = set().union(*served.values()) if served else set()
+
+    def serves(name: str) -> bool:
+        if re.search(rf"EstimatorId::{name}\b", sealer_sources):
+            return True
+        return any(
+            re.search(pattern, name) and cell in specialised_cells
+            for pattern, cell in ESTIMATOR_FAMILY_CELLS
+        )
+
+    for name in sorted(ids):
+        if name in residual and serves(name) and name not in flagged:
+            problems.append(
+                f"{ESTIMATOR_RESIDUAL} lists {name}, which a specialised sealer serves; flag it "
+                "served_by_specialised_sealer_for_other_shapes and state the shapes that fall here"
+            )
+        if name in flagged and not serves(name):
+            problems.append(
+                f"{ESTIMATOR_RESIDUAL} flags {name} as served by a specialised sealer, which names it nowhere"
+            )
+        if name not in residual and not serves(name):
+            problems.append(
+                f"estimator {name} is served by no specialised sealer and is not in {ESTIMATOR_RESIDUAL}"
+            )
     return problems
 
 
@@ -491,7 +553,7 @@ def retained_route_problems(root: Path = ROOT) -> list[str]:
                 "OrdinaryDispatch (the ordinary dispatcher) and not a retained operation"
             )
     problems.extend(manifest_problems(root, cells, posterior, set(kinds), variants, served))
-    problems.extend(estimator_table_problems(root))
+    problems.extend(estimator_table_problems(root, served))
     problems.extend(ordinary_dispatch_problems(root))
     problems.extend(reentry_guard_problems(root))
     return problems

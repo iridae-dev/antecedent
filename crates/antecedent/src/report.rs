@@ -1199,7 +1199,7 @@ fn recorded_limits(input: &ReportInput<'_>) -> Vec<String> {
     limits
 }
 
-fn limits_section(input: &ReportInput<'_>) -> Section {
+fn capability_head(input: &ReportInput<'_>) -> Vec<(String, String)> {
     let capability = input.contract.capability();
     let mut head = Vec::new();
     fact(&mut head, "Operation", capability.operation.as_str());
@@ -1210,7 +1210,12 @@ fn limits_section(input: &ReportInput<'_>) -> Section {
         opt_str(capability.readiness.map(antecedent_contract::OperationReadiness::as_str)),
     );
     fact(&mut head, "Coordinate", opt_str(capability.coordinate.as_deref()));
-    let mut blocks = vec![Block::Facts(head)];
+    head
+}
+
+fn limits_section(input: &ReportInput<'_>) -> Section {
+    let capability = input.contract.capability();
+    let mut blocks = vec![Block::Facts(capability_head(input))];
 
     let limits = recorded_limits(input);
     if limits.is_empty() {
