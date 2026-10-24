@@ -15,7 +15,6 @@ pub(crate) struct LinearResources {
     pub(crate) resident: u64,
     pub(crate) workspace: u64,
     pub(crate) output: u64,
-    pub(crate) work: u64,
 }
 fn overflow() -> CausalError {
     CausalError::Resource { message: "checked linear resource arithmetic overflow".into() }
@@ -49,8 +48,7 @@ impl LinearResources {
             add(add(mul(n, 8)?, mul(u64::from(replicates), 8)?)?, 4096)?,
             RESULT_ENVELOPE_BYTES,
         )?;
-        let work = mul(mul(mul(n, p)?, p)?, add(u64::from(replicates), 1)?)?;
-        Ok(Self { rows: n, columns: p, resident, workspace, output, work })
+        Ok(Self { rows: n, columns: p, resident, workspace, output })
     }
     pub(crate) fn prepared(
         prepared: &CheckedLinearAdjustmentAte,

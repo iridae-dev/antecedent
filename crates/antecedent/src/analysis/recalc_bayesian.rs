@@ -627,7 +627,7 @@ pub fn execute_bayesian_with_receipt(
         return Err(RecalcRunError::Request("recalc.cancelled"));
     }
     let old = session.live.as_ref();
-    let mut recorder = ReceiptRecorder::new();
+    let mut recorder = ReceiptRecorder::charged_to(ctx);
     let (prepared, result, context, verified_prior) =
         bayesian_stage(request, &plan, old, &mut recorder, ctx)?;
     let law = if recomputed(&plan, Stage::Law) {

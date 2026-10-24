@@ -214,6 +214,10 @@ name = "missing_policy_support"
 path = "tests/missing_policy_support.rs"
 
 [[test]]
+name = "missing_imputation_routes"
+path = "tests/missing_imputation_routes.rs"
+
+[[test]]
 name = "observational_survival_policy_routes"
 path = "tests/observational_survival_policy_routes.rs"
 
@@ -406,12 +410,28 @@ name = "cross_surface_refresh_withdrawal"
 path = "tests/cross_surface_refresh_withdrawal.rs"
 
 [[test]]
+name = "cross_surface_retention_refresh"
+path = "tests/cross_surface_retention_refresh.rs"
+
+[[test]]
+name = "prepared_retained_refresh"
+path = "tests/prepared_retained_refresh.rs"
+
+[[test]]
 name = "cross_surface_previous_release"
 path = "tests/cross_surface_previous_release.rs"
 
 [[test]]
 name = "flagship_decision_fixture"
 path = "tests/flagship_decision_fixture.rs"
+
+[[test]]
+name = "flagship_shared_parameter"
+path = "tests/flagship_shared_parameter.rs"
+
+[[test]]
+name = "facade_route_replay"
+path = "tests/facade_route_replay.rs"
 
 [[test]]
 name = "joint_law_composed_interval_calibration"
@@ -534,6 +554,14 @@ name = "smoothed_dose_calibration"
 path = "tests/smoothed_dose_calibration.rs"
 
 [[test]]
+name = "class_derivative_response"
+path = "tests/class_derivative_response.rs"
+
+[[test]]
+name = "temporal_admg_derivative"
+path = "tests/temporal_admg_derivative.rs"
+
+[[test]]
 name = "staged_derivatives"
 path = "tests/staged_derivatives.rs"
 
@@ -632,6 +660,10 @@ path = "tests/suite_09.rs"
 [[test]]
 name = "admg_conditional_effect"
 path = "tests/admg_conditional_effect.rs"
+
+[[test]]
+name = "path_specific_admg_route"
+path = "tests/path_specific_admg_route.rs"
 
 [[test]]
 name = "temporal_counterfactual_posterior"
@@ -779,6 +811,10 @@ name = "plan_view"
 path = "tests/plan_view.rs"
 
 [[test]]
+name = "plan_view_stages"
+path = "tests/plan_view_stages.rs"
+
+[[test]]
 name = "report"
 path = "tests/report.rs"
 
@@ -798,6 +834,10 @@ path = "tests/descriptive_fallback.rs"
 name = "evidence_plan_study"
 path = "tests/evidence_plan_study.rs"
 
+[[test]]
+name = "joint_panel_streamed_memory"
+path = "tests/joint_panel_streamed_memory.rs"
+
 [[example]]
 name = "joint_panel_workflow"
 path = "../../examples/rust/joint_panel_workflow.rs"
@@ -805,3 +845,7 @@ path = "../../examples/rust/joint_panel_workflow.rs"
 [[example]]
 name = "reference_host"
 path = "../../examples/rust/reference_host.rs"
+
+[[bench]]
+name = "transport_measured"
+harness = false

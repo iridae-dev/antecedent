@@ -32,7 +32,9 @@ use antecedent_contract::bridge::{
     AssumptionKind, BridgeAssumption, BridgeContract, BridgeEndpoint, BridgeKind, BridgeMapping,
     BridgeScope, BridgeSource, QuantityClass, SourceMappingDependence, ValueKind,
 };
-use antecedent_contract::mixed_module::{CutFeedback, MixedModulePolicy};
+use antecedent_contract::mixed_module::{
+    CutFeedback, MixedModulePolicy, MixedModuleRefusal, SharedParameterModel,
+};
 use antecedent_contract::{
     ClaimDomains, ClaimEnvelope, ClaimKind, DomainStatus, ExternalRefusal, InputRole,
     PropagationOperation, QuantityRole, ReasoningView, ScientificQuantity, SlotAvailability,
@@ -206,6 +208,37 @@ pub enum FlagshipDependence {
         /// Covariance of the temporal effect and the cost contrast.
         temporal_cost: f64,
     },
+    /// The cluster margin and the cost contrast are two modules of one
+    /// linear-Gaussian model that share a parameter: the margin estimates the
+    /// shared parameter and the cost contrast is that parameter plus a
+    /// module-specific term. The margin-cost correlation is not declared; it
+    /// is the posterior correlation of the shared parameter and the contrast
+    /// under the mixed-module policy the workflow runs with, scaled by the
+    /// variances the routes published.
+    SharedParameter {
+        /// Identity of the shared-parameter declaration.
+        id: String,
+        /// The two modules, their priors for the shared parameter and their
+        /// reconciliation weight.
+        model: SharedParameterModel,
+        /// Covariance of the cluster-trial margin and the temporal effect.
+        margin_temporal: f64,
+        /// Covariance of the temporal effect and the cost contrast.
+        temporal_cost: f64,
+    },
+    /// A declared joint covariance whose margin-cost term is a correlation of
+    /// the published standard deviations. [`Self::SharedParameter`] resolves to
+    /// this under a policy.
+    Correlated {
+        /// Identity of the declaration, including the policy it was resolved under.
+        id: String,
+        /// Covariance of the cluster-trial margin and the temporal effect.
+        margin_temporal: f64,
+        /// Correlation of the cluster-trial margin and the cost contrast.
+        margin_cost_correlation: f64,
+        /// Covariance of the temporal effect and the cost contrast.
+        temporal_cost: f64,
+    },
 }
 
 impl FlagshipDependence {
@@ -218,6 +251,22 @@ impl FlagshipDependence {
     /// as given. The cut or feedback name joins the covariance identity, so the
     /// policy is part of the sealed claim.
     fn under(self, policy: &MixedModulePolicy) -> Result<Self, FlagshipError> {
+        if let Self::SharedParameter { id, model, margin_temporal, temporal_cost } = self {
+            if id.is_empty() {
+                return Err(FlagshipError::Dependence("a declared covariance names its identity"));
+            }
+            let posterior = policy.posterior(&model).map_err(|refusal| match refusal {
+                MixedModuleRefusal::InvalidModel(reason) => FlagshipError::Dependence(reason),
+                _ => FlagshipError::Policy("the shared-parameter policy is not supported"),
+            })?;
+            let label = policy.cut_feedback().map_or("joint", |cut| cut.as_str());
+            return Ok(Self::Correlated {
+                id: format!("{id}#shared_{label}_eta{}", posterior.eta),
+                margin_temporal,
+                margin_cost_correlation: posterior.theta_contrast_correlation(),
+                temporal_cost,
+            });
+        }
         let Some(cut_feedback) = policy.cut_feedback() else {
             return Ok(self);
         };
@@ -229,6 +278,13 @@ impl FlagshipDependence {
                 )),
                 _ => Err(FlagshipError::Policy("the cut or feedback policy is not supported")),
             },
+            Self::SharedParameter { .. } => Err(FlagshipError::Policy(
+                "a shared-parameter dependence is resolved before a cut or feedback applies",
+            )),
+            Self::Correlated { id, margin_temporal, margin_cost_correlation, temporal_cost } => {
+                // A correlation already resolved under a policy is final.
+                Ok(Self::Correlated { id, margin_temporal, margin_cost_correlation, temporal_cost })
+            }
             Self::Covariance { id, margin_temporal, margin_cost, temporal_cost } => {
                 if id.is_empty() {
                     return Err(FlagshipError::Dependence(
@@ -257,7 +313,9 @@ impl FlagshipDependence {
     fn linear(&self) -> LinearDependence {
         match self {
             Self::Independent => LinearDependence::DeclaredIndependent,
-            Self::Covariance { id, .. } => LinearDependence::Covariance { id: id.clone() },
+            Self::Covariance { id, .. }
+            | Self::SharedParameter { id, .. }
+            | Self::Correlated { id, .. } => LinearDependence::Covariance { id: id.clone() },
         }
     }
 
@@ -267,13 +325,33 @@ impl FlagshipDependence {
         temporal_variance: f64,
         cost_variance: f64,
     ) -> Result<[f64; 9], FlagshipError> {
-        let Self::Covariance { id, margin_temporal, margin_cost, temporal_cost } = self else {
-            return Ok(block_covariance(margin_variance, temporal_variance, cost_variance));
+        let (id, margin_temporal, margin_cost, temporal_cost) = match self {
+            Self::Independent => {
+                return Ok(block_covariance(margin_variance, temporal_variance, cost_variance));
+            }
+            Self::Covariance { id, margin_temporal, margin_cost, temporal_cost } => {
+                (id, margin_temporal, *margin_cost, temporal_cost)
+            }
+            Self::Correlated { id, margin_temporal, margin_cost_correlation, temporal_cost } => {
+                if !margin_cost_correlation.is_finite() || margin_cost_correlation.abs() > 1.0 {
+                    return Err(FlagshipError::Dependence(
+                        "a declared correlation lies in [-1, 1]",
+                    ));
+                }
+                let margin_cost =
+                    margin_cost_correlation * (margin_variance * cost_variance).max(0.0).sqrt();
+                (id, margin_temporal, margin_cost, temporal_cost)
+            }
+            Self::SharedParameter { .. } => {
+                return Err(FlagshipError::Policy(
+                    "a shared-parameter dependence is resolved by its policy before it is used",
+                ));
+            }
         };
         if id.is_empty() {
             return Err(FlagshipError::Dependence("a declared covariance names its identity"));
         }
-        let cross = [*margin_temporal, *margin_cost, *temporal_cost];
+        let cross = [*margin_temporal, margin_cost, *temporal_cost];
         if cross.iter().any(|term| !term.is_finite()) {
             return Err(FlagshipError::Dependence("a declared covariance term is finite"));
         }
@@ -284,11 +362,11 @@ impl FlagshipDependence {
         let matrix = [
             margin_variance,
             *margin_temporal,
-            *margin_cost,
+            margin_cost,
             *margin_temporal,
             temporal_variance,
             *temporal_cost,
-            *margin_cost,
+            margin_cost,
             *temporal_cost,
             cost_variance,
         ];

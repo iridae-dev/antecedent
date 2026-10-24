@@ -453,6 +453,21 @@ pub struct BatchStudy {
     screen: Option<CandidateScreen>,
     family_contrast: Option<CellFamilyContrast>,
     family_posterior: Option<ScorePosteriorOptions>,
+    /// What the batch's nuisance cache may keep ([`Self::retention`]).
+    retention: antecedent_state::retention::RetentionMode,
+}
+
+/// The nuisance cache of one batch call: charged to the caller's admission pool, and empty by
+/// construction when `retention` does not allow fitted state to be kept.
+pub(crate) fn batch_nuisance_cache(
+    ctx: &ExecutionContext,
+    retention: antecedent_state::retention::RetentionMode,
+) -> Arc<CrossfitNuisanceCache> {
+    if retention.retains_fitted_state() {
+        CrossfitNuisanceCache::charged_to(ctx)
+    } else {
+        CrossfitNuisanceCache::bounded(Some(ctx), 0, 0)
+    }
 }
 
 impl BatchStudy {
@@ -471,6 +486,7 @@ impl BatchStudy {
             screen: None,
             family_contrast: Some(CellFamilyContrast::CellMinusControl),
             family_posterior: None,
+            retention: antecedent_state::retention::RetentionMode::FullReusable,
         }
     }
 
@@ -492,6 +508,7 @@ impl BatchStudy {
             screen: None,
             family_contrast: Some(CellFamilyContrast::CellMinusControl),
             family_posterior: None,
+            retention: antecedent_state::retention::RetentionMode::FullReusable,
         }
     }
 
@@ -499,6 +516,17 @@ impl BatchStudy {
     #[must_use]
     pub fn candidate_screen(mut self, screen: CandidateScreen) -> Self {
         self.screen = Some(screen);
+        self
+    }
+
+    /// How results are retained. Only [`RetentionMode::FullReusable`] lets the batch keep
+    /// fitted nuisances for reuse; a reduced mode builds an empty nuisance cache, so every
+    /// fit runs unshared and no hidden cache keeps what the mode dropped.
+    ///
+    /// [`RetentionMode::FullReusable`]: antecedent_state::retention::RetentionMode::FullReusable
+    #[must_use]
+    pub fn retention(mut self, mode: antecedent_state::retention::RetentionMode) -> Self {
+        self.retention = mode;
         self
     }
 
@@ -627,7 +655,7 @@ impl BatchStudy {
         }
         let data = subset_estimate_rows(&self.data, self.screen.as_ref())?;
         let shared = self.compile_shared_ate(&data, queries, ctx.rng.master_seed())?;
-        let nuisances = CrossfitNuisanceCache::charged_to(ctx);
+        let nuisances = batch_nuisance_cache(ctx, self.retention);
         let completed = ctx
             .try_map_indexed(queries.len(), |index, inner| {
                 if inner.cancellation.is_cancelled() {
@@ -673,7 +701,7 @@ impl BatchStudy {
         }
         let data = subset_estimate_rows(&self.data, self.screen.as_ref())?;
         let shared = self.compile_shared_ate(&data, queries, ctx.rng.master_seed())?;
-        let nuisances = CrossfitNuisanceCache::charged_to(ctx);
+        let nuisances = batch_nuisance_cache(ctx, self.retention);
         let mut plans = Vec::with_capacity(queries.len());
         for query in queries {
             let mut study = self.study_for_data(&data, query)?;
@@ -681,6 +709,7 @@ impl BatchStudy {
             plans.push(nuisances.scope(|| study.prepare(ctx)).0?);
         }
         Ok(PreparedBatch {
+            retention: self.retention,
             plans,
             queries: queries.iter().cloned().map(BatchQuery::Average).collect(),
             screen: self.screen.clone(),
@@ -739,6 +768,7 @@ impl BatchStudy {
             frozen.push(BatchQuery::Response(query.clone()));
         }
         Ok(PreparedBatch {
+            retention: self.retention,
             plans,
             queries: frozen,
             screen: self.screen.clone(),
@@ -913,6 +943,7 @@ fn is_discrete_joint_cell(query: &ResponseQuery) -> bool {
 /// Frozen batch of prepared average-effect (and joint-cell) plans.
 #[derive(Clone, Debug)]
 pub struct PreparedBatch {
+    retention: antecedent_state::retention::RetentionMode,
     plans: Vec<PreparedStudy>,
     queries: Vec<BatchQuery>,
     screen: Option<CandidateScreen>,
@@ -955,7 +986,7 @@ impl PreparedBatch {
         let data = subset_estimate_rows(data, self.screen.as_ref())?;
         let shared =
             self.shared_design.as_ref().map(|s| s.rebind(&data).map(Arc::new)).transpose()?;
-        let nuisances = CrossfitNuisanceCache::charged_to(ctx);
+        let nuisances = batch_nuisance_cache(ctx, self.retention);
         let completed = ctx
             .try_map_indexed(self.plans.len(), |index, inner| {
                 if inner.cancellation.is_cancelled() {

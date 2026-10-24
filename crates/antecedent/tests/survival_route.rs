@@ -952,6 +952,16 @@ fn licensed_survival_difference_band_round_trips_and_refuses_forgery() {
             .as_deref(),
         Some("licensed")
     );
+    // Product-limit by hand: the control arm has 20 of 100 events at time 1 and 12 of the 80
+    // at risk at time 2 (S = 0.80, 0.68); the treated arm 25 of 100 and 11 of 75 (S = 0.75,
+    // 0.64). The band is centred on those differences, so its curve holds both.
+    let centre = &body.survival.as_ref().unwrap().difference_band.as_ref().unwrap().difference;
+    for wanted in [0.05, 0.04] {
+        assert!(
+            centre.iter().any(|value| (value.abs() - wanted).abs() < 1e-12),
+            "the band holds the product-limit difference {wanted}: {centre:?}"
+        );
+    }
     let mut forged = body.clone();
     forged.survival.as_mut().unwrap().difference_band.as_mut().unwrap().graphless_support_status =
         None;

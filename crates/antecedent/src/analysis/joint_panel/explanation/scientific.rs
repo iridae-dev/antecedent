@@ -85,11 +85,7 @@ fn split(
             groups[classify(intervention)?].push(intervention.clone());
         }
         return Ok(groups.map(|values| {
-            if values.is_empty() {
-                Actions::Empty
-            } else {
-                Actions::Static(values)
-            }
+            if values.is_empty() { Actions::Empty } else { Actions::Static(values) }
         }));
     }
     if let Some((intervention, policy)) = action.schedule_parts() {
@@ -116,11 +112,7 @@ fn split(
             groups[block(action.variable(), bindings)?].push(action.clone());
         }
         return Ok(groups.map(|values| {
-            if values.is_empty() {
-                Actions::Empty
-            } else {
-                Actions::Structural(values)
-            }
+            if values.is_empty() { Actions::Empty } else { Actions::Structural(values) }
         }));
     }
     Err(invalid("unrecognized reference-world action"))
@@ -512,12 +504,13 @@ mod tests {
                 )
                 .unwrap();
             assert!((decomposition.decomposition.point.total - 16.6).abs() < 0.5);
-            assert!(decomposition.decomposition.draws.iter().flatten().all(|draw| (draw.shapley
-                [0]
-                - draw.total)
-                .abs()
-                < 1e-10
-                && draw.shapley[1..].iter().all(|value| value.abs() < 1e-10)));
+            assert!(
+                decomposition.decomposition.draws.iter().flatten().all(|draw| (draw.shapley[0]
+                    - draw.total)
+                    .abs()
+                    < 1e-10
+                    && draw.shapley[1..].iter().all(|value| value.abs() < 1e-10))
+            );
             if let Some(rows) = result.law().frequentist_realizations() {
                 assert_eq!(decomposition.decomposition.draws.len(), rows.len());
                 assert_eq!(
@@ -807,13 +800,15 @@ mod tests {
             );
             let mut invalid = bindings.clone();
             invalid.hybrids[3] = invalid.hybrids[0];
-            assert!(decompose_scientific_reference(
-                &source,
-                &invalid,
-                ScientificConsumptionScope::IdentifiedCausal,
-                &ExecutionContext::for_tests(312)
-            )
-            .is_err());
+            assert!(
+                decompose_scientific_reference(
+                    &source,
+                    &invalid,
+                    ScientificConsumptionScope::IdentifiedCausal,
+                    &ExecutionContext::for_tests(312)
+                )
+                .is_err()
+            );
             let reference_artifact = result
                 .export_reference_decomposition(
                     &bindings,
@@ -839,22 +834,26 @@ mod tests {
             assert_eq!(historical.covariance, current_reference.covariance);
             let mut changed_order = bindings.clone();
             changed_order.order.swap(0, 1);
-            assert!(result
-                .consume_reference_decomposition_current(
-                    &reference_artifact,
-                    &changed_order,
-                    ScientificConsumptionScope::IdentifiedCausal,
-                    &ExecutionContext::for_tests(314)
-                )
-                .is_err());
-            assert!(result
-                .consume_reference_decomposition_current(
-                    &reference_artifact,
-                    &bindings,
-                    ScientificConsumptionScope::ModelConditional,
-                    &ExecutionContext::for_tests(314)
-                )
-                .is_err());
+            assert!(
+                result
+                    .consume_reference_decomposition_current(
+                        &reference_artifact,
+                        &changed_order,
+                        ScientificConsumptionScope::IdentifiedCausal,
+                        &ExecutionContext::for_tests(314)
+                    )
+                    .is_err()
+            );
+            assert!(
+                result
+                    .consume_reference_decomposition_current(
+                        &reference_artifact,
+                        &bindings,
+                        ScientificConsumptionScope::ModelConditional,
+                        &ExecutionContext::for_tests(314)
+                    )
+                    .is_err()
+            );
             let bytes = result.export_artifact().unwrap();
             let replay = crate::analysis::joint_panel::designs::replay_joint_design_artifact(
                 &bytes,
@@ -995,15 +994,17 @@ mod tests {
                 assert_eq!(decomposition.covariance, current.covariance);
                 let mut changed = bindings.clone();
                 changed.after_weights = vec![0.4, 0.6];
-                assert!(result
-                    .consume_population_reference_current(
-                        &bytes,
-                        &changed,
-                        &diagram,
-                        ScientificConsumptionScope::IdentifiedCausal,
-                        &ExecutionContext::for_tests(319)
-                    )
-                    .is_err());
+                assert!(
+                    result
+                        .consume_population_reference_current(
+                            &bytes,
+                            &changed,
+                            &diagram,
+                            ScientificConsumptionScope::IdentifiedCausal,
+                            &ExecutionContext::for_tests(319)
+                        )
+                        .is_err()
+                );
                 let mut isolated = bindings.clone();
                 isolated.components.hybrids.fill(components.hybrids[0]);
                 isolated.stratum_worlds =
@@ -1028,14 +1029,16 @@ mod tests {
             }
             let invalid =
                 SelectionDiagram::try_new(graph.clone(), [VariableId::from_raw(4)]).unwrap();
-            assert!(posterior
-                .decompose_population_reference(
-                    &bindings,
-                    &invalid,
-                    ScientificConsumptionScope::IdentifiedCausal,
-                    &ExecutionContext::for_tests(319)
-                )
-                .is_err());
+            assert!(
+                posterior
+                    .decompose_population_reference(
+                        &bindings,
+                        &invalid,
+                        ScientificConsumptionScope::IdentifiedCausal,
+                        &ExecutionContext::for_tests(319)
+                    )
+                    .is_err()
+            );
             graph.insert_bidirected(DenseNodeId::from_raw(3), DenseNodeId::from_raw(4)).unwrap();
             let mut fallback = components.clone();
             fallback.exposure = (0..4).map(VariableId::from_raw).collect();
@@ -1059,14 +1062,16 @@ mod tests {
             assert!(refusal.contains("selection"));
             assert!(executed.decomposition.point.total > 3.0);
             let confounded = SelectionDiagram::try_new(graph, [VariableId::from_raw(3)]).unwrap();
-            assert!(posterior
-                .decompose_population_reference(
-                    &bindings,
-                    &confounded,
-                    ScientificConsumptionScope::IdentifiedCausal,
-                    &ExecutionContext::for_tests(319)
-                )
-                .is_err());
+            assert!(
+                posterior
+                    .decompose_population_reference(
+                        &bindings,
+                        &confounded,
+                        ScientificConsumptionScope::IdentifiedCausal,
+                        &ExecutionContext::for_tests(319)
+                    )
+                    .is_err()
+            );
         }
     }
 
@@ -1275,11 +1280,11 @@ impl crate::analysis::joint_panel::designs::JointDesignResult {
 
 mod artifact;
 pub use artifact::{
-    replay_population_reference, replay_reference_decomposition, HistoricalPopulationReference,
-    HistoricalReferenceDecomposition,
+    HistoricalPopulationReference, HistoricalReferenceDecomposition, replay_population_reference,
+    replay_reference_decomposition,
 };
 mod population;
 pub use population::{
-    decompose_population_reference, PopulationReferenceAttempt, PopulationReferenceBindings,
-    PopulationReferenceDecomposition, PopulationReferenceTransportProof,
+    PopulationReferenceAttempt, PopulationReferenceBindings, PopulationReferenceDecomposition,
+    PopulationReferenceTransportProof, decompose_population_reference,
 };

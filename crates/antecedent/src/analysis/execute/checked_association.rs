@@ -186,7 +186,7 @@ impl Study {
     }
 
     /// Execute on the rows of a table.
-    pub(super) fn execute_association_tabular(
+    pub(crate) fn execute_association_tabular(
         &self,
         data: &antecedent_data::TabularData,
         physical: &Arc<PhysicalExecutionPlan>,
@@ -196,7 +196,7 @@ impl Study {
     }
 
     /// Execute on the points of one series.
-    pub(super) fn execute_association_series(
+    pub(crate) fn execute_association_series(
         &self,
         data: &antecedent_data::TimeSeriesData,
         physical: &Arc<PhysicalExecutionPlan>,

@@ -858,6 +858,92 @@ fn reference_decomposition_inherits_exact_hybrid_proofs_and_refuses_unearned_tra
 }
 
 #[test]
+fn design_adaptive_reference_executes_identified_steps_and_names_the_design_for_the_rest() {
+    use super::explanation::{
+        ChangeComponent, DecompositionEndpoint, MechanismPeriodMap, PanelDecompositionRequest,
+        ReferenceObligation,
+    };
+    let (panel, proof, data) = static_source_fixture();
+    let ctx = ExecutionContext::for_tests(74);
+    let result =
+        panel.with_static_source_proof(proof, &data, &ctx).unwrap().estimate(&ctx).unwrap();
+    let worlds = &result.request().worlds;
+    let groups = result.prepared().model_data().groups.len();
+    let mut request = PanelDecompositionRequest {
+        before: DecompositionEndpoint {
+            program: worlds[0].program.clone(),
+            population_weights: vec![1.0 / groups as f64; groups],
+        },
+        after: DecompositionEndpoint {
+            program: worlds[worlds.len() - 1].program.clone(),
+            population_weights: vec![1.0 / groups as f64; groups],
+        },
+        time_weights: vec![1.0],
+        order: [
+            ChangeComponent::Exposure,
+            ChangeComponent::Saturation,
+            ChangeComponent::Population,
+            ChangeComponent::Mechanism,
+        ],
+    };
+    let periods = MechanismPeriodMap { before: vec![0], after: vec![0] };
+    // Everything identified: every step is available and nothing is left to design.
+    let complete =
+        result.attempt_design_adaptive_reference(&request, &periods, None, &ctx).unwrap();
+    assert!(complete.is_complete());
+    assert!(complete.next_designs.is_empty());
+    assert!(complete.unidentified_components.is_empty());
+    assert_eq!(complete.identified_steps.len(), 32);
+    assert!(complete.selection.is_none());
+    // A changed population is not identified by the design, but the exposure change at the
+    // reference population still is, and it is executed on every aligned law slot.
+    request.after.population_weights.fill(0.0);
+    request.after.population_weights[0] = 1.0;
+    let partial = result.attempt_design_adaptive_reference(&request, &periods, None, &ctx).unwrap();
+    assert!(!partial.is_complete());
+    assert!(partial.coarser.is_none());
+    assert_eq!(partial.unidentified_components, vec![ChangeComponent::Population]);
+    let exposure = partial
+        .identified_steps
+        .iter()
+        .filter(|step| step.component == ChangeComponent::Exposure)
+        .collect::<Vec<_>>();
+    assert_eq!(exposure.len(), 4);
+    assert!(partial.identified_steps.iter().all(|step| step.context_mask & 4 == 0));
+    let hybrids = &partial.requested.decomposition.point.hybrids;
+    let at_reference = exposure.iter().find(|step| step.context_mask == 0).unwrap();
+    assert!((at_reference.point - (hybrids[1] - hybrids[0])).abs() < 1e-12);
+    assert_eq!(at_reference.draws.len(), partial.requested.decomposition.draws.len());
+    for (step, draw) in at_reference.draws.iter().zip(&partial.requested.decomposition.draws) {
+        assert_eq!(step.is_some(), draw.is_some());
+    }
+    let transport = partial
+        .next_designs
+        .iter()
+        .find(|step| step.obligation == ReferenceObligation::ChangedPopulationTransport)
+        .unwrap();
+    assert_eq!(transport.components, vec![ChangeComponent::Population]);
+    assert!(transport.hybrids.iter().all(|mask| mask & 4 != 0) && transport.hybrids.len() == 8);
+    assert!(transport.design.contains("population"));
+    // Every executed step is reproduced from the stored fit by an independent consumer.
+    let bytes = result.export(&ctx).unwrap();
+    let historical =
+        antecedent_io::joint_panel_artifact::consume_panel_execution(&bytes, &ctx).unwrap();
+    let replay = historical.program().decompose_reference(&request, &periods, &ctx).unwrap();
+    for step in &partial.identified_steps {
+        let bit = match step.component {
+            ChangeComponent::Exposure => 0,
+            ChangeComponent::Saturation => 1,
+            ChangeComponent::Population => 2,
+            ChangeComponent::Mechanism => 3,
+        };
+        let stepped = usize::from(step.context_mask | (1 << bit));
+        let context = usize::from(step.context_mask);
+        assert_eq!(step.point, replay.point.hybrids[stepped] - replay.point.hybrids[context]);
+    }
+}
+
+#[test]
 fn compiled_component_bindings_consume_identified_worlds_and_reject_hybrid_and_overlap_errors() {
     use super::explanation::{ChangeComponent, ReferenceComponentBindings};
     use antecedent_design::scientific_source::ScientificConsumptionScope;

@@ -124,6 +124,12 @@ impl MissingRoute {
             (Self::Static, MissingPolicy::MultipleImputation(_)) => {
                 "multiple imputation: every row is kept and its missing treatment, outcome, adjustment or auxiliary values are drawn from a proper imputation model; valid when missingness is at random given the variables of the imputation model and that model is correctly specified; the completed-table fits are pooled by Rubin's rules (frequentist) or stacked into one posterior (Bayesian)"
             }
+            (Self::Randomized, MissingPolicy::MultipleImputation(_)) => {
+                "multiple imputation of missing outcomes in a randomized design: every assigned participant is kept and a missing outcome (or covariate) is drawn from a proper imputation model that holds the arm each participant was assigned beside the other numeric columns; valid when outcomes are missing at random given the arm and those columns and the model is correctly specified (it enters the arm as a main effect, so an arm-specific outcome relation it omits biases the imputed effect toward zero); the design's own estimator and its declared assignment probabilities run unchanged on every completed table, and the fits are pooled by Rubin's rules (frequentist) or stacked into one posterior (Bayesian)"
+            }
+            (Self::Temporal, MissingPolicy::MultipleImputation(_)) => {
+                "multiple imputation of a series with missing time points: every time step is kept and a missing value is drawn from a lagged imputation model (each variable given the others at the same step and every variable at the neighbouring steps, parameters drawn by a block Bayesian bootstrap); valid when missingness is at random given the neighbouring steps' values and the series is stationary with dependence no longer than the conditioned neighbourhood; the temporal estimator runs on every completed series and the fits are pooled by Rubin's rules (frequentist) or stacked into one posterior (Bayesian)"
+            }
             (Self::Temporal, MissingPolicy::CompleteCase) => {
                 "windows containing a missing value are dropped and time keeps its original grid, so no lag spans a gap; the retained windows represent the process when missingness is independent of the outcome innovation given the lagged regressors"
             }
@@ -267,8 +273,21 @@ pub(crate) fn validate_declaration(
                 MissingPolicy::CompleteCase,
             )));
         }
-        multiple_imputation::bind_units(context.sampling_design, None, 0)
-            .map_err(|error| CausalError::Estimate(error.into()))?;
+        match MissingRoute::of(query, context.data) {
+            // A single series is imputed by a lagged model whose parameter draw resamples
+            // contiguous blocks; it is the dependent time-series design that declares them.
+            Some(MissingRoute::Temporal) => {
+                multiple_imputation::bind_series_units(context.sampling_design, 0, 1)
+                    .map_err(|error| CausalError::Estimate(error.into()))?;
+            }
+            // A clustered randomized design takes its clusters from the assignment units.
+            Some(MissingRoute::Randomized)
+                if context.sampling_design == Some(DeclaredSamplingDesign::ClusteredPanel) => {}
+            _ => {
+                multiple_imputation::bind_units(context.sampling_design, None, 0)
+                    .map_err(|error| CausalError::Estimate(error.into()))?;
+            }
+        }
     }
     Ok(())
 }
@@ -328,6 +347,7 @@ pub(crate) fn policy_wire(
             .collect(),
         _ => Vec::new(),
     };
+    let series = matches!(study.data, DataInput::Temporal(_));
     let imputation =
         declaration.policy.imputation().map(|spec| antecedent_io::ImputationSpecWire {
             model: spec.model.name().to_owned(),
@@ -335,7 +355,9 @@ pub(crate) fn policy_wire(
             iterations: spec.iterations,
             seed: spec.seed,
             assumption: spec.assumption.name().to_owned(),
-            unit: imputation_unit_name(study.sampling_design).to_owned(),
+            unit: if series { "group" } else { imputation_unit_name(study.sampling_design) }
+                .to_owned(),
+            assumptions_digest: super::missing_imputation::declared_assumptions_digest(study),
         });
     Some(antecedent_io::MissingPolicyWire {
         policy: declaration.policy.name().to_owned(),

@@ -36,6 +36,9 @@ use antecedent_estimate::temporal_design::dose::{DosePairs, DoseTarget, fit_dose
 use antecedent_estimate::temporal_design::misclassification::{
     ValidationCounts, correct_posterior, correct_sampling,
 };
+use antecedent_estimate::temporal_design::observational::{
+    OBSERVATIONAL_COORDINATES, ObservationalRows, fit_observational_excursion,
+};
 use antecedent_estimate::temporal_design::quantile::{QUANTILE_COORDINATES, fit_quantile};
 use antecedent_estimate::temporal_design::survival::{
     SURVIVAL_COORDINATES, Trajectories, TrajectoryRows, fit_regime_survival,
@@ -75,8 +78,15 @@ impl RandomizedTrialQuery for TemporalDesignQuery {
 
 /// Whether the design's frequentist interval is a whole-procedure bootstrap.
 fn reads_replicates(query: &TemporalDesignQuery) -> bool {
-    matches!(query.assignment, TemporalAssignment::RegimeSurvival { .. })
-        || matches!(query.functional, TemporalDesignFunctional::Quantile { .. })
+    matches!(
+        query.assignment,
+        TemporalAssignment::RegimeSurvival { .. }
+            | TemporalAssignment::ObservationalExcursion { .. }
+    ) || matches!(query.functional, TemporalDesignFunctional::Quantile { .. })
+}
+
+fn observational_design(query: &TemporalDesignQuery) -> bool {
+    matches!(query.assignment, TemporalAssignment::ObservationalExcursion { .. })
 }
 
 fn survival_design(query: &TemporalDesignQuery) -> bool {
@@ -235,6 +245,17 @@ impl CheckedTemporalDesignOperation {
         }
         let pairs = lagged_pairs(PanelRows { unit: &unit, period: &query.periods }, query.lag)
             .map_err(CausalError::from)?;
+        if let TemporalAssignment::ObservationalExcursion { treatment, history } = &query.assignment
+        {
+            return self.fit_observational(
+                data,
+                &outcome,
+                &unit,
+                &pairs,
+                (*treatment, &history[..]),
+                ctx,
+            );
+        }
         if let TemporalDesignFunctional::Quantile { level } = query.functional {
             let TemporalAssignment::TwoArm { assignment, probability } = &query.assignment else {
                 return Err(CausalError::Compile {
@@ -468,13 +489,81 @@ impl CheckedTemporalDesignOperation {
                     floor,
                 )
             }
-            TemporalAssignment::Dose { .. } | TemporalAssignment::RegimeSurvival { .. } => {
+            TemporalAssignment::Dose { .. }
+            | TemporalAssignment::RegimeSurvival { .. }
+            | TemporalAssignment::ObservationalExcursion { .. } => {
                 return Err(CausalError::Compile {
-                    message: "an arm score was requested for a dose or survival design".into(),
+                    message: "an arm score was requested for a dose, survival or observational \
+                              design"
+                        .into(),
                 });
             }
         };
         scores.map_err(CausalError::from)
+    }
+
+    /// The observational excursion: the assignment law is fitted on the measured history, and
+    /// the fit is refitted inside every bootstrap replicate or posterior draw.
+    fn fit_observational(
+        &self,
+        data: &TabularData,
+        outcome: &[f64],
+        unit: &[usize],
+        pairs: &antecedent_estimate::temporal_design::LaggedPairs,
+        columns: (antecedent_core::VariableId, &[antecedent_core::VariableId]),
+        ctx: &ExecutionContext,
+    ) -> Result<FitOutput, CausalError> {
+        let (treatment_id, history_ids) = columns;
+        let treated = indicator(&read_column(data, treatment_id)?, "treatment")?;
+        let history: Vec<Vec<f64>> =
+            history_ids.iter().map(|id| read_column(data, *id)).collect::<Result<_, _>>()?;
+        let rows = ObservationalRows { pairs, outcome, treated: &treated, history: &history, unit };
+        let floor = self.query.min_probability;
+        let (prior_scale, draws) = self
+            .extra
+            .bayesian
+            .as_ref()
+            .map_or((1.0, None), |config| (config.prior_scale, Some(config.n_draws)));
+        let fit = fit_observational_excursion(
+            rows,
+            floor,
+            prior_scale,
+            self.extra.replicates as usize,
+            draws,
+            ctx,
+        )
+        .map_err(CausalError::from)?;
+        let coordinates = OBSERVATIONAL_COORDINATES.iter().map(|name| (*name).to_owned()).collect();
+        let summary = match (&fit.posterior, fit.standard_error, fit.interval) {
+            (Some(posterior), _, _) => Summary::Posterior(posterior.clone()),
+            (None, Some(se), Some(interval)) => Summary::Bootstrap {
+                estimate: fit.estimate.to_vec(),
+                standard_error: se.to_vec(),
+                interval: interval.to_vec(),
+            },
+            _ => {
+                return Err(CausalError::Compile {
+                    message: "the observational excursion reported no uncertainty".into(),
+                });
+            }
+        };
+        let posterior = fit.posterior.is_some();
+        Ok(FitOutput {
+            coordinates,
+            family: vec![0],
+            summary,
+            pairs: fit.pairs,
+            clusters: fit.clusters,
+            unpaired: pairs.unpaired,
+            minimum_probability: fit.minimum_probability,
+            replicates: (!posterior).then_some((fit.replicates.0 as u64, fit.replicates.1 as u64)),
+            functional: format!("observational_excursion:history_columns={}", history.len()),
+            uncertainty: if posterior {
+                "weighted_likelihood_bootstrap_refitting_assignment_model"
+            } else {
+                "whole_procedure_unit_bootstrap_refitting_assignment_model"
+            },
+        })
     }
 
     /// Regime survival on subject trajectories.
@@ -648,10 +737,17 @@ impl CheckedTemporalDesignOperation {
             method,
             if survival_design(&self.query) {
                 "joint_likelihood_factor_posteriors"
+            } else if observational_design(&self.query) {
+                "weighted_likelihood_bootstrap_assignment_model"
             } else {
                 "dirichlet_process_unit_law"
             },
-            if survival_design(&self.query) {
+            if observational_design(&self.query) {
+                "independent units carry Dirichlet weights; each draw refits the pooled logistic \
+                 assignment model under those weights with an isotropic Gaussian coefficient \
+                 prior and recomputes the weighted ratio, so uncertainty about the assignment \
+                 law is inside the posterior; the prior supplies no identifying premise"
+            } else if survival_design(&self.query) {
                 "the confounder transition law is conjugate Gaussian and the hazard, treatment and \
                  censoring laws are pooled logistic with an isotropic Gaussian coefficient prior \
                  (Laplace approximation); the prior supplies no identifying premise"
@@ -857,6 +953,23 @@ fn design_assumptions(query: &TemporalDesignQuery) -> antecedent_core::Assumptio
             "the treatment, censoring and hazard laws are pooled logistic in the current \
              confounders, the current or previous treatment and the scaled period",
         ));
+    } else if let TemporalAssignment::ObservationalExcursion { .. } = &query.assignment {
+        assumptions.push(declared(
+            "sequential_exchangeability_given_measured_history",
+            "each decision's assignment is independent of the potential outcomes given the \
+             measured decision-time history columns (declared, not checked); no assignment \
+             probability is recorded",
+        ));
+        assumptions.push(declared(
+            "pooled_logistic_assignment_model",
+            "the assignment law is pooled logistic in the measured history columns and is refitted \
+             inside every bootstrap replicate or posterior draw",
+        ));
+        assumptions.push(declared(
+            "administrative_outcome_follow_up",
+            "a decision whose outcome period is not observed lies past the end of follow-up, so \
+             dropping it does not depend on the outcome",
+        ));
     } else {
         assumptions.push(declared(
             "sequential_randomization_recorded",
@@ -886,7 +999,13 @@ fn design_identification(
         function: OutcomeExprId::identity(query.outcome),
         distribution,
     });
-    let (rule, note) = if survival_design(query) {
+    let (rule, note) = if observational_design(query) {
+        (
+            "temporal_design.observational_excursion",
+            "sequential exchangeability given the measured decision-time history identifies the \
+             excursion contrast of the decision on the outcome lag periods later",
+        )
+    } else if survival_design(query) {
         (
             "temporal_design.regime_survival",
             "sequential exchangeability of treatment and censoring given the measured history \

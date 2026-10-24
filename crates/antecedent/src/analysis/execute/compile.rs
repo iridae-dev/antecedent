@@ -18,18 +18,23 @@ use super::plan_id::PlanId;
 use super::{
     Admg, Arc, CausalError, CausalQuery, DataClassification, EstimatorId, ExecutionContext,
     GraphClass, GraphRef, IdentifierId, InferenceMode, Intervention, LogicalAnalysisPlan,
-    PanelData, PhysicalExecutionPlan, ResponseQuery, RouteInput, StaticAteCompileInput,
+    PanelData, PathSpecificMixedSource, PhysicalExecutionPlan, ResponseQuery, RouteInput,
+    StaticAdmgPathSpecificCompileInput, StaticAteCompileInput, StaticCpdagPathSpecificCompileInput,
     StaticCpdagResponseCompileInput, StaticDistributionCompileInput, StaticMediationSource,
-    StaticPagAteCompileInput, StaticPagResponseCompileInput, StaticPathSpecificCompileInput,
-    StaticResponseCompileInput, TableView, TabularData, TemporalClassEffectCompileInput,
+    StaticPagAteCompileInput, StaticPagPathSpecificCompileInput, StaticPagResponseCompileInput,
+    StaticPathSpecificCompileInput, StaticResponseCompileInput, TableView, TabularData,
+    TemporalClassEffectCompileInput,
     TemporalDag, TemporalEffectQuery, TimeSeriesData, VariableId, admg_has_bidirected,
     admg_without_latents_to_dag, compile_logical_codetermined_joint, compile_logical_distribution,
-    compile_logical_path_specific, compile_logical_static_ate, compile_logical_static_cpdag_ate,
-    compile_logical_static_cpdag_response, compile_logical_static_pag_ate,
-    compile_logical_static_pag_response, compile_logical_static_response,
-    compile_logical_temporal_class_effect, compile_logical_temporal_effect,
-    compile_logical_temporal_effect_classified, compile_logical_temporal_response, gcm_query_vars,
-    reject_dag_only_on_pag, validate_static_pair,
+    compile_logical_path_specific, compile_logical_path_specific_admg,
+    compile_logical_path_specific_cpdag, compile_logical_path_specific_pag,
+    compile_logical_static_ate, compile_logical_static_cpdag_ate,
+    compile_logical_static_cpdag_response,
+    compile_logical_static_pag_ate, compile_logical_static_pag_response,
+    compile_logical_static_response, compile_logical_temporal_class_effect,
+    compile_logical_temporal_effect, compile_logical_temporal_effect_classified,
+    compile_logical_temporal_response, gcm_query_vars, reject_dag_only_on_pag,
+    validate_static_pair,
 };
 use crate::analysis::conditional_admg::{
     FrequentistAdmgConditional, compile_temporal_admg_conditional_bayesian,
@@ -39,6 +44,48 @@ use crate::analysis::conditional_admg::{
 #[cfg(test)]
 #[path = "prepared_gaussian_tests.rs"]
 mod prepared_gaussian_tests;
+
+/// The path-restricted query a natural-effect source identifies, and the query its plan
+/// records: a natural direct effect reads its mediator as the path node.
+fn path_specific_source_queries(
+    source: PathSpecificMixedSource<'_>,
+) -> Result<(PathSpecificEffectQuery, CausalQuery), CausalError> {
+    Ok(match source {
+        PathSpecificMixedSource::PathSpecific(query) => {
+            (query.clone(), CausalQuery::PathSpecific(query.clone()))
+        }
+        PathSpecificMixedSource::Mediation(mediation) => {
+            mediation.validate()?;
+            (
+                PathSpecificEffectQuery {
+                    control: mediation.control.clone(),
+                    active: mediation.active.clone(),
+                    path_nodes: Arc::clone(&mediation.mediators),
+                    target_population: mediation.target_population.clone(),
+                    ..PathSpecificEffectQuery::binary(mediation.treatment, mediation.outcome)
+                },
+                CausalQuery::Mediation(mediation.clone()),
+            )
+        }
+        PathSpecificMixedSource::Nested(nested) => {
+            let natural_direct = nested.as_mediation_query();
+            natural_direct.validate()?;
+            (
+                PathSpecificEffectQuery {
+                    control: natural_direct.control.clone(),
+                    active: natural_direct.active.clone(),
+                    path_nodes: Arc::clone(&natural_direct.mediators),
+                    target_population: natural_direct.target_population.clone(),
+                    ..PathSpecificEffectQuery::binary(
+                        natural_direct.treatment,
+                        natural_direct.outcome,
+                    )
+                },
+                CausalQuery::NestedCounterfactual(*nested),
+            )
+        }
+    })
+}
 
 fn mixed_admg(study: &super::Study) -> Result<Admg, CausalError> {
     study
@@ -110,6 +157,15 @@ impl super::Study {
             RouteInput::PathSpecificDag { data, query: q, graph } => {
                 self.compile_logical_path_specific_dag(data, q, graph)
             }
+            RouteInput::PathSpecificMixed { data, source } => {
+                self.compile_logical_path_specific_mixed(data, source)
+            }
+            RouteInput::PathSpecificCpdag { data, source } => {
+                self.compile_logical_path_specific_cpdag_cell(data, source)
+            }
+            RouteInput::PathSpecificPag { data, source } => {
+                self.compile_logical_path_specific_pag_cell(data, source)
+            }
             RouteInput::TemporalEffectClass { data, query, classification } => self
                 .compile_logical_class_effect(
                     data,
@@ -129,6 +185,9 @@ impl super::Study {
             }
             RouteInput::TemporalResponseClass { data, query: q } => {
                 self.compile_logical_temporal_response_class(data, q)
+            }
+            RouteInput::TemporalResponseAdmg { data, query: q, graph } => {
+                self.compile_logical_temporal_response_admg(data, q, graph)
             }
             RouteInput::MultiEnvTemporalEffect { multi, query: q, graph } => {
                 self.compile_logical_multi_env_temporal_effect(multi, q, graph)
@@ -466,6 +525,93 @@ impl super::Study {
         Ok(logical)
     }
 
+    /// Logical plan of a path-restricted natural effect, or a natural direct effect, on a
+    /// supplied mixed graph: the same identifier and estimator pair as the DAG cell, over the
+    /// graph's ADMG.
+    fn compile_logical_path_specific_mixed(
+        &self,
+        data: &TabularData,
+        source: PathSpecificMixedSource<'_>,
+    ) -> Result<LogicalAnalysisPlan, CausalError> {
+        super::static_path::ensure_admg_path_specific_licensed(self.refute)?;
+        let admg = mixed_admg(self)?;
+        let (identifier, estimator) = self.resolve_path_pair();
+        let (path, query) = path_specific_source_queries(source)?;
+        let mut plan = compile_logical_path_specific_admg(
+            StaticAdmgPathSpecificCompileInput {
+                data,
+                graph: &admg,
+                query: &path,
+                validation_suite: self.validation_suite_id(),
+                identifier,
+                estimator,
+            },
+            PlanId::StaticAdmgPathSpecific.as_str(),
+        )?;
+        plan.query = query;
+        Ok(plan)
+    }
+
+    /// Logical plan of a path-restricted natural effect, or a natural direct effect, over the
+    /// DAG completions of a supplied CPDAG.
+    fn compile_logical_path_specific_cpdag_cell(
+        &self,
+        data: &TabularData,
+        source: PathSpecificMixedSource<'_>,
+    ) -> Result<LogicalAnalysisPlan, CausalError> {
+        super::static_path::ensure_admg_path_specific_licensed(self.refute)?;
+        let GraphRef::Cpdag(cpdag) = self.graph.graph_ref() else {
+            return Err(CausalError::Compile {
+                message: "class path-specific effect requires a Cpdag".into(),
+            });
+        };
+        let (identifier, estimator) = self.resolve_path_pair();
+        let (path, query) = path_specific_source_queries(source)?;
+        let mut plan = compile_logical_path_specific_cpdag(
+            StaticCpdagPathSpecificCompileInput {
+                data,
+                graph: cpdag,
+                query: &path,
+                validation_suite: self.validation_suite_id(),
+                identifier,
+                estimator,
+            },
+            PlanId::StaticCpdagPathSpecific.as_str(),
+        )?;
+        plan.query = query;
+        Ok(plan)
+    }
+
+    /// Logical plan of a path-restricted natural effect, or a natural direct effect, over the
+    /// ADMGs a supplied PAG leaves open.
+    fn compile_logical_path_specific_pag_cell(
+        &self,
+        data: &TabularData,
+        source: PathSpecificMixedSource<'_>,
+    ) -> Result<LogicalAnalysisPlan, CausalError> {
+        super::static_path::ensure_admg_path_specific_licensed(self.refute)?;
+        let GraphRef::Pag(pag) = self.graph.graph_ref() else {
+            return Err(CausalError::Compile {
+                message: "PAG path-specific effect requires a Pag".into(),
+            });
+        };
+        let (identifier, estimator) = self.resolve_path_pair();
+        let (path, query) = path_specific_source_queries(source)?;
+        let mut plan = compile_logical_path_specific_pag(
+            StaticPagPathSpecificCompileInput {
+                data,
+                graph: pag,
+                query: &path,
+                validation_suite: self.validation_suite_id(),
+                identifier,
+                estimator,
+            },
+            PlanId::StaticPagPathSpecific.as_str(),
+        )?;
+        plan.query = query;
+        Ok(plan)
+    }
+
     fn compile_logical_path_specific_dag(
         &self,
         data: &TabularData,
@@ -648,6 +794,85 @@ impl super::Study {
         data: &TimeSeriesData,
         q: &ResponseQuery,
     ) -> Result<LogicalAnalysisPlan, CausalError> {
+        let mut plan = compile_logical_temporal_response(data, &TemporalDag::empty(), q, false)?;
+        plan.record.identifier = Some(Arc::from(IdentifierId::GeneralizedAdjustment.as_str()));
+        plan.record.estimator =
+            Some(Arc::from(EstimatorId::temporal_response_for(&self.inference).as_str()));
+        Ok(plan)
+    }
+
+    /// Logical plan of a derivative at one horizon on a temporal ADMG.
+    ///
+    /// The derivative of a continuous treatment is the slope of the lag-aligned regression on an
+    /// adjustment set of the unrolled window of the template, so the plan names the temporal
+    /// response estimator of the inference mode; the window-ADMG adjustment is recorded in the
+    /// identification derivation. Curves and intervention levels need a plug-in the
+    /// latent-confounded window does not evaluate, so they are refused here.
+    fn compile_logical_temporal_response_admg(
+        &self,
+        data: &TimeSeriesData,
+        q: &ResponseQuery,
+        graph: &TemporalAdmg,
+    ) -> Result<LogicalAnalysisPlan, CausalError> {
+        if !super::response_functional_is_derivative(&q.functional) {
+            return Err(CausalError::Unsupported {
+                message: "a temporal response on a TemporalAdmg is licensed for derivatives, \
+                          elasticities, directional derivatives and Jacobians; a curve or an \
+                          intervention level of a latent-confounded window has no \
+                          continuous-treatment functional estimator",
+            });
+        }
+        let template_variables: std::collections::BTreeSet<VariableId> = graph
+            .nodes()
+            .iter()
+            .filter_map(|node| match node {
+                antecedent_core::NodeRef::Lagged { variable, .. } => Some(*variable),
+                _ => None,
+            })
+            .collect();
+        for variable in q.functional.treatment_ids().into_iter().chain(q.functional.outcome_ids()) {
+            if !template_variables.contains(&variable) {
+                return Err(crate::compile_reason!(
+                    "unknown_variable",
+                    "variable {} is not a variable of the temporal ADMG template; name a \
+                     variable that appears in the template at some lag",
+                    variable.raw()
+                ));
+            }
+        }
+        let schema_len = data.schema().len();
+        if let Some(variable) = template_variables.iter().find(|v| v.as_usize() >= schema_len) {
+            return Err(crate::compile_reason!(
+                "unknown_variable",
+                "template variable {} is outside the series schema of {schema_len} variables; \
+                 the template names variables by the schema's dense ids",
+                variable.raw()
+            ));
+        }
+        if data.storage().weights().is_some() {
+            return Err(crate::compile_reason!(
+                "option_not_applicable",
+                "row sampling weights do not apply to a temporal ADMG derivative: the slope \
+                 regression reads the unweighted series. Next attempt: drop the weights, or use \
+                 a TemporalDag whose linear fit reads them"
+            ));
+        }
+        if q.temporal.as_ref().is_some_and(|temporal| temporal.max_history_lag.is_some()) {
+            return Err(crate::compile_reason!(
+                "option_not_applicable",
+                "a declared history cap does not apply to a temporal ADMG derivative: the window \
+                 holds the template's own lags, and a shorter history would silently turn their \
+                 causes into latent ones. Next attempt: drop the cap, or edit the template"
+            ));
+        }
+        if self.split.is_some() {
+            return Err(crate::compile_reason!(
+                "option_not_applicable",
+                "a supplied TemporalAdmg needs no discovery/estimation split: the slope \
+                 regression reads the whole series. Next attempt: drop the split, or discover \
+                 the structure first and analyse the accepted graph"
+            ));
+        }
         let mut plan = compile_logical_temporal_response(data, &TemporalDag::empty(), q, false)?;
         plan.record.identifier = Some(Arc::from(IdentifierId::GeneralizedAdjustment.as_str()));
         plan.record.estimator =
@@ -1682,11 +1907,10 @@ impl super::Study {
             if crate::analysis::compiled_linear::can_retain(self, query)
                 && self.resolve_static_ids().1 == EstimatorId::LinearAdjustmentAte
             {
-                plan.linear = Some(std::sync::Arc::new(
-                    crate::analysis::compiled_linear::CompiledLinearExecution::compile(
-                        self, data, query, &mut plan, ctx,
-                    )?,
-                ));
+                plan.linear = crate::analysis::compiled_linear::CompiledLinearExecution::compile(
+                    self, data, query, &mut plan, ctx,
+                )?
+                .map(std::sync::Arc::new);
             }
         }
         crate::analysis::lowering::attach(self, input, &mut plan, goal, ctx)?;
@@ -1736,12 +1960,22 @@ impl super::Study {
                 .compile_physical_with_all_graphs(ctx, None, None, Some(pag.clone())),
             RouteInput::ConditionalDag { graph, .. }
             | RouteInput::StaticMediationDag { graph, .. }
-            | RouteInput::InterferenceDag { graph, .. }
             | RouteInput::GcmDag { graph, .. }
             | RouteInput::GcmAttributeDag { graph, .. }
             | RouteInput::GcmSimulateDag { graph, .. } => self
                 .compile_logical_from(input)?
                 .compile_physical_with_graphs(ctx, None, Some(graph.clone())),
+            // A DAG schema is carried into the physical plan; every other structure class
+            // compiles as the design alone, which never reads the structure.
+            RouteInput::InterferenceDag { class, .. } => {
+                let logical = self.compile_logical_from(input)?;
+                match self.graph.as_dag() {
+                    Some(graph) if class == GraphClass::Dag => {
+                        logical.compile_physical_with_graphs(ctx, None, Some(graph.clone()))
+                    }
+                    _ => logical.compile_physical(ctx),
+                }
+            }
             RouteInput::DiscoverStatic { query, .. }
             | RouteInput::DiscoverTemporal { query, .. } => {
                 let mut plan = self.compile_logical_from(input)?.compile_physical(ctx)?;
@@ -1760,9 +1994,13 @@ impl super::Study {
             | RouteInput::DistributionDag { .. }
             | RouteInput::DistributionMixed { .. }
             | RouteInput::PathSpecificDag { .. }
+            | RouteInput::PathSpecificMixed { .. }
+            | RouteInput::PathSpecificCpdag { .. }
+            | RouteInput::PathSpecificPag { .. }
             | RouteInput::TemporalEffectClass { .. }
             | RouteInput::TemporalEffectAdmg { .. }
             | RouteInput::TemporalResponseClass { .. }
+            | RouteInput::TemporalResponseAdmg { .. }
             | RouteInput::TemporalMediationPag
             | RouteInput::TemporalMediationCpdag { .. }
             | RouteInput::PanelTemporalResponseClass { .. }
@@ -1958,6 +2196,9 @@ pub(crate) fn compile_logical_admg_response(
     validation_suite: Option<Arc<str>>,
     study: &super::Study,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
+    if super::response_functional_is_derivative(&query.functional) {
+        return compile_logical_admg_derivative(data, query, validation_suite, study);
+    }
     let (identifier_id, estimator_id) = study.resolve_admg_ids();
     validate_static_pair(identifier_id, estimator_id)?;
     let (identifier, estimator) = wire_pair((identifier_id, estimator_id));
@@ -1973,6 +2214,61 @@ pub(crate) fn compile_logical_admg_response(
         estimator: Some(estimator),
         validation_suite,
         query_variables: Arc::from([treatment, outcome]),
+    };
+    let logical = LogicalAnalysisPlan::unsplit(
+        record,
+        CausalQuery::Response(query.clone()),
+        data.row_count() as u64,
+    );
+    logical.validate()?;
+    Ok(logical)
+}
+
+/// Derivative, elasticity, directional derivative or Jacobian on a latent-confounded ADMG.
+///
+/// The identifier is generalized adjustment read on the ADMG's proper back-door graph, and the
+/// estimator is the continuous response estimator the functional names (or the Bayesian
+/// response under Bayesian inference), because the derivative of a continuous treatment is
+/// evaluated on a regression over the adjustment set, not by the discrete general-ID plug-in.
+fn compile_logical_admg_derivative(
+    data: &TabularData,
+    query: &ResponseQuery,
+    validation_suite: Option<Arc<str>>,
+    study: &super::Study,
+) -> Result<LogicalAnalysisPlan, CausalError> {
+    query.validate()?;
+    let identifier_id = study.identifier.unwrap_or(IdentifierId::GeneralizedAdjustment);
+    let estimator_id = study
+        .caller_selected_estimator()
+        .unwrap_or_else(|| EstimatorId::static_response_for(&query.functional, &study.inference));
+    crate::strategy_table::validate_class_response_pair(identifier_id, estimator_id)?;
+    let expected = EstimatorId::default_for_response(&query.functional);
+    if estimator_id != expected && estimator_id != EstimatorId::ResponseBayesian {
+        return Err(CausalError::Compile {
+            message: format!(
+                "response functional requires estimator {:?} or response.bayesian; got {:?}",
+                expected.as_str(),
+                estimator_id.as_str()
+            ),
+        });
+    }
+    let (identifier, estimator) = wire_pair((identifier_id, estimator_id));
+    let query_variables: Arc<[VariableId]> = query
+        .functional
+        .treatment_ids()
+        .into_iter()
+        .chain(query.functional.outcome_ids())
+        .collect::<Vec<_>>()
+        .into();
+    let record = antecedent_contract::LogicalAnalysisPlanRecord {
+        plan_id: Arc::from(PlanId::StaticAdmgResponse.as_str()),
+        data_classification: antecedent_contract::DataClassification::Tabular,
+        discovery_algorithm: None,
+        graph_review_required: false,
+        identifier: Some(identifier),
+        estimator: Some(estimator),
+        validation_suite,
+        query_variables,
     };
     let logical = LogicalAnalysisPlan::unsplit(
         record,

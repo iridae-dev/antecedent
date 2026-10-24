@@ -1,9 +1,9 @@
 //! Execute the next coarser response attempt after unique change attribution fails.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 use super::{
-    contracts, engine, joint_panel_target, source, Arc, ExecutionContext, JointPanelError,
-    JointPanelFunctional, JointPanelResponseFunctional, JointPanelResult, JointPanelWorld,
-    PanelResponse, ScientificTarget, ScientificWorldId, SemanticDigest,
+    Arc, ExecutionContext, JointPanelError, JointPanelFunctional, JointPanelResponseFunctional,
+    JointPanelResult, JointPanelWorld, PanelResponse, ScientificTarget, ScientificWorldId,
+    SemanticDigest, contracts, engine, joint_panel_target, source,
 };
 use antecedent_design::scientific_source::{ScientificDecisionSource, ScientificSourcePayload};
 use engine::time_varying::{CoarserPanelContrast, PanelExplanation};
@@ -11,7 +11,7 @@ use engine::time_varying::{CoarserPanelContrast, PanelExplanation};
 pub use engine::decomposition::{
     ChangeComponent, DecompositionEndpoint, DecompositionJointUncertainty, MechanismPeriodMap,
     PanelDecomposition, PanelDecompositionRequest, ReferenceDecomposition,
-    ReferenceDecompositionCovariance,
+    ReferenceDecompositionCovariance, StreamedDecomposition,
 };
 
 impl JointPanelResult {
@@ -40,6 +40,38 @@ impl JointPanelResult {
             super::JointPanelFit::Varying(fit) => engine::decomposition::decompose_temporal_law(
                 data, request, periods, &fit.point, &fit.draws, ctx,
             )?,
+        })
+    }
+}
+
+impl JointPanelResult {
+    /// [`Self::decompose_reference`] reduced to the point decomposition and the law's joint
+    /// moments, without holding any per-draw table or paired path of the whole law.
+    ///
+    /// The values equal those of the retained route; use it when the per-draw tables are not
+    /// needed. Failed law slots stay counted as failed.
+    ///
+    /// # Errors
+    /// Invalid endpoints, paths, resources, cancellation or numerical failure.
+    pub fn decompose_reference_streamed(
+        &self,
+        request: &PanelDecompositionRequest,
+        periods: &MechanismPeriodMap,
+        ctx: &ExecutionContext,
+    ) -> Result<StreamedDecomposition, JointPanelError> {
+        source::check_cancelled(ctx)?;
+        let data = self.prepared().model_data();
+        Ok(match &self.fit {
+            super::JointPanelFit::Invariant(fit) => {
+                engine::decomposition::decompose_invariant_law_streamed(
+                    data, request, periods, &fit.point, &fit.draws, ctx,
+                )?
+            }
+            super::JointPanelFit::Varying(fit) => {
+                engine::decomposition::decompose_temporal_law_streamed(
+                    data, request, periods, &fit.point, &fit.draws, ctx,
+                )?
+            }
         })
     }
 }
@@ -360,6 +392,22 @@ pub struct HybridReferenceSupport {
     pub source_world: Option<ScientificWorldId>,
     /// Concrete missing transport or identification obligation, if any.
     pub unresolved: Vec<String>,
+    /// The same missing premises as typed obligations, for choosing the next design.
+    pub obligations: Vec<ReferenceObligation>,
+}
+/// A premise the retained design has not earned for an assembled reference world.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ReferenceObligation {
+    /// The source target carries no causal identification proof at all.
+    MissingIdentificationProof,
+    /// The assembled hybrid is not an intervention/context world of the retained proof.
+    UnregisteredHybridWorld,
+    /// Saturation/mechanism taken from another fitted period has no identified intervention.
+    CrossPeriodMechanismTransport,
+    /// Changed population weights have no identified conditional responses or transport law.
+    ChangedPopulationTransport,
+    /// The retained final-horizon target does not identify the time-weighted functional.
+    NonTerminalFunctional,
 }
 /// Reference-world decomposition together with separately checked causal support.
 /// A model-conditional decomposition remains useful when a causal premise is missing.
@@ -457,23 +505,34 @@ impl JointPanelResult {
                 })
                 .map(|world| world.world);
             let mut unresolved = Vec::new();
+            let mut obligations = Vec::new();
             if !self.identification().is_identified_claim() {
                 unresolved
                     .push("the source target has no retained causal identification proof".into());
+                obligations.push(ReferenceObligation::MissingIdentificationProof);
             }
             if source_world.is_none() {
                 unresolved.push("the assembled hybrid is not an intervention/context world in the retained identification product".into());
+                obligations.push(ReferenceObligation::UnregisteredHybridWorld);
             }
-            if periods.before != periods.after
-                || periods.before.iter().enumerate().any(|(index, period)| {
+            let natural = |axis: &[usize]| {
+                axis.iter().enumerate().all(|(index, period)| {
                     *period
-                        != match &self.fit {
+                        == match &self.fit {
                             super::JointPanelFit::Invariant(_) => 0,
                             super::JointPanelFit::Varying(_) => index,
                         }
                 })
+            };
+            // The before path is used by every hybrid; the after path only by hybrids that
+            // take saturation or mechanism from the after endpoint.
+            let uses_after_mechanism = mask & 0b1010 != 0;
+            if !natural(&periods.before)
+                || (uses_after_mechanism
+                    && (periods.before != periods.after || !natural(&periods.after)))
             {
                 unresolved.push("cross-period saturation/mechanism transport requires a separately identified parameter intervention; time variation alone supplies no such proof".into());
+                obligations.push(ReferenceObligation::CrossPeriodMechanismTransport);
             }
             if population
                 .population_weights
@@ -481,11 +540,13 @@ impl JointPanelResult {
                 .any(|weight| (*weight - empirical).abs() > 1e-12)
             {
                 unresolved.push("changed population weights require identified conditional responses and an explicit population transport law".into());
+                obligations.push(ReferenceObligation::ChangedPopulationTransport);
             }
             if !terminal {
                 unresolved.push("the retained final-horizon target does not identify the requested intermediate/time-weighted functional".into());
+                obligations.push(ReferenceObligation::NonTerminalFunctional);
             }
-            hybrids.push(HybridReferenceSupport { mask, source_world, unresolved });
+            hybrids.push(HybridReferenceSupport { mask, source_world, unresolved, obligations });
         }
         Ok(CheckedReferenceDecomposition {
             decomposition,
@@ -513,11 +574,13 @@ impl JointPanelResult {
     }
 }
 
+mod design_adaptive;
+pub use design_adaptive::{DesignAdaptiveReference, IdentifiedComponentStep, NextDesignStep};
 mod scientific;
 pub use scientific::{
-    decompose_population_reference, decompose_scientific_reference, replay_population_reference,
-    replay_reference_decomposition, HistoricalPopulationReference,
-    HistoricalReferenceDecomposition, PopulationReferenceAttempt, PopulationReferenceBindings,
-    PopulationReferenceDecomposition, PopulationReferenceTransportProof,
-    ReferenceComponentBindings, ScientificReferenceDecomposition,
+    HistoricalPopulationReference, HistoricalReferenceDecomposition, PopulationReferenceAttempt,
+    PopulationReferenceBindings, PopulationReferenceDecomposition,
+    PopulationReferenceTransportProof, ReferenceComponentBindings,
+    ScientificReferenceDecomposition, decompose_population_reference,
+    decompose_scientific_reference, replay_population_reference, replay_reference_decomposition,
 };

@@ -553,7 +553,7 @@ fn fit_mediation_mechanisms(
     prior_scale: f64,
     ctx: &ExecutionContext,
 ) -> Result<Vec<CausalPosterior>, CausalError> {
-    preparations
+    let fitted = preparations
         .iter()
         .enumerate()
         .map(|(mechanism, prep)| {
@@ -564,7 +564,15 @@ fn fit_mediation_mechanisms(
                 .fit(prep, status, &mut BayesianGCompWorkspace::default(), ctx)
                 .map_err(CausalError::from)
         })
-        .collect()
+        .collect::<Result<Vec<_>, _>>()?;
+    // The mediator and outcome share the series: their draws are one joint law.
+    Ok(antecedent_estimate::bayesian_mediation::couple_mediation_mechanisms(
+        preparations,
+        fitted,
+        horizon as usize,
+        mediation_mechanism_seed(ctx.rng.master_seed(), horizon, preparations.len()),
+        ctx,
+    ))
 }
 
 fn fit_bayesian_horizon(

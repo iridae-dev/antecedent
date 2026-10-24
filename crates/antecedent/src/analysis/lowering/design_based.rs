@@ -259,10 +259,10 @@ fn design_cell(
                     query.source_population, query.target_population
                 ),
             ));
-            let family = if class == GraphClass::TemporalAdmg {
-                GraphFamily::TemporalAdmg
-            } else {
-                GraphFamily::Admg
+            let family = match class {
+                GraphClass::TemporalAdmg => GraphFamily::TemporalAdmg,
+                GraphClass::Dag => GraphFamily::Dag,
+                _ => GraphFamily::Admg,
             };
             let binding = binding(data, query.response.target_population.clone(), "row", outcome)?;
             let target = binary_contrast(
@@ -868,6 +868,15 @@ fn temporal_design_cell(study: &Study, query: &antecedent_core::TemporalDesignQu
             ));
             models
         }
+        TemporalAssignment::ObservationalExcursion { treatment, history } => vec![
+            slot(
+                ModelRole::Propensity,
+                "pooled_logistic_assignment_history",
+                history,
+                Some(*treatment),
+            ),
+            slot(ModelRole::Outcome, "horvitz_thompson_excursion", &[], Some(query.outcome)),
+        ],
         _ => vec![
             slot(ModelRole::Propensity, "recorded_sequential_assignment_law", &[], None),
             slot(ModelRole::Outcome, "horvitz_thompson_excursion", &[], Some(query.outcome)),

@@ -3688,7 +3688,7 @@ impl super::Study {
         let DbnMediationRun { cfg, estimator, .. } = *run;
         let DbnPublishedClick { click, qh, preparations } = published;
         let fit = |scale: f64| -> Result<Vec<CausalPosterior>, CausalError> {
-            preparations
+            let fitted = preparations
                 .iter()
                 .enumerate()
                 .map(|(i, prep)| {
@@ -3703,7 +3703,14 @@ impl super::Study {
                     )
                     .map_err(CausalError::from)
                 })
-                .collect()
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(antecedent_estimate::bayesian_mediation::couple_mediation_mechanisms(
+                &preparations,
+                fitted,
+                click.horizon as usize,
+                mediation_mechanism_seed(estimator.seed, click.horizon, preparations.len()),
+                ctx,
+            ))
         };
         let mechanisms = match fit(cfg.prior_scale) {
             Ok(mechanisms) => mechanisms,
@@ -4293,6 +4300,7 @@ fn dbn_mediation_prior_sensitivity(
         let mut means = Vec::new();
         let mut sds = Vec::new();
         for &scale in sensitivity.scales.iter() {
+            let horizon = atom.query.horizons.first().copied().unwrap_or(0);
             let posts: Result<Vec<_>, _> = atom
                 .preparations
                 .iter()
@@ -4300,11 +4308,7 @@ fn dbn_mediation_prior_sensitivity(
                 .map(|(i, prep)| {
                     let mut est = estimator.clone();
                     est.prior_scale = scale;
-                    est.seed = mediation_mechanism_seed(
-                        est.seed,
-                        atom.query.horizons.first().copied().unwrap_or(0),
-                        i,
-                    );
+                    est.seed = mediation_mechanism_seed(est.seed, horizon, i);
                     est.fit(
                         prep,
                         atom.composed.identification,
@@ -4314,7 +4318,13 @@ fn dbn_mediation_prior_sensitivity(
                     .map_err(CausalError::from)
                 })
                 .collect();
-            let posts = posts?;
+            let posts = antecedent_estimate::bayesian_mediation::couple_mediation_mechanisms(
+                &atom.preparations,
+                posts?,
+                horizon as usize,
+                mediation_mechanism_seed(estimator.seed, horizon, atom.preparations.len()),
+                ctx,
+            );
             let post = compose_temporal_mediation_for_atom(atom, &posts)?;
             means.push(post.summaries.mean[0]);
             sds.push(post.summaries.sd[0]);

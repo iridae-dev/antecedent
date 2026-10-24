@@ -30,8 +30,8 @@
 use std::collections::BTreeSet;
 
 use antecedent_estimate::temporal_refresh::{
-    MechanismStanding, ObservationCadence, TemporalWindowIdentity, WindowFactors, WindowProduct,
-    refresh_survival,
+    FactorChange, MechanismStanding, ObservationCadence, TemporalWindowIdentity, WindowFactors,
+    WindowProduct, factor_changes, refresh_survival,
 };
 use antecedent_io::period_refresh_artifact::{
     BlockWire, LeastSquaresWire, PERIOD_EXTENDED, PERIOD_REFRESH_ARTIFACT_FEATURE,
@@ -44,8 +44,9 @@ use antecedent_io::period_refresh_artifact::{
 use antecedent_io::temporal_refresh_artifact::WindowIdentityWire;
 use antecedent_state::retention::{RetainedOperation, RetentionMode};
 use antecedent_state::{
-    ConjugateOlsPosterior, ConjugateOlsPrior, ConjugateOlsSummary, LinearOlsSuffStats,
-    OlsLedgerState, OlsRefresh, RefreshOutcome, RefreshRow, StateError, merge_within_tolerance,
+    ConjugateOlsPosterior, ConjugateOlsPrior, ConjugateOlsSummary, InvalidationLog,
+    LinearOlsSuffStats, OlsLedgerState, OlsRefresh, RefreshOutcome, RefreshRow, StateError,
+    TemporalFactor, merge_within_tolerance,
 };
 
 /// How a period refresh reached the cached results.
@@ -116,6 +117,63 @@ pub struct PeriodRefresh {
     prior: ConjugateOlsPrior,
     posterior: ConjugateOlsPosterior,
     snapshots: BTreeSet<String>,
+    last_invalidated: Vec<WindowProduct>,
+    log: InvalidationLog,
+}
+
+/// The window factors that differ between two windows, as the state log names them, for a
+/// family that carries no cadence or initial-law declaration of its own: period, population
+/// and horizon from the identities, plus the premises they carry.
+#[must_use]
+pub fn window_factor_changes(
+    old: &TemporalWindowIdentity,
+    new: &TemporalWindowIdentity,
+) -> BTreeSet<TemporalFactor> {
+    let mut changes = BTreeSet::new();
+    if old.period != new.period {
+        changes.insert(FactorChange::Period);
+    }
+    if old.unit_ids != new.unit_ids {
+        changes.insert(FactorChange::Population);
+    }
+    if old.horizon != new.horizon {
+        changes.insert(FactorChange::Horizon);
+    }
+    temporal_factors(old, new, &changes)
+}
+
+/// The window factors that differ between two windows, as the state log names them: the
+/// factor changes plus the premises the window identity carries.
+fn temporal_factors(
+    old: &TemporalWindowIdentity,
+    new: &TemporalWindowIdentity,
+    changes: &BTreeSet<FactorChange>,
+) -> BTreeSet<TemporalFactor> {
+    let mut out: BTreeSet<TemporalFactor> = changes
+        .iter()
+        .map(|change| match change {
+            FactorChange::Period => TemporalFactor::Period,
+            FactorChange::Population => TemporalFactor::Population,
+            FactorChange::Cadence => TemporalFactor::Cadence,
+            FactorChange::Horizon => TemporalFactor::Horizon,
+            FactorChange::InitialLaw => TemporalFactor::InitialLaw,
+        })
+        .collect();
+    if old.lag_alignment != new.lag_alignment
+        || old.intervention_history != new.intervention_history
+    {
+        out.insert(TemporalFactor::History);
+    }
+    if old.selection_targets != new.selection_targets {
+        out.insert(TemporalFactor::Selection);
+    }
+    if old.regimes != new.regimes {
+        out.insert(TemporalFactor::Regime);
+    }
+    if old.graph_id != new.graph_id || old.proof_id != new.proof_id {
+        out.insert(TemporalFactor::Premise);
+    }
+    out
 }
 
 fn invalid(message: impl Into<String>) -> StateError {
@@ -249,6 +307,8 @@ impl PeriodRefresh {
             prior: prior.clone(),
             posterior,
             snapshots: BTreeSet::from([window.snapshot_id.clone()]),
+            last_invalidated: Vec::new(),
+            log: InvalidationLog::new(),
         })
     }
 
@@ -302,6 +362,21 @@ impl PeriodRefresh {
         &self.events
     }
 
+    /// The products the last applied period invalidated, in dependency order: the products
+    /// that read what changed between the two windows, whether the mechanism then extended or
+    /// restarted. Empty before a second period is applied.
+    #[must_use]
+    pub fn last_invalidated(&self) -> &[WindowProduct] {
+        &self.last_invalidated
+    }
+
+    /// The invalidation log: one entry per product each applied period invalidated, at the
+    /// version of the event count (the first period is version one).
+    #[must_use]
+    pub const fn invalidation_log(&self) -> &InvalidationLog {
+        &self.log
+    }
+
     /// The window the cached results describe.
     #[must_use]
     pub const fn window(&self) -> &TemporalWindowIdentity {
@@ -338,23 +413,33 @@ impl PeriodRefresh {
         let survival =
             refresh_survival(&self.window, window, &self.factors, &factors, self.standing)
                 .map_err(|e| estimation(&e))?;
+        let invalidated: Vec<WindowProduct> = [
+            WindowProduct::Identification,
+            WindowProduct::Design,
+            WindowProduct::Model,
+            WindowProduct::Evidence,
+        ]
+        .into_iter()
+        .filter(|product| survival.products().invalidates(*product))
+        .collect();
         let extend = self.standing == MechanismStanding::DeclaredInvariant
             && survival.products().retains(WindowProduct::Model);
         let outcome = if extend {
             self.extend(window, values)?
         } else {
-            let invalidated = [
-                WindowProduct::Identification,
-                WindowProduct::Design,
-                WindowProduct::Model,
-                WindowProduct::Evidence,
-            ]
-            .into_iter()
-            .filter(|product| survival.products().invalidates(*product))
-            .collect();
             self.restart(window, values)?;
-            PeriodRefreshOutcome::Restarted { invalidated }
+            PeriodRefreshOutcome::Restarted { invalidated: invalidated.clone() }
         };
+        let changes =
+            temporal_factors(&self.window, window, &factor_changes(&self.factors, &factors));
+        let version = antecedent_core::StateVersion::from_raw(self.events.len() as u64 + 1);
+        self.log.push_temporal_change(
+            version,
+            &changes,
+            self.standing == MechanismStanding::DeclaredInvariant,
+            "observation period applied",
+        );
+        self.last_invalidated = invalidated;
         self.window = window.clone();
         self.factors = factors;
         self.snapshots.insert(window.snapshot_id.clone());

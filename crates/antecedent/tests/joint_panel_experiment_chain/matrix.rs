@@ -41,6 +41,16 @@ pub(super) fn exercise(
                     constrained_study["admissible_action_identity"]
                 );
                 verify_evidence_changes_decision(original, &updated, &fixture, ctx);
+                if functional_index == 0 || translation_case == 3 {
+                    verify_regime_studies(
+                        original,
+                        &updated,
+                        &fixture,
+                        translation_case,
+                        uncertain,
+                        ctx,
+                    );
+                }
                 // Replay binds the translated quantities, the exact mapping slots,
                 // observed evidence and the weighted law, not merely an output mean.
                 verify_experiment_artifacts(prepared, &updated, &fixture, ctx);
@@ -160,6 +170,218 @@ fn translated_fixture(
     fixture.update.mapping.intercepts = intercepts;
     fixture.update.mapping.slopes = slopes;
     fixture
+}
+
+/// A future study may run in another population, window, dose, duration, exposure, recency or
+/// spend than the observed experiment. It is valued through its own licensed bridge and paired
+/// mapping, the update it would cause and the decision that update changes, and each stage is
+/// checked here against arithmetic that calls no production update or ranking helper.
+fn verify_regime_studies(
+    original: &JointPanelResult,
+    updated: &PanelExperimentResult,
+    fixture: &ExperimentFixture,
+    translation_case: usize,
+    uncertain: bool,
+    ctx: &ExecutionContext,
+) {
+    let horizon = original.request().worlds[0].program.horizon();
+    let future_functional = match &fixture.update.functional {
+        JointPanelResponseFunctional::TerminalMean => {
+            JointPanelResponseFunctional::WindowAverage { from: horizon - 3, until: horizon - 1 }
+        }
+        _ => JointPanelResponseFunctional::TerminalMean,
+    };
+    let future_case = (translation_case + 2) % 5;
+    let future = translated_fixture(original, future_functional.clone(), uncertain, future_case);
+    let mut ledger = fixture.ledger.clone();
+    let mapping_evidence = ledger
+        .add_source(
+            SourceDeclaration::new("future_regime_mapping", SourceKind::FittedModel)
+                .with_observations([ObservationId::from_key("future_mapping", b"source")]),
+        )
+        .unwrap();
+    let regime = PanelFutureRegime {
+        functional: future_functional.clone(),
+        bridge: future.update.bridge.clone(),
+        mapping: future.update.mapping.clone(),
+        mapping_evidence,
+    };
+    let width = fixture.coefficients.len();
+    let dot = |row: &[f64]| row.iter().zip(&fixture.coefficients).map(|(v, c)| v * c).sum::<f64>();
+    let (_, posterior_means) = updated.response_means(&fixture.ledger).unwrap();
+    let center = dot(posterior_means);
+    let problem = DecisionProblem::new(
+        vec![0, 1],
+        Arc::new(ContrastUtility { coefficients: fixture.coefficients.clone(), threshold: center }),
+        vec![],
+    );
+    let sample = |id: &str, cost: f64| PanelFutureSample {
+        id: id.into(),
+        sample_size: 4,
+        observation_variance: 1.0,
+        cost_utility: Some(cost),
+    };
+    let studies = vec![
+        PanelFutureStudy { sample: sample("observed_estimand", 0.02), regime: None },
+        PanelFutureStudy { sample: sample("regime_cheap", 0.01), regime: Some(regime.clone()) },
+        PanelFutureStudy { sample: sample("regime_dear", 0.2), regime: Some(regime.clone()) },
+    ];
+    let ranking = updated.rank_next_studies(&problem, &studies, 32, &ledger, ctx).unwrap();
+    assert_eq!(ranking.len(), 3);
+    // Independent references: the regime's own predicted observations per draw slot.
+    let regime_law = original.numerical_project_law_source(&future_functional).unwrap();
+    let regime_means = regime_law
+        .draws()
+        .chunks_exact(width)
+        .enumerate()
+        .map(|(slot, row)| {
+            (dot(row) - regime.mapping.intercepts[slot]) / regime.mapping.slopes[slot]
+        })
+        .collect::<Vec<_>>();
+    let observed_law = updated.numerical_law_source(&fixture.ledger).unwrap();
+    let observed_means = observed_law
+        .draws()
+        .chunks_exact(width)
+        .enumerate()
+        .map(|(slot, row)| {
+            (dot(row) - fixture.update.mapping.intercepts[slot])
+                / fixture.update.mapping.slopes[slot]
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        regime_means.iter().zip(&observed_means).any(|(a, b)| (a - b).abs() > 1e-9),
+        "a different regime must predict different observations"
+    );
+    let (reference_regime, regime_error) =
+        reference_study_value_for_means(updated, fixture, &regime_means, center);
+    let (reference_observed, observed_error) =
+        reference_study_value_for_means(updated, fixture, &observed_means, center);
+    for row in &ranking {
+        let (reference, error, cost) = match row.value.id.as_str() {
+            "observed_estimand" => (reference_observed, observed_error, 0.02),
+            "regime_cheap" => (reference_regime, regime_error, 0.01),
+            "regime_dear" => (reference_regime, regime_error, 0.2),
+            other => panic!("unexpected study {other}"),
+        };
+        let tolerance = error + 6.0 * row.value.standard_error + 1e-9;
+        assert!(
+            (row.value.gross_evsi - reference).abs() <= tolerance,
+            "{}: production {}, independent reference {reference} +/- {tolerance}",
+            row.value.id,
+            row.value.gross_evsi
+        );
+        assert!((row.value.net_value.unwrap() - (reference - cost)).abs() <= tolerance);
+        assert_eq!(row.regime_identity.is_some(), row.value.id != "observed_estimand");
+    }
+    let identity =
+        |id: &str| ranking.iter().find(|row| row.value.id == id).unwrap().regime_identity;
+    assert_eq!(identity("regime_cheap"), identity("regime_dear"));
+    let mut other_mapping = regime.clone();
+    other_mapping.mapping.slopes.iter_mut().for_each(|slope| *slope *= 1.0 + 1e-3);
+    let changed = updated.rank_next_studies(
+        &problem,
+        &[PanelFutureStudy { sample: sample("regime_cheap", 0.01), regime: Some(other_mapping) }],
+        2,
+        &ledger,
+        ctx,
+    );
+    // A different paired mapping is a different study, whether or not its moments still validate.
+    if let Ok(changed) = changed {
+        assert_ne!(changed[0].regime_identity, identity("regime_cheap"));
+    }
+    // The ranking is only as good as the update it prices: execute it for the two extreme
+    // outcomes, check the posterior against independent arithmetic, and require the response
+    // and the decision to move.
+    let spread = regime_means.iter().copied().fold(f64::NEG_INFINITY, f64::max)
+        - regime_means.iter().copied().fold(f64::INFINITY, f64::min);
+    assert!(spread > 0.0);
+    let decisive = PanelFutureStudy {
+        sample: PanelFutureSample {
+            id: "decisive".into(),
+            sample_size: 1,
+            observation_variance: (spread / 20.0).powi(2),
+            cost_utility: Some(0.0),
+        },
+        regime: Some(regime.clone()),
+    };
+    let outcome = |y: f64| updated.update_for_future_study(&decisive, y, &ledger).unwrap();
+    let high = outcome(regime_means.iter().copied().fold(f64::NEG_INFINITY, f64::max));
+    let low = outcome(regime_means.iter().copied().fold(f64::INFINITY, f64::min));
+    let prior_weights = observed_law.metadata().weights.clone().unwrap();
+    for update in [&high, &low] {
+        let variance = (spread / 20.0).powi(2);
+        let anchor = regime_means
+            .iter()
+            .copied()
+            .min_by(|a, b| {
+                (update.observed_mean - a).abs().total_cmp(&(update.observed_mean - b).abs())
+            })
+            .unwrap();
+        let unnormalized = regime_means
+            .iter()
+            .zip(&prior_weights)
+            .map(|(m, w)| {
+                w * ((m - anchor) * (2.0 * update.observed_mean - m - anchor) / (2.0 * variance))
+                    .exp()
+            })
+            .collect::<Vec<_>>();
+        let total = unnormalized.iter().sum::<f64>();
+        for (reference, actual) in unnormalized.iter().zip(&update.posterior_weights) {
+            assert!((reference / total - actual).abs() < 1e-10);
+        }
+        assert!((update.posterior_weights.iter().sum::<f64>() - 1.0).abs() < 1e-9);
+        assert_eq!(update.regime_identity, identity("regime_cheap"));
+    }
+    assert!((dot(&high.prior_response_means) - center).abs() < 1e-9);
+    assert!(
+        dot(&high.response_means) > center && center > dot(&low.response_means),
+        "opposite outcomes of the same study must move the joint response across the threshold"
+    );
+    // The decision rule the problem encodes (change when the contrast beats the threshold)
+    // therefore flips between the two outcomes.
+    assert_ne!(dot(&high.response_means) > center, dot(&low.response_means) > center);
+    // Unlicensed, unaligned or stale regimes refuse; none falls back to the observed estimand.
+    let rank = |regime: PanelFutureRegime, ledger: &EvidenceLedger| {
+        updated.rank_next_studies(
+            &problem,
+            &[PanelFutureStudy { sample: sample("candidate", 0.0), regime: Some(regime) }],
+            2,
+            ledger,
+            ctx,
+        )
+    };
+    if [1, 2, 4].contains(&future_case) {
+        let mut no_transport = regime.clone();
+        no_transport.bridge.transport = None;
+        assert!(rank(no_transport, &ledger).is_err(), "a changed regime needs its transport");
+    }
+    let mut short = regime.clone();
+    short.mapping.intercepts.pop();
+    short.mapping.slopes.pop();
+    assert!(rank(short, &ledger).is_err());
+    let mut foreign = regime.clone();
+    foreign.mapping.dependency = antecedent_core::SemanticDigest::from_bytes([7; 32]);
+    assert!(rank(foreign, &ledger).is_err());
+    let mut mismatched = regime.clone();
+    mismatched.functional = fixture.update.functional.clone();
+    assert!(rank(mismatched, &ledger).is_err());
+    let mut withdrawn = ledger.clone();
+    withdrawn.withdraw_source(mapping_evidence, "withdrawn future mapping").unwrap();
+    assert!(rank(regime.clone(), &withdrawn).is_err());
+    let partly_costed = updated.rank_next_studies(
+        &problem,
+        &[
+            PanelFutureStudy { sample: sample("costed", 0.1), regime: Some(regime.clone()) },
+            PanelFutureStudy {
+                sample: PanelFutureSample { cost_utility: None, ..sample("free", 0.0) },
+                regime: Some(regime),
+            },
+        ],
+        2,
+        &ledger,
+        ctx,
+    );
+    assert!(partly_costed.is_err());
 }
 
 fn verify_constrained_decision(

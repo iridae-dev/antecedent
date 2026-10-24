@@ -325,3 +325,102 @@ fn prepared_gaussian_refresh_replans_changed_rows_without_reidentifying() {
     let (_, solves) = count_least_squares_solves(|| prepared.estimate_retained(&ctx).unwrap());
     assert_eq!(solves, 0);
 }
+
+#[test]
+fn compile_observes_cancellation_and_a_refused_compile_holds_no_lease() {
+    use antecedent_core::execution::AdmissionPool;
+    let pool = AdmissionPool::fixed(1, 1_000_000);
+    let ctx = ExecutionContext::for_tests(1).with_admission(pool.clone());
+    let study = contrast_study();
+
+    ctx.cancellation.cancel();
+    let refused = study.compile(&ctx);
+    assert!(matches!(refused, Err(crate::CausalError::Cancelled { .. })));
+    assert_eq!(pool.available().bytes(), 1_000_000, "a cancelled compile reserves nothing");
+
+    let live = ExecutionContext::for_tests(1).with_admission(pool.clone());
+    let plan = study.compile(&live).unwrap();
+    assert!(
+        pool.available().bytes() < 1_000_000,
+        "the compiled plan retains the bytes of the design it prepared"
+    );
+    drop(plan);
+    assert_eq!(pool.available().bytes(), 1_000_000, "dropping the plan releases its retention");
+
+    let mut starved = ExecutionContext::for_tests(1).with_admission(pool.clone());
+    starved.set_memory_limit(Some(1));
+    assert!(matches!(study.compile(&starved), Err(crate::CausalError::Resource { .. })));
+    assert_eq!(pool.available().bytes(), 1_000_000, "a refused compile holds no lease");
+}
+
+#[test]
+fn a_design_over_the_resident_budget_streams_through_the_closed_form_reduction() {
+    let rows = 100_000_usize;
+    let noise = |i: usize| ((i as f64 * 12.9898).sin() * 43758.5453).fract().abs() - 0.5;
+    let z: Vec<f64> = (0..rows).map(|i| noise(i + 17) * 4.0).collect();
+    let t: Vec<f64> = (0..rows).map(|i| f64::from(z[i] + 2.0 * noise(i + 31) > 0.0)).collect();
+    let y: Vec<f64> =
+        (0..rows).map(|i| 1.0 + 2.0 * t[i] + 0.5 * z[i] + 0.4 * noise(i + 104_729)).collect();
+    let schema = CausalSchemaBuilder::new()
+        .continuous("t")
+        .treatment()
+        .continuous("y")
+        .outcome()
+        .continuous("z")
+        .context()
+        .build()
+        .unwrap();
+    let data = TabularData::try_from_schema_f64(
+        schema.clone(),
+        [("t", t.as_slice()), ("y", y.as_slice()), ("z", z.as_slice())],
+    )
+    .unwrap();
+    let graph = Dag::from_named_edges(&schema, &[("t", "y"), ("z", "t"), ("z", "y")]).unwrap();
+    let query =
+        AverageEffectQuery::binary_ate(schema.id_of("t").unwrap(), schema.id_of("y").unwrap());
+    let study = Study::tabular(data)
+        .graph(graph)
+        .query(query)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+
+    let mut ctx = ExecutionContext::for_tests(1);
+    ctx.set_memory_limit(Some(1_500_000));
+    let plan = study.compile(&ctx).unwrap();
+    assert!(plan.streams_design(), "the resident design cannot fit, so the plan streams");
+    assert!(plan.compiled_linear_program().is_none(), "a streamed plan retains no design");
+    assert!(plan.record.materializations.iter().any(|(name, how)| &**name == "design.matrix"
+        && *how == antecedent_contract::BufferMaterialization::Chunked));
+
+    let result = study.run(&ctx).unwrap();
+    // The normal equations of [1 | t | z], solved by Cramer's rule.
+    let n = rows as f64;
+    let (st, sz) = (t.iter().sum::<f64>(), z.iter().sum::<f64>());
+    let stt = t.iter().map(|v| v * v).sum::<f64>();
+    let szz = z.iter().map(|v| v * v).sum::<f64>();
+    let stz = t.iter().zip(&z).map(|(a, b)| a * b).sum::<f64>();
+    let (sy, sty, szy) = (
+        y.iter().sum::<f64>(),
+        t.iter().zip(&y).map(|(a, b)| a * b).sum::<f64>(),
+        z.iter().zip(&y).map(|(a, b)| a * b).sum::<f64>(),
+    );
+    let det = |m: [[f64; 3]; 3]| {
+        m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1])
+            - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
+            + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0])
+    };
+    let gram = [[n, st, sz], [st, stt, stz], [sz, stz, szz]];
+    let mut with_rhs = gram;
+    for (row, value) in [sy, sty, szy].into_iter().enumerate() {
+        with_rhs[row][1] = value;
+    }
+    let slope = det(with_rhs) / det(gram);
+    assert!((result.effect() - slope).abs() < 1e-6 * slope.abs(), "{} vs {slope}", result.effect());
+
+    // A cancelled run stops before it reads a batch.
+    let cancelled = ExecutionContext::for_tests(1);
+    cancelled.cancellation.cancel();
+    assert!(study.run(&cancelled).is_err());
+}

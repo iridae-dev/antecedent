@@ -20,6 +20,7 @@ mod period_refresh_entry;
 mod prepare;
 mod prepare_identification;
 mod propensity_nuisance_entry;
+mod retained_refresh_entry;
 mod retarget;
 mod seal;
 mod sealed;
@@ -179,6 +180,9 @@ pub struct SampledPreparedState {
     /// Sealed route selection and its checked operation, or the ordinary dispatcher
     /// for a configuration no sealed operation admits.
     execution: PreparedExecution,
+    /// What each refreshed series period invalidated (see
+    /// [`antecedent_state::TemporalProduct`]); empty until a period is applied.
+    temporal_log: antecedent_state::InvalidationLog,
 }
 
 impl std::ops::Deref for PreparedStudy {

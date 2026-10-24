@@ -6,7 +6,9 @@
 //! temporal backdoor on a `TemporalDag`. These tests pin that the answer is exactly the
 //! explicit lag-0 pulse's, that the support status stays `refused` (the `AverageEffect` cell is
 //! executing and unlicensed) on the direct and prepared paths, that the result discloses the
-//! reading, and that modifiers, another functional and a graph posterior are refused.
+//! reading, and that modifiers and another functional are refused. Over a graph posterior the
+//! same pulse is compiled, so the alias equals the explicit pulse over the posterior in both
+//! inference modes.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -19,6 +21,10 @@ use antecedent_core::{
 };
 use antecedent_data::TimeSeriesData;
 use antecedent_graph::{TemporalCpdag, TemporalDag, TemporalPag};
+
+#[path = "fixtures_common/mod.rs"]
+mod common;
+use common::fixtures::{B2, confounded_series, heterogeneous_dbn};
 
 const N: usize = 1500;
 const BETA: f64 = 2.0;
@@ -224,5 +230,39 @@ fn modifiers_other_functionals_and_populations_are_refused_with_the_next_attempt
             .unwrap_err()
             .to_string();
         assert!(error.contains("Next attempt"), "{error}");
+    }
+}
+
+#[test]
+fn over_a_graph_posterior_the_alias_is_the_explicit_pulse_over_the_posterior() {
+    let ctx = ExecutionContext::for_tests(15);
+    let data = confounded_series(1_200, B2, 0.0, 4_101);
+    for inference in [InferenceMode::Frequentist, bayesian()] {
+        let label = format!("{inference:?}");
+        let run = |query: CausalQuery| {
+            Study::series(data.clone())
+                .graph_posterior(heterogeneous_dbn())
+                .query(query)
+                .inference(inference.clone())
+                .refute(RefuteSuite::None)
+                .bootstrap_replicates(0)
+                .build()
+                .unwrap()
+                .run(&ctx)
+                .unwrap()
+        };
+        let aliased = run(CausalQuery::AverageEffect(average()));
+        let direct = run(CausalQuery::TemporalEffect(lag_zero_pulse()));
+        // The compiled program is the pulse's, so the answer and the mixture over the
+        // posterior's atoms are identical; only the support status and the disclosure differ.
+        assert_eq!(summary(&aliased), summary(&direct), "{label}");
+        assert_eq!(aliased.support_status, Some(CellStatus::Refused), "{label}");
+        assert!(discloses(&aliased), "{label}");
+        assert!(!discloses(&direct), "{label}");
+        assert_eq!(
+            aliased.structural_response.as_ref().map(|mixture| mixture.unidentified_mass),
+            direct.structural_response.as_ref().map(|mixture| mixture.unidentified_mass),
+            "{label}"
+        );
     }
 }

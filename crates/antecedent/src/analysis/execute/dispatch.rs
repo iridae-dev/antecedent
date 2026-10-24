@@ -129,6 +129,20 @@ impl super::Study {
             ) && matches!(self.data, DataInput::Temporal(_) | DataInput::Event(_))
             {
                 // The temporal twin is the linear direct slope on a TemporalDag.
+            } else if matches!(
+                (&self.data, class),
+                (
+                    DataInput::Tabular(_),
+                    GraphClass::Admg
+                        | GraphClass::TemporalAdmg
+                        | GraphClass::Cpdag
+                        | GraphClass::Pag
+                )
+            ) {
+                // The natural direct effect on a mixed graph is identified by the
+                // path-specific identifier over the ADMG, on a CPDAG in each DAG
+                // completion, and on a PAG over the ADMGs each MAG completion stands for;
+                // the identification decides whether the graph's structure allows it.
             } else {
                 let Some(graph) = self.graph.as_dag() else {
                     return Err(crate::unsupported_reason!(
@@ -211,7 +225,10 @@ impl super::Study {
                     (&self.data, class),
                     (
                         DataInput::Tabular(_),
-                        GraphClass::Dag | GraphClass::Admg | GraphClass::TemporalAdmg
+                        GraphClass::Dag
+                            | GraphClass::Cpdag
+                            | GraphClass::Admg
+                            | GraphClass::TemporalAdmg
                     ) | (
                         DataInput::Temporal(_) | DataInput::Event(_),
                         GraphClass::TemporalDag
@@ -227,17 +244,23 @@ impl super::Study {
             (_, CausalQuery::PathSpecific(_), class)
                 if !matches!(
                     (&self.data, class),
-                    (DataInput::Tabular(_), GraphClass::Dag)
-                        | (
-                            DataInput::Temporal(_) | DataInput::Event(_),
-                            GraphClass::TemporalDag
-                                | GraphClass::TemporalCpdag
-                                | GraphClass::TemporalPag
-                        )
+                    (
+                        DataInput::Tabular(_),
+                        GraphClass::Dag
+                            | GraphClass::Cpdag
+                            | GraphClass::Pag
+                            | GraphClass::Admg
+                            | GraphClass::TemporalAdmg
+                    ) | (
+                        DataInput::Temporal(_) | DataInput::Event(_),
+                        GraphClass::TemporalDag
+                            | GraphClass::TemporalCpdag
+                            | GraphClass::TemporalPag
+                    )
                 ) =>
             {
                 return Err(CausalError::Unsupported {
-                    message: "CausalQuery::PathSpecific requires tabular data and a static DAG",
+                    message: "CausalQuery::PathSpecific requires tabular data and a static Dag, Cpdag, Pag or Admg",
                 });
             }
             _ => {}
@@ -530,7 +553,7 @@ impl super::Study {
         &self,
         query: &ResponseQuery,
     ) -> (Arc<str>, Arc<str>) {
-        if self.inference.is_bayesian() {
+        if self.inference.is_bayesian() && !response_functional_is_derivative(&query.functional) {
             return (
                 Arc::from(self.identifier.unwrap_or(DEFAULT_PAG_IDENTIFIER_ID).as_str()),
                 Arc::from(
@@ -642,6 +665,23 @@ impl super::Study {
                     |table, ctx| {
                         self.execute_on_inner(
                             &DataInput::Tabular(table.clone()),
+                            physical,
+                            execution,
+                            ctx,
+                        )
+                    },
+                )?
+            }
+            DataInput::Temporal(series)
+                if crate::analysis::missing_imputation::imputes_series(self) =>
+            {
+                crate::analysis::missing_imputation::impute_fit_pool_series(
+                    self,
+                    series,
+                    ctx,
+                    |table, ctx| {
+                        self.execute_on_inner(
+                            &DataInput::Temporal(table.clone()),
                             physical,
                             execution,
                             ctx,
@@ -813,6 +853,9 @@ impl super::Study {
                     return Err(route_mismatch());
                 };
                 let CausalQuery::Response(q) = &self.query else { return Err(route_mismatch()) };
+                if self.graph.class() == GraphClass::TemporalAdmg {
+                    return self.execute_temporal_admg_derivative(data, q, physical, ctx);
+                }
                 if self.graph.class().is_incomplete_temporal() {
                     return self.execute_temporal_class_response(data, q, physical, ctx);
                 }
@@ -1177,9 +1220,45 @@ impl super::Study {
                 let CausalQuery::PathSpecific(q) = &self.query else {
                     return Err(route_mismatch());
                 };
-                let graph = self
-                    .require_execute_dag("PathSpecific execute requires a supplied static DAG")?;
-                self.execute_path_specific(data, graph, q, physical, ctx)
+                match self.graph.graph_ref() {
+                    GraphRef::Admg(admg) => self.execute_path_specific_mixed(
+                        data,
+                        admg,
+                        super::PathSpecificMixedSource::PathSpecific(q),
+                        physical,
+                        ctx,
+                    ),
+                    GraphRef::TemporalAdmg(temporal) => {
+                        let admg = temporal_admg_projection(temporal)?;
+                        self.execute_path_specific_mixed(
+                            data,
+                            &admg,
+                            super::PathSpecificMixedSource::PathSpecific(q),
+                            physical,
+                            ctx,
+                        )
+                    }
+                    GraphRef::Cpdag(cpdag) => self.execute_class_path_specific(
+                        data,
+                        cpdag,
+                        super::PathSpecificMixedSource::PathSpecific(q),
+                        physical,
+                        ctx,
+                    ),
+                    GraphRef::Pag(pag) => self.execute_pag_path_specific(
+                        data,
+                        pag,
+                        super::PathSpecificMixedSource::PathSpecific(q),
+                        physical,
+                        ctx,
+                    ),
+                    _ => {
+                        let graph = self.require_execute_dag(
+                            "PathSpecific execute requires a supplied static Dag, Cpdag, Pag or Admg",
+                        )?;
+                        self.execute_path_specific(data, graph, q, physical, ctx)
+                    }
+                }
             }
             AnalysisRoute::Conditional => {
                 self.execute_tabular_conditional_route(data, physical, ctx)
@@ -1269,7 +1348,11 @@ impl super::Study {
             }
             GraphRef::Admg(admg) => {
                 if admg_has_bidirected(admg) {
-                    self.execute_admg_response(data, admg, q, physical, ctx)
+                    if response_functional_is_derivative(&q.functional) {
+                        self.execute_admg_derivative(data, admg, q, physical, ctx)
+                    } else {
+                        self.execute_admg_response(data, admg, q, physical, ctx)
+                    }
                 } else {
                     let graph = physical.static_graph().ok_or(CausalError::Compile {
                         message: "Ready ADMG (DAG-coerced) response plan missing resolved \
@@ -1282,7 +1365,11 @@ impl super::Study {
             GraphRef::TemporalAdmg(temporal) => {
                 let admg = temporal_admg_projection(temporal)?;
                 if admg_has_bidirected(&admg) {
-                    self.execute_admg_response(data, &admg, q, physical, ctx)
+                    if response_functional_is_derivative(&q.functional) {
+                        self.execute_admg_derivative(data, &admg, q, physical, ctx)
+                    } else {
+                        self.execute_admg_response(data, &admg, q, physical, ctx)
+                    }
                 } else {
                     let graph = physical.static_graph().ok_or(CausalError::Compile {
                         message: "Ready TemporalAdmg (DAG-coerced) response plan missing \
@@ -1457,6 +1544,79 @@ impl super::Study {
         execution: &super::super::prepared::PreparedExecution,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        if let CausalQuery::NestedCounterfactual(q) = &self.query {
+            match self.graph.graph_ref() {
+                GraphRef::Admg(admg) => {
+                    return self.execute_path_specific_mixed(
+                        data,
+                        admg,
+                        super::PathSpecificMixedSource::Nested(q),
+                        physical,
+                        ctx,
+                    );
+                }
+                GraphRef::TemporalAdmg(temporal) => {
+                    let admg = temporal_admg_projection(temporal)?;
+                    return self.execute_path_specific_mixed(
+                        data,
+                        &admg,
+                        super::PathSpecificMixedSource::Nested(q),
+                        physical,
+                        ctx,
+                    );
+                }
+                GraphRef::Cpdag(cpdag) => {
+                    return self.execute_class_path_specific(
+                        data,
+                        cpdag,
+                        super::PathSpecificMixedSource::Nested(q),
+                        physical,
+                        ctx,
+                    );
+                }
+                GraphRef::Pag(pag) => {
+                    return self.execute_pag_path_specific(
+                        data,
+                        pag,
+                        super::PathSpecificMixedSource::Nested(q),
+                        physical,
+                        ctx,
+                    );
+                }
+                _ => {}
+            }
+        }
+        if let CausalQuery::Mediation(q) = &self.query {
+            use super::mediation_mixed::ClassStructure;
+            match self.graph.graph_ref() {
+                GraphRef::Admg(admg) => {
+                    return self.execute_mediation_mixed(data, admg, q, physical, ctx);
+                }
+                GraphRef::TemporalAdmg(temporal) => {
+                    let admg = temporal_admg_projection(temporal)?;
+                    return self.execute_mediation_mixed(data, &admg, q, physical, ctx);
+                }
+                GraphRef::Cpdag(cpdag) => {
+                    return self.execute_mediation_class(
+                        data,
+                        ClassStructure::Cpdag(cpdag),
+                        q,
+                        physical,
+                        ctx,
+                    );
+                }
+                GraphRef::Pag(pag) => {
+                    return self.execute_mediation_class(
+                        data,
+                        ClassStructure::Pag(pag),
+                        q,
+                        physical,
+                        ctx,
+                    );
+                }
+                _ => {}
+            }
+        }
         let graph =
             self.require_execute_dag("static Mediation execute requires a supplied static DAG")?;
         match &self.query {
@@ -1566,8 +1726,11 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> antecedent_core::execution_attempt::ExecutionAttempt<StudyResult, CausalError> {
         let mut observed = antecedent_core::execution_attempt::observe_with_context(ctx, || {
-            self.run_unnamed(ctx)
-                .map_err(|error| crate::analysis::preflight::name_run_refusal(self, error, ctx))
+            antecedent_estimate::prepare::with_preparation_budget(
+                crate::planner::PhysicalExecutionPlan::preparation_budget(ctx),
+                || self.run_unnamed(ctx),
+            )
+            .map_err(|error| crate::analysis::preflight::name_run_refusal(self, error, ctx))
         });
         if let Ok(result) = &mut observed.result {
             result.performance.native_execution.clone_from(&observed.facts);
@@ -2490,7 +2653,12 @@ impl super::Study {
             && self.split.is_none()
             && self.refute == RefuteSuite::None
         {
-            if let Some(RouteInput::TransportMixed { data, class: GraphClass::Admg, .. }) = route {
+            if let Some(RouteInput::TransportMixed {
+                data,
+                class: GraphClass::Admg | GraphClass::Dag,
+                ..
+            }) = route
+            {
                 return self.admit_sealed_tabular(
                     data,
                     ctx,
@@ -2537,6 +2705,7 @@ impl super::Study {
         let licensed_shape = match &self.query {
             CausalQuery::Response(query)
                 if query.temporal.is_none()
+                    && !response_functional_is_derivative(&query.functional)
                     && query.observation == antecedent_core::ObservationSpec::Complete
                     && query.target_population
                         == antecedent_core::TargetPopulation::AllObserved

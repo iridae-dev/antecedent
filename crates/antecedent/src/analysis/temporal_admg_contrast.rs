@@ -15,7 +15,8 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
-    KernelPolicy, Lag, TargetPopulation, TemporalEffectQuery, TemporalIndexer, VariableId,
+    KernelPolicy, Lag, ResponseQuery, TargetPopulation, TemporalEffectQuery, TemporalIndexer,
+    VariableId,
 };
 use antecedent_data::{
     LaggedFrame, LaggedFrameOptions, MaskPolicy, MissingPolicy, ReferencePointPolicy, TableView,
@@ -24,6 +25,7 @@ use antecedent_data::{
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_graph::{TemporalAdmg, UnrolledTemporalAdmg};
 use antecedent_identify::IdentificationResult;
+use antecedent_identify::identify_temporal_admg_response_adjustment;
 use antecedent_identify::temporal_admg::{
     TemporalAdmgWindowPlan, identify_temporal_admg_contrast_over,
 };
@@ -72,6 +74,164 @@ pub(crate) struct WindowContrast {
     /// The window's variable namespace as the unfolding indexer of the schema it is numbered
     /// over: coordinate `period * variables + variable` is the node at offset `period - origin`.
     pub(crate) indexer: TemporalIndexer,
+}
+
+/// A derivative identified by adjustment on the unrolled window of a temporal ADMG.
+#[derive(Clone, Debug)]
+pub(crate) struct WindowDerivative {
+    /// Identification over the window coordinates (the claim the result carries).
+    pub(crate) identification: IdentificationResult,
+    /// The back-door estimand whose adjustment set the slope regression conditions on.
+    pub(crate) estimand: IdentifiedEstimand,
+    /// The window's variable namespace as the unfolding indexer of the schema it is numbered
+    /// over, as for [`WindowContrast::indexer`].
+    pub(crate) indexer: TemporalIndexer,
+}
+
+/// `query` restricted to the single horizon `horizon`: same functional, policy and history
+/// bound, so each horizon of a multi-horizon derivative is identified and estimated alone.
+///
+/// # Errors
+///
+/// A query without a temporal attachment, or a horizon the attachment refuses.
+pub(crate) fn single_horizon_query(
+    query: &ResponseQuery,
+    horizon: u32,
+) -> Result<ResponseQuery, CausalError> {
+    let temporal = query.temporal.as_ref().ok_or_else(|| CausalError::Compile {
+        message: "a temporal derivative needs ResponseQuery.temporal".into(),
+    })?;
+    let mut single = query.clone();
+    single.temporal = Some(antecedent_core::TemporalResponseSpec::new(
+        vec![horizon],
+        temporal.policy.clone(),
+        temporal.max_history_lag,
+    )?);
+    Ok(single)
+}
+
+/// [`identify_window_derivative`] at every horizon of `query`, in horizon order.
+///
+/// # Errors
+///
+/// The refusal of any horizon.
+pub(crate) fn identify_window_derivatives(
+    template: &TemporalAdmg,
+    query: &ResponseQuery,
+    variable_count: u32,
+) -> Result<Vec<(u32, WindowDerivative)>, CausalError> {
+    let horizons =
+        query.temporal.as_ref().map(|temporal| temporal.horizons.to_vec()).ok_or_else(|| {
+            CausalError::Compile {
+                message: "a temporal derivative needs ResponseQuery.temporal".into(),
+            }
+        })?;
+    horizons
+        .into_iter()
+        .map(|horizon| {
+            let single = single_horizon_query(query, horizon)?;
+            Ok((horizon, identify_window_derivative(template, &single, variable_count)?))
+        })
+        .collect()
+}
+
+/// Identify the derivative or Jacobian `query` at its one horizon on `template`, by one
+/// adjustment set of the unrolled window valid for every treatment/outcome pair.
+///
+/// # Errors
+///
+/// A population other than the observed one; a window with no adjustment set whose general ID
+/// run finds a hedge (the typed refusal names the variables and periods that carry it); a
+/// window that general ID identifies only through a non-adjustment functional, which no
+/// continuous-treatment estimator evaluates; or a window the graph crate cannot number.
+pub(crate) fn identify_window_derivative(
+    template: &TemporalAdmg,
+    query: &ResponseQuery,
+    variable_count: u32,
+) -> Result<WindowDerivative, CausalError> {
+    let temporal = query.temporal.as_ref().ok_or_else(|| CausalError::Compile {
+        message: "a temporal derivative needs ResponseQuery.temporal".into(),
+    })?;
+    let horizon = match temporal.horizons.as_ref() {
+        [horizon] => *horizon,
+        _ => {
+            return Err(CausalError::Unsupported {
+                message: "a temporal derivative is the local slope at one horizon",
+            });
+        }
+    };
+    let (treatment, outcome) =
+        crate::analysis::proof_support::require_primary_pair(&query.functional)?;
+    // The unit pulse contrast at the horizon under the response's policy and history bound:
+    // the same probe every temporal route identifies a horizon with.
+    let probe = TemporalEffectQuery {
+        treatment,
+        outcome,
+        policy: temporal.policy.clone(),
+        control: antecedent_core::Intervention::set(treatment, antecedent_core::Value::f64(0.0)),
+        active: antecedent_core::Intervention::set(treatment, antecedent_core::Value::f64(1.0)),
+        horizon_steps: horizon,
+        max_history_lag: temporal.max_history_lag,
+        target_population: query.target_population.clone(),
+        effect_modifiers: std::sync::Arc::from([]),
+    };
+    let probe = &probe;
+    if query.target_population != TargetPopulation::AllObserved {
+        return Err(CausalError::Compile {
+            message: format!(
+                "a derivative on a TemporalAdmg answers for the observed population; a \
+                 reweighted or local target population is a different estimand \
+                 ({NEXT_ATTEMPTS})"
+            ),
+        });
+    }
+    let found = identify_temporal_admg_response_adjustment(template, probe, query, variable_count)?;
+    if found.result.estimands.is_empty() {
+        // No adjustment set: a front-door set of the window identifies the mean through its
+        // mediators.
+        if let Some(front_door) = antecedent_identify::identify_temporal_admg_front_door_derivative(
+            template,
+            probe,
+            query,
+            variable_count,
+        )? {
+            let estimand = front_door.result.estimands[0].clone();
+            let indexer = TemporalIndexer::new(
+                variable_count,
+                front_door.plan.origin,
+                front_door.plan.periods - front_door.plan.origin,
+            )?;
+            return Ok(WindowDerivative { identification: front_door.result, estimand, indexer });
+        }
+        // Otherwise the complete algorithm decides whether this is a hedge.
+        let contrast = identify_temporal_admg_contrast_over(template, probe, variable_count)?;
+        if let Some(obstruction) = &contrast.obstruction {
+            return Err(CausalError::not_identified(
+                contrast.result.status,
+                false,
+                &format!("{obstruction}; {NEXT_ATTEMPTS}"),
+            ));
+        }
+        return Err(CausalError::Unsupported {
+            message: "the temporal derivative is identified on the unrolled window by the \
+                      general ID algorithm but by neither an adjustment set nor a front-door \
+                      set: it is a general ID functional of the observed law, and no \
+                      continuous-treatment estimator evaluates such a functional",
+        });
+    }
+    let estimand = found.result.estimands[0].clone();
+    if found.result.estimands.iter().any(|other| other.adjustment_set != estimand.adjustment_set) {
+        return Err(CausalError::Unsupported {
+            message: "multi-pair temporal derivative estimation requires one common adjustment \
+                      set",
+        });
+    }
+    let indexer = TemporalIndexer::new(
+        variable_count,
+        found.plan.origin,
+        found.plan.periods - found.plan.origin,
+    )?;
+    Ok(WindowDerivative { identification: found.result, estimand, indexer })
 }
 
 /// Identify the pulse, sustained or conditional contrast of `query` on `template`, numbering the

@@ -1920,3 +1920,381 @@ fn bayesian_distribution_replay_dependency_only(
                     .is_some_and(|snapshot| snapshot.distribution_factor_laws.is_some())
         })
 }
+
+// ---------------------------------------------------------------------------
+// Independent numerical and uncertainty acceptance, and replay.
+//
+// The sweep above proves that every licensed cell completes the compiler path.
+// These tests prove that the numbers a compiled route publishes are the numbers
+// an independent computation gives on the same data: the point value and the
+// published analytic standard error are recomputed here from the raw columns
+// by ordinary least squares and instrumental-variable algebra that shares no
+// code with the estimators.
+// ---------------------------------------------------------------------------
+
+use antecedent_estimate::AnalyticSeKind;
+
+/// What one execution of a cell published.
+struct Observed {
+    effect: f64,
+    analytic_se: f64,
+    se_kind: Option<AnalyticSeKind>,
+    estimator: String,
+}
+
+fn observe(setup: CellSetup) -> Result<Observed, String> {
+    let expected = setup.expected.clone();
+    let ctx = ExecutionContext::for_tests(1);
+    let built = setup.builder.build().map_err(|e| format!("{expected}: build {e}"))?;
+    let prepared = built.prepare(&ctx).map_err(|e| format!("{expected}: prepare {e}"))?;
+    let result = match &setup.data {
+        CellData::Tabular(data) => prepared.estimate(data, &ctx),
+        CellData::Series(data) => prepared.estimate_series(data, &ctx),
+    }
+    .map_err(|e| format!("{expected}: execute {e}"))?;
+    let (analytic_se, se_kind) = result
+        .estimate
+        .as_effect()
+        .map_or((f64::NAN, None), |e| (e.uncertainty.analytic.se, e.uncertainty.analytic.kind));
+    Ok(Observed {
+        effect: result.effect(),
+        analytic_se,
+        se_kind,
+        estimator: result.logical_plan.estimator.as_deref().unwrap_or("-").to_owned(),
+    })
+}
+
+/// The first Frequentist explicit-structure average-effect cell that licenses `estimator`.
+fn cell_licensing(estimator: &str) -> antecedent::SupportCell {
+    licensed_support_cells()
+        .into_iter()
+        .find(|cell| {
+            cell.inference.as_str() == "Frequentist"
+                && cell.structure.as_str() == "explicit"
+                && cell.query.as_str() == "AverageEffect"
+                && licensed_estimators(*cell).iter().any(|name| *name == estimator)
+        })
+        .unwrap_or_else(|| panic!("no licensed average-effect cell names {estimator}"))
+}
+
+fn invert(mut a: Vec<Vec<f64>>) -> Vec<Vec<f64>> {
+    let p = a.len();
+    let mut inverse: Vec<Vec<f64>> =
+        (0..p).map(|i| (0..p).map(|j| f64::from(u8::from(i == j))).collect()).collect();
+    for column in 0..p {
+        let pivot = (column..p)
+            .max_by(|&i, &j| a[i][column].abs().total_cmp(&a[j][column].abs()))
+            .expect("a pivot row");
+        a.swap(column, pivot);
+        inverse.swap(column, pivot);
+        let divisor = a[column][column];
+        assert!(divisor.abs() > 1e-12, "the reference design is singular");
+        for j in 0..p {
+            a[column][j] /= divisor;
+            inverse[column][j] /= divisor;
+        }
+        let (row_a, row_i) = (a[column].clone(), inverse[column].clone());
+        for i in 0..p {
+            if i != column {
+                let factor = a[i][column];
+                for j in 0..p {
+                    a[i][j] -= factor * row_a[j];
+                    inverse[i][j] -= factor * row_i[j];
+                }
+            }
+        }
+    }
+    inverse
+}
+
+/// Ordinary least squares from first principles.
+struct Regression {
+    beta: Vec<f64>,
+    bread: Vec<Vec<f64>>,
+    design: Vec<Vec<f64>>,
+    residuals: Vec<f64>,
+    leverage: Vec<f64>,
+}
+
+fn regress(design: Vec<Vec<f64>>, y: &[f64]) -> Regression {
+    let p = design[0].len();
+    let mut xtx = vec![vec![0.0; p]; p];
+    let mut xty = vec![0.0; p];
+    for (row, outcome) in design.iter().zip(y) {
+        for i in 0..p {
+            xty[i] += row[i] * outcome;
+            for j in 0..p {
+                xtx[i][j] += row[i] * row[j];
+            }
+        }
+    }
+    let bread = invert(xtx);
+    let beta: Vec<f64> =
+        (0..p).map(|i| (0..p).map(|j| bread[i][j] * xty[j]).sum::<f64>()).collect();
+    let residuals: Vec<f64> = design
+        .iter()
+        .zip(y)
+        .map(|(row, outcome)| outcome - row.iter().zip(&beta).map(|(x, b)| x * b).sum::<f64>())
+        .collect();
+    let leverage: Vec<f64> = design
+        .iter()
+        .map(|row| {
+            (0..p)
+                .map(|i| (0..p).map(|j| row[i] * bread[i][j] * row[j]).sum::<f64>())
+                .sum::<f64>()
+        })
+        .collect();
+    Regression { beta, bread, design, residuals, leverage }
+}
+
+impl Regression {
+    fn homoskedastic_se(&self, k: usize) -> f64 {
+        let n = self.residuals.len() as f64;
+        let p = self.beta.len() as f64;
+        let sigma2 = self.residuals.iter().map(|e| e * e).sum::<f64>() / (n - p);
+        (sigma2 * self.bread[k][k]).sqrt()
+    }
+
+    /// Sandwich standard error with weight `scale(leverage)` on each squared residual.
+    fn sandwich_se(&self, k: usize, scale: impl Fn(f64) -> f64) -> f64 {
+        let p = self.beta.len();
+        let mut meat = vec![vec![0.0; p]; p];
+        for ((row, e), h) in self.design.iter().zip(&self.residuals).zip(&self.leverage) {
+            let weight = e * e * scale(*h);
+            for i in 0..p {
+                for j in 0..p {
+                    meat[i][j] += weight * row[i] * row[j];
+                }
+            }
+        }
+        let mut variance = 0.0;
+        for i in 0..p {
+            for j in 0..p {
+                variance += self.bread[k][i] * meat[i][j] * self.bread[j][k];
+            }
+        }
+        variance.sqrt()
+    }
+
+    fn published_se(&self, k: usize, kind: Option<AnalyticSeKind>) -> f64 {
+        let n = self.residuals.len() as f64;
+        let p = self.beta.len() as f64;
+        match kind {
+            None | Some(AnalyticSeKind::Homoskedastic) => self.homoskedastic_se(k),
+            Some(AnalyticSeKind::Hc0) => self.sandwich_se(k, |_| 1.0),
+            Some(AnalyticSeKind::Hc1) => self.sandwich_se(k, |_| n / (n - p)),
+            Some(AnalyticSeKind::Hc2) => self.sandwich_se(k, |h| 1.0 / (1.0 - h)),
+            Some(AnalyticSeKind::Hc3) => self.sandwich_se(k, |h| 1.0 / ((1.0 - h) * (1.0 - h))),
+            Some(other) => panic!("no independent reference for the {other:?} standard error"),
+        }
+    }
+}
+
+/// The columns `binary_treatment_table(&[("t", 0), ("y", 1), ("z", 2)])` holds.
+fn binary_treatment_columns() -> (Vec<f64>, Vec<f64>, Vec<f64>) {
+    let n = 48usize;
+    let t = (0..n).map(|i| (i % 2) as f64).collect();
+    let y = (0..n).map(|i| 0.3 + 0.8 * (i % 2) as f64 + 0.2 * ((i + 5) as f64 * 0.13).sin()).collect();
+    let z = (0..n).map(|i| ((i / 2 + 6) % 5) as f64 * 0.25 + 0.1 * ((i + 2) as f64 * 0.2).sin()).collect();
+    (t, y, z)
+}
+
+#[test]
+fn the_linear_adjustment_route_matches_an_independent_regression_and_its_published_se() {
+    let cell = antecedent::SupportCell::from_labels(
+        "AverageEffect",
+        "Dag",
+        "explicit",
+        "Frequentist",
+        "none",
+    )
+    .expect("fixture support axis");
+    let observed = observe(cell_setup(cell).expect("setup")).expect("executes");
+    assert_eq!(observed.estimator, "linear.adjustment.ate");
+    // The graph adjusts for the confounder z: the effect is the coefficient on t
+    // in y ~ 1 + t + z.
+    let (t, y, z) = binary_treatment_columns();
+    let design: Vec<Vec<f64>> = (0..t.len()).map(|i| vec![1.0, t[i], z[i]]).collect();
+    let reference = regress(design, &y);
+    assert!(
+        (observed.effect - reference.beta[1]).abs() < 1e-8,
+        "route {} vs regression {}",
+        observed.effect,
+        reference.beta[1]
+    );
+    // The truth is 0.8 plus a smooth component that z only partly absorbs.
+    assert!((reference.beta[1] - 0.8).abs() < 0.2);
+    // The published standard error is the one its recorded formula defines.
+    let expected_se = reference.published_se(1, observed.se_kind);
+    assert!(
+        (observed.analytic_se - expected_se).abs() < 1e-6 * expected_se,
+        "{:?}: published {} vs independent {expected_se}",
+        observed.se_kind,
+        observed.analytic_se
+    );
+    // The adjusted and unadjusted contrasts differ, so the check can tell them apart.
+    let naive = regress((0..t.len()).map(|i| vec![1.0, t[i]]).collect(), &y);
+    assert!((naive.beta[1] - reference.beta[1]).abs() > 1e-6);
+}
+
+fn mean(values: &[f64]) -> f64 {
+    values.iter().sum::<f64>() / values.len() as f64
+}
+
+#[test]
+fn the_wald_and_two_stage_iv_routes_match_the_instrumental_variable_algebra() {
+    let n = 120usize;
+    let z: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
+    let t: Vec<f64> = (0..n).map(|i| f64::from(z[i] > 0.5 && i % 4 != 1)).collect();
+    let y: Vec<f64> = (0..n).map(|i| 0.5 * t[i] + ((i * 7 % 19) as f64) / 19.0).collect();
+    let (mz, mt, my) = (mean(&z), mean(&t), mean(&y));
+    let szy: f64 = (0..n).map(|i| (z[i] - mz) * (y[i] - my)).sum();
+    let szt: f64 = (0..n).map(|i| (z[i] - mz) * (t[i] - mt)).sum();
+    let szz: f64 = (0..n).map(|i| (z[i] - mz) * (z[i] - mz)).sum();
+    let wald = szy / szt;
+    let intercept = my - wald * mt;
+    let rss: f64 = (0..n).map(|i| (y[i] - intercept - wald * t[i]).powi(2)).sum();
+    let reference_se = (rss / (n as f64 - 2.0) * szz).sqrt() / szt.abs();
+    for estimator in ["iv.wald", "iv.2sls"] {
+        let id = estimator.parse::<EstimatorId>().expect("estimator id");
+        let cell = cell_licensing(estimator);
+        let observed = observe(optional_estimator_setup(cell, id).expect("setup")).expect("runs");
+        assert_eq!(observed.estimator, estimator);
+        assert!(
+            (observed.effect - wald).abs() < 1e-8,
+            "{estimator}: route {} vs IV algebra {wald}",
+            observed.effect
+        );
+        // Strong instrument: the published standard error is in the range any
+        // standard homoskedastic or robust formula gives for the same estimator.
+        assert!(observed.analytic_se.is_finite() && observed.analytic_se > 0.0, "{estimator}");
+        let ratio = observed.analytic_se / reference_se;
+        assert!((0.5..2.0).contains(&ratio), "{estimator}: {} vs {reference_se}", observed.analytic_se);
+    }
+}
+
+#[test]
+fn the_front_door_route_matches_the_product_of_its_two_stage_coefficients() {
+    let n = 120usize;
+    let t: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
+    let m: Vec<f64> = (0..n).map(|i| 0.3 * t[i] + ((i * 7 % 13) as f64) / 13.0).collect();
+    let y: Vec<f64> = (0..n).map(|i| 0.7 * m[i] + ((i * 11 % 17) as f64) / 17.0).collect();
+    let first = regress((0..n).map(|i| vec![1.0, t[i]]).collect(), &m);
+    let second = regress((0..n).map(|i| vec![1.0, m[i], t[i]]).collect(), &y);
+    let product = first.beta[1] * second.beta[1];
+    let estimator = "frontdoor.linear_two_stage";
+    let id = estimator.parse::<EstimatorId>().expect("estimator id");
+    let cell = cell_licensing(estimator);
+    let observed = observe(optional_estimator_setup(cell, id).expect("setup")).expect("runs");
+    assert_eq!(observed.estimator, estimator);
+    assert!(
+        (observed.effect - product).abs() < 1e-8,
+        "route {} vs two-stage product {product}",
+        observed.effect
+    );
+    // The mediated path is not the direct coefficient: the check discriminates.
+    assert!((product - second.beta[2]).abs() > 1e-4);
+}
+
+#[test]
+fn the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures() {
+    let n = 120usize;
+    let r: Vec<f64> = (0..n).map(|i| (i as f64 - 60.0) / 30.0).collect();
+    let y: Vec<f64> = (0..n)
+        .map(|i| 1.0 + 1.5 * f64::from(r[i] >= 0.0) + 0.4 * r[i] + ((i % 7) as f64) * 0.01)
+        .collect();
+    let side = |keep: &dyn Fn(f64) -> bool| {
+        let rows: Vec<usize> = (0..n).filter(|&i| keep(r[i])).collect();
+        regress(rows.iter().map(|&i| vec![1.0, r[i]]).collect(), &rows.iter().map(|&i| y[i]).collect::<Vec<_>>())
+    };
+    let right = side(&|x| (0.0..=1.5).contains(&x));
+    let left = side(&|x| (-1.5..0.0).contains(&x));
+    let local_jump = right.beta[0] - left.beta[0];
+    let estimator = "rd.sharp";
+    let id = estimator.parse::<EstimatorId>().expect("estimator id");
+    let cell = cell_licensing(estimator);
+    let observed = observe(optional_estimator_setup(cell, id).expect("setup")).expect("runs");
+    assert_eq!(observed.estimator, estimator);
+    assert!((observed.effect - 1.5).abs() < 0.1, "{} vs truth 1.5", observed.effect);
+    assert!(
+        (observed.effect - local_jump).abs() < 0.06,
+        "route {} vs local linear jump {local_jump}",
+        observed.effect
+    );
+}
+
+/// What one full compiler path published and what a consumer read back.
+struct Replayed {
+    effect: f64,
+    wire_estimate: Option<f64>,
+    scalar_effect: bool,
+    lowered: Option<antecedent_core::SemanticDigest>,
+}
+
+fn replay_cell(cell: antecedent::SupportCell) -> Result<Replayed, String> {
+    let setup = cell_setup(cell)?;
+    let expected = setup.expected.clone();
+    let ctx = ExecutionContext::for_tests(1);
+    let built = setup.builder.build().map_err(|e| format!("{expected}: build {e}"))?;
+    let prepared = built.prepare(&ctx).map_err(|e| format!("{expected}: prepare {e}"))?;
+    let result = match &setup.data {
+        CellData::Tabular(data) => prepared.estimate(data, &ctx),
+        CellData::Series(data) => prepared.estimate_series(data, &ctx),
+    }
+    .map_err(|e| format!("{expected}: execute {e}"))?;
+    let bytes = prepared
+        .encode_contracted_result(&result, &expected, &ctx)
+        .map_err(|e| format!("{expected}: encode {e}"))?;
+    let consumed =
+        consume_analysis_result(&bytes).map_err(|e| format!("{expected}: consume {e}"))?;
+    Ok(Replayed {
+        effect: result.effect(),
+        wire_estimate: consumed.body.estimate,
+        scalar_effect: result.estimate.as_effect().is_some(),
+        lowered: result.lowered_program_identity(),
+    })
+}
+
+/// A consumer that reads only the exported bytes recovers the number the route
+/// published, and an independent rebuild and execution of the same cell
+/// reproduces it bit for bit under the same lowered program. Every ninth
+/// licensed cell is replayed, which covers every query family on both
+/// inference axes.
+#[test]
+fn sampled_licensed_cells_replay_to_the_published_number() {
+    let mut failures = Vec::new();
+    let mut replayed = 0usize;
+    for (index, cell) in licensed_support_cells().into_iter().enumerate() {
+        if index % 9 != 0 {
+            continue;
+        }
+        let coordinate = cell_coordinate(cell);
+        let (first, second) = match (replay_cell(cell), replay_cell(cell)) {
+            (Ok(first), Ok(second)) => (first, second),
+            (Err(error), _) | (_, Err(error)) => {
+                failures.push(error);
+                continue;
+            }
+        };
+        replayed += 1;
+        if first.effect.to_bits() != second.effect.to_bits() {
+            failures.push(format!("{coordinate}: reruns differ {} vs {}", first.effect, second.effect));
+        }
+        if first.lowered.is_none() || first.lowered != second.lowered {
+            failures.push(format!("{coordinate}: the lowered program identity did not replay"));
+        }
+        if let Some(wire) = first.wire_estimate {
+            if first.scalar_effect && first.effect.is_finite() {
+                let allowed = 1e-9 * first.effect.abs().max(1.0);
+                if (wire - first.effect).abs() > allowed {
+                    failures.push(format!(
+                        "{coordinate}: consumer read {wire}, route published {}",
+                        first.effect
+                    ));
+                }
+            }
+        }
+    }
+    assert!(replayed >= 60, "the sample drifted: {replayed} cells");
+    assert!(failures.is_empty(), "{} replay failures:\n{}", failures.len(), failures.join("\n"));
+}

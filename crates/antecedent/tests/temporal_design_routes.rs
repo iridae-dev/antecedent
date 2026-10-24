@@ -691,3 +691,108 @@ fn the_exported_artifact_carries_the_section_and_a_fresh_consumer_rejects_forger
         .is_err()
     );
 }
+
+/// A decision-time covariate drives both the treatment and the outcome, and no assignment
+/// probability is recorded: the excursion effect on the same-period outcome is `effect`.
+fn observational_panel(
+    units: usize,
+    effect: f64,
+    seed: u64,
+) -> (TabularData, TemporalDesignQuery, f64) {
+    let expit = |x: f64| 1.0 / (1.0 + (-x).exp());
+    let mut stream = Stream(seed);
+    let (mut labels_of_rows, mut periods) = (Vec::new(), Vec::new());
+    let (mut outcome, mut treated, mut covariate) = (Vec::new(), Vec::new(), Vec::new());
+    for i in 0..units {
+        for t in 0..4_i64 {
+            let x = 2.0 * stream.next() - 1.0;
+            let a = stream.next() < expit(1.2 * x);
+            let y = effect * f64::from(u8::from(a)) + 3.0 * x + (stream.next() - 0.5);
+            labels_of_rows.push(format!("u{i}"));
+            periods.push(t);
+            outcome.push(y);
+            treated.push(f64::from(u8::from(a)));
+            covariate.push(x);
+        }
+    }
+    let (mut sums, mut counts) = ([0.0_f64; 2], [0.0_f64; 2]);
+    for (y, a) in outcome.iter().zip(&treated) {
+        let arm = usize::from(*a > 0.5);
+        sums[arm] += y;
+        counts[arm] += 1.0;
+    }
+    let naive = sums[1] / counts[1] - sums[0] / counts[0];
+    let data =
+        table(&[("y", outcome.as_slice()), ("a", treated.as_slice()), ("x", covariate.as_slice())]);
+    let query = TemporalDesignQuery {
+        outcome: VariableId::from_raw(0),
+        units: labels(&labels_of_rows),
+        periods: periods.as_slice().into(),
+        lag: 0,
+        assignment: TemporalAssignment::ObservationalExcursion {
+            treatment: VariableId::from_raw(1),
+            history: Arc::from([VariableId::from_raw(2)]),
+        },
+        functional: TemporalDesignFunctional::Mean,
+        min_probability: 0.05,
+        outcome_misclassification: None,
+    };
+    (data, query, naive)
+}
+
+#[test]
+fn the_observational_excursion_fits_its_assignment_law_and_removes_confounding() {
+    let (data, query, naive) = observational_panel(400, 1.0, 83);
+    let ctx = ExecutionContext::for_tests(89);
+    let frequentist = run(&data, query.clone(), InferenceMode::Frequentist, 99, &ctx);
+    let fit = section(&frequentist);
+    assert_eq!(&*fit.design, "observational_excursion");
+    assert_eq!(&*fit.calibration, "unmeasured");
+    assert!(!fit.licensed);
+    assert!(fit.replicates.is_some_and(|(done, failed)| done + failed == 99));
+    assert!(
+        (fit.estimate[0] - 1.0).abs() < 4.0 * fit.standard_error[0] + 0.05,
+        "{} (se {}) vs 1.0",
+        fit.estimate[0],
+        fit.standard_error[0]
+    );
+    // The raw contrast of treated and control means is confounded well above the effect.
+    assert!(naive > 1.6, "raw contrast {naive}");
+    let posterior = run(&data, query, bayesian(200), 0, &ctx);
+    let draws_fit = section(&posterior);
+    assert_eq!(draws_fit.draws, Some(200));
+    assert!(
+        (draws_fit.estimate[0] - 1.0).abs() < 4.0 * draws_fit.standard_error[0] + 0.05,
+        "{} vs 1.0",
+        draws_fit.estimate[0]
+    );
+}
+
+#[test]
+fn the_observational_excursion_refuses_what_it_cannot_identify_or_resample() {
+    let (data, query, _) = observational_panel(60, 1.0, 97);
+    let ctx = ExecutionContext::for_tests(101);
+    // The interval is a whole-procedure bootstrap: no replicates, no interval.
+    let missing = Study::tabular(data.clone())
+        .query(CausalQuery::TemporalDesign(query.clone()))
+        .build()
+        .and_then(|study| study.run(&ctx));
+    assert!(missing.is_err());
+    // A treatment column that is not coded 0/1 is refused, not rounded.
+    let (zeros, halves) = (vec![0.0; 240], vec![0.5; 240]);
+    let wrong =
+        table(&[("y", zeros.as_slice()), ("a", halves.as_slice()), ("x", zeros.as_slice())]);
+    let refused = Study::tabular(wrong)
+        .query(CausalQuery::TemporalDesign(query.clone()))
+        .bootstrap_replicates(99)
+        .build()
+        .and_then(|study| study.run(&ctx));
+    assert!(refused.is_err());
+    // The outcome cannot also be a history column.
+    let mut bad = query;
+    bad.assignment = TemporalAssignment::ObservationalExcursion {
+        treatment: VariableId::from_raw(1),
+        history: Arc::from([VariableId::from_raw(0)]),
+    };
+    assert!(bad.validate().is_err());
+}

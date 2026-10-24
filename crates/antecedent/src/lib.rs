@@ -50,6 +50,7 @@
 
 pub mod accepted;
 pub mod analysis;
+pub mod bootstrap_retention;
 pub mod callback_plan;
 pub mod class_prior;
 pub mod counterfactual_id;
@@ -70,6 +71,7 @@ pub mod planner;
 pub mod prelude;
 pub mod report;
 pub mod result;
+pub mod retained_refresh;
 pub mod review;
 pub mod state;
 pub mod strategy_table;

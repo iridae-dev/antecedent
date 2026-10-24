@@ -135,12 +135,12 @@ sealed_executions! {
     BayesianSpecialist(Box<crate::analysis::execute::CheckedBayesianSpecialistOperation>),
     EstimatorRoute(crate::analysis::execute::CheckedRouteOperation),
     FreshRun(crate::analysis::execute::CheckedRouteOperation),
-    Discovery(crate::analysis::execute::CheckedRouteOperation),
+    Discovery(crate::analysis::execute::CheckedDiscoveryOperation),
     PanelTemporal(crate::analysis::execute::CheckedRouteOperation),
     MultiEnvTemporal(crate::analysis::execute::CheckedRouteOperation),
     TemporalCrossWorld(crate::analysis::execute::CheckedRouteOperation),
     TemporalAdmgEffect(crate::analysis::execute::CheckedRouteOperation),
-    Association(crate::analysis::execute::CheckedRouteOperation),
+    Association(crate::analysis::execute::CheckedAssociationOperation),
     TransportTrial(Box<crate::analysis::execute::CheckedTransportTrialOperation>),
 }
 

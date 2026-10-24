@@ -85,6 +85,26 @@ pub(crate) enum RouteInput<'a> {
         query: &'a PathSpecificEffectQuery,
         graph: &'a Dag,
     },
+    /// A path-restricted natural effect, or a natural direct effect, on a mixed graph:
+    /// identified by the path-specific identifier over the ADMG (the district formula when
+    /// latent confounding reaches the outcome's ancestors) and estimated on the table.
+    PathSpecificMixed {
+        data: &'a TabularData,
+        source: PathSpecificMixedSource<'a>,
+    },
+    /// A path-restricted natural effect, or a natural direct effect, over the DAG completions
+    /// of a supplied CPDAG: identified in each completion and read as an identified set.
+    PathSpecificCpdag {
+        data: &'a TabularData,
+        source: PathSpecificMixedSource<'a>,
+    },
+    /// A path-restricted natural effect, or a natural direct effect, over a supplied PAG: read
+    /// through the ADMGs that share the m-separation model of each MAG completion, since a
+    /// MAG fixes the effect's graph only up to that model.
+    PathSpecificPag {
+        data: &'a TabularData,
+        source: PathSpecificMixedSource<'a>,
+    },
     ConditionalDag {
         data: &'a TabularData,
         query: &'a ConditionalEffectQuery,
@@ -133,6 +153,13 @@ pub(crate) enum RouteInput<'a> {
         data: &'a TimeSeriesData,
         query: &'a ResponseQuery,
     },
+    /// A derivative at one horizon on a temporal ADMG, identified by an adjustment set of the
+    /// unrolled window of the template and estimated by the lag-aligned slope regression.
+    TemporalResponseAdmg {
+        data: &'a TimeSeriesData,
+        query: &'a ResponseQuery,
+        graph: &'a TemporalAdmg,
+    },
     MultiEnvTemporalEffect {
         multi: &'a MultiEnvironmentData,
         query: &'a TemporalEffectQuery,
@@ -176,10 +203,13 @@ pub(crate) enum RouteInput<'a> {
         query: &'a TransportQuery,
         class: GraphClass,
     },
+    /// An exposure contrast under a known assignment mechanism on a fixed network. The
+    /// structure binds the unit schema and names the class the contrast is stated under; the
+    /// design, not the structure, identifies the contrast.
     InterferenceDag {
         data: &'a TabularData,
         query: &'a InterferenceQuery,
-        graph: &'a Dag,
+        class: GraphClass,
     },
     RandomizedEffect {
         data: &'a TabularData,
@@ -276,6 +306,18 @@ pub(crate) enum RouteInput<'a> {
         data: &'a TabularData,
         graph: &'a Dag,
     },
+}
+
+/// Query of a path-specific mixed-graph cell already opened by
+/// [`Study::route_input_classified`].
+#[derive(Clone, Copy)]
+pub(crate) enum PathSpecificMixedSource<'a> {
+    PathSpecific(&'a PathSpecificEffectQuery),
+    /// The natural direct effect, read as the effect along the edges that avoid the mediator.
+    Nested(&'a NestedCounterfactualQuery),
+    /// A mediation decomposition: the total, natural direct and natural indirect effects,
+    /// each identified over the structure and estimated on the same rows.
+    Mediation(&'a MediationQuery),
 }
 
 /// Static-mediation query already opened by [`Study::route_input_classified`].
@@ -414,6 +456,71 @@ fn static_route_input<'a>(
             query: path_specific(study),
             graph: dag,
         },
+        (AnalysisRoute::PathSpecific, GraphRef::Admg(_) | GraphRef::TemporalAdmg(_)) => {
+            RouteInput::PathSpecificMixed {
+                data: tabular(study),
+                source: PathSpecificMixedSource::PathSpecific(path_specific(study)),
+            }
+        }
+        (AnalysisRoute::StaticMediation, GraphRef::Admg(_) | GraphRef::TemporalAdmg(_))
+            if matches!(study.query, CausalQuery::NestedCounterfactual(_)) =>
+        {
+            let CausalQuery::NestedCounterfactual(query) = &study.query else { unreachable!() };
+            RouteInput::PathSpecificMixed {
+                data: tabular(study),
+                source: PathSpecificMixedSource::Nested(query),
+            }
+        }
+        (AnalysisRoute::StaticMediation, GraphRef::Admg(_) | GraphRef::TemporalAdmg(_))
+            if matches!(study.query, CausalQuery::Mediation(_)) =>
+        {
+            RouteInput::PathSpecificMixed {
+                data: tabular(study),
+                source: PathSpecificMixedSource::Mediation(mediation(study)),
+            }
+        }
+        (AnalysisRoute::StaticMediation, GraphRef::Cpdag(_))
+            if matches!(study.query, CausalQuery::Mediation(_)) =>
+        {
+            RouteInput::PathSpecificCpdag {
+                data: tabular(study),
+                source: PathSpecificMixedSource::Mediation(mediation(study)),
+            }
+        }
+        (AnalysisRoute::StaticMediation, GraphRef::Pag(_))
+            if matches!(study.query, CausalQuery::Mediation(_)) =>
+        {
+            RouteInput::PathSpecificPag {
+                data: tabular(study),
+                source: PathSpecificMixedSource::Mediation(mediation(study)),
+            }
+        }
+        (AnalysisRoute::PathSpecific, GraphRef::Cpdag(_)) => RouteInput::PathSpecificCpdag {
+            data: tabular(study),
+            source: PathSpecificMixedSource::PathSpecific(path_specific(study)),
+        },
+        (AnalysisRoute::PathSpecific, GraphRef::Pag(_)) => RouteInput::PathSpecificPag {
+            data: tabular(study),
+            source: PathSpecificMixedSource::PathSpecific(path_specific(study)),
+        },
+        (AnalysisRoute::StaticMediation, GraphRef::Pag(_))
+            if matches!(study.query, CausalQuery::NestedCounterfactual(_)) =>
+        {
+            let CausalQuery::NestedCounterfactual(query) = &study.query else { unreachable!() };
+            RouteInput::PathSpecificPag {
+                data: tabular(study),
+                source: PathSpecificMixedSource::Nested(query),
+            }
+        }
+        (AnalysisRoute::StaticMediation, GraphRef::Cpdag(_))
+            if matches!(study.query, CausalQuery::NestedCounterfactual(_)) =>
+        {
+            let CausalQuery::NestedCounterfactual(query) = &study.query else { unreachable!() };
+            RouteInput::PathSpecificCpdag {
+                data: tabular(study),
+                source: PathSpecificMixedSource::Nested(query),
+            }
+        }
         (AnalysisRoute::Conditional, GraphRef::Dag(dag)) => RouteInput::ConditionalDag {
             data: tabular(study),
             query: conditional(study),
@@ -466,6 +573,13 @@ fn temporal_route_input<'a>(
                 data: series(study),
                 query: response_query(study),
                 graph: temporal_dag,
+            }
+        }
+        (AnalysisRoute::TemporalResponse, GraphRef::TemporalAdmg(temporal_admg)) => {
+            RouteInput::TemporalResponseAdmg {
+                data: series(study),
+                query: response_query(study),
+                graph: temporal_admg,
             }
         }
         (
@@ -539,14 +653,20 @@ fn design_route_input<'a>(
 ) -> Option<RouteInput<'a>> {
     let class = graph.class();
     Some(match (route, graph) {
-        (AnalysisRoute::Transport, GraphRef::Admg(_) | GraphRef::TemporalAdmg(_)) => {
-            RouteInput::TransportMixed { data: tabular(study), query: transport(study), class }
+        (
+            AnalysisRoute::Transport,
+            GraphRef::Dag(_) | GraphRef::Admg(_) | GraphRef::TemporalAdmg(_),
+        ) => RouteInput::TransportMixed { data: tabular(study), query: transport(study), class },
+        (
+            AnalysisRoute::Interference,
+            GraphRef::Dag(_)
+            | GraphRef::Admg(_)
+            | GraphRef::Cpdag(_)
+            | GraphRef::Pag(_)
+            | GraphRef::TemporalAdmg(_),
+        ) => {
+            RouteInput::InterferenceDag { data: tabular(study), query: interference(study), class }
         }
-        (AnalysisRoute::Interference, GraphRef::Dag(dag)) => RouteInput::InterferenceDag {
-            data: tabular(study),
-            query: interference(study),
-            graph: dag,
-        },
         (AnalysisRoute::RandomizedEffect, GraphRef::RandomizedTrial) => {
             RouteInput::RandomizedEffect { data: tabular(study), query: randomized_effect(study) }
         }

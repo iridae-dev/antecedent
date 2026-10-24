@@ -285,6 +285,7 @@ fn every_cyclic_family_lowers_to_a_complete_program_with_a_stable_identity() {
             crate::planner::PlanStage::Compiled,
         );
         assert_eq!(view.identity(), first.identity(), "{family}: the view reads the program");
+        crate::planner::plan_view::checks::assert_operations_derive(family, &view);
         assert_eq!(view.route(), crate::planner::PlanRoute::CyclicFamily(family));
         assert_eq!(view.family(), crate::planner::RouteFamily::Cyclic);
         assert_eq!(

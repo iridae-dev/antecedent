@@ -166,9 +166,12 @@ fn average_effect_on_a_temporal_graph_is_the_executing_lag_zero_cell() {
                 assert!(super::executes_unlicensed(c), "{c:?}");
             }
         }
-        let posterior = cell("AverageEffect", graph, "graph_posterior", "Frequentist", "none");
-        assert!(matches!(classify(posterior), CellStatus::Refused));
-        assert!(!super::executes_unlicensed(posterior));
+        // Over a graph posterior the same pulse is compiled, so the cell executes too.
+        for inference in ["Frequentist", "Bayesian"] {
+            let posterior = cell("AverageEffect", graph, "graph_posterior", inference, "none");
+            assert!(matches!(classify(posterior), CellStatus::Refused), "{posterior:?}");
+            assert!(super::executes_unlicensed(posterior), "{posterior:?}");
+        }
         let conditional = cell("ConditionalEffect", graph, "explicit", "Frequentist", "none");
         assert!(matches!(classify(conditional), CellStatus::NotApplicable { .. }));
     }
@@ -599,23 +602,26 @@ fn closed_conditional_effect_off_dag_is_enforced() {
 
 #[test]
 fn closed_path_and_distribution_on_explicit_admg_pag_is_enforced() {
-    for graph in ["Admg", "Pag"] {
-        let status = classify(cell("PathSpecificEffect", graph, "explicit", "Frequentist", "none"));
-        assert_eq!(status, CellStatus::Refused, "PathSpecificEffect/{graph}");
-        let err = refuse_if_not_applicable(cell(
-            "PathSpecificEffect",
-            graph,
-            "explicit",
-            "Frequentist",
-            "none",
-        ))
-        .unwrap_err();
-        assert!(
-            err.to_string().starts_with(
-                "refused: Path-specific queries execute only on a supplied static Dag"
-            ),
-            "PathSpecificEffect/{graph}: {err}"
-        );
+    // A supplied Pag, Admg or Cpdag path-specific effect executes unlicensed, and an accepted
+    // Pag does too; a supplied Pag distribution query has no route.
+    for structure in ["explicit", "accepted"] {
+        let pag = cell("PathSpecificEffect", "Pag", structure, "Frequentist", "none");
+        assert_eq!(classify(pag), CellStatus::Refused, "PathSpecificEffect/Pag/{structure}");
+        assert!(super::executes_unlicensed(pag), "PathSpecificEffect/Pag/{structure}");
+    }
+    for graph in ["Admg", "TemporalAdmg", "Cpdag", "Pag"] {
+        for inference in ["Frequentist", "Bayesian"] {
+            let c = cell("PathSpecificEffect", graph, "explicit", inference, "none");
+            assert_eq!(classify(c), CellStatus::Refused, "PathSpecificEffect/{graph}");
+            assert!(super::executes_unlicensed(c), "PathSpecificEffect/{graph}/{inference}");
+            for validation in ["cheap", "full"] {
+                let c = cell("PathSpecificEffect", graph, "explicit", inference, validation);
+                assert!(!super::executes_unlicensed(c), "{c:?}");
+            }
+        }
+        let c = cell("NestedCounterfactualEffect", graph, "explicit", "Frequentist", "none");
+        assert_eq!(classify(c), CellStatus::Refused, "NestedCounterfactualEffect/{graph}");
+        assert!(super::executes_unlicensed(c), "NestedCounterfactualEffect/{graph}");
     }
     assert_eq!(
         classify(cell("InterventionalDistribution", "Admg", "explicit", "Frequentist", "none")),

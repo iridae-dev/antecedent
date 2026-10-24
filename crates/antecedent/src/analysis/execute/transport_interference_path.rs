@@ -193,6 +193,24 @@ impl super::Study {
                 (estimate, None, EstimatorId::TransportTrialIpw, diagnostic)
             }
         };
+        // The calibration and overlap checks of the supplied probabilities and, under full
+        // validation, a whole-procedure bootstrap of the transported contrast.
+        let refutations = super::transport_refutation::refute_transport(
+            &super::transport_refutation::TransportRefutationInput {
+                transport: transport_id,
+                outcomes: &outcomes,
+                treatment: &treatment_bool,
+                trial: &trial_bool,
+                selection: &selection,
+                propensity: &propensity,
+                overlap: transported.overlap,
+                published: estimate.ate,
+                suite: self.refute,
+                series_block,
+                replicates: self.bootstrap_replicates,
+            },
+            ctx,
+        )?;
         let mut result = self.finish_identified_execute(
             IdentifiedExecuteFinish::new(
                 physical,
@@ -204,6 +222,7 @@ impl super::Study {
                 outcome,
             )
             .identify_cached(identify_cached)
+            .refutations(refutations)
             .extra_diagnostics(vec![diagnostic])
             .wall_time_ns(elapsed_ns(started))
             .cancelled(ctx.cancellation.is_cancelled()),

@@ -295,13 +295,9 @@ impl PreparedScientificBridge {
         standard_error: Option<f64>,
         nonlinear: Option<NonlinearMap>,
     ) -> Result<ScientificBridgeResult, ScientificBridgeRefusal> {
-        let bridged = derive_bridged_claim_propagating(
-            &self.contract,
-            source,
-            standard_error,
-            nonlinear,
-        )
-        .map_err(|refusal| ScientificBridgeRefusal::from_contract(&refusal))?;
+        let bridged =
+            derive_bridged_claim_propagating(&self.contract, source, standard_error, nonlinear)
+                .map_err(|refusal| ScientificBridgeRefusal::from_contract(&refusal))?;
         Ok(ScientificBridgeResult {
             bridged,
             source: source.claim.clone(),

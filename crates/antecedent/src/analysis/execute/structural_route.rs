@@ -289,7 +289,7 @@ impl super::Study {
     }
 
     /// Execute a structure search on the study's tabular rows.
-    pub(super) fn execute_discover_tabular(
+    pub(crate) fn execute_discover_tabular(
         &self,
         data: &TabularData,
         physical: &PhysicalExecutionPlan,
@@ -299,7 +299,7 @@ impl super::Study {
     }
 
     /// Execute a structure search on `data`, whatever its modality.
-    pub(super) fn execute_discover(
+    pub(crate) fn execute_discover(
         &self,
         data: &DataInput,
         physical: &PhysicalExecutionPlan,
@@ -320,6 +320,9 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        // The search runs only from the program compile lowered for this study's cell, whether
+        // it is entered through the dispatcher or directly.
+        physical.require_lowered(crate::analysis::lowering::expected_cell(self))?;
         let started = Instant::now();
         let CausalQuery::Discover(query) = &self.query else {
             return Err(CausalError::Compile {

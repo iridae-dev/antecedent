@@ -356,3 +356,51 @@ fn every_association_counterpart_publishes_an_artifact_a_consumer_reads_the_term
         assert!(consumed.contract.is_some(), "{modality}");
     }
 }
+
+#[test]
+fn every_association_counterpart_retains_its_own_operation_and_executes_its_program() {
+    let query = AssociationQuery::new(v(1), [v(0)]);
+    let (table, x, y) = line();
+    let rows = series(120);
+    let n = x.len() as f64;
+    let (mx, my) = (x.iter().sum::<f64>() / n, y.iter().sum::<f64>() / n);
+    let sxx: f64 = x.iter().map(|a| (a - mx).powi(2)).sum();
+    let slope = x.iter().zip(&y).map(|(a, b)| (a - mx) * (b - my)).sum::<f64>() / sxx;
+    let bayesian = || InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(200));
+
+    for inference in [InferenceMode::Frequentist, bayesian()] {
+        let posterior = matches!(inference, InferenceMode::Bayesian(_));
+
+        let study = Study::tabular(table.clone())
+            .query(CausalQuery::Association(query.clone()))
+            .inference(inference.clone())
+            .build()
+            .unwrap();
+        let program = study.compile(&ctx(9)).unwrap().lowered().unwrap().identity();
+        let prepared = study.prepare(&ctx(9)).unwrap();
+        assert!(matches!(prepared.retained_operation(), RetainedOperation::Association));
+        assert_eq!(prepared.plan().lowered_program_identity(), Some(program));
+        let result = prepared.estimate(&table, &ctx(9)).unwrap();
+        assert_eq!(result.lowered_program_identity(), Some(program));
+        let term = &result.association().unwrap().estimate.terms[1];
+        assert!((term.estimate - slope).abs() < if posterior { 0.02 } else { 1e-8 });
+        assert_eq!(term.posterior.is_some(), posterior);
+
+        let study = Study::series(rows.clone())
+            .query(CausalQuery::Association(query.clone()))
+            .inference(inference)
+            .build()
+            .unwrap();
+        let program = study.compile(&ctx(9)).unwrap().lowered().unwrap().identity();
+        let prepared = study.prepare(&ctx(9)).unwrap();
+        assert!(matches!(prepared.retained_operation(), RetainedOperation::Association));
+        assert_eq!(prepared.plan().lowered_program_identity(), Some(program));
+        let first = prepared.estimate_series(&rows, &ctx(9)).unwrap();
+        assert_eq!(first.lowered_program_identity(), Some(program));
+        let again = prepared.estimate_series(&rows, &ctx(9)).unwrap();
+        let terms = &first.association().unwrap().estimate.terms;
+        assert!(terms.iter().all(|term| term.estimate.is_finite()));
+        assert_eq!(terms, &again.association().unwrap().estimate.terms, "the seed fixes the draws");
+        assert_eq!(terms.iter().all(|term| term.posterior.is_some()), posterior);
+    }
+}

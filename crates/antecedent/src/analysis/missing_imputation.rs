@@ -1,4 +1,5 @@
-//! Multiple imputation on the average-effect route: impute, fit, pool as one path.
+//! Multiple imputation on the average-effect route: impute, fit, pool as one path. Routes whose
+//! answer has several coordinates pool them jointly in `missing_imputation_vector`.
 //!
 //! The study's declared [`ImputationSpec`] draws completed tables with
 //! [`antecedent_estimate::multiple_imputation`]; the route's own estimator (the retained
@@ -23,13 +24,16 @@ use antecedent_data::{
 use antecedent_estimate::EstimationError;
 use antecedent_estimate::bayesian::CausalPosterior;
 use antecedent_estimate::multiple_imputation::{
-    self, ImputationColumn, ImputationFit, ImputationUnits, Imputer, MultipleImputationFailure,
-    PooledEstimate,
+    self, ImputationColumn, ImputationFit, Imputer, MultipleImputationFailure, PooledEstimate,
 };
 use antecedent_prob::PosteriorDraws;
 
+use super::builder::DataInput;
 use super::execute::Study;
 use super::missing_data::{self, MissingRoute};
+pub(crate) use super::missing_imputation_vector::{
+    declared_assumptions_digest, impute_fit_pool_series,
+};
 use super::missing_support::route_missing_support;
 use crate::error::CausalError;
 use crate::result::{ImputationReport, StudyResult};
@@ -40,7 +44,7 @@ pub(crate) fn declared_imputation(study: &Study) -> Option<(&MissingDeclaration,
     declaration.policy.imputation().map(|spec| (declaration, spec))
 }
 
-fn refused(message: impl Into<String>) -> CausalError {
+pub(super) fn refused(message: impl Into<String>) -> CausalError {
     CausalError::Estimate(EstimationError::refused(
         antecedent_core::reason_code!("missing_policy_not_applicable"),
         format!("missing_data.multiple_imputation: {}", message.into()),
@@ -49,7 +53,7 @@ fn refused(message: impl Into<String>) -> CausalError {
 
 /// The variables the imputation model reads: every float column when no auxiliary variable
 /// is declared, else the query's treatment and outcome and the declared auxiliary variables.
-fn model_variables(
+pub(super) fn model_variables(
     study: &Study,
     declaration: &MissingDeclaration,
     data: &TabularData,
@@ -74,10 +78,10 @@ fn model_variables(
         }
         return Ok(float_ids);
     }
-    let CausalQuery::AverageEffect(query) = &study.query else {
-        return Err(refused("multiple imputation runs on average-effect queries"));
-    };
-    let mut ids = vec![query.treatment, query.outcome];
+    let mut ids = super::missing_imputation_vector::query_variables(&study.query);
+    if ids.is_empty() {
+        return Err(refused("this query names no variable the imputation model can anchor on"));
+    }
     for &id in declaration.covariates.iter() {
         if !ids.contains(&id) {
             ids.push(id);
@@ -95,22 +99,36 @@ fn model_variables(
 }
 
 /// The imputer for `data` under the study's declaration.
-fn build_imputer(
+pub(super) fn build_imputer(
     study: &Study,
     declaration: &MissingDeclaration,
     spec: ImputationSpec,
     data: &TabularData,
 ) -> Result<(Imputer, Vec<VariableId>), CausalError> {
+    build_imputer_with(study, declaration, spec, data, Vec::new(), None)
+}
+
+/// [`build_imputer`] with complete `extra` columns appended to the imputation model after the
+/// table's own (a design variable the table does not hold, such as a randomized assignment) and
+/// the sampling `groups` the parameter draws resample, when the design declares them.
+pub(super) fn build_imputer_with(
+    study: &Study,
+    declaration: &MissingDeclaration,
+    spec: ImputationSpec,
+    data: &TabularData,
+    extra: Vec<ImputationColumn>,
+    groups: Option<Arc<[u32]>>,
+) -> Result<(Imputer, Vec<VariableId>), CausalError> {
     let ids = model_variables(study, declaration, data)?;
-    let mut columns = Vec::with_capacity(ids.len());
+    let mut columns = Vec::with_capacity(ids.len() + extra.len());
     for &id in &ids {
         let name = Arc::clone(&data.schema().get(id)?.name);
-        let values: Arc<[f64]> = Arc::from(data.float64_slice(id)?);
+        let values: Arc<[f64]> = Arc::from(data.float64_values(id)?);
         columns.push(ImputationColumn::new(name, values));
     }
-    let units = multiple_imputation::bind_units(study.sampling_design, None, data.row_count())
+    columns.extend(extra);
+    let units = multiple_imputation::bind_units(study.sampling_design, groups, data.row_count())
         .map_err(|error| CausalError::Estimate(error.into()))?;
-    debug_assert!(matches!(units, ImputationUnits::Rows));
     let imputer =
         Imputer::new(columns, spec, units).map_err(|error| CausalError::Estimate(error.into()))?;
     Ok((imputer, ids))
@@ -155,7 +173,9 @@ fn fit_of(result: &StudyResult, bayesian: bool) -> Result<ImputationFit, CausalE
 }
 
 /// Stack the per-imputation posteriors column by column into one equal-weight mixture.
-fn stacked_posterior(posteriors: &[CausalPosterior]) -> Result<CausalPosterior, CausalError> {
+pub(super) fn stacked_posterior(
+    posteriors: &[CausalPosterior],
+) -> Result<CausalPosterior, CausalError> {
     let first = posteriors.first().ok_or_else(|| refused("no posterior to stack"))?;
     let n = first.draws.n_draws;
     let quantities = first.draws.schema.n_quantities();
@@ -205,6 +225,9 @@ pub(crate) fn impute_fit_pool<F>(
 where
     F: FnMut(&TabularData, &ExecutionContext) -> Result<StudyResult, CausalError>,
 {
+    if !matches!(study.query, CausalQuery::AverageEffect(_)) {
+        return super::missing_imputation_vector::impute_fit_pool_vector(study, data, ctx, click);
+    }
     let (declaration, spec) =
         declared_imputation(study).ok_or_else(|| refused("no imputation is declared"))?;
     let cell = missing_data::route_cell(&study.query, &study.data, &study.inference);
@@ -252,6 +275,9 @@ where
         MultipleImputationFailure::Fit { error, .. } => error,
     })?;
     let mut result = base.ok_or_else(|| refused("no completed table was fitted"))?;
+    let mut assumptions = run.assumptions.clone();
+    assumptions.design = study.sampling_design;
+    let assumptions_digest: Arc<str> = Arc::from(assumptions.digest());
     let points: Arc<[f64]> = run.fits.iter().map(|fit| fit.point).collect();
     let estimator: Arc<str> = Arc::from(result.logical_plan.estimator.as_deref().unwrap_or(""));
     let report = match &run.pooled {
@@ -282,6 +308,9 @@ where
                     .relative_increase
                     .is_finite()
                     .then_some(pooled.relative_increase),
+                assumptions_digest,
+                lags: 0,
+                vector: None,
             }
         }
         PooledEstimate::Stacked(stacked) => {
@@ -307,6 +336,9 @@ where
                 df_complete: None,
                 fraction_missing_information: None,
                 relative_increase: None,
+                assumptions_digest,
+                lags: 0,
+                vector: None,
             }
         }
         _ => return Err(refused("the pooling rule is not one this route reports")),
@@ -330,13 +362,15 @@ where
 }
 
 /// The variables the result's estimand reads, in report order.
-fn analysed_variables(result: &StudyResult) -> Vec<VariableId> {
+pub(super) fn analysed_variables(result: &StudyResult) -> Vec<VariableId> {
     let mut variables: Vec<VariableId> = Vec::new();
     for id in result
         .treatment
         .into_iter()
         .chain(std::iter::once(result.outcome))
         .chain(result.estimand.adjustment_set.iter().copied())
+        .chain(result.estimand.instruments.iter().copied())
+        .chain(result.estimand.mediators.iter().copied())
     {
         if !variables.contains(&id) {
             variables.push(id);
@@ -347,7 +381,7 @@ fn analysed_variables(result: &StudyResult) -> Vec<VariableId> {
 
 /// Refuse when a variable the estimator reads is incomplete and outside the imputation
 /// model: its estimator would drop those rows silently.
-fn check_analysed_variables(
+pub(super) fn check_analysed_variables(
     result: &StudyResult,
     data: &TabularData,
     imputed: &[VariableId],
@@ -368,16 +402,27 @@ fn check_analysed_variables(
     Ok(())
 }
 
-/// Whether `study` declares multiple imputation on a tabular average-effect route.
+/// Whether `study` declares multiple imputation on a tabular route that executes it: the
+/// static adjustment routes and the randomized two-arm routes.
 pub(crate) fn imputes(study: &Study) -> bool {
     declared_imputation(study).is_some()
-        && matches!(MissingRoute::of(&study.query, &study.data), Some(MissingRoute::Static))
-        && matches!(study.query, CausalQuery::AverageEffect(_))
+        && matches!(study.data, DataInput::Tabular(_))
+        && matches!(
+            MissingRoute::of(&study.query, &study.data),
+            Some(MissingRoute::Static | MissingRoute::Randomized)
+        )
+}
+
+/// Whether `study` declares multiple imputation on a single time series.
+pub(crate) fn imputes_series(study: &Study) -> bool {
+    declared_imputation(study).is_some()
+        && matches!(study.data, DataInput::Temporal(_))
+        && matches!(MissingRoute::of(&study.query, &study.data), Some(MissingRoute::Temporal))
 }
 
 /// The policy name the claim evidence carries for an imputation report.
 #[must_use]
-pub(crate) fn evidence_entries(report: &ImputationReport) -> [String; 2] {
+pub(crate) fn evidence_entries(report: &ImputationReport) -> [String; 3] {
     [
         format!(
             "missing_imputation:{}:m={}:iterations={}:seed={}:{}",
@@ -391,5 +436,6 @@ pub(crate) fn evidence_entries(report: &ImputationReport) -> [String; 2] {
             "missing_imputation_pool:{}:within={:e}:between={:e}",
             report.pooling, report.within, report.between
         ),
+        format!("missing_imputation_assumptions:{}", report.assumptions_digest),
     ]
 }

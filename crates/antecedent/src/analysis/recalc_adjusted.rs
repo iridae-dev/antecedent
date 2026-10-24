@@ -586,7 +586,7 @@ pub fn execute_adjusted_with_receipt(
     if recomputed(&plan, Stage::ScoreArtifact) {
         guard_adjusted_memory(request, ctx)?;
     }
-    let mut recorder = ReceiptRecorder::new();
+    let mut recorder = ReceiptRecorder::charged_to(ctx);
     let held = session.live.as_ref();
     let mut execute = || -> Result<Live, RecalcRunError> {
         let checked = if recomputed(&plan, Stage::Identification) {

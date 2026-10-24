@@ -54,6 +54,82 @@ const DEPTH: usize = 32;
 const SUPPORT_ROWS: usize = 8;
 const STATIC_REGIME: u32 = 0;
 const HORIZON_REGIME: u32 = 1;
+/// Most rows one count table may expand into when it is read back through the data seam.
+const MAX_TABLE_ROWS: u64 = 1 << 22;
+/// Tail mass of the equal-tailed posterior interval.
+const POSTERIOR_TAIL: f64 = 0.025;
+/// Largest departure of the posterior weights from one.
+const WEIGHT_TOLERANCE: f64 = 1e-9;
+
+/// One posterior draw of the joint, as a count table, and its weight.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct PosteriorDraw {
+    counts: [u64; 8],
+    weight: f64,
+}
+
+/// A frequency table over `(treatment, confounder, outcome)` and the posterior draws of
+/// the same joint. The frequentist cells plan the table; the Bayesian cells plan each
+/// draw and mix the results by weight.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct DiscreteInputs {
+    counts: [u64; 8],
+    draws: Vec<PosteriorDraw>,
+}
+
+impl DiscreteInputs {
+    /// Inputs from a frequency table and weighted posterior draws.
+    ///
+    /// # Errors
+    ///
+    /// A table has no mass or is too large to read back, there is no draw, or a weight is
+    /// negative, not finite, or the weights do not sum to one.
+    pub(crate) fn new(
+        counts: [u64; 8],
+        draws: impl IntoIterator<Item = ([u64; 8], f64)>,
+    ) -> Result<Self, crate::CausalError> {
+        let draws: Vec<PosteriorDraw> =
+            draws.into_iter().map(|(counts, weight)| PosteriorDraw { counts, weight }).collect();
+        if draws.is_empty() {
+            return Err(compile("a finite-discrete posterior needs at least one draw"));
+        }
+        for table in std::iter::once(&counts).chain(draws.iter().map(|draw| &draw.counts)) {
+            let total = table_total(table)?;
+            if total == 0 {
+                return Err(compile("a finite-discrete table has no mass"));
+            }
+            if total > MAX_TABLE_ROWS {
+                return Err(compile("a finite-discrete table is too large to read back"));
+            }
+        }
+        if draws.iter().any(|draw| !(draw.weight.is_finite() && draw.weight >= 0.0)) {
+            return Err(compile("a posterior draw weight is negative or not finite"));
+        }
+        let mass: f64 = draws.iter().map(|draw| draw.weight).sum();
+        if (mass - 1.0).abs() > WEIGHT_TOLERANCE {
+            return Err(compile("the posterior draw weights do not sum to one"));
+        }
+        Ok(Self { counts, draws })
+    }
+
+    /// The reference table: a 64-row frequency table and two posterior draws.
+    pub(crate) fn reference() -> Self {
+        Self {
+            counts: FREQUENCY_COUNTS,
+            draws: vec![
+                PosteriorDraw { counts: DRAW_LOW, weight: DRAW_WEIGHTS[0] },
+                PosteriorDraw { counts: DRAW_HIGH, weight: DRAW_WEIGHTS[1] },
+            ],
+        }
+    }
+}
+
+fn table_total(counts: &[u64; 8]) -> Result<u64, crate::CausalError> {
+    counts
+        .iter()
+        .try_fold(0_u64, |total, count| total.checked_add(*count))
+        .ok_or_else(|| compile("a finite-discrete table total overflows"))
+}
 
 /// One cell of the static/horizon-one × frequentist/Bayesian slice.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -539,7 +615,10 @@ pub(crate) fn enumerated_atoms(
     ctx: &ExecutionContext,
 ) -> Result<usize, crate::CausalError> {
     let (arena, root) = adjustment(RegimeId::from_raw(STATIC_REGIME));
-    let data = transport([frequency_law(RegimeId::from_raw(STATIC_REGIME))?], support_rows)?;
+    let data = transport(
+        [frequency_law(RegimeId::from_raw(STATIC_REGIME), &FREQUENCY_COUNTS, ctx)?],
+        support_rows,
+    )?;
     let mut ignored = 0_u64;
     let law = plan_world(&arena, root, &data, 1, limits, ctx, &mut ignored)?;
     Ok(law.probabilities.len())
@@ -554,9 +633,27 @@ pub(crate) fn enumerated_atoms(
 pub(crate) fn finite_discrete_slice(
     ctx: &ExecutionContext,
 ) -> Result<FiniteDiscreteSlice, crate::CausalError> {
+    finite_discrete_slice_over(&DiscreteInputs::reference(), ctx)
+}
+
+/// Plan the four cells on the finite-discrete adjustment over `inputs`.
+///
+/// # Errors
+///
+/// A law or the exact plan refuses, the table cannot be admitted to the pool, or
+/// cancellation stops evaluation between plans.
+pub(crate) fn finite_discrete_slice_over(
+    inputs: &DiscreteInputs,
+    ctx: &ExecutionContext,
+) -> Result<FiniteDiscreteSlice, crate::CausalError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(cancelled());
+    }
     let mut plan_compilations = 0_u64;
-    let static_fit = fit_horizon(&HorizonRequest::static_frame(), ctx, &mut plan_compilations)?;
-    let horizon_fit = fit_horizon(&HorizonRequest::horizon_frame(), ctx, &mut plan_compilations)?;
+    let static_fit =
+        fit_horizon(&HorizonRequest::static_frame(), inputs, ctx, &mut plan_compilations)?;
+    let horizon_fit =
+        fit_horizon(&HorizonRequest::horizon_frame(), inputs, ctx, &mut plan_compilations)?;
     let static_kinds = expression_kinds(&static_fit.program)?;
     let horizon_kinds = expression_kinds(&horizon_fit.program)?;
     let frequentist = static_fit.frequentist;
@@ -588,6 +685,58 @@ pub(crate) fn finite_discrete_slice(
             support_rows: SUPPORT_ROWS,
             outcome_atoms: frequentist.outcome_levels.len(),
         },
+    })
+}
+
+/// The adjustment contrast of a supplied finite-discrete table, as the four cells report it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FiniteDiscreteContrast {
+    /// Rows of the frequency table.
+    pub sample_size: u64,
+    /// Empirical plug-in contrast: active mean minus control mean.
+    pub plug_in_effect: f64,
+    /// Posterior mean of the contrast over the supplied draws.
+    pub posterior_mean: f64,
+    /// Equal-tailed lower posterior quantile.
+    pub posterior_lower: f64,
+    /// Equal-tailed upper posterior quantile.
+    pub posterior_upper: f64,
+    /// Exact plans compiled for the four cells.
+    pub plan_compilations: u64,
+}
+
+/// Plan the finite-discrete adjustment `sum_z P(z) P(y | t, z)` over a caller's frequency
+/// table `counts` (index `4t + 2z + y`) and weighted posterior draws of the same joint.
+///
+/// The table is read back through the data seam under `ctx`'s admission pool, each exact
+/// plan observes `ctx`'s cancellation, and the plug-in and posterior cells come from one
+/// exact plan of the expression.
+///
+/// # Errors
+///
+/// The table has no mass, is too large, or the weights do not sum to one; the exact plan
+/// refuses; the pool cannot hold the table; or `ctx` is cancelled.
+pub fn finite_discrete_contrast(
+    counts: [u64; 8],
+    draws: impl IntoIterator<Item = ([u64; 8], f64)>,
+    ctx: &ExecutionContext,
+) -> Result<FiniteDiscreteContrast, crate::CausalError> {
+    let inputs = DiscreteInputs::new(counts, draws)?;
+    let slice = finite_discrete_slice_over(&inputs, ctx)?;
+    let frequentist = slice.cell(DiscreteCell::StaticFrequentist);
+    let posterior = slice.cell(DiscreteCell::StaticBayesian);
+    let bounds =
+        (posterior.posterior_lower(), posterior.posterior_upper(), posterior.posterior_mean());
+    let (Some(lower), Some(upper), Some(mean)) = bounds else {
+        return Err(compile("the Bayesian cell published no posterior"));
+    };
+    Ok(FiniteDiscreteContrast {
+        sample_size: frequentist.sample_size().unwrap_or(0),
+        plug_in_effect: frequentist.effect(),
+        posterior_mean: mean,
+        posterior_lower: lower,
+        posterior_upper: upper,
+        plan_compilations: slice.plan_compilations(),
     })
 }
 
@@ -637,11 +786,12 @@ struct AtomLaw {
 
 fn fit_horizon(
     request: &HorizonRequest,
+    inputs: &DiscreteInputs,
     ctx: &ExecutionContext,
     compilations: &mut u64,
 ) -> Result<HorizonFit, crate::CausalError> {
     let (arena, root) = adjustment(request.regime);
-    let frequency = frequency_law(request.regime)?;
+    let frequency = frequency_law(request.regime, &inputs.counts, ctx)?;
     let frequentist_means = contrast(
         &arena,
         root,
@@ -650,14 +800,21 @@ fn fit_horizon(
         ctx,
         compilations,
     )?;
-    let low = posterior_law(request.regime, &DRAW_LOW, "low-mass")?;
-    let high = posterior_law(request.regime, &DRAW_HIGH, "high-mass")?;
-    let draws = [
-        contrast(&arena, root, &transport([low], SUPPORT_ROWS)?, limits(), ctx, compilations)?,
-        contrast(&arena, root, &transport([high], SUPPORT_ROWS)?, limits(), ctx, compilations)?,
-    ];
+    let mut draws = Vec::with_capacity(inputs.draws.len());
+    for (index, draw) in inputs.draws.iter().enumerate() {
+        let law = posterior_law(request.regime, &draw.counts, &format!("draw-{index}"), ctx)?;
+        draws.push(contrast(
+            &arena,
+            root,
+            &transport([law], SUPPORT_ROWS)?,
+            limits(),
+            ctx,
+            compilations,
+        )?);
+    }
+    let weights: Vec<f64> = inputs.draws.iter().map(|draw| draw.weight).collect();
     let program = program(arena, root)?;
-    let sample_size = FREQUENCY_COUNTS.iter().sum();
+    let sample_size = table_total(&inputs.counts)?;
     Ok(HorizonFit {
         frequentist: frequentist_cell(
             request.frequentist,
@@ -665,7 +822,7 @@ fn fit_horizon(
             &frequentist_means,
             sample_size,
         ),
-        bayesian: bayesian_cell(request.bayesian, request.regime, &draws),
+        bayesian: bayesian_cell(request.bayesian, request.regime, &draws, &weights),
         program,
         frequency,
     })
@@ -694,11 +851,20 @@ fn frequentist_cell(
     }
 }
 
-fn bayesian_cell(cell: DiscreteCell, regime: RegimeId, draws: &[WorldMeans; 2]) -> FittedCell {
-    let active = weighted(draws, |means| means.active);
-    let control = weighted(draws, |means| means.control);
-    let contrasts = [draws[0].active - draws[0].control, draws[1].active - draws[1].control];
-    let posterior_mean = DRAW_WEIGHTS[0] * contrasts[0] + DRAW_WEIGHTS[1] * contrasts[1];
+fn bayesian_cell(
+    cell: DiscreteCell,
+    regime: RegimeId,
+    draws: &[WorldMeans],
+    weights: &[f64],
+) -> FittedCell {
+    let mix = |pick: &dyn Fn(&WorldMeans) -> f64| -> f64 {
+        weights.iter().zip(draws).map(|(weight, means)| weight * pick(means)).sum()
+    };
+    let active = mix(&|means| means.active);
+    let control = mix(&|means| means.control);
+    let contrasts: Vec<f64> = draws.iter().map(|means| means.active - means.control).collect();
+    let posterior_mean: f64 =
+        weights.iter().zip(&contrasts).map(|(weight, value)| weight * value).sum();
     FittedCell {
         cell,
         effect: active - control,
@@ -708,21 +874,30 @@ fn bayesian_cell(cell: DiscreteCell, regime: RegimeId, draws: &[WorldMeans; 2]) 
         port: EvidencePort::ParameterPosterior,
         regime,
         posterior_mean: Some(posterior_mean),
-        posterior_lower: Some(contrasts[0].min(contrasts[1])),
-        posterior_upper: Some(contrasts[0].max(contrasts[1])),
+        posterior_lower: Some(weighted_quantile(&contrasts, weights, POSTERIOR_TAIL)),
+        posterior_upper: Some(weighted_quantile(&contrasts, weights, 1.0 - POSTERIOR_TAIL)),
         sample_size: None,
         outcome_levels: draws[0].outcome_levels,
         active_probabilities: [
-            DRAW_WEIGHTS[0] * draws[0].active_probabilities[0]
-                + DRAW_WEIGHTS[1] * draws[1].active_probabilities[0],
-            DRAW_WEIGHTS[0] * draws[0].active_probabilities[1]
-                + DRAW_WEIGHTS[1] * draws[1].active_probabilities[1],
+            mix(&|means| means.active_probabilities[0]),
+            mix(&|means| means.active_probabilities[1]),
         ],
     }
 }
 
-fn weighted(draws: &[WorldMeans; 2], pick: impl Fn(&WorldMeans) -> f64) -> f64 {
-    DRAW_WEIGHTS[0] * pick(&draws[0]) + DRAW_WEIGHTS[1] * pick(&draws[1])
+/// Smallest value whose cumulative weight reaches `p`: the left inverse of the weighted
+/// distribution function, so a two-point law with `p` in its tails returns the extremes.
+fn weighted_quantile(values: &[f64], weights: &[f64], p: f64) -> f64 {
+    let mut order: Vec<usize> = (0..values.len()).collect();
+    order.sort_by(|a, b| values[*a].total_cmp(&values[*b]));
+    let mut cumulative = 0.0;
+    for index in &order {
+        cumulative += weights[*index];
+        if cumulative >= p - WEIGHT_TOLERANCE {
+            return values[*index];
+        }
+    }
+    values[order[order.len() - 1]]
 }
 
 fn contrast(
@@ -854,8 +1029,12 @@ fn expression_kinds(program: &FunctionalProgram) -> Result<Vec<String>, crate::C
     Ok(kinds)
 }
 
-fn frequency_law(regime: RegimeId) -> Result<ExactDiscreteLaw, crate::CausalError> {
-    let observed = histogram(&counted_table(&FREQUENCY_COUNTS)?)?;
+fn frequency_law(
+    regime: RegimeId,
+    counts: &[u64; 8],
+    ctx: &ExecutionContext,
+) -> Result<ExactDiscreteLaw, crate::CausalError> {
+    let observed = histogram(&counted_table(counts, ctx)?)?;
     ExactDiscreteLaw::try_empirical(
         POPULATION,
         regime,
@@ -874,8 +1053,9 @@ fn posterior_law(
     regime: RegimeId,
     counts: &[u64; 8],
     snapshot: &str,
+    ctx: &ExecutionContext,
 ) -> Result<ExactDiscreteLaw, crate::CausalError> {
-    let observed = histogram(&counted_table(counts)?)?;
+    let observed = histogram(&counted_table(counts, ctx)?)?;
     ExactDiscreteLaw::try_bayesian_posterior(
         POPULATION,
         regime,
@@ -891,11 +1071,25 @@ fn posterior_law(
 /// Expand `counts` into binary columns and read them back as the joint.
 ///
 /// The exact plan consumes this histogram. The count array is only the row source.
-fn counted_table(counts: &[u64; 8]) -> Result<TabularData, crate::CausalError> {
-    let mut treatment = Vec::new();
-    let mut confounder = Vec::new();
-    let mut outcome = Vec::new();
+fn counted_table(
+    counts: &[u64; 8],
+    ctx: &ExecutionContext,
+) -> Result<TabularData, crate::CausalError> {
+    let total = table_total(counts)?;
+    if total > MAX_TABLE_ROWS {
+        return Err(compile("a finite-discrete table is too large to read back"));
+    }
+    // The expanded columns and the sealed copy of each are charged before they are built.
+    let _lease = admit_rows(ctx, total)?;
+    let capacity = usize::try_from(total)
+        .map_err(|_| compile("a finite-discrete table does not fit in usize"))?;
+    let mut treatment = Vec::with_capacity(capacity);
+    let mut confounder = Vec::with_capacity(capacity);
+    let mut outcome = Vec::with_capacity(capacity);
     for (index, &count) in counts.iter().enumerate() {
+        if ctx.cancellation.is_cancelled() {
+            return Err(cancelled());
+        }
         let (treatment_level, confounder_level, outcome_level) = cell_levels(index)?;
         let copies = usize::try_from(count)
             .map_err(|_| compile("a finite-discrete cell count does not fit in usize"))?;
@@ -972,8 +1166,14 @@ fn binary_level(column: &DiscreteColumn, row: usize) -> Result<usize, crate::Cau
 }
 
 fn admit_discrete(ctx: &ExecutionContext) -> Result<AdmissionLease, crate::CausalError> {
+    admit_rows(ctx, SUPPORT_ROWS as u64)
+}
+
+/// Lease the memory of a table of `rows` rows from the shared pool, or refuse it with the
+/// route budget's bytes before anything is built.
+fn admit_rows(ctx: &ExecutionContext, rows: u64) -> Result<AdmissionLease, crate::CausalError> {
     let admitted = RouteMemoryDeclaration::new()
-        .rows(8)
+        .rows(rows)
         .encoded_column(EncodedWidth::int64())
         .encoded_column(EncodedWidth::int64())
         .encoded_column(EncodedWidth::int64())
@@ -1013,7 +1213,7 @@ fn probability_table(counts: &[u64; 8]) -> Result<Vec<f64>, crate::CausalError> 
     if total == 0 {
         return Err(compile("a finite-discrete table has no mass"));
     }
-    // Counts are at most 64, so the integer-to-float conversion is exact.
+    // Counts are bounded by `MAX_TABLE_ROWS`, so the integer-to-float conversion is exact.
     let denominator = total as f64;
     Ok(counts.iter().map(|count| *count as f64 / denominator).collect())
 }
@@ -1059,8 +1259,8 @@ mod tests {
     use antecedent_expr::{DomainRef, ExactEvaluationLimits, LawOrigin};
 
     use super::{
-        DecisionDemand, DiscreteAction, DiscreteCell, MissingCarrier,
-        confidence_interval_as_posterior, effect_of_exported_law, enumerated_atoms,
+        DecisionDemand, DiscreteAction, DiscreteCell, DiscreteInputs, MAX_TABLE_ROWS, MissingCarrier,
+        confidence_interval_as_posterior, finite_discrete_slice_over, effect_of_exported_law, enumerated_atoms,
         finite_discrete_origin, finite_discrete_slice, load_exported,
     };
 
@@ -1347,5 +1547,159 @@ mod tests {
         assert!(work.program_compilations > 0);
         assert!(work.integrations > 0);
         assert!((reloaded - contrast).abs() < 1e-12);
+    }
+
+    /// Active-minus-control contrast of the adjustment read off a count table by hand:
+    /// `sum_z P(z) P(y = 1 | t, z)` with index `4t + 2z + y`.
+    fn hand_contrast(counts: &[u64; 8]) -> (f64, f64) {
+        let total = counts.iter().sum::<u64>() as f64;
+        let mean = |t: usize| -> f64 {
+            (0..2)
+                .map(|z| {
+                    let z_mass = (0..2)
+                        .flat_map(|tt| (0..2).map(move |y| (tt, y)))
+                        .map(|(tt, y)| counts[tt * 4 + z * 2 + y])
+                        .sum::<u64>() as f64
+                        / total;
+                    let cell = |y: usize| counts[t * 4 + z * 2 + y] as f64;
+                    z_mass * cell(1) / (cell(0) + cell(1))
+                })
+                .sum()
+        };
+        (mean(1), mean(0))
+    }
+
+    const SUPPLIED: [u64; 8] = [40, 10, 12, 18, 9, 21, 15, 25];
+    const DRAW_A: [u64; 8] = [30, 12, 12, 16, 10, 20, 14, 26];
+    const DRAW_B: [u64; 8] = [28, 14, 16, 12, 12, 18, 10, 30];
+    const DRAW_C: [u64; 8] = [35, 9, 14, 14, 8, 22, 18, 20];
+
+    #[test]
+    fn a_supplied_table_and_its_posterior_draws_plan_to_the_hand_expectation() {
+        let ctx = ExecutionContext::for_tests(1);
+        let weights = [0.2, 0.5, 0.3];
+        let inputs = DiscreteInputs::new(
+            SUPPLIED,
+            [(DRAW_A, weights[0]), (DRAW_B, weights[1]), (DRAW_C, weights[2])],
+        )
+        .unwrap();
+        let slice = finite_discrete_slice_over(&inputs, &ctx).unwrap();
+
+        let (active, control) = hand_contrast(&SUPPLIED);
+        for cell in [DiscreteCell::StaticFrequentist, DiscreteCell::HorizonOneFrequentist] {
+            let fitted = slice.cell(cell);
+            assert!((fitted.active_mean() - active).abs() < 1e-12, "{}", cell.as_str());
+            assert!((fitted.control_mean() - control).abs() < 1e-12);
+            assert!((fitted.effect() - (active - control)).abs() < 1e-12);
+            assert_eq!(fitted.sample_size(), Some(SUPPLIED.iter().sum::<u64>()));
+        }
+        let contrasts: Vec<f64> = [DRAW_A, DRAW_B, DRAW_C]
+            .iter()
+            .map(|counts| {
+                let (a, c) = hand_contrast(counts);
+                a - c
+            })
+            .collect();
+        let mean: f64 = weights.iter().zip(&contrasts).map(|(w, c)| w * c).sum();
+        let lowest = contrasts.iter().copied().fold(f64::INFINITY, f64::min);
+        let highest = contrasts.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        for cell in [DiscreteCell::StaticBayesian, DiscreteCell::HorizonOneBayesian] {
+            let fitted = slice.cell(cell);
+            assert!((fitted.posterior_mean().unwrap() - mean).abs() < 1e-12, "{}", cell.as_str());
+            assert!((fitted.posterior_lower().unwrap() - lowest).abs() < 1e-12);
+            assert!((fitted.posterior_upper().unwrap() - highest).abs() < 1e-12);
+        }
+        // The reference table is untouched by a supplied one.
+        let reference = finite_discrete_slice(&ctx).unwrap();
+        assert!(
+            (reference.cell(DiscreteCell::StaticFrequentist).effect()
+                - slice.cell(DiscreteCell::StaticFrequentist).effect())
+            .abs()
+                > 1e-6
+        );
+    }
+
+    #[test]
+    fn the_facade_entry_reports_the_plug_in_and_the_posterior_of_a_supplied_table() {
+        use super::finite_discrete_contrast;
+        let ctx = ExecutionContext::for_tests(1);
+        let report =
+            finite_discrete_contrast(SUPPLIED, [(DRAW_A, 0.5), (DRAW_B, 0.5)], &ctx).unwrap();
+        let (active, control) = hand_contrast(&SUPPLIED);
+        assert!((report.plug_in_effect - (active - control)).abs() < 1e-12);
+        assert_eq!(report.sample_size, SUPPLIED.iter().sum::<u64>());
+        let contrasts: Vec<f64> = [DRAW_A, DRAW_B]
+            .iter()
+            .map(|counts| {
+                let (a, c) = hand_contrast(counts);
+                a - c
+            })
+            .collect();
+        assert!((report.posterior_mean - 0.5 * (contrasts[0] + contrasts[1])).abs() < 1e-12);
+        assert!(report.posterior_lower <= report.posterior_mean);
+        assert!(report.posterior_mean <= report.posterior_upper);
+        assert!(report.plan_compilations > 0);
+        ctx.cancellation.cancel();
+        assert!(finite_discrete_contrast(SUPPLIED, [(DRAW_A, 1.0)], &ctx).is_err());
+    }
+
+    #[test]
+    fn the_supplied_table_survives_an_independent_consumer() {
+        let ctx = ExecutionContext::for_tests(1);
+        let inputs = DiscreteInputs::new(SUPPLIED, [(DRAW_A, 1.0)]).unwrap();
+        let slice = finite_discrete_slice_over(&inputs, &ctx).unwrap();
+        let bytes = slice.export_static_frequentist().unwrap();
+        let loaded = load_exported(&bytes).unwrap();
+        assert_eq!(loaded.sample_size, Some(SUPPLIED.iter().sum::<u64>()));
+        assert_eq!(loaded.law.empirical_counts.as_deref(), Some(SUPPLIED.as_slice()));
+        let (active, control) = hand_contrast(&SUPPLIED);
+        let reloaded = effect_of_exported_law(&bytes, &ctx).unwrap();
+        assert!((reloaded - (active - control)).abs() < 1e-12);
+    }
+
+    #[test]
+    fn inputs_without_mass_draws_or_normalized_weights_are_refused() {
+        let refused = |inputs: Result<DiscreteInputs, crate::CausalError>| inputs.is_err();
+        assert!(refused(DiscreteInputs::new([0; 8], [(DRAW_A, 1.0)])));
+        assert!(refused(DiscreteInputs::new(SUPPLIED, [(DRAW_A, 0.9)])));
+        assert!(refused(DiscreteInputs::new(SUPPLIED, [(DRAW_A, 1.5), (DRAW_B, -0.5)])));
+        assert!(refused(DiscreteInputs::new(SUPPLIED, [(DRAW_A, f64::NAN)])));
+        assert!(refused(DiscreteInputs::new(SUPPLIED, std::iter::empty())));
+        assert!(refused(DiscreteInputs::new(SUPPLIED, [([0; 8], 1.0)])));
+        let mut huge = SUPPLIED;
+        huge[0] = MAX_TABLE_ROWS;
+        assert!(refused(DiscreteInputs::new(huge, [(DRAW_A, 1.0)])));
+        assert!(refused(DiscreteInputs::new([u64::MAX, 1, 0, 0, 0, 0, 0, 0], [(DRAW_A, 1.0)])));
+    }
+
+    #[test]
+    fn cancellation_stops_planning_before_and_between_plans() {
+        let inputs = DiscreteInputs::new(SUPPLIED, [(DRAW_A, 0.5), (DRAW_B, 0.5)]).unwrap();
+
+        let cancelled = ExecutionContext::for_tests(1);
+        cancelled.cancellation.cancel();
+        let before = finite_discrete_slice_over(&inputs, &cancelled).err().unwrap();
+        assert!(matches!(before, crate::CausalError::Cancelled { .. }));
+
+        let mut late = ExecutionContext::for_tests(1);
+        late.cancellation = antecedent_core::CancellationToken::cancel_after_checks(6);
+        let between = finite_discrete_slice_over(&inputs, &late).err().unwrap();
+        assert!(matches!(between, crate::CausalError::Cancelled { .. }), "{between:?}");
+    }
+
+    #[test]
+    fn a_table_the_pool_cannot_hold_is_refused_before_it_is_built() {
+        use antecedent_core::execution::AdmissionPool;
+        let inputs = DiscreteInputs::new(SUPPLIED, [(DRAW_A, 1.0)]).unwrap();
+        let pool = AdmissionPool::fixed(2, 512);
+        let ctx = ExecutionContext::for_tests(1).with_admission(pool.clone());
+        let refused = finite_discrete_slice_over(&inputs, &ctx).err().unwrap();
+        assert!(matches!(refused, crate::CausalError::Resource { .. }), "{refused:?}");
+        assert_eq!(pool.available().bytes(), 512, "a refused admission holds nothing");
+
+        let enough = AdmissionPool::fixed(2, 1 << 30);
+        let ctx = ExecutionContext::for_tests(1).with_admission(enough.clone());
+        finite_discrete_slice_over(&inputs, &ctx).unwrap();
+        assert_eq!(enough.available().bytes(), 1 << 30, "every lease is released");
     }
 }

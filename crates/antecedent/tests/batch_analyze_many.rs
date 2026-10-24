@@ -309,3 +309,55 @@ fn a_dml_batch_fits_each_learner_nuisance_once_and_matches_independent_runs() {
     assert_eq!(mixed_fits, single_fits + other_fits, "a changed outcome never borrows a bundle");
     same_estimate(&mixed[1], &other, "separate DML bundle");
 }
+
+#[test]
+fn a_pool_that_refuses_retention_leaves_every_batch_result_equal_to_its_solo_run() {
+    use antecedent_core::execution::AdmissionPool;
+    use antecedent_state::retention::RetentionMode;
+    let (data, graph) = two_by_two(600, 41);
+    let queries = [ate(T1, Y1), ate(T1, Y2), ate(T1, Y1)];
+    // The AIPW batch asks the pool for worker slots only (zero bytes), and planners compare
+    // against the pool's capacity, not its free bytes. Leasing all but 2 KiB leaves capacity
+    // untouched while no retained entry (a key alone is larger) can be admitted.
+    let capacity = 1_u64 << 30;
+    let pool = AdmissionPool::fixed(1, capacity);
+    let held = ExecutionContext::for_tests(41)
+        .with_admission(pool.clone())
+        .acquire_admission(0, capacity - 2048)
+        .unwrap();
+    let ctx = ExecutionContext::for_tests(41).with_admission(pool.clone());
+    let check = |results: &[StudyResult], what: &str| {
+        for (i, (result, query)) in results.iter().zip(&queries).enumerate() {
+            assert_bit_identical(result, &solo(&data, &graph, query, 41), &format!("{what} {i}"));
+            assert_eq!(shared_design_field(result, "shares_propensity"), "false", "{what} {i}");
+            assert_eq!(
+                shared_design_field(result, "shares_outcome_residualization"),
+                "false",
+                "{what} {i}"
+            );
+        }
+    };
+    let batch = |study: BatchStudy, ctx: &ExecutionContext| {
+        study
+            .estimator(EstimatorId::Aipw)
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .estimate_many(&queries, ctx)
+            .unwrap()
+    };
+    let refused = batch(BatchStudy::new(data.clone(), graph.clone()), &ctx);
+    check(&refused, "pool refuses retention");
+    assert_eq!(pool.available().bytes(), 2048, "nothing was admitted past the lease");
+    // A reduced retention mode builds an empty cache even with a roomy pool.
+    let reduced = batch(
+        BatchStudy::new(data.clone(), graph.clone()).retention(RetentionMode::SummaryOnly),
+        &ExecutionContext::for_tests(41),
+    );
+    check(&reduced, "summary-only retention");
+    drop(held);
+    assert_eq!(pool.available().bytes(), capacity);
+    // With room, the same batch shares (the contrast that makes the refusals meaningful).
+    let shared =
+        batch(BatchStudy::new(data.clone(), graph.clone()), &ExecutionContext::for_tests(41));
+    assert_eq!(shared_design_field(&shared[0], "shares_propensity"), "true");
+}

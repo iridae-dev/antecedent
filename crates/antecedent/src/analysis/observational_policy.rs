@@ -164,6 +164,25 @@ pub struct ObservationalPolicyReportWire {
 pub struct ObservationalPolicyValue;
 
 impl ObservationalPolicyValue {
+    /// Estimate several policies' values over one cache scope.
+    ///
+    /// The cross-fitted propensity and per-action outcome models do not depend on the policy
+    /// being scored, so requests over the same rows, support and splits fit them once. The
+    /// cache is charged to the admission pool of `ctx` and, when `retention` is not
+    /// [`RetentionMode::FullReusable`], retains nothing. Each result equals the request's own
+    /// [`Self::evaluate`]; one request's refusal does not affect another's.
+    ///
+    /// [`RetentionMode::FullReusable`]: antecedent_state::retention::RetentionMode::FullReusable
+    #[must_use]
+    pub fn evaluate_many(
+        requests: &[ObservationalPolicyRequest],
+        ctx: &ExecutionContext,
+        retention: antecedent_state::retention::RetentionMode,
+    ) -> Vec<Result<ObservationalPolicyReportWire, CausalError>> {
+        let cache = super::batch::batch_nuisance_cache(ctx, retention);
+        requests.iter().map(|request| cache.scope(|| Self::evaluate(request)).0).collect()
+    }
+
     /// Estimate the declared policy's value.
     ///
     /// # Errors

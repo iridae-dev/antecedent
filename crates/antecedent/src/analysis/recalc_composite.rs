@@ -277,7 +277,7 @@ impl CompositeSession {
         let mut native = self.native.clone();
         let mut callbacks = self.callbacks.clone();
         let attempt = (|| -> Result<(RecalcReceipt, Arc<SupportedDecision>), CompositeError> {
-            let mut recorder = ReceiptRecorder::new();
+            let mut recorder = ReceiptRecorder::charged_to(ctx);
             let native_out =
                 execute_static_response_with_receipt(&mut native, &request.native, ctx)
                     .map_err(CompositeError::Native)?;

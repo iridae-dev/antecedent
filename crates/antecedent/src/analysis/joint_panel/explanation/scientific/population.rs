@@ -1,10 +1,10 @@
 //! Population-standardized reference worlds under an explicit selection diagram.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 use super::{
-    decompose_scientific_reference, invalid, ExecutionContext, Intervention, JointPanelError,
-    PanelDecomposition, ReferenceComponentBindings, ScientificConsumptionScope,
-    ScientificDecisionSource, ScientificReferenceDecomposition, ScientificWorldId, SemanticDigest,
-    TemporalPolicy, VariableId, WorldAction,
+    ExecutionContext, Intervention, JointPanelError, PanelDecomposition,
+    ReferenceComponentBindings, ScientificConsumptionScope, ScientificDecisionSource,
+    ScientificReferenceDecomposition, ScientificWorldId, SemanticDigest, TemporalPolicy,
+    VariableId, WorldAction, decompose_scientific_reference, invalid,
 };
 use antecedent_graph::{DenseNodeId, NodeRef, SelectionDiagram};
 

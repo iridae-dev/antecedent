@@ -148,8 +148,11 @@ impl PreparedStudy {
         // which plan it was for and, for a rank refusal, which columns are dependent on the
         // table the fit read.
         let mut observed = antecedent_core::execution_attempt::observe_with_context(ctx, || {
-            self.estimate_with_shared_unnamed(data, shared, ctx, &mut ClickNotes::default())
-                .map_err(|error| self.name_stats_refusal(data, error, ctx))
+            antecedent_estimate::prepare::with_preparation_budget(
+                crate::planner::PhysicalExecutionPlan::preparation_budget(ctx),
+                || self.estimate_with_shared_unnamed(data, shared, ctx, &mut ClickNotes::default()),
+            )
+            .map_err(|error| self.name_stats_refusal(data, error, ctx))
         });
         if let Ok(result) = &mut observed.result {
             result.performance.native_execution.clone_from(&observed.facts);

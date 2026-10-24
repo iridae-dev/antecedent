@@ -412,3 +412,183 @@ fn temporal_derivative_runs_its_refuter_state_on_dag_and_class() {
         assert!(has_diagnostic(&result, "refute.temporal_response.pulse_witness_state"), "{label}");
     }
 }
+
+// ---------------------------------------------------------------------------
+// Frequentist/Bayesian symmetry of the counterpart inventory.
+// ---------------------------------------------------------------------------
+
+const INVENTORY: &str = include_str!("../../../parity/counterparts.toml");
+
+/// One method row of the inventory.
+#[derive(Clone, Debug, Default)]
+struct MethodRow {
+    id: String,
+    method: String,
+    design: String,
+    inference: String,
+    status: String,
+    uncertainty: String,
+}
+
+fn quoted(line: &str, key: &str) -> Option<String> {
+    let rest = line.strip_prefix(key)?.trim_start().strip_prefix('=')?.trim();
+    let inner = rest.strip_prefix('"')?;
+    Some(inner[..inner.rfind('"')?].to_owned())
+}
+
+fn method_rows() -> Vec<MethodRow> {
+    let mut rows = Vec::new();
+    let mut current = std::collections::HashMap::<String, String>::new();
+    let mut flush = |row: &std::collections::HashMap<String, String>| {
+        if row.get("kind").map(String::as_str) == Some("method") {
+            let get = |key: &str| row.get(key).cloned().unwrap_or_default();
+            rows.push(MethodRow {
+                id: get("id"),
+                method: get("method"),
+                design: get("design"),
+                inference: get("inference"),
+                status: get("status"),
+                uncertainty: get("uncertainty"),
+            });
+        }
+    };
+    for line in INVENTORY.lines() {
+        if line.starts_with("[[row]]") {
+            flush(&current);
+            current.clear();
+            continue;
+        }
+        for key in ["id", "kind", "method", "design", "inference", "status", "uncertainty"] {
+            if let Some(value) = quoted(line, key) {
+                current.insert(key.to_owned(), value);
+            }
+        }
+    }
+    flush(&current);
+    rows
+}
+
+fn executes(status: &str) -> bool {
+    matches!(status, "licensed" | "executing_unlicensed")
+}
+
+/// Bayesian method rows whose uncertainty is not an ordinary posterior, with what they report
+/// instead. A generalized posterior (a Bayesian bootstrap, block weights, a class envelope of
+/// per-completion posteriors) reports resampling or an analytic enclosure; a programme
+/// (discovery, a decision search, an audit) has no interval of its own.
+const NOT_AN_ORDINARY_POSTERIOR: &[(&str, &str)] = &[
+    ("P05.static.bayesian", "none"),
+    ("P05.temporal.bayesian", "none"),
+    ("P06.temporal.bayesian", "design_aware_resampling"),
+    ("P07.curve.temporal.bayesian", "analytic"),
+    ("P07.derivative.temporal.bayesian", "design_aware_resampling"),
+    ("P12.counterfactual.temporal.bayesian", "design_aware_resampling"),
+    ("P12.intervention.temporal.bayesian", "analytic"),
+    ("P14.temporal.bayesian", "design_aware_resampling"),
+    ("P15.conditional.static.bayesian", "design_aware_resampling"),
+    ("P15.projection.temporal.bayesian", "design_aware_resampling"),
+    ("P19.static.bayesian", "none"),
+    ("P19.temporal.bayesian", "none"),
+    ("P20.static.bayesian", "none"),
+    ("P20.temporal.bayesian", "none"),
+    ("X01.temporal.bayesian", "analytic"),
+    ("X04.1.static.bayesian", "none"),
+    ("X04.1.temporal.bayesian", "none"),
+    ("X04.2.static.bayesian", "none"),
+    ("X04.2.temporal.bayesian", "none"),
+];
+
+/// Licensed frequentist rows that report no interval of their own by default. Their licence
+/// covers the point value; the sampling interval is the requested mechanism-refit row bootstrap
+/// of this file, which executes and stays unlicensed, and the Bayesian side reports a
+/// posterior over mechanisms. The list only shrinks: a licensed row with no interval anywhere
+/// else is a geometric support cell, not a licence.
+const LICENSED_WITHOUT_DEFAULT_INTERVAL: &[&str] =
+    &["P12.counterfactual.static.frequentist", "P13.attribution.static.frequentist"];
+
+/// Quadrants whose two inference sides differ in licence: the licensed side has a measured
+/// or asserted interval, the other executes without a licence.
+const LICENCE_ASYMMETRIES: &[&str] = &["P04.static", "P09.interference.static"];
+
+#[test]
+fn every_method_executes_on_both_inference_sides_or_records_why_not_on_both() {
+    let rows = method_rows();
+    assert!(rows.len() >= 200, "the inventory lists {} method rows", rows.len());
+    let mut sides = std::collections::BTreeMap::<(String, String), Vec<&MethodRow>>::new();
+    for row in &rows {
+        sides.entry((row.method.clone(), row.design.clone())).or_default().push(row);
+    }
+    let mut asymmetric = Vec::new();
+    for ((method, design), pair) in &sides {
+        let frequentist = pair.iter().find(|r| r.inference == "frequentist");
+        let bayesian = pair.iter().find(|r| r.inference == "bayesian");
+        let (Some(frequentist), Some(bayesian)) = (frequentist, bayesian) else {
+            panic!("{method} {design} has a single inference side in the inventory");
+        };
+        // A method either executes on both sides or neither does, and a side the theory rules
+        // out is ruled out with a recorded reason on that side.
+        assert_eq!(
+            executes(&frequentist.status),
+            executes(&bayesian.status),
+            "{method} {design}: {} vs {}",
+            frequentist.status,
+            bayesian.status
+        );
+        if (frequentist.status == "licensed") != (bayesian.status == "licensed") {
+            asymmetric.push(format!("{method}.{design}"));
+        }
+    }
+    // A licence is one-sided in exactly the recorded quadrants.
+    asymmetric.sort();
+    let mut expected: Vec<String> = LICENCE_ASYMMETRIES.iter().map(|s| (*s).to_owned()).collect();
+    expected.sort();
+    assert_eq!(asymmetric, expected, "one-sided licences in the inventory");
+}
+
+#[test]
+fn bayesian_rows_that_are_not_ordinary_posteriors_are_exactly_the_classified_ones() {
+    let rows = method_rows();
+    let mut found: Vec<(String, String)> = rows
+        .iter()
+        .filter(|row| {
+            row.inference == "bayesian" && executes(&row.status) && row.uncertainty != "posterior"
+        })
+        .map(|row| (row.id.clone(), row.uncertainty.clone()))
+        .collect();
+    found.sort();
+    let mut expected: Vec<(String, String)> = NOT_AN_ORDINARY_POSTERIOR
+        .iter()
+        .map(|(id, kind)| ((*id).to_owned(), (*kind).to_owned()))
+        .collect();
+    expected.sort();
+    assert_eq!(found, expected, "classify every executing Bayesian row that is not a posterior");
+    // A licensed row reports an interval or enclosure of its own, except the pinned rows whose
+    // interval is the requested unlicensed bootstrap.
+    let mut bare: Vec<&str> = rows
+        .iter()
+        .filter(|row| row.status == "licensed" && row.uncertainty == "none")
+        .map(|row| row.id.as_str())
+        .collect();
+    bare.sort_unstable();
+    assert_eq!(bare, LICENSED_WITHOUT_DEFAULT_INTERVAL, "licensed rows with no uncertainty report");
+    // A frequentist row that executes reports an interval of its own wherever the Bayesian
+    // side reports a posterior, except the programmes that have none on either side.
+    for bayesian in rows.iter().filter(|r| {
+        r.inference == "bayesian" && executes(&r.status) && r.uncertainty == "posterior"
+    }) {
+        let frequentist = rows
+            .iter()
+            .find(|r| {
+                r.inference == "frequentist"
+                    && r.method == bayesian.method
+                    && r.design == bayesian.design
+            })
+            .unwrap();
+        assert!(
+            executes(&frequentist.status),
+            "{} has a posterior but {} does not execute",
+            bayesian.id,
+            frequentist.id
+        );
+    }
+}

@@ -394,7 +394,7 @@ fn dr_stage(
     ctx: &ExecutionContext,
 ) -> Result<DrStage, RecalcRunError> {
     Ok(if recomputed(plan, Stage::ScoreArtifact) {
-        let cache = CrossfitNuisanceCache::new();
+        let cache = CrossfitNuisanceCache::charged_to(ctx);
         let (((built, score_builds), final_fits), all_fits) = count_resolved_fits(|| {
             count_dr_final_fits(|| {
                 count_aipw_score_builds(|| {

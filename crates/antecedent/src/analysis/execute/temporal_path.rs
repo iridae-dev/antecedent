@@ -1124,6 +1124,299 @@ impl super::Study {
         Ok(result)
     }
 
+    /// A derivative at each horizon of a temporal ADMG: per horizon, one adjustment set (or a
+    /// front-door set) of the unrolled window of the template (a cause that precedes the window
+    /// is a latent common cause of its in-window effects), and the slope of the lag-aligned
+    /// regression on it, with the whole-procedure band the `TemporalDag` derivative publishes.
+    /// Several horizons publish one value per horizon (pointwise bands, horizons not mixed).
+    ///
+    /// # Errors
+    ///
+    /// A horizon whose derivative has neither an adjustment set nor a front-door set on its
+    /// window (a hedge is refused with the variables and periods that carry it), a custom
+    /// validator, or a Jacobian or directional derivative over several horizons.
+    pub(super) fn execute_temporal_admg_derivative(
+        &self,
+        data: &TimeSeriesData,
+        query: &ResponseQuery,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let started = Instant::now();
+        let Some(temporal) = query.temporal.as_ref() else {
+            return Err(CausalError::Compile {
+                message: "temporal response route requires TemporalResponseSpec".into(),
+            });
+        };
+        let crate::accepted::GraphRef::TemporalAdmg(template) = self.graph.graph_ref() else {
+            return Err(CausalError::Compile {
+                message: "a temporal ADMG derivative requires a supplied TemporalAdmg".into(),
+            });
+        };
+        if !self.custom_validators.is_empty() {
+            return Err(crate::unsupported_reason!(
+                "validators_not_applicable",
+                "a custom validator refutes one scalar average effect and none applies to a \
+                 derivative identified on the unrolled window of a temporal ADMG. Next attempt: \
+                 drop the validator, or analyse the derivative on a TemporalDag when the lag \
+                 structure has no latent confounding"
+            ));
+        }
+        let (treatment, outcome) = super::response_path::response_primary_pair(&query.functional)?;
+        let variable_count = u32::try_from(data.schema().len()).map_err(|_| {
+            CausalError::Compile { message: "series schema exceeds the variable id range".into() }
+        })?;
+        if temporal.horizons.len() > 1
+            && !matches!(
+                query.functional,
+                ResponseFunctional::PointDerivative { .. }
+                    | ResponseFunctional::AverageDerivative { .. }
+            )
+        {
+            return Err(CausalError::Unsupported {
+                message: "a Jacobian or directional derivative on a temporal ADMG is the local \
+                          slope at one horizon; name one horizon, or a point or average \
+                          derivative over several",
+            });
+        }
+        // The products compile retained or the prepared handle froze, else fresh identifications.
+        let cache = self.reuse_temporal_identification(physical);
+        let mut claims = Vec::with_capacity(temporal.horizons.len());
+        for &horizon in temporal.horizons.iter() {
+            let reused = cache.as_ref().and_then(|(cache, prepared)| {
+                cache.get(horizon).map(|entry| {
+                    (
+                        entry.identification.clone(),
+                        entry.estimand.clone(),
+                        entry.indexer.clone(),
+                        *prepared,
+                    )
+                })
+            });
+            let (identification, estimand, indexer, cached) = if let Some(found) = reused {
+                found
+            } else {
+                report_identify_compute(ctx);
+                let single =
+                    crate::analysis::temporal_admg_contrast::single_horizon_query(query, horizon)?;
+                let found = crate::analysis::temporal_admg_contrast::identify_window_derivative(
+                    template,
+                    &single,
+                    variable_count,
+                )?;
+                (found.identification, found.estimand, found.indexer, false)
+            };
+            claims.push((horizon, identification, estimand, indexer, cached));
+        }
+        let identify_cached = claims.iter().all(|claim| claim.4);
+        let run = ExecuteRun { physical, ctx, started, identify_cached };
+        if let [(_, identification, estimand, indexer, _)] = claims.as_slice() {
+            if estimand.method_kind().ok() == Some(EstimandMethod::FrontDoor) {
+                let response = self.temporal_admg_front_door_response(
+                    (data, template, query),
+                    (identification, estimand),
+                    ctx,
+                )?;
+                return Ok(self.finish_temporal_admg_response(
+                    response,
+                    IdentifiedClaim {
+                        identification: identification.clone(),
+                        estimand: estimand.clone(),
+                    },
+                    (treatment, outcome),
+                    run,
+                ));
+            }
+            return self.execute_temporal_derivative_response(
+                DerivativeResponseInputs { data, query, temporal, indexer, treatment, outcome },
+                IdentifiedClaim {
+                    identification: identification.clone(),
+                    estimand: estimand.clone(),
+                },
+                run,
+            );
+        }
+        let mut responses = Vec::with_capacity(claims.len());
+        for (horizon, identification, estimand, indexer, _) in &claims {
+            let single =
+                crate::analysis::temporal_admg_contrast::single_horizon_query(query, *horizon)?;
+            responses.push(if estimand.method_kind().ok() == Some(EstimandMethod::FrontDoor) {
+                self.temporal_admg_front_door_response(
+                    (data, template, &single),
+                    (identification, estimand),
+                    ctx,
+                )?
+            } else {
+                let probe = unit_contrast_query(
+                    temporal,
+                    (treatment, outcome),
+                    *horizon,
+                    query.target_population.clone(),
+                );
+                temporal_dag_derivative_response(
+                    data,
+                    &single,
+                    DagDerivativeFit {
+                        estimand,
+                        indexer,
+                        identification,
+                        offsets: (probe.try_treatment_offset()?, probe.outcome_offset()),
+                    },
+                    (&self.inference, self.bootstrap_replicates),
+                    ctx,
+                )?
+            });
+        }
+        let mut combined = combine_horizon_derivatives(&query.functional, &responses)?;
+        let (_, first_identification, first_estimand, _, _) = &claims[0];
+        let mut identification = first_identification.clone();
+        let (status, assumptions) = aggregate_temporal_horizon_evidence(
+            claims.iter().map(|(_, identification, _, _, _)| identification),
+        )?;
+        identification.status = status;
+        identification.required_assumptions = assumptions.clone();
+        combined.identification_status = status;
+        combined.assumptions = assumptions;
+        Ok(self.finish_temporal_admg_response(
+            combined,
+            IdentifiedClaim { identification, estimand: first_estimand.clone() },
+            (treatment, outcome),
+            run,
+        ))
+    }
+
+    /// The front-door derivative of one horizon of a temporal ADMG, on the lag-aligned window
+    /// table (column `period * variables + variable`); the interval resamples circular blocks of
+    /// consecutive windows (a block never shorter than the window) or shares one Dirichlet weight
+    /// per block.
+    fn temporal_admg_front_door_response(
+        &self,
+        (series, template, query): (
+            &TimeSeriesData,
+            &antecedent_graph::TemporalAdmg,
+            &ResponseQuery,
+        ),
+        (identification, estimand): (&IdentificationResult, &IdentifiedEstimand),
+        ctx: &ExecutionContext,
+    ) -> Result<CausalResponse, CausalError> {
+        let Some(temporal) = query.temporal.as_ref() else {
+            return Err(CausalError::Compile {
+                message: "temporal response route requires TemporalResponseSpec".into(),
+            });
+        };
+        let (treatment, outcome) = super::response_path::response_primary_pair(&query.functional)?;
+        let variable_count = u32::try_from(series.schema().len()).map_err(|_| {
+            CausalError::Compile { message: "series schema exceeds the variable id range".into() }
+        })?;
+        let probe = unit_contrast_query(
+            temporal,
+            (treatment, outcome),
+            temporal.horizons[0],
+            query.target_population.clone(),
+        );
+        let plan = antecedent_identify::temporal_admg::plan_temporal_admg_window(template, &probe)?;
+        let window = template.unroll_window_over(plan.periods, variable_count)?;
+        let table = crate::analysis::temporal_admg_contrast::window_table(
+            series,
+            &window,
+            &crate::analysis::temporal_admg_contrast::used_variables(template, &probe),
+            &ctx.kernel_policy,
+        )?;
+        let treated = *plan.treated.first().ok_or_else(|| CausalError::Compile {
+            message: "a temporal derivative needs a treated period in its policy".into(),
+        })?;
+        let coordinate = |variable: VariableId, period: u32| {
+            window.coordinate(variable, period).ok_or_else(|| CausalError::Compile {
+                message: "a derivative variable is outside the unrolled window".into(),
+            })
+        };
+        let treatment_column = coordinate(treatment, treated)?;
+        let outcome_column = coordinate(outcome, plan.outcome_period)?;
+        let functional = match &query.functional {
+            ResponseFunctional::PointDerivative { at, order, scale, .. } => {
+                ResponseFunctional::PointDerivative {
+                    outcome: outcome_column,
+                    treatment: treatment_column,
+                    at: *at,
+                    order: *order,
+                    scale: *scale,
+                }
+            }
+            ResponseFunctional::AverageDerivative { weighting, .. } => {
+                ResponseFunctional::AverageDerivative {
+                    outcome: outcome_column,
+                    treatment: treatment_column,
+                    weighting: weighting.clone(),
+                }
+            }
+            _ => {
+                return Err(CausalError::Unsupported {
+                    message: "a front-door temporal derivative serves a point or average \
+                              derivative",
+                });
+            }
+        };
+        let window_query = ResponseQuery::new(functional);
+        let block = antecedent_estimate::RowResampling::WindowBlocks { span: plan.periods }
+            .block_length(table.row_count())
+            .unwrap_or(1);
+        let mut response = self.estimate_front_door_derivative_response(
+            &table,
+            &window_query,
+            super::response_path::FrontDoorClaim {
+                estimand,
+                status: identification.status,
+                assumptions: identification.required_assumptions.clone(),
+            },
+            block,
+            ctx,
+        )?;
+        // The response answers the caller's query, not the window-coordinate one.
+        response.estimand = query.functional.clone();
+        Ok(response)
+    }
+
+    /// The result of a temporal ADMG derivative from its response.
+    fn finish_temporal_admg_response(
+        &self,
+        response: CausalResponse,
+        claim: IdentifiedClaim,
+        (treatment, outcome): (VariableId, VariableId),
+        run: ExecuteRun<'_>,
+    ) -> StudyResult {
+        let IdentifiedClaim { identification, estimand } = claim;
+        let ExecuteRun { physical, ctx: _, started, identify_cached } = run;
+        let scalar = super::response_path::response_scalar_summary(&response).0;
+        let estimate = EffectEstimate::new(
+            scalar,
+            f64::NAN,
+            identification.required_assumptions.clone(),
+            OverlapPolicy::ExplicitOverride,
+        );
+        let diagnostics: Vec<Diagnostic> = response.support.warnings.clone();
+        let mut result = self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                Strategy::new(
+                    IdentifierId::GeneralizedAdjustment,
+                    EstimatorId::temporal_response_for(&self.inference),
+                ),
+                treatment,
+                outcome,
+            )
+            .identify_cached(identify_cached)
+            .wall_time_ns(elapsed_ns(started)),
+        );
+        result.payload = crate::result::ResultPayload::Response(response);
+        result.posterior = None;
+        result.rebind_interval(self.inference.is_bayesian());
+        result.diagnostics.extend(diagnostics);
+        result
+    }
+
     /// Licenses the response's observation spec and, for a non-Bayesian
     /// observed series, adjusts the series and the working query; records the
     /// observation assumptions on both assumption sets.
@@ -6022,6 +6315,88 @@ pub(super) fn temporal_linear_derivative_response(
     })
 }
 
+/// One response per horizon of a point or average derivative, as one value per horizon in
+/// horizon order with a pointwise band per horizon (horizons are not mixed, so the band is
+/// marginal, not joint).
+fn combine_horizon_derivatives(
+    functional: &ResponseFunctional,
+    responses: &[CausalResponse],
+) -> Result<CausalResponse, CausalError> {
+    let first = responses.first().ok_or_else(|| CausalError::Compile {
+        message: "a multi-horizon derivative has no horizon responses".into(),
+    })?;
+    let mut values = Vec::with_capacity(responses.len());
+    for response in responses {
+        match &response.estimate {
+            ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) => {
+                values.push(*value);
+            }
+            _ => {
+                return Err(CausalError::Unsupported {
+                    message: "a multi-horizon derivative combines point-identified scalars",
+                });
+            }
+        }
+    }
+    let mut lower = Vec::with_capacity(responses.len());
+    let mut upper = Vec::with_capacity(responses.len());
+    let mut level_interpretation = None;
+    for response in responses {
+        match &response.uncertainty {
+            ResponseUncertainty::Scalar {
+                lower: low, upper: high, level, interpretation, ..
+            } => {
+                lower.push(*low);
+                upper.push(*high);
+                level_interpretation = Some((*level, *interpretation));
+            }
+            _ => {
+                lower.clear();
+                break;
+            }
+        }
+    }
+    let uncertainty = match level_interpretation {
+        Some((level, interpretation)) if lower.len() == responses.len() => {
+            ResponseUncertainty::PointwiseBand {
+                level,
+                lower: lower.into(),
+                upper: upper.into(),
+                interpretation,
+                draws: None,
+            }
+        }
+        _ => ResponseUncertainty::None,
+    };
+    let mut assumptions = first.assumptions.clone();
+    let mut warnings = first.support.warnings.clone();
+    for response in responses.iter().skip(1) {
+        assumptions.extend_unique(&response.assumptions.entries);
+        for warning in &response.support.warnings {
+            if !warnings
+                .iter()
+                .any(|seen| seen.code == warning.code && seen.message == warning.message)
+            {
+                warnings.push(warning.clone());
+            }
+        }
+    }
+    let mut support = first.support.clone();
+    support.warnings = warnings;
+    support.point_status = None;
+    Ok(CausalResponse {
+        estimand: functional.clone(),
+        identification_status: first.identification_status,
+        estimate: ResponseIdentification::PointIdentified(ResponseValue::Vector(values.into())),
+        uncertainty,
+        support,
+        assumptions,
+        provenance_id: Arc::clone(&first.provenance_id),
+        horizon_identification: None,
+        interaction_structurally_zero: false,
+    })
+}
+
 /// One `TemporalDag` derivative fit: the horizon's back-door estimand, its lag
 /// indexer and proof, and the probe's treatment and outcome offsets.
 #[derive(Clone, Copy)]
@@ -7044,6 +7419,13 @@ fn fit_class_bayesian_mediation(
                 .map_err(CausalError::from)?,
         );
     }
+    let mechanisms = antecedent_estimate::bayesian_mediation::couple_mediation_mechanisms(
+        &preparations,
+        mechanisms,
+        horizon as usize,
+        mediation_mechanism_seed(bayes.seed, horizon, preparations.len()),
+        ctx,
+    );
     let composed = antecedent_estimate::bayesian_mediation::compose_temporal_mediation(
         &mechanisms[0],
         &mechanisms[1],

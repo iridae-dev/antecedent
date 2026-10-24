@@ -260,6 +260,29 @@ fn representatives() -> Vec<(&'static str, Study)> {
         graph.insert_directed(d(1), d(2)).unwrap();
         graph
     };
+    // `t -> m -> y` with `t <-> y`: every directed path is selected, so the effect is the
+    // front-door total effect of the latent-confounded treatment.
+    let mediated_admg = {
+        let mut graph = Admg::with_variables(3);
+        graph.insert_directed(d(0), d(1)).unwrap();
+        graph.insert_directed(d(1), d(2)).unwrap();
+        graph.insert_bidirected(d(0), d(2)).unwrap();
+        graph
+    };
+    // `t -> m -> y` with both edges compelled: the class has one completion.
+    let mediated_cpdag = {
+        let mut graph = Cpdag::with_variables(3);
+        graph.insert_directed(d(0), d(1)).unwrap();
+        graph.insert_directed(d(1), d(2)).unwrap();
+        graph
+    };
+    // `t -> m -> y` with every mark decided: the MAG completion is the graph itself.
+    let mediated_pag = {
+        let mut graph = Pag::with_variables(3);
+        graph.insert_directed(d(0), d(1)).unwrap();
+        graph.insert_directed(d(1), d(2)).unwrap();
+        graph
+    };
     let build = |name: &'static str, builder: StudyBuilder| {
         let study = builder.build().unwrap_or_else(|error| panic!("{name}: {error}"));
         (name, study)
@@ -317,6 +340,24 @@ fn representatives() -> Vec<(&'static str, Study)> {
             "PathSpecificDag",
             base(mediated_data())
                 .graph(mediated_dag)
+                .query(CausalQuery::PathSpecific(path_query())),
+        ),
+        build(
+            "PathSpecificCpdag",
+            base(mediated_data())
+                .graph(mediated_cpdag)
+                .query(CausalQuery::PathSpecific(path_query())),
+        ),
+        build(
+            "PathSpecificPag",
+            base(mediated_data())
+                .graph(mediated_pag)
+                .query(CausalQuery::PathSpecific(path_query())),
+        ),
+        build(
+            "PathSpecificMixed",
+            base(mediated_data())
+                .graph(mediated_admg)
                 .query(CausalQuery::PathSpecific(path_query())),
         ),
     ]
@@ -389,7 +430,11 @@ fn average_effect_binds_its_contrast_estimator_models_and_resampling() {
     assert!(propensity.inputs().contains(&v(2)), "the propensity reads the adjustment set");
     assert_eq!(program.claim().kind(), Some(ClaimKind::Point));
     assert_eq!(program.claim().uncertainty(), UncertaintyReading::Sampling);
-    assert_eq!(program.physical().operators().len(), 3, "read, fit and intervene");
+    assert_eq!(
+        program.physical().operators().len(),
+        5,
+        "read, fit and intervene, then the projection and the scan"
+    );
 
     let fewer = compile(&study(EstimatorId::PropensityWeighting, 10));
     assert_ne!(lowered(&fewer).identity(), program.identity(), "replicates are in the identity");
@@ -552,6 +597,23 @@ fn distribution_functionals_of_different_queries_lower_to_different_programs() {
     assert_ne!(one, zero, "the query digest reads the intervention level");
     assert_ne!(one_identity, zero_identity, "two queries of one kind are two programs");
     assert_eq!(at(1.0), (one, one_identity), "the digest is canonical across compiles");
+}
+
+#[test]
+fn a_weighting_route_quotes_the_width_its_nuisance_models_share() {
+    let weighting = base(confounded_data())
+        .graph(confounded_dag())
+        .query(AverageEffectQuery::binary_ate(v(0), v(1)))
+        .estimator(EstimatorId::PropensityWeighting)
+        .bootstrap_replicates(10)
+        .build()
+        .unwrap();
+    let plan = compile(&weighting);
+    let design = lowered(&plan).physical().design();
+    assert_eq!(design.source(), WidthSource::Quoted, "the adjustment set is one fixed set");
+    let columns = design.columns().expect("a quoted design has columns");
+    assert!(columns >= 3, "an intercept, the treatment and the adjustment: {columns}");
+    assert_eq!(design.rows(), Some(plan.logical.row_count_hint));
 }
 
 #[test]

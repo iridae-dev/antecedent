@@ -1333,6 +1333,121 @@ mod window_contrast {
         assert!(refusal.contains("descendant") && refusal.contains("next attempt"), "{refusal}");
     }
 
+    fn study_with_suite(
+        data: &TimeSeriesData,
+        query: TemporalEffectQuery,
+        inference: InferenceMode,
+        suite: RefuteSuite,
+    ) -> Study {
+        Study::series(data.clone())
+            .graph(template(false))
+            .temporal_query(query)
+            .inference(inference)
+            .refute(suite)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+    }
+
+    fn refuters(result: &StudyResult) -> Vec<&str> {
+        result.refutations.iter().map(|report| report.refuter.as_ref()).collect()
+    }
+
+    #[test]
+    fn cheap_and_full_validation_run_the_window_native_suite_on_both_inferences() {
+        let (x, y, w, data) = series(300);
+        let counted = counted_contrast(&x, &y, &w);
+        for bayesian in [false, true] {
+            for (suite, expected) in [
+                (RefuteSuite::None, Vec::new()),
+                (RefuteSuite::Cheap, vec!["window.stretch_80", "window.placebo_treatment"]),
+                (
+                    RefuteSuite::Full,
+                    vec![
+                        "window.stretch_80",
+                        "window.stretch_50",
+                        "window.placebo_treatment",
+                        "window.split_half",
+                    ],
+                ),
+            ] {
+                let inference = if bayesian {
+                    InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(200))
+                } else {
+                    InferenceMode::Frequentist
+                };
+                let built = study_with_suite(&data, next_period(), inference, suite);
+                assert_eq!(built.support_status(), Some(CellStatus::Refused));
+                let ctx = ExecutionContext::for_tests(31_010);
+                let result = built.run(&ctx).unwrap();
+                assert_eq!(refuters(&result), expected, "bayesian={bayesian} suite={suite:?}");
+                let tolerance = if bayesian { 0.1 } else { 1e-12 };
+                assert!((result.effect() - counted).abs() < tolerance, "{}", result.effect());
+                assert!(discloses(&result));
+                for report in &result.refutations {
+                    assert!((report.original_ate - result.effect()).abs() < 1e-12
+                        || report.refuter.as_ref() == "window.split_half");
+                    assert!((0.0..=1.0).contains(&report.comparison), "{report:?}");
+                }
+                // Rotating the treatment removes every link to the outcome: the contrast of the
+                // rotated series is far from the counted one and indistinguishable from zero.
+                if let Some(placebo) = result
+                    .refutations
+                    .iter()
+                    .find(|report| report.refuter.as_ref() == "window.placebo_treatment")
+                {
+                    assert_eq!(placebo.replicates, 20);
+                    assert!(placebo.refuted_ate.abs() < 0.15, "{}", placebo.refuted_ate);
+                    assert!(counted - placebo.refuted_ate.abs() > 0.3);
+                    assert!(placebo.passed, "{placebo:?}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_series_whose_effect_vanishes_halfway_fails_the_split_half_check() {
+        let len = 400;
+        let x = bits(len, 0x9E37_79B9);
+        let w = bits(len, 0x85EB_CA6B);
+        let y: Vec<f64> = (0..len)
+            .map(|t| {
+                if t > 0 && t < len / 2 && (w[t - 1] - 1.0).abs() < 1e-12 { x[t - 1] } else { 0.0 }
+            })
+            .collect();
+        let data = TimeSeriesData::from_f64_columns(
+            [("x", x.as_slice()), ("y", y.as_slice()), ("w", w.as_slice())],
+            1,
+        )
+        .unwrap();
+        let first_half = counted_contrast(&x[..len / 2], &y[..len / 2], &w[..len / 2]);
+        assert!(first_half > 0.3, "{first_half}");
+        let ctx = ExecutionContext::for_tests(31_011);
+        let result = study_with_suite(
+            &data,
+            next_period(),
+            InferenceMode::Frequentist,
+            RefuteSuite::Full,
+        )
+        .run(&ctx)
+        .unwrap();
+        let split = result
+            .refutations
+            .iter()
+            .find(|report| report.refuter.as_ref() == "window.split_half")
+            .expect("the split-half report");
+        assert!(split.informative);
+        assert!(!split.passed, "{split:?}");
+        assert!(split.comparison < 0.01, "{}", split.comparison);
+        // The first half recovers the counted contrast of its own stretch; the second is nil.
+        assert!((split.original_ate - first_half).abs() < 0.1, "{}", split.original_ate);
+        assert!(split.refuted_ate.abs() < 1e-9, "{}", split.refuted_ate);
+        // The pooled contrast sits between the halves, so the pooled stretch refits cannot see
+        // the break: only the split-half check does.
+        let pooled = result.effect();
+        assert!(pooled > 0.1 && pooled < first_half, "{pooled} vs {first_half}");
+    }
+
     #[test]
     fn a_graph_the_series_does_not_describe_and_a_history_cap_are_refused_at_compile() {
         let (_, _, _, data) = series(100);

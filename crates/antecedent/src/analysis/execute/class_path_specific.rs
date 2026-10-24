@@ -1,0 +1,319 @@
+//! Path-restricted natural effects and natural direct effects over the completions of a CPDAG
+//! or the ADMGs a PAG leaves open.
+//!
+//! A CPDAG assumes causal sufficiency, so each member of its equivalence class is a DAG on
+//! which the Avin-Shpitser-Pearl identifier decides the effect. Every identified completion is
+//! estimated by the same finite-discrete functional plug-in (bootstrap interval, or Bayesian
+//! bootstrap posterior) as the supplied-DAG cell. Completions that identify the same effect
+//! keep that estimate and its uncertainty; completions that disagree leave the effect
+//! partially identified, and the result publishes the enumeration-weighted mean with the
+//! identified set over the completions. Completion weights are enumeration weights, not
+//! posterior probabilities, and a completion with a recanting witness is unidentified mass.
+//!
+//! A PAG allows latent confounding, and a MAG completion fixes the latent projection only up
+//! to its m-separation model, which does not determine a path-specific effect. Each MAG
+//! completion is therefore read through every ADMG that shares its m-separation model (see
+//! the PAG identifier), and the effect is reported only when each of those yields an
+//! identified functional: the same functional is a point, different functionals are the
+//! identified set, and a candidate the identifier refuses refuses the whole effect, since no
+//! functional is then correct for every model the PAG represents.
+//!
+//! SPDX-License-Identifier: MIT OR Apache-2.0
+
+use super::pag_path::ClassTag;
+use super::{
+    CausalError, ClassAtomOutcome, Diagnostic, EffectEstimate, EstimatorId, ExecutionContext,
+    IdentificationEnvelope, IdentificationStatus, IdentifiedExecuteExtras, IdentifiedExecuteFinish,
+    IdentifierId, Instant, OverlapPolicy, PathSpecificMixedSource, PhysicalExecutionPlan, Strategy,
+    StudyResult, TableView, TabularData, elapsed_ns, envelope_se_omission_diagnostic,
+    envelope_to_identification_result_for, identification_status_ok_for_case,
+    identify_cpdag_path_specific, identify_pag_path_specific, overlap_diagnostic,
+    report_identify_compute, select_estimand,
+};
+use crate::planner::RouteDefaults;
+
+/// One class path-specific run: the envelope its identifier produced and what names it.
+struct ClassPathRun<'a, G> {
+    envelope: &'a IdentificationEnvelope<G>,
+    class: ClassTag,
+    envelope_diagnostic: Diagnostic,
+    certificate: crate::Identification,
+    identifier_id: IdentifierId,
+    estimator_id: EstimatorId,
+    started: Instant,
+}
+
+impl super::Study {
+    /// Identify the effect in every DAG completion of `cpdag`, estimate the identified
+    /// completions and publish the class-level result.
+    pub(super) fn execute_class_path_specific(
+        &self,
+        data: &TabularData,
+        cpdag: &antecedent_graph::Cpdag,
+        source: PathSpecificMixedSource<'_>,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        super::static_path::ensure_admg_path_specific_licensed(self.refute)?;
+        let started = Instant::now();
+        let (identifier_id, estimator_id) = physical.binding().resolve(RouteDefaults::PATH)?;
+        require_functional_estimator(estimator_id)?;
+        let (identified_query, _, _, _) = super::static_path::path_specific_source_parts(source);
+
+        report_identify_compute(ctx);
+        let envelope = identify_cpdag_path_specific(identifier_id, cpdag, &identified_query)?;
+        if matches!(envelope.status, IdentificationStatus::NotIdentified)
+            || envelope.identified_weight.0 <= 0.0
+        {
+            return Err(CausalError::not_identified(
+                envelope.status,
+                envelope.truncated_completions > 0,
+                "CPDAG path-specific effect not identified (no identified mass in envelope)",
+            ));
+        }
+        let certificate = crate::Identification::CpdagEnvelope {
+            envelope: envelope.clone(),
+            strategy: identifier_id,
+            structure_version: self.graph.version(),
+        };
+        let envelope_diagnostic = super::pag_path::cpdag_envelope_diagnostic(&envelope);
+        self.finish_class_path_specific(
+            data,
+            source,
+            ClassPathRun {
+                envelope: &envelope,
+                class: ClassTag::Cpdag,
+                envelope_diagnostic,
+                certificate,
+                identifier_id,
+                estimator_id,
+                started,
+            },
+            physical,
+            ctx,
+        )
+    }
+
+    /// Identify the effect over the ADMGs every MAG completion of `pag` stands for, estimate
+    /// each distinct identified functional and publish the class-level result. The effect is
+    /// refused as soon as one candidate ADMG leaves it unidentified: no functional is then
+    /// correct for every model the PAG represents.
+    pub(super) fn execute_pag_path_specific(
+        &self,
+        data: &TabularData,
+        pag: &antecedent_graph::Pag,
+        source: PathSpecificMixedSource<'_>,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        super::static_path::ensure_admg_path_specific_licensed(self.refute)?;
+        let started = Instant::now();
+        let (identifier_id, estimator_id) = physical.binding().resolve(RouteDefaults::PATH)?;
+        require_functional_estimator(estimator_id)?;
+        let (identified_query, _, _, _) = super::static_path::path_specific_source_parts(source);
+
+        report_identify_compute(ctx);
+        let envelope = identify_pag_path_specific(identifier_id, pag, &identified_query)?;
+        if envelope.unidentified_weight.0 > 0.0
+            || envelope.identified_weight.0 <= 0.0
+            || matches!(envelope.status, IdentificationStatus::NotIdentified)
+        {
+            return Err(CausalError::not_identified(
+                envelope.status,
+                envelope.truncated_completions > 0,
+                "PAG path-specific effect not identified: an ADMG sharing the m-separation \
+                 model of a MAG completion leaves the effect unidentified, so no functional is \
+                 correct for every model the PAG represents",
+            ));
+        }
+        let certificate = crate::Identification::Envelope {
+            envelope: envelope.clone(),
+            strategy: identifier_id,
+            structure_version: self.graph.version(),
+        };
+        let envelope_diagnostic = super::pag_path::pag_envelope_diagnostic(&envelope);
+        self.finish_class_path_specific(
+            data,
+            source,
+            ClassPathRun {
+                envelope: &envelope,
+                class: ClassTag::Pag,
+                envelope_diagnostic,
+                certificate,
+                identifier_id,
+                estimator_id,
+                started,
+            },
+            physical,
+            ctx,
+        )
+    }
+
+    /// Estimate every identified case of a class envelope and publish the class result.
+    fn finish_class_path_specific<G>(
+        &self,
+        data: &TabularData,
+        source: PathSpecificMixedSource<'_>,
+        run: ClassPathRun<'_, G>,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let ClassPathRun {
+            envelope,
+            class,
+            envelope_diagnostic,
+            certificate,
+            identifier_id,
+            estimator_id,
+            started,
+        } = run;
+        let (_, treatment, outcome, roles) = super::static_path::path_specific_source_parts(source);
+        let identification = envelope_to_identification_result_for(envelope, self.query.clone());
+
+        let mut outcomes = vec![ClassAtomOutcome::NotEvaluated; envelope.cases.len()];
+        let mut evaluated = Vec::new();
+        let mut prepared_completions = Vec::new();
+        let mut assumptions = antecedent_core::AssumptionSet::default();
+        for (index, case) in envelope.cases.iter().enumerate() {
+            if !identification_status_ok_for_case(case.result.status)
+                || case.result.estimands.is_empty()
+            {
+                continue;
+            }
+            let estimand = select_estimand(&case.result, estimator_id)?;
+            let (estimate, posterior) =
+                self.estimate_functional_effect(data, &estimand, &case.result, &roles, ctx)?;
+            outcomes[index] = ClassAtomOutcome::Evaluated(estimate.ate);
+            if evaluated.is_empty() {
+                assumptions = estimate.provenance.assumptions.clone();
+            }
+            if self.bootstrap_replicates > 0 && !self.inference.is_bayesian() {
+                let (row_resampling, sampling_design) = self.functional_row_resampling()?;
+                let fitter = antecedent_estimate::FunctionalEffect {
+                    bootstrap_replicates: self.bootstrap_replicates,
+                    ..antecedent_estimate::FunctionalEffect::new()
+                }
+                .with_row_resampling(row_resampling, sampling_design);
+                let prepared = fitter
+                    .prepare(
+                        data,
+                        &estimand,
+                        &case.result.arena,
+                        case.result.required_assumptions.clone(),
+                        &roles,
+                    )
+                    .map_err(CausalError::from)?;
+                prepared_completions.push((fitter, prepared));
+            }
+            evaluated.push((case.weight.0, estimate, posterior));
+        }
+        let total: f64 = evaluated.iter().map(|(weight, _, _)| *weight).sum();
+        if evaluated.is_empty()
+            || !matches!(total.partial_cmp(&0.0), Some(std::cmp::Ordering::Greater))
+        {
+            return Err(CausalError::Compile {
+                message: format!(
+                    "{} path-specific envelope had no estimable identified completions",
+                    class.as_str().to_uppercase()
+                ),
+            });
+        }
+
+        let class_tag = class.as_str();
+        let mut mixture = super::pag_path::static_class_structural_mixture(envelope, &outcomes);
+        // Completions that disagree: an Imbens-Manski interval for the identified set, from
+        // every completion refit on the same resampled rows.
+        if let Some(mixture) = mixture.as_mut() {
+            if self.inference.is_bayesian() && evaluated.iter().all(|(_, _, p)| p.is_some()) {
+                mixture.identified_set_interval = super::posterior_identified_set_interval(
+                    evaluated.iter().filter_map(|(_, _, p)| p.as_ref()),
+                    data.row_count(),
+                    envelope.truncated_completions > 0,
+                );
+            }
+        }
+        if let (Some(mixture), Some((fitter, _))) = (mixture.as_mut(), prepared_completions.first())
+        {
+            let refs: Vec<&antecedent_estimate::PreparedFunctionalEffect> =
+                prepared_completions.iter().map(|(_, prepared)| prepared).collect();
+            let draws = fitter.shared_replicate_draws(&refs, ctx).map_err(CausalError::from)?;
+            let points: Vec<f64> = evaluated.iter().map(|(_, estimate, _)| estimate.ate).collect();
+            if points.len() == refs.len() {
+                mixture.identified_set_interval =
+                    antecedent_estimate::imbens_manski_shared_replicates(
+                        &points,
+                        &draws,
+                        1.0,
+                        data.row_count(),
+                        0.95,
+                    );
+            }
+        }
+        let mut diagnostics = vec![envelope_diagnostic];
+        if let Some(mixture) = mixture.as_ref() {
+            diagnostics.extend(super::pag_path::static_class_identified_set_diagnostic(
+                mixture, class_tag,
+            ));
+            if let Some(interval) = mixture.identified_set_interval.as_ref() {
+                diagnostics.extend(super::identified_set_interval_diagnostics(interval));
+            }
+        }
+        let (estimate, posterior) = if evaluated.len() == 1 || mixture.is_none() {
+            // One identified completion, or completions that identify the same effect: a
+            // point, with the uncertainty of its own fit.
+            let (_, estimate, posterior) = evaluated.remove(0);
+            (estimate, posterior)
+        } else {
+            let weighted: f64 =
+                evaluated.iter().map(|(weight, estimate, _)| weight * estimate.ate).sum();
+            let pooled = EffectEstimate::new(
+                weighted / total,
+                f64::NAN,
+                assumptions,
+                OverlapPolicy::ExplicitOverride,
+            );
+            diagnostics
+                .extend(envelope_se_omission_diagnostic(evaluated.len(), pooled.se_analytic()));
+            (pooled, None)
+        };
+        diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
+
+        let estimand = select_estimand(&identification, estimator_id)?;
+        let result = self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                Strategy::new(identifier_id, estimator_id),
+                treatment,
+                outcome,
+            )
+            .identify_cached(false)
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras {
+                n_draws: posterior
+                    .as_ref()
+                    .map(|p| u32::try_from(p.draws.n_draws).unwrap_or(u32::MAX)),
+                posterior,
+                diagnostics: Some(diagnostics),
+                structural_response: mixture,
+                ..Default::default()
+            }),
+        );
+        Ok(self.attach_certificate(result, certificate))
+    }
+}
+
+/// The class path-specific cells evaluate the identified functional by the finite-discrete
+/// plug-in only.
+fn require_functional_estimator(estimator_id: EstimatorId) -> Result<(), CausalError> {
+    if matches!(estimator_id, EstimatorId::FunctionalEffect) {
+        return Ok(());
+    }
+    Err(CausalError::Compile {
+        message: format!(
+            "PathSpecific execute requires estimator functional.effect; got {estimator_id}"
+        ),
+    })
+}

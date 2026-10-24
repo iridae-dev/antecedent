@@ -41,7 +41,60 @@ fn actual_frequentist_panel_fit_retains_aligned_worlds_and_reuses_after_builder_
     assert_eq!(next.fits_performed(), 1);
     assert!(!prepared.inspect().identification.is_identified_claim());
     exercise_reference_decomposition(&result, &ctx);
+    assert_streamed_projection_matches(&result, &ctx);
+    // The streamed route fits through the same cache: no second fit is performed.
+    let projected = prepared
+        .estimate_projected(
+            &antecedent::analysis::joint_panel::JointPanelResponseFunctional::TerminalMean,
+            16,
+            &ctx,
+        )
+        .unwrap();
+    assert_eq!(prepared.fits_performed(), 1);
+    assert_eq!(projected.draws().len(), result.draws.len());
     assert_fresh_panel_replay(&result, &ctx);
+}
+
+/// The tiled reduction must be the full-output route followed by the same projection:
+/// same draw order and failed slots, same joint alignment across worlds, same bits.
+fn assert_streamed_projection_matches(
+    result: &antecedent::analysis::joint_panel::JointPanelResult,
+    ctx: &ExecutionContext,
+) {
+    use antecedent::analysis::joint_panel::JointPanelResponseFunctional;
+    use antecedent_estimate::joint_panel::project_panel_responses;
+    let functional = JointPanelResponseFunctional::WindowChange { before: (0, 5), after: (18, 23) };
+    let draws = result.draws.len();
+    for tile in [1, 7, draws.max(1)] {
+        let streamed = result.project_streamed(&functional, tile, ctx).unwrap();
+        assert_eq!(
+            streamed.point(),
+            project_panel_responses(&result.point, streamed.weights()).unwrap()
+        );
+        assert_eq!(streamed.draws().len(), draws);
+        for (reduced, full) in streamed.draws().iter().zip(&result.draws) {
+            let expected = full
+                .as_deref()
+                .map(|rows| project_panel_responses(rows, streamed.weights()).unwrap());
+            assert_eq!(reduced, &expected);
+        }
+        assert!(streamed.receipt().peak_tile_draws <= tile);
+        assert_eq!(streamed.receipt().tiles, draws.div_ceil(tile));
+    }
+    assert!(result.project_streamed(&functional, 0, ctx).is_err());
+    let worlds = result.request().worlds.clone();
+    let target = result.request().target.clone();
+    let frozen = result
+        .project_frozen_streamed(worlds.clone(), target.clone(), &functional, 5, ctx)
+        .unwrap();
+    let retained = result.retarget_frozen(worlds, target, ctx).unwrap();
+    assert_eq!(frozen.draws().len(), retained.draws.len());
+    for (reduced, full) in frozen.draws().iter().zip(&retained.draws) {
+        let expected =
+            full.as_deref().map(|rows| project_panel_responses(rows, frozen.weights()).unwrap());
+        assert_eq!(reduced, &expected);
+    }
+    assert_eq!(result.prepared().fits_performed(), 1);
 }
 
 fn exercise_reference_decomposition(
@@ -96,6 +149,53 @@ fn exercise_reference_decomposition(
         assert_eq!(draw.is_some(), parent.is_some());
         if let Some(draw) = draw {
             assert!((draw.shapley.iter().sum::<f64>() - draw.total).abs() < 1e-10);
+        }
+    }
+    // The streamed reduction repeats every draw's evaluation, so the posterior-sized law
+    // is left to the cheaper estimator-level equality test.
+    if decomposition.draws.len() <= 1_000 {
+        let streamed = result.decompose_reference_streamed(&request, &periods, ctx).unwrap();
+        assert_eq!(streamed.point, decomposition.point);
+        assert_eq!(streamed.joint, decomposition.joint_uncertainty());
+        assert_eq!(streamed.requested, decomposition.draws.len());
+        assert_eq!(streamed.failed, decomposition.draws.iter().filter(|d| d.is_none()).count());
+    }
+    match &result.fit {
+        JointPanelFit::Invariant(_) => {
+            assert!(result.decomposition_selection(&decomposition).unwrap().is_none());
+        }
+        JointPanelFit::Varying(fit) => {
+            // Change-point and smoothing selection is carried through the decomposed law:
+            // every complete replicate is accounted for under the specification it selected.
+            let split = result.decomposition_selection(&decomposition).unwrap().unwrap();
+            let complete = decomposition.draws.iter().flatten().count();
+            assert_eq!((split.requested, split.complete), (decomposition.draws.len(), complete));
+            assert!((split.specifications.iter().map(|s| s.mass).sum::<f64>() - 1.0).abs() < 1e-12);
+            assert_eq!(split.specifications.iter().map(|s| s.slots).sum::<usize>(), complete);
+            for share in &split.specifications {
+                let counted = fit
+                    .selection_counts
+                    .iter()
+                    .find(|(choice, _)| *choice == share.choice)
+                    .map(|(_, count)| *count);
+                assert_eq!(counted, Some(share.slots));
+            }
+            for j in 0..4 {
+                assert!(split.between_variance[j] >= 0.0 && split.within_variance[j] >= 0.0);
+                assert!((0.0..=1.0).contains(&split.selection_share[j]));
+            }
+            // The fixture's design earns no proof: the finer claim stays model-conditional,
+            // no component step is called identified, and the missing design is named.
+            let adaptive =
+                result.attempt_design_adaptive_reference(&request, &periods, None, ctx).unwrap();
+            assert!(!adaptive.is_complete());
+            assert!(adaptive.identified_steps.is_empty());
+            assert_eq!(adaptive.unidentified_components.len(), 4);
+            assert_eq!(adaptive.selection.as_ref(), Some(&split));
+            assert!(adaptive.next_designs.iter().any(|step| {
+                step.obligation
+                    == antecedent::analysis::joint_panel::ReferenceObligation::MissingIdentificationProof
+            }));
         }
     }
     let bytes = result.export(ctx).unwrap();
@@ -395,6 +495,142 @@ fn exact_whole_program_assignment_earns_the_world_claim_without_promoting_model_
     assert!(experimental.proof.is_some());
 }
 
+/// Before/after endpoints of the first and last declared worlds, read at the terminal period.
+fn terminal_decomposition(
+    result: &antecedent::analysis::joint_panel::JointPanelResult,
+) -> (
+    antecedent::analysis::joint_panel::PanelDecompositionRequest,
+    antecedent::analysis::joint_panel::MechanismPeriodMap,
+) {
+    use antecedent::analysis::joint_panel::{
+        ChangeComponent, DecompositionEndpoint, MechanismPeriodMap, PanelDecompositionRequest,
+    };
+    let worlds = &result.request().worlds;
+    let horizon = worlds[0].horizon();
+    let groups = result.prepared().model_data().groups.len();
+    let weights = vec![1.0 / groups as f64; groups];
+    let mut time_weights = vec![0.0; horizon];
+    time_weights[horizon - 1] = 1.0;
+    let request = PanelDecompositionRequest {
+        before: DecompositionEndpoint {
+            program: worlds[0].program.clone(),
+            population_weights: weights.clone(),
+        },
+        after: DecompositionEndpoint {
+            program: worlds[3].program.clone(),
+            population_weights: weights,
+        },
+        time_weights,
+        order: [
+            ChangeComponent::Exposure,
+            ChangeComponent::Saturation,
+            ChangeComponent::Population,
+            ChangeComponent::Mechanism,
+        ],
+    };
+    let axis = match &result.fit {
+        JointPanelFit::Invariant(_) => vec![0; horizon],
+        JointPanelFit::Varying(_) => (0..horizon).collect(),
+    };
+    (request, MechanismPeriodMap { before: axis.clone(), after: axis })
+}
+
+#[test]
+fn flagship_mechanism_explanation_is_complete_under_a_supported_design_and_names_the_next_design_otherwise()
+ {
+    use antecedent::analysis::joint_panel::{
+        ChangeComponent, JointPanelExplanationRequest, ReferenceObligation,
+        declare_joint_panel_exogenous_context,
+    };
+    let ctx = cached_context(20_261_031);
+    let bit = |component: ChangeComponent| match component {
+        ChangeComponent::Exposure => 0,
+        ChangeComponent::Saturation => 1,
+        ChangeComponent::Population => 2,
+        ChangeComponent::Mechanism => 3,
+    };
+
+    // Supported: exact whole-program assignment identifies every reference world.
+    let data = fixture::whole_program_source();
+    let mut request = fixture::request(&data, false, PanelInference::Frequentist { draws: 4 });
+    request.target = declare_joint_panel_exogenous_context(&request.target);
+    request.assignment = Some(fixture::whole_program_randomization());
+    let supported = Study::prepare_joint_panel(data, request, &ctx).unwrap();
+    assert!(supported.inspect().identification.is_identified_claim());
+    let result = supported.estimate(&ctx).unwrap();
+    let (decomposition, periods) = terminal_decomposition(&result);
+    let adaptive =
+        result.attempt_design_adaptive_reference(&decomposition, &periods, None, &ctx).unwrap();
+    assert!(adaptive.is_complete(), "{:?}", adaptive.next_designs);
+    assert!(adaptive.next_designs.is_empty() && adaptive.unidentified_components.is_empty());
+    assert!(adaptive.coarser.is_none(), "a complete finer claim needs no coarser fallback");
+    assert_eq!(adaptive.identified_steps.len(), 32);
+    let total = adaptive.requested.decomposition.point.total;
+    let exposure = adaptive
+        .identified_steps
+        .iter()
+        .find(|step| step.component == ChangeComponent::Exposure && step.context_mask == 0)
+        .unwrap();
+    assert!((exposure.point - total).abs() < 1e-10, "only exposure differs between endpoints");
+    // An independent consumer rebuilds every executed step from the stored fit alone.
+    let bytes = result.export(&ctx).unwrap();
+    let historical =
+        antecedent_io::joint_panel_artifact::consume_panel_execution(&bytes, &ctx).unwrap();
+    let replay = historical.program().decompose_reference(&decomposition, &periods, &ctx).unwrap();
+    for step in &adaptive.identified_steps {
+        let stepped = usize::from(step.context_mask | (1 << bit(step.component)));
+        let context = usize::from(step.context_mask);
+        assert_eq!(step.point, replay.point.hybrids[stepped] - replay.point.hybrids[context]);
+        assert_eq!(step.draws.len(), replay.draws.len());
+        for (actual, stored) in step.draws.iter().zip(&replay.draws) {
+            assert_eq!(
+                *actual,
+                stored.as_ref().map(|row| row.hybrids[stepped] - row.hybrids[context])
+            );
+        }
+    }
+    assert!(!historical.grants_current_authority());
+
+    // Unsupported: period randomization identifies nothing for the whole program. The finer
+    // decomposition is still computed as model-conditional, no step is called identified,
+    // the missing design is named, and the coarser total contrast is actually executed.
+    let data = fixture::source(false);
+    let mut request = fixture::request(&data, false, PanelInference::Frequentist { draws: 4 });
+    let assignment = fixture::period_randomization();
+    assignment.validate().unwrap();
+    request.assignment = Some(assignment);
+    request.target = declare_joint_panel_exogenous_context(&request.target);
+    let unsupported = Study::prepare_joint_panel(data, request, &ctx).unwrap();
+    assert!(!unsupported.inspect().identification.is_identified_claim());
+    let result = unsupported.estimate(&ctx).unwrap();
+    let (decomposition, periods) = terminal_decomposition(&result);
+    let worlds = &result.request().worlds;
+    let fallback = JointPanelExplanationRequest {
+        explanation: antecedent_estimate::joint_panel::time_varying::PanelExplanation::Mechanism,
+        world: worlds[3].world,
+        reference_world: worlds[0].world,
+        before: (0, 5),
+        after: (18, 23),
+    };
+    let adaptive = result
+        .attempt_design_adaptive_reference(&decomposition, &periods, Some(fallback), &ctx)
+        .unwrap();
+    assert!(!adaptive.is_complete());
+    assert!(adaptive.identified_steps.is_empty());
+    assert_eq!(adaptive.unidentified_components.len(), 4);
+    assert!(
+        adaptive
+            .next_designs
+            .iter()
+            .any(|step| step.obligation == ReferenceObligation::MissingIdentificationProof)
+    );
+    assert!(adaptive.requested.decomposition.point.total.is_finite());
+    let coarser = adaptive.coarser.as_ref().expect("the next coarser contrast is executed");
+    assert!(coarser.point.is_finite());
+    assert!(coarser.require_unique_attribution().is_err());
+    assert_eq!(unsupported.fits_performed(), 1);
+}
+
 #[test]
 fn temporal_panel_public_preparation_retains_attempts_and_reuses_selected_mechanism() {
     use antecedent_estimate::joint_panel::time_varying::{PanelMeanParameter, TemporalPanelSpec};
@@ -455,6 +691,7 @@ fn temporal_panel_bootstrap_reruns_mechanism_selection_per_replicate() {
     assert!(successful > 0, "bootstrap must retain successful replicates");
     assert_eq!(selected, successful, "every retained replicate records its own selected model");
     exercise_reference_decomposition(&result, &ctx);
+    assert_streamed_projection_matches(&result, &ctx);
 }
 
 fn assert_fresh_panel_replay(

@@ -16,13 +16,14 @@
 //!   together. The declared sampling design of a single series is contiguous
 //!   blocks; the replicate SD carries the circular fixed-b and Bartlett
 //!   kernel-bias factors of the shared-block mixture SE.
-//! * **Bayesian**: on every draw of the Gaussian-likelihood posterior of each
-//!   regression under the isotropic slope prior the point already uses
-//!   ([`point_posterior_draws`]), tempered for serial dependence. Draw `d` of
-//!   every regression of a completion enters draw `d` of the functional, so a
-//!   product of two edge slopes or a Jacobian is a joint draw, not a product of
-//!   marginal summaries. The regressions of one completion are a sequential
-//!   factorization of one likelihood, so their posteriors are independent.
+//! * **Bayesian**: on every joint draw of the Gaussian-likelihood posteriors of all
+//!   regressions of all completions under the isotropic slope prior the point already uses
+//!   ([`point_posterior_draws`]), each tempered for serial dependence and tied together by the
+//!   long-run covariance of their stacked normal-equation scores. Joint draw `d` enters draw
+//!   `d` of the functional of every completion, so a product of two edge slopes, a Jacobian or
+//!   a mixture over completions inherits the dependence the shared series and innovations
+//!   give the regressions; a joint draw whose functional cannot be evaluated is removed from
+//!   every completion together and counted as failed mass.
 //!
 //! Neither construction has a coverage record. Every interval is labelled
 //! unmeasured by the calibration lookup like any other unlicensed construction.
@@ -467,14 +468,28 @@ pub(super) fn point_block_replicates(
 
 /// Posterior draws of a temporal point route, by atom.
 pub(super) struct PointPosteriorDraws {
-    /// `atom_draws[a][d]` is draw `d` of atom `a`'s outputs.
+    /// `atom_draws[a][d]` is draw `d` of atom `a`'s outputs. Draw `d` of every atom comes from
+    /// the same joint draw of every regression of every atom, and the lists have equal length.
     pub atom_draws: Vec<Vec<Vec<f64>>>,
     /// Largest serial-dependence tempering factor over every regression.
     pub tempering: f64,
     /// Smallest effective-row count over every regression's slope scores.
     pub effective_rows: f64,
-    /// Draws each regression was asked for.
+    /// Joint draws each regression was asked for.
     pub requested: usize,
+    /// Joint draws on which some atom's functional could not be evaluated. Such a draw is
+    /// removed from every atom together, so the surviving draws stay aligned, and it is counted
+    /// here instead of being forgotten.
+    pub failed: usize,
+    /// Dependence block length of the stacked normal-equation scores that tie the regressions.
+    pub block_length: usize,
+}
+
+impl PointPosteriorDraws {
+    /// Fraction of the requested joint draws whose functional was not evaluable.
+    pub(super) fn failed_mass(&self) -> f64 {
+        if self.requested == 0 { 0.0 } else { self.failed as f64 / self.requested as f64 }
+    }
 }
 
 /// Prior scale, draw count, structural span and RNG stream base of the slope posteriors.
@@ -503,19 +518,23 @@ fn admit_values(
     })
 }
 
-/// Draws of every atom's point function under the tempered Gaussian-likelihood
-/// posterior of each of its regressions.
+/// Joint draws of every atom's point function under the tempered Gaussian-likelihood
+/// posterior of all of its regressions together.
 ///
-/// Regression `g` (in atom order, then the order the point read them) draws from
-/// stream base `derive_stream(stream_base, g)`. Draw `d` of every regression of
-/// an atom enters draw `d` of its functional. A draw the functional cannot
-/// evaluate (a log scale at a non-positive fitted mean) is dropped; fewer than two
-/// surviving draws, or more than half dropped, refuses.
+/// Every regression of every atom is read from one series, so their coefficients are drawn
+/// jointly ([`TemporalSlopeDesign::joint_posterior`]): each regression keeps its tempered
+/// Gaussian marginal and the regressions are tied by the long-run covariance of their stacked
+/// normal-equation scores, which carries shared innovations and shared regressors. Joint draw
+/// `d` enters draw `d` of every atom's functional, so products of slopes, mixtures over
+/// completions and contrasts across mechanisms inherit that dependence. A joint draw on which
+/// any atom's functional cannot be evaluated (a log scale at a non-positive fitted mean) is
+/// removed from every atom and counted as failed mass; fewer than two surviving draws, or
+/// more than half failed, refuses.
 ///
 /// # Errors
 ///
-/// Cancellation, an admission refusal, a regression whose posterior cannot be
-/// formed, or too many unevaluable draws.
+/// Cancellation, an admission refusal, regressions whose joint posterior cannot be formed, or
+/// too many unevaluable draws.
 pub(super) fn point_posterior_draws(
     atoms: &[FrozenAtom],
     plan: PointPosteriorPlan,
@@ -528,44 +547,42 @@ pub(super) fn point_posterior_draws(
         .map(|design| design.cols().saturating_mul(plan.draws))
         .sum();
     let _coefficients = admit_values(ctx, coefficient_cells)?;
+    if ctx.cancellation.is_cancelled() {
+        return Err(CausalError::Cancelled { stage: super::super::stage::STAGE_ESTIMATE_POINT });
+    }
+    let designs: Vec<&TemporalSlopeDesign> =
+        atoms.iter().flat_map(|atom| atom.designs.iter()).collect();
+    let (posteriors, block_length) = TemporalSlopeDesign::joint_posterior(
+        &designs,
+        SlopePosteriorSpec {
+            prior_scale: plan.prior_scale,
+            draws: plan.draws,
+            structural_span: plan.structural_span,
+        },
+        plan.stream_base,
+        &ctx.rng,
+    )
+    .map_err(CausalError::from)?;
+    let tempering = posteriors.iter().fold(1.0_f64, |t, p| t.max(p.tempering));
+    let effective_rows = posteriors
+        .iter()
+        .map(|p| p.effective_rows)
+        .filter(|rows| rows.is_finite())
+        .fold(f64::NAN, f64::min);
+    let mut offsets = Vec::with_capacity(atoms.len());
+    let mut next = 0usize;
+    for atom in atoms {
+        offsets.push(next);
+        next += atom.designs.len();
+    }
     let mut output_lease = None;
-    let mut global = 0u64;
-    let mut tempering = 1.0_f64;
-    let mut effective_rows = f64::NAN;
-    let mut atom_draws = Vec::with_capacity(atoms.len());
-    for (index, atom) in atoms.iter().enumerate() {
-        let mut posteriors = Vec::with_capacity(atom.designs.len());
-        for design in &atom.designs {
-            if ctx.cancellation.is_cancelled() {
-                return Err(CausalError::Cancelled {
-                    stage: super::super::stage::STAGE_ESTIMATE_POINT,
-                });
-            }
-            let posterior = design
-                .posterior(
-                    SlopePosteriorSpec {
-                        prior_scale: plan.prior_scale,
-                        draws: plan.draws,
-                        structural_span: plan.structural_span,
-                    },
-                    antecedent_core::derive_stream(plan.stream_base, global),
-                    &ctx.rng,
-                )
-                .map_err(CausalError::from)?;
-            global += 1;
-            tempering = tempering.max(posterior.tempering);
-            if posterior.effective_rows.is_finite() {
-                effective_rows = if effective_rows.is_finite() {
-                    effective_rows.min(posterior.effective_rows)
-                } else {
-                    posterior.effective_rows
-                };
-            }
-            posteriors.push(posterior);
-        }
-        let mut draws = Vec::with_capacity(plan.draws);
-        for d in 0..plan.draws {
+    let mut atom_draws: Vec<Vec<Vec<f64>>> = vec![Vec::with_capacity(plan.draws); atoms.len()];
+    let mut failed = 0usize;
+    'draws: for d in 0..plan.draws {
+        let mut row = Vec::with_capacity(atoms.len());
+        for (index, atom) in atoms.iter().enumerate() {
             let fits: Vec<SlopeFit> = posteriors
+                [offsets[index]..offsets[index] + atom.designs.len()]
                 .iter()
                 .map(|posterior| SlopeFit {
                     coefficients: posterior.draws[d].clone(),
@@ -573,27 +590,40 @@ pub(super) fn point_posterior_draws(
                 })
                 .collect();
             let Ok(values) = evaluate(index, &atom.source(&fits)) else {
-                continue;
+                failed += 1;
+                continue 'draws;
             };
             if !values.iter().all(|value| value.is_finite()) {
-                continue;
+                failed += 1;
+                continue 'draws;
             }
-            if output_lease.is_none() {
-                output_lease = Some(admit_values(
-                    ctx,
-                    values.len().saturating_mul(plan.draws).saturating_mul(atoms.len()),
-                )?);
-            }
-            draws.push(values);
+            row.push(values);
         }
-        if draws.len() < 2 || draws.len() * 2 < plan.draws {
-            return Err(CausalError::Unsupported {
-                message: "the temporal point posterior could not evaluate enough draws of the functional (a log scale needs a positive fitted mean and treatment point in most draws)",
-            });
+        if output_lease.is_none() {
+            let width = row.first().map_or(0, Vec::len);
+            output_lease = Some(admit_values(
+                ctx,
+                width.saturating_mul(plan.draws).saturating_mul(atoms.len()),
+            )?);
         }
-        atom_draws.push(draws);
+        for (slot, values) in atom_draws.iter_mut().zip(row) {
+            slot.push(values);
+        }
     }
-    Ok(PointPosteriorDraws { atom_draws, tempering, effective_rows, requested: plan.draws })
+    let kept = atom_draws.first().map_or(0, Vec::len);
+    if kept < 2 || kept * 2 < plan.draws {
+        return Err(CausalError::Unsupported {
+            message: "the temporal point posterior could not evaluate enough draws of the functional (a log scale needs a positive fitted mean and treatment point in most draws)",
+        });
+    }
+    Ok(PointPosteriorDraws {
+        atom_draws,
+        tempering,
+        effective_rows,
+        requested: plan.draws,
+        failed,
+        block_length,
+    })
 }
 
 /// Linear-interpolated empirical quantile of sorted values (`p` in `[0, 1]`).
@@ -761,12 +791,22 @@ pub(super) fn posterior_diagnostic(draws: &PointPosteriorDraws, functional: &str
         DiagnosticKind::Scientific,
         DiagnosticSeverity::Info,
         format!(
-            "{functional}: every regression's coefficients drawn jointly from its Gaussian-\
-             likelihood posterior under the isotropic slope prior, the residual variance plugged \
-             in; draw d of every regression enters draw d of the functional; draws kept={kept} of \
-             {}; serial-dependence tempering factor {:.3}; slope-score effective rows {:.1}; no \
-             coverage record measures this interval",
-            draws.requested, draws.tempering, draws.effective_rows,
+            "{functional}: the coefficients of every regression of every completion are one joint \
+             draw from the Gaussian-likelihood posteriors under the isotropic slope prior, the \
+             residual variance plugged in, each regression keeping its own tempered marginal and \
+             all tied by the long-run covariance of their stacked normal-equation scores (block \
+             length {}), so shared innovations and regressors carry across mechanisms; draw d of \
+             every regression enters draw d of the functional; draws kept={kept} of {} with \
+             failed mass {:.4} ({} joint draws where some completion's functional was not \
+             evaluable, removed from every completion together); serial-dependence tempering \
+             factor {:.3}; slope-score effective rows {:.1}; no coverage record measures this \
+             interval",
+            draws.block_length,
+            draws.requested,
+            draws.failed_mass(),
+            draws.failed,
+            draws.tempering,
+            draws.effective_rows,
         ),
     )
 }

@@ -419,6 +419,27 @@ fn reference_next_study_value(
     fixture: &ExperimentFixture,
     threshold: f64,
 ) -> (f64, f64) {
+    let law = updated.numerical_law_source(&fixture.ledger).unwrap();
+    let width = fixture.coefficients.len();
+    let mapped = law
+        .draws()
+        .chunks_exact(width)
+        .enumerate()
+        .map(|(slot, row)| {
+            let target = row.iter().zip(&fixture.coefficients).map(|(v, c)| v * c).sum::<f64>();
+            (target - fixture.update.mapping.intercepts[slot]) / fixture.update.mapping.slopes[slot]
+        })
+        .collect::<Vec<_>>();
+    reference_study_value_for_means(updated, fixture, &mapped, threshold)
+}
+
+/// Value of a next study whose draw slot `i` is predicted to observe `mapped[i]`.
+fn reference_study_value_for_means(
+    updated: &PanelExperimentResult,
+    fixture: &ExperimentFixture,
+    mapped: &[f64],
+    threshold: f64,
+) -> (f64, f64) {
     // Independent one-dimensional predictive-mixture integration. For the two
     // terminal actions the shared baseline utility cancels, and the integrand is
     // max(0, sum_i w_i Normal(y; mapped_i, variance/n) * (target_i - threshold)).
@@ -433,9 +454,7 @@ fn reference_next_study_value(
         .enumerate()
         .map(|(slot, row)| {
             let target = row.iter().zip(&fixture.coefficients).map(|(v, c)| v * c).sum::<f64>();
-            let mapped = (target - fixture.update.mapping.intercepts[slot])
-                / fixture.update.mapping.slopes[slot];
-            (mapped, weights[slot] * (target - threshold))
+            (mapped[slot], weights[slot] * (target - threshold))
         })
         .collect::<Vec<_>>();
     let lower = states.iter().map(|(m, _)| *m).fold(f64::INFINITY, f64::min) - 8.0 * sigma;

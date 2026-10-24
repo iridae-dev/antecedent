@@ -27,10 +27,11 @@ use antecedent_core::{
     AssumptionSet, AverageEffectQuery, CausalSchema, Conditioning, CrossWorldPremise,
     DeclaredSamplingDesign, GraphFamily, IdentificationStatus, InferenceSelection, Intervention,
     InterventionContrast, InterventionWorld, InterventionalDistributionQuery, MediationArms,
-    MediationComponent, MediationTarget, ModelAssumptions, ObservationUnit, OutcomeFunctional,
-    OutcomeQuantity, PartialIdentificationEnvelope, PathSpecificEffectQuery, QuantityUnits,
-    ScientificTarget, ScientificTargetError, ScientificWorldId, TargetForm, TargetPopulation,
-    TimeFrame, VariableId, WorldAction, WorldBinding, WorldCollection,
+    MediationComponent, MediationTarget, ModelAssumptions, NestedCounterfactualQuery,
+    ObservationUnit, OutcomeFunctional, OutcomeQuantity, PartialIdentificationEnvelope,
+    PathSpecificEffectQuery, QuantityUnits, ScientificTarget, ScientificTargetError,
+    ScientificWorldId, TargetForm, TargetPopulation, TimeFrame, VariableId, WorldAction,
+    WorldBinding, WorldCollection,
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_estimate::util::SamplingDeclaration;
@@ -40,7 +41,7 @@ use crate::Study;
 use crate::accepted::GraphClass;
 use crate::analysis::IdentificationCache;
 use crate::analysis::compiled_linear::CompiledLinearExecution;
-use crate::analysis::execute::RouteInput;
+use crate::analysis::execute::{PathSpecificMixedSource, RouteInput};
 use crate::analysis::prepared::CachedStaticIdentification;
 use crate::error::CausalError;
 use crate::estimator_spec::EstimatorSpec;
@@ -88,6 +89,10 @@ enum EffectQuery<'a> {
     Distribution(&'a InterventionalDistributionQuery),
     /// Effect along the paths through the declared intermediate nodes.
     PathSpecific(&'a PathSpecificEffectQuery),
+    /// Natural direct effect: the effect along the edges that avoid the mediator.
+    Nested(&'a NestedCounterfactualQuery),
+    /// The total, natural direct and natural indirect decomposition.
+    Mediation(&'a antecedent_core::MediationQuery),
 }
 
 impl<'a> EffectQuery<'a> {
@@ -106,6 +111,16 @@ impl<'a> EffectQuery<'a> {
             RouteInput::DistributionDag { data, query, .. }
             | RouteInput::DistributionMixed { data, query } => (Self::Distribution(query), data),
             RouteInput::PathSpecificDag { data, query, .. } => (Self::PathSpecific(query), data),
+            RouteInput::PathSpecificMixed { data, source }
+            | RouteInput::PathSpecificCpdag { data, source }
+            | RouteInput::PathSpecificPag { data, source } => (
+                match source {
+                    PathSpecificMixedSource::PathSpecific(query) => Self::PathSpecific(query),
+                    PathSpecificMixedSource::Nested(query) => Self::Nested(query),
+                    PathSpecificMixedSource::Mediation(query) => Self::Mediation(query),
+                },
+                data,
+            ),
             _ => return None,
         })
     }
@@ -134,6 +149,18 @@ impl<'a> EffectQuery<'a> {
                 treatment: Some(query.treatment),
                 outcome: Some(query.outcome),
                 mediators: query.path_nodes.to_vec(),
+                ..Roles::default()
+            },
+            Self::Nested(query) => Roles {
+                treatment: Some(query.treatment),
+                outcome: Some(query.outcome),
+                mediators: vec![query.mediator],
+                ..Roles::default()
+            },
+            Self::Mediation(query) => Roles {
+                treatment: Some(query.treatment),
+                outcome: Some(query.outcome),
+                mediators: query.mediators.to_vec(),
                 ..Roles::default()
             },
         }
@@ -317,6 +344,44 @@ fn problem_target(
         EffectQuery::PathSpecific(query) => {
             ProblemTarget::Target(path_specific_target(query, family, inference, schema)?)
         }
+        EffectQuery::Mediation(query) => {
+            let path = PathSpecificEffectQuery {
+                control: query.control.clone(),
+                active: query.active.clone(),
+                path_nodes: Arc::clone(&query.mediators),
+                target_population: query.target_population.clone(),
+                ..PathSpecificEffectQuery::binary(query.treatment, query.outcome)
+            };
+            let component = match query.contrast {
+                antecedent_core::MediationContrast::Total => MediationComponent::Total,
+                antecedent_core::MediationContrast::Direct => MediationComponent::Direct,
+                antecedent_core::MediationContrast::Mediated => MediationComponent::Mediated,
+                antecedent_core::MediationContrast::NaturalDirect => {
+                    MediationComponent::NaturalDirect
+                }
+                antecedent_core::MediationContrast::NaturalIndirect => {
+                    MediationComponent::NaturalIndirect
+                }
+            };
+            ProblemTarget::Target(mediation_target(&path, component, family, inference, schema)?)
+        }
+        EffectQuery::Nested(query) => {
+            let natural_direct = query.as_mediation_query();
+            let path = PathSpecificEffectQuery {
+                control: natural_direct.control.clone(),
+                active: natural_direct.active.clone(),
+                path_nodes: Arc::clone(&natural_direct.mediators),
+                target_population: natural_direct.target_population.clone(),
+                ..PathSpecificEffectQuery::binary(natural_direct.treatment, natural_direct.outcome)
+            };
+            ProblemTarget::Target(mediation_target(
+                &path,
+                MediationComponent::NaturalDirect,
+                family,
+                inference,
+                schema,
+            )?)
+        }
     })
 }
 
@@ -331,6 +396,8 @@ fn unportable_target(study: &Study, query: EffectQuery<'_>) -> ProblemTarget {
             (FunctionalKind::InterventionalDistribution, query.outcomes.first().copied())
         }
         EffectQuery::PathSpecific(query) => (FunctionalKind::PathSpecific, Some(query.outcome)),
+        EffectQuery::Nested(query) => (FunctionalKind::PathSpecific, Some(query.outcome)),
+        EffectQuery::Mediation(query) => (FunctionalKind::PathSpecific, Some(query.outcome)),
     };
     super::query_functional(study, kind, outcome)
 }
@@ -411,6 +478,17 @@ fn path_specific_target(
         );
         return contrast_target(&total, Conditioning::unconditional(), family, inference, schema);
     }
+    mediation_target(query, MediationComponent::Mediated, family, inference, schema)
+}
+
+/// The cross-world mediation target of `component` over the query's declared nodes.
+fn mediation_target(
+    query: &PathSpecificEffectQuery,
+    component: MediationComponent,
+    family: GraphFamily,
+    inference: InferenceSelection,
+    schema: &CausalSchema,
+) -> Result<ScientificTarget, CausalError> {
     let binding = world_binding(
         query.outcome,
         OutcomeFunctional::Mean,
@@ -423,7 +501,7 @@ fn path_specific_target(
         query.path_nodes.iter().copied(),
         query.control.clone(),
         query.active.clone(),
-        MediationComponent::Mediated,
+        component,
     )
     .map_err(target_error)?;
     let mediation = MediationTarget::new(
@@ -803,6 +881,16 @@ fn design_shape(
         }
         (Some(EstimatorId::RdSharp | EstimatorId::BayesianRdLocalLinear), _) => {
             DesignShape::not_design_based(LOCAL_FITS_AT_EXECUTION)
+        }
+        // A weighting, matching, instrument or learner route fits its nuisance models on
+        // `[1 | T | Z...]` over the one adjustment set a DAG fixes, so that is the width its
+        // outcome and propensity designs share. A route without one adjustment set fits on
+        // its own bases at execution.
+        (Some(_), Some(cache))
+            if cx.study.graph.class() == GraphClass::Dag || cx.plan.static_graph().is_some() =>
+        {
+            quote_adjustment_width(cx, &cache.estimand.adjustment_set, &[])
+                .unwrap_or_else(|_| DesignShape::not_design_based(UNCODED_ADJUSTMENT))
         }
         _ => DesignShape::not_design_based(NUISANCE_MODELS),
     })

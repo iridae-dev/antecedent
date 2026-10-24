@@ -276,12 +276,40 @@ impl Study {
             }
             CausalQuery::PathSpecific(query) => {
                 // Mirrors `execute_path_specific`'s identify+select-estimand step exactly.
-                let Some(graph) = self.graph.as_dag().cloned() else {
-                    return Ok(None);
-                };
                 let (identifier_id, estimator_id) = plan.binding().resolve(RouteDefaults::PATH)?;
                 let cq = CausalQuery::PathSpecific(query.clone());
-                let identification = identify_static_query(identifier_id, &graph, &cq)?;
+                let identification = match self.graph.graph_ref() {
+                    GraphRef::Dag(graph) => identify_static_query(identifier_id, graph, &cq)?,
+                    GraphRef::Admg(admg) => {
+                        crate::strategy_table::identify_admg_query(identifier_id, admg, &cq)?
+                    }
+                    GraphRef::TemporalAdmg(temporal) => {
+                        let admg = crate::analysis::execute::temporal_admg_projection(temporal)?;
+                        crate::strategy_table::identify_admg_query(identifier_id, &admg, &cq)?
+                    }
+                    _ => return Ok(None),
+                };
+                let estimand = select_estimand(&identification, estimator_id)?;
+                Ok(Some(CachedStaticIdentification { identification, estimand }))
+            }
+            CausalQuery::NestedCounterfactual(query) => {
+                // The natural direct effect on a mixed graph, identified as its mediation
+                // reading and retained under the nested query it answers. A DAG runs the
+                // shared-exogenous operation, which keeps no identification cache.
+                let admg = match self.graph.graph_ref() {
+                    GraphRef::Admg(admg) => admg.clone(),
+                    GraphRef::TemporalAdmg(temporal) => {
+                        crate::analysis::execute::temporal_admg_projection(temporal)?
+                    }
+                    _ => return Ok(None),
+                };
+                let (identifier_id, estimator_id) = plan.binding().resolve(RouteDefaults::PATH)?;
+                let mut identification = crate::strategy_table::identify_admg_query(
+                    identifier_id,
+                    &admg,
+                    &CausalQuery::Mediation(query.as_mediation_query()),
+                )?;
+                identification.query = self.query.clone();
                 let estimand = select_estimand(&identification, estimator_id)?;
                 Ok(Some(CachedStaticIdentification { identification, estimand }))
             }
@@ -340,6 +368,48 @@ impl Study {
             variable_count,
         )?;
         Ok(crate::analysis::temporal_admg_contrast::retained_identification(contrast, query))
+    }
+
+    /// Identification of a derivative at one horizon on a temporal ADMG: one adjustment set of
+    /// the unrolled window of the template, retained with the indexer that names the window's
+    /// coordinates.
+    ///
+    /// # Errors
+    ///
+    /// The derivative has no adjustment set on the window (a hedge names the variables and
+    /// periods that carry it), or the query is outside what the slope regression evaluates.
+    pub(crate) fn prepare_temporal_admg_response_identification(
+        &self,
+        query: &antecedent_core::ResponseQuery,
+    ) -> Result<CachedTemporalIdentification, CausalError> {
+        let (
+            GraphRef::TemporalAdmg(template),
+            DataInput::Temporal(series) | DataInput::Event(series),
+        ) = (self.graph.graph_ref(), &self.data)
+        else {
+            return Err(CausalError::Compile {
+                message: "temporal ADMG derivative identification requires a supplied \
+                          TemporalAdmg over series data"
+                    .into(),
+            });
+        };
+        let variable_count = u32::try_from(series.schema().len()).map_err(|_| {
+            CausalError::Compile { message: "series schema exceeds the variable id range".into() }
+        })?;
+        let by_horizon = crate::analysis::temporal_admg_contrast::identify_window_derivatives(
+            template,
+            query,
+            variable_count,
+        )?
+        .into_iter()
+        .map(|(horizon, derivative)| CachedTemporalHorizonIdentification {
+            horizon,
+            identification: derivative.identification,
+            estimand: derivative.estimand,
+            indexer: derivative.indexer,
+        })
+        .collect::<Vec<_>>();
+        Ok(CachedTemporalIdentification { by_horizon: Arc::from(by_horizon) })
     }
 
     /// Static claims identified from the query alone, before any route is resolved.
@@ -511,6 +581,17 @@ impl Study {
             .filter(|admg| crate::analysis::execute::admg_has_bidirected(admg))
         {
             use crate::strategy_table::identify_admg_query;
+            if crate::analysis::execute::response_functional_is_derivative(&query.functional) {
+                // A derivative of a continuous treatment is evaluated on a regression over an
+                // adjustment set of the ADMG, not by the discrete general-ID plug-in.
+                let identification = crate::strategy_table::identify_admg_derivative(admg, query)?;
+                let estimand = identification.estimands.first().cloned().ok_or_else(|| {
+                    CausalError::Compile {
+                        message: "response identifier returned no estimand".into(),
+                    }
+                })?;
+                return Ok(Some(CachedStaticIdentification { identification, estimand }));
+            }
             // `execute_admg_response` reuses this cache verbatim as the *first grid
             // level's* claim for a MeanCurve (it only re-identifies per level from the
             // second level on, mirroring the graph-posterior ADMG response cache). A

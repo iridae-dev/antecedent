@@ -14,9 +14,10 @@ use super::{
     ResponseValue, Strategy, StudyResult, TableView, TabularData, VariableId, WeightedGraphSamples,
     bayesian_gcomp, elapsed_ns, envelope_se_omits_between_atom_variance,
     envelope_to_identification_result_for, functional_cell_unevaluable,
-    identification_from_cache_or, identification_status_ok_for_case, identify_cached_diagnostic,
-    identify_static_query, interactive_subsample_graphs_accounted, provenance_ids,
-    report_identify_compute, resolve_posterior_status, scalar_identified_set,
+    identification_from_cache_or, identification_status_ok_for_case,
+    identified_set_interval_diagnostics, identify_cached_diagnostic, identify_static_query,
+    interactive_subsample_graphs_accounted, provenance_ids, report_identify_compute,
+    resolve_posterior_status, response_functional_is_derivative, scalar_identified_set,
     support_from_functional_eval,
 };
 use crate::planner::RouteDefaults;
@@ -698,10 +699,6 @@ impl super::Study {
     }
 
     /// Identify and estimate a continuous response, including licensed observation correction.
-    #[allow(
-        clippy::too_many_lines,
-        reason = "one continuous response execution: identification, observation correction, estimation, refutation and finish run in sequence"
-    )]
     pub(super) fn execute_response(
         &self,
         data: &TabularData,
@@ -714,7 +711,200 @@ impl super::Study {
         let started = Instant::now();
         let (identification, estimand, identify_cached, identifier_id, estimator_id) =
             self.identify_static_response(graph, query, physical, checked_curve, ctx)?;
+        self.finish_static_response(
+            data,
+            query,
+            ExecuteRun { physical, ctx, started, identify_cached },
+            IdentifiedClaim { identification, estimand },
+            Strategy::new(identifier_id, estimator_id),
+        )
+    }
+
+    /// Derivative or Jacobian on a latent-confounded ADMG, identified by one common adjustment
+    /// set of the ADMG and estimated by the continuous response estimator on it.
+    ///
+    /// The adjustment set is read from the ADMG's proper back-door graph, so a bidirected edge
+    /// keeps its latent common cause; nothing is coerced to a DAG. Identification that adjustment
+    /// cannot reach is refused with the hedge certificate or with the ID-only boundary.
+    pub(super) fn execute_admg_derivative(
+        &self,
+        data: &TabularData,
+        admg: &antecedent_graph::Admg,
+        query: &ResponseQuery,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let started = Instant::now();
+        let (identifier_id, estimator_id) = physical.binding().resolve(RouteDefaults {
+            identifier: IdentifierId::GeneralizedAdjustment,
+            estimator: EstimatorId::static_response_for(&query.functional, &self.inference),
+        })?;
+        report_identify_compute(ctx);
+        let identification = crate::strategy_table::identify_admg_derivative(admg, query)?;
+        let identify_cached = false;
+        let estimand = identification.estimands.first().cloned().ok_or_else(|| {
+            CausalError::Compile { message: "response identifier returned no estimand".into() }
+        })?;
+        if identification
+            .estimands
+            .iter()
+            .any(|candidate| candidate.adjustment_set != estimand.adjustment_set)
+        {
+            return Err(CausalError::Unsupported {
+                message: "multi-pair response estimation requires one common adjustment set",
+            });
+        }
+        self.finish_static_response(
+            data,
+            query,
+            ExecuteRun { physical, ctx, started, identify_cached },
+            IdentifiedClaim { identification, estimand },
+            Strategy::new(identifier_id, estimator_id),
+        )
+    }
+
+    /// The derivative of a front-door-identified response: the additive-outcome front-door
+    /// estimator on the estimand's mediators, with its whole-procedure bootstrap interval
+    /// (Frequentist) or Bayesian-bootstrap credible interval, resampling `block` consecutive
+    /// rows together.
+    ///
+    /// # Errors
+    ///
+    /// The estimator's refusals.
+    pub(super) fn estimate_front_door_derivative_response(
+        &self,
+        data: &TabularData,
+        query: &ResponseQuery,
+        claim: FrontDoorClaim<'_>,
+        block: usize,
+        ctx: &ExecutionContext,
+    ) -> Result<CausalResponse, CausalError> {
+        let mut estimator =
+            ContinuousResponseEstimator::new(Arc::clone(&claim.estimand.adjustment_set));
+        if let Some(options) = &self.response_options {
+            estimator.options = options.clone();
+        }
+        let inference = match &self.inference {
+            InferenceMode::Frequentist => {
+                antecedent_estimate::FrontDoorDerivativeInference::Frequentist {
+                    replicates: self.bootstrap_replicates,
+                    block,
+                }
+            }
+            InferenceMode::Bayesian(config) => {
+                antecedent_estimate::FrontDoorDerivativeInference::Bayesian {
+                    draws: config.n_draws,
+                    block,
+                }
+            }
+        };
+        estimator
+            .front_door_derivative(
+                data,
+                &query.functional,
+                &claim.estimand.mediators,
+                claim.status,
+                claim.assumptions,
+                inference,
+                ctx,
+            )
+            .map_err(CausalError::from)
+    }
+
+    /// Result of a derivative identified by the front-door criterion.
+    fn finish_front_door_derivative(
+        &self,
+        data: &TabularData,
+        query: &ResponseQuery,
+        run: ExecuteRun<'_>,
+        claim: IdentifiedClaim,
+        strategy: Strategy,
+    ) -> Result<StudyResult, CausalError> {
+        let ExecuteRun { physical, ctx, started, identify_cached } = run;
+        let IdentifiedClaim { identification, estimand } = claim;
+        let Strategy { identifier: identifier_id, estimator: estimator_id } = strategy;
+        let (treatment, outcome) = response_primary_pair(&query.functional)?;
+        let data_est = super::super::helpers::apply_scalar_outcome_functional(
+            data,
+            outcome,
+            &query.outcome_functional,
+        )?;
+        let response = self.estimate_front_door_derivative_response(
+            &data_est,
+            query,
+            FrontDoorClaim {
+                estimand: &estimand,
+                status: identification.status,
+                assumptions: identification.required_assumptions.clone(),
+            },
+            1,
+            ctx,
+        )?;
+        let (scalar, standard_error) = response_scalar_summary(&response);
+        let estimate = EffectEstimate::new(
+            scalar,
+            standard_error,
+            response.assumptions.clone(),
+            OverlapPolicy::ExplicitOverride,
+        );
+        let mut diagnostics = identification.diagnostics.clone();
+        if identify_cached {
+            diagnostics.push(identify_cached_diagnostic());
+        }
+        diagnostics.extend(response.support.warnings.iter().cloned());
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                Strategy::new(identifier_id, estimator_id),
+                treatment,
+                outcome,
+            )
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras {
+                estimate_provenance: Some(provenance_ids(
+                    "estimate.response.front_door_derivative",
+                    "estimate.response.front_door_derivative",
+                )),
+                diagnostics: Some(diagnostics),
+                response: Some(response),
+                bootstrap_replicates_requested: Some(None),
+                ..Default::default()
+            }),
+        ))
+    }
+
+    /// Estimates and finishes a response whose static identification is already settled.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one continuous response execution: observation correction, estimation, refutation and finish run in sequence"
+    )]
+    fn finish_static_response(
+        &self,
+        data: &TabularData,
+        query: &ResponseQuery,
+        run: ExecuteRun<'_>,
+        claim: IdentifiedClaim,
+        strategy: Strategy,
+    ) -> Result<StudyResult, CausalError> {
+        let ExecuteRun { physical, ctx, started, identify_cached } = run;
+        let IdentifiedClaim { identification, estimand } = claim;
+        let Strategy { identifier: identifier_id, estimator: estimator_id } = strategy;
         let cell_aipw = matches!(estimator_id, EstimatorId::CellAipw);
+
+        if response_functional_is_derivative(&query.functional)
+            && estimand.method_kind().ok() == Some(EstimandMethod::FrontDoor)
+        {
+            return self.finish_front_door_derivative(
+                data,
+                query,
+                ExecuteRun { physical, ctx, started, identify_cached },
+                IdentifiedClaim { identification, estimand },
+                Strategy::new(identifier_id, estimator_id),
+            );
+        }
 
         if estimand.method_kind().ok() == Some(EstimandMethod::GeneralId)
             || estimand.method_kind().ok() == Some(EstimandMethod::FrontDoor)
@@ -1635,7 +1825,12 @@ pub(crate) fn class_aware_response_supported(query: &ResponseQuery) -> bool {
         && query.observation == ObservationSpec::Complete
         && matches!(
             query.functional,
-            ResponseFunctional::MeanCurve { .. } | ResponseFunctional::InterventionResponse { .. }
+            ResponseFunctional::MeanCurve { .. }
+                | ResponseFunctional::InterventionResponse { .. }
+                | ResponseFunctional::PointDerivative { .. }
+                | ResponseFunctional::AverageDerivative { .. }
+                | ResponseFunctional::DirectionalDerivative { .. }
+                | ResponseFunctional::Jacobian { .. }
         )
 }
 
@@ -1662,8 +1857,8 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         if !class_aware_response_supported(query) {
             return Err(CausalError::Compile {
-                message: "Cpdag/Pag response supports complete-observation MeanCurve and \
-                          InterventionResponse only"
+                message: "Cpdag/Pag response supports complete-observation MeanCurve, \
+                          InterventionResponse and derivative functionals only"
                     .into(),
             });
         }
@@ -1886,6 +2081,31 @@ impl super::Study {
                 continue;
             }
             let estimand = case.result.estimands[0].clone();
+            if response_functional_is_derivative(&inputs.query.functional)
+                && estimand.method_kind().ok() == Some(EstimandMethod::FrontDoor)
+            {
+                // Identified through a front door: the additive-outcome derivative, with its
+                // own whole-procedure interval (no row scores to mix).
+                let response = self.estimate_front_door_derivative_response(
+                    inputs.data_est,
+                    inputs.query,
+                    FrontDoorClaim {
+                        estimand: &estimand,
+                        status: case.result.status,
+                        assumptions: case.result.required_assumptions.clone(),
+                    },
+                    1,
+                    inputs.ctx,
+                )?;
+                let w = case.weight.0;
+                atoms.total_w += w;
+                if atoms.primary_estimand.is_none() {
+                    atoms.primary_estimand = Some(estimand);
+                }
+                atoms.structural_atoms[case_index].value = response_identified_value(&response);
+                atoms.weighted.push((u64::try_from(case_index).unwrap_or(u64::MAX), w, response));
+                continue;
+            }
             if estimand.method_kind().ok() == Some(EstimandMethod::GeneralId)
                 || estimand.method_kind().ok() == Some(EstimandMethod::FrontDoor)
             {
@@ -1976,14 +2196,26 @@ impl super::Study {
                 None,
             )
         } else {
-            response_estimator
+            let (response, scores) = response_estimator
                 .estimate_identified_scored(
                     inputs.data_est,
                     inputs.query,
                     result.status,
                     result.required_assumptions.clone(),
                 )
-                .map_err(CausalError::from)?
+                .map_err(CausalError::from)?;
+            // The derivative routes publish their own interval but no row scores; the class
+            // mixture needs the scores to place completions on shared rows.
+            let scores = if scores.is_none()
+                && response_functional_is_derivative(&inputs.query.functional)
+            {
+                response_estimator
+                    .derivative_influence(inputs.data_est, inputs.query)
+                    .map_err(CausalError::from)?
+            } else {
+                scores
+            };
+            (response, scores)
         };
         Ok((response, scores))
     }
@@ -2010,6 +2242,14 @@ impl super::Study {
                 // Sole general-ID atom could not evaluate a required cell.
                 // Publish the support report; do not invent a number.
                 weighted.push((0, 1.0, response));
+            } else if response_functional_is_derivative(&query.functional)
+                && unestimated_id_mass > 0.0
+            {
+                return Err(CausalError::Unsupported {
+                    message: "every identified completion identifies the derivative through a \
+                              functional that is not an adjustment (front-door or general ID); \
+                              no continuous-treatment estimator evaluates such a functional",
+                });
             } else {
                 return Err(CausalError::Compile {
                     message: "class-aware response envelope had no estimable identified cases"
@@ -2068,6 +2308,27 @@ impl super::Study {
         if let Some(scores) = mixed_scores.as_ref() {
             self.attach_class_response_band(&mut mixed, scores)?;
         }
+        // Completions of a derivative that disagree publish the identified set; the Imbens-Manski
+        // interval of the set, from the completions' joint row influence, is its sampling band.
+        let mut identified_set_banded = false;
+        let mut structural_response = structural_response;
+        if response_functional_is_derivative(&query.functional)
+            && matches!(
+                &mixed.estimate,
+                ResponseIdentification::PartiallyIdentified(ResponseValue::Envelope(_))
+            )
+            && envelope.unidentified_weight.0 <= 1e-12
+            && unestimated_id_mass <= 1e-12
+        {
+            let level = self.response_options.clone().unwrap_or_default().confidence_level;
+            if let Some((band, interval)) =
+                derivative_identified_set_band(&weighted, &atom_scores, data.row_count(), level)
+            {
+                mixed.uncertainty = band;
+                structural_response.identified_set_interval = interval;
+                identified_set_banded = true;
+            }
+        }
         let (scalar, mixed_se) = response_scalar_summary(&mixed);
         let mut estimate = EffectEstimate::new(
             scalar,
@@ -2088,6 +2349,7 @@ impl super::Study {
             )
         );
         let identified_set_unbanded = !reports_mixed_point
+            && !identified_set_banded
             && matches!(
                 &mixed.estimate,
                 ResponseIdentification::PartiallyIdentified(ResponseValue::Envelope(_))
@@ -2131,6 +2393,24 @@ impl super::Study {
                         level,
                         lower: v - z * se,
                         upper: v + z * se,
+                        interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                        draws: None,
+                    };
+                }
+                Some(
+                    ResponseValue::Vector(coordinates)
+                    | ResponseValue::Jacobian { values: coordinates, .. },
+                ) if coordinates.len() == cov.dim => {
+                    // A derivative vector or Jacobian: one coordinate per column, pointwise.
+                    let z = antecedent_stats::normal_ppf(0.5 + level / 2.0);
+                    let lower =
+                        coordinates.iter().enumerate().map(|(j, v)| v - z * cov.se(j)).collect();
+                    let upper =
+                        coordinates.iter().enumerate().map(|(j, v)| v + z * cov.se(j)).collect();
+                    mixed.uncertainty = ResponseUncertainty::PointwiseBand {
+                        level,
+                        lower,
+                        upper,
                         interpretation: antecedent_core::IntervalInterpretation::Confidence,
                         draws: None,
                     };
@@ -2193,6 +2473,23 @@ impl super::Study {
                  (pointwise lower/upper over identified completions); no sampling band and no \
                  scalar SE are published for it. Per-completion values and enumeration weights \
                  are in structural_response; a frozen-weight mixture is not reported",
+            ));
+        }
+        if let Some(interval) = &mixed_class.structural_response.identified_set_interval {
+            diagnostics.extend(identified_set_interval_diagnostics(interval));
+        }
+        if response_functional_is_derivative(&mixed.estimand)
+            && !matches!(mixed.uncertainty, ResponseUncertainty::None)
+            && weighted.iter().all(|(_, _, r)| matches!(r.uncertainty, ResponseUncertainty::None))
+        {
+            diagnostics.push(Diagnostic::new(
+                "estimate.response.derivative_class_band_unmeasured",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "the band is formed from the completions' joint row influence (the additive-GAM \
+                 coefficient sandwich for a Jacobian or directional derivative, the robust \
+                 bias-corrected local fit for a point derivative); no coverage record measures it \
+                 and the cell is unlicensed",
             ));
         }
         if envelope.cases.iter().any(|c| {
@@ -2260,6 +2557,14 @@ impl super::Study {
     }
 }
 
+/// What a front-door derivative estimates from: the estimand, its status and its premises.
+#[derive(Clone)]
+pub(super) struct FrontDoorClaim<'a> {
+    pub(super) estimand: &'a IdentifiedEstimand,
+    pub(super) status: IdentificationStatus,
+    pub(super) assumptions: antecedent_core::AssumptionSet,
+}
+
 /// Borrowed inputs shared by every completion of a class-aware response.
 #[derive(Clone, Copy)]
 struct ClassResponseInputs<'a> {
@@ -2290,6 +2595,17 @@ impl ClassResponseAtoms {
         weight: f64,
         estimand: IdentifiedEstimand,
     ) -> Result<(), CausalError> {
+        if response_functional_is_derivative(&inputs.query.functional) {
+            // Identified through a functional that is not an adjustment (front-door or a
+            // general ID expression). The discrete plug-in evaluates probabilities at
+            // observed levels; it has no derivative with respect to a continuous treatment,
+            // so the completion's mass is accounted as unevaluable and never mixed.
+            self.unestimated_id_mass += weight;
+            if self.primary_estimand.is_none() {
+                self.primary_estimand = Some(estimand);
+            }
+            return Ok(());
+        }
         match estimate_general_id_response(
             inputs.data,
             inputs.query,
@@ -2435,7 +2751,50 @@ pub(super) fn response_envelope_from_weighted(
                 upper: Arc::from(upper),
             })
         }
+        ResponseValue::Vector(_) | ResponseValue::Jacobian { .. } => {
+            // A derivative vector or Jacobian: one coordinate per entry, no grid.
+            let first_entries = coordinate_entries(first)?;
+            let mut lower = first_entries.to_vec();
+            let mut upper = first_entries.to_vec();
+            for candidate in values.iter().skip(1) {
+                let entries = coordinate_entries(candidate)?;
+                if entries.len() != lower.len() || !same_coordinate_shape(first, candidate) {
+                    return None;
+                }
+                for (index, value) in entries.iter().enumerate() {
+                    lower[index] = lower[index].min(*value);
+                    upper[index] = upper[index].max(*value);
+                }
+            }
+            Some(antecedent_core::ResponseEnvelope {
+                grid: Arc::from([]),
+                dimension: 0,
+                lower: Arc::from(lower),
+                upper: Arc::from(upper),
+            })
+        }
         _ => None,
+    }
+}
+
+/// The coordinates of a vector or Jacobian payload, `None` for any other shape.
+fn coordinate_entries(value: &ResponseValue) -> Option<&[f64]> {
+    match value {
+        ResponseValue::Vector(entries) => Some(entries),
+        ResponseValue::Jacobian { values, .. } => Some(values),
+        _ => None,
+    }
+}
+
+/// Whether two coordinate payloads are the same kind with the same matrix shape.
+fn same_coordinate_shape(first: &ResponseValue, other: &ResponseValue) -> bool {
+    match (first, other) {
+        (ResponseValue::Vector(a), ResponseValue::Vector(b)) => a.len() == b.len(),
+        (
+            ResponseValue::Jacobian { outcomes: ao, treatments: at, .. },
+            ResponseValue::Jacobian { outcomes: bo, treatments: bt, .. },
+        ) => ao == bo && at == bt,
+        _ => false,
     }
 }
 
@@ -2464,8 +2823,15 @@ fn singleton_response_value(
             dimension: envelope.dimension,
             mean: Arc::clone(&envelope.lower),
         }),
+        ResponseValue::Vector(_) => Ok(ResponseValue::Vector(Arc::clone(&envelope.lower))),
+        ResponseValue::Jacobian { outcomes, treatments, .. } => Ok(ResponseValue::Jacobian {
+            outcomes: *outcomes,
+            treatments: *treatments,
+            values: Arc::clone(&envelope.lower),
+        }),
         _ => Err(CausalError::Compile {
-            message: "class-aware response only publishes scalar and surface identified sets"
+            message: "class-aware response only publishes scalar, surface, vector and Jacobian \
+                      identified sets"
                 .into(),
         }),
     }
@@ -2606,8 +2972,39 @@ pub(super) fn mix_response_values(
                 mean: Arc::from(acc),
             })
         }
+        ResponseValue::Vector(_) | ResponseValue::Jacobian { .. } => {
+            let mut acc = vec![0.0; coordinate_entries(first).map_or(0, <[f64]>::len)];
+            let mut wsum = 0.0;
+            for (w, value) in items {
+                let entries = coordinate_entries(value).filter(|entries| {
+                    entries.len() == acc.len() && same_coordinate_shape(first, value)
+                });
+                let Some(entries) = entries else {
+                    return Err(CausalError::Compile {
+                        message: "class-aware response cases returned mixed payload shapes".into(),
+                    });
+                };
+                for (slot, entry) in acc.iter_mut().zip(entries) {
+                    *slot += *w * *entry;
+                }
+                wsum += *w;
+            }
+            for entry in &mut acc {
+                *entry /= wsum;
+            }
+            Ok(match first {
+                ResponseValue::Jacobian { outcomes, treatments, .. } => ResponseValue::Jacobian {
+                    outcomes: *outcomes,
+                    treatments: *treatments,
+                    values: Arc::from(acc),
+                },
+                _ => ResponseValue::Vector(Arc::from(acc)),
+            })
+        }
         _ => Err(CausalError::Compile {
-            message: "class-aware response only mixes scalar and surface payloads".into(),
+            message: "class-aware response only mixes scalar, surface, vector and Jacobian \
+                      payloads"
+                .into(),
         }),
     }
 }
@@ -2778,6 +3175,116 @@ pub(crate) fn graph_posterior_response_supported(query: &ResponseQuery) -> Resul
         });
     }
     Ok(())
+}
+
+/// The coordinates of a scalar, vector or Jacobian payload.
+fn derivative_coordinates(value: &ResponseValue) -> Option<Vec<f64>> {
+    match value {
+        ResponseValue::Scalar(x) => Some(vec![*x]),
+        ResponseValue::Vector(values) | ResponseValue::Jacobian { values, .. } => {
+            Some(values.to_vec())
+        }
+        _ => None,
+    }
+}
+
+/// Every atom's influence columns on the full row set, centred over the atom's own rows and
+/// scaled by `full_n / rows` so a missing row contributes zero (the alignment
+/// [`mix_response_influences`] mixes with). `aligned[atom][column]`.
+fn aligned_atom_columns(
+    atoms: &[(f64, antecedent_estimate::ResponseInfluence)],
+    full_n: usize,
+) -> Option<Vec<Vec<Vec<f64>>>> {
+    if atoms.is_empty() || full_n < 2 {
+        return None;
+    }
+    let n_cols = atoms[0].1.columns.len();
+    let mut aligned = Vec::with_capacity(atoms.len());
+    for (_, scores) in atoms {
+        let n = scores.row_index.len();
+        if n < 2 || scores.columns.len() != n_cols || scores.columns.iter().any(|c| c.len() != n) {
+            return None;
+        }
+        let mut columns = Vec::with_capacity(n_cols);
+        for col in &scores.columns {
+            let center = col.iter().sum::<f64>() / n as f64;
+            let mut full = vec![0.0; full_n];
+            for (&row, &v) in scores.row_index.iter().zip(col) {
+                *full.get_mut(usize::try_from(row.get()).ok()?)? =
+                    (v - center) * full_n as f64 / n as f64;
+            }
+            columns.push(full);
+        }
+        aligned.push(columns);
+    }
+    Some(aligned)
+}
+
+/// The sampling band of a derivative whose completions disagree: per coordinate, the
+/// Imbens-Manski interval of the completions' identified set with standard deviations from
+/// their joint row influence. One coordinate publishes a scalar interval (and the interval
+/// itself for the structural mixture); several publish a pointwise band.
+fn derivative_identified_set_band(
+    weighted: &[(u64, f64, antecedent_core::CausalResponse)],
+    atom_scores: &[(f64, antecedent_estimate::ResponseInfluence)],
+    full_n: usize,
+    level: f64,
+) -> Option<(ResponseUncertainty, Option<antecedent_estimate::IdentifiedSetInterval>)> {
+    if weighted.len() < 2 || atom_scores.len() != weighted.len() {
+        return None;
+    }
+    let coordinates: Vec<Vec<f64>> = weighted
+        .iter()
+        .map(|(_, _, response)| {
+            response_identified_value(response).as_ref().and_then(derivative_coordinates)
+        })
+        .collect::<Option<_>>()?;
+    let dim = coordinates[0].len();
+    if coordinates.iter().any(|c| c.len() != dim) {
+        return None;
+    }
+    let aligned = aligned_atom_columns(atom_scores, full_n)?;
+    if aligned.iter().any(|columns| columns.len() != dim) {
+        return None;
+    }
+    let mut lower = Vec::with_capacity(dim);
+    let mut upper = Vec::with_capacity(dim);
+    let mut intervals = Vec::with_capacity(dim);
+    for j in 0..dim {
+        let points: Vec<f64> = coordinates.iter().map(|c| c[j]).collect();
+        let columns: Vec<&[f64]> = aligned.iter().map(|atom| atom[j].as_slice()).collect();
+        let interval = antecedent_estimate::imbens_manski_influence(&points, &columns, level)?;
+        lower.push(interval.lower);
+        upper.push(interval.upper);
+        intervals.push(interval);
+    }
+    let interpretation = antecedent_core::IntervalInterpretation::Confidence;
+    if dim == 1 {
+        let interval = intervals.remove(0);
+        let standard_error = interval.lower_se.max(interval.upper_se);
+        Some((
+            ResponseUncertainty::Scalar {
+                standard_error,
+                level,
+                lower: interval.lower,
+                upper: interval.upper,
+                interpretation,
+                draws: None,
+            },
+            Some(interval),
+        ))
+    } else {
+        Some((
+            ResponseUncertainty::PointwiseBand {
+                level,
+                lower: lower.into(),
+                upper: upper.into(),
+                interpretation,
+                draws: None,
+            },
+            None,
+        ))
+    }
 }
 
 fn mix_response_influences(

@@ -210,6 +210,59 @@ pub fn identify_cpdag(
     }
 }
 
+/// Class-aware identification of a path-restricted natural effect (or a natural direct effect)
+/// over a CPDAG: the path-specific identifier on every MEC DAG completion.
+///
+/// # Errors
+///
+/// An identifier other than `path_specific.natural`, a query it does not read, or a
+/// completion that fails to prepare.
+pub(crate) fn identify_cpdag_path_specific(
+    identifier: IdentifierId,
+    cpdag: &antecedent_graph::Cpdag,
+    query: &CausalQuery,
+) -> Result<IdentificationEnvelope<antecedent_graph::Dag>, CausalError> {
+    match identifier {
+        IdentifierId::PathSpecificNatural => GeneralizedAdjustmentIdentifier::new()
+            .identify_cpdag_path_specific_envelope(cpdag, query)
+            .map_err(identify_err),
+        other => Err(CausalError::Compile {
+            message: format!(
+                "CPDAG path-specific identification requires identifier \"path_specific.natural\"; \
+                 got {:?}",
+                other.as_str()
+            ),
+        }),
+    }
+}
+
+/// Class-aware identification of a path-restricted natural effect (or a natural direct effect)
+/// over a PAG: the path-specific identifier on every ADMG that shares the m-separation model
+/// of a MAG completion.
+///
+/// # Errors
+///
+/// An identifier other than `path_specific.natural`, a query it does not read, or a
+/// completion that fails to prepare.
+pub(crate) fn identify_pag_path_specific(
+    identifier: IdentifierId,
+    pag: &Pag,
+    query: &CausalQuery,
+) -> Result<IdentificationEnvelope<Pag>, CausalError> {
+    match identifier {
+        IdentifierId::PathSpecificNatural => GeneralizedAdjustmentIdentifier::new()
+            .identify_pag_path_specific_envelope(pag, query)
+            .map_err(identify_err),
+        other => Err(CausalError::Compile {
+            message: format!(
+                "PAG path-specific identification requires identifier \"path_specific.natural\"; \
+                 got {:?}",
+                other.as_str()
+            ),
+        }),
+    }
+}
+
 /// Class-aware identification over a PAG (generalized adjustment envelope).
 ///
 /// # Errors
@@ -360,9 +413,22 @@ pub fn identify_admg_query(
             require_identified(&result)?;
             Ok(result)
         }
+        IdentifierId::PathSpecificNatural => {
+            // A path-restricted natural effect (or a natural direct effect, which reads the
+            // mediator as the path node) on a mixed graph: Avin-Shpitser-Pearl witness check,
+            // then the surgical total effect, the edge g-formula or Shpitser's district
+            // formula, whichever the graph's latent confounding calls for.
+            let id = antecedent_identify::PathSpecificIdentifier::new();
+            let prepared = id.prepare(admg).map_err(identify_err)?;
+            let mut id_ws = IdentificationWorkspace::default();
+            let result = id.identify(&prepared, query, &mut id_ws).map_err(identify_err)?;
+            require_identified(&result)?;
+            Ok(result)
+        }
         other => Err(CausalError::Compile {
             message: format!(
-                "ADMG identification requires identifier \"general.id\"; got {:?}",
+                "ADMG identification requires identifier \"general.id\" or \
+                 \"path_specific.natural\"; got {:?}",
                 other.as_str()
             ),
         }),
@@ -798,6 +864,11 @@ pub fn identify_cpdag_response(
     query: &antecedent_core::ResponseQuery,
 ) -> Result<IdentificationEnvelope<Dag>, CausalError> {
     let witness = crate::analysis::response_witness_ate(query)?;
+    if names_several_pairs(&query.functional) {
+        return require_adjustment_identifier(identifier, "CPDAG").and_then(|()| {
+            antecedent_identify::identify_cpdag_derivative_pairs(graph, query).map_err(identify_err)
+        });
+    }
     if query.functional.treatment_ids().len() == 1 {
         if identifier != IdentifierId::GeneralizedAdjustment
             && identifier != IdentifierId::GeneralId
@@ -817,6 +888,107 @@ pub fn identify_cpdag_response(
         .map_err(identify_err)
 }
 
+/// Whether a derivative functional names more than one treatment/outcome pair (a Jacobian or
+/// directional derivative over several coordinates), so each pair must be identified by the
+/// one adjustment set the regression conditions on.
+fn names_several_pairs(functional: &antecedent_core::ResponseFunctional) -> bool {
+    use antecedent_core::ResponseFunctional as F;
+    match functional {
+        F::DirectionalDerivative { outcomes, treatments, .. }
+        | F::Jacobian { outcomes, treatments, .. } => outcomes.len() * treatments.len() > 1,
+        _ => false,
+    }
+}
+
+/// Whether a response functional is one of the derivative family.
+fn is_derivative_functional(functional: &antecedent_core::ResponseFunctional) -> bool {
+    use antecedent_core::ResponseFunctional as F;
+    matches!(
+        functional,
+        F::AverageDerivative { .. }
+            | F::PointDerivative { .. }
+            | F::DirectionalDerivative { .. }
+            | F::Jacobian { .. }
+    )
+}
+
+/// A multi-pair derivative is identified by adjustment on each completion.
+fn require_adjustment_identifier(
+    identifier: IdentifierId,
+    class_name: &'static str,
+) -> Result<(), CausalError> {
+    if identifier == IdentifierId::GeneralizedAdjustment {
+        return Ok(());
+    }
+    Err(CausalError::Compile {
+        message: format!(
+            "a derivative over several treatment/outcome pairs on a {class_name} requires \
+             generalized.adjustment; got {:?}",
+            identifier.as_str()
+        ),
+    })
+}
+
+/// Identify a derivative, elasticity, directional derivative or Jacobian on a latent-confounded
+/// ADMG by one common adjustment set per pair.
+///
+/// When no adjustment set exists the response is reported through the general ID algorithm
+/// on each pair: a pair with a hedge is not identified by any estimator (Shpitser and Pearl
+/// 2006), and that typed refusal carries the hedge certificate. A pair that ID identifies
+/// through a functional that is not an adjustment has no continuous-treatment estimator
+/// here and is refused as such.
+///
+/// # Errors
+///
+/// Identification failure, a hedge on a pair, or an ID-only functional.
+pub(crate) fn identify_admg_derivative(
+    admg: &antecedent_graph::Admg,
+    query: &antecedent_core::ResponseQuery,
+) -> Result<IdentificationResult, CausalError> {
+    use antecedent_core::{DerivativeScale, ResponseFunctional};
+    let adjusted = antecedent_identify::identify_admg_response_adjustment(admg, query)
+        .map_err(identify_err)?;
+    if !matches!(adjusted.status, antecedent_core::IdentificationStatus::NotIdentified) {
+        return Ok(adjusted);
+    }
+    // No adjustment set: the front-door criterion identifies the mean through the mediators.
+    if let Some(front_door) = antecedent_identify::identify_admg_front_door_derivative(admg, query)
+        .map_err(identify_err)?
+    {
+        return Ok(front_door);
+    }
+    let pairs: Vec<(antecedent_core::VariableId, antecedent_core::VariableId)> =
+        match &query.functional {
+            ResponseFunctional::AverageDerivative { outcome, treatment, .. }
+            | ResponseFunctional::PointDerivative { outcome, treatment, .. } => {
+                vec![(*treatment, *outcome)]
+            }
+            ResponseFunctional::DirectionalDerivative { outcomes, treatments, .. }
+            | ResponseFunctional::Jacobian { outcomes, treatments, .. } => {
+                treatments.iter().flat_map(|t| outcomes.iter().map(move |y| (*t, *y))).collect()
+            }
+            _ => Vec::new(),
+        };
+    for (treatment, outcome) in pairs {
+        let mut pair_query = query.clone();
+        pair_query.functional = ResponseFunctional::PointDerivative {
+            outcome,
+            treatment,
+            at: 0.0,
+            order: 1,
+            scale: DerivativeScale::Identity,
+        };
+        let witness = general_id_result(admg, &CausalQuery::Response(pair_query))?;
+        // A hedge: the pair's interventional law is not identified by any estimator.
+        require_identified(&witness)?;
+    }
+    Err(CausalError::Unsupported {
+        message: "the derivative is identified by the general ID algorithm but by neither an \
+                  adjustment set nor a front-door set: it is a general ID functional of the \
+                  observed law, and no continuous-treatment estimator evaluates such a functional",
+    })
+}
+
 /// Class-aware MAG response identification covering every intervention target.
 ///
 /// # Errors
@@ -827,6 +999,11 @@ pub fn identify_pag_response(
     query: &antecedent_core::ResponseQuery,
 ) -> Result<IdentificationEnvelope<Pag>, CausalError> {
     let witness = crate::analysis::response_witness_ate(query)?;
+    if names_several_pairs(&query.functional) {
+        return require_adjustment_identifier(identifier, "PAG").and_then(|()| {
+            antecedent_identify::identify_pag_derivative_pairs(graph, query).map_err(identify_err)
+        });
+    }
     if query.functional.treatment_ids().len() == 1 {
         let _ = witness;
         if identifier != IdentifierId::GeneralizedAdjustment
@@ -834,8 +1011,14 @@ pub fn identify_pag_response(
         {
             return identify_pag(identifier, graph, &witness);
         }
-        return antecedent_identify::identify_pag_response_general(graph, query)
-            .map_err(identify_err);
+        let mut envelope = antecedent_identify::identify_pag_response_general(graph, query)
+            .map_err(identify_err)?;
+        if is_derivative_functional(&query.functional) {
+            // A completion general ID identifies but no adjustment reaches: front door.
+            antecedent_identify::upgrade_id_only_derivative_cases(&mut envelope, query)
+                .map_err(identify_err)?;
+        }
+        return Ok(envelope);
     }
     if identifier != IdentifierId::GeneralizedAdjustment {
         return Err(CausalError::Unsupported {

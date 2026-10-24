@@ -2,14 +2,15 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
-    Arc, CausalError, CausalExprArena, CausalPosterior, CausalQuery, Dag, DerivationTrace,
-    Diagnostic, DiagnosticKind, DiagnosticSeverity, EffectEstimate, EstimatorId, ExecutionContext,
+    Arc, CausalError, CausalExprArena, CausalPosterior, CausalQuery, DerivationTrace, Diagnostic,
+    DiagnosticKind, DiagnosticSeverity, EffectEstimate, EstimatorId, ExecutionContext,
     IdentificationPerformanceRecord, IdentificationResult, IdentificationStatus,
     IdentifiedEstimand, IdentifiedExecuteFinish, IdentifiedResultContext, IdentifierId,
     InferenceDiagnostics, InferenceMode, Instant, OverlapPolicy, PhysicalExecutionPlan,
     RefuteSuite, Strategy, Study, StudyResult, TableView, TabularData, VariableId,
     effect_from_posterior, elapsed_ns, finish_identified_execute_with_context,
 };
+use crate::accepted::{AcceptedGraph, GraphRef};
 use crate::analysis::prepared::Inspect;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -24,7 +25,7 @@ enum InterferenceProcedure {
 /// Complete fixed network, assignment, query and inference procedure for one exposure contrast.
 #[derive(Clone)]
 pub(crate) struct CheckedInterferenceOperation {
-    graph: Dag,
+    graph: Arc<AcceptedGraph>,
     query: antecedent_core::InterferenceQuery,
     source_schema: antecedent_core::CausalSchema,
     source_rows: usize,
@@ -65,9 +66,7 @@ impl CheckedInterferenceOperation {
             });
         };
         query.validate()?;
-        let graph = study.graph.as_dag().ok_or(CausalError::Unsupported {
-            message: "checked interference requires a supplied DAG schema",
-        })?;
+        let graph = &study.graph;
         let design = study.interference.as_ref().ok_or(CausalError::Unsupported {
             message: "checked interference requires a fixed network and realized assignment",
         })?;
@@ -144,7 +143,7 @@ impl CheckedInterferenceOperation {
             partial_interference(query),
         );
         Ok(Self {
-            graph: graph.clone(),
+            graph: Arc::clone(graph),
             query: query.clone(),
             source_schema: data.schema().clone(),
             source_rows: data.row_count(),
@@ -742,24 +741,48 @@ type InterferenceArm = (
     Diagnostic,
 );
 
-/// Refuses studies outside the explicit fixed-DAG, bound-network, no-validation-suite contract.
+/// The number of variables the structure covers, for any static class the exposure contrast is
+/// stated under. The structure binds the unit schema; the known assignment mechanism and the
+/// exposure mapping identify the contrast, so no class reads an edge of it.
+fn structure_width(graph: &AcceptedGraph) -> Result<usize, CausalError> {
+    match graph.graph_ref() {
+        GraphRef::Dag(dag) => Ok(dag.node_count()),
+        GraphRef::Cpdag(cpdag) => Ok(cpdag.node_count()),
+        GraphRef::Pag(pag) => Ok(pag.node_count()),
+        GraphRef::Admg(_) | GraphRef::TemporalAdmg(_) => {
+            graph.graph_ref().projected_admg()?.map(|admg| admg.node_count()).ok_or(
+                CausalError::Unsupported {
+                    message: "interference reads a static structure over the unit schema",
+                },
+            )
+        }
+        _ => Err(CausalError::Unsupported {
+            message: "interference reads a static Dag, Admg, Cpdag or Pag over the unit schema",
+        }),
+    }
+}
+
+/// Refuses studies outside the fixed-structure, bound-network, no-validation-suite contract.
 fn refuse_unsupported_interference_design(
     study: &Study,
     design: &crate::InterferenceSpec,
     data: &TabularData,
-    graph: &Dag,
+    graph: &AcceptedGraph,
 ) -> Result<(), CausalError> {
-    if study.structure_source != crate::support::StructureSource::Explicit
-        || study.tiered.is_some()
+    let width = structure_width(graph)?;
+    if !matches!(
+        study.structure_source,
+        crate::support::StructureSource::Explicit | crate::support::StructureSource::Accepted
+    ) || study.tiered.is_some()
         || study.graph_posterior.is_some()
         || study.refute != RefuteSuite::None
         || !study.custom_validators.is_empty()
         || design.assignment.len() != data.row_count()
         || design.network.units().row_count() != data.row_count()
-        || graph.node_count() != data.schema().variables().len()
+        || width != data.schema().variables().len()
     {
         return Err(CausalError::Unsupported {
-            message: "checked interference is limited to an explicit fixed DAG schema and no validation suite",
+            message: "checked interference is limited to a fixed structure over the unit schema and no validation suite",
         });
     }
     Ok(())
@@ -1071,8 +1094,15 @@ fn interference_graphless_license(
     )
 }
 
-fn graph_signature(graph: &Dag) -> (usize, Arc<[(u32, u32)]>) {
-    (graph.node_count(), graph.directed_edge_pairs_sorted().into())
+/// The width and directed edges of the structure the operation was sealed against.
+fn graph_signature(graph: &AcceptedGraph) -> (usize, Arc<[(u32, u32)]>) {
+    let width = structure_width(graph).unwrap_or(0);
+    let edges: Arc<[(u32, u32)]> = match graph.graph_ref() {
+        GraphRef::Dag(dag) => dag.directed_edge_pairs_sorted().into(),
+        GraphRef::Admg(admg) => admg.directed_edge_pairs_sorted().into(),
+        _ => Arc::from([]),
+    };
+    (width, edges)
 }
 
 fn interference_bayesian_assumptions(prior_sd: f64) -> antecedent_core::AssumptionSet {
@@ -1144,6 +1174,7 @@ mod checked_interference_tests {
         )
     )]
     use super::*;
+    use crate::graph::Dag;
     use antecedent_core::{
         AssignmentDesign, CausalQuery, ExposureLevel, ExposureMapping, InterferenceFunctional,
         InterferenceQuery, VariableId,

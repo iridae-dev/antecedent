@@ -73,7 +73,10 @@ fn check_declaration_for_design(
     declaration: &antecedent_data::MissingDeclaration,
 ) -> Result<(), CausalError> {
     use antecedent_data::MissingPolicy;
+    // Multiple imputation completes every table first, so CUPED, ANCOVA and receipt-adjusted
+    // fits read complete covariates and receipts and run unchanged.
     if declaration.policy == MissingPolicy::ErrorOnMissing
+        || declaration.policy.imputation().is_some()
         || !matches!(
             RandomizedMethod::of(query),
             RandomizedMethod::Ancova

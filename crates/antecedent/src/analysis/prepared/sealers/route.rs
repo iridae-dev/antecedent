@@ -5,7 +5,9 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{SealContext, SealOutcome};
-use crate::analysis::execute::{CheckedRouteOperation, RouteInput};
+use crate::analysis::execute::{
+    CheckedAssociationOperation, CheckedDiscoveryOperation, CheckedRouteOperation, RouteInput,
+};
 use crate::analysis::lowering::RouteCell;
 use crate::analysis::prepared::PreparedExecution;
 use crate::error::CausalError;
@@ -23,21 +25,31 @@ fn seal(
 }
 
 pub(super) fn discovery(cx: &SealContext<'_>) -> SealOutcome {
-    let sealed = match cx.route {
-        Some(RouteInput::DiscoverStatic { .. }) => seal(cx, RouteCell::DiscoverStatic)?,
-        Some(RouteInput::DiscoverTemporal { .. }) => seal(cx, RouteCell::DiscoverTemporal)?,
-        _ => None,
+    let SealContext { analysis, plan, .. } = *cx;
+    let cell = match cx.route {
+        Some(RouteInput::DiscoverStatic { .. }) => RouteCell::DiscoverStatic,
+        Some(RouteInput::DiscoverTemporal { .. }) => RouteCell::DiscoverTemporal,
+        _ => return Ok(None),
     };
-    Ok(sealed.map(PreparedExecution::Discovery))
+    if analysis.graph_posterior.is_some() {
+        return Ok(None);
+    }
+    CheckedDiscoveryOperation::checked(analysis, plan, cell)
+        .map(|operation| Some(PreparedExecution::Discovery(operation)))
 }
 
 pub(super) fn association(cx: &SealContext<'_>) -> SealOutcome {
-    let sealed = match cx.route {
-        Some(RouteInput::AssociationStatic { .. }) => seal(cx, RouteCell::AssociationStatic)?,
-        Some(RouteInput::AssociationTemporal { .. }) => seal(cx, RouteCell::AssociationTemporal)?,
-        _ => None,
+    let SealContext { analysis, plan, .. } = *cx;
+    let cell = match cx.route {
+        Some(RouteInput::AssociationStatic { .. }) => RouteCell::AssociationStatic,
+        Some(RouteInput::AssociationTemporal { .. }) => RouteCell::AssociationTemporal,
+        _ => return Ok(None),
     };
-    Ok(sealed.map(PreparedExecution::Association))
+    if analysis.graph_posterior.is_some() {
+        return Ok(None);
+    }
+    CheckedAssociationOperation::checked(analysis, plan, cell)
+        .map(|operation| Some(PreparedExecution::Association(operation)))
 }
 
 pub(super) fn panel_temporal(cx: &SealContext<'_>) -> SealOutcome {

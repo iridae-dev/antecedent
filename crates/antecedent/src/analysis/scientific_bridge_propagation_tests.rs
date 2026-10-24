@@ -231,9 +231,11 @@ fn derive(
 ) -> Result<ScientificBridgeResult, ScientificBridgeRefusal> {
     let envelope = claim(value);
     let source = BridgeSource { claim: &envelope, quantity: &contract.source.quantity };
-    PreparedScientificBridge::prepare(contract.clone())
-        .expect("licensed")
-        .derive_propagating(&source, standard_error, nonlinear)
+    PreparedScientificBridge::prepare(contract.clone()).expect("licensed").derive_propagating(
+        &source,
+        standard_error,
+        nonlinear,
+    )
 }
 
 #[test]
@@ -269,16 +271,13 @@ fn an_affine_map_publishes_the_hand_delta_variance_beside_the_plug_in_value() {
 #[test]
 fn the_declared_covariance_sign_moves_the_variance_and_the_mean() {
     let with = |covariance: f64| {
-        let dependence = SourceMappingDependence::SlopeCovariance {
-            covariance,
-            evidence: "shared-rows".into(),
-        };
+        let dependence =
+            SourceMappingDependence::SlopeCovariance { covariance, evidence: "shared-rows".into() };
         let result = derive(&affine_contract(Some(dependence)), 0.5, Some(0.05), None).unwrap();
         (result.propagated_variance().unwrap(), result.propagated_mean().unwrap())
     };
     let (zero, mean_zero) = {
-        let result =
-            derive(&affine_contract(Some(independent())), 0.5, Some(0.05), None).unwrap();
+        let result = derive(&affine_contract(Some(independent())), 0.5, Some(0.05), None).unwrap();
         (result.propagated_variance().unwrap(), result.propagated_mean().unwrap())
     };
     let (positive, mean_positive) = with(0.0004);
@@ -299,13 +298,9 @@ fn the_declared_covariance_sign_moves_the_variance_and_the_mean() {
 
 #[test]
 fn a_nonlinear_square_reports_the_second_moment_expectation_not_the_square_of_the_mean() {
-    let result = derive(
-        &affine_contract(Some(independent())),
-        0.5,
-        Some(0.05),
-        Some(NonlinearMap::Square),
-    )
-    .unwrap();
+    let result =
+        derive(&affine_contract(Some(independent())), 0.5, Some(0.05), Some(NonlinearMap::Square))
+            .unwrap();
     let propagation = result.propagated_uncertainty().unwrap();
     let nonlinear = propagation.nonlinear.expect("the square was asked for");
     let (mean, variance) = (propagation.mean, propagation.variance);

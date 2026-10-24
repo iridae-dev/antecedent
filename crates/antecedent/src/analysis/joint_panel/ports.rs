@@ -332,6 +332,54 @@ pub enum JointPanelResponseFunctional {
         coefficients: Vec<f64>,
     },
 }
+/// Period weights of a prespecified response functional for one program of `h` periods.
+pub(super) fn functional_weights(
+    h: usize,
+    functional: &JointPanelResponseFunctional,
+) -> Result<Vec<f64>, JointPanelError> {
+    Ok(match functional {
+        JointPanelResponseFunctional::TerminalMean => {
+            let mut w = vec![0.0; h];
+            w[h - 1] = 1.0;
+            w
+        }
+        JointPanelResponseFunctional::WindowAverage { from, until } => {
+            if from > until || *until >= h {
+                return Err(JointPanelError::compile(
+                    "response window is outside the actual program",
+                ));
+            }
+            let mut w = vec![0.0; h];
+            for value in &mut w[*from..=*until] {
+                *value = 1.0 / (until - from + 1) as f64;
+            }
+            w
+        }
+        JointPanelResponseFunctional::WindowChange { before, after } => {
+            if before.0 > before.1 || before.1 >= after.0 || after.0 > after.1 || after.1 >= h {
+                return Err(JointPanelError::compile(
+                    "change windows must be ordered, disjoint and inside every actual program",
+                ));
+            }
+            let mut weights = vec![0.0; h];
+            for value in &mut weights[before.0..=before.1] {
+                *value = -1.0 / (before.1 - before.0 + 1) as f64;
+            }
+            for value in &mut weights[after.0..=after.1] {
+                *value = 1.0 / (after.1 - after.0 + 1) as f64;
+            }
+            weights
+        }
+        JointPanelResponseFunctional::WeightedSum { coefficients } => {
+            if coefficients.len() != h || coefficients.iter().any(|v| !v.is_finite()) {
+                return Err(JointPanelError::compile(
+                    "response weights must be finite and cover every actual program period",
+                ));
+            }
+            coefficients.clone()
+        }
+    })
+}
 impl JointPanelResult {
     pub(super) fn projection(
         &self,
@@ -343,52 +391,7 @@ impl JointPanelResult {
         let mut start = 0;
         for world in &self.request().worlds {
             let h = world.horizon();
-            let values = match functional {
-                JointPanelResponseFunctional::TerminalMean => {
-                    let mut w = vec![0.0; h];
-                    w[h - 1] = 1.0;
-                    w
-                }
-                JointPanelResponseFunctional::WindowAverage { from, until } => {
-                    if from > until || *until >= h {
-                        return Err(JointPanelError::compile(
-                            "response window is outside the actual program",
-                        ));
-                    }
-                    let mut w = vec![0.0; h];
-                    for value in &mut w[*from..=*until] {
-                        *value = 1.0 / (until - from + 1) as f64;
-                    }
-                    w
-                }
-                JointPanelResponseFunctional::WindowChange { before, after } => {
-                    if before.0 > before.1
-                        || before.1 >= after.0
-                        || after.0 > after.1
-                        || after.1 >= h
-                    {
-                        return Err(JointPanelError::compile(
-                            "change windows must be ordered, disjoint and inside every actual program",
-                        ));
-                    }
-                    let mut weights = vec![0.0; h];
-                    for value in &mut weights[before.0..=before.1] {
-                        *value = -1.0 / (before.1 - before.0 + 1) as f64;
-                    }
-                    for value in &mut weights[after.0..=after.1] {
-                        *value = 1.0 / (after.1 - after.0 + 1) as f64;
-                    }
-                    weights
-                }
-                JointPanelResponseFunctional::WeightedSum { coefficients } => {
-                    if coefficients.len() != h || coefficients.iter().any(|v| !v.is_finite()) {
-                        return Err(JointPanelError::compile(
-                            "response weights must be finite and cover every actual program period",
-                        ));
-                    }
-                    coefficients.clone()
-                }
-            };
+            let values = functional_weights(h, functional)?;
             let mut writer =
                 antecedent_core::CanonicalWriter::new("antecedent.panel.response_functional.v1");
             writer.bytes(self.request().target.identity().as_bytes()).word(values.len() as u64);

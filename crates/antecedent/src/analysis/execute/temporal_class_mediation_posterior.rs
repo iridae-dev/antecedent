@@ -544,6 +544,13 @@ fn fit_class_mediation_case_posterior(
                 .map_err(CausalError::from)
         })
         .collect::<Result<Vec<_>, _>>()?;
+    let mechanisms = antecedent_estimate::bayesian_mediation::couple_mediation_mechanisms(
+        &preparations,
+        mechanisms,
+        horizon as usize,
+        mediation_mechanism_seed(bayes.seed, horizon, preparations.len()),
+        ctx,
+    );
     let [natural_direct, natural_indirect] = mechanisms.as_slice() else {
         return Err(CausalError::Compile {
             message: "temporal mediation must fit exactly two mechanisms".into(),

@@ -87,6 +87,7 @@ pub mod fallback;
 #[cfg(feature = "file-source")]
 pub mod file_table;
 mod finite_discrete;
+pub use finite_discrete::{FiniteDiscreteContrast, finite_discrete_contrast};
 pub(crate) mod four_way;
 pub mod horizon_composition;
 pub mod interface_contract;
@@ -109,6 +110,7 @@ pub mod mechanism_discrepancy;
 pub(crate) mod mechanism_exports;
 mod missing_data;
 mod missing_imputation;
+mod missing_imputation_vector;
 pub mod missing_support;
 mod mixed_source;
 pub mod msm_sensitivity;
@@ -138,6 +140,7 @@ pub mod recalc_dr;
 pub mod recalc_receipt;
 pub mod recalc_temporal;
 pub mod recalc_temporal_measured;
+pub mod recipe_glm;
 mod recovery;
 pub mod recovery_chain;
 pub mod repair;
@@ -329,7 +332,8 @@ pub use preflight::{
     fit_diagnostics_design, plan_rank_drop, preflight_design,
 };
 pub use propagation_chain::{
-    PropagationChain, consume_propagation_chain, independent_product_table,
+    ChainAuthority, FamilyDependence, FamilyEstimate, FamilyTable, PropagationChain,
+    consume_propagation_chain, family_table, independent_product_table,
 };
 pub use provider_callbacks::{
     CallbackConnectionError, CallbackExecution, CallbackExecutionError, CallbackExecutionPolicy,

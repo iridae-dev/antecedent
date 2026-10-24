@@ -2209,20 +2209,7 @@ fn data_snapshot_wire(
             (None, u64_count(data.total_rows())?, Some(u64_count(data.unit_count())?))
         }
     };
-    let partitions = match data_input {
-        DataInput::Tabular(data) => vec![data_partition(data.storage(), None, None)?],
-        DataInput::Temporal(data) | DataInput::Event(data) => vec![series_partition(data, None)?],
-        DataInput::MultiEnv(data) => data
-            .environments()
-            .iter()
-            .map(|series| series_partition(series, None))
-            .collect::<Result<_, _>>()?,
-        DataInput::Panel(data) => data
-            .units()
-            .iter()
-            .map(|unit| series_partition(&unit.series, Some(unit.unit_id)))
-            .collect::<Result<_, _>>()?,
-    };
+    let partitions = source_partitions(data_input)?;
     Ok(DataSnapshotIdentityWire {
         format: IDENTITY_FORMAT,
         observation: *observation.as_bytes(),
@@ -2241,24 +2228,46 @@ fn data_snapshot_wire(
     })
 }
 
-fn data_partition(
-    storage: &antecedent_data::OwnedColumnarStorage,
-    unit_id: Option<u32>,
-    regularity: Option<String>,
-) -> Result<DataPartitionIdentityWire, CausalError> {
-    Ok(DataPartitionIdentityWire {
-        content: storage.content_digest(),
-        row_count: u64_count(storage.row_count())?,
-        unit_id,
-        regularity,
-    })
-}
+/// The ordered partitions of a data input, read from its unified source contract.
+///
+/// Each table, series, panel unit and environment is snapshotted as a source whose contract
+/// binds modality, unit label and time index, and the content digest is verified against the
+/// storage before it is recorded. A panel or multi-environment input is also sealed as one
+/// composite identity, so a part that cannot be scanned refuses the whole snapshot.
+fn source_partitions(
+    data_input: &DataInput,
+) -> Result<Vec<DataPartitionIdentityWire>, CausalError> {
+    use antecedent_data::lazy_identity::FullContentIdentity;
+    use antecedent_data::source::{OwnedSource, SegmentedSource, SourceModality};
 
-fn series_partition(
-    series: &antecedent_data::TimeSeriesData,
-    unit_id: Option<u32>,
-) -> Result<DataPartitionIdentityWire, CausalError> {
-    data_partition(series.storage(), unit_id, Some(regularity_tag(&series.time_index().regularity)))
+    let partition = |source: &OwnedSource, unit_id: Option<u32>| {
+        let full = FullContentIdentity::try_from_source(source)?;
+        let contract = source.contract();
+        Ok::<_, CausalError>(DataPartitionIdentityWire {
+            content: full.digest(),
+            row_count: u64_count(contract.rows)?,
+            unit_id,
+            regularity: contract.time_index.as_ref().map(|index| regularity_tag(&index.regularity)),
+        })
+    };
+    let segmented = |source: &SegmentedSource| {
+        FullContentIdentity::try_from_segmented(source)?;
+        source
+            .parts()
+            .iter()
+            .enumerate()
+            .map(|(index, part)| partition(part, source.unit_id(index)))
+            .collect::<Result<Vec<_>, CausalError>>()
+    };
+    match data_input {
+        DataInput::Tabular(data) => Ok(vec![partition(&OwnedSource::from_tabular(data), None)?]),
+        DataInput::Temporal(data) | DataInput::Event(data) => Ok(vec![partition(
+            &OwnedSource::from_time_series(data, SourceModality::TimeSeries)?,
+            None,
+        )?]),
+        DataInput::MultiEnv(data) => segmented(&SegmentedSource::from_multi_environment(data)),
+        DataInput::Panel(data) => segmented(&SegmentedSource::from_panel(data)),
+    }
 }
 
 fn u64_count(value: usize) -> Result<u64, CausalError> {

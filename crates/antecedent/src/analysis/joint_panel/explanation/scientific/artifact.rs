@@ -1,10 +1,10 @@
 //! Versioned component recipe and numeric replay tied to the original native design.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 use super::{
-    invalid, ChangeComponent, ExecutionContext, JointPanelError, PanelDecomposition,
+    ChangeComponent, ExecutionContext, JointPanelError, PanelDecomposition,
     PopulationReferenceBindings, PopulationReferenceDecomposition, ReferenceComponentBindings,
     ScientificConsumptionScope, ScientificReferenceDecomposition, ScientificWorldId,
-    SemanticDigest, VariableId,
+    SemanticDigest, VariableId, invalid,
 };
 use serde::{Deserialize, Serialize};
 const MAX_BYTES: usize = 24 * 1024 * 1024;

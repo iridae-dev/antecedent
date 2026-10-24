@@ -5,15 +5,18 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{SealedOperation, SeriesCall, stamp_tabular};
+use crate::analysis::builder::DataInput;
+use crate::analysis::execute::finish_family_result;
 use crate::analysis::execute::{
-    CheckedAttributionOperation, CheckedBayesianStaticMediationOperation,
-    CheckedCellAipwResponseOperation, CheckedContinuousDoseOperation, CheckedCounterfactualPlan,
-    CheckedDerivativeResponseOperation, CheckedHistoryMatchOperation, CheckedInterferenceOperation,
-    CheckedIvBoundsOperation, CheckedLocalPolynomialRatioOperation,
-    CheckedLongitudinalRegimeOperation, CheckedPanelDidOperation, CheckedPolicyValueOperation,
-    CheckedRandomizedOperation, CheckedRouteOperation, CheckedSequentialContrastOperation,
-    CheckedStaticDagResponseOperation, CheckedStaticMediationOperation, CheckedSurvivalOperation,
-    CheckedSyntheticControlOperation, CheckedTemporalDesignOperation,
+    CheckedAssociationOperation, CheckedAttributionOperation,
+    CheckedBayesianStaticMediationOperation, CheckedCellAipwResponseOperation,
+    CheckedContinuousDoseOperation, CheckedCounterfactualPlan, CheckedDerivativeResponseOperation,
+    CheckedHistoryMatchOperation, CheckedInterferenceOperation, CheckedIvBoundsOperation,
+    CheckedLocalPolynomialRatioOperation, CheckedLongitudinalRegimeOperation,
+    CheckedPanelDidOperation, CheckedPolicyValueOperation, CheckedRandomizedOperation,
+    CheckedRouteOperation, CheckedSequentialContrastOperation, CheckedStaticDagResponseOperation,
+    CheckedStaticMediationOperation, CheckedSurvivalOperation, CheckedSyntheticControlOperation,
+    CheckedTemporalDesignOperation,
 };
 use crate::analysis::prepared::estimate::{ClickNotes, Rebound};
 use crate::analysis::prepared::{
@@ -23,6 +26,8 @@ use crate::error::CausalError;
 use crate::result::StudyResult;
 use antecedent_core::ExecutionContext;
 use antecedent_data::TabularData;
+
+use crate::analysis::execute::CheckedDiscoveryOperation;
 
 /// Operations that execute on the click's rows exactly as prepared and are
 /// stamped as plain tabular results.
@@ -216,5 +221,86 @@ impl SealedOperation for CheckedRouteOperation {
     fn estimate_series(&self, call: &SeriesCall<'_>) -> Result<Option<StudyResult>, CausalError> {
         self.require_program(&call.handle.plan)?;
         Ok(None)
+    }
+}
+
+/// The association route: the click runs the association executor on the click's rows or
+/// series, under the program this operation was sealed to.
+impl SealedOperation for CheckedAssociationOperation {
+    unbound_program!();
+    study_owned_stage_sink!();
+    study_owned_validators!();
+
+    fn require_retained_program(
+        &self,
+        plan: &crate::planner::PhysicalExecutionPlan,
+    ) -> Result<(), CausalError> {
+        self.require_program(plan)
+    }
+
+    fn estimate_tabular(
+        &self,
+        handle: &PreparedStudy,
+        data: &TabularData,
+        ctx: &ExecutionContext,
+        notes: &mut ClickNotes,
+    ) -> Result<Option<StudyResult>, CausalError> {
+        self.require_program(&handle.plan)?;
+        let mut result = handle.analysis.execute_association_tabular(data, &handle.plan, ctx)?;
+        finish_family_result(
+            &handle.analysis,
+            &DataInput::Tabular(data.clone()),
+            &handle.plan,
+            &mut result,
+        )?;
+        stamp_tabular(handle, data, result, notes)
+    }
+
+    fn estimate_series(&self, call: &SeriesCall<'_>) -> Result<Option<StudyResult>, CausalError> {
+        self.require_program(&call.handle.plan)?;
+        let mut result =
+            call.study.execute_association_series(call.series, &call.handle.plan, call.ctx)?;
+        finish_family_result(call.study, call.input, &call.handle.plan, &mut result)?;
+        Ok(Some(result))
+    }
+}
+
+/// The structure-discovery route: the click runs the search on the click's data, under the
+/// program this operation was sealed to.
+impl SealedOperation for CheckedDiscoveryOperation {
+    unbound_program!();
+    study_owned_stage_sink!();
+    study_owned_validators!();
+
+    fn require_retained_program(
+        &self,
+        plan: &crate::planner::PhysicalExecutionPlan,
+    ) -> Result<(), CausalError> {
+        self.require_program(plan)
+    }
+
+    fn estimate_tabular(
+        &self,
+        handle: &PreparedStudy,
+        data: &TabularData,
+        ctx: &ExecutionContext,
+        notes: &mut ClickNotes,
+    ) -> Result<Option<StudyResult>, CausalError> {
+        self.require_program(&handle.plan)?;
+        let mut result = handle.analysis.execute_discover_tabular(data, &handle.plan, ctx)?;
+        finish_family_result(
+            &handle.analysis,
+            &DataInput::Tabular(data.clone()),
+            &handle.plan,
+            &mut result,
+        )?;
+        stamp_tabular(handle, data, result, notes)
+    }
+
+    fn estimate_series(&self, call: &SeriesCall<'_>) -> Result<Option<StudyResult>, CausalError> {
+        self.require_program(&call.handle.plan)?;
+        let mut result = call.study.execute_discover(call.input, &call.handle.plan, call.ctx)?;
+        finish_family_result(call.study, call.input, &call.handle.plan, &mut result)?;
+        Ok(Some(result))
     }
 }

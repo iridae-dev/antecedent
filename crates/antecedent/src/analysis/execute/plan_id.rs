@@ -10,6 +10,12 @@
 pub(crate) enum PlanId {
     /// Static ADMG interventional distribution.
     StaticAdmgDistribution,
+    /// Path-restricted natural effect (or natural direct effect) on a static ADMG.
+    StaticAdmgPathSpecific,
+    /// Path-restricted natural effect (or natural direct effect) over the completions of a static CPDAG.
+    StaticCpdagPathSpecific,
+    /// Path-restricted natural effect (or natural direct effect) over the ADMGs a static PAG leaves open.
+    StaticPagPathSpecific,
     /// Static DAG conditional effect.
     StaticConditional,
     /// Static CPDAG conditional effect.
@@ -127,6 +133,9 @@ impl PlanId {
     pub(crate) const fn as_str(self) -> &'static str {
         match self {
             Self::StaticAdmgDistribution => "static_admg_distribution",
+            Self::StaticAdmgPathSpecific => "static_admg_path_specific",
+            Self::StaticCpdagPathSpecific => "static_cpdag_path_specific",
+            Self::StaticPagPathSpecific => "static_pag_path_specific",
             Self::StaticConditional => "static_conditional",
             Self::StaticCpdagConditional => "static_cpdag_conditional",
             Self::StaticPagConditional => "static_pag_conditional",

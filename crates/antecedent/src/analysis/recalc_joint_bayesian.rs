@@ -371,7 +371,7 @@ pub fn execute_joint_bayesian_with_receipt(
         return Err(RecalcRunError::Refused(Box::new(plan)));
     }
     let changed = |stage| matches!(plan.status(stage), Some(StageStatus::Recomputed { .. }));
-    let mut recorder = ReceiptRecorder::new();
+    let mut recorder = ReceiptRecorder::charged_to(ctx);
     let old = session.live.as_ref();
     let (identification, fit, artifact) = if changed(Stage::ScoreArtifact) {
         let raw = request

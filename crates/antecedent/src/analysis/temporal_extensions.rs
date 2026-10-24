@@ -94,6 +94,8 @@ struct RefreshLineage {
     receipt: RefreshReceipt,
     interval_invalidated: bool,
     previous_value: f64,
+    /// The products the refresh invalidated and the ones it reused, one entry per product.
+    log: antecedent_state::InvalidationLog,
 }
 
 /// A prepared target-marginal initial-state result, with the window it is valid for.
@@ -213,6 +215,13 @@ impl TemporalInitialState {
         self.lineage.as_ref().map(|l| l.previous_value)
     }
 
+    /// The invalidation log of the refresh that produced this result: one entry per prepared
+    /// product that read a changed window factor (`None` for a result that was not refreshed).
+    #[must_use]
+    pub fn refresh_invalidations(&self) -> Option<&antecedent_state::InvalidationLog> {
+        self.lineage.as_ref().map(|l| &l.log)
+    }
+
     /// Whether the refresh that produced this result invalidated an old interval.
     #[must_use]
     pub fn interval_invalidated(&self) -> bool {
@@ -270,6 +279,16 @@ impl TemporalInitialState {
             refresh_held(&held, new_identity, |_| self.query.effect(&panel))?;
         let refreshed = accept_refresh(&held, &receipt, refreshed)?;
         let fixed = self.fixed_query.as_ref().map(|q| q.effect(&panel)).transpose()?;
+        // The refresh moves the factors that differ between the two windows; the products
+        // that read them are invalidated and the rest are reused. The mechanism is not
+        // declared invariant across periods here, so a new period moves the model too.
+        let mut log = antecedent_state::InvalidationLog::new();
+        log.push_temporal_change(
+            antecedent_core::StateVersion::from_raw(2),
+            &crate::period_refresh::window_factor_changes(&held.identity, &refreshed.identity),
+            false,
+            "temporal initial-state refresh",
+        );
         Ok(Self {
             premises: self.premises.clone(),
             sequence: self.sequence,
@@ -285,6 +304,7 @@ impl TemporalInitialState {
                 receipt,
                 interval_invalidated: interval_existed,
                 previous_value: self.marginalized.value,
+                log,
             }),
         })
     }

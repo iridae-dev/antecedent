@@ -178,6 +178,10 @@ fn a_chain_compiles_to_a_six_layer_program_before_anything_is_computed() {
     let view = plan.plan_view();
     assert_eq!(view.route(), crate::planner::PlanRoute::PropagationChain("spread"));
     assert_eq!(view.family(), crate::planner::RouteFamily::PropagationChain);
+    crate::planner::plan_view::checks::assert_operations_derive("chain", &view);
+    let operations = view.operations();
+    let stages = operations.iter().filter(|operation| operation.name() == "propagate").count();
+    assert_eq!(stages, 5, "every chain stage is an evidence operation");
     assert_eq!(view.identity(), plan.identity());
 }
 

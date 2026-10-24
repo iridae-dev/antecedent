@@ -8,6 +8,13 @@
 //! identification preparation installed and names the sealed operation preparation
 //! retained.
 //!
+//! The view states the scientific target, the assumptions, the realization, the
+//! evidence transformations, the uncertainty demand, what is reused, how buffers
+//! are materialized, the route-memory quote by component and the physical backend
+//! chosen with the alternatives it rejected. [`PlanView::operations`] lists the
+//! statistical, evidence and decision, and physical operations of the route, each
+//! derived from the program it describes.
+//!
 //! Building a view reads retained values only. It does not identify, fit, scan
 //! rows, enumerate graphs, simulate or lease from an admission pool. The work that
 //! produced those values happened at compile (identification retained with the
@@ -23,7 +30,13 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use antecedent_contract::{ClaimKind, DecisionRequest, PhysicalExecutionPlanRecord};
+use antecedent_contract::{
+    BufferMaterialization, ClaimKind, DecisionRequest, PhysicalExecutionPlanRecord,
+};
+use antecedent_core::physical_choice::{
+    AlternativeQuote, PhysicalAlternative, PhysicalChoice, RejectedAlternative, RouteChoice,
+};
+use antecedent_core::route_memory::RouteMemoryEstimate;
 use antecedent_core::{
     AssumptionSet, AssumptionStatus, ExecutionContext, KernelPolicy, POSTERIOR_MASS_TOLERANCE,
     PhysicalOperator, SemanticDigest, VariableId,
@@ -761,6 +774,91 @@ pub struct PhysicalView {
     design: DesignShape,
     record: Option<PhysicalExecutionPlanRecord>,
     kernel_policy: Option<KernelPolicy>,
+    backend: Option<BackendView>,
+    memory: Option<RouteMemoryEstimate>,
+}
+
+/// The physical backend chosen for the route, with every alternative it rejected
+/// and the work and resident bytes each was costed at.
+#[derive(Clone, Debug, PartialEq)]
+pub struct BackendView {
+    selected: PhysicalAlternative,
+    selected_cost: u64,
+    rejected: Vec<RejectedAlternative>,
+    quotes: Vec<AlternativeQuote>,
+    budget_bytes: Option<u64>,
+}
+
+impl BackendView {
+    fn of(choice: &PhysicalChoice, routed: Option<&RouteChoice>) -> Self {
+        Self {
+            selected: choice.selected(),
+            selected_cost: choice.selected_cost().raw(),
+            rejected: choice.rejected().to_vec(),
+            quotes: routed.map_or_else(Vec::new, |routed| routed.quotes().to_vec()),
+            budget_bytes: routed
+                .map(RouteChoice::budget_bytes)
+                .filter(|budget| *budget != u64::MAX),
+        }
+    }
+
+    /// Alternative that was selected.
+    #[must_use]
+    pub const fn selected(&self) -> PhysicalAlternative {
+        self.selected
+    }
+
+    /// Declared cost of the selected alternative.
+    #[must_use]
+    pub const fn selected_cost(&self) -> u64 {
+        self.selected_cost
+    }
+
+    /// Alternatives that were not selected, each with the reason: a missing
+    /// operator or resource capability, or a cost that was not lower.
+    #[must_use]
+    pub fn rejected(&self) -> &[RejectedAlternative] {
+        &self.rejected
+    }
+
+    /// Work cells and resident bytes every alternative was costed at. Empty when
+    /// the choice was declared rather than costed from the route's shape.
+    #[must_use]
+    pub fn quotes(&self) -> &[AlternativeQuote] {
+        &self.quotes
+    }
+
+    /// Byte budget the resident bytes were compared with; `None` when unlimited.
+    #[must_use]
+    pub const fn budget_bytes(&self) -> Option<u64> {
+        self.budget_bytes
+    }
+
+    fn to_json(&self) -> Json {
+        json!({
+            "selected": self.selected.as_str(),
+            "selected_cost": self.selected_cost,
+            "rejected": self
+                .rejected
+                .iter()
+                .map(|rejected| json!({
+                    "alternative": rejected.alternative().as_str(),
+                    "reason": rejected.reason().to_string(),
+                }))
+                .collect::<Vec<_>>(),
+            "quotes": self
+                .quotes
+                .iter()
+                .map(|quote| json!({
+                    "alternative": quote.alternative().as_str(),
+                    "work_cells": quote.work_cells(),
+                    "resident_bytes": quote.resident_bytes(),
+                    "cost": quote.cost().raw(),
+                }))
+                .collect::<Vec<_>>(),
+            "budget_bytes": self.budget_bytes,
+        })
+    }
 }
 
 impl PhysicalView {
@@ -795,6 +893,27 @@ impl PhysicalView {
     #[must_use]
     pub const fn record(&self) -> Option<&PhysicalExecutionPlanRecord> {
         self.record.as_ref()
+    }
+
+    /// How each buffer is materialized (borrowed, copied contiguous, chunked),
+    /// when the view was taken from a plan.
+    #[must_use]
+    pub fn materializations(&self) -> &[(Arc<str>, BufferMaterialization)] {
+        self.record.as_ref().map_or(&[][..], |record| &record.materializations[..])
+    }
+
+    /// The backend chosen and the alternatives rejected, when the view was taken
+    /// from a plan.
+    #[must_use]
+    pub const fn backend(&self) -> Option<&BackendView> {
+        self.backend.as_ref()
+    }
+
+    /// The route-memory quote the record's peak and workspace came from, by
+    /// component, when the view was taken from a plan.
+    #[must_use]
+    pub const fn memory_quote(&self) -> Option<RouteMemoryEstimate> {
+        self.memory
     }
 
     /// Kernel policy of the compile context, when the view was taken under one.
@@ -878,9 +997,26 @@ impl PhysicalView {
                 "expected_python_crossings": record.expected_python_crossings,
             })
         });
+        let memory = self.memory.map(|memory| {
+            json!({
+                "components": memory
+                    .components()
+                    .iter()
+                    .map(|(component, bytes)| json!({
+                        "component": component.as_str(),
+                        "bytes": bytes,
+                    }))
+                    .collect::<Vec<_>>(),
+                "total": memory.total(),
+                "learner_fold_copies": memory.copy_count(),
+                "workers": memory.worker_count(),
+            })
+        });
         json!({
             "operators": operators,
             "design": design_json(self.design),
+            "backend": self.backend.as_ref().map(BackendView::to_json),
+            "memory": memory,
             "scratch_bytes": self.scratch_bytes(),
             "retained_bytes": self.retained_bytes(),
             "output_bytes": self.output_bytes(),
@@ -1292,6 +1428,194 @@ impl MixtureView {
     }
 }
 
+/// What the route reuses instead of recomputing, and what a later execution may reuse.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReuseView {
+    identification_retained: bool,
+    installed_at_prepare: bool,
+    retention_key: Option<[u8; 32]>,
+    frozen_fit_reuse: Vec<(&'static str, &'static str)>,
+    source_dependencies: Vec<u64>,
+    design_dependencies: Vec<u64>,
+    retained_operation: Option<&'static str>,
+}
+
+impl ReuseView {
+    fn of(
+        program: &LoweredProgram,
+        identification: &IdentificationView,
+        operation: Option<&'static str>,
+    ) -> Self {
+        let mut sources: Vec<u64> = Vec::new();
+        let mut designs: Vec<u64> = Vec::new();
+        for operator in program.physical().operators() {
+            for source in operator.sources() {
+                if !sources.contains(&source.raw()) {
+                    sources.push(source.raw());
+                }
+            }
+            for design in operator.designs() {
+                if !designs.contains(&design.raw()) {
+                    designs.push(design.raw());
+                }
+            }
+        }
+        Self {
+            identification_retained: program.identification_retained(),
+            installed_at_prepare: identification.installed_at_prepare(),
+            retention_key: identification.retention_key(),
+            frozen_fit_reuse: program
+                .statistical()
+                .operators()
+                .iter()
+                .map(|operator| (operator.effect().as_str(), operator.frozen_fit_reuse().as_str()))
+                .collect(),
+            source_dependencies: sources,
+            design_dependencies: designs,
+            retained_operation: operation,
+        }
+    }
+
+    /// Whether compile identified once and retained the product with the program.
+    #[must_use]
+    pub const fn identification_retained(&self) -> bool {
+        self.identification_retained
+    }
+
+    /// Whether preparation installed that product instead of identifying again.
+    #[must_use]
+    pub const fn installed_at_prepare(&self) -> bool {
+        self.installed_at_prepare
+    }
+
+    /// Digest of the study inputs a retained product is valid for; it is taken only
+    /// when the study's key matches.
+    #[must_use]
+    pub const fn retention_key(&self) -> Option<[u8; 32]> {
+        self.retention_key
+    }
+
+    /// Each statistical operator's effect and whether a frozen fit may be reused.
+    #[must_use]
+    pub fn frozen_fit_reuse(&self) -> &[(&'static str, &'static str)] {
+        &self.frozen_fit_reuse
+    }
+
+    /// Source dependencies the physical operators read, which a cached result is
+    /// legal to reuse only while unchanged.
+    #[must_use]
+    pub fn source_dependencies(&self) -> &[u64] {
+        &self.source_dependencies
+    }
+
+    /// Design dependencies the physical operators read.
+    #[must_use]
+    pub fn design_dependencies(&self) -> &[u64] {
+        &self.design_dependencies
+    }
+
+    /// Name of the sealed operation a prepared handle retained.
+    #[must_use]
+    pub const fn retained_operation(&self) -> Option<&'static str> {
+        self.retained_operation
+    }
+
+    fn to_json(&self) -> Json {
+        json!({
+            "identification_retained": self.identification_retained,
+            "installed_at_prepare": self.installed_at_prepare,
+            "retention_key": self.retention_key.as_ref().map(hex),
+            "frozen_fit_reuse": self
+                .frozen_fit_reuse
+                .iter()
+                .map(|(effect, reuse)| json!({"effect": effect, "reuse": reuse}))
+                .collect::<Vec<_>>(),
+            "source_dependencies": self.source_dependencies,
+            "design_dependencies": self.design_dependencies,
+            "retained_operation": self.retained_operation,
+        })
+    }
+}
+
+/// The layer an operation belongs to.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum OperationLayer {
+    /// Layer three: models, folds, resampling, posterior computation.
+    Statistical,
+    /// Layer four: evidence sources, composition, decision, value of information.
+    Evidence,
+    /// Layer five: reads, fits, buffers, backend.
+    Physical,
+}
+
+impl OperationLayer {
+    /// Stable `snake_case` name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Statistical => "statistical",
+            Self::Evidence => "evidence",
+            Self::Physical => "physical",
+        }
+    }
+}
+
+/// One operation of the route, derived from the program it belongs to.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct OperationView {
+    layer: OperationLayer,
+    name: &'static str,
+    subject: String,
+    inputs: Vec<&'static str>,
+    outputs: Vec<&'static str>,
+}
+
+impl OperationView {
+    fn new(layer: OperationLayer, name: &'static str, subject: impl Into<String>) -> Self {
+        Self { layer, name, subject: subject.into(), inputs: Vec::new(), outputs: Vec::new() }
+    }
+
+    /// The layer the operation belongs to.
+    #[must_use]
+    pub const fn layer(&self) -> OperationLayer {
+        self.layer
+    }
+
+    /// Stable name of the operation (`fit`, `read_source`, `decide`, `materialize`, ...).
+    #[must_use]
+    pub const fn name(&self) -> &'static str {
+        self.name
+    }
+
+    /// What the operation acts on.
+    #[must_use]
+    pub fn subject(&self) -> &str {
+        &self.subject
+    }
+
+    /// Roles the operation consumes.
+    #[must_use]
+    pub fn inputs(&self) -> &[&'static str] {
+        &self.inputs
+    }
+
+    /// Roles the operation produces.
+    #[must_use]
+    pub fn outputs(&self) -> &[&'static str] {
+        &self.outputs
+    }
+
+    fn to_json(&self) -> Json {
+        json!({
+            "layer": self.layer.as_str(),
+            "name": self.name,
+            "subject": self.subject,
+            "inputs": self.inputs,
+            "outputs": self.outputs,
+        })
+    }
+}
+
 /// One view over every layer of a compiled route.
 ///
 /// Built from the lowered program before execution: no identification, fit, row
@@ -1306,6 +1630,7 @@ pub struct PlanView {
     uncertainty: UncertaintyDemand,
     support: SupportView,
     mixture: Option<MixtureView>,
+    reuse: ReuseView,
     operation: Option<&'static str>,
 }
 
@@ -1323,12 +1648,16 @@ pub(crate) struct ViewSource<'a> {
     pub(crate) kernel_policy: Option<KernelPolicy>,
     /// Stable name of the sealed operation a prepared handle retained.
     pub(crate) operation: Option<&'static str>,
+    /// The backend chosen and rejected, and the memory quote behind the record.
+    pub(crate) backend: Option<BackendView>,
+    pub(crate) memory: Option<RouteMemoryEstimate>,
 }
 
 impl PlanView {
     /// Build a view from what compile and, for a prepared handle, preparation retained.
     pub(crate) fn build(source: ViewSource<'_>) -> Self {
-        let ViewSource { program, stage, record, study, kernel_policy, operation } = source;
+        let ViewSource { program, stage, record, study, kernel_policy, operation, backend, memory } =
+            source;
         let route = plan_route(program.cell());
         let installed = match (stage, study) {
             (PlanStage::Prepared, Some(study)) => installed_caches(study),
@@ -1370,8 +1699,11 @@ impl PlanView {
             design: program.physical().design(),
             record: record.cloned(),
             kernel_policy,
+            backend,
+            memory,
         };
         let uncertainty = UncertaintyDemand::of(&program);
+        let reuse = ReuseView::of(&program, &identification, operation);
         Self {
             route,
             stage,
@@ -1381,6 +1713,7 @@ impl PlanView {
             uncertainty,
             support,
             mixture,
+            reuse,
             operation,
         }
     }
@@ -1395,6 +1728,8 @@ impl PlanView {
             study: None,
             kernel_policy: None,
             operation: None,
+            backend: None,
+            memory: None,
         })
     }
 
@@ -1423,6 +1758,8 @@ impl PlanView {
             study,
             kernel_policy,
             operation,
+            backend: Some(BackendView::of(&plan.choice, plan.route_choice.as_ref())),
+            memory: plan.memory_quote,
         }))
     }
 
@@ -1516,6 +1853,31 @@ impl PlanView {
         self.mixture.as_ref()
     }
 
+    /// What the route reuses and what a later execution may reuse.
+    #[must_use]
+    pub const fn reuse(&self) -> &ReuseView {
+        &self.reuse
+    }
+
+    /// The assumptions the identification and the retained products rely on, without repeats.
+    #[must_use]
+    pub fn assumptions(&self) -> Vec<AssumptionView> {
+        self.identification.assumptions()
+    }
+
+    /// The statistical, evidence and decision, and physical operations of the route,
+    /// in layer order. Each is derived from the program: its operators, models,
+    /// folds, resampling and posterior, its evidence sources, composition, decision,
+    /// value of information, simulation and chain stages, its physical operators,
+    /// materializations and backend.
+    #[must_use]
+    pub fn operations(&self) -> Vec<OperationView> {
+        let mut operations = statistical_operations(self.statistical());
+        operations.extend(evidence_operations(self.evidence()));
+        operations.extend(physical_operations(&self.physical));
+        operations
+    }
+
     /// Stable name of the sealed operation a prepared handle retained
     /// (`lowered_dispatch` when no specialised operation admitted it); `None` for a compiled view.
     #[must_use]
@@ -1543,6 +1905,13 @@ impl PlanView {
             "uncertainty": self.uncertainty.to_json(),
             "support": self.support.to_json(),
             "mixture": self.mixture.as_ref().map(MixtureView::to_json),
+            "assumptions": self
+                .assumptions()
+                .iter()
+                .map(AssumptionView::to_json)
+                .collect::<Vec<_>>(),
+            "reuse": self.reuse.to_json(),
+            "operations": self.operations().iter().map(OperationView::to_json).collect::<Vec<_>>(),
             "operation": self.operation,
         })
     }
@@ -1681,6 +2050,157 @@ fn hex(digest: &[u8; 32]) -> String {
     SemanticDigest::from_bytes(*digest).to_hex()
 }
 
+fn composition_label(composition: Composition) -> String {
+    match composition {
+        Composition::Single => "single".to_owned(),
+        Composition::AtomMixture { atoms } => format!("atom_mixture({atoms})"),
+        Composition::Transported => "transported".to_owned(),
+        Composition::Pooled { sources } => format!("pooled({sources})"),
+        Composition::Chained { stages } => format!("chained({stages})"),
+    }
+}
+
+/// The statistical operations of a program: its operators, the models it fits and
+/// the folds, resampling and posterior computation it runs.
+fn statistical_operations(program: &StatisticalProgram) -> Vec<OperationView> {
+    let mut operations = Vec::new();
+    for operator in program.operators() {
+        let mut view = OperationView::new(
+            OperationLayer::Statistical,
+            operator.effect().as_str(),
+            operator.graph().as_str(),
+        );
+        view.inputs = operator.inputs().iter().map(|role| role.as_str()).collect();
+        view.outputs = operator.outputs().iter().map(|role| role.as_str()).collect();
+        operations.push(view);
+    }
+    for model in program.models() {
+        let mut view =
+            OperationView::new(OperationLayer::Statistical, "fit_model", model.role().as_str());
+        view.outputs = vec!["fit_handle"];
+        operations.push(view);
+    }
+    if let Some(folds) = program.folds() {
+        operations.push(OperationView::new(
+            OperationLayer::Statistical,
+            "cross_fit",
+            format!("{} folds by {}", folds.folds(), folds.unit().as_str()),
+        ));
+    }
+    if let Some(resampling) = program.resampling() {
+        operations.push(OperationView::new(
+            OperationLayer::Statistical,
+            "resample",
+            format!(
+                "{} {} replicates by {}",
+                resampling.replicates(),
+                resampling.method().as_str(),
+                resampling.unit().as_str()
+            ),
+        ));
+    }
+    if let Some(posterior) = program.posterior() {
+        operations.push(OperationView::new(
+            OperationLayer::Statistical,
+            "compute_posterior",
+            format!("{} with {} draws", posterior.algorithm().as_str(), posterior.draws()),
+        ));
+    }
+    operations
+}
+
+/// The evidence and decision operations of a program: reading each source, composing
+/// them, the decision and its value of information, the simulation of a planned
+/// experiment and each stage of a propagation chain.
+fn evidence_operations(program: &EvidenceDecisionProgram) -> Vec<OperationView> {
+    let mut operations = Vec::new();
+    for source in program.sources() {
+        operations.push(OperationView::new(
+            OperationLayer::Evidence,
+            "read_source",
+            source.role().as_str(),
+        ));
+    }
+    operations.push(OperationView::new(
+        OperationLayer::Evidence,
+        "compose",
+        composition_label(program.composition()),
+    ));
+    if let Some(decision) = program.decision() {
+        operations.push(OperationView::new(
+            OperationLayer::Evidence,
+            "decide",
+            format!(
+                "{} over {} actions and {} constraints",
+                decision.carrier().as_str(),
+                decision.actions(),
+                decision.constraints()
+            ),
+        ));
+        if let Some(evsi) = decision.information_value() {
+            operations.push(OperationView::new(
+                OperationLayer::Evidence,
+                "value_of_information",
+                format!(
+                    "{} candidates, {} draws each",
+                    evsi.candidates().len(),
+                    evsi.rank().draws_per_candidate()
+                ),
+            ));
+        }
+    }
+    if let Some(quote) = program.planning().and_then(|planning| planning.simulation()) {
+        operations.push(OperationView::new(
+            OperationLayer::Evidence,
+            "simulate",
+            format!("{} replicates", quote.replicates()),
+        ));
+    }
+    if let Some(chain) = program.chain() {
+        for stage in &chain.plan().stages {
+            operations.push(OperationView::new(
+                OperationLayer::Evidence,
+                "propagate",
+                format!(
+                    "{}: {} as {}",
+                    stage.id,
+                    stage.kind.as_str(),
+                    stage.representation.as_str()
+                ),
+            ));
+        }
+    }
+    operations
+}
+
+/// The physical operations of a plan: each operator's effect, the buffers it
+/// materializes and the backend it runs on.
+fn physical_operations(physical: &PhysicalView) -> Vec<OperationView> {
+    let mut operations = Vec::new();
+    for operator in physical.operators() {
+        operations.push(OperationView::new(
+            OperationLayer::Physical,
+            operator.effect().as_str(),
+            operator.capability().to_string(),
+        ));
+    }
+    for (buffer, materialization) in physical.materializations() {
+        operations.push(OperationView::new(
+            OperationLayer::Physical,
+            "materialize",
+            format!("{buffer}: {materialization:?}"),
+        ));
+    }
+    if let Some(backend) = physical.backend() {
+        operations.push(OperationView::new(
+            OperationLayer::Physical,
+            "run_on_backend",
+            backend.selected().as_str(),
+        ));
+    }
+    operations
+}
+
 fn design_json(design: DesignShape) -> Json {
     match design.source() {
         WidthSource::Quoted => json!({
@@ -1814,6 +2334,24 @@ fn evidence_json(program: &EvidenceDecisionProgram) -> Json {
             })),
         })
     });
+    let chain = program.chain().map(|chain| {
+        json!({
+            "label": chain.plan().label,
+            "output": chain.plan().output,
+            "declaration_identity": chain.declaration_identity(),
+            "stages": chain
+                .plan()
+                .stages
+                .iter()
+                .map(|stage| json!({
+                    "id": stage.id,
+                    "kind": stage.kind.as_str(),
+                    "representation": stage.representation.as_str(),
+                    "sources": stage.sources,
+                }))
+                .collect::<Vec<_>>(),
+        })
+    });
     json!({
         "identity": program.identity().to_hex(),
         "sources": program
@@ -1827,6 +2365,7 @@ fn evidence_json(program: &EvidenceDecisionProgram) -> Json {
         "composition": composition_json(program.composition()),
         "decision": decision,
         "planning": planning,
+        "chain": chain,
     })
 }
 
@@ -1838,6 +2377,51 @@ pub(crate) mod checks {
     use super::{IdentificationKind, PlanView, RouteFamily};
     use crate::planner::PhysicalExecutionPlan;
     use crate::planner::lowered::IdentificationLayer;
+
+    /// The operations a view lists are exactly those its program carries, per layer, and
+    /// the JSON lists every one. Holds for a view taken without a physical record too.
+    pub(crate) fn assert_operations_derive(name: &str, view: &PlanView) {
+        use super::OperationLayer;
+        let operations = view.operations();
+        let count = |layer: OperationLayer| {
+            operations.iter().filter(|operation| operation.layer() == layer).count()
+        };
+        let statistical = view.statistical();
+        assert_eq!(
+            count(OperationLayer::Statistical),
+            statistical.operators().len()
+                + statistical.models().len()
+                + usize::from(statistical.folds().is_some())
+                + usize::from(statistical.resampling().is_some())
+                + usize::from(statistical.posterior().is_some()),
+            "{name}: statistical operations"
+        );
+        let evidence = view.evidence();
+        assert_eq!(
+            count(OperationLayer::Evidence),
+            evidence.sources().len()
+                + 1
+                + evidence
+                    .decision()
+                    .map_or(0, |decision| 1 + usize::from(decision.information_value().is_some()))
+                + usize::from(evidence.planning().and_then(|p| p.simulation()).is_some())
+                + evidence.chain().map_or(0, |chain| chain.plan().stages.len()),
+            "{name}: evidence operations"
+        );
+        let physical = view.physical();
+        assert_eq!(
+            count(OperationLayer::Physical),
+            physical.operators().len()
+                + physical.materializations().len()
+                + usize::from(physical.backend().is_some()),
+            "{name}: physical operations"
+        );
+        assert_eq!(
+            view.to_json()["operations"].as_array().map(Vec::len),
+            Some(operations.len()),
+            "{name}: JSON operations"
+        );
+    }
 
     /// The view of `plan` agrees with its lowered program layer by layer, and
     /// building it identifies, fits, scans and samples nothing.
@@ -1872,6 +2456,26 @@ pub(crate) mod checks {
         assert_eq!(view.physical().design(), program.physical().design(), "{name}: design");
         assert_eq!(view.physical().operators(), program.physical().operators(), "{name}");
         assert_eq!(view.physical().record(), Some(&plan.record), "{name}: physical record");
+        assert_eq!(
+            view.physical().backend().map(super::BackendView::selected),
+            Some(plan.choice.selected()),
+            "{name}: backend"
+        );
+        assert_eq!(view.physical().memory_quote(), plan.memory_quote, "{name}: memory quote");
+        assert_eq!(
+            view.physical().backend().map(|backend| backend.rejected().len()),
+            Some(plan.choice.rejected().len()),
+            "{name}: every rejected alternative is shown"
+        );
+        let operations = view.operations();
+        for layer in [super::OperationLayer::Evidence, super::OperationLayer::Physical] {
+            assert!(
+                operations.iter().any(|operation| operation.layer() == layer),
+                "{name}: no {} operation",
+                layer.as_str()
+            );
+        }
+        assert_eq!(view.reuse().identification_retained(), program.identification_retained());
         assert_eq!(view.support().licensed(), program.scientific().licensed(), "{name}");
         assert_eq!(
             view.support().coordinate(),

@@ -27,13 +27,14 @@ const FAMILIES: [&str; 7] = [
 /// temporal PAG mediation every compile refuses, the temporal ADMG window contrasts, and the
 /// structure-discovery, attribution, simulation and association cells that execute unlicensed. Each still lowers
 /// completely through its family; the licensed-route record simply has no row for it.
-const OUTSIDE_LICENSED_ROUTES: [&str; 25] = [
+const OUTSIDE_LICENSED_ROUTES: [&str; 26] = [
     "DiscoverStatic",
     "DiscoverTemporal",
     "GcmAttributeDag",
     "GcmSimulateDag",
     "TemporalMediationPag",
     "TemporalEffectAdmg",
+    "TemporalResponseAdmg",
     "MultiEnvTemporalEffect",
     "PanelTemporalEffectDag",
     "PanelTemporalEffectClass",
@@ -109,7 +110,7 @@ fn every_route_cell_is_registered_once_to_a_family() {
         assert!(FAMILIES.contains(family), "{} is registered to {family}", cell.as_str());
         assert!(names.insert(cell.as_str()), "{} is registered twice", cell.as_str());
     }
-    assert_eq!(names.len(), 54, "route cell inventory drifted");
+    assert_eq!(names.len(), 55, "route cell inventory drifted");
     for cell in GraphPosteriorCell::ALL {
         assert!(names.insert(RouteCell::GraphPosterior(cell).as_str()), "{}", cell.as_str());
     }
@@ -198,7 +199,16 @@ fn prepare_installs_the_identification_compile_retained() {
         panic!("the linear cell lowers its checked target");
     };
     assert_eq!(target.identity(), program.target().identity());
-    assert_eq!(lowered.physical().operators().len(), program.physical_operators().len());
+    assert_eq!(
+        lowered.physical().operators().len(),
+        program.physical_operators().len() + 2,
+        "the retained operators, then the projection and the scan"
+    );
+    assert_eq!(
+        &lowered.physical().operators()[..program.physical_operators().len()],
+        program.physical_operators(),
+        "the retained operators keep their order"
+    );
 }
 
 #[test]

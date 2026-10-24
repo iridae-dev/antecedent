@@ -3,6 +3,12 @@
 version = 4
 
 [[package]]
+name = "accelerate-src"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "415ed64958754dbe991900f3940677e6a7eefb4d7367afd70d642677b0c7d19d"
+
+[[package]]
 name = "adler2"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -334,6 +340,7 @@ dependencies = [
 name = "antecedent-learn-burn"
 version = "2.4.1"
 dependencies = [
+ "antecedent-core",
  "blake3",
  "burn",
 ]
@@ -385,6 +392,7 @@ dependencies = [
  "antecedent-io",
  "antecedent-io-core",
  "antecedent-learn",
+ "antecedent-learn-burn",
  "antecedent-model",
  "antecedent-prob",
  "antecedent-state",
@@ -691,6 +699,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "blas-src"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b95e83dc868db96e69795c0213143095f03de9dd3252f205d4ac716e4076a7e0"
+dependencies = [
+ "accelerate-src",
+]
+
+[[package]]
 name = "block"
 version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -854,6 +871,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1b8ce3bd0f1e792b53610d291eb463d9790449688c4455a496c46266e46a179f"
 dependencies = [
  "atomic_float",
+ "blas-src",
  "burn-autodiff",
  "burn-common",
  "burn-tensor",
@@ -950,9 +968,11 @@ version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "06ccf5ee3532e66868516d9b315f73aec9f34ea1a37ae98514534d458915dbf1"
 dependencies = [
+ "accelerate-src",
  "byteorder",
  "gemm 0.17.1",
  "half",
+ "libc",
  "memmap2",
  "num-traits",
  "num_cpus",
@@ -971,6 +991,15 @@ name = "cast"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "37b2a672a2cb129a2e41c10b1224bb368f9f37a2b16b612598138befd7b37eb5"
+
+[[package]]
+name = "cblas-sys"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6feecd82cce51b0204cf063f0041d69f24ce83f680d87514b004248e7b0fa65"
+dependencies = [
+ "libc",
+]
 
 [[package]]
 name = "cc"
@@ -2946,6 +2975,8 @@ version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "882ed72dce9365842bf196bdeedf5055305f11fc8c03dee7bb0194a6cad34841"
 dependencies = [
+ "cblas-sys",
+ "libc",
  "matrixmultiply",
  "num-complex",
  "num-integer",

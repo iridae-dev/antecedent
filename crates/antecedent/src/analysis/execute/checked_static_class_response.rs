@@ -89,7 +89,7 @@ impl CheckedStaticClassResponse {
             || !mean_all_observed(&query.outcome_functional, &query.target_population)
         {
             return Err(CausalError::Unsupported {
-                message: "checked class response requires a complete-observation all-observed mean MeanCurve or InterventionResponse",
+                message: "checked class response requires a complete-observation all-observed mean MeanCurve, InterventionResponse or derivative functional",
             });
         }
         if validation != RefuteSuite::None {

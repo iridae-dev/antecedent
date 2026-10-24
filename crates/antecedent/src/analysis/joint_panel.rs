@@ -17,14 +17,15 @@ mod experiment;
 mod explanation;
 pub use explanation::{
     ChangeComponent, CheckedReferenceDecomposition, DecompositionEndpoint,
-    DecompositionJointUncertainty, HistoricalPopulationReference, HistoricalReferenceDecomposition,
-    HybridReferenceSupport, IdentifiedReferenceAttempt, JointPanelExplanationAttempt,
-    JointPanelExplanationRequest, MechanismPeriodMap, PanelDecomposition,
-    PanelDecompositionRequest, PopulationReferenceAttempt, PopulationReferenceBindings,
-    PopulationReferenceDecomposition, PopulationReferenceTransportProof,
-    ReferenceComponentBindings, ReferenceDecomposition, ReferenceDecompositionCovariance,
-    ScientificReferenceDecomposition, decompose_population_reference,
-    decompose_scientific_reference, replay_population_reference, replay_reference_decomposition,
+    DecompositionJointUncertainty, DesignAdaptiveReference, HistoricalPopulationReference,
+    HistoricalReferenceDecomposition, HybridReferenceSupport, IdentifiedComponentStep,
+    IdentifiedReferenceAttempt, JointPanelExplanationAttempt, JointPanelExplanationRequest,
+    MechanismPeriodMap, NextDesignStep, PanelDecomposition, PanelDecompositionRequest,
+    PopulationReferenceAttempt, PopulationReferenceBindings, PopulationReferenceDecomposition,
+    PopulationReferenceTransportProof, ReferenceComponentBindings, ReferenceDecomposition,
+    ReferenceDecompositionCovariance, ReferenceObligation, ScientificReferenceDecomposition,
+    StreamedDecomposition, decompose_population_reference, decompose_scientific_reference,
+    replay_population_reference, replay_reference_decomposition,
 };
 mod ports;
 mod projection;
@@ -33,15 +34,18 @@ mod search;
 pub mod selection;
 mod source;
 mod static_source;
+mod streamed;
 pub use experiment::{
-    HistoricalJointLawExperiment, HistoricalNativeJointExperiment, LocalRatioGaussianRegularization, JointExperimentAcceptanceMatrix,
+    HistoricalJointLawExperiment, HistoricalNativeJointExperiment, JointExperimentAcceptanceMatrix,
     JointExperimentAcceptanceRow, JointLawExperimentRequest, JointLawExperimentResult,
-    NativeExperimentBinding, NativeExperimentDecision, NativeJointExperimentResult,
-    PanelExperimentDecisionSource, PanelExperimentDecisionState, PanelExperimentEvidence,
-    PanelExperimentMapping, PanelExperimentModularPolicy, PanelExperimentResult,
-    PanelExperimentState, PanelExperimentUpdate, PanelFutureSample, PanelFutureSampleValue,
-    joint_experiment_acceptance_matrix,
+    LocalRatioGaussianRegularization, NativeExperimentBinding, NativeExperimentDecision,
+    NativeJointExperimentResult, PanelExperimentDecisionSource, PanelExperimentDecisionState,
+    PanelExperimentEvidence, PanelExperimentMapping, PanelExperimentModularPolicy,
+    PanelExperimentResult, PanelExperimentState, PanelExperimentUpdate, PanelFutureRegime,
+    PanelFutureSample, PanelFutureSampleValue, PanelFutureStudy, PanelFutureStudyUpdate,
+    PanelFutureStudyValue, joint_experiment_acceptance_matrix,
 };
+pub use streamed::{DEFAULT_TILE_DRAWS, JointPanelProjectedLaw};
 #[cfg(test)]
 mod tests;
 
@@ -73,7 +77,8 @@ pub use search::{
 };
 
 pub use contracts::{
-    JointPanelDesignAttempt, JointPanelDesignOutcome, JointPanelDesignProof, JointPanelDesignTheorem, JointPanelFunctional, JointPanelWorldSupport,
+    JointPanelDesignAttempt, JointPanelDesignOutcome, JointPanelDesignProof,
+    JointPanelDesignTheorem, JointPanelFunctional, JointPanelWorldSupport,
     declare_joint_panel_exogenous_context, joint_panel_target,
 };
 

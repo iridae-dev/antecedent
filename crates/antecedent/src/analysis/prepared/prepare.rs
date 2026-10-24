@@ -73,6 +73,14 @@ impl Study {
     /// Panics only if an internal route invariant that preparation validates
     /// is violated while sealing the execution plan.
     pub fn prepare(&self, ctx: &ExecutionContext) -> Result<PreparedStudy, CausalError> {
+        antecedent_estimate::prepare::with_preparation_budget(
+            crate::planner::PhysicalExecutionPlan::preparation_budget(ctx),
+            || self.prepare_metered(ctx),
+        )
+    }
+
+    /// The body of [`Self::prepare`], run under the plan's preparation budget.
+    fn prepare_metered(&self, ctx: &ExecutionContext) -> Result<PreparedStudy, CausalError> {
         ensure_prepared_supported(self)?;
         let plan = Arc::new(self.compile(ctx)?);
         let counterfactual = self.compile_counterfactual()?;
@@ -109,6 +117,7 @@ impl Study {
                 time_regularity,
                 score_table,
                 execution,
+                temporal_log: antecedent_state::InvalidationLog::new(),
             },
         })
     }
@@ -150,6 +159,16 @@ impl Study {
                 if matches!(
                     graph.class(),
                     GraphClass::TemporalDag | GraphClass::TemporalCpdag | GraphClass::TemporalPag
+                ) =>
+            {
+                None
+            }
+            // The natural direct effect on a mixed graph is identified from the graph and
+            // read by the functional plug-in; it fits no shared-exogenous operation.
+            (graph, CausalQuery::NestedCounterfactual(_))
+                if matches!(
+                    graph.class(),
+                    GraphClass::Admg | GraphClass::TemporalAdmg | GraphClass::Cpdag
                 ) =>
             {
                 None
@@ -354,6 +373,15 @@ impl Study {
                 // A temporal ADMG contrast is identified once on its unrolled window; the
                 // functional over the window coordinates is the claim execution reads.
                 push(temporal(Some(self.prepare_temporal_admg_identification(query)?)));
+            }
+            (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::Response(query))
+                if query.is_temporal()
+                    && matches!(self.graph.graph_ref(), GraphRef::TemporalAdmg(_)) =>
+            {
+                // A temporal ADMG derivative is identified once by an adjustment set of the
+                // unrolled window; the estimand over the window coordinates is the claim
+                // execution reads.
+                push(temporal(Some(self.prepare_temporal_admg_response_identification(query)?)));
             }
             (DataInput::Tabular(_), CausalQuery::Transport(query)) => {
                 let diagram = self.selection_diagram.as_ref().ok_or(CausalError::Unsupported {

@@ -538,3 +538,94 @@ fn transport_outside_the_licensed_construction_is_refused() {
         .expect_err("a transported derivative is not the licensed construction");
     assert_eq!(refused_with(&error).as_deref(), Some("construction_not_licensed"), "{error}");
 }
+
+/// The exposure contrast is identified by the known assignment mechanism and the exposure
+/// mapping, not by an edge of the structure: stated under an ADMG, a CPDAG, a PAG or an
+/// accepted structure it is the same contrast with the same sampling interval and posterior,
+/// and the cell executes unlicensed (no evidence row names it).
+#[test]
+fn interference_is_stated_under_every_static_structure_class_with_the_design_identification() {
+    use antecedent::AcceptedGraph;
+    let pin: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/response/randomized_interference/expected.json"
+    ))
+    .unwrap();
+    let outcomes: Vec<f64> =
+        pin["outcomes"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
+    let assignment: Vec<bool> =
+        pin["assignment"].as_array().unwrap().iter().map(|v| v.as_bool().unwrap()).collect();
+    let units = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
+    let query = InterferenceQuery::new(
+        AssignmentDesign::Bernoulli { probabilities: Arc::from([0.5]) },
+        ExposureMapping::NeighborCount,
+        InterferenceFunctional::ExposureContrast {
+            outcome: VariableId::from_raw(0),
+            from: ExposureLevel { own: 0.0, neighbors: 1.0 },
+            to: ExposureLevel { own: 1.0, neighbors: 0.0 },
+        },
+    );
+    let spec = || InterferenceSpec {
+        network: NetworkData::try_new(
+            units.clone(),
+            [NetworkEdge::new(0, 1, 1.0), NetworkEdge::new(1, 0, 1.0)],
+        )
+        .unwrap(),
+        assignment: Arc::from(assignment.clone()),
+    };
+    let graphs: Vec<(&str, AcceptedGraph)> = vec![
+        ("Dag", AcceptedGraph::from(Dag::with_variables(1))),
+        ("Admg", AcceptedGraph::from(Admg::with_variables(1))),
+        ("Cpdag", AcceptedGraph::from(antecedent_graph::Cpdag::with_variables(1))),
+        ("Pag", AcceptedGraph::from(antecedent_graph::Pag::with_variables(1))),
+    ];
+    let atol = pin["tolerance"]["atol"].as_f64().unwrap();
+    let expected = &pin["expected"];
+    for (class, graph) in graphs {
+        let study = Study::tabular(units.clone())
+            .graph(graph)
+            .query(CausalQuery::Interference(query.clone()))
+            .interference(spec())
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap_or_else(|e| panic!("{class}: {e}"));
+        let result = study.run(&ctx()).unwrap_or_else(|e| panic!("{class}: {e}"));
+        let estimated = result.interference().expect("interference estimate");
+        assert!(
+            (estimated.contrast.horvitz_thompson
+                - expected["horvitz_thompson_contrast"].as_f64().unwrap())
+            .abs()
+                <= atol,
+            "{class}"
+        );
+        assert!(
+            (estimated.contrast.hajek - expected["hajek_contrast"].as_f64().unwrap()).abs()
+                <= atol,
+            "{class}"
+        );
+        assert_eq!(result.estimand.method.as_ref(), "interference.design", "{class}");
+        assert_eq!(result.identification.status, IdentificationStatus::NonparametricallyIdentified);
+        if class == "Dag" {
+            assert_eq!(result.support_status, Some(CellStatus::Licensed));
+        } else {
+            // No evidence row names the structure class: it executes and stays unlicensed.
+            assert_eq!(study.support_status(), Some(CellStatus::Refused), "{class}");
+            assert_eq!(result.support_status, Some(CellStatus::Refused), "{class}");
+        }
+        // The prepared handle seals the checked operation against the structure.
+        let prepared = study.prepare(&ctx()).unwrap_or_else(|e| panic!("{class}: {e}"));
+        let again = prepared.estimate(&units, &ctx()).unwrap();
+        assert!((again.effect() - result.effect()).abs() < 1e-12, "{class}");
+    }
+    // A structure whose width is not the unit table's is refused, whatever its class.
+    let wide = Study::tabular(units.clone())
+        .graph(AcceptedGraph::from(Admg::with_variables(3)))
+        .query(CausalQuery::Interference(query))
+        .interference(spec())
+        .refute(RefuteSuite::None)
+        .build();
+    let refused = match wide {
+        Err(_) => true,
+        Ok(study) => study.prepare(&ctx()).is_err(),
+    };
+    assert!(refused, "a three-variable structure over a one-column unit table must refuse");
+}

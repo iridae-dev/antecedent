@@ -30,6 +30,8 @@ use antecedent_contract::rewrite_legality::{
     FrameFingerprint, FrameLedger, Rewrite, RewriteRefusal, check_executed, value_row_id,
 };
 use antecedent_core::ExecutionContext;
+
+use super::lowering;
 use antecedent_data::OwnedColumn;
 use antecedent_io_core::capacity_account::{DesignShape, WeightedRowSource, run_weighted_capacity};
 
@@ -141,6 +143,10 @@ pub struct FileGaussianSummary {
     pub rows_dropped: u64,
     /// Full-content identity of the projected columns, from the last complete pass.
     pub file_identity: FileContentIdentity,
+    /// The projection and scan this run executed, as the compiler's physical operators:
+    /// the read plan's closure and chunk quote, the capacity route's accumulator, and the
+    /// spilled summary when retention was disk-backed.
+    pub scan: Vec<antecedent_core::PhysicalOperator>,
 }
 
 /// Why a file summary was refused.
@@ -297,6 +303,20 @@ fn summarize_with_fault(
         return Err(FileTableError::Rewrite(refusal));
     }
     let receipt = source.receipt.take().ok_or(FileSourceError::ScanIncomplete)?;
+    let scan = lowering::scan::ScanPlan::from_read_plan(
+        &source.plan,
+        source.rows_read,
+        spec.design_columns().len() as u64,
+        2,
+        options.retention,
+    )
+    .and_then(|plan| plan.operators())
+    .map_err(|error| FileSourceError::InvalidOptions { detail: error.to_string() })?;
+    for operator in &scan {
+        operator
+            .bounded_memory_admission()
+            .map_err(|error| FileSourceError::InvalidOptions { detail: error.to_string() })?;
+    }
     Ok(FileGaussianSummary {
         output,
         design_columns: spec.design_columns(),
@@ -304,6 +324,7 @@ fn summarize_with_fault(
         rows_used: source.rows_used,
         rows_dropped: source.rows_dropped,
         file_identity: receipt.identity(),
+        scan,
     })
 }
 

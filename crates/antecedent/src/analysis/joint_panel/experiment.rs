@@ -14,9 +14,13 @@ use antecedent_io::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionTrust,
 };
 
+mod future_regime;
 mod law;
 mod matrix;
 mod native;
+pub use future_regime::{
+    PanelFutureRegime, PanelFutureStudy, PanelFutureStudyUpdate, PanelFutureStudyValue,
+};
 pub use law::{HistoricalJointLawExperiment, JointLawExperimentRequest, JointLawExperimentResult};
 pub use matrix::{
     JointExperimentAcceptanceMatrix, JointExperimentAcceptanceRow,
@@ -171,6 +175,21 @@ impl PanelExperimentDecisionSource {
     ) -> Result<antecedent_design::scientific_source::ScopedDecisionResult, JointPanelError> {
         self.authorize(scope, ledger)?;
         self.source.evaluate(contract, scope).map_err(super::search::map_scientific_error)
+    }
+    /// [`Self::evaluate`] through the demand executor, charged to `ctx`'s admission pool.
+    /// # Errors
+    /// As [`Self::evaluate`], and the memory budget of `ctx`.
+    pub fn evaluate_admitted(
+        &self,
+        contract: &antecedent_design::decision_contract::DecisionContract,
+        scope: antecedent_design::scientific_source::ScientificConsumptionScope,
+        ledger: &EvidenceLedger,
+        ctx: &ExecutionContext,
+    ) -> Result<antecedent_design::scientific_source::ScopedDecisionResult, JointPanelError> {
+        self.authorize(scope, ledger)?;
+        self.source
+            .evaluate_admitted(contract, scope, ctx)
+            .map_err(super::search::map_scientific_error)
     }
     /// Execute the common finite search under caller-current evidence.
     /// # Errors
@@ -444,9 +463,16 @@ fn validate_bridge_projection(
     original: &JointPanelResult,
     update: &PanelExperimentUpdate,
 ) -> Result<(), JointPanelError> {
-    let quantity = original.experiment_quantity(&update.functional)?;
-    let translation = update
-        .bridge
+    validate_bridge_window(original, &update.functional, &update.bridge)
+}
+/// A bridge may authorize only the exact projected periods and quantity it names.
+fn validate_bridge_window(
+    original: &JointPanelResult,
+    functional: &JointPanelResponseFunctional,
+    bridge: &BridgeContract,
+) -> Result<(), JointPanelError> {
+    let quantity = original.experiment_quantity(functional)?;
+    let translation = bridge
         .estimand_bridge
         .as_ref()
         .ok_or_else(|| JointPanelError::compile("missing experimental translation"))?;
@@ -456,7 +482,7 @@ fn validate_bridge_projection(
             "one experimental bridge window cannot authorize a contrast across different program horizons".into(),
         ));
     }
-    let (from, until) = match &update.functional {
+    let (from, until) = match functional {
         JointPanelResponseFunctional::TerminalMean => (horizon - 1, horizon - 1),
         JointPanelResponseFunctional::WindowAverage { from, until } => (*from, *until),
         JointPanelResponseFunctional::WeightedSum { .. } => (0, horizon - 1),
@@ -475,7 +501,7 @@ fn validate_bridge_projection(
             "target bridge window/duration must name the exact projected program periods; calendar transport is not inferred",
         ));
     }
-    if update.bridge.target.quantity != quantity {
+    if bridge.target.quantity != quantity {
         return Err(JointPanelError::compile(
             "experimental bridge must target the exact assembled response functional, units, population, horizon and source",
         ));
@@ -875,8 +901,44 @@ fn rank_law_next_samples<A: serde::Serialize>(
     replicates: usize,
     ctx: &ExecutionContext,
 ) -> Result<Vec<PanelFutureSampleValue>, JointPanelError> {
+    rank_law_next_studies(
+        receipt,
+        law,
+        update,
+        coefficients,
+        problem,
+        candidates,
+        &vec![None; candidates.len()],
+        replicates,
+        ctx,
+    )
+}
+/// Ranking core. `candidate_means[i]`, when present, is the experimental mean each retained
+/// draw slot implies for candidate `i`'s own regime; absent means the update's own estimand.
+#[allow(clippy::too_many_arguments)]
+fn rank_law_next_studies<A: serde::Serialize>(
+    receipt: &ExperimentRankingReceipt,
+    law: &DistributionArtifact,
+    update: &PanelExperimentUpdate,
+    coefficients: &[f64],
+    problem: &DecisionProblem<A, PanelExperimentDecisionState>,
+    candidates: &[PanelFutureSample],
+    candidate_means: &[Option<Vec<f64>>],
+    replicates: usize,
+    ctx: &ExecutionContext,
+) -> Result<Vec<PanelFutureSampleValue>, JointPanelError> {
     source::check_cancelled(ctx)?;
     validate_future_sample_catalog(candidates, replicates)?;
+    if candidate_means.len() != candidates.len()
+        || candidate_means
+            .iter()
+            .flatten()
+            .any(|means| means.len() != law.n_draws() || means.iter().any(|mean| !mean.is_finite()))
+    {
+        return Err(JointPanelError::compile(
+            "each regime-specific study needs one finite experimental mean per retained draw slot",
+        ));
+    }
     let mut action_size = law::WireCounter(0);
     serde_json::to_writer(&mut action_size, &problem.actions)
         .map_err(|error| JointPanelError::compile(error.to_string()))?;
@@ -949,8 +1011,15 @@ fn rank_law_next_samples<A: serde::Serialize>(
         return Err(JointPanelError::compile("future experiment mapped mean overflow"));
     }
     let mut rows = Vec::with_capacity(candidates.len());
-    for candidate in candidates {
+    let base_means = states.iter().map(|state| state.experiment_mean).collect::<Vec<_>>();
+    let mut states = states;
+    for (candidate, regime_means) in candidates.iter().zip(candidate_means) {
         source::check_cancelled(ctx)?;
+        // The study's own regime decides what each retained draw predicts it will observe;
+        // the responses and weights the terminal decision uses are unchanged.
+        for (slot, state) in states.iter_mut().enumerate() {
+            state.experiment_mean = regime_means.as_ref().map_or(base_means[slot], |m| m[slot]);
+        }
         let signal = PanelExperimentSignal { variance: candidate.observation_variance };
         let analysis = PreposteriorAnalysis::new_weighted(problem, &states, weights, &signal)
             .map_err(JointPanelError::compile)?;

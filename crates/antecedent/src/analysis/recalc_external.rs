@@ -733,7 +733,7 @@ impl ExternalCallbackSession {
         }
         let stage = Stage::ProviderRequest(request.branch);
         let changed = matches!(plan.status(stage), Some(StageStatus::Recomputed { .. }));
-        let mut recorder = ReceiptRecorder::new();
+        let mut recorder = ReceiptRecorder::charged_to(ctx);
         if !changed {
             let claim = Arc::clone(
                 &self

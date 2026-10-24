@@ -25,6 +25,11 @@ pub use antecedent_state::{
     OlsSnapshot, RefreshChange, RefreshDisposition, RefreshOutcome, RefreshRoute, RefreshRow,
     route_contract,
 };
+pub use antecedent_state::{
+    ConjugateBlockRefresh, CovarianceRefresh, CovarianceRow, CovarianceSnapshot, SpillHandle,
+    SpillRegistry, SpillStats, Spillable, WeightedLedger, WeightedOlsRefresh, WeightedRow,
+    WeightedSnapshot,
+};
 
 /// Construct a fresh [`CausalState`] with the given cache budget.
 #[must_use]

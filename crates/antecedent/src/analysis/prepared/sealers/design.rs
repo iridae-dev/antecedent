@@ -10,8 +10,11 @@ pub(super) fn interference(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
     let sealed = match cx.route {
         Some(RouteInput::InterferenceDag { data, .. })
-            if analysis.structure_source == crate::support::StructureSource::Explicit
-                && analysis.graph_posterior.is_none()
+            if matches!(
+                analysis.structure_source,
+                crate::support::StructureSource::Explicit
+                    | crate::support::StructureSource::Accepted
+            ) && analysis.graph_posterior.is_none()
                 && analysis.tiered.is_none()
                 && analysis.split.is_none() =>
         {

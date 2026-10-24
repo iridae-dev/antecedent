@@ -22,6 +22,7 @@ mod discovery;
 mod graph_posterior;
 mod query_digest;
 mod registry;
+pub(crate) mod scan;
 mod static_effect;
 mod static_response;
 mod structural;
@@ -32,7 +33,7 @@ mod tests;
 use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, VariableId};
-use antecedent_data::Contrast;
+use antecedent_data::{Contrast, TableView};
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_identify::{
     CompiledIdentificationProduct, IdentificationResult, TransportIdentification,
@@ -112,7 +113,7 @@ pub(crate) fn attach(
         goal,
         ctx,
     })?;
-    install(plan, lowered, ctx)
+    install(study, plan, lowered, ctx)
 }
 
 /// Lower a graph-posterior study for `goal` and attach the program to `plan`.
@@ -139,7 +140,7 @@ pub(crate) fn attach_graph_posterior(
         goal,
         ctx,
     })?;
-    install(plan, lowered, ctx)
+    install(study, plan, lowered, ctx)
 }
 
 /// The cell `study` executes as now, when it classifies as one.
@@ -168,7 +169,10 @@ pub(crate) fn refuse_reentry(ctx: &ExecutionContext) -> Result<(), CausalError> 
 
 /// Attach `lowered` to `plan`. A quoted design re-plans the physical record from
 /// the real width; the retained linear operation has already sized its own plan.
+/// Every route that reads a table also declares its projection and scan, sized from
+/// the rows, the columns the route projects and the real design width.
 fn install(
+    study: &Study,
     plan: &mut PhysicalExecutionPlan,
     lowered: LoweredProgram,
     ctx: &ExecutionContext,
@@ -177,8 +181,42 @@ fn install(
     if design.source() == WidthSource::Quoted && plan.linear.is_none() {
         plan.requote(design, ctx)?;
     }
-    plan.lowered = Some(Arc::new(lowered));
+    let operators = scan::ScanPlan::resident(scan_demand(study, &lowered))?.operators()?;
+    plan.lowered = Some(Arc::new(lowered.with_physical_operators(operators)));
     Ok(())
+}
+
+/// What the route reads from the study's data: its rows, the distinct columns the query
+/// and the retained adjustment set project, the real design width when the route quotes
+/// one, and the passes the statistical program makes over the rows.
+fn scan_demand(study: &Study, lowered: &LoweredProgram) -> scan::ScanDemand {
+    let rows = match &study.data {
+        DataInput::Tabular(data) => data.row_count(),
+        DataInput::Temporal(data) | DataInput::Event(data) => data.row_count(),
+        DataInput::Panel(data) => data.total_rows(),
+        DataInput::MultiEnv(data) => {
+            data.environments().iter().map(|environment| environment.row_count()).sum()
+        }
+    };
+    let mut projected: std::collections::HashSet<VariableId> =
+        lowered.scientific().query_variables().iter().copied().collect();
+    if let Some(retained) = lowered.retained_identification() {
+        for cache in retained.caches() {
+            if let IdentificationCache::Static(cache) = cache {
+                projected.extend(cache.estimand.adjustment_set.iter().copied());
+            }
+        }
+    }
+    let design = lowered.physical().design();
+    let replicates =
+        lowered.statistical().resampling().map_or(0, |plan| u64::from(plan.replicates()));
+    let rescans = u64::from(design.source() == WidthSource::Quoted);
+    scan::ScanDemand {
+        rows: rows as u64,
+        projected_columns: projected.len() as u64,
+        design_columns: design.columns(),
+        passes: 1 + rescans + replicates,
+    }
 }
 
 /// Identify at compile what preparation would identify, and retain it with the

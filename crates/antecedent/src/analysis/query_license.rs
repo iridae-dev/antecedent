@@ -95,11 +95,24 @@ const TEMPORAL_EFFECT_SERIES: &[GraphClass] = &[
 const TEMPORAL_MEDIATION: &[GraphClass] = &[GraphClass::TemporalDag, GraphClass::TemporalCpdag];
 const DAG: &[GraphClass] = &[GraphClass::Dag];
 const TEMPORAL_DAG: &[GraphClass] = &[GraphClass::TemporalDag];
-const ADMG_ONLY: &[GraphClass] = &[GraphClass::Admg, GraphClass::TemporalAdmg];
+/// The classes a transport request reads a selection diagram from: a DAG is the ADMG with no
+/// latent confounding.
+const SELECTION_DIAGRAM: &[GraphClass] =
+    &[GraphClass::Dag, GraphClass::Admg, GraphClass::TemporalAdmg];
 const STATIC_CONDITIONAL: &[GraphClass] =
     &[GraphClass::Dag, GraphClass::Cpdag, GraphClass::Pag, GraphClass::Admg];
 const STATIC_DISTRIBUTION: &[GraphClass] =
     &[GraphClass::Dag, GraphClass::Admg, GraphClass::TemporalAdmg];
+/// Path-restricted natural effects: identified on a Dag, in each completion of a Cpdag, over
+/// the ADMG (or the projection of a TemporalAdmg), and over the ADMGs each MAG completion of a
+/// Pag stands for.
+const STATIC_PATH_SPECIFIC: &[GraphClass] = &[
+    GraphClass::Dag,
+    GraphClass::Cpdag,
+    GraphClass::Pag,
+    GraphClass::Admg,
+    GraphClass::TemporalAdmg,
+];
 const RANDOMIZED: &[GraphClass] = &[GraphClass::RandomizedTrial];
 /// The classes a static structure search answers with; CPDAG and PAG stay classes.
 const STATIC_DISCOVERED: &[GraphClass] = &[GraphClass::Dag, GraphClass::Cpdag, GraphClass::Pag];
@@ -210,10 +223,10 @@ fn kind_license(kind: CausalQueryKind) -> KindLicense {
             ..UNLICENSED
         },
         K::NestedCounterfactual => KindLicense {
-            tabular: rule(DAG, || {
+            tabular: rule(STATIC_PATH_SPECIFIC, || {
                 crate::unsupported_reason!(
                     "cross_world_not_identified",
-                    "nested effect requires a supplied DAG"
+                    "nested effect requires a supplied Dag, Cpdag, Pag or Admg"
                 )
             }),
             series: rule(TEMPORAL_ENVELOPES, temporal_cross_world_refusal),
@@ -288,8 +301,8 @@ fn kind_license(kind: CausalQueryKind) -> KindLicense {
             ..UNLICENSED
         },
         K::Mediation => KindLicense {
-            tabular: rule(DAG, || CausalError::Unsupported {
-                message: "static mediation requires Dag",
+            tabular: rule(STATIC_PATH_SPECIFIC, || CausalError::Unsupported {
+                message: "static mediation requires a supplied Dag, Cpdag, Pag or Admg",
             }),
             series: rule(TEMPORAL_MEDIATION, || CausalError::Unsupported {
                 message: "PreparedStudy supports TemporalMediationEffect on TemporalDag or \
@@ -315,8 +328,8 @@ fn kind_license(kind: CausalQueryKind) -> KindLicense {
             ..UNLICENSED
         },
         K::PathSpecific => KindLicense {
-            tabular: rule(DAG, || CausalError::Unsupported {
-                message: "PreparedStudy supports PathSpecific only on a supplied Dag",
+            tabular: rule(STATIC_PATH_SPECIFIC, || CausalError::Unsupported {
+                message: "PreparedStudy supports PathSpecific only on a supplied Dag, Cpdag, Pag or Admg",
             }),
             series: rule(TEMPORAL_ENVELOPES, temporal_cross_world_refusal),
             ..UNLICENSED
@@ -337,8 +350,8 @@ fn kind_license(kind: CausalQueryKind) -> KindLicense {
             ..UNLICENSED
         },
         K::Transport => KindLicense {
-            tabular: rule(ADMG_ONLY, || CausalError::Unsupported {
-                message: "TransportQuery requires Admg or TemporalAdmg",
+            tabular: rule(SELECTION_DIAGRAM, || CausalError::Unsupported {
+                message: "TransportQuery requires Dag, Admg or TemporalAdmg",
             }),
             ..UNLICENSED
         },

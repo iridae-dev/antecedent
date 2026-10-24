@@ -111,9 +111,14 @@ impl PreparedStudy {
         // The refreshed result carries the same native observations a fresh estimate does, so
         // its claim identity agrees with the one the retained handle reproduces.
         let mut observed = antecedent_core::execution_attempt::observe_with_context(ctx, || {
-            antecedent_estimate::CrossfitNuisanceCache::within_scope(|| {
-                self.refresh_scoped(data, ctx)
-            })
+            antecedent_estimate::prepare::with_preparation_budget(
+                crate::planner::PhysicalExecutionPlan::preparation_budget(ctx),
+                || {
+                    antecedent_estimate::CrossfitNuisanceCache::within_scope(|| {
+                        self.refresh_scoped(data, ctx)
+                    })
+                },
+            )
         });
         if let Ok(result) = &mut observed.result {
             result.performance.native_execution.clone_from(&observed.facts);
@@ -566,16 +571,46 @@ impl PreparedStudy {
     ) -> Result<StudyResult, CausalError> {
         self.ensure_series_compatible(data)?;
         let input = series_input(&self.analysis.data, data.clone());
-        let mut result =
+        let mut result = if crate::analysis::missing_imputation::imputes_series(&self.analysis) {
+            self.estimate_series_imputed(&self.analysis, data, SeriesEntry::Estimate, ctx)?
+        } else {
             match self.run_sealed_series(&self.analysis, &input, ctx, SeriesEntry::Estimate)? {
                 Some(result) => result,
                 None => self.analysis.execute_on(&input, &self.plan, Some(&self.execution), ctx)?,
-            };
+            }
+        };
         crate::analysis::execute::push_lag_zero_average_effect_disclosure(
             &self.analysis,
             &mut result,
         );
         self.stamp(&input, result)
+    }
+
+    /// The series click under a declared multiple imputation: the retained operation runs on
+    /// every completed series and the fits are pooled. The click runs on complete series, so it
+    /// runs under a study that declares no policy; the declaration is the pooling's.
+    #[inline(never)]
+    fn estimate_series_imputed(
+        &self,
+        study: &Study,
+        data: &TimeSeriesData,
+        entry: SeriesEntry,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let mut complete = study.clone();
+        complete.missing = None;
+        crate::analysis::missing_imputation::impute_fit_pool_series(
+            study,
+            data,
+            ctx,
+            |table, ctx| {
+                let input = series_input(&study.data, table.clone());
+                match self.run_sealed_series(&complete, &input, ctx, entry)? {
+                    Some(result) => Ok(result),
+                    None => complete.execute_on(&input, &self.plan, Some(&self.execution), ctx),
+                }
+            },
+        )
     }
 
     /// Execute the retained series operation, if any, over `study` and
@@ -756,13 +791,46 @@ impl PreparedStudy {
         self.ensure_series_compatible(&data)?;
         let mut refreshed = self.analysis.clone();
         refreshed.data = series_input(&self.analysis.data, data);
-        let result =
-            match self.run_sealed_series(&refreshed, &refreshed.data, ctx, SeriesEntry::Refresh)? {
+        let imputes = crate::analysis::missing_imputation::imputes_series(&refreshed);
+        let result = match &refreshed.data {
+            DataInput::Temporal(series) if imputes => {
+                self.estimate_series_imputed(&refreshed, series, SeriesEntry::Refresh, ctx)?
+            }
+            _ => match self.run_sealed_series(
+                &refreshed,
+                &refreshed.data,
+                ctx,
+                SeriesEntry::Refresh,
+            )? {
                 Some(result) => result,
                 None => refreshed.execute_shared(&self.plan, Some(&self.execution), ctx)?,
-            };
+            },
+        };
         self.replace_study(refreshed);
+        // A refreshed series is a new observation period of the same declared study: the
+        // graph, query, history, horizon, cadence and initial law are unchanged (the schema
+        // and the sampling regularity were checked), so the period is the one factor that
+        // moved. The mechanism is not declared invariant across periods, so the products
+        // that read the period or the model are invalidated and the identification is reused.
+        let version = antecedent_core::StateVersion::from_raw(
+            self.temporal_log.entries.last().map_or(2, |entry| entry.at_version.raw() + 1),
+        );
+        let moved = std::collections::BTreeSet::from([antecedent_state::TemporalFactor::Period]);
+        self.temporal_log.push_temporal_change(
+            version,
+            &moved,
+            false,
+            "series period replaced on refresh",
+        );
         let data = self.analysis.data.clone();
         self.stamp(&data, result)
+    }
+
+    /// The prepared temporal products each refreshed period invalidated, one log entry per
+    /// product that read the changed period; a product with no entry (the identification) was
+    /// reused.
+    #[must_use]
+    pub fn temporal_invalidations(&self) -> &antecedent_state::InvalidationLog {
+        &self.temporal_log
     }
 }

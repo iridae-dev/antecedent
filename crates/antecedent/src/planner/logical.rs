@@ -67,6 +67,15 @@ pub(crate) type StaticDistributionCompileInput<'a> =
 /// Path-specific natural-effect compile input.
 pub(crate) type StaticPathSpecificCompileInput<'a> =
     StaticCompileInput<'a, Dag, antecedent_core::PathSpecificEffectQuery>;
+/// Path-specific natural-effect compile input on a mixed graph.
+pub(crate) type StaticAdmgPathSpecificCompileInput<'a> =
+    StaticCompileInput<'a, Admg, antecedent_core::PathSpecificEffectQuery>;
+/// Path-specific natural-effect compile input on a CPDAG.
+pub(crate) type StaticCpdagPathSpecificCompileInput<'a> =
+    StaticCompileInput<'a, Cpdag, antecedent_core::PathSpecificEffectQuery>;
+/// Path-specific natural-effect compile input on a PAG.
+pub(crate) type StaticPagPathSpecificCompileInput<'a> =
+    StaticCompileInput<'a, Pag, antecedent_core::PathSpecificEffectQuery>;
 
 /// `linear.adjustment.ate` reports the treatment coefficient, the effect in the
 /// `AllObserved` population. On every graph class it refuses another target
@@ -375,16 +384,9 @@ fn require_class_aware_response(query: &ResponseQuery, class_tag: &str) -> Resul
             message: format!("{class_tag} response currently requires complete observations"),
         });
     }
-    if !matches!(
-        query.functional,
-        ResponseFunctional::MeanCurve { .. } | ResponseFunctional::InterventionResponse { .. }
-    ) {
-        return Err(CausalError::Compile {
-            message: format!(
-                "{class_tag} response supports MeanCurve and InterventionResponse only"
-            ),
-        });
-    }
+    // Every static response functional has a class-aware reading: curves and intervention
+    // levels, and the derivative family (point, average, directional, Jacobian), which is
+    // identified on each completion by the adjustment set the regression conditions on.
     Ok(())
 }
 
@@ -528,6 +530,108 @@ pub(crate) fn compile_logical_path_specific(
         CausalQuery::PathSpecific(input.query.clone()),
         None,
         input.data.row_count() as u64,
+    )
+}
+
+/// Compile logical plan for a path-specific natural effect on a supplied ADMG.
+///
+/// The plan records `plan_id`; the caller may replace the recorded query by the query the
+/// path-specific effect answers (a natural direct effect reads the mediator as its path node).
+///
+/// # Errors
+///
+/// Query validation or incompatible identifier/estimator.
+pub(crate) fn compile_logical_path_specific_admg(
+    input: StaticAdmgPathSpecificCompileInput<'_>,
+    plan_id: &'static str,
+) -> Result<LogicalAnalysisPlan, CausalError> {
+    let nodes = input.graph.nodes();
+    compile_logical_path_specific_on(nodes, "ADMG", input.into_parts(), plan_id)
+}
+
+/// Compile logical plan for a path-specific natural effect over the completions of a
+/// supplied CPDAG. Same recording rules as [`compile_logical_path_specific_admg`].
+///
+/// # Errors
+///
+/// Query validation or incompatible identifier/estimator.
+pub(crate) fn compile_logical_path_specific_cpdag(
+    input: StaticCpdagPathSpecificCompileInput<'_>,
+    plan_id: &'static str,
+) -> Result<LogicalAnalysisPlan, CausalError> {
+    let nodes = input.graph.nodes();
+    compile_logical_path_specific_on(nodes, "CPDAG", input.into_parts(), plan_id)
+}
+
+/// Compile logical plan for a path-specific natural effect over the ADMGs a supplied PAG
+/// leaves open. Same recording rules as [`compile_logical_path_specific_admg`].
+///
+/// # Errors
+///
+/// Query validation or incompatible identifier/estimator.
+pub(crate) fn compile_logical_path_specific_pag(
+    input: StaticPagPathSpecificCompileInput<'_>,
+    plan_id: &'static str,
+) -> Result<LogicalAnalysisPlan, CausalError> {
+    let nodes = input.graph.nodes();
+    compile_logical_path_specific_on(nodes, "PAG", input.into_parts(), plan_id)
+}
+
+/// What a path-specific compile reads besides its graph.
+struct PathSpecificParts<'a> {
+    data: &'a TabularData,
+    query: &'a antecedent_core::PathSpecificEffectQuery,
+    validation_suite: Option<Arc<str>>,
+    identifier: Arc<str>,
+    estimator: Arc<str>,
+}
+
+impl<'a, G> StaticCompileInput<'a, G, antecedent_core::PathSpecificEffectQuery> {
+    fn into_parts(self) -> PathSpecificParts<'a> {
+        PathSpecificParts {
+            data: self.data,
+            query: self.query,
+            validation_suite: self.validation_suite,
+            identifier: self.identifier,
+            estimator: self.estimator,
+        }
+    }
+}
+
+fn compile_logical_path_specific_on(
+    nodes: &[antecedent_graph::NodeRef],
+    label: &str,
+    parts: PathSpecificParts<'_>,
+    plan_id: &'static str,
+) -> Result<LogicalAnalysisPlan, CausalError> {
+    parts.query.validate()?;
+    if parts.query.target_population != TargetPopulation::AllObserved {
+        return Err(CausalError::Compile {
+            message: "functional.effect only supports TargetPopulation::AllObserved".into(),
+        });
+    }
+    validate_query_vars_in_static_nodes(nodes, label, parts.query.treatment, parts.query.outcome)?;
+    let identifier: IdentifierId = parts.identifier.parse()?;
+    let estimator: EstimatorId = parts.estimator.parse()?;
+    validate_path_specific_pair(identifier, estimator)?;
+    let mut qvars = vec![parts.query.treatment, parts.query.outcome];
+    for &m in parts.query.path_nodes.iter() {
+        if !qvars.contains(&m) {
+            qvars.push(m);
+        }
+    }
+    let record = tabular_record(
+        plan_id,
+        parts.identifier,
+        parts.estimator,
+        parts.validation_suite,
+        Arc::from(qvars),
+    );
+    finish_plan(
+        record,
+        CausalQuery::PathSpecific(parts.query.clone()),
+        None,
+        parts.data.row_count() as u64,
     )
 }
 

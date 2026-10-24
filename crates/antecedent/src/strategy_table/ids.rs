@@ -522,9 +522,18 @@ impl EstimatorId {
         functional: &antecedent_core::ResponseFunctional,
         inference: &crate::InferenceMode,
     ) -> Self {
+        use antecedent_core::ResponseFunctional;
         match inference {
             crate::InferenceMode::Frequentist => Self::default_for_response(functional),
-            crate::InferenceMode::Bayesian(_) => Self::ResponseBayesian,
+            // A Bayesian derivative keeps the derivative estimator's id, as on a Dag: the
+            // posterior is read from the same local fit, not from the Bayesian level curve.
+            crate::InferenceMode::Bayesian(_) => match functional {
+                ResponseFunctional::AverageDerivative { .. }
+                | ResponseFunctional::PointDerivative { .. }
+                | ResponseFunctional::DirectionalDerivative { .. }
+                | ResponseFunctional::Jacobian { .. } => Self::default_for_response(functional),
+                _ => Self::ResponseBayesian,
+            },
         }
     }
 
@@ -1403,6 +1412,8 @@ pub fn validate_class_response_pair(
         || !matches!(
             estimator,
             EstimatorId::ResponseKennedyDr
+                | EstimatorId::ResponseRieszAde
+                | EstimatorId::ResponseGamDerivative
                 | EstimatorId::ResponseInterventionGcomp
                 | EstimatorId::CellAipw
                 | EstimatorId::ResponseBayesian
@@ -1410,9 +1421,9 @@ pub fn validate_class_response_pair(
     {
         return Err(CausalError::Compile {
             message: format!(
-                "Cpdag/Pag response requires identifier generalized.adjustment and \
-                 response.kennedy_dr, response.intervention_gcomp, or response.bayesian \
-                 (got {:?} / {:?})",
+                "Cpdag/Pag/Admg response requires identifier generalized.adjustment and a \
+                 response.* estimator (kennedy_dr, riesz_ade, gam_derivative, \
+                 intervention_gcomp or bayesian) (got {:?} / {:?})",
                 identifier.as_str(),
                 estimator.as_str()
             ),

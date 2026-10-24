@@ -8,10 +8,10 @@ use std::sync::Arc;
 
 use antecedent_contract::ClaimKind;
 use antecedent_core::{
-    CausalQuery, ContinuousDomain, DeclaredSamplingDesign, ExecutionContext, GraphFamily, GridSpec,
-    InferenceSelection, Lag, MediationContrast, MediationQuery, NestedCounterfactualQuery,
-    ResponseFunctional, ResponseQuery, SemanticDigest, TargetForm, TemporalEffectQuery,
-    TemporalPolicy, TemporalResponseSpec, VariableId,
+    CausalQuery, ContinuousDomain, DeclaredSamplingDesign, DerivativeScale, ExecutionContext,
+    GraphFamily, GridSpec, InferenceSelection, Lag, MediationContrast, MediationQuery,
+    NestedCounterfactualQuery, ResponseFunctional, ResponseQuery, SemanticDigest, TargetForm,
+    TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec, VariableId,
 };
 use antecedent_data::{MultiEnvironmentData, PanelData, PanelUnit, TableView, TimeSeriesData};
 use antecedent_graph::{TemporalAdmg, TemporalCpdag, TemporalDag, ensure_lagged};
@@ -133,6 +133,22 @@ fn response_query() -> CausalQuery {
     )
 }
 
+/// The local slope of `y` in `x` one step ahead.
+fn derivative_query() -> CausalQuery {
+    CausalQuery::Response(
+        ResponseQuery::new(ResponseFunctional::PointDerivative {
+            outcome: XY_OUTCOME,
+            treatment: X,
+            at: 0.0,
+            order: 1,
+            scale: DerivativeScale::Identity,
+        })
+        .with_temporal(
+            TemporalResponseSpec::new(vec![1_u32], TemporalPolicy::pulse(-1), None).unwrap(),
+        ),
+    )
+}
+
 fn mediation_query() -> MediationQuery {
     MediationQuery::binary(X, XMY_OUTCOME, [M], MediationContrast::Mediated)
 }
@@ -181,6 +197,10 @@ fn cells() -> Vec<(&'static str, StudyBuilder)> {
         (
             "TemporalResponseClass",
             Study::series(xy_series(0.0)).graph(class()).query(response_query()),
+        ),
+        (
+            "TemporalResponseAdmg",
+            Study::series(xy_series(0.0)).graph(xy_admg()).query(derivative_query()),
         ),
         ("PanelTemporalResponseDag", Study::panel(panel()).graph(xy_dag()).query(response_query())),
         (
@@ -249,6 +269,28 @@ fn every_temporal_cell_lowers_completely() {
             program.identity(),
             "{name}: the identity is stable across compiles"
         );
+    }
+}
+
+#[test]
+fn every_temporal_cell_runs_the_shared_history_operators() {
+    use antecedent_core::OperatorEffect;
+    for (name, builder) in cells() {
+        let study = builder.build().unwrap_or_else(|error| panic!("{name}: {error}"));
+        let plan = compile(&study);
+        let program = plan.lowered().unwrap();
+        let operators = program.statistical().operators();
+        let count =
+            |effect| operators.iter().filter(|operator| operator.effect() == effect).count();
+        // The linear route's read, fit and intervention, plus the shared history scan
+        // (condition), the sequential regression (fit), the action timing and policy
+        // evaluation (intervene), the transition (scan) and the trajectory reduction.
+        assert_eq!(count(OperatorEffect::Read), 1, "{name}");
+        assert_eq!(count(OperatorEffect::Condition), 1, "{name}: one history construction");
+        assert_eq!(count(OperatorEffect::Fit), 2, "{name}: nuisance fit and sequential regression");
+        assert_eq!(count(OperatorEffect::Intervene), 3, "{name}: world, timing and policy");
+        assert_eq!(count(OperatorEffect::Scan), 1, "{name}: one transition scan");
+        assert_eq!(count(OperatorEffect::ReuseFrozenFit), 1, "{name}: one trajectory reduction");
     }
 }
 

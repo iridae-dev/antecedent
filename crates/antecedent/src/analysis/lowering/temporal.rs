@@ -115,6 +115,7 @@ pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalEr
         | RouteInput::MultiEnvTemporalEffect { query, .. } => lower_effect(cx, query),
         RouteInput::TemporalResponseDag { query, .. }
         | RouteInput::TemporalResponseClass { query, .. }
+        | RouteInput::TemporalResponseAdmg { query, .. }
         | RouteInput::PanelTemporalResponseDag { query, .. }
         | RouteInput::PanelTemporalResponseClass { query, .. } => lower_response(cx, query),
         RouteInput::TemporalMediationDag { query, .. }
@@ -573,6 +574,29 @@ struct TemporalLowering {
     width: &'static str,
 }
 
+/// The operators every temporal cell runs: the read, fit and intervention of the linear
+/// route, and the shared history operators the temporal program executes over its declared
+/// cadence, horizon and initial law (`antecedent_model::history_operators::HistoryProgram`):
+/// one history scan, the sequential regression, the action timing and policy evaluation, the
+/// transition scan, and the trajectory reduction. A cell does not carry its own scan.
+fn temporal_program_operators() -> Result<Vec<antecedent_core::Operator>, CausalError> {
+    use antecedent_model::history_operators::HistoryOperatorKind as Kind;
+    let mut operators = linear_gaussian_program_operators()?;
+    for kind in [
+        Kind::HistoryConstruction,
+        Kind::SequentialRegression,
+        Kind::ActionTiming,
+        Kind::PolicyEvaluation,
+        Kind::Transition,
+        Kind::TrajectoryReduction,
+    ] {
+        operators.push(
+            kind.operator().map_err(|error| CausalError::Compile { message: error.to_string() })?,
+        );
+    }
+    Ok(operators)
+}
+
 fn assemble(
     cx: &LoweringContext<'_>,
     parts: TemporalLowering,
@@ -591,7 +615,7 @@ fn assemble(
         bootstrap_replicates: study.bootstrap_replicates,
         sampling_design: study.sampling_design,
         design,
-        operators: linear_gaussian_program_operators()?,
+        operators: temporal_program_operators()?,
     })?;
     statistical.models = Arc::from(parts.models);
     statistical.folds = fold_plan(study);

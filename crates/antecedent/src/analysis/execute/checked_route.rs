@@ -88,3 +88,97 @@ impl CheckedRouteOperation {
         }
     }
 }
+
+/// Run the closing steps the shared dispatcher applies to a family result: the result carries
+/// the identity of the lowered program it ran under, the disclosures the study owes, the
+/// caller-attested validator names and the route's refutation stamps.
+///
+/// # Errors
+///
+/// `route_not_lowered` when `plan` carries no lowered program.
+pub(crate) fn finish_family_result(
+    study: &Study,
+    input: &crate::analysis::builder::DataInput,
+    plan: &PhysicalExecutionPlan,
+    result: &mut crate::result::StudyResult,
+) -> Result<(), CausalError> {
+    let lowered = plan.require_lowered(expected_cell(study))?.identity();
+    super::dispatch::push_gaussian_likelihood_disclosure(result, &study.inference, input);
+    super::dispatch::push_lag_zero_average_effect_disclosure(study, result);
+    result.custom_validator_names = study
+        .custom_validators
+        .iter()
+        .map(|validator| Arc::<str>::from(validator.name()))
+        .collect();
+    result.lowered_identity = Some(lowered);
+    crate::analysis::target_validation::stamp_route_refutations(result);
+    Ok(())
+}
+
+/// The association route's retained operation. Its click runs the association executor
+/// itself, under the program it was sealed to.
+#[derive(Clone, Debug)]
+pub(crate) struct CheckedAssociationOperation {
+    route: CheckedRouteOperation,
+}
+
+impl CheckedAssociationOperation {
+    /// Seal `study` to the program `physical` carries for `cell`.
+    ///
+    /// # Errors
+    ///
+    /// `route_not_lowered`, as [`CheckedRouteOperation::checked`].
+    pub(crate) fn checked(
+        study: &Study,
+        physical: &Arc<PhysicalExecutionPlan>,
+        cell: RouteCell,
+    ) -> Result<Self, CausalError> {
+        CheckedRouteOperation::checked(study, physical, cell).map(|route| Self { route })
+    }
+
+    /// Require that `physical` still carries the program this operation retained.
+    ///
+    /// # Errors
+    ///
+    /// `route_not_lowered`, as [`CheckedRouteOperation::require_program`].
+    pub(crate) fn require_program(
+        &self,
+        physical: &PhysicalExecutionPlan,
+    ) -> Result<(), CausalError> {
+        self.route.require_program(physical)
+    }
+}
+
+/// The structure-discovery route's retained operation. Its click runs the search itself,
+/// under the program it was sealed to.
+#[derive(Clone, Debug)]
+pub(crate) struct CheckedDiscoveryOperation {
+    route: CheckedRouteOperation,
+}
+
+impl CheckedDiscoveryOperation {
+    /// Seal `study` to the program `physical` carries for `cell`.
+    ///
+    /// # Errors
+    ///
+    /// `route_not_lowered`, as [`CheckedRouteOperation::checked`].
+    pub(crate) fn checked(
+        study: &Study,
+        physical: &Arc<PhysicalExecutionPlan>,
+        cell: RouteCell,
+    ) -> Result<Self, CausalError> {
+        CheckedRouteOperation::checked(study, physical, cell).map(|route| Self { route })
+    }
+
+    /// Require that `physical` still carries the program this operation retained.
+    ///
+    /// # Errors
+    ///
+    /// `route_not_lowered`, as [`CheckedRouteOperation::require_program`].
+    pub(crate) fn require_program(
+        &self,
+        physical: &PhysicalExecutionPlan,
+    ) -> Result<(), CausalError> {
+        self.route.require_program(physical)
+    }
+}

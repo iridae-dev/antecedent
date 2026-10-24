@@ -11,8 +11,8 @@
 use super::{
     CausalError, Diagnostic, DiagnosticKind, DiagnosticSeverity, ExecutionContext,
     FunctionalEffect, GraphRef, IdentifiedExecuteExtras, IdentifiedExecuteFinish, Instant,
-    PhysicalExecutionPlan, Strategy, StudyResult, TemporalEffectQuery, TimeSeriesData, elapsed_ns,
-    report_identify_compute, run_functional,
+    PhysicalExecutionPlan, RefuteSuite, Strategy, StudyResult, TemporalEffectQuery, TimeSeriesData,
+    VariableId, elapsed_ns, report_identify_compute, run_functional,
 };
 use crate::analysis::temporal_admg_contrast::{
     identify_window_contrast, used_variables, window_coordinates, window_table,
@@ -116,6 +116,29 @@ impl super::Study {
             .map_err(CausalError::from)?;
         let (estimate, posterior) =
             run_functional(&fitter, &prepared, &self.inference, identification.status, ctx)?;
+        // The window-native suite refits the same plug-in on stretches of the windows, rotates
+        // the treatment as a placebo and (under full validation) compares the two halves.
+        let refutations = if self.refute == RefuteSuite::None {
+            Vec::new()
+        } else {
+            let treatment_columns: Vec<VariableId> = plan
+                .treated
+                .iter()
+                .filter_map(|&period| window.coordinate(query.treatment, period))
+                .collect();
+            antecedent_validate::functional::refute_window_contrast(
+                &table,
+                &identification,
+                &estimand,
+                &coordinates,
+                &treatment_columns,
+                plan.periods,
+                estimate.ate,
+                self.refute == RefuteSuite::Full,
+                ctx,
+            )
+            .map_err(CausalError::from)?
+        };
         let disclosure = window_disclosure(
             &plan,
             table.row_count(),
@@ -136,6 +159,7 @@ impl super::Study {
                 query.outcome,
             )
             .identify_cached(identify_cached)
+            .refutations(refutations)
             .extra_diagnostics(vec![disclosure])
             .wall_time_ns(elapsed_ns(started))
             .bootstrap_replicates_ok(bootstrap_ok)

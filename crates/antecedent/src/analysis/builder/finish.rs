@@ -452,7 +452,7 @@ fn budget_inference(bound: BoundSchema) -> Result<BudgetedInference, CausalError
 fn contract_query(budget: BudgetedInference) -> Result<ContractedQuery, CausalError> {
     let BudgetedInference(Spine { mut carry, graph, graph_posterior, query }) = budget;
     let query = query.ok_or(CausalError::Missing { field: "query" })?;
-    let query = lag_zero_average_effect(query, &mut carry, &graph, graph_posterior.is_some())?;
+    let query = lag_zero_average_effect(query, &mut carry, &graph)?;
     if matches!(
         query,
         CausalQuery::Discover(_) | CausalQuery::Attribute(_) | CausalQuery::Simulate(_)
@@ -516,13 +516,13 @@ fn contract_query(budget: BudgetedInference) -> Result<ContractedQuery, CausalEr
 /// compiled as that pulse; the requested query is kept so the support cell stays the
 /// `AverageEffect` cell (executing, unlicensed) and every result discloses the reading.
 ///
-/// Effect modifiers, a non-mean outcome functional and a graph posterior are refused with the
-/// next attempt named. Every other query passes through unchanged.
+/// Over a graph posterior the same pulse is compiled and the per-atom proofs mix as for any
+/// other temporal pulse. Effect modifiers, a non-mean outcome functional and a tier background
+/// are refused with the next attempt named. Every other query passes through unchanged.
 fn lag_zero_average_effect(
     query: CausalQuery,
     carry: &mut Carry,
     graph: &AcceptedGraph,
-    graph_posterior: bool,
 ) -> Result<CausalQuery, CausalError> {
     let CausalQuery::AverageEffect(average) = &query else {
         return Ok(query);
@@ -535,11 +535,11 @@ fn lag_zero_average_effect(
     {
         return Ok(query);
     }
-    if graph_posterior || carry.tiered.is_some() {
+    if carry.tiered.is_some() {
         return Err(crate::unsupported_reason!(
             "route_not_supported",
-            "a lag-0 AverageEffect on a temporal graph reads one supplied TemporalDag, \
-             TemporalCpdag or TemporalPag. Next attempt: a PulseEffect over the graph posterior"
+            "a lag-0 AverageEffect on a temporal graph reads a supplied TemporalDag, \
+             TemporalCpdag or TemporalPag or a posterior over them, not a tier background"
         ));
     }
     if !average.effect_modifiers.is_empty()
@@ -1866,10 +1866,17 @@ fn bind_exposure(settled: ClassifiedSupport) -> Result<BoundExposure, CausalErro
                     message: "interference network is not used by TransportQuery",
                 });
             }
-            let admg =
-                spine.graph.graph_ref().projected_admg()?.ok_or(CausalError::Unsupported {
-                    message: "TransportQuery requires a supplied Admg or TemporalAdmg",
-                })?;
+            // A DAG is the ADMG with no latent confounding: the selection diagram of a DAG
+            // is its ADMG embedding with the declared selection nodes.
+            let admg = match spine.graph.graph_ref() {
+                GraphRef::Dag(dag) => {
+                    Some(antecedent_graph::Admg::from_dag(dag).map_err(CausalError::rejected)?)
+                }
+                other => other.projected_admg()?,
+            }
+            .ok_or(CausalError::Unsupported {
+                message: "TransportQuery requires a supplied Dag, Admg or TemporalAdmg",
+            })?;
             let targets = carry.selection_targets.clone().unwrap_or_default();
             let diagram = antecedent_graph::SelectionDiagram::try_new(admg.clone(), targets)
                 .map_err(CausalError::rejected)?;

@@ -451,7 +451,7 @@ pub fn execute_design_with_receipt(
     if ctx.cancellation.is_cancelled() {
         return Err(RecalcRunError::Request("recalc.cancelled").into());
     }
-    let mut recorder = ReceiptRecorder::new();
+    let mut recorder = ReceiptRecorder::charged_to(ctx);
     let held = session.live.as_ref();
     let (prepared, result, fit_ctx) = if recomputed(&plan, Stage::ScoreArtifact) {
         fit_guard(r, ctx)?;

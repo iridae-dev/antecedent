@@ -1,6 +1,7 @@
 //! The declared missing-data support of every route cell, the builder's refusals of
 //! unsupported declarations, and multiple imputation with valid pooling on the average-effect
-//! route (frequentist Rubin pooling and the Bayesian stacked posterior).
+//! route (frequentist Rubin pooling and the Bayesian stacked posterior); the other routes that
+//! execute it are exercised in `missing_imputation_routes`.
 #![allow(
     clippy::float_cmp,
     clippy::cast_precision_loss,
@@ -27,15 +28,17 @@ fn expected(cell: MissingRouteCell) -> Option<&'static [&'static str]> {
     use CausalQueryKind as Q;
     use MissingModality as M;
     match (cell.query, cell.modality) {
-        (Q::AverageEffect, M::Tabular) => Some(&["error", "complete_case", "multiple_imputation"]),
-        (Q::ConditionalEffect | Q::Response | Q::Distribution | Q::Mediation, M::Tabular) => {
-            Some(&["error", "complete_case"])
-        }
+        (
+            Q::AverageEffect | Q::ConditionalEffect | Q::Response | Q::Distribution | Q::Mediation,
+            M::Tabular,
+        ) => Some(&["error", "complete_case", "multiple_imputation"]),
         (Q::RandomizedEffect, M::Tabular) => {
-            Some(&["error", "complete_case", "inverse_probability"])
+            Some(&["error", "complete_case", "inverse_probability", "multiple_imputation"])
         }
         (Q::PanelDid, M::Tabular) => Some(&["error", "balanced_panel", "available_case"]),
-        (Q::TemporalEffect | Q::Mediation, M::Series) => Some(&["error", "complete_case"]),
+        (Q::TemporalEffect | Q::Mediation, M::Series) => {
+            Some(&["error", "complete_case", "multiple_imputation"])
+        }
         _ => None,
     }
 }

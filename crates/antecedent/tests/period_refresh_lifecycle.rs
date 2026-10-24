@@ -24,7 +24,10 @@ use antecedent_estimate::temporal_refresh::{
     MechanismStanding, ObservationCadence, ObservationPeriod, TemporalWindowIdentity, WindowProduct,
 };
 use antecedent_io::period_refresh_artifact::{PeriodRefreshArtifactWire, PriorWire};
-use antecedent_state::{ConjugateOlsPrior, RefreshOutcome};
+use antecedent_state::{
+    ConjugateOlsPrior, InvalidationLog, InvalidationTarget, RefreshOutcome, TemporalDisposition,
+    TemporalFactor, TemporalProduct,
+};
 use common::persistent_dgp::{autoregressive_pulse_dag, autoregressive_pulse_series, pulse};
 
 const N: usize = 1200;
@@ -442,4 +445,291 @@ fn a_tampered_ledger_or_a_block_used_twice_is_refused_by_the_consumer() {
     assert!(error.contains("period_refresh.prior_changed"), "{error}");
     assert!(error.contains("rebuild from every retained block"), "{error}");
     good.require_prior(&good.prior).unwrap();
+}
+
+/// Apply the second period after changing what the case changes, and return the outcome.
+fn changed_period(
+    study: &PreparedStudy,
+    refresh: &mut PeriodRefresh,
+    data: &TimeSeriesData,
+    tweak: impl FnOnce(&mut TemporalWindowIdentity),
+    tick: u64,
+    law: &str,
+) -> PeriodRefreshOutcome {
+    let mut second = window(i64::try_from(SPLIT).unwrap(), i64::try_from(N).unwrap(), "snap_2");
+    tweak(&mut second);
+    let to = usize::try_from(second.period.end).unwrap();
+    let cadence = ObservationCadence::new(tick).unwrap();
+    study
+        .apply_period_refresh(refresh, &slice(data, SPLIT, to), "t", &second, cadence, law)
+        .unwrap()
+}
+
+fn as_state(product: WindowProduct) -> TemporalProduct {
+    match product {
+        WindowProduct::Identification => TemporalProduct::Identification,
+        WindowProduct::Design => TemporalProduct::Design,
+        WindowProduct::Model => TemporalProduct::Model,
+        WindowProduct::Evidence => TemporalProduct::Evidence,
+    }
+}
+
+/// One change of a window factor, the products it must invalidate, and whether the declared
+/// invariant mechanism then keeps its fit.
+struct Case {
+    name: &'static str,
+    factors: &'static [TemporalFactor],
+    invalidated: &'static [WindowProduct],
+}
+
+#[test]
+fn every_factor_change_invalidates_exactly_the_products_that_read_it_and_the_state_table_agrees() {
+    use TemporalFactor as F;
+    use WindowProduct as W;
+    let data = autoregressive_pulse_series(N, 0.6, false, 31);
+    let study = prepared(&data);
+    let values = column(&data, "t");
+    let cases = [
+        Case { name: "period", factors: &[], invalidated: &[] },
+        Case {
+            name: "cadence",
+            factors: &[F::Cadence],
+            invalidated: &[W::Design, W::Model, W::Evidence],
+        },
+        Case {
+            name: "initial law",
+            factors: &[F::InitialLaw],
+            invalidated: &[W::Identification, W::Model],
+        },
+        Case {
+            name: "intervention history",
+            factors: &[F::History],
+            invalidated: &[W::Identification, W::Model],
+        },
+        Case {
+            name: "lag alignment",
+            factors: &[F::History],
+            invalidated: &[W::Identification, W::Model],
+        },
+        Case {
+            name: "horizon",
+            factors: &[F::Horizon],
+            invalidated: &[W::Identification, W::Design, W::Model],
+        },
+        Case {
+            name: "population",
+            factors: &[F::Population],
+            invalidated: &[W::Design, W::Model, W::Evidence],
+        },
+        Case {
+            name: "regimes",
+            factors: &[F::Regime],
+            invalidated: &[W::Identification, W::Design, W::Model, W::Evidence],
+        },
+        Case {
+            name: "selection",
+            factors: &[F::Selection],
+            invalidated: &[W::Identification, W::Design],
+        },
+        Case { name: "proof", factors: &[F::Premise], invalidated: &[W::Identification] },
+    ];
+    for case in cases {
+        let mut refresh = start(&study, &data, MechanismStanding::DeclaredInvariant);
+        let (tick, law) = match case.name {
+            "cadence" => (2, "law_1"),
+            "initial law" => (1, "law_2"),
+            _ => (1, "law_1"),
+        };
+        let outcome = changed_period(
+            &study,
+            &mut refresh,
+            &data,
+            |second| match case.name {
+                "intervention history" => {
+                    second.intervention_history = vec!["a1=0".into(), "a2=1".into()]
+                }
+                "lag alignment" => second.lag_alignment = vec![("t".into(), 2)],
+                "horizon" => second.horizon = 3,
+                "population" => second.unit_ids = set(&["u1", "u3"]),
+                "regimes" => second.regimes = set(&["interventional"]),
+                "selection" => second.selection_targets = set(&["s_t2"]),
+                "proof" => second.proof_id = "proof_2".into(),
+                _ => {}
+            },
+            tick,
+            law,
+        );
+        // The period moves in every case; under a declared invariance it is read only by the
+        // design and the evidence, so those two are invalidated beside the case's own.
+        let mut expected: Vec<WindowProduct> = case.invalidated.to_vec();
+        for product in [W::Design, W::Evidence] {
+            if !expected.contains(&product) {
+                expected.push(product);
+            }
+        }
+        expected.sort();
+        assert_eq!(refresh.last_invalidated(), expected.as_slice(), "{}", case.name);
+        let mut factors: std::collections::BTreeSet<TemporalFactor> =
+            case.factors.iter().copied().collect();
+        factors.insert(F::Period);
+        let table = TemporalDisposition::of(&factors, true);
+        let from_state: Vec<WindowProduct> = [W::Identification, W::Design, W::Model, W::Evidence]
+            .into_iter()
+            .filter(|p| table.invalidated.contains(&as_state(*p)))
+            .collect();
+        assert_eq!(from_state, expected, "{}: the state table is the estimate table", case.name);
+        // The Bayesian prior refresh follows the model: it is invalidated exactly when the
+        // model is, and then the posterior is a fresh fit under the stated prior.
+        // The refresh's own production log holds exactly those products, plus the prior
+        // refresh when the model moved; every other product is reusable.
+        let logged: Vec<TemporalProduct> = refresh
+            .invalidation_log()
+            .entries
+            .iter()
+            .filter_map(|entry| match entry.target {
+                InvalidationTarget::TemporalProduct(product) => Some(product),
+                _ => None,
+            })
+            .collect();
+        let mut want: Vec<TemporalProduct> = expected.iter().map(|p| as_state(*p)).collect();
+        if expected.contains(&W::Model) {
+            want.push(TemporalProduct::PriorRefresh);
+        }
+        want.sort();
+        assert_eq!(logged, want, "{}: the refresh's own log", case.name);
+        let since = antecedent_core::StateVersion::from_raw(1);
+        for product in TemporalProduct::ALL {
+            assert_eq!(
+                refresh.invalidation_log().temporal_product_reusable_since(product, since),
+                !want.contains(&product),
+                "{}: {product:?}",
+                case.name
+            );
+        }
+        let model_moved = expected.contains(&W::Model);
+        assert_eq!(table.invalidated.contains(&TemporalProduct::PriorRefresh), model_moved);
+        if model_moved {
+            let PeriodRefreshOutcome::Restarted { invalidated } = outcome else {
+                panic!("{}: a moved model restarts", case.name);
+            };
+            assert_eq!(invalidated, expected, "{}", case.name);
+            assert_matches(&refresh, &reference(&rows(&values, SPLIT + LAGS..N), &prior()));
+            assert_eq!(refresh.blocks().len(), 1, "{}: the old rows are dropped", case.name);
+        } else {
+            assert_eq!(
+                outcome,
+                PeriodRefreshOutcome::Extended { contiguous: true },
+                "{}",
+                case.name
+            );
+            assert_matches(&refresh, &reference(&rows(&values, 2..N), &prior()));
+            assert_eq!(refresh.blocks().len(), 2, "{}: the unaffected model is reused", case.name);
+        }
+    }
+}
+
+#[test]
+fn an_undeclared_period_change_invalidates_the_model_and_a_declared_one_keeps_it() {
+    let data = autoregressive_pulse_series(N, 0.6, false, 31);
+    let study = prepared(&data);
+    let mut undeclared = start(&study, &data, MechanismStanding::Undeclared);
+    let outcome = changed_period(&study, &mut undeclared, &data, |_| {}, 1, "law_1");
+    let all_but_identification =
+        vec![WindowProduct::Design, WindowProduct::Model, WindowProduct::Evidence];
+    assert_eq!(undeclared.last_invalidated(), all_but_identification.as_slice());
+    assert_eq!(outcome, PeriodRefreshOutcome::Restarted { invalidated: all_but_identification });
+
+    let mut declared = start(&study, &data, MechanismStanding::DeclaredInvariant);
+    let outcome = changed_period(&study, &mut declared, &data, |_| {}, 1, "law_1");
+    assert_eq!(outcome, PeriodRefreshOutcome::Extended { contiguous: true });
+    // The model and the identification stay; the design and the evidence moved with the period.
+    assert_eq!(declared.last_invalidated(), [WindowProduct::Design, WindowProduct::Evidence]);
+}
+
+#[test]
+fn a_prior_refresh_equals_the_batch_posterior_when_the_model_survives_and_restarts_otherwise() {
+    let data = autoregressive_pulse_series(N, 0.6, false, 31);
+    let study = prepared(&data);
+    let values = column(&data, "t");
+
+    // A new prior is rebuilt from the retained blocks, and the next period then refreshes that
+    // posterior: the result is the batch posterior of every row under the new prior.
+    let mut carried = start(&study, &data, MechanismStanding::DeclaredInvariant);
+    carried.reprior(&other_prior()).unwrap();
+    assert_matches(&carried, &reference(&rows(&values, 2..SPLIT), &other_prior()));
+    let outcome = changed_period(&study, &mut carried, &data, |_| {}, 1, "law_1");
+    assert_eq!(outcome, PeriodRefreshOutcome::Extended { contiguous: true });
+    assert_matches(&carried, &reference(&rows(&values, 2..N), &other_prior()));
+
+    // When the model does not survive (a changed initial law) the posterior of the earlier
+    // period is not the prior of the new one: the stated prior restarts it.
+    let mut restarted = start(&study, &data, MechanismStanding::DeclaredInvariant);
+    restarted.reprior(&other_prior()).unwrap();
+    let outcome = changed_period(&study, &mut restarted, &data, |_| {}, 1, "law_2");
+    assert!(matches!(outcome, PeriodRefreshOutcome::Restarted { .. }));
+    assert_matches(&restarted, &reference(&rows(&values, SPLIT + LAGS..N), &other_prior()));
+    let earlier = reference(&rows(&values, 2..SPLIT), &other_prior());
+    let posterior = restarted.summary().unwrap();
+    assert!(
+        posterior.mean.iter().zip(&earlier.mean).any(|(a, b)| (a - b).abs() > 1e-6),
+        "the restarted posterior does not carry the earlier period"
+    );
+}
+
+#[test]
+fn the_invalidation_log_names_each_affected_product_of_a_period_change() {
+    let mut log = InvalidationLog::new();
+    let before = antecedent_core::StateVersion::from_raw(1);
+    let after = antecedent_core::StateVersion::from_raw(2);
+    let changes = [TemporalFactor::InitialLaw].into_iter().collect();
+    let disposition = log.push_temporal_change(after, &changes, true, "initial law changed");
+    let logged: Vec<TemporalProduct> = log
+        .entries
+        .iter()
+        .filter_map(|entry| match entry.target {
+            InvalidationTarget::TemporalProduct(product) => Some(product),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        logged,
+        [TemporalProduct::Identification, TemporalProduct::Model, TemporalProduct::PriorRefresh]
+    );
+    assert_eq!(disposition.retained.len(), 2);
+    assert!(log.temporal_product_reusable_since(TemporalProduct::Design, before));
+    assert!(log.temporal_product_reusable_since(TemporalProduct::Evidence, before));
+    assert!(!log.temporal_product_reusable_since(TemporalProduct::Model, before));
+}
+
+#[test]
+fn a_refreshed_series_period_logs_exactly_the_products_that_read_it() {
+    let data = autoregressive_pulse_series(N, 0.6, false, 31);
+    let mut study = prepared(&data);
+    assert!(study.temporal_invalidations().entries.is_empty());
+    let next = autoregressive_pulse_series(N, 0.6, false, 32);
+    study.refresh_series(next, &ExecutionContext::for_tests(11)).unwrap();
+    let log = study.temporal_invalidations();
+    let products: Vec<TemporalProduct> = log
+        .entries
+        .iter()
+        .filter_map(|entry| match entry.target {
+            InvalidationTarget::TemporalProduct(product) => Some(product),
+            _ => None,
+        })
+        .collect();
+    // The period moved and the mechanism is not declared invariant across periods: the design,
+    // the model, the evidence and the prior carried from the model are recomputed; the
+    // identification, which reads neither, is reused.
+    assert_eq!(
+        products,
+        [
+            TemporalProduct::Design,
+            TemporalProduct::Model,
+            TemporalProduct::Evidence,
+            TemporalProduct::PriorRefresh
+        ]
+    );
+    let zero = antecedent_core::StateVersion::ZERO;
+    assert!(log.temporal_product_reusable_since(TemporalProduct::Identification, zero));
+    assert!(!log.temporal_product_reusable_since(TemporalProduct::Model, zero));
 }

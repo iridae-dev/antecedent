@@ -43,7 +43,7 @@ impl CompiledLinearExecution {
         query: &AverageEffectQuery,
         plan: &mut PhysicalExecutionPlan,
         ctx: &antecedent_core::ExecutionContext,
-    ) -> Result<Self, CausalError> {
+    ) -> Result<Option<Self>, CausalError> {
         let identification =
             Arc::new(source.prepare_static_identification(plan)?.ok_or_else(|| {
                 CausalError::Compile { message: "linear compilation omitted identification".into() }
@@ -93,7 +93,13 @@ impl CompiledLinearExecution {
                 default_id: self.default_id,
             },
             Some(&self.preparation),
-        )
+        )?
+        .ok_or_else(|| CausalError::Resource {
+            message: "the refreshed rows no longer fit the resident design budget; the \
+                      streamed reduction retains no operation to rebind. Next attempt: \
+                      compile the study again on the new rows"
+                .into(),
+        })
     }
 
     fn lower(
@@ -103,17 +109,53 @@ impl CompiledLinearExecution {
         ctx: &antecedent_core::ExecutionContext,
         recipe: LinearRecipe,
         previous: Option<&CheckedLinearAdjustmentAte>,
-    ) -> Result<Self, CausalError> {
+    ) -> Result<Option<Self>, CausalError> {
         let LinearRecipe { identification, fitter, default_id } = recipe;
-        let (quoted, preparation_bytes, direct) =
-            resources::source_layout(data, &identification.estimand.adjustment_set, &fitter, ctx)?;
+        // Preparation is metered against the plan's byte limit, so its receipt reports the
+        // admitted payload bytes and the budget instead of an unmetered rows-only bound.
+        let fitter = fitter.with_preparation_budget(PhysicalExecutionPlan::preparation_budget(ctx));
+        // Compile observes cancellation before it quotes, before it prepares and before it
+        // retains, so a request never waits on a later stage.
+        refuse_if_cancelled(ctx)?;
+        let layout =
+            resources::source_layout(data, &identification.estimand.adjustment_set, &fitter, ctx);
+        let (quoted, preparation_bytes, direct) = match layout {
+            Ok(layout) => layout,
+            // The resident design does not fit. When the fit is a closed-form reduction over
+            // float64 columns the plan streams it: no operation is retained, the plan's
+            // choice is the streamed reduction, and execution reads the rows in batches.
+            Err(CausalError::Resource { .. })
+                if previous.is_none()
+                    && streams_linear(
+                        &fitter,
+                        data,
+                        query,
+                        &identification.estimand.adjustment_set,
+                    ) =>
+            {
+                plan.bind_streamed_linear_views(
+                    identification.estimand.adjustment_set.len() as u64 + 2,
+                    data.row_count() as u64,
+                    ctx,
+                )?;
+                return Ok(None);
+            }
+            Err(error) => return Err(error),
+        };
         plan.record.estimated_peak_memory_bytes = Some(quoted.peak()?);
         plan.record.estimated_copy_bytes = Some(quoted.resident);
-        plan.bind_prepared_linear_views(direct, quoted.work)?;
+        plan.bind_prepared_linear_views(
+            direct,
+            quoted.rows,
+            quoted.columns,
+            fitter.bootstrap_replicates,
+            ctx,
+        )?;
         let backend = plan.choice.selected();
         let reservation = ctx
             .acquire_admission(0, preparation_bytes)
             .map_err(|error| CausalError::Resource { message: error.to_string() })?;
+        refuse_if_cancelled(ctx)?;
         let preparation =
             antecedent_core::numerical_admission::with_context(ctx, || match previous {
                 Some(previous) => fitter.rebind_checked_with_backend(previous, data, backend),
@@ -124,9 +166,7 @@ impl CompiledLinearExecution {
                     backend,
                 ),
             })?;
-        if ctx.cancellation.is_cancelled() {
-            return Err(CausalError::Cancelled { stage: "compile" });
-        }
+        refuse_if_cancelled(ctx)?;
         let geometry = resources::LinearResources::prepared(&preparation, &fitter, ctx)?;
         let retention = Arc::new(
             reservation
@@ -147,7 +187,7 @@ impl CompiledLinearExecution {
             fitter.bootstrap_replicates > 0,
             data,
         )?);
-        Ok(Self {
+        Ok(Some(Self {
             program,
             identification,
             fitter,
@@ -155,8 +195,31 @@ impl CompiledLinearExecution {
             default_id,
             retention,
             resource_context: super::resource_policy::CompiledResourcePolicy::retain(ctx),
-        })
+        }))
     }
+}
+
+/// Whether the closed-form reduction can run this fit: the estimator streams (least squares,
+/// unit weights, no bootstrap) and the treatment, outcome and adjustment columns are float64.
+fn streams_linear(
+    fitter: &antecedent_estimate::LinearAdjustmentAte,
+    data: &antecedent_data::TabularData,
+    query: &AverageEffectQuery,
+    adjustment: &[antecedent_core::VariableId],
+) -> bool {
+    use antecedent_data::{ColumnView, TableView};
+    fitter.supports_streamed_reduction()
+        && std::iter::once(query.treatment)
+            .chain(std::iter::once(query.outcome))
+            .chain(adjustment.iter().copied())
+            .all(|id| matches!(data.column(id), Ok(ColumnView::Float64(_))))
+}
+
+fn refuse_if_cancelled(ctx: &antecedent_core::ExecutionContext) -> Result<(), CausalError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(CausalError::Cancelled { stage: "compile" });
+    }
+    Ok(())
 }
 
 /// The scientific and execution contracts retained with a production linear operation.

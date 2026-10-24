@@ -268,8 +268,8 @@ pub struct LocalPolynomialRatioEstimate {
 /// posterior. No coverage of any interval has been measured, and the route is not licensed.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TemporalDesignEstimate {
-    /// Design: `two_arm`, `multi_arm`, `categorical`, `factorial`, `interference`, `dose` or
-    /// `regime_survival`.
+    /// Design: `two_arm`, `multi_arm`, `categorical`, `factorial`, `interference`, `dose`,
+    /// `regime_survival` or `observational_excursion`.
     pub design: Arc<str>,
     /// Outcome functional: `mean`, `quantile:<level>`, the dose target, or `survival`.
     pub functional: Arc<str>,
@@ -709,7 +709,138 @@ pub struct ImputationReport {
     pub fraction_missing_information: Option<f64>,
     /// Relative increase in variance due to nonresponse, for Rubin pooling.
     pub relative_increase: Option<f64>,
+    /// Digest (hex) of the model and design assumptions the pooled estimate rests on: the
+    /// imputation model, tables, sweeps, seed, missingness assumption, resampling unit, declared
+    /// sampling design and every variable's kind and imputed-cell count. Two reports with
+    /// different digests are different analyses.
+    pub assumptions_digest: std::sync::Arc<str>,
+    /// Neighbouring time steps on each side the imputation model conditioned on, for a series;
+    /// zero for exchangeable rows.
+    pub lags: usize,
+    /// The joint pooling of the answer's coordinates, for a route whose answer has several
+    /// (the cells of a conditional effect, a response curve, the levels of a distribution, a
+    /// mediation decomposition, the arms of a randomized design, the horizons of a series).
+    pub vector: Option<ImputationVectorReport>,
 }
+
+/// The Wald test of a pooled answer's coordinates against a stated null (Li, Raghunathan and
+/// Rubin's `D1`), referred to an `F` law.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub struct ImputationWald {
+    /// The hypothesised value of every coordinate.
+    pub null: std::sync::Arc<[f64]>,
+    /// The pooled statistic.
+    pub statistic: f64,
+    /// Numerator degrees of freedom, the number of coordinates.
+    pub df_numerator: f64,
+    /// Denominator degrees of freedom; infinite is the chi-square reference.
+    pub df_denominator: f64,
+}
+
+/// A quantity of the answer that has no published within-imputation variance, pooled by its
+/// mean over the completed tables with the between-imputation variance beside it.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub struct ImputationExtra {
+    /// What the quantity is.
+    pub label: std::sync::Arc<str>,
+    /// Its value on each completed table, in imputation order.
+    pub points: std::sync::Arc<[f64]>,
+    /// The mean over the completed tables.
+    pub point: f64,
+    /// Between-imputation variance of the value: a lower bound on its pooled variance.
+    pub between: f64,
+}
+
+/// The joint pooling of an answer with several coordinates.
+///
+/// Matrices are row-major `p x p` over the coordinates in `labels` order. Under Rubin pooling
+/// `total = within + (1 + 1/m) between`; under a stacked posterior `total` is the covariance of
+/// the equal-weight mixture and `within` carries each coordinate's mean posterior variance on
+/// its diagonal.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub struct ImputationVectorReport {
+    /// Name of each coordinate.
+    pub labels: std::sync::Arc<[std::sync::Arc<str>]>,
+    /// How the within-imputation covariance was formed: `joint_covariance` (a retained joint
+    /// influence covariance), `marginal_variances` (each coordinate's published variance on the
+    /// diagonal, no cross-covariance), or `posterior_draws` (a stacked posterior).
+    pub covariance_basis: std::sync::Arc<str>,
+    /// Every completed table's coordinates, in imputation order.
+    pub points: std::sync::Arc<[std::sync::Arc<[f64]>]>,
+    /// Pooled coordinates.
+    pub point: std::sync::Arc<[f64]>,
+    /// Within-imputation covariance.
+    pub within: std::sync::Arc<[f64]>,
+    /// Between-imputation covariance.
+    pub between: std::sync::Arc<[f64]>,
+    /// Total covariance.
+    pub total: std::sync::Arc<[f64]>,
+    /// Degrees of freedom of each coordinate's Student-t reference (Rubin pooling); `None` for a
+    /// normal reference or a posterior.
+    pub coordinate_df: std::sync::Arc<[Option<f64>]>,
+    /// Fraction of missing information of each coordinate (Rubin pooling).
+    pub coordinate_fraction_missing_information: std::sync::Arc<[Option<f64>]>,
+    /// Average relative increase in variance due to nonresponse (Rubin pooling).
+    pub average_relative_increase: Option<f64>,
+    /// The joint Wald test that every coordinate is zero, when the within-imputation covariance
+    /// is invertible (Rubin pooling).
+    pub wald: Option<ImputationWald>,
+    /// Quantities of the answer pooled by their mean alone.
+    pub extras: std::sync::Arc<[ImputationExtra]>,
+}
+
+fn bits(values: &[f64]) -> Vec<u64> {
+    values.iter().map(|v| v.to_bits()).collect()
+}
+
+fn option_bits(values: &[Option<f64>]) -> Vec<Option<u64>> {
+    values.iter().map(|v| v.map(f64::to_bits)).collect()
+}
+
+impl PartialEq for ImputationWald {
+    fn eq(&self, other: &Self) -> bool {
+        bits(&self.null) == bits(&other.null)
+            && bits(&[self.statistic, self.df_numerator, self.df_denominator])
+                == bits(&[other.statistic, other.df_numerator, other.df_denominator])
+    }
+}
+
+impl Eq for ImputationWald {}
+
+impl PartialEq for ImputationExtra {
+    fn eq(&self, other: &Self) -> bool {
+        self.label == other.label
+            && bits(&self.points) == bits(&other.points)
+            && bits(&[self.point, self.between]) == bits(&[other.point, other.between])
+    }
+}
+
+impl Eq for ImputationExtra {}
+
+impl PartialEq for ImputationVectorReport {
+    fn eq(&self, other: &Self) -> bool {
+        self.labels == other.labels
+            && self.covariance_basis == other.covariance_basis
+            && self.points.len() == other.points.len()
+            && self.points.iter().zip(other.points.iter()).all(|(a, b)| bits(a) == bits(b))
+            && bits(&self.point) == bits(&other.point)
+            && bits(&self.within) == bits(&other.within)
+            && bits(&self.between) == bits(&other.between)
+            && bits(&self.total) == bits(&other.total)
+            && option_bits(&self.coordinate_df) == option_bits(&other.coordinate_df)
+            && option_bits(&self.coordinate_fraction_missing_information)
+                == option_bits(&other.coordinate_fraction_missing_information)
+            && self.average_relative_increase.map(f64::to_bits)
+                == other.average_relative_increase.map(f64::to_bits)
+            && self.wald == other.wald
+            && self.extras == other.extras
+    }
+}
+
+impl Eq for ImputationVectorReport {}
 
 /// Bitwise equality of the numbers, so the report is `Eq` like the accounting it travels
 /// with: two reports are equal when they would serialize identically.
@@ -731,6 +862,9 @@ impl PartialEq for ImputationReport {
             && option(self.fraction_missing_information)
                 == option(other.fraction_missing_information)
             && option(self.relative_increase) == option(other.relative_increase)
+            && self.assumptions_digest == other.assumptions_digest
+            && self.lags == other.lags
+            && self.vector == other.vector
     }
 }
 

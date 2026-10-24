@@ -271,6 +271,12 @@ impl ReceiptRecorder {
         Self { counts: BTreeMap::new(), nuisances: CrossfitNuisanceCache::new() }
     }
 
+    /// A recorder whose nuisance cache is charged to the admission pool of `ctx`.
+    #[must_use]
+    pub fn charged_to(ctx: &antecedent_core::ExecutionContext) -> Self {
+        Self { counts: BTreeMap::new(), nuisances: CrossfitNuisanceCache::charged_to(ctx) }
+    }
+
     /// Count `n` units of `counter` against its stage.
     pub fn record(&mut self, counter: Counter, n: u64) {
         self.counts.entry(counter.stage()).or_default().add(counter, n);

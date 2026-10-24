@@ -27,6 +27,9 @@ use crate::planner::RouteDefaults;
 const CHECKED_IV_NON_BINARY_INSTRUMENT: &str =
     "checked IV currently requires a binary 0/1 instrument matching the checked Wald functional";
 
+/// Rows a streamed reduction reads per batch.
+const STREAMED_BATCH_ROWS: usize = 8192;
+
 /// Borrowed inputs of one static ATE execution, shared by every phase.
 #[derive(Clone, Copy)]
 struct StaticRun<'a> {
@@ -159,6 +162,14 @@ impl<'a> StaticAteExecution<'a> {
 
     /// Selects the estimator spec and prepares each checked receipt the point fit may use.
     fn prepare_checked(&self) -> Result<StaticCheckedFits, CausalError> {
+        antecedent_estimate::prepare::with_preparation_budget(
+            crate::planner::PhysicalExecutionPlan::preparation_budget(self.run.ctx),
+            || self.prepare_checked_metered(),
+        )
+    }
+
+    /// The body of [`Self::prepare_checked`], run under the plan's preparation budget.
+    fn prepare_checked_metered(&self) -> Result<StaticCheckedFits, CausalError> {
         let StaticRun { data, execution, .. } = self.run;
         let prepared_linear = execution.linear_operation();
         let prepared_aipw = execution.aipw_operation();
@@ -246,7 +257,11 @@ impl<'a> StaticAteExecution<'a> {
         Option<(LinearAdjustmentAte, antecedent_estimate::CheckedLinearAdjustmentAte)>,
         CausalError,
     > {
-        let StaticRun { data, query, execution, .. } = self.run;
+        let StaticRun { data, query, execution, physical, .. } = self.run;
+        // A plan that streams its design never builds the checked design receipt.
+        if physical.streams_design() {
+            return Ok(None);
+        }
         let prepared_linear = execution.linear_operation();
         if !(matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
             && matches!(query.target_population, antecedent_core::TargetPopulation::AllObserved))
@@ -326,6 +341,48 @@ impl<'a> StaticAteExecution<'a> {
         }
     }
 
+    /// The linear-adjustment fitter a streamed plan reads its rows through, when the plan
+    /// streams its design and the selected estimator is the linear adjustment.
+    fn streamed_fitter(&self, spec: &EstimatorSpec) -> Option<LinearAdjustmentAte> {
+        if !self.run.physical.streams_design() {
+            return None;
+        }
+        match spec {
+            EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte) => {
+                let mut fitter = LinearAdjustmentAte::new();
+                fitter.sampling_design =
+                    crate::estimator_spec::declared_sampling(self.study.sampling_design);
+                Some(fitter)
+            }
+            EstimatorSpec::LinearAdjustmentAte(config) => Some((**config).clone()),
+            _ => None,
+        }
+    }
+
+    /// The streamed reduction: the rows are read in bounded batches through the
+    /// complete-case mask, and no design is built.
+    fn fit_streamed(&self, fitter: &LinearAdjustmentAte) -> Result<EffectEstimate, CausalError> {
+        let ctx = self.run.ctx;
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "estimate_point" });
+        }
+        let ceiling = ctx.memory_limit_bytes().unwrap_or(u64::MAX / 4);
+        let streamed = fitter.estimate_streamed(
+            &self.data_est,
+            &self.estimand_est,
+            &self.query_est,
+            STREAMED_BATCH_ROWS,
+            ceiling,
+        )?;
+        Ok(EffectEstimate::new(
+            streamed.ate,
+            streamed.se_analytic,
+            self.identification.required_assumptions.clone(),
+            self.study.overlap_policy.unwrap_or(OverlapPolicy::ExplicitOverride),
+        )
+        .with_n_obs(streamed.n_obs))
+    }
+
     /// Point fit through the retained operation, the checked receipt, or the generic estimator.
     fn fit_point(
         &mut self,
@@ -362,6 +419,8 @@ impl<'a> StaticAteExecution<'a> {
                     .fit_checked(receipt, &mut ws.estimate.linear, ctx)
                     .map_err(CausalError::from)?
             }
+        } else if let Some(fitter) = self.streamed_fitter(&checked.spec) {
+            self.fit_streamed(&fitter)?
         } else if let Some(operation) = prepared_aipw {
             if operation.preparation.target().functional != self.estimand.functional
                 || operation.preparation.target().adjustment_set != self.estimand.adjustment_set
@@ -1152,6 +1211,75 @@ impl super::Study {
             )
             .identify_cached(identify_cached)
             .refutations(refutations)
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras {
+                n_draws: posterior
+                    .as_ref()
+                    .map(|p| u32::try_from(p.draws.n_draws).unwrap_or(u32::MAX)),
+                posterior,
+                ..Default::default()
+            }),
+        ))
+    }
+
+    /// Identify and plug-in estimate a path-restricted natural effect, or a natural direct
+    /// effect, on a supplied ADMG.
+    ///
+    /// The path-specific identifier reads the graph's latent confounding: the surgical total
+    /// effect when every directed path is selected, the edge g-formula when the outcome's
+    /// ancestors are unconfounded, and Shpitser's district formula otherwise. The identified
+    /// functional is evaluated by the same finite-discrete plug-in (frequentist bootstrap) or
+    /// Bayesian-bootstrap posterior as the DAG cell.
+    pub(super) fn execute_path_specific_mixed(
+        &self,
+        data: &TabularData,
+        admg: &Admg,
+        source: super::PathSpecificMixedSource<'_>,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        ensure_admg_path_specific_licensed(self.refute)?;
+        let started = Instant::now();
+        let (identifier_id, estimator_id) = physical.binding().resolve(RouteDefaults::PATH)?;
+        if !matches!(estimator_id, EstimatorId::FunctionalEffect) {
+            return Err(CausalError::Compile {
+                message: format!(
+                    "PathSpecific execute requires estimator functional.effect; got {estimator_id}"
+                ),
+            });
+        }
+        let (identified_query, treatment, outcome, roles) = path_specific_source_parts(source);
+
+        // Prepared handles identify once at prepare time; identification reads only
+        // (identifier, graph, query), all frozen there, so reuse is exact and observable via
+        // the `exec.identify.cached` diagnostic below.
+        let (identification, estimand, identify_cached) =
+            identification_from_cache_or(ctx, self.reuse_static_identification(physical), || {
+                let mut identification = crate::strategy_table::identify_admg_query(
+                    identifier_id,
+                    admg,
+                    &identified_query,
+                )?;
+                // The natural direct effect is identified as its mediation reading but
+                // answers the nested query the study asked.
+                identification.query = self.query.clone();
+                let estimand = select_estimand(&identification, estimator_id)?;
+                Ok((identification, estimand))
+            })?;
+
+        let (estimate, posterior) =
+            self.estimate_functional_effect(data, &estimand, &identification, &roles, ctx)?;
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                Strategy::new(identifier_id, estimator_id),
+                treatment,
+                outcome,
+            )
+            .identify_cached(identify_cached)
             .wall_time_ns(elapsed_ns(started))
             .extras(IdentifiedExecuteExtras {
                 n_draws: posterior
@@ -2285,6 +2413,49 @@ impl DistributionGraph<'_> {
             Self::Admg(admg) => crate::strategy_table::identify_admg_query(identifier, admg, &cq),
         }
     }
+}
+
+/// The query a natural-effect source identifies (a natural direct effect as its mediation
+/// reading), its treatment and outcome, and the variables the plug-in reads.
+pub(super) fn path_specific_source_parts(
+    source: super::PathSpecificMixedSource<'_>,
+) -> (
+    CausalQuery,
+    antecedent_core::VariableId,
+    antecedent_core::VariableId,
+    Vec<antecedent_core::VariableId>,
+) {
+    match source {
+        super::PathSpecificMixedSource::PathSpecific(query) => {
+            let mut roles = vec![query.treatment, query.outcome];
+            roles.extend(query.path_nodes.iter().copied());
+            (CausalQuery::PathSpecific(query.clone()), query.treatment, query.outcome, roles)
+        }
+        super::PathSpecificMixedSource::Mediation(query) => {
+            let mut roles = vec![query.treatment, query.outcome];
+            roles.extend(query.mediators.iter().copied());
+            (CausalQuery::Mediation(query.clone()), query.treatment, query.outcome, roles)
+        }
+        super::PathSpecificMixedSource::Nested(query) => (
+            CausalQuery::Mediation(query.as_mediation_query()),
+            query.treatment,
+            query.outcome,
+            vec![query.treatment, query.outcome, query.mediator],
+        ),
+    }
+}
+
+/// Gate for a path-specific effect on an ADMG, shared by compile and execute: the plug-in
+/// reads the identified functional on the table at validation none; the query-native DAG
+/// refuters do not apply to a latent-confounded graph.
+pub(super) fn ensure_admg_path_specific_licensed(refute: RefuteSuite) -> Result<(), CausalError> {
+    if refute != RefuteSuite::None {
+        return Err(CausalError::Unsupported {
+            message: "ADMG path-specific and natural direct effects run at validation none; \
+                      cheap/full remain Dag-only",
+        });
+    }
+    Ok(())
 }
 
 /// Licence gate for an ADMG interventional distribution, shared by compile and

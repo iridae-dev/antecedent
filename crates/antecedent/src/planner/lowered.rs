@@ -917,6 +917,15 @@ impl LoweredProgram {
         &self.physical
     }
 
+    /// The program with `operators` appended to its physical layer. The physical layer
+    /// stays out of the identity, so the program's identity does not move.
+    pub(crate) fn with_physical_operators(mut self, operators: Vec<PhysicalOperator>) -> Self {
+        let mut all = self.physical.operators.to_vec();
+        all.extend(operators);
+        self.physical.operators = Arc::from(all);
+        self
+    }
+
     /// Layer six.
     #[must_use]
     pub const fn claim(&self) -> &ClaimDemand {

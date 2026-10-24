@@ -2,7 +2,7 @@
 //! reuse of a derived stage.
 //!
 //! Payload format 3 is the current scientific-target identity. Score-row ids are
-//! eight bytes. Route axes stay unmigrated. A receipt that says a derived stage
+//! eight bytes. A receipt that says a derived stage
 //! is in-process only cannot be reused after a fresh process loads it.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -19,12 +19,11 @@ use antecedent_core::{
     WorldBinding,
 };
 use antecedent_io::recalc_receipt_artifact::{
-    CountsWire, RecalcReceiptArtifact, RecalcReceiptArtifactError, encode_parts,
+    encode_parts, CountsWire, RecalcReceiptArtifact, RecalcReceiptArtifactError,
 };
 use antecedent_io::release_migration::{
-    AdoptedRelease, AxisStanding, MigrationError, PreviousReleaseError, RouteAxis, axis_standing,
-    consume_previous_release_artifact, current_score_row_digest, migrate_axis,
-    narrow_score_row_digest,
+    consume_previous_release_artifact, current_score_row_digest, narrow_score_row_digest,
+    AdoptedRelease, MigrationError, PreviousReleaseError,
 };
 
 const ROW_IDS: [u64; 3] = [7, 11, 13];
@@ -116,12 +115,6 @@ fn status<'a>(adopted: &'a AdoptedRelease, stage: &str) -> &'a str {
 
 #[test]
 fn a_previous_release_artifact_adopts_current_digests_and_refuses_fresh_reuse() {
-    assert_eq!(axis_standing(RouteAxis::TemporalFrequentist), AxisStanding::StillUnmigrated);
-    assert_eq!(
-        migrate_axis(RouteAxis::StaticBayesian).unwrap_err(),
-        MigrationError::AxisStillUnmigrated { axis: RouteAxis::StaticBayesian }
-    );
-
     let declared = target(0.0);
     let current_target = *declared.identity().as_bytes();
     let other_target = *target(1.0).identity().as_bytes();
