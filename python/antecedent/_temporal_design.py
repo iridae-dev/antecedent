@@ -298,6 +298,36 @@ class RegimeSurvivalContrast:
             raise CausalValueError("horizon must be a positive integer")
 
 
+@dataclass(frozen=True, slots=True)
+class ObservationalExcursion:
+    """The excursion effect of an observed decision whose assignment law is not recorded.
+
+    ``treatment`` is a 0/1 column and ``history`` the decision-time covariates that make the
+    decision exchangeable (declared, not checked). The assignment law is a pooled logistic fit
+    of the decision on ``history`` and is refitted inside every interval: frequentist inference
+    is a unit bootstrap (``bootstrap=`` of at least 99) and Bayesian inference the
+    weighted-likelihood bootstrap. ``lag`` pairs a decision with the outcome that many periods
+    later; ``min_probability`` is the positivity floor of the fitted probabilities.
+    """
+
+    outcome: str
+    unit: str
+    period: str
+    _: KW_ONLY
+    treatment: str
+    history: Sequence[str] = ()
+    lag: int = 0
+    min_probability: float = 0.05
+
+    def __post_init__(self) -> None:
+        _check_common(self)
+        _column_name(self.treatment, "treatment")
+        for name in self.history:
+            _column_name(name, "history")
+        if len(self.history) == 0:
+            raise CausalValueError("an observational excursion needs at least one history column")
+
+
 TEMPORAL_DESIGN_QUERIES = (
     TwoArmExcursion,
     MultiArmExcursion,
@@ -305,6 +335,7 @@ TEMPORAL_DESIGN_QUERIES = (
     InterferenceExcursion,
     DoseExcursion,
     RegimeSurvivalContrast,
+    ObservationalExcursion,
 )
 
 TemporalDesignQuery = (
@@ -314,6 +345,7 @@ TemporalDesignQuery = (
     | InterferenceExcursion
     | DoseExcursion
     | RegimeSurvivalContrast
+    | ObservationalExcursion
 )
 
 
@@ -574,6 +606,12 @@ def _spec(query: Any, raw: Mapping[str, Any]) -> dict[str, Any]:
             "confounders": list(query.confounders),
             "horizon": int(query.horizon),
         }
+    if isinstance(query, ObservationalExcursion):
+        return {
+            "design": "observational_excursion",
+            "treatment": query.treatment,
+            "history": list(query.history),
+        }
     raise CausalValueError(f"not a temporal design query: {type(query).__name__}")
 
 
@@ -593,6 +631,8 @@ def _design_columns(query: Any) -> tuple[str, ...]:
 def _numeric_columns(query: Any) -> tuple[str, ...]:
     if isinstance(query, RegimeSurvivalContrast):
         return (query.outcome, query.treatment, query.censored, *query.confounders)
+    if isinstance(query, ObservationalExcursion):
+        return (query.outcome, query.treatment, *query.history)
     return (query.outcome,)
 
 

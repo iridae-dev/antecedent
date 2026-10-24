@@ -137,12 +137,21 @@ class MissingPolicy:
       single unit-period.
     * ``"available_case"``: panel designs; each contrast uses the units observed in the
       periods it needs. Unit and period identities are preserved.
-    * ``"multiple_imputation"``: average-effect routes; every row is kept, the missing cells
-      are drawn ``imputation.imputations`` times from a proper imputation model, the route's
-      estimator runs on every completed table and the fits are pooled (Rubin's rules with
-      Barnard-Rubin degrees of freedom, or one stacked posterior under Bayesian inference).
+    * ``"multiple_imputation"``: average-effect, conditional-effect, response, distribution,
+      mediation, randomized and single-series temporal routes; every row is kept, the missing
+      cells are drawn ``imputation.imputations`` times from a proper imputation model, the
+      route's estimator runs on every completed table and the fits are pooled (Rubin's rules
+      with Barnard-Rubin degrees of freedom, or one stacked posterior under Bayesian
+      inference). A route whose answer has several coordinates (the cells of a conditional
+      effect, a response curve, the atoms of a distribution, a mediation decomposition, the
+      arms of a randomized design, a series' horizons) pools them jointly: the result's
+      ``missing_data.imputation.vector`` holds the within-, between- and total covariance, each
+      coordinate's degrees of freedom and fraction of missing information, and the pooled Wald
+      test. A randomized design adds the arm each row was assigned to the imputation model; a
+      series is imputed by a lagged model whose parameter draws resample contiguous blocks.
       ``covariates`` name the auxiliary variables of the imputation model; without them the
-      model reads every float column.
+      model reads every float column. ``missing_data.imputation.assumptions_digest`` identifies
+      the model and design assumptions the pooled answer rests on.
     """
 
     policy: MissingPolicyName

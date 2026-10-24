@@ -23,8 +23,9 @@ use antecedent::{
 use antecedent_contract::bridge::{
     AssumptionKind, BridgeAssumption, BridgeContract, BridgeEndpoint, BridgeKind, BridgeMapping,
     BridgeScope, BridgeSource, BridgedClaim, EstimandBridge, ExposureSetting, MappingUncertainty,
-    NonlinearMap, PointPropagation, QuantityClass, SourceMappingDependence, TransportabilityPremise, TrialEffectPair,
-    TrialLevelValidation, ValueKind, point_propagation_unavailable,
+    NonlinearMap, PointPropagation, QuantityClass, SourceMappingDependence,
+    TransportabilityPremise, TrialEffectPair, TrialLevelValidation, ValueKind,
+    point_propagation_unavailable,
 };
 use antecedent_contract::evidence_ledger::parse_digest_hex;
 use antecedent_contract::{

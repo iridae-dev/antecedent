@@ -278,7 +278,6 @@ use antecedent_core::{
 };
 use antecedent_data::{
     DataError, MultiEnvironmentData, TableView, TimeSeriesData, tabular_from_arrow_c_columns,
-    tabular_from_record_batch,
 };
 use antecedent_expr::{CausalExprArena, IdentifiedEstimand};
 use antecedent_graph::{
@@ -293,8 +292,6 @@ use antecedent_io::{
 use antecedent_stats::FdrAdjustment;
 use antecedent_stats::PartialCorrelation;
 use antecedent_validate::{PredictiveCheckKind, RefutationReport};
-use arrow_array::{Float64Array, RecordBatch};
-use arrow_schema::{DataType, Field, Schema};
 use numpy::{PyArray1, PyArray2, PyArrayMethods, PyReadonlyArray1};
 use pyo3::create_exception;
 use pyo3::exceptions::PyException;
@@ -2596,10 +2593,111 @@ impl PosteriorArtifact {
     }
 }
 
+/// NumPy columns owned once.
+///
+/// Each column is copied a single time, into the shared slice the table later keeps, so
+/// there is no intermediate Arrow batch and no second copy into library storage. A NumPy
+/// buffer is writable by Python, so it is not borrowed past the call.
+#[derive(Clone, Debug)]
+pub(crate) struct ColumnBatch {
+    names: Vec<String>,
+    columns: Vec<Arc<[f64]>>,
+    receipt: NumpyIngestReceipt,
+}
+
+impl ColumnBatch {
+    /// Rows in every column.
+    pub(crate) fn num_rows(&self) -> usize {
+        self.columns.first().map_or(0, |column| column.len())
+    }
+
+    /// Bytes the owned columns hold.
+    pub(crate) fn get_array_memory_size(&self) -> usize {
+        self.columns.iter().map(|column| std::mem::size_of_val(&column[..])).sum()
+    }
+
+    /// Copies the ingestion made.
+    pub(crate) fn receipt(&self) -> NumpyIngestReceipt {
+        self.receipt
+    }
+
+    /// Rows `offset..offset + len` as their own batch (one owned buffer per column).
+    pub(crate) fn slice(&self, offset: usize, len: usize) -> Self {
+        let columns: Vec<Arc<[f64]>> = self
+            .columns
+            .iter()
+            .map(|column| Arc::<[f64]>::from(&column[offset..offset + len]))
+            .collect();
+        let ncols = columns.len() as u64;
+        Self {
+            names: self.names.clone(),
+            columns,
+            receipt: NumpyIngestReceipt {
+                owned_copies: ncols,
+                bytes_copied: ncols * (len * std::mem::size_of::<f64>()) as u64,
+                noncontiguous_columns: 0,
+            },
+        }
+    }
+
+    /// The table over the owned columns. The buffers are shared, not copied again.
+    pub(crate) fn loaded(&self) -> PyResult<NumpyTable> {
+        // The same schema the Arrow route builds: continuous columns with the context role hint.
+        let mut builder = antecedent_core::CausalSchemaBuilder::new();
+        for name in &self.names {
+            builder
+                .add_variable(
+                    Arc::<str>::from(name.as_str()),
+                    antecedent_core::ValueType::Continuous,
+                    antecedent_core::SmallRoleSet::from_hint(antecedent_core::RoleHint::Context),
+                    None,
+                    None,
+                    antecedent_core::MeasurementSpec::default(),
+                )
+                .map_err(|e| py_err(antecedent_data::DataError::from(e)))?;
+        }
+        let schema = builder.build().map_err(|e| py_err(antecedent_data::DataError::from(e)))?;
+        let rows = self.num_rows();
+        let mut columns = Vec::with_capacity(self.columns.len());
+        for (index, values) in self.columns.iter().enumerate() {
+            let id = antecedent_core::VariableId::from_raw(
+                u32::try_from(index).map_err(|_| value_err("too many columns"))?,
+            );
+            let column = antecedent_data::Float64Column::new(
+                id,
+                antecedent_data::F64Buffer::owned(Arc::clone(values)),
+                antecedent_data::ValidityBitmap::all_valid(rows),
+            )
+            .map_err(py_err)?;
+            columns.push(antecedent_data::OwnedColumn::Float64(column));
+        }
+        let storage = antecedent_data::OwnedColumnarStorage::try_new(schema, columns, None, None)
+            .map_err(py_err)?;
+        Ok(NumpyTable { data: antecedent_data::TabularData::new(storage), receipt: self.receipt })
+    }
+}
+
+/// Copies one NumPy ingestion made: one owned buffer per column.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct NumpyIngestReceipt {
+    /// Owned numeric buffers made.
+    pub(crate) owned_copies: u64,
+    /// Bytes copied into those buffers.
+    pub(crate) bytes_copied: u64,
+    /// Columns that were not contiguous (gathered in the same single pass).
+    pub(crate) noncontiguous_columns: u64,
+}
+
+/// The table a NumPy ingestion produced, with the copies it made.
+pub(crate) struct NumpyTable {
+    pub(crate) data: antecedent_data::TabularData,
+    pub(crate) receipt: NumpyIngestReceipt,
+}
+
 pub(crate) fn columns_to_batch(
     names: &[String],
     columns: &[PyReadonlyArray1<'_, f64>],
-) -> PyResult<RecordBatch> {
+) -> PyResult<ColumnBatch> {
     if names.len() != columns.len() {
         return Err(crate::value_err("names and columns must have the same length"));
     }
@@ -2616,45 +2714,45 @@ pub(crate) fn columns_to_batch(
             )));
         }
     }
-    let fields: Vec<Field> =
-        names.iter().map(|nm| Field::new(nm, DataType::Float64, true)).collect();
-    let schema = Schema::new(fields);
-    // One pass into the Arrow values buffer. NumPy has no validity bitmap (NaN is its
-    // missing-value sentinel), so the Option-per-element route is taken only for a column that
-    // actually holds a NaN.
-    let arrays: Vec<Arc<dyn arrow_array::Array>> = columns
+    let mut noncontiguous = 0_u64;
+    let owned: Vec<Arc<[f64]>> = columns
         .iter()
-        .map(|c| {
-            let view = c.as_array();
-            let contiguous = view.as_slice();
-            let has_nan = contiguous.map_or_else(
-                || view.iter().any(|v| v.is_nan()),
-                |values| values.iter().any(|v| v.is_nan()),
-            );
-            let array = if has_nan {
-                Float64Array::from(
-                    view.iter().map(|&v| (!v.is_nan()).then_some(v)).collect::<Vec<Option<f64>>>(),
-                )
-            } else if let Some(values) = contiguous {
-                Float64Array::from(values.to_vec())
-            } else {
-                Float64Array::from_iter_values(view.iter().copied())
-            };
-            Arc::new(array) as Arc<dyn arrow_array::Array>
+        .map(|c| match c.as_slice() {
+            Ok(slice) => Arc::<[f64]>::from(slice),
+            Err(_) => {
+                noncontiguous += 1;
+                c.as_array().iter().copied().collect()
+            }
         })
         .collect();
-    RecordBatch::try_new(Arc::new(schema), arrays).map_err(py_err)
+    let ncols = owned.len() as u64;
+    Ok(ColumnBatch {
+        names: names.to_vec(),
+        columns: owned,
+        receipt: NumpyIngestReceipt {
+            owned_copies: ncols,
+            bytes_copied: ncols * (n * std::mem::size_of::<f64>()) as u64,
+            noncontiguous_columns: noncontiguous,
+        },
+    })
+}
+
+/// NumPy float64 columns into library-owned storage: one copy per column.
+pub(crate) fn tabular_from_numpy_receipt(
+    names: &[String],
+    columns: &[PyReadonlyArray1<'_, f64>],
+) -> PyResult<NumpyTable> {
+    columns_to_batch(names, columns)?.loaded()
 }
 
 pub(crate) fn tabular_from_numpy(
     names: &[String],
     columns: &[PyReadonlyArray1<'_, f64>],
 ) -> PyResult<antecedent_data::TabularData> {
-    let batch = columns_to_batch(names, columns)?;
-    tabular_from_record_batch(&batch).map(|loaded| loaded.data).map_err(py_err)
+    tabular_from_numpy_receipt(names, columns).map(|table| table.data)
 }
 
-/// Conversion probe: NumPy → Arrow → library-owned tabular storage.
+/// Conversion probe: NumPy → library-owned tabular storage, one copy per column.
 ///
 /// Shares the same ingestion path as `analyze*` / `discover_*`. The loaded table is not
 /// retained across the FFI boundary; call analysis APIs with the original NumPy columns.
@@ -2664,16 +2762,16 @@ fn load_float64_columns(
     columns: Vec<PyReadonlyArray1<'_, f64>>,
 ) -> PyResult<ArrowLoadInfo> {
     catch_ffi(|| {
-        let batch = columns_to_batch(&names, &columns)?;
-        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+        let loaded = tabular_from_numpy_receipt(&names, &columns)?;
         let column_names: Vec<String> =
             loaded.data.schema().variables().iter().map(|v| v.name.to_string()).collect();
         Ok(ArrowLoadInfo {
             row_count: loaded.data.row_count(),
             column_count: loaded.data.schema().len(),
-            bytes_copied: loaded.bytes_copied,
-            bytes_borrowed: loaded.bytes_borrowed,
-            diagnostic_count: loaded.diagnostics.len(),
+            bytes_copied: loaded.receipt.bytes_copied,
+            bytes_borrowed: 0,
+            // One materialization entry per owned buffer the ingestion made.
+            diagnostic_count: usize::try_from(loaded.receipt.owned_copies).unwrap_or(usize::MAX),
             column_names,
         })
     })

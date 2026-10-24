@@ -16,17 +16,21 @@ outcome ``lag`` periods later, with carryover inside the target. ``design`` is a
      "target": {"kind": "smoothed_curve", "grid": [...]}}
     {"design": "regime_survival", "treatment": "a", "censored": "c",
      "confounders": ["l"], "horizon": 5}
+    {"design": "observational_excursion", "treatment": "a", "history": ["x"]}
 
 A dose target is ``smoothed_curve`` (``grid``), ``smoothed_contrast`` (``active``,
 ``control``) or ``local_quadratic`` (``grid``, ``derivative``, ``curvature_bound``).
 Regime survival reads observational subject trajectories (outcome = event indicator) and
-contrasts always-treat with never-treat survival at ``horizon``.
+contrasts always-treat with never-treat survival at ``horizon``. The observational excursion
+has no recorded assignment law: the decision is modelled on the named ``history`` columns, the
+fit is refitted inside every interval, and identification is the declared sequential
+exchangeability given that history.
 
 The same designs are typed queries for :func:`antecedent.analyze` and
 :func:`antecedent.prepare`: :class:`TwoArmExcursion`, :class:`MultiArmExcursion`,
 :class:`FactorialExcursion`, :class:`InterferenceExcursion`, :class:`DoseExcursion` (with a
 :class:`SmoothedDoseCurve`, :class:`SmoothedDoseContrast` or :class:`LocalQuadraticDoseGrid`
-target) and :class:`RegimeSurvivalContrast`, each naming columns of the table, with
+target), :class:`RegimeSurvivalContrast` and :class:`ObservationalExcursion`, each naming columns of the table, with
 ``quantile_level=`` and ``misclassification=OutcomeMisclassification(...)`` options. The
 result is ``result.temporal_design`` (:class:`TemporalDesignEstimate`), which a loaded
 artifact reads back equal.
@@ -53,6 +57,7 @@ from antecedent._temporal_design import (
     InterferenceExcursion,
     LocalQuadraticDoseGrid,
     MultiArmExcursion,
+    ObservationalExcursion,
     OutcomeMisclassification,
     RegimeSurvivalContrast,
     SmoothedDoseContrast,
@@ -68,6 +73,7 @@ __all__ = [
     "InterferenceExcursion",
     "LocalQuadraticDoseGrid",
     "MultiArmExcursion",
+    "ObservationalExcursion",
     "OutcomeMisclassification",
     "RegimeSurvivalContrast",
     "SmoothedDoseContrast",
@@ -150,7 +156,8 @@ def estimate_temporal_design(
     ``misclassification`` is ``(true positive, false negative, true negative, false
     positive)`` from an independent validation sample of a misclassified binary outcome.
     ``bootstrap`` is the whole-procedure replicate count of the quantile functional and of
-    frequentist regime survival (at least 99); every other design refuses it.
+    frequentist regime survival and the frequentist observational excursion (at least 99); every
+    other design refuses it.
     """
     if inference not in ("frequentist", "bayesian"):
         raise CausalValueError(
@@ -161,6 +168,9 @@ def estimate_temporal_design(
     if spec.get("design") == "regime_survival":
         columns_needed.extend([str(spec["treatment"]), str(spec["censored"])])
         columns_needed.extend(str(name) for name in spec.get("confounders", ()))
+    if spec.get("design") == "observational_excursion":
+        columns_needed.append(str(spec["treatment"]))
+        columns_needed.extend(str(name) for name in spec.get("history", ()))
     raw = read_columns(data, tuple(columns_needed), what="temporal design")
     names, columns = ingest_columns({name: raw[name] for name in columns_needed})
     options: dict[str, Any] = {

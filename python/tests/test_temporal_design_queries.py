@@ -21,6 +21,7 @@ from antecedent.temporal_designs import (
     FactorialExcursion,
     InterferenceExcursion,
     MultiArmExcursion,
+    ObservationalExcursion,
     OutcomeMisclassification,
     RegimeSurvivalContrast,
     SmoothedDoseContrast,
@@ -255,3 +256,44 @@ def test_query_options_validate_and_misclassification_needs_a_binary_outcome() -
 def test_a_graph_or_refutation_is_not_applicable() -> None:
     with pytest.raises(CausalUnsupportedError):
         antecedent.analyze(_two_arm_table(units=40), query=_two_arm_query(), refute="cheap")
+
+
+def _observational_table(units: int = 300, periods: int = 4, seed: int = 21) -> dict[str, list]:
+    """A decision-time covariate drives both the treatment and the outcome; the effect is 1."""
+    rng = np.random.default_rng(seed)
+    table: dict[str, list] = {"y": [], "unit": [], "period": [], "a": [], "x": []}
+    for i in range(units):
+        for t in range(periods):
+            x = rng.uniform(-1.0, 1.0)
+            a = float(rng.uniform() < 1.0 / (1.0 + math.exp(-1.2 * x)))
+            y = 1.0 * a + 3.0 * x + rng.uniform(-0.5, 0.5)
+            for key, value in zip(table, (y, f"u{i}", t, a, x), strict=True):
+                table[key].append(value)
+    return table
+
+
+def test_observational_excursion_removes_decision_time_confounding() -> None:
+    table = _observational_table()
+    query = ObservationalExcursion("y", "unit", "period", treatment="a", history=("x",))
+    result = antecedent.analyze(table, query=query, bootstrap=99)
+    design = result.temporal_design
+    assert design.design == "observational_excursion"
+    assert design.replicates is not None and design.replicates[0] >= 90
+    raw = np.array(table["y"]), np.array(table["a"])
+    naive = raw[0][raw[1] == 1].mean() - raw[0][raw[1] == 0].mean()
+    assert naive > 1.6
+    assert abs(design.estimate[0] - 1.0) < 4.0 * design.standard_error[0] + 0.05
+    assert antecedent.load(result.export()).temporal_design == design
+    posterior = antecedent.analyze(
+        table, query=query, inference=antecedent.Bayesian(n_draws=200), seed=5
+    ).temporal_design
+    assert posterior.draws == 200
+    assert abs(posterior.estimate[0] - 1.0) < 4.0 * posterior.standard_error[0] + 0.05
+
+
+def test_observational_excursion_needs_history_and_replicates() -> None:
+    with pytest.raises(CausalValueError):
+        ObservationalExcursion("y", "unit", "period", treatment="a", history=())
+    query = ObservationalExcursion("y", "unit", "period", treatment="a", history=("x",))
+    with pytest.raises(CausalError):
+        antecedent.analyze(_observational_table(units=40), query=query)

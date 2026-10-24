@@ -4980,6 +4980,62 @@ def staleness_from_artifact(
     threads: int | None = None,
 ) -> str: ...
 def staleness_policy(policy_json: str | None = None) -> str: ...
+def sensitivity_evalue_vector(
+    estimates: list[float],
+    labels: list[str],
+    *,
+    lowers: list[float] | None = None,
+    uppers: list[float] | None = None,
+    standard_errors: list[float] | None = None,
+    scale: str = "risk_ratio",
+    family: str = "conditional_effect",
+    temporal: bool = False,
+    target_source: str | None = None,
+) -> str: ...
+def sensitivity_evalue_posterior(
+    draws: list[list[float]],
+    labels: list[str],
+    *,
+    scale: str = "risk_ratio",
+    level: float = 0.95,
+    family: str = "conditional_effect",
+    temporal: bool = False,
+    target_source: str | None = None,
+) -> str: ...
+def sensitivity_ovb_vector(
+    estimates: list[float],
+    standard_errors: list[float],
+    dofs: list[float],
+    labels: list[str],
+    *,
+    q: float = 1.0,
+    alpha: float = 0.05,
+    r2yz_extreme: float = 1.0,
+    family: str = "conditional_effect",
+    temporal: bool = False,
+    target_source: str | None = None,
+) -> str: ...
+def sensitivity_ovb_posterior(
+    coefficients: list[list[float]],
+    bias_scale: list[list[float]],
+    labels: list[str],
+    *,
+    level: float = 0.95,
+    r2yz_extreme: float = 1.0,
+    family: str = "conditional_effect",
+    temporal: bool = False,
+    target_source: str | None = None,
+) -> str: ...
+def sensitivity_rosenbaum_vector(
+    differences: list[list[float]],
+    labels: list[str],
+    *,
+    gammas: list[float] | None = None,
+    alpha: float = 0.05,
+    family: str = "conditional_effect",
+    temporal: bool = False,
+    target_source: str | None = None,
+) -> str: ...
 def sensitivity_evalue(
     estimate: float,
     *,
@@ -9140,6 +9196,7 @@ class RetentionPolicy:
     def max_retained_rows(self) -> int | None: ...
     def no_longer_serves(self) -> list[RetainedOperation]: ...
     def require(self, operation: RetainedOperation) -> None: ...
+    def refusal(self, operation: RetainedOperation) -> RetentionRefusal | None: ...
 
 class RetentionMode:
     """How a result is kept. The default is full reusable state."""
@@ -9156,6 +9213,16 @@ class RetentionMode:
     def serves(self, operation: RetainedOperation) -> bool: ...
     def no_longer_serves(self) -> list[RetainedOperation]: ...
     def require(self, operation: RetainedOperation) -> None: ...
+    def refusal(self, operation: RetainedOperation) -> RetentionRefusal | None: ...
+
+class RetentionRefusal:
+    """A reduced retention mode's refusal of one later operation, held as a value."""
+
+    def mode(self) -> RetentionMode: ...
+    def operation(self) -> RetainedOperation: ...
+    def no_longer_serves(self) -> list[RetainedOperation]: ...
+    def message(self) -> str: ...
+    def raise_error(self) -> None: ...
 
 class RetainedOperation:
     @classmethod
@@ -9353,6 +9420,17 @@ class ExecutionFacts:
     def peak_admitted_threads(self) -> int | None: ...
     @property
     def observed_spill_bytes(self) -> int | None: ...
+    @property
+    def observed_allocations(self) -> int | None: ...
+    @property
+    def observed_allocated_bytes(self) -> int | None: ...
+    def accounting(
+        self,
+        planned_peak_memory_bytes: int | None = None,
+        planned_copy_bytes: int | None = None,
+        planned_workspace_bytes: int | None = None,
+        planned_worker_threads: int | None = None,
+    ) -> list[tuple[str, str, int | None]]: ...
     def __init__(
         self,
         counts: ExecutionCounts,

@@ -141,24 +141,38 @@ class RandomForest:
 
 @dataclass(frozen=True, slots=True)
 class NeuralNet:
-    """CPU-native neural nuisance learner included in the standard Python wheel."""
+    """Neural nuisance learner. Runs on the CPU in the standard Python wheel.
+
+    ``device`` is ``"cpu"`` (default, never touches a device), ``"gpu"`` (the device backend of
+    the separate accelerator distribution; refused with the reason when the runtime, adapter,
+    dtype, operator, or device memory does not apply), or ``"auto"`` (the device when every
+    check passes and the fit is large enough to pay for its copies, otherwise the CPU, with the
+    reason recorded in the learner provenance). The learner provenance names the library,
+    device, and any fallback of the route that actually ran.
+    """
 
     hidden: int = 32
     epochs: int = 40
     learning_rate: float = 0.05
+    device: str = "cpu"
 
     def __post_init__(self) -> None:
         _count("hidden", self.hidden)
         _count("epochs", self.epochs)
         _positive("learning_rate", self.learning_rate)
+        if not isinstance(self.device, str) or self.device not in ("cpu", "gpu", "auto"):
+            raise ValueError("device must be one of 'cpu', 'gpu', or 'auto'")
 
     def _wire(self) -> dict[str, object]:
-        return {
+        wire: dict[str, object] = {
             "kind": "neural_net",
             "hidden": self.hidden,
             "epochs": self.epochs,
             "learning_rate": self.learning_rate,
         }
+        if self.device != "cpu":
+            wire["device"] = self.device
+        return wire
 
 
 LearnerSpec: TypeAlias = (

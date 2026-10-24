@@ -145,7 +145,7 @@ fn observation_adjusted_outcome(
         structural_model,
     };
     detach_catch(py, move || {
-        let loaded = antecedent_data::tabular_from_record_batch(&batch).map_err(py_err)?;
+        let loaded = batch.loaded()?;
         let data = loaded.data;
         let query =
             build_query(data.schema(), &treatment, &outcome, &args, Arc::from([0.0_f64, 1.0_f64]))?;
@@ -225,7 +225,7 @@ fn prepare_observation_response(
         structural_model,
     };
     detach_catch(py, move || {
-        let loaded = antecedent_data::tabular_from_record_batch(&batch).map_err(py_err)?;
+        let loaded = batch.loaded()?;
         let data = loaded.data;
         let dag = dag_from_named_edges(data.schema(), &edges)?;
         let query = build_query(data.schema(), &treatment, &outcome, &args, Arc::from(grid))?;
@@ -302,7 +302,7 @@ fn gaussian_observation_log_likelihood(
         structural_model,
     };
     detach_catch(py, move || {
-        let loaded = antecedent_data::tabular_from_record_batch(&batch).map_err(py_err)?;
+        let loaded = batch.loaded()?;
         let data = loaded.data;
         let query =
             build_query(data.schema(), &treatment, &outcome, &args, Arc::from([0.0_f64, 1.0_f64]))?;

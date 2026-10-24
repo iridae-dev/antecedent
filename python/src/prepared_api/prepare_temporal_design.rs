@@ -3,7 +3,8 @@
 //! The outcome (and, for regime survival, the treatment, censoring and confounder columns) is
 //! read from the table by name; the unit and period labels and the recorded assignment law are
 //! part of the query. The design arrives as a JSON object whose `design` member names one of
-//! `two_arm`, `multi_arm`, `factorial`, `interference`, `dose` and `regime_survival`. Inference
+//! `two_arm`, `multi_arm`, `factorial`, `interference`, `dose`, `regime_survival` and
+//! `observational_excursion`. Inference
 //! selects the excursion (or survival) estimator or its Bayesian counterpart.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -82,6 +83,10 @@ enum DesignSpec {
         censored: String,
         confounders: Vec<String>,
         horizon: u32,
+    },
+    ObservationalExcursion {
+        treatment: String,
+        history: Vec<String>,
     },
 }
 
@@ -179,6 +184,16 @@ impl PyPreparedAnalysis {
                             .collect::<Result<Vec<_>, _>>()?
                             .into(),
                         horizon,
+                    }
+                }
+                DesignSpec::ObservationalExcursion { treatment, history } => {
+                    TemporalAssignment::ObservationalExcursion {
+                        treatment: id(&treatment)?,
+                        history: history
+                            .iter()
+                            .map(|name| id(name))
+                            .collect::<Result<Vec<_>, _>>()?
+                            .into(),
                     }
                 }
             };

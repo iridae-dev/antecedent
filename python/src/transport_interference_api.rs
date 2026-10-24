@@ -1258,7 +1258,7 @@ fn estimate_network_interference(
         VariableId::from_raw(0),
     )?;
     detach_catch(py, move || {
-        let loaded = antecedent_data::tabular_from_record_batch(&batch).map_err(py_err)?;
+        let loaded = batch.loaded()?;
         let network_edges = edges
             .into_iter()
             .map(|(from, to, weight)| NetworkEdge::new(from, to, weight))

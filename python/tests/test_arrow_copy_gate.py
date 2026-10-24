@@ -23,3 +23,25 @@ def test_arrow_load_reports_measured_copy():
     assert info.column_names == names
     assert info.bytes_copied > 0
     assert info.diagnostic_count > 0
+
+
+def test_numpy_ingestion_copies_each_column_exactly_once():
+    rows = 1000
+    columns = [np.arange(rows, dtype=np.float64) + k for k in range(3)]
+    info = antecedent.data.load_float64_columns(["a", "b", "c"], columns)
+    # One copy per column into the table's own buffer: no Arrow batch in between.
+    assert info.bytes_copied == 3 * rows * 8
+    assert info.bytes_borrowed == 0
+    assert info.diagnostic_count == 3
+    assert info.row_count == rows
+    assert info.column_count == 3
+
+
+def test_a_strided_numpy_column_is_gathered_in_the_same_single_pass():
+    rows = 1000
+    wide = np.arange(2 * rows, dtype=np.float64)
+    strided = wide[::2]
+    assert not strided.flags["C_CONTIGUOUS"]
+    info = antecedent.data.load_float64_columns(["a"], [strided])
+    assert info.bytes_copied == rows * 8
+    assert info.diagnostic_count == 1

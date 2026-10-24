@@ -22,9 +22,11 @@ use antecedent_validate::target_native::{
     prior_sensitivity_target_check,
 };
 use antecedent_validate::{
-    AssumptionRange, EffectInterval, EffectScale, LinearAdjustmentSummary, ValidationError,
-    amplify, benchmark_bound, evalue_range, linear_adjustment_fit, matched_sets_break_even,
-    matched_sets_upper_p, mediation_range, mediation_sensitivity_fit, ovb_range, rosenbaum_range,
+    AssumptionRange, EffectInterval, EffectScale, LinearAdjustmentSummary, OvbPosterior,
+    ValidationError, amplify, benchmark_bound, evalue_posterior_range, evalue_range,
+    evalue_vector_range, linear_adjustment_fit, matched_sets_break_even, matched_sets_upper_p,
+    mediation_range, mediation_sensitivity_fit, ovb_posterior_range, ovb_range, ovb_vector_range,
+    rosenbaum_range, rosenbaum_vector_range,
 };
 use pyo3::prelude::*;
 use serde_json::{Value, json};
@@ -184,6 +186,201 @@ fn sensitivity_evalue(
         "range": range_json(&range),
     })
     .to_string())
+}
+
+fn scale_of(scale: &str) -> PyResult<EffectScale> {
+    EffectScale::parse(scale).ok_or_else(|| {
+        value_err(format!(
+            "unknown effect scale {scale:?}; expected risk_ratio, odds_ratio_rare, \
+             odds_ratio_common, hazard_ratio_rare, hazard_ratio_common or \
+             standardized_mean_difference"
+        ))
+    })
+}
+
+fn same_length(what: &str, lengths: &[usize]) -> PyResult<()> {
+    if lengths.windows(2).all(|w| w[0] == w[1]) {
+        Ok(())
+    } else {
+        Err(value_err(format!("{what} need one entry per coordinate label")))
+    }
+}
+
+/// E-values of every coordinate of a vector target (conditional strata, horizons, contrasts),
+/// read at the weakest coordinate.
+#[pyfunction]
+#[pyo3(signature = (estimates, labels, *, lowers=None, uppers=None, standard_errors=None,
+    scale="risk_ratio", family="conditional_effect", temporal=false, target_source=None))]
+#[allow(clippy::too_many_arguments)]
+fn sensitivity_evalue_vector(
+    estimates: Vec<f64>,
+    labels: Vec<String>,
+    lowers: Option<Vec<f64>>,
+    uppers: Option<Vec<f64>>,
+    standard_errors: Option<Vec<f64>>,
+    scale: &str,
+    family: &str,
+    temporal: bool,
+    target_source: Option<String>,
+) -> PyResult<String> {
+    let scale = scale_of(scale)?;
+    let n = estimates.len();
+    for given in [&lowers, &uppers, &standard_errors].into_iter().flatten() {
+        same_length("limits and standard errors", &[n, given.len()])?;
+    }
+    let coordinates: Vec<EffectInterval> = (0..n)
+        .map(|k| {
+            if scale == EffectScale::StandardizedMeanDifference {
+                EffectInterval::Standardized {
+                    estimate: estimates[k],
+                    standard_error: standard_errors.as_ref().map(|v| v[k]),
+                }
+            } else {
+                EffectInterval::Ratio {
+                    estimate: estimates[k],
+                    lower: lowers.as_ref().map(|v| v[k]),
+                    upper: uppers.as_ref().map(|v| v[k]),
+                }
+            }
+        })
+        .collect();
+    let target = target_of(family, temporal, false, labels, target_source.as_deref())?;
+    let (bounds, range) = evalue_vector_range(target, &coordinates, scale).map_err(py_err)?;
+    Ok(json!({
+        "scale": scale.as_str(),
+        "risk_ratio": bounds.iter().map(|b| finite(b.risk_ratio)).collect::<Vec<_>>(),
+        "risk_ratio_limit": bounds.iter().map(|b| b.risk_ratio_limit.map(finite)).collect::<Vec<_>>(),
+        "evalue": bounds.iter().map(|b| finite(b.point)).collect::<Vec<_>>(),
+        "evalue_limit": bounds.iter().map(|b| b.limit.map(finite)).collect::<Vec<_>>(),
+        "range": range_json(&range),
+    })
+    .to_string())
+}
+
+/// E-values of a posterior over a vector target, with the joint posterior probability that
+/// every coordinate keeps its reported side of the null at each confounder strength.
+#[pyfunction]
+#[pyo3(signature = (draws, labels, *, scale="risk_ratio", level=0.95,
+    family="conditional_effect", temporal=false, target_source=None))]
+fn sensitivity_evalue_posterior(
+    draws: Vec<Vec<f64>>,
+    labels: Vec<String>,
+    scale: &str,
+    level: f64,
+    family: &str,
+    temporal: bool,
+    target_source: Option<String>,
+) -> PyResult<String> {
+    let scale = scale_of(scale)?;
+    let target = target_of(family, temporal, true, labels, target_source.as_deref())?;
+    let (summary, range) = evalue_posterior_range(target, &draws, scale, level).map_err(py_err)?;
+    Ok(json!({
+        "scale": scale.as_str(),
+        "level": level,
+        "median_risk_ratio": summary.median_risk_ratio.iter().copied().map(finite).collect::<Vec<_>>(),
+        "credible_interval": summary.credible_interval.iter()
+            .map(|(low, high)| json!([finite(*low), finite(*high)])).collect::<Vec<_>>(),
+        "evalue": summary.bounds.iter().map(|b| finite(b.point)).collect::<Vec<_>>(),
+        "evalue_limit": summary.bounds.iter().map(|b| b.limit.map(finite)).collect::<Vec<_>>(),
+        "retention": summary.retention.iter()
+            .map(|(strength, probability)| json!({"strength": strength, "probability": probability}))
+            .collect::<Vec<_>>(),
+        "range": range_json(&range),
+    })
+    .to_string())
+}
+
+/// Partial-R2 sensitivity of a vector of linear-adjustment coefficients.
+#[pyfunction]
+#[pyo3(signature = (estimates, standard_errors, dofs, labels, *, q=1.0, alpha=0.05,
+    r2yz_extreme=1.0, family="conditional_effect", temporal=false, target_source=None))]
+#[allow(clippy::too_many_arguments)]
+fn sensitivity_ovb_vector(
+    estimates: Vec<f64>,
+    standard_errors: Vec<f64>,
+    dofs: Vec<f64>,
+    labels: Vec<String>,
+    q: f64,
+    alpha: f64,
+    r2yz_extreme: f64,
+    family: &str,
+    temporal: bool,
+    target_source: Option<String>,
+) -> PyResult<String> {
+    same_length(
+        "estimates, standard errors and degrees of freedom",
+        &[estimates.len(), standard_errors.len(), dofs.len()],
+    )?;
+    let summaries: Vec<LinearAdjustmentSummary> = estimates
+        .iter()
+        .zip(&standard_errors)
+        .zip(&dofs)
+        .map(|((e, s), d)| LinearAdjustmentSummary::new(*e, *s, *d))
+        .collect::<Result<_, _>>()
+        .map_err(py_err)?;
+    let target = target_of(family, temporal, false, labels, target_source.as_deref())?;
+    let range = ovb_vector_range(target, &summaries, q, alpha, r2yz_extreme).map_err(py_err)?;
+    Ok(json!({
+        "partial_r2_treatment": summaries.iter().map(|s| s.partial_r2_treatment()).collect::<Vec<_>>(),
+        "robustness_value": summaries.iter().map(|s| s.robustness_value(q, None)).collect::<Vec<_>>(),
+        "robustness_value_alpha":
+            summaries.iter().map(|s| s.robustness_value(q, Some(alpha))).collect::<Vec<_>>(),
+        "q": q,
+        "alpha": alpha,
+        "range": range_json(&range),
+    })
+    .to_string())
+}
+
+/// Partial-R2 sensitivity of a posterior over a vector of linear-adjustment coefficients.
+#[pyfunction]
+#[pyo3(signature = (coefficients, bias_scale, labels, *, level=0.95, r2yz_extreme=1.0,
+    family="conditional_effect", temporal=false, target_source=None))]
+#[allow(clippy::too_many_arguments)]
+fn sensitivity_ovb_posterior(
+    coefficients: Vec<Vec<f64>>,
+    bias_scale: Vec<Vec<f64>>,
+    labels: Vec<String>,
+    level: f64,
+    r2yz_extreme: f64,
+    family: &str,
+    temporal: bool,
+    target_source: Option<String>,
+) -> PyResult<String> {
+    let target = target_of(family, temporal, true, labels, target_source.as_deref())?;
+    let posterior = OvbPosterior { coefficients: &coefficients, bias_scale: &bias_scale };
+    let range = ovb_posterior_range(target, &posterior, level, r2yz_extreme).map_err(py_err)?;
+    Ok(json!({ "level": level, "range": range_json(&range) }).to_string())
+}
+
+/// Rosenbaum bounds of a vector of matched designs, read at the weakest coordinate.
+#[pyfunction]
+#[pyo3(signature = (differences, labels, *, gammas=None, alpha=0.05,
+    family="conditional_effect", temporal=false, target_source=None))]
+#[allow(clippy::too_many_arguments)]
+fn sensitivity_rosenbaum_vector(
+    py: Python<'_>,
+    differences: Vec<Vec<f64>>,
+    labels: Vec<String>,
+    gammas: Option<Vec<f64>>,
+    alpha: f64,
+    family: &str,
+    temporal: bool,
+    target_source: Option<String>,
+) -> PyResult<String> {
+    let gammas = gammas.unwrap_or_else(|| DEFAULT_GAMMA_GRID.to_vec());
+    let target = target_of(family, temporal, false, labels, target_source.as_deref())?;
+    detach_catch(py, move || {
+        let (analyses, range) =
+            rosenbaum_vector_range(target, &differences, &gammas, alpha, None).map_err(py_err)?;
+        Ok(json!({
+            "alpha": alpha,
+            "pairs": analyses.iter().map(|a| a.pairs).collect::<Vec<_>>(),
+            "gamma_break_even": analyses.iter().map(|a| a.gamma_break_even.map(finite)).collect::<Vec<_>>(),
+            "range": range_json(&range),
+        })
+        .to_string())
+    })
 }
 
 /// Omitted-variable-bias sensitivity of a linear-adjustment coefficient.
@@ -650,6 +847,11 @@ impl PyPreparedAnalysis {
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(sensitivity_evalue, module)?)?;
+    module.add_function(wrap_pyfunction!(sensitivity_evalue_vector, module)?)?;
+    module.add_function(wrap_pyfunction!(sensitivity_evalue_posterior, module)?)?;
+    module.add_function(wrap_pyfunction!(sensitivity_ovb_vector, module)?)?;
+    module.add_function(wrap_pyfunction!(sensitivity_ovb_posterior, module)?)?;
+    module.add_function(wrap_pyfunction!(sensitivity_rosenbaum_vector, module)?)?;
     module.add_function(wrap_pyfunction!(sensitivity_omitted_variable_bias, module)?)?;
     module.add_function(wrap_pyfunction!(sensitivity_omitted_variable_bias_fit, module)?)?;
     module.add_function(wrap_pyfunction!(sensitivity_rosenbaum, module)?)?;

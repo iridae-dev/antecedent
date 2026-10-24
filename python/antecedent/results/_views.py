@@ -64,6 +64,9 @@ __all__ = [
     "DropReasonView",
     "GroupAccountingView",
     "RowAccountingView",
+    "ImputationWaldView",
+    "ImputationExtraView",
+    "ImputationVectorView",
     "ImputationView",
     "MissingDataView",
     "AnalysisResult",
@@ -706,6 +709,62 @@ class RowAccountingView(ResultModel):
         )
 
 
+class ImputationWaldView(ResultModel):
+    """The pooled Wald test (Li, Raghunathan and Rubin's ``D1``) that every coordinate equals
+    ``null``, referred to an ``F`` law with ``df_numerator`` and ``df_denominator`` degrees of
+    freedom (an infinite denominator is the chi-square reference over ``df_numerator``)."""
+
+    null: tuple[float, ...]
+    statistic: float
+    df_numerator: float
+    df_denominator: float
+
+
+class ImputationExtraView(ResultModel):
+    """A quantity of the answer with no published variance, pooled by its mean over the
+    completed tables; ``between`` is its between-imputation variance, a lower bound on its
+    pooled variance."""
+
+    label: str
+    points: tuple[float, ...]
+    point: float
+    between: float
+
+
+class ImputationVectorView(ResultModel):
+    """The joint pooling of an answer with several coordinates.
+
+    ``labels`` name the coordinates and ``points[j]`` is table ``j``'s coordinates. ``within``,
+    ``between`` and ``total`` are row-major ``p x p`` covariances (``total = within +
+    (1 + 1/m) between`` under Rubin pooling; the covariance of the equal-weight mixture under a
+    stacked posterior). ``covariance_basis`` says how the within-imputation covariance was
+    formed: ``"joint_covariance"`` (a retained joint influence covariance),
+    ``"published_variance"`` or ``"marginal_variances"`` (each coordinate's own variance on the
+    diagonal, no cross-covariance) or ``"posterior_draws"`` (a stacked posterior).
+    """
+
+    labels: tuple[str, ...]
+    covariance_basis: str
+    points: tuple[tuple[float, ...], ...]
+    point: tuple[float, ...]
+    within: tuple[float, ...]
+    between: tuple[float, ...]
+    total: tuple[float, ...]
+    coordinate_df: tuple[float | None, ...]
+    coordinate_fraction_missing_information: tuple[float | None, ...]
+    average_relative_increase: float | None = None
+    wald: ImputationWaldView | None = None
+    extras: tuple[ImputationExtraView, ...] = ()
+
+    def covariance(self, which: str = "total") -> tuple[tuple[float, ...], ...]:
+        """The ``within``, ``between`` or ``total`` covariance as a square tuple of rows."""
+        if which not in ("within", "between", "total"):
+            raise ValueError(f"which must be 'within', 'between' or 'total', got {which!r}")
+        flat = getattr(self, which)
+        p = len(self.labels)
+        return tuple(tuple(flat[i * p : (i + 1) * p]) for i in range(p))
+
+
 class ImputationView(ResultModel):
     """How a multiple-imputation result was formed.
 
@@ -716,6 +775,13 @@ class ImputationView(ResultModel):
     reference with ``df`` degrees of freedom, Barnard-Rubin when ``df_complete`` is known) or
     ``"stacked_posterior"`` (equal-weight mixture of the completed tables' posteriors; the
     between-imputation variance is its own axis).
+
+    ``assumptions_digest`` is the identity of the model and design assumptions the pooled
+    estimate rests on (the model, tables, sweeps, seed, missingness assumption, resampling
+    unit, declared sampling design, the ``lags`` neighbouring steps a series is imputed from and
+    every variable's kind and imputed-cell count). The scalar fields describe the first
+    coordinate of the answer; ``vector`` carries every coordinate's pooling when the route's
+    answer has several.
     """
 
     model: str
@@ -736,6 +802,9 @@ class ImputationView(ResultModel):
     df_complete: float | None = None
     fraction_missing_information: float | None = None
     relative_increase: float | None = None
+    assumptions_digest: str | None = None
+    lags: int = 0
+    vector: ImputationVectorView | None = None
 
 
 class MissingDataView(ResultModel):

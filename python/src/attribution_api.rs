@@ -91,11 +91,11 @@ fn counterfactual_ite(
     seed: u64,
     threads: Option<u32>,
 ) -> PyResult<GcmIteResult> {
-    let batch = columns_to_batch(&names, &columns)?;
+    let batch = tabular_from_numpy_receipt(&names, &columns)?;
     drop(columns);
     let (mean_ite, n_units, noise_inference, n_assignments, unit_vec, route) =
         detach_catch(py, move || {
-            let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+            let loaded = batch;
             let data = loaded.data;
             let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
             let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
@@ -148,12 +148,12 @@ fn sample_do_py(
     mechanism_wrappers: Option<Bound<'_, PyDict>>,
     shift: bool,
 ) -> PyResult<GcmSampleResult> {
-    let batch = columns_to_batch(&names, &columns)?;
+    let batch = tabular_from_numpy_receipt(&names, &columns)?;
     drop(columns);
     let wrappers = mechanism_wrappers.map(Bound::unbind);
     let threads = if wrappers.is_some() { Some(1) } else { threads };
     let ((means, n_rows, n_nodes, flat), route) = detach_catch(py, move || {
-        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+        let loaded = batch;
         let data = loaded.data;
         let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
@@ -216,10 +216,10 @@ fn sample_interventional_distribution(
     threads: Option<u32>,
     shift: bool,
 ) -> PyResult<GcmSampleResult> {
-    let batch = columns_to_batch(&names, &columns)?;
+    let batch = tabular_from_numpy_receipt(&names, &columns)?;
     drop(columns);
     let ((means, n_rows, n_nodes, flat), route) = detach_catch(py, move || {
-        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+        let loaded = batch;
         let data = loaded.data;
         let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
         let y_name = match &outcome {
@@ -260,10 +260,10 @@ fn attribute_path_specific(
     seed: u64,
     threads: Option<u32>,
 ) -> PyResult<gcm_api::ChangeAttributionResult> {
-    let batch = columns_to_batch(&names, &columns)?;
+    let batch = tabular_from_numpy_receipt(&names, &columns)?;
     drop(columns);
     detach_catch(py, move || {
-        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+        let loaded = batch;
         let data = loaded.data;
         let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
@@ -316,10 +316,10 @@ fn attribute_distribution_change(
     seed: u64,
     threads: Option<u32>,
 ) -> PyResult<gcm_api::ChangeAttributionResult> {
-    let batch = columns_to_batch(&names, &columns)?;
+    let batch = tabular_from_numpy_receipt(&names, &columns)?;
     drop(columns);
     detach_catch(py, move || {
-        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+        let loaded = batch;
         let data = loaded.data;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
         let source = model_source(data, &edges)?;
@@ -364,10 +364,10 @@ fn attribute_structure_change(
     seed: u64,
     threads: Option<u32>,
 ) -> PyResult<gcm_api::ChangeAttributionResult> {
-    let batch = columns_to_batch(&names, &columns)?;
+    let batch = tabular_from_numpy_receipt(&names, &columns)?;
     drop(columns);
     detach_catch(py, move || {
-        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+        let loaded = batch;
         let data = loaded.data;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
         let g1 = dag_from_named_edges(data.schema(), &comparison_edges)?;
@@ -493,10 +493,10 @@ fn attribution_uncertainty(
     }
     let params: serde_json::Value = serde_json::from_str(&params_json)
         .map_err(|error| crate::value_err(format!("attribution parameters: {error}")))?;
-    let batch = columns_to_batch(&names, &columns)?;
+    let batch = tabular_from_numpy_receipt(&names, &columns)?;
     drop(columns);
     detach_catch(py, move || {
-        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+        let loaded = batch;
         let data = loaded.data;
         let schema = data.schema().clone();
         let ids = |list: &[String]| -> PyResult<Vec<VariableId>> {
@@ -723,10 +723,10 @@ fn temporal_model_query(
     }
     let params: serde_json::Value = serde_json::from_str(&params_json)
         .map_err(|error| crate::value_err(format!("query parameters: {error}")))?;
-    let batch = columns_to_batch(&names, &columns)?;
+    let batch = tabular_from_numpy_receipt(&names, &columns)?;
     drop(columns);
     detach_catch(py, move || {
-        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+        let loaded = batch;
         let schema = loaded.data.schema().clone();
         let series = series_from_tabular(loaded.data)?;
         let graph = temporal_dag_from_schema_edges(&schema, &lagged_edges)?;
@@ -1064,10 +1064,10 @@ fn anomaly_attribution(
     outcomes: Vec<String>,
     max_units: usize,
 ) -> PyResult<Vec<gcm_api::AnomalyScores>> {
-    let batch = columns_to_batch(&names, &columns)?;
+    let batch = tabular_from_numpy_receipt(&names, &columns)?;
     drop(columns);
     detach_catch(py, move || {
-        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+        let loaded = batch;
         let data = loaded.data;
         let outcome_ids: Vec<VariableId> = outcomes
             .iter()
@@ -1098,10 +1098,10 @@ fn attribute_unit_change(
     seed: u64,
     threads: Option<u32>,
 ) -> PyResult<gcm_api::ChangeAttributionResult> {
-    let batch = columns_to_batch(&names, &columns)?;
+    let batch = tabular_from_numpy_receipt(&names, &columns)?;
     drop(columns);
     detach_catch(py, move || {
-        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+        let loaded = batch;
         let data = loaded.data;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
@@ -1137,10 +1137,10 @@ fn attribute_feature_relevance(
     seed: u64,
     threads: Option<u32>,
 ) -> PyResult<Vec<gcm_api::FeatureRelevance>> {
-    let batch = columns_to_batch(&names, &columns)?;
+    let batch = tabular_from_numpy_receipt(&names, &columns)?;
     drop(columns);
     detach_catch(py, move || {
-        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+        let loaded = batch;
         let data = loaded.data;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
@@ -1194,10 +1194,10 @@ fn attribute_distribution_change_robust(
     seed: u64,
     threads: Option<u32>,
 ) -> PyResult<gcm_api::ChangeAttributionResult> {
-    let batch = columns_to_batch(&names, &columns)?;
+    let batch = tabular_from_numpy_receipt(&names, &columns)?;
     drop(columns);
     detach_catch(py, move || {
-        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+        let loaded = batch;
         let data = loaded.data;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
         let source = model_source(data, &edges)?;
@@ -1247,10 +1247,10 @@ fn mechanism_change_detection(
     seed: u64,
     threads: Option<u32>,
 ) -> PyResult<Vec<gcm_api::MechanismChangeDetection>> {
-    let batch = columns_to_batch(&names, &columns)?;
+    let batch = tabular_from_numpy_receipt(&names, &columns)?;
     drop(columns);
     detach_catch(py, move || {
-        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+        let loaded = batch;
         let data = loaded.data;
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let mut targets = Vec::with_capacity(data.schema().len());

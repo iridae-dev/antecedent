@@ -407,6 +407,49 @@ impl PyExecutionFacts {
     fn observed_spill_bytes(&self) -> Option<u64> {
         self.inner.observed_spill_bytes()
     }
+    /// Owned numeric buffers allocated at instrumented constructors, or None if unmeasured.
+    #[getter]
+    fn observed_allocations(&self) -> Option<u64> {
+        self.inner.observed_allocations()
+    }
+    /// Bytes requested by those allocations (a request, not allocator usage), or None.
+    #[getter]
+    fn observed_allocated_bytes(&self) -> Option<u64> {
+        self.inner.observed_allocated_bytes()
+    }
+    /// Every reported quantity as ``(name, basis, value)``.
+    ///
+    /// ``basis`` is ``measured``, ``admission_reservation`` or ``estimate``. A value of
+    /// ``None`` is a boundary that was not instrumented or a plan quote that was not
+    /// supplied; it is never zero. The ``planned_*`` arguments are plan estimates.
+    #[pyo3(signature = (
+        planned_peak_memory_bytes=None,
+        planned_copy_bytes=None,
+        planned_workspace_bytes=None,
+        planned_worker_threads=None,
+    ))]
+    fn accounting(
+        &self,
+        planned_peak_memory_bytes: Option<u64>,
+        planned_copy_bytes: Option<u64>,
+        planned_workspace_bytes: Option<u64>,
+        planned_worker_threads: Option<u64>,
+    ) -> Vec<(String, String, Option<u64>)> {
+        let planned = antecedent_core::execution_facts::PlannedResources {
+            peak_memory_bytes: planned_peak_memory_bytes,
+            copy_bytes: planned_copy_bytes,
+            workspace_bytes: planned_workspace_bytes,
+            worker_threads: planned_worker_threads,
+        };
+        self.inner
+            .accounting(Some(planned))
+            .quantities()
+            .iter()
+            .map(|quantity| {
+                (quantity.name().to_owned(), quantity.basis().as_str().to_owned(), quantity.value())
+            })
+            .collect()
+    }
     #[new]
     fn new(
         py: Python<'_>,

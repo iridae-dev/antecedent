@@ -44,10 +44,13 @@ fn attach_attributes(err: PyErr, set: impl FnOnce(&Bound<'_, PyAny>) -> PyResult
 fn retention_err(refusal: RetentionRefusal) -> PyErr {
     let mode = refusal.mode().as_str();
     let operation = refusal.operation().as_str();
+    let lost: Vec<&'static str> =
+        refusal.no_longer_serves().iter().copied().map(RetainedOperation::as_str).collect();
     let err = CausalStateError::new_err(refusal.to_string());
     attach_attributes(err, |value| {
         value.setattr("mode", mode)?;
-        value.setattr("operation", operation)
+        value.setattr("operation", operation)?;
+        value.setattr("no_longer_serves", lost)
     })
 }
 
@@ -211,6 +214,15 @@ impl PyRetentionPolicy {
     fn require(&self, py: Python<'_>, operation: Py<PyRetainedOperation>) -> PyResult<()> {
         self.inner.require(operation.borrow(py).inner).map_err(retention_err)
     }
+
+    /// The refusal of `operation` under this policy's result mode, or `None` when it is served.
+    fn refusal(
+        &self,
+        py: Python<'_>,
+        operation: Py<PyRetainedOperation>,
+    ) -> Option<PyRetentionRefusal> {
+        self.inner.require(operation.borrow(py).inner).err().map(PyRetentionRefusal::new)
+    }
 }
 
 #[pyclass(name = "RetentionMode", frozen)]
@@ -255,6 +267,57 @@ impl PyRetentionMode {
     /// Accept `operation`, or raise. Nothing is written and nothing is spilled.
     fn require(&self, py: Python<'_>, operation: Py<PyRetainedOperation>) -> PyResult<()> {
         self.inner.require(operation.borrow(py).inner).map_err(retention_err)
+    }
+
+    /// The refusal of `operation`, or `None` when this mode serves it.
+    fn refusal(
+        &self,
+        py: Python<'_>,
+        operation: Py<PyRetainedOperation>,
+    ) -> Option<PyRetentionRefusal> {
+        self.inner.require(operation.borrow(py).inner).err().map(PyRetentionRefusal::new)
+    }
+}
+
+/// A refusal of a later operation by a reduced retention mode, as a value rather than a raised
+/// error: the mode that was asked, the operation it cannot serve, and everything that mode
+/// can no longer serve.
+#[pyclass(name = "RetentionRefusal", frozen)]
+struct PyRetentionRefusal {
+    inner: RetentionRefusal,
+}
+
+impl PyRetentionRefusal {
+    fn new(inner: RetentionRefusal) -> Self {
+        Self { inner }
+    }
+}
+
+#[pymethods]
+impl PyRetentionRefusal {
+    fn mode(&self) -> PyRetentionMode {
+        PyRetentionMode { inner: self.inner.mode() }
+    }
+
+    fn operation(&self) -> PyRetainedOperation {
+        PyRetainedOperation::new(self.inner.operation())
+    }
+
+    fn no_longer_serves(&self) -> Vec<PyRetainedOperation> {
+        self.inner.no_longer_serves().iter().copied().map(PyRetainedOperation::new).collect()
+    }
+
+    fn message(&self) -> String {
+        self.inner.to_string()
+    }
+
+    /// Raise this refusal as the `CausalStateError` a failed `require` raises.
+    fn raise_error(&self) -> PyResult<()> {
+        Err(retention_err(self.inner))
+    }
+
+    fn __str__(&self) -> String {
+        self.inner.to_string()
     }
 }
 
@@ -704,6 +767,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyRetentionPolicy>()?;
     module.add_class::<PyRetentionMode>()?;
     module.add_class::<PyRetainedOperation>()?;
+    module.add_class::<PyRetentionRefusal>()?;
     module.add_class::<PyPreservedIdentities>()?;
     module.add_class::<PyFrameRewrite>()?;
     module.add_class::<PyFrequentistSummary>()?;

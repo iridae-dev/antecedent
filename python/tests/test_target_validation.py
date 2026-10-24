@@ -10,6 +10,7 @@ import antecedent as ant
 import numpy as np
 import pytest
 from antecedent import validation as v
+from antecedent.errors import CausalError
 
 
 def test_evalue_reproduces_vanderweele_and_ding():
@@ -188,3 +189,83 @@ def test_constructed_refuters_pass_on_a_sound_design_and_flag_a_planted_confound
     outcome = study.refute_target(planted, suite="full", replicates=12)
     flagged = {r.refuter: r.passed for r in outcome.reports}
     assert flagged["target.negative_control_exposure"] is False
+
+
+def _log_spread(center: float, half: float, n: int = 101) -> list[float]:
+    return [math.exp(math.log(center) + half * (2.0 * i / (n - 1) - 1.0)) for i in range(n)]
+
+
+def test_vector_evalue_is_read_at_its_weakest_coordinate():
+    strata = ["young", "old"]
+    result = v.evalue_vector([3.9, 2.0], strata, lowers=[1.8, 1.2], uppers=[8.7, 3.3])
+    scalar = [v.evalue(3.9, lower=1.8, upper=8.7), v.evalue(2.0, lower=1.2, upper=3.3)]
+    assert result.summary["evalue"] == pytest.approx([s.summary["evalue"] for s in scalar])
+    assert result.range is not None
+    assert result.range.target.labels == ("young", "old")
+    assert result.range.break_even == pytest.approx(min(s.summary["evalue"] for s in scalar))
+    assert result.range.break_even_significance == pytest.approx(
+        min(s.summary["evalue_limit"] for s in scalar)
+    )
+    # A scalar range cannot be cited for the vector target, and the labels must match.
+    assert scalar[0].range.target.identity != result.range.target.identity
+    with pytest.raises((ValueError, CausalError), match="one input per coordinate"):
+        v.evalue_vector([3.9, 2.0], ["only_one_label"], lowers=[1.8, 1.2], uppers=[8.7, 3.3])
+
+
+def test_posterior_evalue_carries_the_draws_and_reports_joint_retention():
+    draws = [_log_spread(3.0, 0.15), _log_spread(1.6, 0.25)]
+    result = v.evalue_posterior(draws, ["h1", "h2"], temporal=True)
+    assert result.range is not None
+    assert result.range.target.quadrant == "temporal.bayesian"
+    assert result.range.parameter == "risk_ratio_posterior"
+    assert result.summary["median_risk_ratio"] == pytest.approx([3.0, 1.6])
+    retention = [r["probability"] for r in result.summary["retention"]]
+    assert retention[0] == pytest.approx(1.0)
+    assert all(b <= a + 1e-12 for a, b in zip(retention, retention[1:], strict=False))
+    assert retention[-1] == pytest.approx(0.0)
+    # The joint probability is the share of draws on the reported side after the adjustment.
+    for point in result.summary["retention"]:
+        s = point["strength"]
+        factor = s * s / (2.0 * s - 1.0)
+        kept = sum(all(c[d] / factor > 1.0 for c in draws) for d in range(101))
+        assert point["probability"] == pytest.approx(kept / 101)
+    with pytest.raises((ValueError, CausalError), match="positive and finite"):
+        v.evalue_posterior([[1.0, -2.0]], ["x"], level=0.9)
+
+
+def test_vector_and_posterior_partial_r2_ranges_match_the_closed_forms():
+    vector = v.omitted_variable_bias_vector(
+        [0.0973, -0.04], [0.0233, 0.02], [783.0, 500.0], ["a", "b"]
+    )
+    singles = [
+        v.omitted_variable_bias(0.0973, 0.0233, 783.0),
+        v.omitted_variable_bias(-0.04, 0.02, 500.0),
+    ]
+    assert vector.range.break_even == pytest.approx(
+        min(s.summary["robustness_value"] for s in singles)
+    )
+    assert vector.range.tested[0].target == pytest.approx(1.0)
+    n = 400
+    normal = [float(x) for x in np.sort(np.random.default_rng(5).normal(size=n))]
+    coefficients = [[0.5 + 0.05 * z for z in normal], [-0.3 + 0.05 * z for z in normal]]
+    scale = [[1.2] * n, [0.8] * n]
+    posterior = v.omitted_variable_bias_posterior(coefficients, scale, ["h1", "h2"], level=0.9)
+
+    def reaches(median: float, bias_scale: float) -> float:
+        c = (median / bias_scale) ** 2
+        return 0.5 * (-c + math.sqrt(c * c + 4.0 * c))
+
+    expected = min(reaches(0.5, 1.2), reaches(0.3, 0.8))
+    assert posterior.range.break_even == pytest.approx(expected, abs=0.02)
+    assert posterior.range.break_even_significance <= posterior.range.break_even + 1e-9
+    assert posterior.range.tested[0].test == pytest.approx(1.0, abs=1e-3)
+
+
+def test_vector_rosenbaum_reports_the_smallest_break_even():
+    strong = [1.0 + 0.2 * i for i in range(1, 15)]
+    null = [1.0 if i % 2 == 0 else -1.0 for i in range(1, 15)]
+    both = v.rosenbaum_bounds_vector([strong, strong], ["a", "b"], gammas=[1.0, 2.0, 3.0])
+    single = v.rosenbaum_bounds(strong, gammas=[1.0, 2.0, 3.0])
+    assert both.range.break_even_significance == pytest.approx(single.range.break_even_significance)
+    flat = v.rosenbaum_bounds_vector([strong, null], ["a", "b"], gammas=[1.0, 2.0, 3.0])
+    assert flat.range.break_even_significance is None

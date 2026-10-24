@@ -25,6 +25,10 @@ ml-gbdt = ["antecedent/ml-gbdt", "antecedent-estimate/ml-gbdt"]
 ml-forest = ["antecedent/ml-forest", "antecedent-estimate/ml-forest"]
 ml-full = ["ml-gbdt", "ml-forest"]
 ml-neural = ["antecedent/ml-neural", "antecedent-estimate/ml-neural"]
+# Opt-in accelerator distribution. Cargo unifies the features of one package across the
+# graph, so naming `antecedent-learn-burn/wgpu` here links Burn's WGPU backend into the
+# learner `ml-neural` already pulls in. The CPU wheel never enables it.
+accelerator-wgpu = ["ml-neural", "dep:antecedent-learn-burn", "antecedent-learn-burn/wgpu"]
 
 [dependencies]
 blake3.workspace = true
@@ -50,6 +54,7 @@ antecedent-discovery = { workspace = true }
 # `antecedent` facade re-exports `EstimatorSpec` but not the structs it wraps.
 antecedent-estimate = { workspace = true }
 antecedent-learn = { workspace = true }
+antecedent-learn-burn = { workspace = true, optional = true }
 # `extension-module` is also set on the workspace pyo3 dependency: this cdylib
 # must not link libpython. `build.rs` links libpython only into the test harness.
 # `multiple-pymethods` is the second impl on Dag, Cpdag, Pag, and Admg.

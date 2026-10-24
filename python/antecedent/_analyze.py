@@ -457,8 +457,9 @@ def analyze(
         - ``survival.SurvivalOutcome`` / ``CompetingRisksOutcome``,
         - ``temporal_designs.TwoArmExcursion`` / ``MultiArmExcursion`` /
           ``FactorialExcursion`` / ``InterferenceExcursion`` / ``DoseExcursion`` /
-          ``RegimeSurvivalContrast`` (sequentially randomized unit-period designs and
-          regime survival; ``result.temporal_design``),
+          ``RegimeSurvivalContrast`` / ``ObservationalExcursion`` (sequentially randomized
+          unit-period designs, regime survival and the observational excursion;
+          ``result.temporal_design``),
         - ``regimes.LongitudinalRegime``.
         - ``regimes.SequentialContrast``, ``quasi.PeriodHistoryMatch`` and ``quasi.IvBounds``
           (an identified set; ``result.iv_bounds``).
@@ -513,14 +514,17 @@ def analyze(
         How rows with missing values are handled: a policy name (``"error"``,
         ``"complete_case"``, ``"inverse_probability"``, ``"balanced_panel"``,
         ``"available_case"``, ``"multiple_imputation"``) or an
-        :class:`antecedent.missing.MissingPolicy`. Average-effect routes keep their
-        complete-case selection by default and report the rows it dropped, and execute
-        multiple imputation with Rubin's-rules pooling (or a stacked posterior under Bayesian
-        inference) when it is declared; randomized, panel, temporal and NOTEARS routes refuse a
-        missing value until a policy is declared, naming the first missing cell. A policy the
-        route cell does not support is refused when the study is built. Every result carries
-        ``missing_data``: the policy, the assumption it needs, the row accounting and, for
-        multiple imputation, the pooled variance components.
+        :class:`antecedent.missing.MissingPolicy`. Static adjustment routes (average,
+        conditional, response, distribution and mediation) keep their complete-case selection
+        by default and report the rows it dropped; they, the randomized routes and the
+        single-series temporal routes execute multiple imputation with Rubin's-rules pooling
+        (or a stacked posterior under Bayesian inference) when it is declared, pooling an
+        answer with several coordinates jointly. Randomized, panel, temporal and NOTEARS
+        routes refuse a missing value until a policy is declared, naming the first missing
+        cell. A policy the route cell does not support is refused when the study is built.
+        Every result carries ``missing_data``: the policy, the assumption it needs, the row
+        accounting and, for multiple imputation, the pooled variance components, the joint
+        pooling of the coordinates and the digest of the imputation's assumptions.
     latency:
         Optional compute tier (``interactive`` / ``standard`` / ``report``).
         The study builder maps it onto the omitted bootstrap / refute / draw

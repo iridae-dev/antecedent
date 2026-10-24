@@ -365,7 +365,59 @@ def _table_from_arrow_export(data: Any) -> Any:
         return pa.table({"value": _array_from_capsules(data[0], data[1])})
     if hasattr(data, "iloc"):
         return pa.Table.from_pandas(data, preserve_index=False)
-    return pa.RecordBatchReader.from_stream(data).read_all()
+    return bounded_arrow_reader(data, ARROW_STREAM_CHUNK_ROWS).read_all()
+
+
+#: Rows a producer is asked to put in one record batch; the engine's default chunk size.
+ARROW_STREAM_CHUNK_ROWS = 65_536
+
+
+def bounded_arrow_reader(data: Any, max_rows: int) -> Any:
+    """A ``pyarrow.RecordBatchReader`` over ``data`` with batches of at most ``max_rows`` rows.
+
+    The batch size is requested from the producer before export, so an oversized batch is
+    never built: pyarrow tables and datasets use ``to_reader(max_chunksize=...)``, Polars
+    frames are sliced with ``iter_slices``, DuckDB relations and results use
+    ``fetch_record_batch(rows_per_batch=...)``. A producer with no such request is read through
+    its Arrow stream and each batch is split into zero-copy slices as it arrives; that bounds
+    what the engine holds, not what the producer allocated.
+    """
+    import pyarrow as pa
+
+    if max_rows < 1:
+        raise CausalValueError("max_rows must be at least one row", reason_code="invalid_argument")
+    if isinstance(data, pa.RecordBatchReader):
+        return _split_reader(data, max_rows)
+    if isinstance(data, pa.Table):
+        return data.to_reader(max_chunksize=max_rows)
+    if hasattr(data, "to_reader") and hasattr(data, "schema"):  # pyarrow dataset/scanner
+        try:
+            return data.to_reader(max_chunksize=max_rows)
+        except TypeError:
+            return _split_reader(data.to_reader(), max_rows)
+    if hasattr(data, "fetch_record_batch"):  # DuckDB relation or result
+        return data.fetch_record_batch(rows_per_batch=max_rows)
+    if hasattr(data, "iter_slices") and hasattr(data, "to_arrow"):  # Polars DataFrame
+        first = data.head(0).to_arrow()
+        slices = (frame.to_arrow().to_batches() for frame in data.iter_slices(max_rows))
+        return pa.RecordBatchReader.from_batches(
+            first.schema, (batch for group in slices for batch in group)
+        )
+    return _split_reader(pa.RecordBatchReader.from_stream(data), max_rows)
+
+
+def _split_reader(reader: Any, max_rows: int) -> Any:
+    """Re-slice each batch of ``reader`` to at most ``max_rows`` rows, without copying."""
+    import pyarrow as pa
+
+    def batches() -> Any:
+        for batch in reader:
+            for start in range(0, batch.num_rows, max_rows):
+                yield batch.slice(start, min(max_rows, batch.num_rows - start))
+            if batch.num_rows == 0:
+                yield batch
+
+    return pa.RecordBatchReader.from_batches(reader.schema, batches())
 
 
 def try_as_arrow_c_columns(

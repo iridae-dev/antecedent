@@ -84,6 +84,43 @@ fn imputation_json(report: &antecedent::result::ImputationReport) -> serde_json:
         "df_complete": report.df_complete,
         "fraction_missing_information": report.fraction_missing_information,
         "relative_increase": report.relative_increase,
+        "assumptions_digest": report.assumptions_digest.as_ref(),
+        "lags": report.lags,
+        "vector": report.vector.as_ref().map(vector_json),
+    })
+}
+
+/// The joint pooling of an answer with several coordinates. A non-finite number (an infinite
+/// denominator degrees of freedom) is `null`.
+fn vector_json(vector: &antecedent::result::ImputationVectorReport) -> serde_json::Value {
+    serde_json::json!({
+        "labels": vector.labels.iter().map(AsRef::as_ref).collect::<Vec<&str>>(),
+        "covariance_basis": vector.covariance_basis.as_ref(),
+        "points": vector.points.iter().map(|point| point.as_ref()).collect::<Vec<&[f64]>>(),
+        "point": vector.point.as_ref(),
+        "within": vector.within.as_ref(),
+        "between": vector.between.as_ref(),
+        "total": vector.total.as_ref(),
+        "coordinate_df": vector.coordinate_df.as_ref(),
+        "coordinate_fraction_missing_information":
+            vector.coordinate_fraction_missing_information.as_ref(),
+        "average_relative_increase": vector.average_relative_increase,
+        "wald": vector.wald.as_ref().map(|wald| serde_json::json!({
+            "null": wald.null.as_ref(),
+            "statistic": wald.statistic,
+            "df_numerator": wald.df_numerator,
+            "df_denominator": wald.df_denominator,
+        })),
+        "extras": vector
+            .extras
+            .iter()
+            .map(|extra| serde_json::json!({
+                "label": extra.label.as_ref(),
+                "points": extra.points.as_ref(),
+                "point": extra.point,
+                "between": extra.between,
+            }))
+            .collect::<Vec<_>>(),
     })
 }
 

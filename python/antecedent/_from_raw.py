@@ -57,7 +57,10 @@ from .results import (
     EstimateView,
     IdentificationView,
     MediationView,
+    ImputationExtraView,
+    ImputationVectorView,
     ImputationView,
+    ImputationWaldView,
     MissingDataView,
     PerformanceView,
     PlanView,
@@ -397,7 +400,47 @@ def _missing_data_from_raw(raw: Any, prepared: Any | None) -> MissingDataView | 
                     entry["variable"]: entry["cells"] for entry in imputation["imputed_cells"]
                 },
                 "points": tuple(imputation["points"]),
+                "vector": _imputation_vector(imputation.get("vector")),
             }
+        ),
+    )
+
+
+def _imputation_vector(raw: Mapping[str, Any] | None) -> ImputationVectorView | None:
+    """The joint pooling of a multi-coordinate multiple-imputation answer."""
+    if raw is None:
+        return None
+    wald = raw.get("wald")
+    return ImputationVectorView(
+        labels=tuple(raw["labels"]),
+        covariance_basis=raw["covariance_basis"],
+        points=tuple(tuple(point) for point in raw["points"]),
+        point=tuple(raw["point"]),
+        within=tuple(raw["within"]),
+        between=tuple(raw["between"]),
+        total=tuple(raw["total"]),
+        coordinate_df=tuple(raw["coordinate_df"]),
+        coordinate_fraction_missing_information=tuple(
+            raw["coordinate_fraction_missing_information"]
+        ),
+        average_relative_increase=raw.get("average_relative_increase"),
+        wald=None
+        if wald is None
+        else ImputationWaldView(
+            null=tuple(wald["null"]),
+            statistic=wald["statistic"],
+            # A reference with no denominator degrees of freedom to spare is the chi-square law.
+            df_numerator=wald["df_numerator"],
+            df_denominator=math.inf if wald["df_denominator"] is None else wald["df_denominator"],
+        ),
+        extras=tuple(
+            ImputationExtraView(
+                label=extra["label"],
+                points=tuple(extra["points"]),
+                point=extra["point"],
+                between=extra["between"],
+            )
+            for extra in raw.get("extras", ())
         ),
     )
 

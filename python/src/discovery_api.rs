@@ -390,9 +390,9 @@ impl PcmciDiscoveryResult {
 }
 
 pub(crate) fn series_from_batch(
-    batch: &RecordBatch,
+    batch: &crate::ColumnBatch,
 ) -> PyResult<(TimeSeriesData, Vec<VariableId>)> {
-    let loaded = tabular_from_record_batch(batch).map_err(py_err)?;
+    let loaded = batch.loaded()?;
     let series = series_from_tabular(loaded.data)?;
     let variables: Vec<VariableId> = series.schema().variables().iter().map(|v| v.id).collect();
     Ok((series, variables))
@@ -407,7 +407,7 @@ pub(crate) fn series_from_batch(
 ///
 /// `unit_lengths` that are empty, contain a zero, or do not add up to the column length.
 pub(crate) fn panel_units_from_batch(
-    batch: &RecordBatch,
+    batch: &crate::ColumnBatch,
     unit_lengths: &[usize],
 ) -> PyResult<(Vec<TimeSeriesData>, Vec<VariableId>)> {
     let rows = batch.num_rows();
@@ -548,9 +548,9 @@ where
 }
 
 pub(crate) fn tabular_from_batch(
-    batch: &RecordBatch,
+    batch: &crate::ColumnBatch,
 ) -> PyResult<(antecedent_data::TabularData, Vec<VariableId>)> {
-    let loaded = tabular_from_record_batch(batch).map_err(py_err)?;
+    let loaded = batch.loaded()?;
     let tabular = loaded.data;
     let variables: Vec<VariableId> = tabular.schema().variables().iter().map(|v| v.id).collect();
     Ok((tabular, variables))

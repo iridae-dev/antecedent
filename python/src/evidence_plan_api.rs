@@ -10,7 +10,7 @@
 use crate::graphs::{Admg, Dag};
 use crate::repair_api::{obligation_json, parse_candidates};
 use crate::transport_common::{
-    execution_context, frame_named_artifact, resolve, serialization_error, unframe_named_artifact,
+    execution_context, frame_named_artifact, resolve, unframe_named_artifact,
 };
 use antecedent::analysis::evidence_plan::{
     EvidencePlanFacadeError, EvidencePlanRequest, EvidenceValueRequest, plan_over_routes,

@@ -31,6 +31,12 @@ from ._native import (
     sensitivity_evalue as _sensitivity_evalue,
 )
 from ._native import (
+    sensitivity_evalue_posterior as _sensitivity_evalue_posterior,
+)
+from ._native import (
+    sensitivity_evalue_vector as _sensitivity_evalue_vector,
+)
+from ._native import (
     sensitivity_matched_sets as _sensitivity_matched_sets,
 )
 from ._native import (
@@ -43,7 +49,16 @@ from ._native import (
     sensitivity_omitted_variable_bias_fit as _sensitivity_omitted_variable_bias_fit,
 )
 from ._native import (
+    sensitivity_ovb_posterior as _sensitivity_ovb_posterior,
+)
+from ._native import (
+    sensitivity_ovb_vector as _sensitivity_ovb_vector,
+)
+from ._native import (
     sensitivity_rosenbaum as _sensitivity_rosenbaum,
+)
+from ._native import (
+    sensitivity_rosenbaum_vector as _sensitivity_rosenbaum_vector,
 )
 from ._native import (
     target_derivative_consistency as _target_derivative_consistency,
@@ -628,6 +643,174 @@ def rosenbaum_bounds(
     )
 
 
+def evalue_vector(
+    estimates: Sequence[float],
+    labels: Sequence[str],
+    *,
+    lowers: Sequence[float] | None = None,
+    uppers: Sequence[float] | None = None,
+    standard_errors: Sequence[float] | None = None,
+    scale: str = "risk_ratio",
+    family: str = "conditional_effect",
+    temporal: bool = False,
+    target_source: str | None = None,
+) -> SensitivityResult:
+    """E-values of every coordinate of a vector target, read at its weakest coordinate.
+
+    One estimate (and limits, or standard errors on the standardized scale) per label: a
+    conditional effect's strata, a temporal effect's horizons or a joint contrast's components.
+    The claim that every coordinate keeps its sign breaks at the smallest coordinate E-value,
+    which is the range's ``break_even``.
+    """
+
+    def floats(values: Sequence[float] | None) -> list[float] | None:
+        return None if values is None else [float(v) for v in values]
+
+    return _sensitivity(
+        "evalue_vector",
+        _sensitivity_evalue_vector(
+            [float(e) for e in estimates],
+            [str(label) for label in labels],
+            lowers=floats(lowers),
+            uppers=floats(uppers),
+            standard_errors=floats(standard_errors),
+            scale=scale,
+            family=family,
+            temporal=temporal,
+            target_source=target_source,
+        ),
+    )
+
+
+def evalue_posterior(
+    draws: Sequence[Sequence[float]],
+    labels: Sequence[str],
+    *,
+    scale: str = "risk_ratio",
+    level: float = 0.95,
+    family: str = "conditional_effect",
+    temporal: bool = False,
+    target_source: str | None = None,
+) -> SensitivityResult:
+    """E-values of a posterior over a vector target.
+
+    ``draws[k]`` are the posterior draws of coordinate ``k`` on ``scale``. Each draw is
+    bias-adjusted at every probed confounder strength; the range reports the weakest
+    coordinate's posterior median and, as ``test``, the joint posterior probability that every
+    coordinate keeps its reported side of the null. ``break_even`` is the smallest E-value of a
+    posterior median and ``break_even_significance`` the smallest E-value of a credible limit.
+    """
+    return _sensitivity(
+        "evalue_posterior",
+        _sensitivity_evalue_posterior(
+            [[float(v) for v in column] for column in draws],
+            [str(label) for label in labels],
+            scale=scale,
+            level=level,
+            family=family,
+            temporal=temporal,
+            target_source=target_source,
+        ),
+    )
+
+
+def omitted_variable_bias_vector(
+    estimates: Sequence[float],
+    standard_errors: Sequence[float],
+    dofs: Sequence[float],
+    labels: Sequence[str],
+    *,
+    q: float = 1.0,
+    alpha: float = 0.05,
+    r2yz_extreme: float = 1.0,
+    family: str = "conditional_effect",
+    temporal: bool = False,
+    target_source: str | None = None,
+) -> SensitivityResult:
+    """Partial-R2 sensitivity of a vector of linear-adjustment coefficients.
+
+    The range is read at the weakest coordinate: its ``target`` is the smallest share of a
+    reported estimate left, and ``break_even`` the smallest robustness value ``RV_q``.
+    """
+    return _sensitivity(
+        "omitted_variable_bias_vector",
+        _sensitivity_ovb_vector(
+            [float(e) for e in estimates],
+            [float(s) for s in standard_errors],
+            [float(d) for d in dofs],
+            [str(label) for label in labels],
+            q=q,
+            alpha=alpha,
+            r2yz_extreme=r2yz_extreme,
+            family=family,
+            temporal=temporal,
+            target_source=target_source,
+        ),
+    )
+
+
+def omitted_variable_bias_posterior(
+    coefficients: Sequence[Sequence[float]],
+    bias_scale: Sequence[Sequence[float]],
+    labels: Sequence[str],
+    *,
+    level: float = 0.95,
+    r2yz_extreme: float = 1.0,
+    family: str = "conditional_effect",
+    temporal: bool = False,
+    target_source: str | None = None,
+) -> SensitivityResult:
+    """Partial-R2 sensitivity of a posterior over a vector of linear-adjustment coefficients.
+
+    ``bias_scale[k][d]`` is ``sd(Y_k | D, X) / sd(D | X)`` in draw ``d``; each draw moves toward
+    the null by ``bias_scale * sqrt(R2yz * R2dz / (1 - R2dz))`` (Cinelli and Hazlett 2020).
+    ``test`` is the joint posterior probability that every coordinate keeps its side.
+    """
+    return _sensitivity(
+        "omitted_variable_bias_posterior",
+        _sensitivity_ovb_posterior(
+            [[float(v) for v in column] for column in coefficients],
+            [[float(v) for v in column] for column in bias_scale],
+            [str(label) for label in labels],
+            level=level,
+            r2yz_extreme=r2yz_extreme,
+            family=family,
+            temporal=temporal,
+            target_source=target_source,
+        ),
+    )
+
+
+def rosenbaum_bounds_vector(
+    differences: Sequence[Sequence[float]],
+    labels: Sequence[str],
+    *,
+    gammas: Sequence[float] | None = None,
+    alpha: float = 0.05,
+    family: str = "conditional_effect",
+    temporal: bool = False,
+    target_source: str | None = None,
+) -> SensitivityResult:
+    """Rosenbaum bounds of a vector of matched designs, read at the weakest coordinate.
+
+    ``differences[k]`` are the matched-pair differences behind coordinate ``k``; ``test`` is the
+    largest upper-bound p-value across coordinates and ``break_even_significance`` the smallest
+    ``Gamma*`` (absent when some coordinate does not reject at ``Gamma = 1``).
+    """
+    return _sensitivity(
+        "rosenbaum_vector",
+        _sensitivity_rosenbaum_vector(
+            [[float(d) for d in column] for column in differences],
+            [str(label) for label in labels],
+            gammas=None if gammas is None else [float(g) for g in gammas],
+            alpha=alpha,
+            family=family,
+            temporal=temporal,
+            target_source=target_source,
+        ),
+    )
+
+
 def matched_sets_sensitivity(
     sets: Sequence[tuple[Sequence[float], int]],
     *,
@@ -804,14 +987,19 @@ __all__ = [
     "amplify",
     "derivative_consistency",
     "evalue",
+    "evalue_posterior",
+    "evalue_vector",
     "local_linearity",
     "matched_sets_sensitivity",
     "mediation_sensitivity",
     "omitted_variable_bias",
     "omitted_variable_bias_from_data",
+    "omitted_variable_bias_posterior",
+    "omitted_variable_bias_vector",
     "posterior_predictive_target",
     "prior_sensitivity_target",
     "rosenbaum_bounds",
+    "rosenbaum_bounds_vector",
     "target_refutation_plan",
     "validate_environment_holdout",
     "validate_pcmci_alpha_sensitivity",

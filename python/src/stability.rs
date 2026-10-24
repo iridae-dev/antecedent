@@ -20,7 +20,6 @@ use antecedent_validate::{
     FalsePositiveCheck, LagWindowSensitivity, NullTransform, OrientationStability, RegimeStability,
     SyntheticNullCalibration,
 };
-use arrow_array::RecordBatch;
 use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
@@ -419,7 +418,7 @@ fn validate_synthetic_null_calibration(
 
 fn multi_env_from_batches(
     names: &[String],
-    env_batches: &[RecordBatch],
+    env_batches: &[crate::ColumnBatch],
 ) -> PyResult<MultiEnvironmentData> {
     let mut series_list = Vec::with_capacity(env_batches.len());
     for batch in env_batches {

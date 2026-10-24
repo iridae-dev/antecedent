@@ -91,6 +91,7 @@ class PlanEvidenceLayer(ResultModel):
     composition: Mapping[str, Any]
     decision: Mapping[str, Any] | None = None
     planning: Mapping[str, Any] | None = None
+    chain: Mapping[str, Any] | None = None
 
 
 class PlanPhysicalLayer(ResultModel):
@@ -103,6 +104,13 @@ class PlanPhysicalLayer(ResultModel):
     output_bytes: int | None = None
     record: Mapping[str, Any] | None = None
     kernel_policy: Mapping[str, Any] | None = None
+    backend: Mapping[str, Any] | None = None
+    memory: Mapping[str, Any] | None = None
+
+    @property
+    def materializations(self) -> Sequence[Mapping[str, Any]]:
+        """How each buffer is materialized, when the view was taken from a plan."""
+        return list((self.record or {}).get("materializations", []))
 
     @property
     def quoted_width(self) -> int | None:
@@ -164,6 +172,9 @@ class ProgramPlanView(ResultModel):
     uncertainty: PlanUncertaintyDemand
     support: PlanSupportView
     mixture: PlanMixtureView | None = None
+    assumptions: Sequence[Mapping[str, Any]] = ()
+    reuse: Mapping[str, Any] | None = None
+    operations: Sequence[Mapping[str, Any]] = ()
     _operation: dict[str, Any] | None = PrivateAttr(default=None)
 
     @property
