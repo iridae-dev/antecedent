@@ -33,6 +33,10 @@ name = "matching"
 harness = false
 
 [[bench]]
+name = "matching_spatial"
+harness = false
+
+[[bench]]
 name = "ci_framework"
 harness = false
 

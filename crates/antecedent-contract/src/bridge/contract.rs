@@ -74,6 +74,10 @@ pub use propagation::{
     SourceMappingDependence, SupportMap, ValueInterval, nonlinear_expectation, preserved_support,
     support_image,
 };
+pub use propagation::{
+    ContractNonlinearPropagation, JointLaw, JointPropagation, PropagationMethod, propagate_joint,
+    propagate_nonlinear,
+};
 
 /// Version word written into every bridge contract identity. Bump only when
 /// the canonical encoding below changes.

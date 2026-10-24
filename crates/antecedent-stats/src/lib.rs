@@ -26,10 +26,12 @@ pub mod gram;
 pub mod identified_set;
 pub mod interference;
 pub mod joint_law;
+pub mod layout_rules;
 pub mod linalg;
 pub mod longitudinal_regime;
 pub mod m_estimate;
 pub mod matching;
+pub mod matching_boxtree;
 pub mod measurement_error;
 pub mod observation;
 pub mod power;
@@ -104,7 +106,7 @@ pub use gram::{
 };
 pub use identified_set::{
     IdentifiedSetInterval, IdentifiedSetIntervalMethod, imbens_manski_critical_value,
-    imbens_manski_posterior_draws, imbens_manski_shared_replicates,
+    imbens_manski_influence, imbens_manski_posterior_draws, imbens_manski_shared_replicates,
 };
 pub use interference::{
     ExposureProbabilities, ExposureProbabilityMethod, RandomizationContrast, RandomizationMean,
@@ -129,6 +131,7 @@ pub use m_estimate::{MEstimateFit, MEstimateOptions, fit_huber_m};
 #[allow(deprecated, reason = "the retained released name stays reachable")]
 pub use matching::EXACT_MATCHING_ROW_LIMIT;
 pub use matching::{MatchingDistance, MatchingIndex, nearest_euclidean_scalar};
+pub use matching_boxtree::BoxTreeIndex;
 pub use observation::{
     GaussianObservation, KaplanMeierIpcw, ObservationProbabilityFit, censoring_tail_restriction,
     fit_observation_logistic, gaussian_observation_log_likelihood, kaplan_meier_ipcw,
@@ -138,7 +141,8 @@ pub use propagation_chain::{
     ChainError, Coefficient, ColumnSummary, Combine, Decision, Enclosure, Evaluated, ExprTerm,
     MAX_EXPRESSION_TERMS, PoolOutcome, Preposterior, PreposteriorOutcome, StageOp, StageSpec,
     UnaryFn, decide, evaluate_columns, evaluate_enclosures, independent_product_table,
-    preposterior, summarize, validate_spec, weights_from_log,
+    moment_matched_normal_table, preposterior, shared_row_correlation, summarize, validate_spec,
+    weights_from_log,
 };
 pub use propensity::{
     PropensityFit, PropensityWorkspace, fit_propensity, fit_propensity_diagnostic,
@@ -156,7 +160,8 @@ pub use response::{
     GaussianMixtureDensity, LocalPolynomialBiasCorrected, LocalPolynomialInfluence,
     LocalPolynomialPoint, LocalQuadraticWorkspace, diagonal_low_rank_quadratic_traces,
     gaussian_density, gaussian_local_quadratic_adjusted_influence_prechecked,
-    gaussian_local_quadratic_bias_corrected, gaussian_local_quadratic_influence,
+    gaussian_local_quadratic_bias_corrected, gaussian_local_quadratic_bias_corrected_influence,
+    gaussian_local_quadratic_influence,
     gaussian_local_quadratic_influence_prechecked, gaussian_local_quadratic_influence_with,
     gaussian_local_quadratic_weighted, silverman_bandwidth, silverman_normal_reference_factor,
 };

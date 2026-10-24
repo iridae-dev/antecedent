@@ -5,6 +5,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
+use antecedent_core::search_budget::GpdcKernel;
 use antecedent_core::{ExecutionContext, StreamDomain};
 use antecedent_kernels::{shuffle, unbiased_index};
 
@@ -14,7 +15,7 @@ use super::gsquared::{
 };
 use super::residualize::residual_is_uninformative;
 use super::types::{
-    CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest,
+    CiBatchRequest, CiBatchResult, CiQuery, CiResult, CiWorkspace, ConditionalIndependenceTest,
     KnnDependenceWorkspace, PreparedCiTest, nonparametric_permutation_count,
     reject_unsupported_block_size, requested_block_size,
 };
@@ -591,13 +592,64 @@ fn symbolic_mi_on_rows(xi: &[i32], yi: &[i32], rows: &[usize]) -> f64 {
     mi
 }
 
-/// Rows above which GPDC refuses a *conditional* test: it factorizes a dense `n × n` kernel
-/// (memory `O(n²)`, Cholesky `O(n³)`), so a few thousand rows already take hundreds of MB. The
-/// distance correlation itself is `O(n log n)` and never limits the unconditional test.
-pub(crate) const GPDC_ROW_LIMIT: usize = 4_000;
-
-/// Conditioning sets whose kernel factorization one batch keeps for reuse.
+/// Conditioning sets whose kernel factorization one batch keeps for reuse, when the caller's
+/// memory budget holds that many beside the working kernel; one when it holds only one.
 const GPDC_FACTOR_CACHE: usize = 2;
+
+/// Bytes of one binary64 kernel or factor entry.
+const GPDC_ENTRY_BYTES: u64 = 8;
+
+/// Work and memory an exact conditional GPDC batch needs, quoted before any kernel exists.
+///
+/// The figures come from the declared exact-mode charge of
+/// [`GpdcKernel`](antecedent_core::search_budget::GpdcKernel): a factorization holds the dense
+/// kernel and its Cholesky factor (`2 · rows² · 8` bytes) plus the standardized conditioning
+/// block, and costs `rows³ + rows² · conditioning columns` operations. The batch keeps up to
+/// [`Self::cache_slots`] factors, so its peak adds the cached factors that stay live while the
+/// next one is built. The cache is as wide as the caller's free memory allows; the batch is
+/// refused, not shrunk, when even one factorization does not fit.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct GpdcExactQuote {
+    /// Rows of every kernel.
+    pub rows: u64,
+    /// Widest conditioning set in the batch.
+    pub conditioning_columns: u64,
+    /// Kernel factorizations the batch will perform, counting rebuilds after eviction.
+    pub factorizations: u64,
+    /// Operations of all those factorizations.
+    pub work: u64,
+    /// Bytes leased from the caller's admission pool before the first kernel is allocated.
+    pub peak_bytes: u64,
+    /// Factors kept for reuse between queries.
+    pub cache_slots: usize,
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Kernel factorizations this thread has performed (test observation of the quote).
+    static GPDC_FACTORIZATIONS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// Factorizations a batch performs when it keeps `cache_slots` factors, oldest evicted first.
+fn count_factorizations(queries: &[CiQuery], z_flat: &[usize], cache_slots: usize) -> u64 {
+    let mut cached: Vec<&[usize]> = Vec::with_capacity(cache_slots);
+    let mut builds = 0u64;
+    for query in queries {
+        if query.z_len == 0 {
+            continue;
+        }
+        let z = &z_flat[query.z_start..query.z_start + query.z_len];
+        if cached.contains(&z) {
+            continue;
+        }
+        builds += 1;
+        while cached.len() >= cache_slots {
+            cached.remove(0);
+        }
+        cached.push(z);
+    }
+    builds
+}
 
 /// Native GPDC: RBF-GP residualization (ridge) + distance-correlation on residuals.
 ///
@@ -606,14 +658,22 @@ const GPDC_FACTOR_CACHE: usize = 2;
 /// batch sharing a Z set reuse it). The GP mean prediction is `Kα` with `(K+λI)α = y_c`, so the
 /// residual is exactly `y_c − Kα = λα` (MM-008). The earlier Jacobi-on-raw-`y` path rejected
 /// conditional nulls and missed two-conditioner alternatives against the pinned advanced-CI
-/// oracle. Conditional inputs above [`GPDC_ROW_LIMIT`] rows are refused; [`GpdcNystrom`] is the
-/// separately identified construction for them.
+/// oracle.
+///
+/// The conditional test has no row ceiling. Its work and memory are quoted from the declared
+/// exact-mode charge ([`GpdcExactQuote`]) before anything is allocated: the kernel, factor and
+/// cached-factor bytes are leased from the caller's admission pool, and a batch that does not
+/// fit is refused with the numbers, never run on a smaller kernel. [`Self::with_work_limit`]
+/// adds the caller's operation ceiling. [`GpdcNystrom`] is the separately identified
+/// low-rank construction; it is chosen by name, never as a fallback from this one.
 #[derive(Clone, Debug)]
 pub struct Gpdc {
     /// RBF length scale.
     pub length_scale: f64,
     /// Ridge.
     pub ridge: f64,
+    /// Ceiling on the operations of one batch's factorizations, when the caller declares one.
+    work_limit: Option<u64>,
 }
 
 impl Default for Gpdc {
@@ -626,7 +686,92 @@ impl Gpdc {
     /// Construct with defaults.
     #[must_use]
     pub fn new() -> Self {
-        Self { length_scale: 1.0, ridge: 1e-3 }
+        Self { length_scale: 1.0, ridge: 1e-3, work_limit: None }
+    }
+
+    /// Declare the most operations a batch's kernel factorizations may take. A batch whose
+    /// quote exceeds it is refused before any kernel is built.
+    #[must_use]
+    pub const fn with_work_limit(mut self, operations: u64) -> Self {
+        self.work_limit = Some(operations);
+        self
+    }
+
+    /// Quote the exact conditional work of `request` against the caller's budget, without
+    /// allocating a kernel. `None` when no query conditions on anything.
+    ///
+    /// The memory figure is the one [`ConditionalIndependenceTest::test_batch`] leases.
+    ///
+    /// # Errors
+    ///
+    /// [`StatsError::ResourceLimit`] when the quote overflows `u64`,
+    /// [`StatsError::WorkLimit`] when it exceeds [`Self::with_work_limit`], and
+    /// [`StatsError::Shape`] for an empty request.
+    pub fn quote(
+        &self,
+        request: &CiBatchRequest<'_>,
+        ctx: &ExecutionContext,
+    ) -> Result<Option<GpdcExactQuote>, StatsError> {
+        let n = request.columns.first().map_or(0, |c| c.len());
+        if n == 0 {
+            return Err(StatsError::Shape { message: "no columns" });
+        }
+        self.quote_rows(n, request.queries, request.z_flat, ctx)
+    }
+
+    fn quote_rows(
+        &self,
+        n: usize,
+        queries: &[CiQuery],
+        z_flat: &[usize],
+        ctx: &ExecutionContext,
+    ) -> Result<Option<GpdcExactQuote>, StatsError> {
+        let widest = queries.iter().map(|q| q.z_len).max().unwrap_or(0);
+        if widest == 0 {
+            return Ok(None);
+        }
+        let limit_bytes =
+            ctx.memory_limit_bytes().unwrap_or(u64::MAX).min(ctx.admission().available().bytes());
+        let overflow = || StatsError::ResourceLimit {
+            message: "GPDC exact kernel quote overflows u64",
+            required_bytes: u64::MAX,
+            limit_bytes,
+        };
+        let (rows, columns) = (
+            u64::try_from(n).map_err(|_| overflow())?,
+            u64::try_from(widest).map_err(|_| overflow())?,
+        );
+        let per_factor = GpdcKernel::new(rows, columns).estimate().map_err(|_| overflow())?;
+        let factor_bytes = rows
+            .checked_mul(rows)
+            .and_then(|c| c.checked_mul(GPDC_ENTRY_BYTES))
+            .ok_or_else(overflow)?;
+        let kept_beside =
+            (GPDC_FACTOR_CACHE as u64 - 1).checked_mul(factor_bytes).ok_or_else(overflow)?;
+        let wide = per_factor.memory_bytes().checked_add(kept_beside);
+        let (cache_slots, peak_bytes) = match wide {
+            Some(bytes) if bytes <= limit_bytes => (GPDC_FACTOR_CACHE, bytes),
+            _ => (1, per_factor.memory_bytes()),
+        };
+        let factorizations = count_factorizations(queries, z_flat, cache_slots);
+        let work = per_factor.work().checked_mul(factorizations).ok_or_else(overflow)?;
+        if let Some(limit_work) = self.work_limit {
+            if work > limit_work {
+                return Err(StatsError::WorkLimit {
+                    message: "GPDC exact kernel factorization",
+                    required_work: work,
+                    limit_work,
+                });
+            }
+        }
+        Ok(Some(GpdcExactQuote {
+            rows,
+            conditioning_columns: columns,
+            factorizations,
+            work,
+            peak_bytes,
+            cache_slots,
+        }))
     }
 }
 
@@ -660,6 +805,19 @@ impl ConditionalIndependenceTest for Gpdc {
         // architecture the ParCorr family uses. So `block_size` is honoured, not rejected.
         let block_size = requested_block_size(request.significance);
         let n_perm = nonparametric_permutation_count(request.significance);
+        // The kernel, its factor and the cached factors are quoted from the caller's budget and
+        // leased before the first one is allocated. A batch that does not fit is refused here.
+        let quote = self.quote_rows(n, request.queries, request.z_flat, ctx)?;
+        let _kernel_lease = match quote {
+            Some(quote) => Some(crate::matching::check_budget(
+                ctx,
+                "GPDC exact kernel, factor and cache (next attempt: a larger memory limit, or \
+                 request gpdc_nystrom explicitly)",
+                Some(quote.peak_bytes),
+            )?),
+            None => None,
+        };
+        let cache_slots = quote.map_or(GPDC_FACTOR_CACHE, |quote| quote.cache_slots);
         let mut factors: Vec<(Vec<usize>, Vec<f64>)> = Vec::new();
         let mut results = Vec::with_capacity(request.queries.len());
         for q in request.queries {
@@ -667,21 +825,18 @@ impl ConditionalIndependenceTest for Gpdc {
             let factor: Option<&[f64]> = if z.is_empty() {
                 None
             } else {
-                if n > GPDC_ROW_LIMIT {
-                    return Err(StatsError::Unsupported {
-                        message: "GPDC conditions through a dense n x n kernel (O(n^2) memory, \
-                                  O(n^3) factorization) and refuses more than 4000 rows with a \
-                                  non-empty conditioning set; use GpdcNystrom (`gpdc_nystrom`), \
-                                  which conditions through a declared-rank low-rank kernel",
-                    });
-                }
                 let at = if let Some(at) = factors.iter().position(|(key, _)| key.as_slice() == z) {
                     at
                 } else {
-                    let chol = gp_factor(request.columns, z, n, self)?;
-                    if factors.len() >= GPDC_FACTOR_CACHE {
+                    if ctx.cancellation.is_cancelled() {
+                        return Err(StatsError::Cancelled);
+                    }
+                    // Evict before building so the cached factors and the working kernel
+                    // never exceed the leased peak.
+                    while factors.len() >= cache_slots {
                         factors.remove(0);
                     }
+                    let chol = gp_factor(request.columns, z, n, self)?;
                     factors.push((z.to_vec(), chol));
                     factors.len() - 1
                 };
@@ -803,6 +958,8 @@ fn standardized_z(columns: &[&[f64]], z: &[usize], n: usize) -> Result<Vec<f64>,
 
 /// Cholesky factor of `K + λI` on the standardised Z columns (row-major `n × n`).
 fn gp_factor(columns: &[&[f64]], z: &[usize], n: usize, gp: &Gpdc) -> Result<Vec<f64>, StatsError> {
+    #[cfg(test)]
+    GPDC_FACTORIZATIONS.with(|count| count.set(count.get() + 1));
     let zdim = z.len();
     let z_std = standardized_z(columns, z, n)?;
     // Gram on standardised Z (sum of RBF over Z dims) plus the ridge.
@@ -872,7 +1029,8 @@ const NYSTROM_JITTER: f64 = 1e-10;
 /// mean diagonal. Normal equations are accumulated in row blocks and X and Y are two
 /// right-hand sides of one factorization, so time is `O(n m²)` for the fit and `O(n m)` per
 /// series, and memory is `O(n + m²)` — never `n × n` — which makes 100 000 rows with
-/// `m = 256` a matter of seconds, where [`Gpdc`] refuses more than 4000 rows. With
+/// `m = 256` a matter of seconds, where the exact [`Gpdc`] kernel's `O(n²)` memory and
+/// `O(n³)` work are quoted and refused when the caller's budget does not hold them. With
 /// `inducing_points >= n` every row is an inducing point.
 ///
 /// The rank limits what Z structure is removed, not which null is used: a Z effect that the
@@ -1871,7 +2029,7 @@ mod tests {
     }
 
     #[test]
-    fn gpdc_refuses_constant_series_and_oversized_inputs() {
+    fn gpdc_refuses_constant_series_and_budgets_the_conditional_kernel() {
         let n = 30usize;
         let x = lcg_noise(n, 9);
         let y = vec![3.0; n];
@@ -1890,9 +2048,9 @@ mod tests {
         assert!(matches!(err, StatsError::Unsupported { .. }), "{err:?}");
 
         // An unconditional test never builds an n x n matrix (distance correlation is
-        // O(n log n) in time and O(n) in memory), so it runs above the limit; a conditional
-        // one factorizes a dense kernel and is refused.
-        let big = GPDC_ROW_LIMIT + 1;
+        // O(n log n) in time and O(n) in memory), so it runs at any size; a conditional one
+        // factorizes a dense kernel and is quoted against the caller's budget.
+        let big = 4_001usize;
         let bx = lcg_noise(big, 5);
         let by = lcg_noise(big, 6);
         let bz = lcg_noise(big, 7);
@@ -1919,8 +2077,23 @@ mod tests {
         assert!((done.results[0].statistic - dcor).abs() < 1e-12);
         let conditional = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 1 }];
         let big_req = CiBatchRequest { queries: &conditional, z_flat: &[2], ..big_req };
-        let err = Gpdc::new().test_batch_adhoc(&big_req, &mut ws, &ctx).unwrap_err();
-        assert!(matches!(err, StatsError::Unsupported { .. }), "{err:?}");
+        // The dense kernel and its factor (2 n^2 * 8 bytes) plus the standardized Z block do
+        // not fit 64 MiB: the quote is refused with its numbers before any kernel exists.
+        let mut limited = ExecutionContext::for_tests(3);
+        limited.set_memory_limit(Some(64 << 20));
+        let rows = big as u64;
+        let needed = 2 * rows * rows * 8 + rows * 8;
+        match Gpdc::new().test_batch_adhoc(&big_req, &mut ws, &limited) {
+            Err(StatsError::ResourceLimit { required_bytes, limit_bytes, message }) => {
+                assert_eq!((required_bytes, limit_bytes), (needed, 64 << 20));
+                assert!(message.contains("gpdc_nystrom"), "{message}");
+            }
+            other => panic!("expected the kernel quote to be refused, got {other:?}"),
+        }
+        assert_eq!(limited.admission().available().bytes(), 64 << 20);
+        let quote = Gpdc::new().quote(&big_req, &ExecutionContext::for_tests(3)).unwrap().unwrap();
+        assert_eq!((quote.rows, quote.factorizations, quote.cache_slots), (rows, 1, 2));
+        assert_eq!(quote.work, rows * rows * rows + rows * rows);
     }
 
     /// The residual is `y_c - K a` with `(K + lambda I) a = y_c` solved by an independent dense
@@ -2054,7 +2227,6 @@ mod tests {
     #[test]
     fn gpdc_nystrom_residuals_match_a_dense_reference_beyond_the_exact_limit() {
         let n = 6_000usize;
-        assert!(n > GPDC_ROW_LIMIT);
         let (data, _, _) = nystrom_sample(n, 21, 0.0);
         let cols: Vec<&[f64]> = data.iter().map(Vec::as_slice).collect();
         let gp = GpdcNystrom { inducing_points: 24, ..GpdcNystrom::new() };
@@ -2215,7 +2387,6 @@ mod tests {
     #[test]
     fn exact_conditional_gpdc_retained_at_small_sizes() {
         let n = 2_000usize;
-        assert!(n <= GPDC_ROW_LIMIT);
         let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 2 }];
         let z_flat = [2usize, 3];
         let significance = SignificanceMethod::BlockShuffle { replicates: 49, block_size: 1 };
@@ -2254,8 +2425,9 @@ mod tests {
                 GpdcNystrom::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap().results[0];
             assert_ne!(low_rank.statistic.to_bits(), got.statistic.to_bits(), "{label}");
         }
-        // The exact test's boundary is unchanged and names the low-rank construction.
-        let (data, _, _) = nystrom_sample(GPDC_ROW_LIMIT + 1, 6_075_547, 0.0);
+        // Under a budget that cannot hold the kernel the exact test is refused, and the
+        // refusal names the low-rank construction without switching to it.
+        let (data, _, _) = nystrom_sample(4_001, 6_075_547, 0.0);
         let cols: Vec<&[f64]> = data.iter().map(Vec::as_slice).collect();
         let req = CiBatchRequest {
             columns: &cols,
@@ -2264,10 +2436,128 @@ mod tests {
             significance,
             confidence: ConfidenceMethod::None,
         };
-        let refused = Gpdc::new()
-            .test_batch_adhoc(&req, &mut CiWorkspace::default(), &ExecutionContext::for_tests(12))
-            .unwrap_err();
+        let mut tight = ExecutionContext::for_tests(12);
+        tight.set_memory_limit(Some(64 << 20));
+        let refused =
+            Gpdc::new().test_batch_adhoc(&req, &mut CiWorkspace::default(), &tight).unwrap_err();
+        assert!(matches!(refused, StatsError::ResourceLimit { .. }), "{refused}");
         assert!(refused.to_string().contains("gpdc_nystrom"), "{refused}");
+    }
+
+    /// Five conditional queries over three conditioning sets, in an order that forces a rebuild
+    /// when only one factor is kept: A, B, A, C, A.
+    fn cache_sequence_request<'a>(
+        cols: &'a [&'a [f64]],
+        queries: &'a [CiQuery],
+        z_flat: &'a [usize],
+    ) -> CiBatchRequest<'a> {
+        CiBatchRequest {
+            columns: cols,
+            queries,
+            z_flat,
+            significance: SignificanceMethod::BlockShuffle { replicates: 9, block_size: 1 },
+            confidence: ConfidenceMethod::None,
+        }
+    }
+
+    #[test]
+    fn exact_gpdc_quote_matches_observed_factorizations_and_follows_the_callers_memory() {
+        use crate::test_util::centered_uniform as lcg_noise;
+        let n = 40usize;
+        let data: Vec<Vec<f64>> = (0..5).map(|seed| lcg_noise(n, 70 + seed)).collect();
+        let cols: Vec<&[f64]> = data.iter().map(Vec::as_slice).collect();
+        let z_flat = [2usize, 3, 4];
+        let queries: Vec<CiQuery> = [2usize, 3, 2, 4, 2]
+            .iter()
+            .map(|&z| CiQuery { x: 0, y: 1, z_start: z - 2, z_len: 1 })
+            .collect();
+        let request = cache_sequence_request(&cols, &queries, &z_flat);
+
+        let per_factor = GpdcKernel::new(n as u64, 1).estimate().unwrap();
+        let factor_bytes = (n * n * 8) as u64;
+        let run = |ctx: &ExecutionContext| {
+            let before = GPDC_FACTORIZATIONS.with(std::cell::Cell::get);
+            let out = Gpdc::new().test_batch_adhoc(&request, &mut CiWorkspace::default(), ctx);
+            (out, GPDC_FACTORIZATIONS.with(std::cell::Cell::get) - before)
+        };
+
+        // Room for two factors beside the working kernel: A, B, A hit, C evicts A, A rebuilt.
+        let mut wide = ExecutionContext::for_tests(9);
+        wide.set_memory_limit(Some(per_factor.memory_bytes() + factor_bytes));
+        let wide_quote = Gpdc::new().quote(&request, &wide).unwrap().unwrap();
+        assert_eq!((wide_quote.cache_slots, wide_quote.factorizations), (2, 4));
+        assert_eq!(wide_quote.peak_bytes, per_factor.memory_bytes() + factor_bytes);
+        assert_eq!(wide_quote.work, 4 * per_factor.work());
+        let (wide_out, wide_observed) = run(&wide);
+        let wide_out = wide_out.unwrap();
+        assert_eq!(wide_observed, wide_quote.factorizations);
+        assert_eq!(wide.admission().available().bytes(), per_factor.memory_bytes() + factor_bytes);
+
+        // One factor's worth: the cache narrows to one slot, every change of set rebuilds.
+        let mut narrow = ExecutionContext::for_tests(9);
+        narrow.set_memory_limit(Some(per_factor.memory_bytes()));
+        let narrow_quote = Gpdc::new().quote(&request, &narrow).unwrap().unwrap();
+        assert_eq!((narrow_quote.cache_slots, narrow_quote.factorizations), (1, 5));
+        assert_eq!(narrow_quote.peak_bytes, per_factor.memory_bytes());
+        let (narrow_out, narrow_observed) = run(&narrow);
+        let narrow_out = narrow_out.unwrap();
+        assert_eq!(narrow_observed, 5);
+        assert_eq!(narrow.admission().available().bytes(), per_factor.memory_bytes());
+        // The cache width changes the work, never the answer.
+        for (a, b) in wide_out.results.iter().zip(&narrow_out.results) {
+            assert_eq!(a.statistic.to_bits(), b.statistic.to_bits());
+            assert_eq!(a.p_value.to_bits(), b.p_value.to_bits());
+        }
+
+        // Below one factorization the batch is refused with nothing built or leased.
+        let mut starved = ExecutionContext::for_tests(9);
+        starved.set_memory_limit(Some(per_factor.memory_bytes() - 1));
+        let (starved_out, starved_observed) = run(&starved);
+        assert!(matches!(
+            starved_out,
+            Err(StatsError::ResourceLimit { required_bytes, .. })
+                if required_bytes == per_factor.memory_bytes()
+        ));
+        assert_eq!(starved_observed, 0);
+        assert_eq!(starved.admission().available().bytes(), per_factor.memory_bytes() - 1);
+    }
+
+    #[test]
+    fn exact_gpdc_work_limit_refuses_before_any_factorization() {
+        use crate::test_util::centered_uniform as lcg_noise;
+        let n = 30usize;
+        let data: Vec<Vec<f64>> = (0..3).map(|seed| lcg_noise(n, 80 + seed)).collect();
+        let cols: Vec<&[f64]> = data.iter().map(Vec::as_slice).collect();
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 1 }];
+        let request = cache_sequence_request(&cols, &queries, &[2]);
+        let ctx = ExecutionContext::for_tests(4);
+        let work = GpdcKernel::new(n as u64, 1).estimate().unwrap().work();
+        assert_eq!(Gpdc::new().quote(&request, &ctx).unwrap().unwrap().work, work);
+
+        let before = GPDC_FACTORIZATIONS.with(std::cell::Cell::get);
+        let refused = Gpdc::new()
+            .with_work_limit(work - 1)
+            .test_batch_adhoc(&request, &mut CiWorkspace::default(), &ctx)
+            .unwrap_err();
+        assert_eq!(
+            refused,
+            StatsError::WorkLimit {
+                message: "GPDC exact kernel factorization",
+                required_work: work,
+                limit_work: work - 1,
+            }
+        );
+        assert_eq!(GPDC_FACTORIZATIONS.with(std::cell::Cell::get), before);
+        // A limit equal to the quote is admitted and the factorization happens once.
+        Gpdc::new()
+            .with_work_limit(work)
+            .test_batch_adhoc(&request, &mut CiWorkspace::default(), &ctx)
+            .unwrap();
+        assert_eq!(GPDC_FACTORIZATIONS.with(std::cell::Cell::get), before + 1);
+        // An unconditional batch has no kernel to quote.
+        let unconditional = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 }];
+        let free = cache_sequence_request(&cols, &unconditional, &[]);
+        assert_eq!(Gpdc::new().with_work_limit(0).quote(&free, &ctx).unwrap(), None);
     }
 
     #[test]

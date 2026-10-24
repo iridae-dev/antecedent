@@ -731,6 +731,29 @@ pub fn gaussian_local_quadratic_bias_corrected(
     bandwidth: f64,
     observation_weights: Option<&[f64]>,
 ) -> Result<LocalPolynomialBiasCorrected, StatsError> {
+    gaussian_local_quadratic_bias_corrected_influence(x, y, at, bandwidth, observation_weights)
+        .map(|(corrected, _)| corrected)
+}
+
+/// [`gaussian_local_quadratic_bias_corrected`] together with the per-row linearized
+/// influence of each corrected coordinate.
+///
+/// Row `i` of the returned vector holds `[ψ_level, ψ_slope, ψ_curvature]` in the
+/// units of the corrected coordinates, with the same pairing as the covariance
+/// (level and curvature from the quartic fit, slope from the cubic fit). The
+/// covariance of the corrected coordinates is `Σ_i ψ_i ψ_iᵀ`, so a smooth function
+/// `τ` of the coordinates has the row influence `∇τ · ψ_i`.
+///
+/// # Errors
+///
+/// As [`gaussian_local_quadratic_bias_corrected`].
+pub fn gaussian_local_quadratic_bias_corrected_influence(
+    x: &[f64],
+    y: &[f64],
+    at: f64,
+    bandwidth: f64,
+    observation_weights: Option<&[f64]>,
+) -> Result<(LocalPolynomialBiasCorrected, Vec<[f64; 3]>), StatsError> {
     if x.len() != y.len() || x.len() < 5 {
         return Err(StatsError::Shape {
             message: "local bias correction requires aligned x/y with n >= 5",
@@ -756,6 +779,7 @@ pub fn gaussian_local_quadratic_bias_corrected(
     let first_scale = 1.0 / bandwidth;
     let second_scale = 2.0 / (bandwidth * bandwidth);
     let mut covariance = [[0.0; 3]; 3];
+    let mut rows = Vec::with_capacity(cubic_influence.len());
     for (cubic_row, quartic_row) in cubic_influence.iter().zip(&quartic_influence) {
         let psi = [quartic_row[0], cubic_row[1] * first_scale, quartic_row[2] * second_scale];
         for a in 0..3 {
@@ -763,16 +787,20 @@ pub fn gaussian_local_quadratic_bias_corrected(
                 covariance[a][b] += psi[a] * psi[b];
             }
         }
+        rows.push(psi);
     }
-    Ok(LocalPolynomialBiasCorrected {
-        value: quartic[0],
-        first_derivative: cubic[1] * first_scale,
-        second_derivative: quartic[2] * second_scale,
-        robust_standard_error: quartic_se[0],
-        robust_first_derivative_standard_error: cubic_se[1] * first_scale,
-        robust_second_derivative_standard_error: quartic_se[2] * second_scale,
-        coefficient_covariance: covariance,
-    })
+    Ok((
+        LocalPolynomialBiasCorrected {
+            value: quartic[0],
+            first_derivative: cubic[1] * first_scale,
+            second_derivative: quartic[2] * second_scale,
+            robust_standard_error: quartic_se[0],
+            robust_first_derivative_standard_error: cubic_se[1] * first_scale,
+            robust_second_derivative_standard_error: quartic_se[2] * second_scale,
+            coefficient_covariance: covariance,
+        },
+        rows,
+    ))
 }
 
 /// Fitted `N`-coefficient local polynomial: point estimates, their sandwich

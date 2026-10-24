@@ -71,12 +71,20 @@ pub enum IdentifiedSetIntervalMethod {
     /// Not a Frequentist IM interval (the SDs are posterior SDs, and `c` is not a
     /// posterior probability).
     ProductPosteriorEnvelopeQuantile,
+    /// Frequentist Imbens–Manski interval whose per-completion SDs and set-width SD come from
+    /// the completions' joint row influence (scores on shared rows), so completions that
+    /// share rows need no resampling: `σ_g = sqrt(Σ φ_ig² / (n (n − 1)))` and the width SD is
+    /// the SD of the influence of `θ̂_u − θ̂_l`.
+    ImbensManskiInfluence,
 }
 
 impl IdentifiedSetIntervalMethod {
     /// Every construction, so serialisers can check they map each one.
-    pub const ALL: [Self; 2] =
-        [Self::ImbensManskiSharedBlock, Self::ProductPosteriorEnvelopeQuantile];
+    pub const ALL: [Self; 3] = [
+        Self::ImbensManskiSharedBlock,
+        Self::ProductPosteriorEnvelopeQuantile,
+        Self::ImbensManskiInfluence,
+    ];
 }
 
 /// Interval for the identified set of a class-aware scalar effect.
@@ -231,6 +239,58 @@ pub fn imbens_manski_shared_replicates(
     let lower = points.iter().zip(&sds).map(|(p, s)| p - c * s).fold(f64::INFINITY, f64::min);
     let upper = points.iter().zip(&sds).map(|(p, s)| p + c * s).fold(f64::NEG_INFINITY, f64::max);
     selection.finish(lower, upper, IdentifiedSetIntervalMethod::ImbensManskiSharedBlock)
+}
+
+/// Frequentist IM interval with per-completion endpoints from row influences.
+///
+/// `points[g]` are the completion point estimates and `scores[g]` completion `g`'s
+/// influence column on a shared row set (`φ_ig`, centred or not; the estimate is
+/// `θ̂_g + mean(φ_g)` to first order), the convention of `joint_influence_covariance`. A
+/// completion's SD is `sqrt(Σ (φ_ig − φ̄_g)² / (n (n − 1)))`; the SD of the set width is
+/// that of the influence difference of the highest and lowest completion. The interval is
+/// `[min_g (θ̂_g − c σ_g), max_g (θ̂_g + c σ_g)]` with the Imbens–Manski critical value
+/// `c`, the same construction as [`imbens_manski_shared_replicates`] with analytic SDs.
+/// `None` for fewer than two rows, mismatched columns, or a non-finite SD.
+#[must_use]
+pub fn imbens_manski_influence(
+    points: &[f64],
+    scores: &[&[f64]],
+    level: f64,
+) -> Option<IdentifiedSetInterval> {
+    if points.is_empty() || scores.len() != points.len() {
+        return None;
+    }
+    let rows = scores[0].len();
+    if rows < 2 || scores.iter().any(|column| column.len() != rows) {
+        return None;
+    }
+    let n = rows as f64;
+    let mean = |column: &[f64]| column.iter().sum::<f64>() / n;
+    let centered: Vec<Vec<f64>> = scores
+        .iter()
+        .map(|column| {
+            let center = mean(column);
+            column.iter().map(|value| value - center).collect()
+        })
+        .collect();
+    let sds: Vec<f64> = centered
+        .iter()
+        .map(|column| (column.iter().map(|v| v * v).sum::<f64>() / (n * (n - 1.0))).sqrt())
+        .collect();
+    let argmin = (0..points.len()).min_by(|&a, &b| points[a].total_cmp(&points[b]))?;
+    let argmax = (0..points.len()).max_by(|&a, &b| points[a].total_cmp(&points[b]))?;
+    let width_se = (centered[argmax]
+        .iter()
+        .zip(&centered[argmin])
+        .map(|(hi, lo)| (hi - lo) * (hi - lo))
+        .sum::<f64>()
+        / (n * (n - 1.0)))
+        .sqrt();
+    let selection = Selection::new(points, &sds, width_se, rows, level, rows)?;
+    let c = selection.critical_value;
+    let lower = points.iter().zip(&sds).map(|(p, s)| p - c * s).fold(f64::INFINITY, f64::min);
+    let upper = points.iter().zip(&sds).map(|(p, s)| p + c * s).fold(f64::NEG_INFINITY, f64::max);
+    selection.finish(lower, upper, IdentifiedSetIntervalMethod::ImbensManskiInfluence)
 }
 
 /// Bayesian analogue from per-completion posterior draws.

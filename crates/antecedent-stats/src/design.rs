@@ -313,6 +313,8 @@ impl CompiledDesign {
         };
         let ncols = 2 + covariates.len();
         let mut matrix = vec![0.0; nrows * ncols];
+        record_physical(PhysicalEvent::Allocation, 1);
+        record_physical(PhysicalEvent::AllocatedBytes, (nrows * ncols * 8) as u64);
         // col 0: intercept
         for r in 0..nrows {
             matrix[r] = 1.0;
@@ -331,6 +333,8 @@ impl CompiledDesign {
         // are copied into a Vec and then the retained Arc allocation above.
         record_physical(PhysicalEvent::Copy, 4);
         record_physical(PhysicalEvent::CopiedBytes, (nrows * (ncols + 3) * 8) as u64);
+        record_physical(PhysicalEvent::Allocation, 4);
+        record_physical(PhysicalEvent::AllocatedBytes, (nrows * (ncols + 3) * 8) as u64);
         Ok(Self {
             nrows,
             ncols,

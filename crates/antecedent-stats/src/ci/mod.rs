@@ -17,8 +17,8 @@ mod residualize;
 mod types;
 
 pub use advanced::{
-    GPDC_NYSTROM_MAX_INDUCING_POINTS, Gpdc, GpdcNystrom, KnnDependence, MixedKnnDependence,
-    OracleCi, SymbolicCmi,
+    GPDC_NYSTROM_MAX_INDUCING_POINTS, Gpdc, GpdcExactQuote, GpdcNystrom, KnnDependence,
+    MixedKnnDependence, OracleCi, SymbolicCmi,
 };
 pub use bayes::{BayesFactorCi, PosteriorDependenceCi, PosteriorPredictiveCi};
 pub use calibration::{CalibrationReport, calibrate_parcorr_like};

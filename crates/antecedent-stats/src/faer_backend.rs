@@ -2,6 +2,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::cell::Cell;
+
 use faer::diag::Diag;
 use faer::dyn_stack::{MemBuffer, MemStack, StackReq};
 use faer::linalg::qr::col_pivoting::factor::{
@@ -17,10 +19,104 @@ use crate::error::StatsError;
 use antecedent_core::execution::AdmissionLease;
 
 use crate::faer_scope::{FaerScope, FaerScopeError};
+use crate::layout_rules::{LayoutOp, LayoutRefusal, LayoutRequest, StorageLayout, select_layout};
 use crate::linalg::{DenseLinearAlgebra, FitDiagnostics, LeastSquaresFit, LeastSquaresWorkspace};
 
 mod resampling;
 pub use resampling::{ResampledLeastSquares, ResampledLeastSquaresWorkspace};
+
+/// Design copies and scratch the dense solver paths performed on this thread.
+///
+/// Counted where the work happens: a gather is the one pass that writes the equilibrated
+/// `nrows × ncols` factor from the caller's column-major design, a scratch allocation is a
+/// `faer` buffer that was actually created (a buffer that already fits is reused and not
+/// counted), and an in-place view is a factorization that read the caller's design without
+/// copying it. Read it through [`observe_solver_traffic`].
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct SolverTraffic {
+    /// Passes that copied a whole design.
+    pub design_gathers: u64,
+    /// Design cells those passes wrote.
+    pub gathered_cells: u64,
+    /// `faer` scratch buffers created.
+    pub scratch_allocations: u64,
+    /// Bytes of every scratch buffer created.
+    pub scratch_bytes_allocated: u64,
+    /// Largest single scratch buffer created while observing.
+    pub largest_scratch_bytes: u64,
+    /// Factorizations that read the caller's design in place.
+    pub in_place_views: u64,
+}
+
+thread_local! {
+    static TRAFFIC: Cell<SolverTraffic> = const {
+        Cell::new(SolverTraffic {
+            design_gathers: 0,
+            gathered_cells: 0,
+            scratch_allocations: 0,
+            scratch_bytes_allocated: 0,
+            largest_scratch_bytes: 0,
+            in_place_views: 0,
+        })
+    };
+}
+
+fn record_traffic(update: impl FnOnce(&mut SolverTraffic)) {
+    TRAFFIC.with(|cell| {
+        let mut traffic = cell.get();
+        update(&mut traffic);
+        cell.set(traffic);
+    });
+}
+
+/// Run `work` and report the design gathers, scratch allocations and in-place views the solver
+/// paths performed on this thread while it ran.
+///
+/// This counts what the backend executed, not what a caller declares. Nested observations
+/// each see the work inside them.
+pub fn observe_solver_traffic<R>(work: impl FnOnce() -> R) -> (R, SolverTraffic) {
+    let before = TRAFFIC.with(Cell::get);
+    TRAFFIC.with(|cell| cell.set(SolverTraffic { largest_scratch_bytes: 0, ..before }));
+    let result = work();
+    let after = TRAFFIC.with(Cell::get);
+    TRAFFIC.with(|cell| {
+        cell.set(SolverTraffic {
+            largest_scratch_bytes: before.largest_scratch_bytes.max(after.largest_scratch_bytes),
+            ..after
+        });
+    });
+    let observed = SolverTraffic {
+        design_gathers: after.design_gathers.saturating_sub(before.design_gathers),
+        gathered_cells: after.gathered_cells.saturating_sub(before.gathered_cells),
+        scratch_allocations: after.scratch_allocations.saturating_sub(before.scratch_allocations),
+        scratch_bytes_allocated: after
+            .scratch_bytes_allocated
+            .saturating_sub(before.scratch_bytes_allocated),
+        largest_scratch_bytes: after.largest_scratch_bytes,
+        in_place_views: after.in_place_views.saturating_sub(before.in_place_views),
+    };
+    (result, observed)
+}
+
+/// Size the residual and right-hand-side buffers a fit writes.
+///
+/// The `faer` paths never read `workspace.scratch`, so it is left alone rather than grown to
+/// a second design-sized buffer. A growth counts once, as [`LeastSquaresWorkspace::prepare`]
+/// counts it.
+fn prepare_workspace(workspace: &mut LeastSquaresWorkspace, nrows: usize, ncols: usize) {
+    let mut grew = false;
+    if workspace.rhs.len() < ncols {
+        workspace.rhs.resize(ncols, 0.0);
+        grew = true;
+    }
+    if workspace.residuals.len() < nrows {
+        workspace.residuals.resize(nrows, 0.0);
+        grew = true;
+    }
+    if grew {
+        workspace.grow_count = workspace.grow_count.saturating_add(1);
+    }
+}
 
 /// Default `faer` backend.
 #[derive(Clone, Copy, Debug, Default)]
@@ -39,7 +135,7 @@ impl DenseLinearAlgebra for FaerBackend {
             antecedent_core::execution_attempt::Operation::LeastSquaresSolve,
             || {
                 let (coefficients, rank, rcond) = solve_full_rank(x_colmajor, nrows, ncols, y)?;
-                workspace.prepare(nrows, ncols);
+                prepare_workspace(workspace, nrows, ncols);
                 let rss = write_residuals(
                     x_colmajor,
                     nrows,
@@ -49,6 +145,76 @@ impl DenseLinearAlgebra for FaerBackend {
                     &mut workspace.residuals,
                 );
 
+                crate::fit_counts::completed_solve();
+                Ok(LeastSquaresFit {
+                    coefficients,
+                    residuals: workspace.residuals[..nrows].to_vec(),
+                    rank,
+                    rss,
+                    diagnostics: FitDiagnostics::new(rank, rcond, "faer", workspace.grow_count),
+                })
+            },
+        )
+    }
+
+    fn row_scaled_least_squares(
+        &self,
+        x_colmajor: &[f64],
+        nrows: usize,
+        ncols: usize,
+        row_scale: &[f64],
+        y: &[f64],
+        workspace: &mut LeastSquaresWorkspace,
+    ) -> Result<LeastSquaresFit, StatsError> {
+        antecedent_core::execution_attempt::run_operation(
+            antecedent_core::execution_attempt::Operation::LeastSquaresSolve,
+            || {
+                checked_design_cells(x_colmajor, nrows, ncols, y)?;
+                if row_scale.len() != nrows {
+                    return Err(StatsError::Shape { message: "row scale length != nrows" });
+                }
+                if nrows < ncols {
+                    return Err(StatsError::RankDeficient { rank: nrows, ncols });
+                }
+                // Column scales of the row-scaled design, without building it.
+                let mut scales = vec![0.0; ncols];
+                for (column, scale) in scales.iter_mut().enumerate() {
+                    let mut largest = 0.0_f64;
+                    for (value, row_scale) in
+                        x_colmajor[column * nrows..(column + 1) * nrows].iter().zip(row_scale)
+                    {
+                        largest = largest.max((value * row_scale).abs());
+                    }
+                    *scale = if largest == 0.0 { 1.0 } else { largest };
+                }
+                let scope = serial_scope();
+                let mut scratch = FactorScratch::new();
+                let factored = factor_equilibrated_rows(
+                    x_colmajor,
+                    nrows,
+                    ncols,
+                    Some(row_scale),
+                    &scales,
+                    scope,
+                    &mut scratch,
+                )?;
+                let (rank, rcond) = factored.rank_and_rcond(nrows);
+                if rank < ncols {
+                    return Err(StatsError::RankDeficient { rank, ncols });
+                }
+                let coefficients = solve_equilibrated(&factored, y, &scales, scope, &mut scratch)?;
+                drop(factored);
+                prepare_workspace(workspace, nrows, ncols);
+                let residuals = &mut workspace.residuals[..nrows];
+                for row in 0..nrows {
+                    let mut predicted = 0.0;
+                    for column in 0..ncols {
+                        predicted += (x_colmajor[column * nrows + row] * row_scale[row])
+                            * coefficients[column];
+                    }
+                    residuals[row] = y[row] - predicted;
+                }
+                let rss = residuals.iter().map(|residual| residual * residual).sum();
                 crate::fit_counts::completed_solve();
                 Ok(LeastSquaresFit {
                     coefficients,
@@ -84,6 +250,151 @@ impl FaerBackend {
             antecedent_core::execution_attempt::Operation::LeastSquaresSolve,
             || {
                 let (coefficients, _, _) = solve_full_rank(x_colmajor, nrows, ncols, y)?;
+                crate::fit_counts::completed_solve();
+                Ok(coefficients)
+            },
+        )
+    }
+
+    /// Least squares by column-pivoted QR, falling back to the minimum-norm solution when the
+    /// design is rank deficient or has fewer rows than columns.
+    ///
+    /// One scratch buffer serves the QR, the triangular solve and the fallback SVD, and the
+    /// fallback reads the caller's design in place: the only design copy is the equilibrated
+    /// factor the QR needs, and it is dropped before the SVD runs. A design with fewer rows
+    /// than columns is never gathered at all. Calling [`DenseLinearAlgebra::least_squares`]
+    /// and, on its rank refusal, [`Self::min_norm_least_squares`] pays a second scratch buffer.
+    /// The fit's diagnostics name the path that produced it (`"faer"` or `"faer-svd"`).
+    ///
+    /// # Errors
+    ///
+    /// Shape mismatch, or an SVD that fails to converge.
+    pub fn least_squares_or_min_norm(
+        &self,
+        x_colmajor: &[f64],
+        nrows: usize,
+        ncols: usize,
+        y: &[f64],
+        workspace: &mut LeastSquaresWorkspace,
+    ) -> Result<LeastSquaresFit, StatsError> {
+        antecedent_core::execution_attempt::run_operation(
+            antecedent_core::execution_attempt::Operation::LeastSquaresSolve,
+            || {
+                checked_design_cells(x_colmajor, nrows, ncols, y)?;
+                let scope = serial_scope();
+                let mut scratch = FactorScratch::new();
+                if nrows >= ncols {
+                    let mut scales = Vec::new();
+                    write_column_scales(x_colmajor, nrows, ncols, &mut scales);
+                    let factored = factor_equilibrated(
+                        x_colmajor,
+                        nrows,
+                        ncols,
+                        &scales,
+                        scope,
+                        &mut scratch,
+                    )?;
+                    let (rank, rcond) = factored.rank_and_rcond(nrows);
+                    if rank == ncols {
+                        let coefficients =
+                            solve_equilibrated(&factored, y, &scales, scope, &mut scratch)?;
+                        drop(factored);
+                        prepare_workspace(workspace, nrows, ncols);
+                        let rss = write_residuals(
+                            x_colmajor,
+                            nrows,
+                            ncols,
+                            y,
+                            &coefficients,
+                            &mut workspace.residuals,
+                        );
+                        crate::fit_counts::completed_solve();
+                        return Ok(LeastSquaresFit {
+                            coefficients,
+                            residuals: workspace.residuals[..nrows].to_vec(),
+                            rank,
+                            rss,
+                            diagnostics: FitDiagnostics::new(
+                                rank,
+                                rcond,
+                                "faer",
+                                workspace.grow_count,
+                            ),
+                        });
+                    }
+                }
+                let fit = min_norm_on_column_major(
+                    x_colmajor,
+                    nrows,
+                    ncols,
+                    y,
+                    scope,
+                    &mut scratch,
+                    workspace.grow_count,
+                )?;
+                crate::fit_counts::completed_solve();
+                Ok(fit)
+            },
+        )
+    }
+
+    /// Full-rank least-squares coefficients with the worker count and scratch both taken from
+    /// the caller's budget.
+    ///
+    /// The worker count is the measured choice for this shape ([`select_layout`]) capped at
+    /// `available_workers`. Scratch is sized from `faer`'s own requirement for that choice and
+    /// drawn from `scratch`, the caller's lease, before any buffer is allocated: a requirement
+    /// the lease cannot hold is refused with nothing gathered and nothing allocated.
+    ///
+    /// # Errors
+    ///
+    /// Shape mismatch, a rank below the column count, no workers, or
+    /// [`StatsError::ResourceLimit`] when the scratch does not fit the lease.
+    pub fn least_squares_coefficients_leased(
+        &self,
+        x_colmajor: &[f64],
+        nrows: usize,
+        ncols: usize,
+        y: &[f64],
+        available_workers: u32,
+        scratch: &AdmissionLease,
+    ) -> Result<Vec<f64>, StatsError> {
+        antecedent_core::execution_attempt::run_operation(
+            antecedent_core::execution_attempt::Operation::LeastSquaresSolve,
+            || {
+                checked_design_cells(x_colmajor, nrows, ncols, y)?;
+                if nrows < ncols {
+                    return Err(StatsError::RankDeficient { rank: nrows, ncols });
+                }
+                let budget = scratch.remainder().bytes();
+                let choice = select_layout(&LayoutRequest {
+                    op: LayoutOp::ColumnPivotedQr,
+                    storage: StorageLayout::Dense,
+                    rows: nrows,
+                    cols: ncols,
+                    available_workers,
+                    scratch_budget_bytes: budget,
+                })
+                .map_err(|refusal| match refusal {
+                    LayoutRefusal::ScratchOverBudget { required_bytes, budget_bytes } => {
+                        StatsError::ResourceLimit {
+                            message: "column-pivoted QR scratch",
+                            required_bytes,
+                            limit_bytes: budget_bytes,
+                        }
+                    }
+                    LayoutRefusal::NoWorkers => {
+                        StatsError::Shape { message: "least squares needs at least one worker" }
+                    }
+                    _ => StatsError::Shape { message: "least squares needs a non-empty design" },
+                })?;
+                let scope = FaerScope::try_new(choice.workers).map_err(backend_error)?;
+                let held = scratch
+                    .acquire_child(0, budget)
+                    .map_err(|error| StatsError::Backend(error.to_string()))?;
+                let mut factor_scratch = FactorScratch::under(held);
+                let (coefficients, _, _) =
+                    solve_full_rank_in(x_colmajor, nrows, ncols, y, scope, &mut factor_scratch)?;
                 crate::fit_counts::completed_solve();
                 Ok(coefficients)
             },
@@ -135,6 +446,19 @@ fn solve_full_rank(
     ncols: usize,
     y: &[f64],
 ) -> Result<(Vec<f64>, usize, Option<f64>), StatsError> {
+    let mut scratch = FactorScratch::new();
+    solve_full_rank_in(x, nrows, ncols, y, serial_scope(), &mut scratch)
+}
+
+/// [`solve_full_rank`] under the caller's scope and scratch.
+fn solve_full_rank_in(
+    x: &[f64],
+    nrows: usize,
+    ncols: usize,
+    y: &[f64],
+    scope: FaerScope,
+    scratch: &mut FactorScratch,
+) -> Result<(Vec<f64>, usize, Option<f64>), StatsError> {
     if y.len() != nrows {
         return Err(StatsError::Shape { message: "y length != nrows" });
     }
@@ -146,15 +470,32 @@ fn solve_full_rank(
     }
     let mut scales = Vec::new();
     write_column_scales(x, nrows, ncols, &mut scales);
-    let scope = serial_scope();
-    let mut scratch = FactorScratch::new();
-    let factored = factor_equilibrated(x, nrows, ncols, &scales, scope, &mut scratch)?;
+    let factored = factor_equilibrated(x, nrows, ncols, &scales, scope, scratch)?;
     let (rank, rcond) = factored.rank_and_rcond(nrows);
     if rank < ncols {
         return Err(StatsError::RankDeficient { rank, ncols });
     }
-    let coefficients = solve_equilibrated(&factored, y, &scales, scope, &mut scratch)?;
+    let coefficients = solve_equilibrated(&factored, y, &scales, scope, scratch)?;
     Ok((coefficients, rank, rcond))
+}
+
+/// Cells of a `nrows × ncols` design after the shape checks every solve makes.
+fn checked_design_cells(
+    x: &[f64],
+    nrows: usize,
+    ncols: usize,
+    y: &[f64],
+) -> Result<usize, StatsError> {
+    if y.len() != nrows {
+        return Err(StatsError::Shape { message: "y length != nrows" });
+    }
+    let Some(cells) = nrows.checked_mul(ncols) else {
+        return Err(StatsError::Shape { message: "X buffer too short" });
+    };
+    if x.len() < cells {
+        return Err(StatsError::Shape { message: "X buffer too short" });
+    }
+    Ok(cells)
 }
 
 /// Column-pivoted QR kept with the design that produced it.
@@ -215,7 +556,6 @@ impl FactorScratch {
     }
 
     /// Scratch paid by `root` instead of a detached pool.
-    #[cfg(test)]
     #[must_use]
     pub(crate) const fn under(root: AdmissionLease) -> Self {
         Self { buffer: None, root: Some(root), child: None }
@@ -267,6 +607,11 @@ impl FactorScratch {
         };
         self.buffer = Some(MemBuffer::new(required));
         self.child = Some(child);
+        record_traffic(|traffic| {
+            traffic.scratch_allocations = traffic.scratch_allocations.saturating_add(1);
+            traffic.scratch_bytes_allocated = traffic.scratch_bytes_allocated.saturating_add(bytes);
+            traffic.largest_scratch_bytes = traffic.largest_scratch_bytes.max(bytes);
+        });
         Ok(())
     }
 
@@ -311,8 +656,35 @@ pub(crate) fn factor_equilibrated(
     scope: FaerScope,
     scratch: &mut FactorScratch,
 ) -> Result<ScopedQr, StatsError> {
-    let matrix = Mat::<f64>::from_fn(nrows, ncols, |row, column| {
-        design[column * nrows + row] / scales[column]
+    factor_equilibrated_rows(design, nrows, ncols, None, scales, scope, scratch)
+}
+
+/// [`factor_equilibrated`] with an optional per-row scale folded into the one gather.
+///
+/// Entry `(row, column)` of the factor is `design · row_scale[row] / scales[column]`, with the
+/// product rounded before the division exactly as a materialized scaled design would be, so
+/// the scaled design never exists as a second buffer.
+pub(crate) fn factor_equilibrated_rows(
+    design: &[f64],
+    nrows: usize,
+    ncols: usize,
+    row_scale: Option<&[f64]>,
+    scales: &[f64],
+    scope: FaerScope,
+    scratch: &mut FactorScratch,
+) -> Result<ScopedQr, StatsError> {
+    let matrix = match row_scale {
+        None => Mat::<f64>::from_fn(nrows, ncols, |row, column| {
+            design[column * nrows + row] / scales[column]
+        }),
+        Some(rows) => Mat::<f64>::from_fn(nrows, ncols, |row, column| {
+            (design[column * nrows + row] * rows[row]) / scales[column]
+        }),
+    };
+    record_traffic(|traffic| {
+        traffic.design_gathers = traffic.design_gathers.saturating_add(1);
+        traffic.gathered_cells =
+            traffic.gathered_cells.saturating_add(u64::try_from(nrows * ncols).unwrap_or(u64::MAX));
     });
     column_pivoted_qr(matrix, scope, scratch)
 }
@@ -377,6 +749,7 @@ pub(crate) fn min_norm_on_column_major(
         return Err(StatsError::Shape { message: "X buffer too short" });
     }
     let view = MatRef::from_column_major_slice(&design[..cells], nrows, ncols);
+    record_traffic(|traffic| traffic.in_place_views = traffic.in_place_views.saturating_add(1));
     let svd = thin_svd_in_scope(view, scope, scratch).map_err(|_| {
         StatsError::Backend("minimum-norm least squares: SVD did not converge".into())
     })?;
@@ -688,6 +1061,202 @@ mod tests {
         for (a, b) in qr.coefficients.iter().zip(&mn.coefficients) {
             assert!((a - b).abs() < 1e-10, "{a} vs {b}");
         }
+    }
+
+    fn smooth_design(n: usize, p: usize) -> (Vec<f64>, Vec<f64>) {
+        let mut x = vec![0.0; n * p];
+        let mut y = vec![0.0; n];
+        for row in 0..n {
+            x[row] = 1.0;
+            y[row] = 0.5;
+            for column in 1..p {
+                let value = ((row as f64 + 1.0) * (column as f64 + 0.7) * 0.31).sin();
+                x[column * n + row] = value;
+                y[row] += value * column as f64 * 0.1;
+            }
+        }
+        (x, y)
+    }
+
+    #[test]
+    fn full_rank_fit_gathers_the_design_once_and_reuses_one_scratch_buffer() {
+        let (n, p) = (200usize, 6usize);
+        let (x, y) = smooth_design(n, p);
+        let (fit, traffic) = observe_solver_traffic(|| {
+            FaerBackend
+                .least_squares_or_min_norm(&x, n, p, &y, &mut LeastSquaresWorkspace::default())
+                .unwrap()
+        });
+        assert_eq!(fit.diagnostics.backend, "faer");
+        assert_eq!((traffic.design_gathers, traffic.gathered_cells), (1, (n * p) as u64));
+        // QR and the triangular solve share the buffer the QR sized for both.
+        assert_eq!(traffic.scratch_allocations, 1);
+        assert_eq!(traffic.in_place_views, 0);
+        let plain =
+            FaerBackend.least_squares(&x, n, p, &y, &mut LeastSquaresWorkspace::default()).unwrap();
+        assert_eq!(fit.coefficients, plain.coefficients);
+        // The fit does not size a design-sized workspace buffer it never reads.
+        let mut workspace = LeastSquaresWorkspace::default();
+        FaerBackend.least_squares(&x, n, p, &y, &mut workspace).unwrap();
+        assert!(workspace.scratch.is_empty());
+        assert!(workspace.residuals.len() >= n && workspace.rhs.len() >= p);
+    }
+
+    #[test]
+    fn rank_deficient_fallback_reads_the_design_in_place_after_one_gather() {
+        let (n, p) = (200usize, 6usize);
+        let (mut x, y) = smooth_design(n, p);
+        for row in 0..n {
+            x[5 * n + row] = 2.0 * x[2 * n + row];
+        }
+        let ((fallback, shared), shared_traffic) = observe_solver_traffic(|| {
+            let fit = FaerBackend
+                .least_squares_or_min_norm(&x, n, p, &y, &mut LeastSquaresWorkspace::default())
+                .unwrap();
+            (fit.clone(), fit)
+        });
+        assert_eq!(shared.diagnostics.backend, "faer-svd");
+        assert_eq!(shared.rank, p - 1);
+        assert_eq!(shared_traffic.design_gathers, 1);
+        assert_eq!(shared_traffic.in_place_views, 1);
+        assert!(shared_traffic.scratch_allocations <= 2);
+        let ((), separate) = observe_solver_traffic(|| {
+            assert!(matches!(
+                FaerBackend.least_squares(&x, n, p, &y, &mut LeastSquaresWorkspace::default()),
+                Err(StatsError::RankDeficient { .. })
+            ));
+            FaerBackend.min_norm_least_squares(&x, n, p, &y).unwrap();
+        });
+        assert_eq!(separate.design_gathers, 1);
+        assert!(shared_traffic.scratch_allocations <= separate.scratch_allocations);
+        assert!(shared_traffic.scratch_bytes_allocated <= separate.scratch_bytes_allocated);
+        let direct = FaerBackend.min_norm_least_squares(&x, n, p, &y).unwrap();
+        assert_eq!(fallback.coefficients, direct.coefficients);
+    }
+
+    #[test]
+    fn wide_design_goes_to_the_svd_without_any_design_gather() {
+        let x = [1.0, 0.0, 0.0, 1.0, 1.0, 1.0];
+        let y = [1.0, 1.0];
+        let (fit, traffic) = observe_solver_traffic(|| {
+            FaerBackend
+                .least_squares_or_min_norm(&x, 2, 3, &y, &mut LeastSquaresWorkspace::default())
+                .unwrap()
+        });
+        assert_eq!(fit.diagnostics.backend, "faer-svd");
+        assert_eq!((traffic.design_gathers, traffic.gathered_cells), (0, 0));
+        assert_eq!(traffic.in_place_views, 1);
+        assert_eq!(traffic.scratch_allocations, 1);
+    }
+
+    #[test]
+    fn observation_nests_and_leaves_outer_totals_intact() {
+        let (n, p) = (64usize, 3usize);
+        let (x, y) = smooth_design(n, p);
+        let ((), outer) = observe_solver_traffic(|| {
+            FaerBackend.least_squares_coefficients(&x, n, p, &y).unwrap();
+            let ((), inner) = observe_solver_traffic(|| {
+                FaerBackend.least_squares_coefficients(&x, n, p, &y).unwrap();
+            });
+            assert_eq!(inner.design_gathers, 1);
+            FaerBackend.least_squares_coefficients(&x, n, p, &y).unwrap();
+        });
+        assert_eq!(outer.design_gathers, 3);
+        assert!(outer.largest_scratch_bytes > 0);
+        assert!(outer.largest_scratch_bytes <= outer.scratch_bytes_allocated);
+    }
+
+    #[test]
+    fn row_scaled_solve_equals_the_materialized_scaled_design_bit_for_bit() {
+        let (n, p) = (150usize, 5usize);
+        let (x, y) = smooth_design(n, p);
+        let root: Vec<f64> = (0..n).map(|row| 0.5 + (row % 7) as f64 * 0.25).collect();
+        let y_w: Vec<f64> = y.iter().zip(&root).map(|(v, s)| v * s).collect();
+        let mut x_w = x.clone();
+        for column in 0..p {
+            for row in 0..n {
+                x_w[column * n + row] = x[column * n + row] * root[row];
+            }
+        }
+        let direct = FaerBackend
+            .least_squares(&x_w, n, p, &y_w, &mut LeastSquaresWorkspace::default())
+            .unwrap();
+        let (folded, traffic) = observe_solver_traffic(|| {
+            FaerBackend
+                .row_scaled_least_squares(
+                    &x,
+                    n,
+                    p,
+                    &root,
+                    &y_w,
+                    &mut LeastSquaresWorkspace::default(),
+                )
+                .unwrap()
+        });
+        assert_eq!(traffic.design_gathers, 1);
+        assert_eq!(folded.coefficients, direct.coefficients);
+        assert_eq!(folded.residuals, direct.residuals);
+        assert_eq!(folded.rss.to_bits(), direct.rss.to_bits());
+        assert_eq!(folded.rank, direct.rank);
+        let mut ws = LeastSquaresWorkspace::default();
+        assert!(matches!(
+            FaerBackend.row_scaled_least_squares(&x, n, p, &root[..n - 1], &y_w, &mut ws),
+            Err(StatsError::Shape { .. })
+        ));
+        let mut duplicate = x.clone();
+        for row in 0..n {
+            duplicate[4 * n + row] = 3.0 * duplicate[n + row];
+        }
+        assert!(matches!(
+            FaerBackend.row_scaled_least_squares(&duplicate, n, p, &root, &y_w, &mut ws),
+            Err(StatsError::RankDeficient { .. })
+        ));
+    }
+
+    fn pool_lease(bytes: u64) -> AdmissionLease {
+        let pool = antecedent_core::execution::AdmissionPool::fixed(1, bytes);
+        antecedent_core::ExecutionContext::for_tests(1)
+            .with_admission(pool)
+            .acquire_admission(0, bytes)
+            .expect("the pool funds the lease")
+    }
+
+    #[test]
+    fn leased_solve_draws_scratch_from_the_callers_lease_and_refuses_before_gathering() {
+        let (n, p) = (96usize, 5usize);
+        let (x, y) = smooth_design(n, p);
+        let expected = FaerBackend.least_squares_coefficients(&x, n, p, &y).unwrap();
+        let lease = pool_lease(1 << 24);
+        let (coefficients, traffic) = observe_solver_traffic(|| {
+            FaerBackend.least_squares_coefficients_leased(&x, n, p, &y, 4, &lease).unwrap()
+        });
+        for (a, b) in coefficients.iter().zip(&expected) {
+            assert!((a - b).abs() < 1e-10, "{a} vs {b}");
+        }
+        assert_eq!(traffic.design_gathers, 1);
+        assert!(traffic.largest_scratch_bytes > 0);
+        assert!(traffic.largest_scratch_bytes <= 1 << 24);
+        // The lease is whole again once the solve returns.
+        assert_eq!(lease.remainder().bytes(), 1 << 24);
+
+        let tight = pool_lease(8);
+        let (refused, traffic) = observe_solver_traffic(|| {
+            FaerBackend.least_squares_coefficients_leased(&x, n, p, &y, 4, &tight)
+        });
+        assert!(matches!(
+            refused,
+            Err(StatsError::ResourceLimit {
+                message: "column-pivoted QR scratch",
+                limit_bytes: 8,
+                ..
+            })
+        ));
+        assert_eq!(traffic, SolverTraffic::default());
+        assert_eq!(tight.remainder().bytes(), 8);
+        assert!(matches!(
+            FaerBackend.least_squares_coefficients_leased(&x, n, p, &y, 0, &lease),
+            Err(StatsError::Shape { .. })
+        ));
     }
 
     #[test]

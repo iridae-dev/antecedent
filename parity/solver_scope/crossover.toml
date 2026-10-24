@@ -3,7 +3,7 @@
 # Parallel is available_parallelism on this host (10). This is not a promotion threshold.
 
 schema = 1
-item = "N04"
+parallel_workers = 10
 host = "Apple M1 Max, arm64, 10 hardware threads"
 profile = "release"
 repetitions = 5

@@ -70,6 +70,20 @@ pub enum StatsError {
         /// The hard limit in force.
         limit_bytes: u64,
     },
+    /// A planned exact computation needs more work than the caller declared it may do. The
+    /// quote is computed before the computation starts; nothing was allocated or run.
+    #[error(
+        "work limit: {message} needs {required_work} operations, limit {limit_work}; next \
+         attempt: raise the work limit or request an approximation mode explicitly"
+    )]
+    WorkLimit {
+        /// What was being planned.
+        message: &'static str,
+        /// Operations the exact computation needs.
+        required_work: u64,
+        /// The caller's declared ceiling.
+        limit_work: u64,
+    },
     /// A GLM fit an estimation path refuses. Renders exactly as the [`Self::Backend`] it
     /// replaces (same text), and also carries what the fit measured, so a caller reads the
     /// kind and the numbers instead of parsing the message. The margin is the float's bit

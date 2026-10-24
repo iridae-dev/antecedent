@@ -30,7 +30,7 @@ pub fn fit_wls(
     if x_colmajor.len() < nrows.saturating_mul(ncols) {
         return Err(StatsError::Shape { message: "X buffer too short" });
     }
-    let mut x_w = vec![0.0; nrows * ncols];
+    let mut root = vec![0.0; nrows];
     let mut y_w = vec![0.0; nrows];
     for r in 0..nrows {
         let wr = weights[r];
@@ -39,13 +39,10 @@ pub fn fit_wls(
                 message: "WLS weights must be finite and non-negative",
             });
         }
-        let w = wr.sqrt();
-        y_w[r] = y[r] * w;
-        for c in 0..ncols {
-            x_w[c * nrows + r] = x_colmajor[c * nrows + r] * w;
-        }
+        root[r] = wr.sqrt();
+        y_w[r] = y[r] * root[r];
     }
-    backend.least_squares(&x_w, nrows, ncols, &y_w, workspace)
+    backend.row_scaled_least_squares(x_colmajor, nrows, ncols, &root, &y_w, workspace)
 }
 
 /// Weak-instrument diagnostic: joint significance of the excluded instruments in the

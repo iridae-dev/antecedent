@@ -1,20 +1,22 @@
-# Faer Gram layouts versus the column-major or column-wise reference.
-# Criterion medians from a release build, sample size 10, 0.5 s warmup,
-# 1 s measurement. This is not the QR serial-versus-parallel record.
+# Faer, BLAS-style and reference products, factorizations and layouts across shapes,
+# storage layouts and worker counts.
+#
+# Cases come from `cargo bench -p antecedent-stats --bench blas_layout`: the harness checks
+# every product against an independent reference before it samples, then records the median
+# and the first and third quartile of timed repetitions in nanoseconds. Sixteen workers
+# oversubscribe a host with fewer hardware threads. Column-pivoted QR cases that predate the
+# harness are merged from solver_scope/crossover.toml as means with equal interval ends.
+#
+# Selections are derived from the cases by derive_selections.py. The crate's budget-aware
+# rule table (`antecedent_stats::layout_rules`) is checked against the selections below.
 
 schema = 1
-item = "N19"
 host = "Apple M1 Max, arm64, 10 hardware threads, 64 GB"
 profile = "release"
-criterion_sample_size = 10
-warmup_s = 0.5
-measurement_s = 1
 accuracy = "passed before sampling; absolute gap at most 1e-8 * (1 + max abs)"
 
-# Times are criterion medians in nanoseconds. low_ns and high_ns are the
-# reported interval ends. Sixteen workers oversubscribe this 10-thread host.
-
 [[case]]
+op = "gram"
 layout = "dense"
 rows = 64
 cols = 8
@@ -25,6 +27,7 @@ low_ns = 867
 high_ns = 870
 
 [[case]]
+op = "gram"
 layout = "dense"
 rows = 64
 cols = 8
@@ -35,6 +38,7 @@ low_ns = 547
 high_ns = 710
 
 [[case]]
+op = "gram"
 layout = "dense"
 rows = 64
 cols = 8
@@ -45,6 +49,7 @@ low_ns = 543
 high_ns = 545
 
 [[case]]
+op = "gram"
 layout = "dense"
 rows = 64
 cols = 8
@@ -55,6 +60,7 @@ low_ns = 543
 high_ns = 546
 
 [[case]]
+op = "gram"
 layout = "dense"
 rows = 4096
 cols = 128
@@ -65,6 +71,7 @@ low_ns = 31418000
 high_ns = 31507000
 
 [[case]]
+op = "gram"
 layout = "dense"
 rows = 4096
 cols = 128
@@ -75,6 +82,7 @@ low_ns = 3173600
 high_ns = 3195400
 
 [[case]]
+op = "gram"
 layout = "dense"
 rows = 4096
 cols = 128
@@ -85,6 +93,7 @@ low_ns = 1364700
 high_ns = 1389000
 
 [[case]]
+op = "gram"
 layout = "dense"
 rows = 4096
 cols = 128
@@ -95,6 +104,7 @@ low_ns = 1218000
 high_ns = 1228300
 
 [[case]]
+op = "gram"
 layout = "sparse"
 rows = 128
 cols = 16
@@ -106,6 +116,7 @@ low_ns = 305
 high_ns = 307
 
 [[case]]
+op = "gram"
 layout = "sparse"
 rows = 128
 cols = 16
@@ -117,6 +128,7 @@ low_ns = 541
 high_ns = 546
 
 [[case]]
+op = "gram"
 layout = "sparse"
 rows = 128
 cols = 16
@@ -128,6 +140,7 @@ low_ns = 19341
 high_ns = 21342
 
 [[case]]
+op = "gram"
 layout = "sparse"
 rows = 128
 cols = 16
@@ -139,6 +152,7 @@ low_ns = 24560
 high_ns = 25670
 
 [[case]]
+op = "gram"
 layout = "sparse"
 rows = 8192
 cols = 1024
@@ -150,6 +164,7 @@ low_ns = 7833200
 high_ns = 7904000
 
 [[case]]
+op = "gram"
 layout = "sparse"
 rows = 8192
 cols = 1024
@@ -161,6 +176,7 @@ low_ns = 1230300
 high_ns = 1235700
 
 [[case]]
+op = "gram"
 layout = "sparse"
 rows = 8192
 cols = 1024
@@ -172,6 +188,7 @@ low_ns = 401340
 high_ns = 411620
 
 [[case]]
+op = "gram"
 layout = "sparse"
 rows = 8192
 cols = 1024
@@ -182,33 +199,260 @@ median_ns = 327810
 low_ns = 324450
 high_ns = 334070
 
-# Selected from those medians. Sixteen workers do not win a small problem.
-# On the large problems, sixteen workers beat four even though the host has ten threads.
+[[case]]
+op = "qr"
+layout = "dense"
+rows = 32
+cols = 8
+product = "faer"
+workers = 1
+median_ns = 3575
+low_ns = 3575
+high_ns = 3575
+
+[[case]]
+op = "qr"
+layout = "dense"
+rows = 32
+cols = 8
+product = "faer"
+workers = 10
+median_ns = 1983
+low_ns = 1983
+high_ns = 1983
+
+[[case]]
+op = "qr"
+layout = "dense"
+rows = 64
+cols = 16
+product = "faer"
+workers = 1
+median_ns = 7783
+low_ns = 7783
+high_ns = 7783
+
+[[case]]
+op = "qr"
+layout = "dense"
+rows = 64
+cols = 16
+product = "faer"
+workers = 10
+median_ns = 8025
+low_ns = 8025
+high_ns = 8025
+
+[[case]]
+op = "qr"
+layout = "dense"
+rows = 128
+cols = 16
+product = "faer"
+workers = 1
+median_ns = 13766
+low_ns = 13766
+high_ns = 13766
+
+[[case]]
+op = "qr"
+layout = "dense"
+rows = 128
+cols = 16
+product = "faer"
+workers = 10
+median_ns = 13433
+low_ns = 13433
+high_ns = 13433
+
+[[case]]
+op = "qr"
+layout = "dense"
+rows = 256
+cols = 32
+product = "faer"
+workers = 1
+median_ns = 71858
+low_ns = 71858
+high_ns = 71858
+
+[[case]]
+op = "qr"
+layout = "dense"
+rows = 256
+cols = 32
+product = "faer"
+workers = 10
+median_ns = 75358
+low_ns = 75358
+high_ns = 75358
+
+[[case]]
+op = "qr"
+layout = "dense"
+rows = 512
+cols = 32
+product = "faer"
+workers = 1
+median_ns = 143891
+low_ns = 143891
+high_ns = 143891
+
+[[case]]
+op = "qr"
+layout = "dense"
+rows = 512
+cols = 32
+product = "faer"
+workers = 10
+median_ns = 149233
+low_ns = 149233
+high_ns = 149233
+
+[[case]]
+op = "qr"
+layout = "dense"
+rows = 1024
+cols = 64
+product = "faer"
+workers = 1
+median_ns = 1087458
+low_ns = 1087458
+high_ns = 1087458
+
+[[case]]
+op = "qr"
+layout = "dense"
+rows = 1024
+cols = 64
+product = "faer"
+workers = 10
+median_ns = 1490175
+low_ns = 1490175
+high_ns = 1490175
+
+[[case]]
+op = "qr"
+layout = "dense"
+rows = 2048
+cols = 64
+product = "faer"
+workers = 1
+median_ns = 1872483
+low_ns = 1872483
+high_ns = 1872483
+
+[[case]]
+op = "qr"
+layout = "dense"
+rows = 2048
+cols = 64
+product = "faer"
+workers = 10
+median_ns = 2858591
+low_ns = 2858591
+high_ns = 2858591
+
+# Selections are derived from the cases above by derive_selections.py:
+# the lowest median wins, and a simpler configuration within noise replaces it.
 
 [[selection]]
+op = "gram"
 layout = "dense"
-shape = "small"
+rows = 64
+cols = 8
 product = "faer"
 workers = 4
-reason = "Faer beats the column-major reference. Four workers beat one worker, and sixteen workers do not beat four."
+reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 16 workers is 1.00x the chosen median"
 
 [[selection]]
+op = "gram"
 layout = "dense"
-shape = "large"
+rows = 4096
+cols = 128
 product = "faer"
 workers = 16
-reason = "Faer beats the column-major reference. Sixteen workers beat four, and four beat one."
+reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 4 workers is 1.12x the chosen median"
 
 [[selection]]
+op = "gram"
 layout = "sparse"
-shape = "small"
+rows = 128
+cols = 16
+nonzeros_per_column = 4
 product = "reference"
 workers = 1
-reason = "The column-wise reference beats faer on one worker. Four and sixteen workers are slower by more than an order of magnitude."
+reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 1 workers is 1.78x the chosen median"
 
 [[selection]]
+op = "gram"
 layout = "sparse"
-shape = "large"
+rows = 8192
+cols = 1024
+nonzeros_per_column = 48
 product = "faer"
 workers = 16
-reason = "Faer beats the column-wise reference. Sixteen workers beat four, and four beat one."
+reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 4 workers is 1.23x the chosen median"
+
+[[selection]]
+op = "qr"
+layout = "dense"
+rows = 32
+cols = 8
+product = "faer"
+workers = 10
+reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 1 workers is 1.80x the chosen median"
+
+[[selection]]
+op = "qr"
+layout = "dense"
+rows = 64
+cols = 16
+product = "faer"
+workers = 1
+reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 10 workers is 1.03x the chosen median"
+
+[[selection]]
+op = "qr"
+layout = "dense"
+rows = 128
+cols = 16
+product = "faer"
+workers = 1
+reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 10 workers is 0.98x the chosen median"
+
+[[selection]]
+op = "qr"
+layout = "dense"
+rows = 256
+cols = 32
+product = "faer"
+workers = 1
+reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 10 workers is 1.05x the chosen median"
+
+[[selection]]
+op = "qr"
+layout = "dense"
+rows = 512
+cols = 32
+product = "faer"
+workers = 1
+reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 10 workers is 1.04x the chosen median"
+
+[[selection]]
+op = "qr"
+layout = "dense"
+rows = 1024
+cols = 64
+product = "faer"
+workers = 1
+reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 10 workers is 1.37x the chosen median"
+
+[[selection]]
+op = "qr"
+layout = "dense"
+rows = 2048
+cols = 64
+product = "faer"
+workers = 1
+reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 10 workers is 1.53x the chosen median"

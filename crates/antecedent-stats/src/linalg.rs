@@ -70,6 +70,48 @@ pub trait DenseLinearAlgebra: Send + Sync {
         y: &[f64],
         workspace: &mut LeastSquaresWorkspace,
     ) -> Result<LeastSquaresFit, StatsError>;
+
+    /// Solve `min ||diag(row_scale) X β − y||_2`, where `y` is already scaled by `row_scale`.
+    ///
+    /// This is the weighted-least-squares and IRLS step: the caller's `x` is read once, and a
+    /// backend that can fold the row scale into its own factorization copy does so, so the
+    /// scaled design never exists as a second buffer. The default builds that buffer and
+    /// calls [`Self::least_squares`]; both give the same coefficients bit for bit.
+    ///
+    /// # Errors
+    ///
+    /// Shape mismatch (including a `row_scale` that is not `nrows` long), or the failures of
+    /// [`Self::least_squares`].
+    fn row_scaled_least_squares(
+        &self,
+        x_colmajor: &[f64],
+        nrows: usize,
+        ncols: usize,
+        row_scale: &[f64],
+        y: &[f64],
+        workspace: &mut LeastSquaresWorkspace,
+    ) -> Result<LeastSquaresFit, StatsError> {
+        let Some(cells) = nrows.checked_mul(ncols) else {
+            return Err(StatsError::Shape { message: "X buffer too short" });
+        };
+        if row_scale.len() != nrows {
+            return Err(StatsError::Shape { message: "row scale length != nrows" });
+        }
+        if x_colmajor.len() < cells {
+            return Err(StatsError::Shape { message: "X buffer too short" });
+        }
+        let mut scaled = vec![0.0; cells];
+        if nrows > 0 {
+            for (source, target) in
+                x_colmajor[..cells].chunks_exact(nrows).zip(scaled.chunks_exact_mut(nrows))
+            {
+                for ((slot, &value), &scale) in target.iter_mut().zip(source).zip(row_scale) {
+                    *slot = value * scale;
+                }
+            }
+        }
+        self.least_squares(&scaled, nrows, ncols, y, workspace)
+    }
 }
 
 /// Reusable scratch for repeated least-squares fits.

@@ -270,28 +270,6 @@ fn linear_predictor_into(
     }
 }
 
-/// `x'_{rc} = w_r x_{rc}` for every column, reading and writing one contiguous
-/// column at a time. `scaled` is `nrows * ncols` and is fully written.
-fn scale_columns_into(
-    x_colmajor: &[f64],
-    nrows: usize,
-    ncols: usize,
-    weight: &[f64],
-    scaled: &mut [f64],
-) {
-    if nrows == 0 || ncols == 0 {
-        return;
-    }
-    let covered = nrows * ncols;
-    let src = &x_colmajor[..covered];
-    let dst = &mut scaled[..covered];
-    for (column, scaled_col) in src.chunks_exact(nrows).zip(dst.chunks_exact_mut(nrows)) {
-        for ((slot, &x), &w) in scaled_col.iter_mut().zip(column).zip(weight) {
-            *slot = x * w;
-        }
-    }
-}
-
 /// Poisson deviance at `β` (log link).
 #[allow(
     clippy::needless_range_loop,
@@ -520,7 +498,6 @@ fn irls_fit_scaled(
 ) -> Result<(Vec<f64>, u32, bool), StatsError> {
     let GlmDesignRef { x_colmajor, nrows, ncols, y } = design;
     let mut beta = vec![0.0; ncols];
-    let mut x_w = vec![0.0; nrows * ncols];
     let mut z = vec![0.0; nrows];
     let mut eta = vec![0.0; nrows];
     let mut weight = vec![0.0; nrows];
@@ -548,8 +525,8 @@ fn irls_fit_scaled(
             weight[r] = w;
             z[r] = zw;
         }
-        scale_columns_into(x_colmajor, nrows, ncols, &weight, &mut x_w);
-        let fit = backend.least_squares(&x_w, nrows, ncols, &z, workspace)?;
+        let fit =
+            backend.row_scaled_least_squares(x_colmajor, nrows, ncols, &weight, &z, workspace)?;
         for c in 0..ncols {
             max_delta = max_delta.max((fit.coefficients[c] - beta[c]).abs());
             beta[c] = fit.coefficients[c];
@@ -710,10 +687,8 @@ fn fit_gaussian_weighted(
     check_prior_weights(design, weights)?;
     let GlmDesignRef { x_colmajor, nrows, ncols, y } = design;
     let root: Vec<f64> = weights.iter().map(|w| w.sqrt()).collect();
-    let mut x_w = vec![0.0; nrows * ncols];
-    scale_columns_into(x_colmajor, nrows, ncols, &root, &mut x_w);
     let y_w: Vec<f64> = y.iter().zip(&root).map(|(v, scale)| v * scale).collect();
-    let fit = backend.least_squares(&x_w, nrows, ncols, &y_w, workspace)?;
+    let fit = backend.row_scaled_least_squares(x_colmajor, nrows, ncols, &root, &y_w, workspace)?;
     Ok(GlmFit {
         coefficients: fit.coefficients,
         iterations: 1,

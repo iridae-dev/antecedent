@@ -720,6 +720,601 @@ pub(super) fn propagate_affine(
     })
 }
 
+// ---------------------------------------------------------------------------
+// Joint propagation of a nonlinear function of the source and the mapping.
+// ---------------------------------------------------------------------------
+
+/// Most coordinates a joint law may carry.
+const MAX_JOINT_DIMENSION: usize = 32;
+/// Fewest and most simulated draws a propagation accepts.
+const MIN_SIMULATION_DRAWS: usize = 64;
+const MAX_SIMULATION_DRAWS: usize = 4_000_000;
+/// Relative step of the finite differences behind the second-order terms, in
+/// units of each coordinate's standard deviation.
+const DIFFERENCE_STEP: f64 = 1e-2;
+/// Variances below this fraction of the largest variance are a degenerate
+/// direction in the factorization; negative pivots and off-diagonal residuals
+/// beyond [`PSD_SLACK`] of it are refused.
+const DEGENERATE_FRACTION: f64 = 1e-13;
+const PSD_SLACK: f64 = 1e-9;
+
+/// The joint moment law of every uncertain input of a mapped quantity: the
+/// source estimate and each mapping coefficient, with their full covariance.
+///
+/// The covariance carries the dependence between the source and the mapping
+/// that [`SourceMappingDependence`] declares, together with the mapping's own
+/// intercept-slope covariance; a nonlinear function of those inputs is then
+/// propagated against the joint law, not against a marginal of each.
+#[derive(Clone, Debug, PartialEq)]
+pub struct JointLaw {
+    names: Vec<String>,
+    mean: Vec<f64>,
+    covariance: Vec<f64>,
+}
+
+impl JointLaw {
+    /// A joint law from coordinate names, means and a row-major covariance.
+    ///
+    /// # Errors
+    /// The dimension is zero or above the limit; the lengths disagree; a mean
+    /// or covariance entry is not finite; the covariance is not symmetric or
+    /// not positive semi-definite.
+    pub fn new(
+        names: Vec<String>,
+        mean: Vec<f64>,
+        covariance: Vec<f64>,
+    ) -> Result<Self, BridgeRefusal> {
+        let n = mean.len();
+        if n == 0 || n > MAX_JOINT_DIMENSION || names.len() != n || covariance.len() != n * n {
+            return Err(malformed_mapping(
+                "joint_law",
+                "state one name and one mean per coordinate and an n by n covariance, with at most 32 coordinates",
+            ));
+        }
+        if names.iter().any(|name| name.trim().is_empty() || name.len() > MAX_BRIDGE_TEXT_BYTES) {
+            return Err(malformed_mapping("joint_law.names", "name every coordinate"));
+        }
+        if mean.iter().any(|value| !value.is_finite()) {
+            return Err(source_moment_not_finite("joint_law.mean", "state finite means"));
+        }
+        if covariance.iter().any(|value| !value.is_finite()) {
+            return Err(mapping_uncertainty_invalid(
+                "joint_law.covariance",
+                "state a finite joint covariance",
+            ));
+        }
+        let scale = (0..n).map(|index| covariance[index * n + index]).fold(0.0_f64, f64::max);
+        for row in 0..n {
+            if covariance[row * n + row] < 0.0 {
+                return Err(mapping_uncertainty_invalid(
+                    "joint_law.covariance",
+                    "state non-negative variances on the diagonal",
+                ));
+            }
+            for column in 0..row {
+                if (covariance[row * n + column] - covariance[column * n + row]).abs()
+                    > PSD_SLACK * scale
+                {
+                    return Err(mapping_uncertainty_invalid(
+                        "joint_law.covariance",
+                        "state a symmetric joint covariance",
+                    ));
+                }
+            }
+        }
+        if cholesky(&covariance, n).is_none() {
+            return Err(mapping_uncertainty_invalid(
+                "joint_law.covariance",
+                "state a positive semi-definite joint covariance: the declared covariances are not jointly feasible",
+            ));
+        }
+        Ok(Self { names, mean, covariance })
+    }
+
+    /// The joint law of an affine mapping `a + b M` declared by `uncertainty`
+    /// and `dependence`: coordinates `intercept`, `slope`, `source`.
+    ///
+    /// The source estimator is independent of the intercept estimator; its
+    /// covariance with the slope estimator is the declared dependence.
+    ///
+    /// # Errors
+    /// The declarations are malformed, the source moments are not finite and
+    /// non-negative, the slope-source covariance exceeds what the two variances
+    /// allow, or the three covariances are not jointly feasible.
+    pub fn from_affine_declaration(
+        intercept: f64,
+        slope: f64,
+        uncertainty: &MappingUncertainty,
+        dependence: &SourceMappingDependence,
+        source_mean: f64,
+        source_variance: f64,
+    ) -> Result<Self, BridgeRefusal> {
+        uncertainty.validate()?;
+        dependence.validate()?;
+        if !source_mean.is_finite() {
+            return Err(source_moment_not_finite("source_mean", "state a finite source mean"));
+        }
+        if !(source_variance.is_finite() && source_variance >= 0.0) {
+            return Err(source_variance_invalid(source_variance.to_string()));
+        }
+        let covariance = dependence.covariance();
+        let product = uncertainty.slope_variance * source_variance;
+        if !product.is_finite() || covariance * covariance > product {
+            return Err(dependence_not_a_covariance(covariance.to_string()));
+        }
+        Self::new(
+            vec!["intercept".into(), "slope".into(), "source".into()],
+            vec![intercept, slope, source_mean],
+            vec![
+                uncertainty.intercept_variance,
+                uncertainty.intercept_slope_covariance,
+                0.0,
+                uncertainty.intercept_slope_covariance,
+                uncertainty.slope_variance,
+                covariance,
+                0.0,
+                covariance,
+                source_variance,
+            ],
+        )
+    }
+
+    /// Number of coordinates.
+    #[must_use]
+    pub fn dimension(&self) -> usize {
+        self.mean.len()
+    }
+
+    /// Coordinate names in order.
+    #[must_use]
+    pub fn names(&self) -> &[String] {
+        &self.names
+    }
+
+    /// Coordinate means.
+    #[must_use]
+    pub fn mean(&self) -> &[f64] {
+        &self.mean
+    }
+
+    /// Row-major joint covariance.
+    #[must_use]
+    pub fn covariance(&self) -> &[f64] {
+        &self.covariance
+    }
+
+    fn factor(&self) -> Vec<f64> {
+        // `new` proved the factorization exists.
+        cholesky(&self.covariance, self.mean.len()).unwrap_or_default()
+    }
+}
+
+/// Lower-triangular `L` with `L Lᵀ = covariance`, tolerating zero-variance
+/// directions; `None` when the matrix is not positive semi-definite.
+fn cholesky(covariance: &[f64], n: usize) -> Option<Vec<f64>> {
+    let scale = (0..n).map(|index| covariance[index * n + index]).fold(0.0_f64, f64::max);
+    let degenerate = DEGENERATE_FRACTION * scale;
+    let slack = PSD_SLACK * scale;
+    let mut factor = vec![0.0; n * n];
+    for column in 0..n {
+        let mut pivot = covariance[column * n + column];
+        for k in 0..column {
+            pivot -= factor[column * n + k] * factor[column * n + k];
+        }
+        if pivot < -slack {
+            return None;
+        }
+        if pivot <= degenerate {
+            for row in column + 1..n {
+                let mut residual = covariance[row * n + column];
+                for k in 0..column {
+                    residual -= factor[row * n + k] * factor[column * n + k];
+                }
+                if residual.abs() > slack {
+                    return None;
+                }
+            }
+        } else {
+            let diagonal = pivot.sqrt();
+            factor[column * n + column] = diagonal;
+            for row in column + 1..n {
+                let mut residual = covariance[row * n + column];
+                for k in 0..column {
+                    residual -= factor[row * n + k] * factor[column * n + k];
+                }
+                factor[row * n + column] = residual / diagonal;
+            }
+        }
+    }
+    Some(factor)
+}
+
+/// How a nonlinear function of a joint law is carried to a mean and a variance.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum PropagationMethod {
+    /// Second-order delta method under the Gaussian moment closure of the
+    /// joint law: `g(m) + ½ tr(HΣ)` and `∇ᵀΣ∇ + ½ tr((HΣ)²)`, with the
+    /// gradient and Hessian from central differences.
+    SecondOrderDelta,
+    /// Sigma-point (unscented) transform: `2n + 1` deterministic points chosen
+    /// to match the joint mean and covariance, with the fourth-moment
+    /// correction `κ = max(3 − n, 0)`.
+    Unscented,
+    /// Seeded Monte Carlo draws of the joint law. The result carries the
+    /// Monte Carlo standard errors of the mean and of the variance.
+    Simulation {
+        /// Number of draws.
+        draws: usize,
+        /// Seed of the draw stream.
+        seed: u64,
+    },
+}
+
+impl PropagationMethod {
+    /// Stable name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::SecondOrderDelta => "second_order_delta",
+            Self::Unscented => "unscented",
+            Self::Simulation { .. } => "simulation",
+        }
+    }
+}
+
+/// Mean and variance of `g` over a joint law.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct JointPropagation {
+    /// The method that produced the moments.
+    pub method: PropagationMethod,
+    /// Coordinates of the joint law.
+    pub dimension: usize,
+    /// `g` at the joint mean: the plug-in value.
+    pub plug_in: f64,
+    /// `E[g]`.
+    pub mean: f64,
+    /// `Var(g)`.
+    pub variance: f64,
+    /// First-order variance `∇ᵀΣ∇`; set by the delta method only.
+    pub linearized_variance: Option<f64>,
+    /// Monte Carlo standard error of `mean`; set by simulation only.
+    pub mean_standard_error: Option<f64>,
+    /// Monte Carlo standard error of `variance`; set by simulation only.
+    pub variance_standard_error: Option<f64>,
+    /// Evaluations of `g` the method used.
+    pub evaluations: usize,
+}
+
+impl JointPropagation {
+    /// `E[g] − g(m)`: what the plug-in value omits.
+    #[must_use]
+    pub fn bias(&self) -> f64 {
+        self.mean - self.plug_in
+    }
+
+    /// Standard deviation of `g`.
+    #[must_use]
+    pub fn standard_deviation(&self) -> f64 {
+        self.variance.sqrt()
+    }
+}
+
+fn checked(value: f64) -> Result<f64, BridgeRefusal> {
+    if value.is_finite() {
+        Ok(value)
+    } else {
+        Err(propagation_overflow(
+            "nonlinear_map",
+            "the function produced a value that is not finite inside the joint law; restrict it to its domain or use a smaller spread",
+        ))
+    }
+}
+
+/// Mean and variance of `g(Z)` for `Z` with the joint moments of `law`.
+///
+/// # Errors
+/// The function is not finite at a point the method evaluates; a simulation
+/// asks for fewer than 64 or more than four million draws.
+pub fn propagate_joint(
+    law: &JointLaw,
+    g: &dyn Fn(&[f64]) -> f64,
+    method: PropagationMethod,
+) -> Result<JointPropagation, BridgeRefusal> {
+    match method {
+        PropagationMethod::SecondOrderDelta => second_order_delta(law, g),
+        PropagationMethod::Unscented => unscented(law, g),
+        PropagationMethod::Simulation { draws, seed } => simulate(law, g, draws, seed),
+    }
+}
+
+fn second_order_delta(
+    law: &JointLaw,
+    g: &dyn Fn(&[f64]) -> f64,
+) -> Result<JointPropagation, BridgeRefusal> {
+    let n = law.dimension();
+    let sigma = law.covariance();
+    let center = law.mean();
+    let step: Vec<f64> = (0..n).map(|i| DIFFERENCE_STEP * sigma[i * n + i].sqrt()).collect();
+    let active: Vec<usize> = (0..n).filter(|&i| sigma[i * n + i] > 0.0).collect();
+    let mut evaluations = 0_usize;
+    let mut eval = |shifts: &[(usize, f64)]| -> Result<f64, BridgeRefusal> {
+        let mut point = center.to_vec();
+        for &(index, delta) in shifts {
+            point[index] += delta;
+        }
+        evaluations += 1;
+        checked(g(&point))
+    };
+    let plug_in = eval(&[])?;
+    let mut gradient = vec![0.0; n];
+    let mut hessian = vec![0.0; n * n];
+    for &i in &active {
+        let up = eval(&[(i, step[i])])?;
+        let down = eval(&[(i, -step[i])])?;
+        gradient[i] = (up - down) / (2.0 * step[i]);
+        hessian[i * n + i] = (up - 2.0 * plug_in + down) / (step[i] * step[i]);
+    }
+    for (position, &i) in active.iter().enumerate() {
+        for &j in &active[position + 1..] {
+            let upper = eval(&[(i, step[i]), (j, step[j])])?;
+            let left = eval(&[(i, step[i]), (j, -step[j])])?;
+            let right = eval(&[(i, -step[i]), (j, step[j])])?;
+            let lower = eval(&[(i, -step[i]), (j, -step[j])])?;
+            let mixed = (upper - left - right + lower) / (4.0 * step[i] * step[j]);
+            hessian[i * n + j] = mixed;
+            hessian[j * n + i] = mixed;
+        }
+    }
+    let mut correction = 0.0;
+    let mut linearized = 0.0;
+    for i in 0..n {
+        for j in 0..n {
+            correction += hessian[i * n + j] * sigma[i * n + j];
+            linearized += gradient[i] * sigma[i * n + j] * gradient[j];
+        }
+    }
+    // A = H Σ; tr(A²) = Σ_ij A_ij A_ji.
+    let mut product = vec![0.0; n * n];
+    for i in 0..n {
+        for j in 0..n {
+            let mut sum = 0.0;
+            for k in 0..n {
+                sum += hessian[i * n + k] * sigma[k * n + j];
+            }
+            product[i * n + j] = sum;
+        }
+    }
+    let mut trace_square = 0.0;
+    for i in 0..n {
+        for j in 0..n {
+            trace_square += product[i * n + j] * product[j * n + i];
+        }
+    }
+    let mean = plug_in + 0.5 * correction;
+    let variance = (linearized + 0.5 * trace_square).max(0.0);
+    if !mean.is_finite() || !variance.is_finite() {
+        return Err(propagation_overflow(
+            "second_order_delta",
+            "the second-order delta method overflowed the finite range",
+        ));
+    }
+    Ok(JointPropagation {
+        method: PropagationMethod::SecondOrderDelta,
+        dimension: n,
+        plug_in,
+        mean,
+        variance,
+        linearized_variance: Some(linearized),
+        mean_standard_error: None,
+        variance_standard_error: None,
+        evaluations,
+    })
+}
+
+fn unscented(
+    law: &JointLaw,
+    g: &dyn Fn(&[f64]) -> f64,
+) -> Result<JointPropagation, BridgeRefusal> {
+    let n = law.dimension();
+    let factor = law.factor();
+    let center = law.mean();
+    let kappa = if n < 3 { (3 - n) as f64 } else { 0.0 };
+    let spread = (n as f64 + kappa).sqrt();
+    let central_weight = kappa / (n as f64 + kappa);
+    let side_weight = 1.0 / (2.0 * (n as f64 + kappa));
+    let plug_in = checked(g(center))?;
+    let mut values = Vec::with_capacity(2 * n);
+    for column in 0..n {
+        for sign in [1.0, -1.0] {
+            let point: Vec<f64> =
+                (0..n).map(|row| center[row] + sign * spread * factor[row * n + column]).collect();
+            values.push(checked(g(&point))?);
+        }
+    }
+    let mean = central_weight * plug_in + side_weight * values.iter().sum::<f64>();
+    let mut variance = central_weight * (plug_in - mean).powi(2);
+    for value in &values {
+        variance += side_weight * (value - mean).powi(2);
+    }
+    if !mean.is_finite() || !variance.is_finite() {
+        return Err(propagation_overflow(
+            "unscented",
+            "the sigma-point transform overflowed the finite range",
+        ));
+    }
+    Ok(JointPropagation {
+        method: PropagationMethod::Unscented,
+        dimension: n,
+        plug_in,
+        mean,
+        variance,
+        linearized_variance: None,
+        mean_standard_error: None,
+        variance_standard_error: None,
+        evaluations: 1 + values.len(),
+    })
+}
+
+/// SplitMix64 stream: a fixed seed reproduces the draws on every platform.
+struct DrawStream(u64);
+
+impl DrawStream {
+    fn next_u64(&mut self) -> u64 {
+        self.0 = self.0.wrapping_add(0x9E37_79B9_7F4A_7C15);
+        let mut z = self.0;
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        z ^ (z >> 31)
+    }
+
+    /// Uniform on the open interval (0, 1).
+    fn uniform(&mut self) -> f64 {
+        (((self.next_u64() >> 11) as f64) + 0.5) / 9_007_199_254_740_992.0
+    }
+
+    fn normal_pair(&mut self) -> (f64, f64) {
+        let radius = (-2.0 * self.uniform().ln()).sqrt();
+        let angle = std::f64::consts::TAU * self.uniform();
+        (radius * angle.cos(), radius * angle.sin())
+    }
+}
+
+fn simulate(
+    law: &JointLaw,
+    g: &dyn Fn(&[f64]) -> f64,
+    draws: usize,
+    seed: u64,
+) -> Result<JointPropagation, BridgeRefusal> {
+    if !(MIN_SIMULATION_DRAWS..=MAX_SIMULATION_DRAWS).contains(&draws) {
+        return Err(malformed_mapping(
+            "simulation.draws",
+            "state between 64 and 4000000 simulated draws",
+        ));
+    }
+    let n = law.dimension();
+    let factor = law.factor();
+    let center = law.mean();
+    let plug_in = checked(g(center))?;
+    let mut stream = DrawStream(seed);
+    let mut normals = vec![0.0; n];
+    let mut point = vec![0.0; n];
+    let mut values = Vec::with_capacity(draws);
+    for _ in 0..draws {
+        let mut index = 0;
+        while index < n {
+            let (first, second) = stream.normal_pair();
+            normals[index] = first;
+            if index + 1 < n {
+                normals[index + 1] = second;
+            }
+            index += 2;
+        }
+        for row in 0..n {
+            let mut value = center[row];
+            for column in 0..=row {
+                value += factor[row * n + column] * normals[column];
+            }
+            point[row] = value;
+        }
+        values.push(checked(g(&point))?);
+    }
+    let count = draws as f64;
+    let mean = values.iter().sum::<f64>() / count;
+    let mut second = 0.0;
+    let mut fourth = 0.0;
+    for value in &values {
+        let deviation = value - mean;
+        second += deviation * deviation;
+        fourth += deviation.powi(4);
+    }
+    let population_variance = second / count;
+    let variance = second / (count - 1.0);
+    let fourth_moment = fourth / count;
+    let mean_standard_error = (variance / count).sqrt();
+    let variance_standard_error =
+        ((fourth_moment - population_variance * population_variance).max(0.0) / count).sqrt();
+    if !mean.is_finite() || !variance.is_finite() {
+        return Err(propagation_overflow(
+            "simulation",
+            "the simulated moments overflowed the finite range",
+        ));
+    }
+    Ok(JointPropagation {
+        method: PropagationMethod::Simulation { draws, seed },
+        dimension: n,
+        plug_in,
+        mean,
+        variance,
+        linearized_variance: None,
+        mean_standard_error: Some(mean_standard_error),
+        variance_standard_error: Some(variance_standard_error),
+        evaluations: draws + 1,
+    })
+}
+
+/// A nonlinear function of a contract's affine map, with the declarations it
+/// was built from.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ContractNonlinearPropagation {
+    /// Mean and variance of the function over the joint law.
+    pub propagation: JointPropagation,
+    /// The joint law the moments were taken over.
+    pub joint_law: JointLaw,
+    /// The mapping uncertainty the law was built from.
+    pub mapping_uncertainty: MappingUncertainty,
+    /// The dependence the law was built from.
+    pub dependence: SourceMappingDependence,
+    /// Contract assumptions in identity order.
+    pub assumptions: Vec<BridgeAssumption>,
+}
+
+/// Propagate `g(intercept, slope, source)` through the contract's uncertain
+/// affine mapping and its declared source dependence.
+///
+/// The three inputs are drawn from their joint law: the mapping's intercept
+/// and slope estimators with their declared variances and covariance, and the
+/// source estimator with its variance and the declared covariance with the
+/// slope. `g` is the function of the mapped quantity the consumer needs, for
+/// example a utility `exp(intercept + slope * source)`.
+///
+/// # Errors
+/// The contract is not licensed; the mapping is not affine; mapping
+/// uncertainty or source dependence is missing or not feasible jointly;
+/// [`propagate_joint`] refuses.
+pub fn propagate_nonlinear(
+    contract: &BridgeContract,
+    source_mean: f64,
+    source_variance: f64,
+    g: &dyn Fn(f64, f64, f64) -> f64,
+    method: PropagationMethod,
+) -> Result<ContractNonlinearPropagation, BridgeRefusal> {
+    contract.check_licensing()?;
+    let (intercept, slope) = affine_coefficients(&contract.mapping)?;
+    let Some(uncertainty) = contract.mapping_uncertainty.clone() else {
+        return Err(mapping_uncertainty_missing());
+    };
+    let Some(dependence) = contract.source_dependence.clone() else {
+        return Err(source_dependence_missing());
+    };
+    let law = JointLaw::from_affine_declaration(
+        intercept,
+        slope,
+        &uncertainty,
+        &dependence,
+        source_mean,
+        source_variance,
+    )?;
+    let propagation = propagate_joint(&law, &|point| g(point[0], point[1], point[2]), method)?;
+    Ok(ContractNonlinearPropagation {
+        propagation,
+        joint_law: law,
+        mapping_uncertainty: uncertainty,
+        dependence,
+        assumptions: sorted_assumptions(&contract.assumptions),
+    })
+}
+
 pub(super) fn estimand_matches(
     contract: &BridgeContract,
     bridge: &EstimandBridge,
@@ -1573,5 +2168,246 @@ mod tests {
             Some("slope-se")
         );
         assert!(bridged.contract.source_dependence.is_some());
+    }
+}
+
+#[cfg(test)]
+mod joint_tests {
+    use super::super::super::kind::{AssumptionKind, BridgeKind, QuantityClass, ValueKind};
+    use super::super::super::mapping::BridgeMapping;
+    use super::super::{BridgeAssumption, BridgeContract, BridgeEndpoint, BridgeScope};
+    use super::{
+        JointLaw, MappingUncertainty, PropagationMethod, SourceMappingDependence, propagate_joint,
+        propagate_nonlinear,
+    };
+    use crate::{QuantityRole, ScientificQuantity};
+
+    fn quantity(variable: &str) -> ScientificQuantity {
+        ScientificQuantity {
+            variable_id: variable.into(),
+            variable_name: variable.into(),
+            role: QuantityRole::Outcome,
+            units: "probability".into(),
+            population_id: "panel".into(),
+            regime_id: "observational".into(),
+            horizon: 0,
+            functional_id: "mean".into(),
+            conditioning: Vec::new(),
+            transform_id: "identity".into(),
+        }
+    }
+
+    fn contract(
+        intercept: f64,
+        slope: f64,
+        uncertainty: MappingUncertainty,
+        dependence: Option<SourceMappingDependence>,
+    ) -> BridgeContract {
+        BridgeContract {
+            kind: BridgeKind::PreferenceRealizedBehavior,
+            source: BridgeEndpoint {
+                quantity: quantity("survey:take_up"),
+                class: QuantityClass::StatedPreference,
+            },
+            target: BridgeEndpoint {
+                quantity: quantity("admin:take_up"),
+                class: QuantityClass::RealizedBehavior,
+            },
+            source_value: ValueKind::Mean,
+            target_value: ValueKind::Mean,
+            evidence_scope: BridgeScope {
+                population_id: "panel".into(),
+                regime_id: "observational".into(),
+            },
+            mapping: BridgeMapping::Affine { intercept, slope },
+            assumptions: vec![BridgeAssumption {
+                id: "hypothetical-bias".into(),
+                kind: AssumptionKind::BehavioralLinkage,
+                statement: "stated scales realized".into(),
+                evidence: Some("validation-panel-2023".into()),
+            }],
+            transport: None,
+            mapping_uncertainty: Some(uncertainty),
+            source_dependence: dependence,
+            estimand_bridge: None,
+        }
+    }
+
+    fn slope_only(slope_variance: f64) -> MappingUncertainty {
+        MappingUncertainty {
+            id: "slope-se".into(),
+            intercept_variance: 0.0,
+            slope_variance,
+            intercept_slope_covariance: 0.0,
+        }
+    }
+
+    fn shared(covariance: f64) -> Option<SourceMappingDependence> {
+        Some(SourceMappingDependence::SlopeCovariance { covariance, evidence: "same-panel".into() })
+    }
+
+    fn relative(value: f64, reference: f64) -> f64 {
+        (value - reference).abs() / reference.abs()
+    }
+
+    /// `exp(z0 + z1 + z2)` over a correlated normal vector is lognormal with
+    /// `L = z0 + z1 + z2 ~ N(m, v)`: a closed-form reference.
+    fn lognormal_law() -> (JointLaw, f64, f64, f64, f64) {
+        let covariance = vec![0.01, 0.0025, 0.0, 0.0025, 0.0225, -0.005, 0.0, -0.005, 0.015625];
+        let law = JointLaw::new(
+            vec!["a".into(), "b".into(), "c".into()],
+            vec![0.1, -0.2, 0.3],
+            covariance,
+        )
+        .unwrap();
+        let v: f64 = 0.01 + 0.0225 + 0.015625 + 2.0 * (0.0025 + 0.0 - 0.005);
+        let m: f64 = 0.2;
+        let mean = (m + 0.5 * v).exp();
+        let variance = (v.exp() - 1.0) * (2.0 * m + v).exp();
+        (law, m, v, mean, variance)
+    }
+
+    fn exp_sum(point: &[f64]) -> f64 {
+        point.iter().sum::<f64>().exp()
+    }
+
+    #[test]
+    fn the_second_order_delta_reproduces_the_declared_affine_moments_exactly() {
+        let uncertainty = MappingUncertainty {
+            id: "line".into(),
+            intercept_variance: 0.04,
+            slope_variance: 0.0625,
+            intercept_slope_covariance: -0.02,
+        };
+        let contract = contract(0.1, 2.0, uncertainty, shared(0.01));
+        let analytic = contract.propagate_affine_uncertainty(4.0, 0.25).unwrap();
+        let delta = propagate_nonlinear(
+            &contract,
+            4.0,
+            0.25,
+            &|a, b, m| a + b * m,
+            PropagationMethod::SecondOrderDelta,
+        )
+        .unwrap();
+        assert!(relative(delta.propagation.mean, analytic.mean) < 1e-7);
+        assert!(relative(delta.propagation.variance, analytic.variance) < 1e-6);
+        assert!(delta.propagation.linearized_variance.unwrap() < delta.propagation.variance);
+        assert_eq!(delta.assumptions.len(), 1);
+        assert_eq!(delta.dependence, contract.source_dependence.clone().unwrap());
+    }
+
+    #[test]
+    fn a_nonlinear_expectation_differs_from_the_map_of_the_mean_on_every_method() {
+        let (law, m, v, mean, variance) = lognormal_law();
+        let plug_in = m.exp();
+        assert!(relative(mean, plug_in) > 0.01);
+        let delta = propagate_joint(&law, &exp_sum, PropagationMethod::SecondOrderDelta).unwrap();
+        let sigma = propagate_joint(&law, &exp_sum, PropagationMethod::Unscented).unwrap();
+        let simulated = propagate_joint(
+            &law,
+            &exp_sum,
+            PropagationMethod::Simulation { draws: 300_000, seed: 17 },
+        )
+        .unwrap();
+        assert!((delta.plug_in - plug_in).abs() < 1e-12);
+        for result in [delta, sigma] {
+            assert!(result.bias() > 0.0);
+            assert!(relative(result.mean, mean) < 2e-3, "{result:?} vs {mean}");
+            assert!(relative(result.mean, plug_in) > 0.01);
+        }
+        // The first-order variance misses the curvature term the second order adds.
+        let linear_only = delta.linearized_variance.unwrap();
+        assert!(relative(delta.variance, variance) < relative(linear_only, variance));
+        assert!(relative(delta.variance, variance) < 2.0 * v);
+        assert!(relative(sigma.variance, variance) < 0.08, "{sigma:?} vs {variance}");
+        let mean_error = (simulated.mean - mean).abs();
+        let variance_error = (simulated.variance - variance).abs();
+        assert!(mean_error < 5.0 * simulated.mean_standard_error.unwrap());
+        assert!(variance_error < 5.0 * simulated.variance_standard_error.unwrap());
+    }
+
+    #[test]
+    fn simulation_is_reproducible_and_responds_to_the_seed() {
+        let (law, ..) = lognormal_law();
+        let run = |seed| {
+            propagate_joint(&law, &exp_sum, PropagationMethod::Simulation { draws: 2_000, seed })
+                .unwrap()
+        };
+        assert_eq!(run(5), run(5));
+        assert_ne!(run(5).mean.to_bits(), run(6).mean.to_bits());
+    }
+
+    #[test]
+    fn joint_source_mapping_dependence_moves_a_nonlinear_variance_as_simulation_shows() {
+        // g = exp(slope * source) with no intercept: its variance depends on the
+        // sign of the slope-source covariance, which a marginal treatment drops.
+        let g = |_: f64, b: f64, m: f64| (b * m).exp();
+        let build = |dependence| contract(0.0, 0.5, slope_only(0.0025), dependence);
+        let run = |dependence, method| {
+            propagate_nonlinear(&build(dependence), 1.0, 0.01, &g, method).unwrap().propagation
+        };
+        let simulation = PropagationMethod::Simulation { draws: 400_000, seed: 99 };
+        let mut variances = Vec::new();
+        for dependence in [
+            shared(0.004),
+            Some(SourceMappingDependence::Independent { evidence: "disjoint-rows".into() }),
+            shared(-0.004),
+        ] {
+            let reference = run(dependence.clone(), simulation);
+            let delta = run(dependence.clone(), PropagationMethod::SecondOrderDelta);
+            let sigma = run(dependence, PropagationMethod::Unscented);
+            assert!(relative(delta.variance, reference.variance) < 0.05, "{delta:?} {reference:?}");
+            assert!(relative(sigma.variance, reference.variance) < 0.05, "{sigma:?} {reference:?}");
+            assert!(relative(delta.mean, reference.mean) < 5e-3);
+            assert!(relative(sigma.mean, reference.mean) < 5e-3);
+            variances.push(reference.variance);
+        }
+        // Positive covariance reinforces the product, negative cancels it.
+        assert!(variances[0] > variances[1] && variances[1] > variances[2]);
+        assert!(variances[0] > 2.0 * variances[2]);
+    }
+
+    #[test]
+    fn an_infeasible_joint_covariance_or_missing_declaration_is_refused() {
+        let names = || vec!["a".to_owned(), "b".to_owned()];
+        let error =
+            JointLaw::new(names(), vec![0.0, 0.0], vec![1.0, 2.0, 2.0, 1.0]).unwrap_err();
+        assert_eq!(error.detail, "scientific_bridge.mapping_uncertainty_invalid");
+        let error =
+            JointLaw::new(names(), vec![0.0, 0.0], vec![1.0, 0.5, 0.0, 1.0]).unwrap_err();
+        assert_eq!(error.detail, "scientific_bridge.mapping_uncertainty_invalid");
+        // Each pairwise covariance is feasible but the three together are not.
+        let uncertainty = MappingUncertainty {
+            id: "line".into(),
+            intercept_variance: 1.0,
+            slope_variance: 1.0,
+            intercept_slope_covariance: 0.99,
+        };
+        let infeasible = contract(0.0, 1.0, uncertainty, shared(0.99));
+        let error = propagate_nonlinear(
+            &infeasible,
+            0.0,
+            1.0,
+            &|a, b, m| a + b * m,
+            PropagationMethod::Unscented,
+        )
+        .unwrap_err();
+        assert_eq!(error.detail, "scientific_bridge.mapping_uncertainty_invalid");
+        let none = contract(0.0, 1.0, slope_only(1.0), None);
+        let error = propagate_nonlinear(
+            &none,
+            0.0,
+            1.0,
+            &|a, b, m| a + b * m,
+            PropagationMethod::Unscented,
+        )
+        .unwrap_err();
+        assert_eq!(error.detail, "scientific_bridge.source_dependence_missing");
+        let (law, ..) = lognormal_law();
+        let error = propagate_joint(&law, &exp_sum, PropagationMethod::Simulation { draws: 3, seed: 1 })
+            .unwrap_err();
+        assert_eq!(error.detail, "scientific_bridge.malformed_mapping");
+        let error = propagate_joint(&law, &|_| f64::NAN, PropagationMethod::Unscented).unwrap_err();
+        assert_eq!(error.detail, "scientific_bridge.propagation_overflow");
     }
 }

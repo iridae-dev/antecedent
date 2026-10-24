@@ -72,6 +72,10 @@ pub use contract::{
     ValueInterval, bridged_distribution_claim_id, nonlinear_expectation,
     point_propagation_unavailable, preserved_support, support_image,
 };
+pub use contract::{
+    ContractNonlinearPropagation, JointLaw, JointPropagation, PropagationMethod, propagate_joint,
+    propagate_nonlinear,
+};
 pub use kind::{AssumptionKind, BridgeKind, QuantityClass, ValueKind};
 pub use mapping::{
     AppliedMapping, BridgeMapping, MAX_VALIDATION_TRIALS, MIN_VALIDATION_TRIALS, MappingKind,
