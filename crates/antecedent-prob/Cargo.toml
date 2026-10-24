@@ -41,3 +41,7 @@ harness = false
 [[bench]]
 name = "hmc_logistic"
 harness = false
+
+[[bench]]
+name = "laplace_glm_measured"
+harness = false

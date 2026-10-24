@@ -23,8 +23,13 @@ fn make_design(n: usize) -> (Vec<f64>, Vec<f64>) {
     (x, y)
 }
 
+/// Rows from `ANTECEDENT_LANE_ROWS` (the performance lanes' row tier), else the registered 500.
+fn lane_rows() -> usize {
+    std::env::var("ANTECEDENT_LANE_ROWS").ok().and_then(|v| v.parse().ok()).unwrap_or(500)
+}
+
 fn bench_laplace(c: &mut Criterion) {
-    let n = 500usize;
+    let n = lane_rows();
     let (x, y) = make_design(n);
     let prior = PriorSet {
         specs: vec![PriorSpec::GaussianCoefficients(GaussianCoefficientPrior::isotropic(3, 10.0))],
