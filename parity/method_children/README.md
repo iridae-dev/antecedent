@@ -2,7 +2,9 @@
 
 208 leaves in `children.toml`. Each is one family method × static/temporal × frequentist/Bayesian counterpart, or an explicit boundary on an axis that does not exist. Named methods that must not collapse into a family row are separate children: categorical and multi-arm trials, factorial trials, switchback (P09); continuous dose, smoothed dose, dose grids, quantiles (P07); regression discontinuity, fuzzy/kink local ratios, augmented panel DiD, staggered event studies, synthetic control (P11).
 
-This is not the support-matrix product in `parity/support_axes.toml` (queries × graph classes × structures × inferences × validations). Route ids are from `parity/capabilities/route_manifest.toml`. A field that the manifest does not state is `unlisted`. `module = "none"` means no implementation module. `gap = "none"` means that counterpart already exists. No child is `not_applicable`.
+This is not the support-matrix product in `parity/support_axes.toml` (queries × graph classes × structures × inferences × validations). Route ids are from `parity/capabilities/route_manifest.toml`; a method that has no route record there is reached through the method record the manifest gives it (`[[method]]` with a `child` link). `module = "none"` means no implementation module. `gap = "none"` means that counterpart already exists. No child is `not_applicable`.
+
+Every child names its acceptance fixtures and its artifact consumer as `;`-separated tokens. A fixture is `path` or `path::test`: the file exists, a registered Cargo target, python test, gate script or evidence record runs it, a named test is a real test function, and at least one fixture file mentions the method it accepts. A consumer is `path` or `path::symbol`: the file exists and mentions the symbol, and at least one consumer is a non-test source that reads the artifact (the test that exercises it may follow). A family id, a prose description or `unlisted` is a placeholder and fails `python3 scripts/check_method_children.py`. A boundary child (a target or theory gap) names the test that raises its typed refusal as its fixture and the source that reads that refusal as its consumer.
 
 X01 and X06 are core. B05 retains the X02 finite-lag fit and the X03/X04/X05 attempts as mandatory work; implementation and acceptance evidence remain separate. The user-approved channel/interaction expansion uses configurable channel counts and existing programmable expressions. The X02.broader research rows now cover the remaining lag, saturation, pooling and spatial extensions; arbitrary channel counts and sparse higher-order expressions are part of the required slice. The original B04 failure of identification from fitting alone remains valid.
 
@@ -43,13 +45,12 @@ X01 and X06 are core. B05 retains the X02 finite-lag fit and the X03/X04/X05 att
 
 | Gap | Children |
 | --- | --- |
-| none | 57 |
-| target | 36 |
-| implementation | 33 |
-| statistical | 31 |
-| validation | 21 |
-| temporal-identification | 18 |
-| theory | 12 |
+| none | 132 |
+| target | 18 |
+| implementation | 6 |
+| validation | 42 |
+| temporal-identification | 2 |
+| theory | 8 |
 
 ## Why this X02 slice
 

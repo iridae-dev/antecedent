@@ -1,0 +1,25 @@
+feature_id = "state.period_refresh"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+modules = ["crates/antecedent/src/period_refresh.rs"]
+
+papers = [
+ { title = "Some theorems in least squares (Plackett, Biometrika 37:149-157)", sections = ["recursive updating of the least-squares estimate with appended observations"] },
+ { title = "Bayesian Data Analysis (3rd edition, Gelman, Carlin, Stern, Dunson, Vehtari and Rubin)", sections = ["Chapter 14, Section 14.2: Bayesian analysis of the classical regression model"] },
+]
+
+implementation_deviations = [
+  "The implementing module is crates/antecedent/src/period_refresh.rs. It states: The earlier posterior is never the prior of a period whose mechanism was not declared the same, because that would assume the stationarity a temporal index does not give; a period that overlaps the summarized one, or reuses its snapshot, is refused: the same observations would enter twice.",
+  "The gap is not filled and not assumed stationary: the rows that would span it are not formed, and the new period contributes its own rows only.",
+  "Next attempt when the mechanism is not invariant across periods: a model with period-level parameters (a hierarchical or random-walk coefficient model).",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent/tests/period_refresh_lifecycle.rs",
+]

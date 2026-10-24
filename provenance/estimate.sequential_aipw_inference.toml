@@ -1,0 +1,26 @@
+feature_id = "estimate.sequential_aipw_inference"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+modules = ["crates/antecedent-estimate/src/sequential_aipw_inference.rs"]
+
+papers = [
+ { title = "Doubly robust estimation in missing data and causal inference models (Bang and Robins, Biometrics 61:962-973)", sections = ["sequentially doubly robust estimators for a longitudinal treatment"] },
+ { title = "Double/debiased machine learning for treatment and structural parameters (Chernozhukov et al., Econometrics Journal 21:C1-C68)", sections = ["cross-fitted orthogonal scores"] },
+ { title = "The Bayesian Bootstrap", sections = ["the Bayesian bootstrap: flat Dirichlet weights on the observed units"] },
+]
+
+implementation_deviations = [
+  "The implementing module is crates/antecedent-estimate/src/sequential_aipw_inference.rs. It states: Identification is assumed, not derived: sequential conditional exchangeability given the measured history, positivity at each decision over the observed histories, consistency, no interference, and no unmeasured confounder of a later decision that the first action affected and the history omits.",
+  "It is a modular posterior: the cross-fit propensity and conditional-mean fits are held at their fitted values in each score, so the draws carry the subject-law uncertainty of the orthogonal score and not the sampling uncertainty of the nuisance fits.",
+  "The prior is the vanishing- concentration Dirichlet-process prior on the subject law; it does not identify the target, the stated identification assumptions do.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent/tests/unlicensed_design_routes.rs",
+]

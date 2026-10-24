@@ -1,0 +1,23 @@
+feature_id = "estimate.history_outcome_model"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+modules = ["crates/antecedent-estimate/src/history_outcome_model.rs"]
+
+papers = [
+ { title = "Bayesian Data Analysis (3rd edition, Gelman, Carlin, Stern, Dunson, Vehtari and Rubin)", sections = ["Chapter 14, Section 14.2: Bayesian analysis of the classical regression model"] },
+]
+
+implementation_deviations = [
+  "The implementing module is crates/antecedent-estimate/src/history_outcome_model.rs. It states: A history-matched contrast has no posterior (see crate::matching_posterior_boundary).",
+  "It is not a matching estimand: no unit is paired with a donor, the model's linearity in the score and its period effects carry the confounding adjustment, and a period without both arms contributes no information about the contrast, so its units are left out and reported.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent/tests/bayesian_arm_effect_routes.rs",
+]

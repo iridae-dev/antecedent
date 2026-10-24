@@ -1,0 +1,25 @@
+feature_id = "estimate.randomized.bayesian"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+modules = ["crates/antecedent-estimate/src/randomized_posterior.rs"]
+
+papers = [
+ { title = "The Bayesian Bootstrap", sections = ["the Bayesian bootstrap: flat Dirichlet weights on the observed units"] },
+ { title = "Bayesian Data Analysis (3rd edition, Gelman, Carlin, Stern, Dunson, Vehtari and Rubin)", sections = ["Chapter 2, Section 2.1: estimating a probability from binomial data"] },
+]
+
+implementation_deviations = [
+  "The implementing module is crates/antecedent-estimate/src/randomized_posterior.rs. It states: That interval is not a posterior.",
+  "Contrasts are linear in the arm means, so the unknown cross-arm dependence of (Y_i(0), Y_i(1)) plays no role and the finite-population contrast has an exact posterior too (a Beta-Binomial convolution for binary outcomes; a Student-t predictive sum for Gaussian outcomes).",
+  "The two laws answer different questions.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent/tests/bayesian_randomized_routes.rs",
+]

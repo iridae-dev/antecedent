@@ -12,6 +12,9 @@ Fails when
                         failed attempt
   closure_kind          a closed_with_next_attempt row is not a narrowed_promise, or a narrowed
                         promise has no reason or no next attempt
+  evidence              an executing row lacks a recorded target or sampling design, a fixture
+                        that exists and is run, or an artifact consumer that reads the artifact,
+                        or an uncertainty no method record backs
 
 Per method it reports which side is missing and the next attempt.
 
@@ -26,10 +29,10 @@ import re
 import sys
 import tomllib
 from collections import Counter
-from pathlib import Path
 
 from _repo import REPO_ROOT as ROOT
 import generate_counterparts as gen
+from method_evidence import Evidence
 
 INVENTORY = ROOT / "parity/counterparts.toml"
 NOT_IMPLEMENTED = re.compile(
@@ -38,8 +41,35 @@ NOT_IMPLEMENTED = re.compile(
 )
 
 
-def problems(rows: list[dict], vocab: dict | None = None) -> list[str]:
+def evidence_problems(rows: list[dict], ev: Evidence) -> list[str]:
+    """An executing row has a target, a sampling design, a verified fixture and a reading consumer."""
     errors: list[str] = []
+    for row in rows:
+        rid = row["id"]
+        if row["uncertainty_basis"] not in gen.BASES:
+            errors.append(f"evidence: {rid} uncertainty basis {row['uncertainty_basis']!r} is outside the vocabulary")
+        if row["status"] not in gen.EXECUTING:
+            continue
+        if row["uncertainty_basis"] == "no_method_record":
+            errors.append(f"evidence: {rid} executes but no method record backs its uncertainty")
+        if row["target"] in ("unlisted", "none", ""):
+            errors.append(f"evidence: {rid} executes with no recorded target")
+        if row["sampling_design"] in ("unlisted", ""):
+            errors.append(f"evidence: {rid} executes with no recorded sampling design")
+        for problem in ev.fixture_findings(row["execution"]) if row["execution"] != "unlisted" else ["no execution fixture"]:
+            errors.append(f"evidence: {rid} execution {row['execution']}: {problem}")
+        if row["artifact"] == "unlisted":
+            errors.append(f"evidence: {rid} executes with no artifact consumer")
+        else:
+            for problem in ev.consumer_findings(row["artifact"]):
+                errors.append(f"evidence: {rid} artifact {row['artifact']}: {problem}")
+            if ev.is_test_path(ev.split(row["artifact"])[0]):
+                errors.append(f"evidence: {rid} artifact consumer {row['artifact']} is a test")
+    return errors
+
+
+def problems(rows: list[dict], vocab: dict | None = None, ev: Evidence | None = None) -> list[str]:
+    errors: list[str] = evidence_problems(rows, ev) if ev is not None else []
     statuses = set((vocab or {}).get("statuses", gen.STATUSES))
     kinds = set((vocab or {}).get("uncertainty_kinds", gen.UNCERTAINTY_KINDS))
     closures = set((vocab or {}).get("closure_kinds", gen.CLOSURE_KINDS))
@@ -77,6 +107,8 @@ def problems(rows: list[dict], vocab: dict | None = None) -> list[str]:
                 if row["status"] not in ("licensed", "executing_unlicensed"):
                     continue
                 if twin["status"] not in ("licensed", "executing_unlicensed"):
+                    continue
+                if row["uncertainty"] not in gen.UNCERTAINTY_RANK or twin["uncertainty"] not in gen.UNCERTAINTY_RANK:
                     continue
                 weaker = gen.UNCERTAINTY_RANK[row["uncertainty"]] < gen.UNCERTAINTY_RANK[twin["uncertainty"]]
                 if weaker and not row["reason"].strip():
@@ -170,7 +202,7 @@ def main() -> int:
     rows, data = load_rows()
     if "--report" in args:
         print(report(rows))
-    errors = problems(rows, data)
+    errors = problems(rows, data, Evidence(ROOT))
     for line in errors:
         print(line)
     print(f"counterparts: {len(rows)} rows, {len(errors)} finding(s)")

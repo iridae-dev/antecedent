@@ -1,0 +1,22 @@
+feature_id = "estimate.augmented_panel_did"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+modules = ["crates/antecedent-estimate/src/augmented_panel_did.rs"]
+
+papers = [
+ { title = "Doubly robust difference-in-differences estimators", doi = "10.1016/j.jeconom.2020.06.003", sections = ["covariate-conditional parallel trends and the augmented two-period estimand"] },
+]
+
+implementation_deviations = [
+  "The implementing module is crates/antecedent-estimate/src/augmented_panel_did.rs. It states: Supplied-nuisance augmented two-period panel ATT.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent/tests/augmented_panel_did_route.rs",
+]

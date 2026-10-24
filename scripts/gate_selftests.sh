@@ -29,6 +29,12 @@ python3 scripts/check_counterparts.py --self-test
 python3 scripts/test_check_counterparts.py
 python3 scripts/test_joint_panel_reference.py
 python3 scripts/reconcile_release_scope.py --self-test
+python3 scripts/check_method_children.py --self-test
+python3 scripts/route_methods.py --self-test
+python3 scripts/reconcile_method_specs.py --self-test
+python3 scripts/derive_milestone_readiness.py --self-test
+python3 scripts/closure_audit.py --self-test
+python3 scripts/test_closure_audit.py
 python3 scripts/test_gate_compiler_bypass.py
 python3 scripts/test_gate_retained_routes.py
 python3 scripts/test_calibration_recipe_receipts.py

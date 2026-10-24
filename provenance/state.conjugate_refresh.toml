@@ -1,0 +1,24 @@
+feature_id = "state.conjugate_refresh"
+implementation_crate = "antecedent-state"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+modules = ["crates/antecedent-state/src/conjugate_refresh.rs"]
+
+papers = [
+ { title = "Bayesian Data Analysis (3rd edition, Gelman, Carlin, Stern, Dunson, Vehtari and Rubin)", sections = ["Chapter 14, Section 14.2: Bayesian analysis of the classical regression model"] },
+]
+
+implementation_deviations = [
+  "The implementing module is crates/antecedent-state/src/conjugate_refresh.rs. It states: Prior update of a Gaussian linear model: sequential equals batch, with no double use.",
+  "The posterior depends on the data only through the additive terms XᵀX, Xᵀy, yᵀy and n, so a posterior kept as the natural parameters Λ = Λ₀ + XᵀX, η = Λ₀m₀ + Xᵀy, c = m₀ᵀΛ₀m₀ + yᵀy, a = a₀ + n/2 is updated by adding a block's terms, and updating block by block gives the same posterior as one update with every block pooled.",
+  "A different prior is a different posterior: ConjugateOlsPosterior::update and ConjugateOlsPosterior::summary refuse it, and ConjugateOlsPosterior::reprior is the rebuild from every own block under the new prior.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-state/tests/conjugate_refresh_oracle.rs",
+]

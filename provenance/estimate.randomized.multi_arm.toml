@@ -1,0 +1,23 @@
+feature_id = "estimate.randomized.multi_arm"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+modules = ["crates/antecedent-estimate/src/multi_arm.rs"]
+
+papers = [
+ { title = "A Generalization of Sampling Without Replacement from a Finite Universe", doi = "10.1080/01621459.1952.10483446", sections = ["inverse-probability estimator of a population total, applied here to an action contrast with known assignment probabilities"] },
+]
+
+implementation_deviations = [
+  "The implementing module is crates/antecedent-estimate/src/multi_arm.rs. It states: Randomized multi-arm Horvitz--Thompson means and conservative contrasts.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent/tests/randomized_trial_route.rs",
+  "python/tests/test_randomized_experiment.py",
+]

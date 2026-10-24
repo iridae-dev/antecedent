@@ -1,0 +1,23 @@
+feature_id = "validate.target_native_refuters"
+implementation_crate = "antecedent-validate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+modules = ["crates/antecedent-validate/src/target_native/mod.rs"]
+
+papers = [
+]
+
+implementation_deviations = [
+  "The implementing module is crates/antecedent-validate/src/target_native/mod.rs. It states: A claim about a conditional effect, a response derivative, a temporal effect, a mediation decomposition, a vector of intervention-world values or a joint contrast is not certified by that number.",
+  "Its pass threshold has no measured error rate.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-validate/tests/target_native.rs",
+  "crates/antecedent/tests/target_native_validation.rs",
+]

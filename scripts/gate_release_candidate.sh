@@ -167,6 +167,8 @@ bash scripts/gate_scale_cases.sh
 
 echo "== release candidate: release-closure receipts =="
 python3 scripts/check_release_closure.py
+echo "== release candidate: closure audit has no unresolved row =="
+python3 scripts/closure_audit.py --require-zero
 python3 scripts/generate_calibration_backlog.py --require-measured
 python3 scripts/check_acceptance_manifest.py --self-test
 python3 scripts/test_check_acceptance_manifest.py
@@ -174,6 +176,12 @@ python3 scripts/test_check_release_closure.py
 python3 scripts/check_counterparts.py --self-test
 python3 scripts/test_check_counterparts.py
 python3 scripts/reconcile_release_scope.py --self-test
+python3 scripts/check_method_children.py --self-test
+python3 scripts/route_methods.py --self-test
+python3 scripts/reconcile_method_specs.py --self-test
+python3 scripts/derive_milestone_readiness.py --self-test
+python3 scripts/closure_audit.py --self-test
+python3 scripts/test_closure_audit.py
 python3 scripts/test_generate_calibration_backlog.py
 python3 scripts/run_scale_cases.py --self-test
 ci_workflow_tests

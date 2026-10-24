@@ -222,3 +222,39 @@ fn the_identifier_and_the_estimators_go_together() {
         .unwrap_err();
     assert!(frequentist_id_under_bayes.to_string().contains("estimator_inference_mismatch"));
 }
+
+#[test]
+fn both_lagged_instrument_estimators_publish_artifacts_a_consumer_recomputes_from() {
+    let columns = series();
+    let series_data = data(&columns);
+    let ctx = ExecutionContext::for_tests(2);
+    let bayesian =
+        InferenceMode::Bayesian(BayesianConfig::conjugate().prior_scale(100.0).n_draws(400));
+    let cases = [
+        (
+            EstimatorId::TemporalLaggedInstrument,
+            InferenceMode::Frequentist,
+            "temporal.lagged_instrument",
+        ),
+        (
+            EstimatorId::BayesianTemporalLaggedInstrument,
+            bayesian,
+            "bayesian.temporal.lagged_instrument",
+        ),
+    ];
+    for (estimator, inference, wire_id) in cases {
+        let prepared = builder(&columns, false)
+            .estimator(estimator)
+            .inference(inference)
+            .build()
+            .unwrap()
+            .prepare(&ctx)
+            .unwrap();
+        let result = prepared.estimate_series(&series_data, &ctx).unwrap();
+        let bytes = prepared.encode_contracted_result(&result, wire_id, &ctx).unwrap();
+        let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+        assert_eq!(consumed.body.estimate, Some(result.effect()), "{wire_id}");
+        let contract = consumed.contract.as_ref().expect("a contracted lagged-instrument artifact");
+        assert_eq!(contract.estimator.as_deref(), Some(wire_id));
+    }
+}

@@ -18,13 +18,13 @@ reduced claim, the failed attempt and the next attempt are recorded beside it. A
 | --- | --- | --- | --- | --- |
 | `P01.iv` | licensed | licensed | executing | executing |
 | `P01.linear` | licensed | licensed | licensed | licensed |
-| `P02.glm` | licensed | executing | executing | executing |
+| `P02.glm` | licensed | licensed | executing | executing |
 | `P02.penalized_propensity` | executing | executing | executing | executing |
-| `P03.aipw` | licensed | executing | executing | executing |
+| `P03.aipw` | licensed | licensed | executing | executing |
 | `P03.policy` | executing | executing | executing | executing |
 | `P04` | licensed | executing | executing | executing |
 | `P05` | executing | executing | executing | executing |
-| `P06` | licensed | licensed | executing | executing |
+| `P06` | licensed | licensed | licensed | licensed |
 | `P07.continuous_dose` | executing | executing | executing | executing |
 | `P07.curve` | licensed | licensed | licensed | licensed |
 | `P07.derivative` | licensed | licensed | licensed | licensed |
@@ -51,10 +51,10 @@ reduced claim, the failed attempt and the next attempt are recorded beside it. A
 | `P13.attribution` | licensed | licensed | licensed | licensed |
 | `P13.refuter` | executing | executing | executing | executing |
 | `P14` | licensed | licensed | licensed | licensed |
-| `P15.conditional` | licensed | licensed | executing | executing |
+| `P15.conditional` | licensed | licensed | licensed | licensed |
 | `P15.projection` | licensed | licensed | licensed | licensed |
-| `P15.pulse` | n/a (theory) | n/a (theory) | executing | executing |
-| `P15.sustained` | n/a (theory) | n/a (theory) | executing | executing |
+| `P15.pulse` | n/a (theory) | n/a (theory) | licensed | licensed |
+| `P15.sustained` | n/a (theory) | n/a (theory) | licensed | licensed |
 | `P16` | executing | executing | executing | executing |
 | `P17` | executing | executing | executing | executing |
 | `P18` | executing | executing | executing | executing |
@@ -108,13 +108,15 @@ reduced claim, the failed attempt and the next attempt are recorded beside it. A
 
 | Row | Status | Next attempt |
 | --- | --- | --- |
+| `P02.penalized_propensity.temporal.frequentist` | executing | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
+| `P04.temporal.frequentist` | executing | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
 | `P07.derivative.temporal.frequentist` | licensed | measure the whole-procedure coverage of this interval and record its boundary |
 | `P07.derivative.temporal.bayesian` | licensed | measure the whole-procedure coverage of this interval and record its boundary |
 | `P07.dose_grid.static.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |
 | `P10.temporal.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |
 | `P11.augmented_panel_did.temporal.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `P11.synthetic_control.temporal.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `P13.attribution.static.frequentist` | licensed | measure the whole-procedure coverage of this interval and record its boundary |
+| `P11.synthetic_control.temporal.frequentist` | executing | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
+| `P13.attribution.static.frequentist` | licensed | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
 | `P13.attribution.static.bayesian` | licensed | measure the whole-procedure coverage of this interval and record its boundary |
 | `P13.attribution.temporal.frequentist` | licensed | measure the whole-procedure coverage of this interval and record its boundary |
 | `P13.attribution.temporal.bayesian` | licensed | measure the whole-procedure coverage of this interval and record its boundary |
@@ -124,24 +126,24 @@ reduced claim, the failed attempt and the next attempt are recorded beside it. A
 | `P13.refuter.temporal.bayesian` | executing | measure the whole-procedure coverage of this interval and record its boundary |
 | `P14.temporal.frequentist` | licensed | measure the whole-procedure coverage of this interval and record its boundary |
 | `P14.temporal.bayesian` | licensed | measure the whole-procedure coverage of this interval and record its boundary |
-| `P15.conditional.temporal.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `P15.conditional.temporal.bayesian` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `P15.pulse.temporal.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `P15.pulse.temporal.bayesian` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `P15.sustained.temporal.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `P15.sustained.temporal.bayesian` | executing | measure the whole-procedure coverage of this interval and record its boundary |
+| `P15.conditional.temporal.frequentist` | licensed | measure the whole-procedure coverage of this interval and record its boundary |
+| `P15.conditional.temporal.bayesian` | licensed | measure the whole-procedure coverage of this interval and record its boundary |
+| `P15.pulse.temporal.frequentist` | licensed | measure the whole-procedure coverage of this interval and record its boundary |
+| `P15.pulse.temporal.bayesian` | licensed | measure the whole-procedure coverage of this interval and record its boundary |
+| `P15.sustained.temporal.frequentist` | licensed | measure the whole-procedure coverage of this interval and record its boundary |
+| `P15.sustained.temporal.bayesian` | licensed | measure the whole-procedure coverage of this interval and record its boundary |
 | `P16.static.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |
 | `P16.static.bayesian` | executing | measure the whole-procedure coverage of this interval and record its boundary |
 | `P16.temporal.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |
 | `P16.temporal.bayesian` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `P19.static.frequentist` | executing | build the missing route through the compiler with the same uncertainty ports |
-| `P19.static.bayesian` | executing | build the missing route through the compiler with the same uncertainty ports |
-| `P19.temporal.frequentist` | executing | build the missing route through the compiler with the same uncertainty ports |
-| `P19.temporal.bayesian` | executing | build the missing route through the compiler with the same uncertainty ports |
-| `P20.static.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `P20.static.bayesian` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `P20.temporal.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `P20.temporal.bayesian` | executing | measure the whole-procedure coverage of this interval and record its boundary |
+| `P19.static.frequentist` | executing | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
+| `P19.static.bayesian` | executing | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
+| `P19.temporal.frequentist` | executing | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
+| `P19.temporal.bayesian` | executing | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
+| `P20.static.frequentist` | executing | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
+| `P20.static.bayesian` | executing | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
+| `P20.temporal.frequentist` | executing | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
+| `P20.temporal.bayesian` | executing | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
 | `X02.static.frequentist` | executing | build the missing route through the compiler with the same uncertainty ports |
 | `X02.static.bayesian` | executing | build the missing route through the compiler with the same uncertainty ports |
 | `X02.temporal.frequentist` | closed | prove identification under the declared temporal assumptions or record the counterexample as the boundary |
@@ -152,14 +154,14 @@ reduced claim, the failed attempt and the next attempt are recorded beside it. A
 | `X02.broader.temporal.bayesian` | closed | derive the identification result for this counterpart or record the boundary proof |
 | `X03.temporal.frequentist` | closed | derive the identification result for this counterpart or record the boundary proof |
 | `X03.temporal.bayesian` | closed | derive the identification result for this counterpart or record the boundary proof |
-| `X04.1.static.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `X04.1.static.bayesian` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `X04.1.temporal.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `X04.1.temporal.bayesian` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `X04.2.static.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `X04.2.static.bayesian` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `X04.2.temporal.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `X04.2.temporal.bayesian` | executing | measure the whole-procedure coverage of this interval and record its boundary |
+| `X04.1.static.frequentist` | executing | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
+| `X04.1.static.bayesian` | executing | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
+| `X04.1.temporal.frequentist` | executing | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
+| `X04.1.temporal.bayesian` | executing | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
+| `X04.2.static.frequentist` | executing | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
+| `X04.2.static.bayesian` | executing | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
+| `X04.2.temporal.frequentist` | executing | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
+| `X04.2.temporal.bayesian` | executing | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
 | `X05.temporal.frequentist` | closed | derive the identification result for this counterpart or record the boundary proof |
 | `X05.temporal.bayesian` | closed | derive the identification result for this counterpart or record the boundary proof |
 | `X06.temporal.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |

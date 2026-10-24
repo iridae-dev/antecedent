@@ -1,0 +1,25 @@
+feature_id = "estimate.survival.bayesian"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+modules = ["crates/antecedent-estimate/src/survival_posterior.rs"]
+
+papers = [
+ { title = "Covariance Analysis of Censored Survival Data Using Log-Linear Analysis Techniques (Laird and Olivier, J. Am. Stat. Assoc. 76:231-240)", sections = ["the piecewise exponential model as a Poisson regression"] },
+ { title = "Bayesian Data Analysis (3rd edition, Gelman, Carlin, Stern, Dunson, Vehtari and Rubin)", sections = ["Chapter 14, Section 14.2: Bayesian analysis of the classical regression model"] },
+]
+
+implementation_deviations = [
+  "The implementing module is crates/antecedent-estimate/src/survival_posterior.rs. It states: The likelihood is stated, not implied.",
+  "The prior is part of the answer: the interval cut points and the Gamma pair are declared, never selected here.",
+  "Under the piecewise-constant hazard model these are exact functions of the hazards, so the posterior is a posterior for that target and not a relabelled interval.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent/tests/bayesian_design_posterior_routes.rs",
+]

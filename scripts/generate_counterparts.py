@@ -30,6 +30,7 @@ import tomllib
 from pathlib import Path
 
 from _repo import REPO_ROOT as ROOT
+from method_evidence import UNLISTED, Evidence
 
 CHILDREN = ROOT / "parity/method_children/children.toml"
 ROUTES = ROOT / "parity/capabilities/route_manifest.toml"
@@ -48,6 +49,10 @@ STATUSES = (
     "not_applicable_with_theory_reason",
 )
 UNCERTAINTY_KINDS = ("analytic", "design_aware_resampling", "posterior", "enclosure", "none")
+BASES = (
+    "measured_record", "point_only_cell", "asserted_in_test", "estimator_records", "declared_unmeasured",
+    "declared_and_corroborated", "graphless_claim", "no_executing_route", "refused_route", "no_method_record",
+)
 CLOSURE_KINDS = ("delivered", "narrowed_promise")
 
 # What each kind of recorded gap asks for next. The child record names the gap; the reason text
@@ -62,17 +67,16 @@ NEXT_ATTEMPT = {
     ),
     "theory": "derive the identification result for this counterpart or record the boundary proof",
 }
+EXECUTING = ("licensed", "executing_unlicensed")
+NO_INTERVAL_NEXT = (
+    "derive the dependence-aware interval or posterior for this counterpart and publish it through "
+    "the same route with the uncertainty port of its static twin"
+)
 CLOSED_ROUTE_NEXT = (
     "identify the target on this graph class and lower it through the compiler, or keep the "
     "typed refusal with the boundary proof"
 )
-NO_INTERVAL = re.compile(r"no[_ ]interval|reports no interval|no .{0,40}interval|point value only", re.I)
-RESAMPLING = re.compile(
-    r"bootstrap|resampl|permutation|conformal|placebo|jackknife|multiplier|randomi[sz]ation inference"
-    r"|neyman|whole-cluster|simultaneous",
-    re.I,
-)
-ENCLOSURE = re.compile(r"enclosure|partial identification|sensitivity interval|bound interval", re.I)
+SPECS = ROOT / "parity/method_specs/specs.toml"
 TEMPORAL_MARK = re.compile(r"temporal|panel|sequential|series|period|time", re.I)
 UNCERTAINTY_RANK = {"none": 0, "enclosure": 1, "analytic": 2, "design_aware_resampling": 2, "posterior": 2}
 
@@ -92,40 +96,68 @@ def split_id(child_id: str) -> tuple[str, str, str]:
     return ".".join(parts[:-2]), parts[-2], parts[-1]
 
 
-def uncertainty_segment(text: str, inference: str) -> str:
-    """The part of a route's uncertainty sentence that speaks for one inference side."""
-    side = "Frequentist" if inference == "frequentist" else "Bayesian"
-    other = "Bayesian" if inference == "frequentist" else "Frequentist"
-    match = re.search(rf"{side}:(.*?)(?:;\s*{other}:|$)", text, re.S)
-    return match.group(1) if match else text
+class Evidenced:
+    """The method records of the route manifest and the evidence each row is derived from."""
+
+    def __init__(self, manifest: dict, specs: list[dict], ev: Evidence) -> None:
+        self.ev = ev
+        self.methods = manifest.get("method", [])
+        self.by_route: dict[str, list[dict]] = {}
+        self.by_estimator: dict[str, list[dict]] = {}
+        self.by_child: dict[str, list[dict]] = {}
+        for method in self.methods:
+            if method["child"]:
+                self.by_child.setdefault(method["child"], []).append(method)
+                continue
+            self.by_route.setdefault(method["route"], []).append(method)
+            if method["estimator"] not in UNLISTED:
+                self.by_estimator.setdefault(method["estimator"], []).append(method)
+        self.specs = {spec["id"]: spec for spec in specs}
+
+    def for_side(self, methods: list[dict], inference: str) -> list[dict]:
+        return [m for m in methods if m["inference"] in (inference, "both", "unlisted")]
+
+    def methods_of_child(self, child: dict, inference: str) -> list[dict]:
+        """Method records that implement a child: its route's, narrowed by the estimators it names."""
+        if child["id"] in self.by_child:
+            return self.by_child[child["id"]]
+        tokens = [
+            t for t in re.split(r"[^A-Za-z0-9_.]+", child["inference"]) if t in self.by_estimator
+        ]
+        candidates = self.for_side(self.by_route.get(child["route"], []), inference)
+        if tokens:
+            narrowed = [m for m in candidates if m["estimator"] in tokens]
+            if narrowed:
+                return narrowed
+            if not candidates:
+                return self.for_side([m for t in tokens for m in self.by_estimator[t]], inference)
+        return candidates
+
+    def route_kind(self, route_id: str, inference: str) -> tuple[str, str]:
+        """The best uncertainty kind of a route's methods on one inference side, with its basis."""
+        methods = self.for_side(self.by_route.get(route_id, []), inference)
+        if not methods:
+            return "none", "no_method_record"
+        best = max(methods, key=lambda m: UNCERTAINTY_RANK[m["uncertainty"]])
+        return best["uncertainty"], best["uncertainty_basis"].split("|")[0].split(":")[0]
 
 
-def uncertainty_kind(inference: str, status: str, reason: str, procedure: str, ident: str) -> str:
-    if status in ("closed_with_next_attempt", "not_applicable_with_theory_reason"):
-        return "none"
-    if NO_INTERVAL.search(reason) or NO_INTERVAL.search(procedure):
-        return "none"
-    if inference == "bayesian":
-        return "posterior"
-    if ENCLOSURE.search(procedure) or ENCLOSURE.search(ident):
-        return "enclosure"
-    if RESAMPLING.search(procedure) or RESAMPLING.search(reason) or RESAMPLING.search(ident):
-        return "design_aware_resampling"
-    return "analytic"
+def child_status(child: dict, methods: list[dict], verified: bool) -> tuple[str, str]:
+    """Status and closure kind of a child, from the methods and verified evidence that back it.
 
-
-def child_status(child: dict, route: dict | None) -> tuple[str, str]:
-    """Status and closure kind of a child; the reason text is the child's own sentence."""
+    A child is licensed when a licensed method record implements it, and executing when a method
+    record or its own verified module and fixture do. A boundary is not applicable when its
+    gap is a target that does not exist on the axis; every other open gap is a closed row that
+    names its next attempt.
+    """
     gap, missing = child["gap"], child["missing"]
-    if gap == "none":
-        licensed = route is not None and route["status"] == "licensed"
-        return ("licensed" if licensed else "executing_unlicensed"), "delivered"
     if gap == "target" or missing.lower().startswith("not applicable"):
         return "not_applicable_with_theory_reason", "delivered"
-    executes = gap == "validation" or (gap == "implementation" and child["module"] != "none")
-    if executes:
-        licensed = route is not None and route["status"] == "licensed"
-        return ("licensed" if licensed else "executing_unlicensed"), "narrowed_promise"
+    executes = gap in ("none", "validation") or (gap == "implementation" and child["module"] != "none")
+    if executes and (methods or (verified and child["module"] != "none")):
+        licensed = any(m["status"] == "licensed" for m in methods)
+        status = "licensed" if licensed else "executing_unlicensed"
+        return status, "delivered" if gap == "none" else "narrowed_promise"
     return "closed_with_next_attempt", "narrowed_promise"
 
 
@@ -133,15 +165,30 @@ def scope_by_id(scope: dict) -> dict[str, dict]:
     return {entry["id"]: entry for entry in scope["entry"]}
 
 
-def child_rows(children: list[dict], routes: dict[str, dict], scope: dict[str, dict]) -> list[dict]:
+def child_rows(children: list[dict], routes: dict[str, dict], scope: dict[str, dict], evidenced: Evidenced) -> list[dict]:
+    ev = evidenced.ev
+    from check_method_children import child_findings
+
     rows = []
     for child in children:
         method, design, inference = split_id(child["id"])
         route = routes.get(child["route"])
-        status, closure = child_status(child, route)
+        methods = evidenced.methods_of_child(child, inference)
+        verified = not child_findings(ev, child, set(routes))
+        status, closure = child_status(child, methods, verified)
         reason = "" if child["missing"] == "none" else child["missing"]
-        segment = uncertainty_segment(route["uncertainty"], inference) if route else ""
-        kind = uncertainty_kind(inference, status, reason, segment, child["inference"])
+        if status in ("closed_with_next_attempt", "not_applicable_with_theory_reason"):
+            kind, basis = "none", "no_executing_route"
+        elif methods:
+            best = max(methods, key=lambda m: UNCERTAINTY_RANK[m["uncertainty"]])
+            kind, basis = best["uncertainty"], best["uncertainty_basis"].split("|")[0].split(":")[0]
+        else:
+            kind, basis = "unresolved", "no_method_record"
+        spec = evidenced.specs.get(child["id"], {})
+        sampling = next((m["design_time_model"] for m in methods if m["design_time_model"] not in UNLISTED), "")
+        sampling = sampling or spec.get("sampling_units", "unlisted")
+        fixtures = ev.tokens(child["fixtures"])
+        consumers = ev.tokens(child["consumer"])
         entry = scope.get(child["id"], {})
         rows.append(
             {
@@ -153,15 +200,22 @@ def child_rows(children: list[dict], routes: dict[str, dict], scope: dict[str, d
                 "route": child["route"],
                 "status": status,
                 "uncertainty": kind,
-                "sampling_design": route["design_time_model"] if route else "unlisted",
+                "uncertainty_basis": basis,
+                "target": child["target"],
+                "sampling_design": sampling,
+                "execution": fixtures[0] if fixtures else "unlisted",
                 "reuse_key": child["inference"] if child["inference"] != "unlisted" else child["route"],
-                "decision_port": route["decision_ports"] if route else "unlisted",
-                "artifact": route["artifact_consumer"] if route else "unlisted",
+                "decision_port": methods[0]["decision_ports"] if methods else (route["decision_ports"] if route else "unlisted"),
+                "artifact": next((c for c in consumers if not ev.is_test_path(ev.split(c)[0])), consumers[0] if consumers else "unlisted"),
                 "closure": closure,
                 "scope_status": entry.get("status", "unlisted"),
                 "gap": child["gap"],
                 "reason": reason,
-                "next_attempt": NEXT_ATTEMPT.get(child["gap"], "") if closure == "narrowed_promise" else "",
+                "next_attempt": (
+                    NO_INTERVAL_NEXT
+                    if closure == "narrowed_promise" and kind == "none" and status in EXECUTING
+                    else NEXT_ATTEMPT.get(child["gap"], "") if closure == "narrowed_promise" else ""
+                ),
             }
         )
     return rows
@@ -203,7 +257,7 @@ def route_inferences(route: dict) -> list[str]:
     return found
 
 
-def route_rows(routes: list[dict], lowerings: dict[str, str]) -> list[dict]:
+def route_rows(routes: list[dict], lowerings: dict[str, str], evidenced: Evidenced) -> list[dict]:
     """One row per quadrant of each licensed or closed route, grouped by its target.
 
     A route outside the dotted ``static``/``temporal`` id scheme is included when it declares its
@@ -233,13 +287,17 @@ def route_rows(routes: list[dict], lowerings: dict[str, str]) -> list[dict]:
             continue
         targets = [route_method(route), *counterparts]
         for inference in inferences:
-            segment = uncertainty_segment(route["uncertainty"], inference)
+            kind, basis = evidenced.route_kind(route["id"], inference) if not closed else ("none", "refused_route")
+            methods = evidenced.for_side(evidenced.by_route.get(route["id"], []), inference)
             status = (
                 "closed_with_next_attempt" if closed
-                else "licensed" if route["status"] == "licensed" else "executing_unlicensed"
+                else "licensed" if (
+                    any(m["status"] == "licensed" for m in methods)
+                    if methods else route["status"] == "licensed"
+                ) else "executing_unlicensed"
             )
             reason = route["notes"] if closed else ""
-            weak = NO_INTERVAL.search(segment) is not None
+            weak = kind == "none" and not closed
             for target in targets:
                 derived = target != route_method(route)
                 reason_key = "counterpart_reason" if derived else "narrowed_reason"
@@ -255,17 +313,23 @@ def route_rows(routes: list[dict], lowerings: dict[str, str]) -> list[dict]:
                         "inference": inference,
                         "route": route["id"],
                         "status": status,
-                        "uncertainty": uncertainty_kind(inference, status, "", segment, route["id"]),
+                        "uncertainty": kind,
+                        "uncertainty_basis": basis,
+                        "target": target,
                         "sampling_design": route["design_time_model"],
+                        "execution": methods[0]["evidence"][0] if methods and methods[0]["evidence"] else "unlisted",
                         "reuse_key": lowerings.get(route["id"], route["id"]),
                         "decision_port": route["decision_ports"],
-                        "artifact": route["artifact_consumer"],
+                        "artifact": next(
+                            (c for m in methods for c in m["artifact_consumer"] if not evidenced.ev.is_test_path(evidenced.ev.split(c)[0])),
+                            "unlisted",
+                        ),
                         "closure": "narrowed_promise" if closed or weak or narrowed else "delivered",
                         "scope_status": "mandatory",
                         "gap": "target" if closed else ("validation" if weak or narrowed else "none"),
                         "reason": (
                             route[reason_key] if narrowed
-                            else reason or (segment.strip()[:300] if weak else "")
+                            else reason or (f"the route publishes a point value and no interval ({basis})" if weak else "")
                         ),
                         "next_attempt": (
                             route[attempt_key] if narrowed
@@ -292,7 +356,8 @@ def static_boundaries(rows: list[dict]) -> list[dict]:
                     "id": f"{target}#static.{inference}", "kind": "route", "method": target,
                     "design": "static", "inference": inference, "route": "unlisted",
                     "status": "not_applicable_with_theory_reason", "uncertainty": "none",
-                    "sampling_design": "unlisted", "reuse_key": "unlisted",
+                    "uncertainty_basis": "no_executing_route", "target": target,
+                    "sampling_design": "unlisted", "execution": "unlisted", "reuse_key": "unlisted",
                     "decision_port": "unlisted", "artifact": "unlisted", "closure": "delivered",
                     "scope_status": "mandatory", "gap": "target",
                     "reason": f"{target} is defined over a time-indexed process, so it has no static graph class",
@@ -313,18 +378,21 @@ def licensed_lowerings(licensed: dict) -> dict[str, str]:
 
 def build() -> list[dict]:
     children = load(CHILDREN)["child"]
-    manifest = load(ROUTES)["route"]
+    manifest_data = load(ROUTES)
+    manifest = manifest_data["route"]
     routes = {route["id"]: route for route in manifest}
     scope = scope_by_id(load(SCOPE))
-    rows = child_rows(children, routes, scope)
-    rows += route_rows(manifest, licensed_lowerings(load(LICENSED)))
+    evidenced = Evidenced(manifest_data, load(SPECS)["spec"], Evidence(ROOT))
+    rows = child_rows(children, routes, scope, evidenced)
+    rows += route_rows(manifest, licensed_lowerings(load(LICENSED)), evidenced)
     rows.sort(key=lambda row: (row["kind"], row["method"], QUADRANTS.index(f"{row['design']}.{row['inference']}"), row["id"]))
     return rows
 
 
 FIELDS = (
     "id", "kind", "method", "design", "inference", "route", "status", "uncertainty",
-    "sampling_design", "reuse_key", "decision_port", "artifact", "closure", "scope_status",
+    "uncertainty_basis", "target", "sampling_design", "execution", "reuse_key", "decision_port",
+    "artifact", "closure", "scope_status",
     "gap", "reason", "next_attempt",
 )
 

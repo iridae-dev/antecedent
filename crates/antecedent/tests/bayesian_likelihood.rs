@@ -334,3 +334,23 @@ fn non_gaussian_response_levels_run_through_study_on_probability_scale() {
     assert!(mean[0] < mean[1]);
     assert_eq!(response.uncertainty.credible_draws().unwrap().n_coordinates(), 2);
 }
+
+#[test]
+fn a_logit_posterior_publishes_an_artifact_a_consumer_recomputes_from() {
+    let (table, _) = binary(1500, 11);
+    let ctx = ExecutionContext::for_tests(7);
+    let prepared = Study::tabular(table.clone())
+        .graph(dag())
+        .query(AverageEffectQuery::binary_ate(v(0), v(1)))
+        .inference(bayes(BayesLikelihood::BernoulliLogit))
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let result = prepared.estimate(&table, &ctx).unwrap();
+    let bytes = prepared.encode_contracted_result(&result, "bernoulli-logit", &ctx).unwrap();
+    let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+    assert_eq!(consumed.body.estimate, Some(result.effect()));
+    assert!(consumed.contract.is_some(), "the Bernoulli-logit posterior is contracted");
+}

@@ -1,0 +1,24 @@
+feature_id = "estimate.quantile.bayesian"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+modules = ["crates/antecedent-estimate/src/quantile_posterior.rs"]
+
+papers = [
+ { title = "Efficient Semiparametric Estimation of Quantile Treatment Effects (Firpo, Econometrica 75:259-276)", sections = ["the quantile treatment effect estimand under unconfoundedness"] },
+ { title = "The Bayesian Bootstrap", sections = ["the Bayesian bootstrap: flat Dirichlet weights on the observed units"] },
+]
+
+implementation_deviations = [
+  "The implementing module is crates/antecedent-estimate/src/quantile_posterior.rs. It states: A quantile of Y(a) is a functional of the whole outcome law, so a posterior for it needs a model of that law and not only of a mean response.",
+  "More than one percent unresolved refuses the posterior: the grid does not support that quantile.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent/tests/bayesian_design_posterior_routes.rs",
+]

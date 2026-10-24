@@ -1,0 +1,25 @@
+feature_id = "estimate.smoothed_dose"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+modules = ["crates/antecedent-estimate/src/smoothed_dose.rs"]
+
+papers = [
+ { title = "Non-parametric methods for doubly robust estimation of continuous treatment effects (Kennedy, Ma, McHugh and Small, J. R. Stat. Soc. B 79:1229-1245)", sections = ["kernel-smoothed dose-response estimation with a known or estimated generalized propensity"] },
+ { title = "Local Polynomial Modelling and Its Applications (Fan and Gijbels, 1996)", sections = ["local polynomial regression with a kernel and bandwidth"] },
+]
+
+implementation_deviations = [
+  "The implementing module is crates/antecedent-estimate/src/smoothed_dose.rs. It states: The bandwidth and the kernel are part of the estimand: psi_h is a different target for each h.",
+  "Every grid window [a - h, a + h] must lie inside the declared dose support (no boundary kernels); extrapolative points are refused.",
+  "The two IID designs of the learned-trial cells (TrialSampling::NestedCohort, TrialSampling::IndependentSamples) are the only sampling semantics.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent/tests/smoothed_dose_calibration.rs",
+]

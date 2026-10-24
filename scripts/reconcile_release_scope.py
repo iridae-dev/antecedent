@@ -320,7 +320,11 @@ def gather(repo: Repo) -> list[dict]:
     lowerings = route_lowerings(repo.load(LICENSED))
     evidence = repo.load(EVIDENCE) if repo.exists(EVIDENCE) else {}
     overlay = {r["id"]: r for r in evidence.get("row", [])}
-    waiting = {a["id"]: a for a in evidence.get("awaiting", [])}
+    if evidence.get("awaiting"):
+        raise SystemExit(
+            f"{EVIDENCE}: an `awaiting` table is no longer honoured; name the owner, fixtures and "
+            "consumer of the row instead"
+        )
     records = []
     for row in scope:
         rid = row["id"]
@@ -408,28 +412,10 @@ def gather(repo: Repo) -> list[dict]:
         if problem:
             missing.append(problem)
         status = "reconciled" if not missing else "open"
-        entry = waiting.get(rid, {})
-        defect = ""
-        if entry:
-            own = bool(fixtures) or any(c.strip() not in UNLISTED for c in consumers)
-            if not missing:
-                defect = "the row reconciles, so the awaiting entry is stale; remove it"
-            elif own:
-                defect = "the row names fixtures or a consumer of its own; drop the awaiting entry and fix what is missing"
-            elif not all(str(entry.get(k, "")).strip() for k in ("owner_item", "reason", "completes_when")):
-                defect = "the awaiting entry must name owner_item, reason and completes_when"
-            else:
-                status = "awaiting"
         records.append({
             "id": rid, "source": row["source"], "list": row["list"], "mandatory": mandatory,
             "status": status, "owner": owners, "fixtures": fixtures, "consumer": consumers, "missing": missing,
-            "awaiting": entry if status == "awaiting" else {}, "awaiting_defect": defect,
         })
-    for rid in waiting:
-        if rid not in {r["id"] for r in records}:
-            records.append({"id": rid, "source": "", "list": "", "mandatory": False, "status": "orphan",
-                            "owner": [], "fixtures": [], "consumer": [], "missing": [], "awaiting": {},
-                            "awaiting_defect": "the awaiting entry names no scope row"})
     return records
 
 
@@ -442,25 +428,13 @@ def listing(items: list[str]) -> str:
 
 
 def render(records: list[dict]) -> str:
-    records = [r for r in records if r["status"] != "orphan"]
     counts = Counter(r["status"] for r in records)
     mandatory = Counter(r["status"] for r in records if r["mandatory"])
     lines = [HEADER.rstrip("\n"), "", "schema = 1",
              f"rows = {len(records)}",
              f"reconciled = {counts['reconciled']}", f"open = {counts['open']}",
-             f"awaiting_an_owning_item = {counts['awaiting']}",
              f"mandatory_rows = {sum(mandatory.values())}",
-             f"mandatory_reconciled = {mandatory['reconciled']}", f"mandatory_open = {mandatory['open']}",
-             f"mandatory_awaiting_an_owning_item = {mandatory['awaiting']}", ""]
-    waiting = [r for r in records if r["status"] == "awaiting"]
-    if waiting:
-        lines += ["# Awaiting an owning item: no evidence of their own yet; the named plan item completes them.",
-                  "# Each is still unresolved for release.", ""]
-        for r in waiting:
-            a = r["awaiting"]
-            lines += ["[[awaiting]]", f"id = {quote(r['id'])}", f"owner_item = {quote(a['owner_item'])}",
-                      f"reason = {quote(a['reason'])}", f"completes_when = {quote(a['completes_when'])}",
-                      f"missing = {listing(r['missing'])}", ""]
+             f"mandatory_reconciled = {mandatory['reconciled']}", f"mandatory_open = {mandatory['open']}", ""]
     for r in records:
         lines += ["[[row]]", f"id = {quote(r['id'])}", f"source = {quote(r['source'])}",
                   f"list = {quote(r['list'])}", f"status = {quote(r['status'])}",
@@ -478,9 +452,7 @@ def problems(repo: Repo, records: list[dict], stored: str | None) -> list[str]:
     if stored is None or stored != expected:
         errors.append(f"stale: {OUTPUT} differs from the sources; run python3 scripts/reconcile_release_scope.py")
     for r in records:
-        if r.get("awaiting_defect"):
-            errors.append(f"stale: awaiting entry {r['id']}: {r['awaiting_defect']}")
-        if not r["mandatory"] or r["status"] in ("reconciled", "awaiting"):
+        if not r["mandatory"] or r["status"] == "reconciled":
             continue
         for item in r["missing"]:
             kind = "dangling" if "does not exist" in item or "defines no" in item or "not a registered" in item \
@@ -540,25 +512,20 @@ def self_test() -> int:
         write(root, SCOPE, scope.replace('list = "mandatory"\nsource = "method_children"', 'list = "research"\nsource = "method_children"'))
         research = gather(Repo(root))
         assert not [e for e in problems(Repo(root), research, render(research)) if "P.x" in e]
-        # awaiting: honoured only for a row with no fixtures or consumer of its own
+        # an awaiting table is not an exemption: a mandatory row with no evidence stays open and fails
         write(root, SCOPE, scope)
-        (root / "crates/c/src/reader.rs").write_text("use Thing;\nLow\n", encoding="utf-8")
         write(root, CHILDREN, '[[child]]\nid = "P.x"\nroute = "unlisted"\nmodule = "none"\nowner = "unlisted"\n'
               'fixtures = "unlisted"\nconsumer = "unlisted"\n')
-        entry = ('[[awaiting]]\nid = "P.x"\nowner_item = "P99"\nreason = "later item"\ncompletes_when = "it runs"\n')
-        write(root, EVIDENCE, entry)
         held = gather(Repo(root))
-        assert {r["id"]: r["status"] for r in held}["P.x"] == "awaiting"
-        assert problems(Repo(root), held, render(held)) == []
-        write(root, EVIDENCE, entry.replace('owner_item = "P99"', 'owner_item = ""'))
-        assert any("awaiting entry" in e for e in problems(Repo(root), gather(Repo(root)), None))
-        write(root, EVIDENCE, entry + '[[row]]\nid = "P.x"\nfixtures = ["crates/c/tests/t.rs"]\n')
-        assert any("awaiting entry" in e for e in problems(Repo(root), gather(Repo(root)), None))
-        write(root, CHILDREN, '[[child]]\nid = "P.x"\nroute = "licensed.A.Dag"\nmodule = "crates/c/src/owner.rs"\n'
-              'owner = "crates/c"\nfixtures = "crates/c/tests/t.rs"\nconsumer = "crates/c/src/reader.rs"\n')
-        assert any("stale" in e and "reconciles" in e for e in problems(Repo(root), gather(Repo(root)), None))
-        write(root, EVIDENCE, entry.replace('"P.x"', '"nope"'))
-        assert any("names no scope row" in e for e in problems(Repo(root), gather(Repo(root)), None))
+        assert {r["id"]: r["status"] for r in held}["P.x"] == "open"
+        assert any(e.startswith("open: P.x") for e in problems(Repo(root), held, render(held)))
+        write(root, EVIDENCE, '[[awaiting]]\nid = "P.x"\nowner_item = "P99"\nreason = "later"\ncompletes_when = "it runs"\n')
+        try:
+            gather(Repo(root))
+        except SystemExit as exit_:
+            assert "no longer honoured" in str(exit_)
+        else:
+            raise AssertionError("an awaiting table must be refused")
     print("reconcile_release_scope self-test passed")
     return 0
 
@@ -580,9 +547,6 @@ def main(argv: list[str]) -> int:
         return 0
     if "--report" in argv:
         counts = Counter((r["list"], r["status"]) for r in records)
-        waiting = [r["id"] for r in records if r["status"] == "awaiting"]
-        if waiting:
-            print(f"AWAITING AN OWNING ITEM ({len(waiting)}): " + ", ".join(waiting))
         print(f"rows: {len(records)}  " + "  ".join(f"{k[0]}/{k[1]}={v}" for k, v in sorted(counts.items())))
         for r in records:
             for item in r["missing"]:

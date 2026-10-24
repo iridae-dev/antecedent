@@ -154,6 +154,16 @@ echo "== counterpart inventory: every method records all four quadrants =="
 python3 scripts/check_counterparts.py
 echo "== release scope: every row matched to its route, owner, fixtures and consumer =="
 python3 scripts/reconcile_release_scope.py --check
+echo "== method children: every leaf names a registered fixture and a reading consumer =="
+python3 scripts/check_method_children.py
+echo "== route manifest: every method verified against its implementation =="
+python3 scripts/route_methods.py --check
+echo "== method specifications reconciled with the executing routes =="
+python3 scripts/reconcile_method_specs.py --check
+echo "== closure audit report is current =="
+python3 scripts/closure_audit.py --check
+echo "== scope-and-interfaces milestone readiness derived from evidence =="
+python3 scripts/derive_milestone_readiness.py --check
 echo "== published docs links resolve =="
 python3 scripts/check_doc_links.py
 

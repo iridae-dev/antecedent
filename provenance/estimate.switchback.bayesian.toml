@@ -1,0 +1,25 @@
+feature_id = "estimate.switchback.bayesian"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+modules = ["crates/antecedent-estimate/src/switchback_posterior.rs"]
+
+papers = [
+ { title = "Design and Analysis of Switchback Experiments", url = "https://arxiv.org/abs/2009.00148", sections = ["Finite-carryover potential outcomes, assignment mechanism and Horvitz-Thompson estimation"] },
+ { title = "The Bayesian Bootstrap", sections = ["the Bayesian bootstrap: flat Dirichlet weights on the observed units"] },
+]
+
+implementation_deviations = [
+  "The implementing module is crates/antecedent-estimate/src/switchback_posterior.rs. It states: It identifies that effect only under no carryover and no between-sequence interference, and its interval is a design-based statement, not a posterior.",
+  "A posterior needs a likelihood for the within-sequence dependence, so this module states one and refuses to run without it: The outcome of sequence s is y_s = X_s b + e_s, e_s ~ N(0, sigma2 R_s) with independent sequences.",
+  "The correlation is *declared*, never estimated; a posterior that also marginalized over it needs a prior on it and is the next attempt (run the declared values on a grid for a sensitivity reading).",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent/tests/bayesian_randomized_routes.rs",
+]

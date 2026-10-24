@@ -264,3 +264,31 @@ fn nested_and_path_stay_the_fitted_quantities_when_adjustment_is_nonempty() {
         }
     }
 }
+
+#[test]
+fn cross_world_artifacts_are_consumed_with_the_point_they_publish() {
+    let data = series();
+    let graph = graph();
+    let ctx = ExecutionContext::for_tests(11);
+    for (key, query, _) in queries() {
+        for bayesian in [false, true] {
+            let builder = Study::series(data.clone()).query(query.clone()).graph(graph.clone());
+            let builder = builder.refute(RefuteSuite::None);
+            let builder = if bayesian {
+                builder.inference(InferenceMode::Bayesian(
+                    BayesianConfig::conjugate().prior_scale(1_000.0).n_draws(8),
+                ))
+            } else {
+                builder
+            };
+            let prepared = builder.build().unwrap().prepare(&ctx).unwrap();
+            let result = prepared.estimate_retained(&ctx).unwrap();
+            let bytes = prepared
+                .encode_contracted_result(&result, "temporal-cross-world", &ctx)
+                .unwrap_or_else(|error| panic!("{key} bayesian={bayesian}: {error}"));
+            let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+            assert_eq!(consumed.body.estimate, Some(result.effect()), "{key} bayesian={bayesian}");
+            assert!(consumed.contract.is_some(), "{key} bayesian={bayesian}");
+        }
+    }
+}

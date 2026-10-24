@@ -1,0 +1,27 @@
+feature_id = "estimate.penalized_propensity_aipw"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+modules = ["crates/antecedent-estimate/src/propensity/penalized.rs"]
+
+papers = [
+ { title = "Ridge Regression: Biased Estimation for Nonorthogonal Problems (Hoerl and Kennard, Technometrics 12:55-67)", sections = ["the ridge estimator"] },
+ { title = "Regression Shrinkage and Selection via the Lasso (Tibshirani, J. R. Stat. Soc. B 58:267-288)", sections = ["the lasso estimate"] },
+ { title = "Double/debiased machine learning for treatment and structural parameters (Chernozhukov et al., Econometrics Journal 21:C1-C68)", sections = ["cross-fitted orthogonal scores"] },
+]
+
+implementation_deviations = [
+  "The implementing module is crates/antecedent-estimate/src/propensity/penalized.rs. It states: This is a *declared nuisance choice*, distinct from GlmOptions::ridge_on_separation (a rescue the estimation paths refuse to keep).",
+  "A ridge-logistic or lasso-logistic propensity is fit on each cross-fit fold's training rows only; its penalty is chosen from a fixed grid by inner cross-validated log loss on those same training rows (seeded and replayable), so the evaluation fold never informs the penalty (nor, for the lasso, the selected support).",
+  "The fits reuse antecedent-learn's RidgeLogisticLearner / LassoLogisticLearner and cross-fit driver; there is no second ML stack.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-estimate/tests/penalized_aipw.rs",
+  "crates/antecedent/tests/aipw_ate_route_evidence.rs",
+]

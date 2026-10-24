@@ -1,0 +1,24 @@
+feature_id = "estimate.policy_value.bayesian_bootstrap"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+modules = ["crates/antecedent-estimate/src/policy_value_posterior.rs"]
+
+papers = [
+ { title = "The Bayesian Bootstrap", sections = ["the Bayesian bootstrap: flat Dirichlet weights on the observed units"] },
+]
+
+implementation_deviations = [
+  "The implementing module is crates/antecedent-estimate/src/policy_value_posterior.rs. It states: For any frozen outcome prediction μ the augmented score has mean equal to the value of the policy, so the posterior needs no outcome model to be correct and no nuisance uncertainty is dropped: the only unknown is the subject law.",
+  "The prior does not impose the randomization; the declared probabilities do, and a design whose probabilities are not the true ones moves the target, not just the interval.",
+  "The sequential outcome predictions must be genuinely subject-excluded (held-out) as in the frequentist row; a subject-excluded prediction is a function of other subjects, so the subjects' scores are conditionally independent only approximately.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent/tests/bayesian_policy_regime_routes.rs",
+]

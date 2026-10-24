@@ -1,0 +1,23 @@
+feature_id = "estimate.staggered_event_study"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+modules = ["crates/antecedent-estimate/src/staggered_event_study.rs"]
+
+papers = [
+ { title = "Difference-in-differences with multiple time periods", doi = "10.1016/j.jeconom.2020.12.001", sections = ["group-time average treatment effects against never-treated controls", "post-adoption event-time aggregation"] },
+ { title = "Estimating dynamic treatment effects in event studies with heterogeneous treatment effects (Sun and Abraham, J. Econometrics 225:175-199)", sections = ["the interaction-weighted estimator of cohort-specific event-time effects"] },
+]
+
+implementation_deviations = [
+  "The implementing module is crates/antecedent-estimate/src/staggered_event_study.rs. It states: Cohort-specific event-time contrasts against never-treated subjects.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent/tests/panel_did_route.rs",
+]

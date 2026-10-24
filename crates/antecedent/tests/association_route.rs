@@ -315,3 +315,44 @@ fn an_association_measure_needs_one_predictor_and_a_regression_declares_its_cond
     let invalid = AssociationQuery::new(v(1), [v(0), v(0)]);
     assert!(Study::tabular(data).query(CausalQuery::Association(invalid)).build().is_err());
 }
+
+#[test]
+fn every_association_counterpart_publishes_an_artifact_a_consumer_reads_the_terms_from() {
+    let query = AssociationQuery::new(v(1), [v(0)]);
+    let bayesian = || InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(200));
+    let (table, _, _) = line();
+    let rows = series(120);
+    // (design, inference) of the four counterparts, each with its own prepared handle.
+    let mut artifacts = Vec::new();
+    for inference in [InferenceMode::Frequentist, bayesian()] {
+        let study = Study::tabular(table.clone())
+            .query(CausalQuery::Association(query.clone()))
+            .inference(inference.clone())
+            .build()
+            .unwrap();
+        let prepared = study.prepare(&ctx(8)).unwrap();
+        let result = prepared.estimate(&table, &ctx(8)).unwrap();
+        let bytes =
+            prepared.encode_contracted_result(&result, "association-static", &ctx(8)).unwrap();
+        artifacts.push(("static", result.association().unwrap().estimate.terms.len(), bytes));
+        let study = Study::series(rows.clone())
+            .query(CausalQuery::Association(query.clone()))
+            .inference(inference)
+            .build()
+            .unwrap();
+        let prepared = study.prepare(&ctx(8)).unwrap();
+        let result = prepared.estimate_series(&rows, &ctx(8)).unwrap();
+        let bytes =
+            prepared.encode_contracted_result(&result, "association-temporal", &ctx(8)).unwrap();
+        artifacts.push(("temporal", result.association().unwrap().estimate.terms.len(), bytes));
+    }
+    for (modality, terms, bytes) in artifacts {
+        let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+        let wire =
+            consumed.body.association.as_ref().expect("the artifact carries the association");
+        assert_eq!(wire.terms.len(), terms, "{modality}");
+        assert!(!wire.licensed, "{modality}: an association is never a licensed route");
+        assert_eq!(wire.calibration, "unmeasured", "{modality}");
+        assert!(consumed.contract.is_some(), "{modality}");
+    }
+}

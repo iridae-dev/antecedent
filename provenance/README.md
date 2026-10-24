@@ -109,3 +109,11 @@ source. See
 [`state.rolling_mechanism_diag.toml`](state.rolling_mechanism_diag.toml), which
 declines to cite Page's 1954 CUSUM work because the module computes a
 fixed-window max-|partial sum| scan, not a sequential control-chart procedure.
+
+## Records that name the modules they cover
+
+A record may carry `modules = [...]`, the implementation files its method is. `scripts/provenance_links.py` links a method to its records by that field, by the module path or file name in the record, by a feature id, or by the explicit table of modules an existing record documents without naming. A module that executes or orchestrates other methods and implements no algorithm of its own is listed with its reason instead.
+
+## Method review
+
+`parity/method_specs/specs.toml` records, for each admitted method, the provenance records that cover its module and whether its public surface is in the reviewed API snapshot (`parity/public_api/`). `scripts/gate_provenance_schema.py` fails an admitted method that links no record and gives no reason, a linked record that does not state all four clean-room flags false, a record whose `modules` names a missing file, and a method whose public items are in no reviewed snapshot. The admission state is the one the specifications derive from the executing evidence, so a method cannot be advertised as licensed or executing without a provenance record and a reviewed surface.

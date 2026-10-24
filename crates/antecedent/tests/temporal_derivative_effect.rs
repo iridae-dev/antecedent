@@ -284,3 +284,37 @@ fn derivative_support_reports_a_point_outside_the_observed_series() {
         SupportStatus::Supported
     );
 }
+
+#[test]
+fn derivative_artifacts_are_consumed_under_the_estimator_the_plan_chose() {
+    let data = series();
+    let graph = graph();
+    let ctx = ExecutionContext::for_tests(11);
+    let (key, functional) = functionals().into_iter().next().unwrap();
+    for bayesian in [false, true] {
+        let builder = Study::series(data.clone())
+            .query(CausalQuery::Response(attach(functional.clone())))
+            .graph(graph.clone())
+            .refute(RefuteSuite::None);
+        let builder = if bayesian {
+            builder.inference(InferenceMode::Bayesian(
+                BayesianConfig::conjugate().prior_scale(1_000.0).n_draws(8),
+            ))
+        } else {
+            builder
+        };
+        let prepared = builder.build().unwrap().prepare(&ctx).unwrap();
+        let result = prepared.estimate_retained(&ctx).unwrap();
+        let bytes = prepared
+            .encode_contracted_result(&result, "temporal-derivative", &ctx)
+            .unwrap_or_else(|error| panic!("{key} bayesian={bayesian}: {error}"));
+        let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+        let contract = consumed.contract.as_ref().expect("a contracted derivative artifact");
+        assert_eq!(
+            contract.estimator.as_deref(),
+            prepared.plan().logical.record.estimator.as_deref(),
+            "{key} bayesian={bayesian}"
+        );
+        assert!(contract.estimator.is_some(), "{key} bayesian={bayesian}");
+    }
+}

@@ -1,0 +1,24 @@
+feature_id = "estimate.history_match"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+modules = ["crates/antecedent-estimate/src/history_match.rs"]
+
+papers = [
+ { title = "Large Sample Properties of Matching Estimators for Average Treatment Effects (Abadie and Imbens, Econometrica 74:235-267)", sections = ["the matching estimator with replacement and its variance estimator"] },
+]
+
+implementation_deviations = [
+  "The implementing module is crates/antecedent-estimate/src/history_match.rs. It states: A slope fitted to the history, or a coefficient from a contemporaneous regression, is not the score and is not computed.",
+  "The contrast is the sampling-weight mean of treated-minus-matched-control outcome differences, with no outcome regression.",
+  "The lowest input index is the only donor a later query can meet, and a donor may be reused.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent/tests/unlicensed_design_routes.rs",
+]

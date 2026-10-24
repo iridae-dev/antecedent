@@ -4,6 +4,9 @@ import sys
 import tomllib
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from provenance_links import ALIAS, FAMILY, NOT_AN_ALGORITHM  # noqa: E402
+
 root = Path(".")
 records = sorted((root / "provenance").glob("*.toml"))
 allowed_exposure = {
@@ -113,26 +116,6 @@ stems = {
     for p in (root / "provenance").glob("*.toml")
     if p.name != "_template.toml"
 }
-ALIAS = {
-    "identify.general_id": "identify.id",
-    "identify.transport.sid": "identify.transport_sid",
-    "estimate.propensity": "estimate.propensity_weighting",
-    "estimate.matching": "estimate.distance_matching",
-    "estimate.glm_adjustment": "estimate.glm",
-    "estimate.frontdoor": "estimate.frontdoor_two_stage",
-    "estimate.iv": "estimate.iv_2sls",
-    "estimate.temporal_linear": "estimate.temporal_linear_adjustment",
-    "estimate.conditional_linear": "estimate.conditional",
-    "estimate.transport.trial_ipw": "estimate.trial_to_target",
-    "estimate.interference.ht_hajek": "stats.randomized_interference",
-}
-FAMILY = {
-    "estimate.propensity": (
-        "estimate.propensity_weighting",
-        "estimate.propensity_matching",
-        "estimate.propensity_stratification",
-    ),
-}
 ids_rs = (root / "crates/antecedent/src/strategy_table/ids.rs").read_text(encoding="utf-8")
 pointers = re.findall(r'provenance:\s*(?:\n\s*)?\(\s*"([^"]+)"', ids_rs)
 for feat in pointers:
@@ -191,6 +174,44 @@ for name in sorted(factory_names):
             f"CI factory name {name!r} maps to missing provenance record {claim!r}"
         )
 
+# Method review: every record that names the modules it covers names files that exist, and every
+# admitted method of the specifications links clean-room provenance and a reviewed public surface
+# (or records why its module implements no algorithm). The specifications' admission state is the
+# one parity/method_specs/specs.toml derives from the executing evidence.
+for path in records:
+    if path.name == "_template.toml":
+        continue
+    record = tomllib.loads(path.read_text(encoding="utf-8"))
+    for module in record.get("modules", []):
+        if not (root / module).exists():
+            problems.append(f"{path.relative_to(root)}: modules names {module}, which does not exist")
+children = {
+    c["id"]: c
+    for c in tomllib.loads((root / "parity/method_children/children.toml").read_text(encoding="utf-8"))["child"]
+}
+review_checked = 0
+for spec in tomllib.loads((root / "parity/method_specs/specs.toml").read_text(encoding="utf-8"))["spec"]:
+    if spec.get("admission") not in ("licensed", "executing_unlicensed"):
+        continue
+    review_checked += 1
+    sid = spec["id"]
+    module = children[sid]["module"].split(";")[0].strip().split(" ")[0]
+    links = spec.get("provenance", [])
+    if not links:
+        problems.append(f"spec {sid}: admitted method links no provenance record and records no reason")
+    for link in links:
+        if link.startswith("not_applicable:"):
+            if module not in NOT_AN_ALGORITHM:
+                problems.append(f"spec {sid}: provenance not_applicable for {module}, which is not a listed non-algorithm")
+        elif link not in stems:
+            problems.append(f"spec {sid}: provenance record {link!r} does not exist")
+        else:
+            linked = tomllib.loads((root / "provenance" / f"{link}.toml").read_text(encoding="utf-8"))
+            if any(linked.get(flag) is not False for flag in required_booleans):
+                problems.append(f"spec {sid}: provenance record {link!r} is not clean-room")
+    if str(spec.get("api_review", "")).startswith("unreviewed") or not spec.get("api_review"):
+        problems.append(f"spec {sid}: public surface of {module} is not in a reviewed API snapshot")
+
 for extra in (
     "estimate.identified_set",
     "estimate.graph_posterior.joint_if",
@@ -208,4 +229,4 @@ if problems:
         print(f" - {problem}")
     sys.exit(1)
 
-print(f"provenance schema/path audit: ok ({checked} records, {path_refs} path references)")
+print(f"provenance schema/path audit: ok ({checked} records, {path_refs} path references, {review_checked} admitted methods reviewed)")

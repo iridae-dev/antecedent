@@ -1,0 +1,25 @@
+feature_id = "adaptive_inference.repeated_measures_posterior"
+implementation_crate = "antecedent-stats"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+modules = ["crates/antecedent-stats/src/adaptive_inference/repeated_measures_posterior.rs"]
+
+papers = [
+ { title = "Random-effects models for longitudinal data (Laird and Ware, Biometrics 38:963-974)", sections = ["the random-effects model for repeated measures within a unit"] },
+ { title = "Bayesian Data Analysis (3rd edition, Gelman, Carlin, Stern, Dunson, Vehtari and Rubin)", sections = ["Chapter 14, Section 14.2: Bayesian analysis of the classical regression model"] },
+]
+
+implementation_deviations = [
+  "The implementing module is crates/antecedent-stats/src/adaptive_inference/repeated_measures_posterior.rs. It states: The variance and the correlation are declared, not estimated: a posterior that marginalized over them needs a prior on them and is a separate model.",
+  "If the assignment of unit i depends on the data of earlier units only (and on independent randomization), the probability of the realized assignment is a function of observed quantities and factors out of the likelihood of the arm means (the likelihood principle).",
+  "The posterior above is therefore the posterior given the adaptively collected data with no correction for the adaptation, and it is the same under any such policy.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent/tests/repeated_measures_posterior_facade.rs",
+]

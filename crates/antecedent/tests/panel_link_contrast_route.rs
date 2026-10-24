@@ -339,3 +339,43 @@ fn the_link_estimators_name_their_inference_mode() {
         .unwrap_err();
     assert!(error.to_string().contains("estimator_inference_mismatch"), "{error}");
 }
+
+#[test]
+fn both_link_contrast_estimators_publish_artifacts_a_consumer_recomputes_from() {
+    let units = units();
+    let panel_data = panel(&units);
+    let ctx = ExecutionContext::for_tests(4);
+    let bayesian = InferenceMode::Bayesian(
+        BayesianConfig::laplace()
+            .likelihood(BayesLikelihood::BernoulliLogit)
+            .prior_scale(PRIOR_SD)
+            .n_draws(400),
+    );
+    let cases = [
+        (
+            EstimatorId::TemporalGlmLinkContrast,
+            InferenceMode::Frequentist,
+            "temporal.glm_link_contrast",
+        ),
+        (
+            EstimatorId::BayesianTemporalGlmLinkContrast,
+            bayesian,
+            "bayesian.temporal.glm_link_contrast",
+        ),
+    ];
+    for (estimator, inference, wire_id) in cases {
+        let prepared = builder(&units)
+            .estimator(estimator)
+            .inference(inference)
+            .build()
+            .unwrap()
+            .prepare(&ctx)
+            .unwrap();
+        let result = prepared.estimate_panel(&panel_data, &ctx).unwrap();
+        let bytes = prepared.encode_contracted_result(&result, wire_id, &ctx).unwrap();
+        let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+        assert_eq!(consumed.body.estimate, Some(result.effect()), "{wire_id}");
+        let contract = consumed.contract.as_ref().expect("a contracted link-contrast artifact");
+        assert_eq!(contract.estimator.as_deref(), Some(wire_id));
+    }
+}

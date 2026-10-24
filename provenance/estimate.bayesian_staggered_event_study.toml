@@ -1,0 +1,25 @@
+feature_id = "estimate.bayesian_staggered_event_study"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+modules = ["crates/antecedent-estimate/src/bayesian_staggered_event_study.rs"]
+
+papers = [
+ { title = "Difference-in-differences with multiple time periods", doi = "10.1016/j.jeconom.2020.12.001", sections = ["group-time average treatment effects against never-treated controls", "post-adoption event-time aggregation"] },
+ { title = "The Bayesian Bootstrap", sections = ["the Bayesian bootstrap: flat Dirichlet weights on the observed units"] },
+]
+
+implementation_deviations = [
+  "The implementing module is crates/antecedent-estimate/src/bayesian_staggered_event_study.rs. It states: Bayesian cohort-specific event-time contrasts against never-treated subjects.",
+  "Each contrast is the same estimand as crate::staggered_event_study::estimate: the difference between a cohort's and the never-treated subjects' outcome change from the cohort's reference period g - 1 to the contrast period.",
+  "The premise is parallel untreated trends and no anticipation relative to the never-treated group.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent/tests/bayesian_design_routes.rs",
+]

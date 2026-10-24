@@ -437,6 +437,12 @@ fn verify_conditional_coordinate(coordinate: &str, accepted: bool, bayesian: boo
     assert_eq!(result.posterior.is_some(), bayesian, "{coordinate} posterior presence");
     let refreshed = prepared.refresh(data, &ctx).unwrap();
     assert_eq!(refreshed.effect().to_bits(), result.effect().to_bits(), "{coordinate} refresh");
+    // The artifact a consumer reads carries the scalar the route published.
+    let artifact = prepared
+        .encode_contracted_result(&refreshed, coordinate, &ctx)
+        .unwrap_or_else(|error| panic!("{coordinate}: {error}"));
+    let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+    assert_eq!(consumed.body.estimate, Some(refreshed.effect()), "{coordinate} artifact");
 }
 
 #[test]

@@ -1,0 +1,25 @@
+feature_id = "estimate.temporal_penalized_score"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+modules = ["crates/antecedent-estimate/src/temporal_penalized_score.rs"]
+
+papers = [
+ { title = "Ridge Regression: Biased Estimation for Nonorthogonal Problems (Hoerl and Kennard, Technometrics 12:55-67)", sections = ["the ridge estimator"] },
+ { title = "Pattern Recognition and Machine Learning (Bishop, 2006)", sections = ["Section 4.4: the Laplace approximation", "Section 4.5: Bayesian logistic regression"] },
+]
+
+implementation_deviations = [
+  "The implementing module is crates/antecedent-estimate/src/temporal_penalized_score.rs. It states: The frequentist object maximises the Bernoulli log likelihood minus (penalty / 2) times the squared Euclidean norm of the slopes, on the column scale as supplied (slopes are not standardized).",
+  "This is the deliberate ridge fit, not a separation rescue and not the standardized penalty inside cross-fitted AIPW.",
+  "A prior standard deviation is not a penalty, and that posterior mean is not the penalized mode.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent/tests/temporal_treatment_score_product.rs",
+]

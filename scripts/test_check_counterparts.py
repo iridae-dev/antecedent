@@ -8,6 +8,7 @@ from _repo import ensure_scripts_on_path
 ensure_scripts_on_path()
 import check_counterparts as check  # noqa: E402
 import generate_counterparts as gen  # noqa: E402
+from method_evidence import Evidence  # noqa: E402
 
 
 def rows_for(**overrides: dict) -> list[dict]:
@@ -69,12 +70,51 @@ class GeneratorChecks(unittest.TestCase):
 
     def test_gap_kinds_map_to_statuses(self) -> None:
         child = {"gap": "theory", "missing": "no identification", "module": "none"}
-        self.assertEqual(gen.child_status(child, None), ("closed_with_next_attempt", "narrowed_promise"))
+        self.assertEqual(gen.child_status(child, [], False), ("closed_with_next_attempt", "narrowed_promise"))
         child = {"gap": "target", "missing": "not a static estimand", "module": "none"}
-        self.assertEqual(gen.child_status(child, None), ("not_applicable_with_theory_reason", "delivered"))
+        self.assertEqual(gen.child_status(child, [], False), ("not_applicable_with_theory_reason", "delivered"))
         child = {"gap": "none", "missing": "none", "module": "m"}
-        self.assertEqual(gen.child_status(child, {"status": "licensed"}), ("licensed", "delivered"))
-        self.assertEqual(gen.child_status(child, None), ("executing_unlicensed", "delivered"))
+        self.assertEqual(gen.child_status(child, [{"status": "licensed"}], True), ("licensed", "delivered"))
+        self.assertEqual(gen.child_status(child, [{"status": "execution_only"}], True), ("executing_unlicensed", "delivered"))
+
+    def test_a_child_executes_only_on_a_method_record_or_a_verified_module(self) -> None:
+        child = {"gap": "none", "missing": "none", "module": "crates/c/src/m.rs"}
+        self.assertEqual(gen.child_status(child, [], True), ("executing_unlicensed", "delivered"))
+        self.assertEqual(gen.child_status(child, [], False), ("closed_with_next_attempt", "narrowed_promise"))
+        narrowed = {"gap": "validation", "missing": "interval unmeasured", "module": "crates/c/src/m.rs"}
+        self.assertEqual(gen.child_status(narrowed, [{"status": "licensed"}], True), ("licensed", "narrowed_promise"))
+
+    def test_uncertainty_comes_from_the_best_method_record(self) -> None:
+        manifest = {"method": [
+            {"id": "a", "route": "r", "child": "", "estimator": "e1", "inference": "frequentist", "uncertainty": "none", "uncertainty_basis": "point_only_cell|x", "status": "licensed"},
+            {"id": "b", "route": "r", "child": "", "estimator": "e2", "inference": "frequentist", "uncertainty": "analytic", "uncertainty_basis": "measured_record|y", "status": "licensed"},
+            {"id": "c", "route": "r", "child": "", "estimator": "e3", "inference": "bayesian", "uncertainty": "posterior", "uncertainty_basis": "asserted_in_test|z", "status": "licensed"},
+        ]}
+        evidenced = gen.Evidenced(manifest, [], Evidence(gen.ROOT))
+        self.assertEqual(evidenced.route_kind("r", "frequentist"), ("analytic", "measured_record"))
+        self.assertEqual(evidenced.route_kind("r", "bayesian"), ("posterior", "asserted_in_test"))
+        self.assertEqual(evidenced.route_kind("missing", "bayesian"), ("none", "no_method_record"))
+
+    def test_an_executing_row_needs_a_target_a_design_a_fixture_and_a_consumer(self) -> None:
+        ev = Evidence(gen.ROOT)
+        row = rows_for()[0] | {
+            "uncertainty_basis": "measured_record", "target": "AverageEffect", "sampling_design": "independent rows",
+            "execution": "scripts/check_counterparts.py", "artifact": "scripts/generate_counterparts.py",
+        }
+        self.assertEqual(check.evidence_problems([row], ev), [])
+        for field, value, needle in (
+            ("target", "unlisted", "no recorded target"),
+            ("sampling_design", "unlisted", "no recorded sampling design"),
+            ("execution", "unlisted", "no execution fixture"),
+            ("artifact", "unlisted", "no artifact consumer"),
+            ("execution", "crates/none/tests/absent.rs", "does not exist"),
+            ("uncertainty_basis", "no_method_record", "no method record"),
+            ("uncertainty_basis", "guess", "outside the vocabulary"),
+        ):
+            found = check.evidence_problems([row | {field: value}], ev)
+            self.assertTrue(any(needle in line for line in found), (field, found))
+        closed = row | {"status": "closed_with_next_attempt", "target": "unlisted", "uncertainty_basis": "no_executing_route"}
+        self.assertEqual(check.evidence_problems([closed], ev), [])
 
     def test_the_shipped_inventory_is_current(self) -> None:
         self.assertEqual(gen.OUT_TOML.read_text(encoding="utf-8"), gen.render_toml(gen.build()))

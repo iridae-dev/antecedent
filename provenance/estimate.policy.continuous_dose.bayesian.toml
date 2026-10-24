@@ -1,0 +1,25 @@
+feature_id = "estimate.policy.continuous_dose.bayesian"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+modules = ["crates/antecedent-estimate/src/continuous_dose_posterior.rs"]
+
+papers = [
+ { title = "The Bayesian Bootstrap", sections = ["the Bayesian bootstrap: flat Dirichlet weights on the observed units"] },
+ { title = "Non-parametric methods for doubly robust estimation of continuous treatment effects (Kennedy, Ma, McHugh and Small, J. R. Stat. Soc. B 79:1229-1245)", sections = ["kernel-smoothed dose-response estimation with a known or estimated generalized propensity"] },
+]
+
+implementation_deviations = [
+  "The implementing module is crates/antecedent-estimate/src/continuous_dose_posterior.rs. It states: It is the average response over the prespecified window, not do(D = d).",
+  "Conditional exchangeability within groups and local positivity are the identification premises, as in the frequentist cell; the dose density does not enter a likelihood for Y | D, so it is not an input.",
+  "The group fractions are held at their observed values, so the posterior does not carry sampling uncertainty of the group mix.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent/tests/bayesian_design_posterior_routes.rs",
+]
