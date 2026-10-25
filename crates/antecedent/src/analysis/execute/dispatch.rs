@@ -240,21 +240,21 @@ impl super::Study {
             (_, CausalQuery::Distribution(_), class)
                 if !(self.graph_posterior.is_some() && class == GraphClass::Pag)
                     && !matches!(
-                    (&self.data, class),
-                    (
-                        DataInput::Tabular(_),
-                        GraphClass::Dag
-                            | GraphClass::Cpdag
-                            | GraphClass::Pag
-                            | GraphClass::Admg
-                            | GraphClass::TemporalAdmg
-                    ) | (
-                        DataInput::Temporal(_) | DataInput::Event(_),
-                        GraphClass::TemporalDag
-                            | GraphClass::TemporalCpdag
-                            | GraphClass::TemporalPag
-                    )
-                ) =>
+                        (&self.data, class),
+                        (
+                            DataInput::Tabular(_),
+                            GraphClass::Dag
+                                | GraphClass::Cpdag
+                                | GraphClass::Pag
+                                | GraphClass::Admg
+                                | GraphClass::TemporalAdmg
+                        ) | (
+                            DataInput::Temporal(_) | DataInput::Event(_),
+                            GraphClass::TemporalDag
+                                | GraphClass::TemporalCpdag
+                                | GraphClass::TemporalPag
+                        )
+                    ) =>
             {
                 return Err(CausalError::Unsupported {
                     message: "CausalQuery::Distribution requires tabular data and a static Dag, Cpdag, Pag or Admg",
@@ -787,12 +787,12 @@ impl super::Study {
                         .execute_temporal_class_graph_posterior_mediation(
                             data, gp, q, physical, ctx,
                         ),
-                    antecedent_discovery::GraphPosteriorAtomKind::Pag => {
-                        self.execute_temporal_pag_graph_posterior_mediation(data, gp, q, physical, ctx)
-                    }
-                    antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg => {
-                        self.execute_temporal_admg_graph_posterior_mediation(data, gp, q, physical, ctx)
-                    }
+                    antecedent_discovery::GraphPosteriorAtomKind::Pag => self
+                        .execute_temporal_pag_graph_posterior_mediation(data, gp, q, physical, ctx),
+                    antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg => self
+                        .execute_temporal_admg_graph_posterior_mediation(
+                            data, gp, q, physical, ctx,
+                        ),
                     _ => self.execute_dbn_posterior_mediation(data, gp, q, physical, ctx),
                 }
             }
@@ -2385,24 +2385,12 @@ impl super::Study {
                 // each execution: its checked operation is the lowered route itself.
                 let class_distribution = matches!(self.query, CausalQuery::Distribution(_))
                     && matches!(self.graph.graph_ref(), GraphRef::Cpdag(_) | GraphRef::Pag(_));
-                // A path-specific or nested effect on a mixed graph or an equivalence
-                // class is likewise answered by the lowered route itself.
-                let mixed_effect = matches!(
-                    self.query,
-                    CausalQuery::PathSpecific(_) | CausalQuery::NestedCounterfactual(_)
-                ) && matches!(
-                    self.graph.graph_ref(),
-                    GraphRef::Admg(_)
-                        | GraphRef::TemporalAdmg(_)
-                        | GraphRef::Cpdag(_)
-                        | GraphRef::Pag(_)
-                );
                 return self.admit_sealed_tabular(
                     data,
                     ctx,
                     |prepared| {
                         prepared.has_complete_program_operation(&self.query)
-                            || ((class_distribution || mixed_effect)
+                            || (class_distribution
                                 && prepared.retains(ExecutionKind::EstimatorRoute))
                     },
                     "one-shot route did not retain its complete checked operation",
@@ -2875,8 +2863,9 @@ impl super::Study {
                     }
                     if !prepared.plan().streams_design() {
                         return Err(CausalError::Compile {
-                            message: "one-shot linear adjustment did not retain its checked operation"
-                                .into(),
+                            message:
+                                "one-shot linear adjustment did not retain its checked operation"
+                                    .into(),
                         });
                     }
                 }

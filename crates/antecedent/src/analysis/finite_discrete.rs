@@ -1253,9 +1253,9 @@ mod tests {
     use antecedent_expr::{DomainRef, ExactEvaluationLimits, LawOrigin};
 
     use super::{
-        DecisionDemand, DiscreteAction, DiscreteCell, DiscreteInputs, MAX_TABLE_ROWS, MissingCarrier,
-        confidence_interval_as_posterior, finite_discrete_slice_over, effect_of_exported_law, enumerated_atoms,
-        finite_discrete_origin, finite_discrete_slice, load_exported,
+        DecisionDemand, DiscreteAction, DiscreteCell, DiscreteInputs, MAX_TABLE_ROWS,
+        MissingCarrier, confidence_interval_as_posterior, effect_of_exported_law, enumerated_atoms,
+        finite_discrete_origin, finite_discrete_slice, finite_discrete_slice_over, load_exported,
     };
 
     fn hand_frequency_contrast() -> (f64, f64, f64) {
@@ -1693,7 +1693,7 @@ mod tests {
 
         let enough = AdmissionPool::fixed(2, 1 << 30);
         let ctx = ExecutionContext::for_tests(1).with_admission(enough.clone());
-        finite_discrete_slice_over(&inputs, &ctx).unwrap();
+        drop(finite_discrete_slice_over(&inputs, &ctx).unwrap());
         assert_eq!(enough.available().bytes(), 1 << 30, "every lease is released");
     }
 }

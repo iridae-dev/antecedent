@@ -1576,3 +1576,68 @@ fn multi_env_pulse_pools_every_environment() {
     );
     assert!(forward.estimate.as_effect().unwrap().se_analytic().is_finite());
 }
+
+#[test]
+fn cancelled_refresh_preserves_series_panel_and_environment_contracts() {
+    use antecedent_data::MultiEnvironmentData;
+
+    let ctx = ExecutionContext::for_tests(2_104);
+    let cancelled = ExecutionContext::for_tests(2_104);
+    cancelled.cancellation.cancel();
+    let panel = |n| {
+        PanelData::try_new(Arc::from([
+            PanelUnit { unit_id: 0, series: xy_series(n, 0.1) },
+            PanelUnit { unit_id: 1, series: xy_series(n, 0.4) },
+            PanelUnit { unit_id: 2, series: xy_series(n, 0.7) },
+        ]))
+        .unwrap()
+    };
+    let environments = |n| {
+        MultiEnvironmentData::try_new(Arc::from([
+            xy_series(n, 0.1),
+            xy_series(n, 0.4),
+            xy_series(n, 0.7),
+        ]))
+        .unwrap()
+    };
+    let builders = [
+        Study::series(xy_series(180, 0.1)),
+        Study::panel(panel(180)),
+        Study::series_multi(environments(180)),
+    ];
+    for (modality, builder) in builders.into_iter().enumerate() {
+        let mut prepared = builder
+            .graph(lagged_xy_graph())
+            .temporal_query(pulse_query())
+            .bootstrap_replicates(0)
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap()
+            .prepare(&ctx)
+            .unwrap();
+        let before = prepared.contract().unwrap().identities;
+        let baseline = prepared.estimate_retained(&ctx).unwrap().effect();
+        let refused = match modality {
+            0 => prepared.refresh_series(xy_series(160, 0.2), &cancelled),
+            1 => prepared.refresh_panel(panel(160), &cancelled),
+            _ => prepared.refresh_multi_env(environments(160), &cancelled),
+        };
+        assert!(refused.is_err(), "modality {modality}: cancelled refresh succeeded");
+        assert_eq!(before, prepared.contract().unwrap().identities, "modality {modality}");
+        assert!(prepared.temporal_invalidations().entries.is_empty());
+        assert_eq!(
+            baseline.to_bits(),
+            prepared.estimate_retained(&ctx).unwrap().effect().to_bits()
+        );
+        let result = match modality {
+            0 => prepared.refresh_series(xy_series(160, 0.2), &ctx),
+            1 => prepared.refresh_panel(panel(160), &ctx),
+            _ => prepared.refresh_multi_env(environments(160), &ctx),
+        }
+        .unwrap();
+        assert!((result.effect() - 0.8).abs() < 1e-10);
+        let after = prepared.contract().unwrap().identities;
+        assert_eq!(before.program, after.program);
+        assert_ne!(before.data_snapshot, after.data_snapshot);
+    }
+}

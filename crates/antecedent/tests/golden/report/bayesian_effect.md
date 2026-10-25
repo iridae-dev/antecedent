@@ -231,14 +231,14 @@ This report restates the contract. It computes no estimate, grants no licence, a
 - **backend.quotes\[3\].cost:** 4608
 - **backend.quotes\[3\].resident\_bytes:** 12288
 - **backend.quotes\[3\].work\_cells:** 3072
-- **backend.rejected\[0\].alternative:** direct\_prepared\_numeric\_views
-- **backend.rejected\[0\].reason:** missing operator capability prepared\_numeric\_view
-- **backend.rejected\[1\].alternative:** streamed\_reduction
-- **backend.rejected\[1\].reason:** missing operator capability streamed\_reduction
+- **backend.rejected\[0\].alternative:** streamed\_reduction
+- **backend.rejected\[0\].reason:** missing operator capability streamed\_reduction
+- **backend.rejected\[1\].alternative:** materialized\_design
+- **backend.rejected\[1\].reason:** cost 7680 is not lower than selected cost 4608
 - **backend.rejected\[2\].alternative:** optional\_lazy\_preparation
 - **backend.rejected\[2\].reason:** missing operator capability lazy\_preparation
-- **backend.selected:** materialized\_design
-- **backend.selected\_cost:** 7680
+- **backend.selected:** direct\_prepared\_numeric\_views
+- **backend.selected\_cost:** 4608
 - **design.columns:** 3
 - **design.direct:** yes
 - **design.rows:** 512
@@ -253,14 +253,14 @@ This report restates the contract. It computes no estimate, grants no licence, a
 - **memory.components\[3\].component:** learner\_fold\_copies
 - **memory.components\[4\].bytes:** 16480
 - **memory.components\[4\].component:** solver\_scratch
-- **memory.components\[5\].bytes:** 0
+- **memory.components\[5\].bytes:** 2304
 - **memory.components\[5\].component:** retained\_scores\_draws
-- **memory.components\[6\].bytes:** 4120
+- **memory.components\[6\].bytes:** 4888
 - **memory.components\[6\].component:** output
 - **memory.components\[7\].bytes:** 0
 - **memory.components\[7\].component:** concurrent\_workers
 - **memory.learner\_fold\_copies:** 0
-- **memory.total:** 33080
+- **memory.total:** 36152
 - **memory.workers:** 1
 - **operators\[0\].capability:** cpu
 - **operators\[0\].designs:** 1

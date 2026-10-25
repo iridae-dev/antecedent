@@ -63,12 +63,11 @@ pub(super) use crate::planner::{
     StaticAteCompileInput, StaticCpdagPathSpecificCompileInput, StaticCpdagResponseCompileInput,
     StaticDistributionCompileInput, StaticPagAteCompileInput, StaticPagPathSpecificCompileInput,
     StaticPagResponseCompileInput, StaticPathSpecificCompileInput, StaticResponseCompileInput,
-    TemporalClassEffectCompileInput,
-    compile_logical_codetermined_joint, compile_logical_distribution,
-    compile_logical_path_specific, compile_logical_path_specific_admg,
-    compile_logical_path_specific_cpdag, compile_logical_path_specific_pag,
-    compile_logical_static_ate, compile_logical_static_cpdag_ate,
-    compile_logical_static_cpdag_response,
+    TemporalClassEffectCompileInput, compile_logical_codetermined_joint,
+    compile_logical_distribution, compile_logical_path_specific,
+    compile_logical_path_specific_admg, compile_logical_path_specific_cpdag,
+    compile_logical_path_specific_pag, compile_logical_static_ate,
+    compile_logical_static_cpdag_ate, compile_logical_static_cpdag_response,
     compile_logical_static_pag_ate, compile_logical_static_pag_response,
     compile_logical_static_response, compile_logical_temporal_class_effect,
     compile_logical_temporal_effect, compile_logical_temporal_effect_classified,
@@ -83,14 +82,12 @@ pub(super) use crate::strategy_table::{
     DEFAULT_PAG_ESTIMATOR_ID, DEFAULT_PAG_IDENTIFIER_ID, DEFAULT_PATH_ESTIMATOR_ID,
     DEFAULT_PATH_IDENTIFIER_ID, DEFAULT_RESPONSE_IDENTIFIER_ID, EstimatorId, IdentifierId,
     StaticEstimateInput, StaticEstimateWorkspaces, estimate_provenance_step,
-    estimate_static_effect, identify_admg, identify_admg_query,
-    identify_cpdag_distribution, identify_cpdag_path_specific,
-    identify_pag_distribution, identify_pag_path_specific,
-    identify_provenance_step, identify_static,
-    identify_static_query, identify_static_query_in_context, identify_static_query_with_rd,
-    identify_temporal_cpdag_configured,
-    identify_temporal_pag_configured, require_identified, select_claim, select_estimand,
-    validate_static_pair,
+    estimate_static_effect, identify_admg, identify_admg_query, identify_cpdag_distribution,
+    identify_cpdag_path_specific, identify_pag_distribution, identify_pag_path_specific,
+    identify_provenance_step, identify_static, identify_static_query,
+    identify_static_query_in_context, identify_static_query_with_rd,
+    identify_temporal_cpdag_configured, identify_temporal_pag_configured, require_identified,
+    select_claim, select_estimand, validate_static_pair,
 };
 
 pub(super) use super::builder::{DataInput, RdConfig, RefuteSuite};
@@ -253,11 +250,11 @@ mod admg_posterior_response;
 mod attribution_path;
 mod checked_attribution;
 mod class_attribution;
-mod temporal_attribution;
 mod temporal_admg_mediation;
+mod temporal_attribution;
 pub(crate) use temporal_admg_mediation::mediation_window_namespace;
-mod temporal_pag_mediation;
 mod temporal_admg_posterior;
+mod temporal_pag_mediation;
 pub(crate) use attribution_path::{CheckedCounterfactualPlan, CounterfactualProcedure};
 pub(crate) use checked_attribution::{
     CheckedAttributionOperation, attribute_bootstrap_supported, attribute_posterior_draws,
@@ -297,15 +294,15 @@ mod checked_local_polynomial_ratio;
 mod checked_longitudinal_regime;
 mod checked_panel_did;
 mod checked_randomized;
-mod class_response_refutation;
 mod class_derivative_refutation;
-mod front_door_derivative_refutation;
+mod class_response_refutation;
 mod derivative_refutation;
+mod front_door_derivative_refutation;
 mod gcm_bootstrap;
+mod posterior_witness_state;
 mod randomized_fit;
 mod randomized_trial;
 mod rollout_finish;
-mod posterior_witness_state;
 mod temporal_response_refutation;
 mod transport_refutation;
 use randomized_trial::{RandomizedTrialOperation, RandomizedTrialQuery};
@@ -330,13 +327,19 @@ pub(crate) use checked_local_polynomial_ratio::{
 pub(crate) use checked_longitudinal_regime::CheckedLongitudinalRegimeOperation;
 mod checked_sequential_contrast;
 pub(crate) use checked_sequential_contrast::CheckedSequentialContrastOperation;
+mod checked_family_routes;
 mod checked_history_match;
 mod checked_route;
+mod checked_static_cross_world;
+pub(crate) use checked_family_routes::{
+    CheckedClassAttributionOperation, CheckedTemporalAdmgOperation,
+};
 pub(crate) use checked_history_match::CheckedHistoryMatchOperation;
 pub(crate) use checked_route::{
     CheckedAssociationOperation, CheckedDiscoveryOperation, CheckedRouteOperation,
-    finish_family_result,
+    CheckedScientificRoute, finish_family_result,
 };
+pub(crate) use checked_static_cross_world::CheckedStaticCrossWorldOperation;
 mod checked_association;
 mod checked_iv_bounds;
 mod checked_temporal_design;
@@ -368,9 +371,9 @@ mod class_distribution;
 mod class_envelope_se;
 mod class_path_specific;
 mod class_posterior;
-mod cross_world_posterior;
 mod class_posterior_response;
 mod completion_fit_memo;
+mod cross_world_posterior;
 pub(crate) use checked_temporal_effect::CheckedTemporalEffectExecution;
 mod compile;
 mod compile_decision;

@@ -116,6 +116,37 @@ pub(crate) fn attach(
     install(study, plan, lowered, ctx)
 }
 
+/// Re-lower compatible numerical options without deriving a new causal proof.
+pub(crate) fn reconfigure_retained(
+    study: &Study,
+    plan: &mut PhysicalExecutionPlan,
+    ctx: &ExecutionContext,
+) -> Result<(), CausalError> {
+    let retained = plan.lowered().and_then(LoweredProgram::retained_identification).ok_or(
+        CausalError::Unsupported { message: "configured refresh requires retained identification" },
+    )?;
+    if retained.key.is_none() || retained.key != retention_key(study) || retained.product.is_some()
+    {
+        return Err(CausalError::Unsupported {
+            message: "configured refresh cannot change retained identification inputs",
+        });
+    }
+    let cache = study.identification_cache.as_ref().ok_or(CausalError::Unsupported {
+        message: "configured refresh requires its retained static proof",
+    })?;
+    let seal =
+        crate::analysis::identification_seal::seal_static(&cache.identification, &cache.estimand)?;
+    if retained.static_seal() != Some(seal) {
+        return Err(CausalError::Unsupported {
+            message: "configured refresh static proof differs from its lowered program",
+        });
+    }
+    let input = study.route_input_classified().ok_or(CausalError::Unsupported {
+        message: "configured refresh requires a retained static route",
+    })?;
+    attach(study, input, plan, &CompileGoal::Estimate, ctx)
+}
+
 /// Lower a graph-posterior study for `goal` and attach the program to `plan`.
 ///
 /// # Errors
@@ -179,19 +210,22 @@ fn install(
     lowered: LoweredProgram,
     ctx: &ExecutionContext,
 ) -> Result<(), CausalError> {
+    let mut candidate = plan.clone();
+    let staged = &mut candidate;
     let design = lowered.physical().design();
-    if design.source() == WidthSource::Quoted && plan.linear.is_none() && !plan.streams_design() {
-        match plan.requote(design, ctx) {
+    if design.source() == WidthSource::Quoted && staged.linear.is_none() && !staged.streams_design()
+    {
+        match staged.requote(design, ctx) {
             // The resident design does not fit. A nuisance-model route that reduces in
             // closed form streams its rows instead.
             Err(error @ CausalError::Resource { .. }) => {
                 match (
-                    crate::analysis::streamed_route::streamed_estimator(study, plan),
+                    crate::analysis::streamed_route::streamed_estimator(study, staged),
                     design.rows(),
                     design.columns(),
                 ) {
                     (Some(estimator), Some(rows), Some(columns)) => {
-                        plan.bind_streamed_nuisance_views(
+                        staged.bind_streamed_nuisance_views(
                             estimator,
                             columns.max(1),
                             rows.max(1),
@@ -207,13 +241,15 @@ fn install(
     let demand = scan_demand(study, &lowered);
     // A plan that streams its design reads batches and keeps the Gram; it never holds the
     // dense copies the resident scan declares.
-    let scan = if plan.streams_design() {
+    let scan = if staged.streams_design() {
         scan::ScanPlan::streamed(demand, scan::STREAMED_BATCH_ROWS as u64)?
     } else {
         scan::ScanPlan::resident(demand)?
     };
     let operators = scan.operators()?;
-    plan.lowered = Some(Arc::new(lowered.with_physical_operators(operators)));
+    staged.lowered = Some(Arc::new(lowered.with_physical_operators(operators)));
+    staged.quote_route_memory(ctx)?;
+    *plan = candidate;
     Ok(())
 }
 
@@ -263,6 +299,21 @@ pub(crate) fn retain_identification(
     cx: &LoweringContext<'_>,
     product: Option<CompiledIdentificationProduct>,
 ) -> Result<IdentificationLayer, CausalError> {
+    // A compatible numerical reconfiguration lowers its statistical program
+    // again, but retains the scientific proof. The key covers every input
+    // identification reads; a compiled product must agree independently too.
+    if cx.ctx.cancellation.is_cancelled() {
+        return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_IDENTIFY });
+    }
+    if let Some(retained) = cx.plan.lowered().and_then(LoweredProgram::retained_identification) {
+        if retained.key.is_some()
+            && retained.key == retention_key(cx.study)
+            && retained.product.as_ref().map(CompiledIdentificationProduct::identity)
+                == product.as_ref().map(CompiledIdentificationProduct::identity)
+        {
+            return Ok(IdentificationLayer::Retained(Arc::new(retained.clone())));
+        }
+    }
     let caches = cx.study.identify_caches(cx.plan, cx.ctx)?;
     Ok(IdentificationLayer::Retained(Arc::new(RetainedIdentification::new(
         product,

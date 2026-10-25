@@ -103,7 +103,10 @@ fn verify_functional_effect_coordinate(
         "{coordinate} structure source"
     );
     assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Licensed));
-    let contract = prepared.contract().unwrap();
+    let (contract, inspection_work) =
+        antecedent_expr::execution_counts::count_static_work(|| prepared.contract().unwrap());
+    assert_eq!(inspection_work.factor_builds, 0, "{coordinate}: contract scanned factors");
+    assert_eq!(inspection_work.provider_bindings, 0, "{coordinate}: contract rebound providers");
     assert_eq!(contract.query_kind.as_ref(), "AverageEffect", "{coordinate}");
     assert_eq!(contract.identifier.as_deref(), Some("general.id"), "{coordinate}");
     assert_eq!(contract.estimator.as_deref(), Some("functional.effect"), "{coordinate}");

@@ -1,8 +1,7 @@
 //! A route sealed by the lowered program compile attached to its plan.
 //!
-//! Structure discovery, panel and multi-environment temporal effects, temporal
-//! cross-world queries and temporal ADMG effects execute from the study the handle
-//! froze, inside the dispatch scope of the lowered program. This operation retains
+//! Family operations execute from the study the handle froze, inside the dispatch
+//! scope of the lowered program. The shared route guard retains
 //! the route cell and the identity of that program at preparation. Every execution
 //! first requires that the plan still carries that program, lowered for that cell, so
 //! a plan swapped for another program, or no program at all, is refused with
@@ -180,5 +179,55 @@ impl CheckedDiscoveryOperation {
         physical: &PhysicalExecutionPlan,
     ) -> Result<(), CausalError> {
         self.route.require_program(physical)
+    }
+}
+
+/// The immutable scientific target a concrete family operation is sealed to.
+///
+/// The canonical graph identity covers posterior atom structures, weights and
+/// temporal metadata as well as single accepted graphs; data refresh is excluded.
+#[derive(Clone, Debug)]
+pub(crate) struct CheckedScientificRoute {
+    route: CheckedRouteOperation,
+    query: Arc<[u8]>,
+    graph: antecedent_io::GraphIdentityWire,
+}
+
+impl CheckedScientificRoute {
+    pub(crate) fn checked(
+        study: &Study,
+        physical: &Arc<PhysicalExecutionPlan>,
+        cell: Option<RouteCell>,
+    ) -> Result<Self, CausalError> {
+        let route = match cell {
+            Some(cell) => CheckedRouteOperation::checked(study, physical, cell)?,
+            None => CheckedRouteOperation::lowered(study, physical)?,
+        };
+        Ok(Self {
+            route,
+            query: crate::analysis::contract_identity::canonical_query_bytes(&study.query)?,
+            graph: crate::analysis::contract::graph_identity(study)?,
+        })
+    }
+
+    pub(crate) fn require_program(&self, plan: &PhysicalExecutionPlan) -> Result<(), CausalError> {
+        self.route.require_program(plan)
+    }
+
+    pub(crate) fn require(
+        &self,
+        study: &Study,
+        plan: &PhysicalExecutionPlan,
+    ) -> Result<(), CausalError> {
+        self.require_program(plan)?;
+        if self.query != crate::analysis::contract_identity::canonical_query_bytes(&study.query)?
+            || self.graph != crate::analysis::contract::graph_identity(study)?
+        {
+            return Err(crate::compile_reason!(
+                "route_not_lowered",
+                "the retained scientific operation requires its frozen query and graph identity"
+            ));
+        }
+        Ok(())
     }
 }

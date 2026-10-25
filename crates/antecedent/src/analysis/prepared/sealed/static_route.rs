@@ -304,3 +304,93 @@ impl SealedOperation for CheckedDiscoveryOperation {
         Ok(Some(result))
     }
 }
+
+/// Mixed/class cross-world clicks execute their own scientific family directly.
+impl SealedOperation for crate::analysis::execute::CheckedStaticCrossWorldOperation {
+    unbound_program!();
+    study_owned_stage_sink!();
+    study_owned_validators!();
+
+    fn require_retained_program(
+        &self,
+        plan: &crate::planner::PhysicalExecutionPlan,
+    ) -> Result<(), CausalError> {
+        self.require_program(plan)
+    }
+
+    fn estimate_tabular(
+        &self,
+        handle: &PreparedStudy,
+        data: &TabularData,
+        ctx: &ExecutionContext,
+        notes: &mut ClickNotes,
+    ) -> Result<Option<StudyResult>, CausalError> {
+        self.require_program(&handle.plan)?;
+        let rebound = self.rebind(data)?;
+        let mut result = rebound.execute_checked_static_cross_world(
+            &handle.analysis,
+            data,
+            &handle.plan,
+            ctx,
+        )?;
+        finish_family_result(
+            &handle.analysis,
+            &DataInput::Tabular(data.clone()),
+            &handle.plan,
+            &mut result,
+        )?;
+        let stamped = stamp_tabular(handle, data, result, notes);
+        if stamped.is_ok() {
+            notes.record(Rebound::Dispatch(Box::new(
+                crate::analysis::prepared::PreparedExecution::StaticCrossWorld(rebound),
+            )));
+        }
+        stamped
+    }
+}
+
+impl SealedOperation for crate::analysis::execute::CheckedClassAttributionOperation {
+    unbound_program!();
+    study_owned_stage_sink!();
+    study_owned_validators!();
+
+    fn require_retained_program(
+        &self,
+        plan: &crate::planner::PhysicalExecutionPlan,
+    ) -> Result<(), CausalError> {
+        self.require_program(plan)
+    }
+
+    fn estimate_tabular(
+        &self,
+        handle: &PreparedStudy,
+        data: &TabularData,
+        ctx: &ExecutionContext,
+        notes: &mut ClickNotes,
+    ) -> Result<Option<StudyResult>, CausalError> {
+        let mut result = self.execute_checked_class_attribution_table(
+            &handle.analysis,
+            data,
+            &handle.plan,
+            ctx,
+        )?;
+        finish_family_result(
+            &handle.analysis,
+            &DataInput::Tabular(data.clone()),
+            &handle.plan,
+            &mut result,
+        )?;
+        stamp_tabular(handle, data, result, notes)
+    }
+
+    fn estimate_series(&self, call: &SeriesCall<'_>) -> Result<Option<StudyResult>, CausalError> {
+        let mut result = self.execute_checked_class_attribution_series(
+            call.study,
+            call.series,
+            &call.handle.plan,
+            call.ctx,
+        )?;
+        finish_family_result(call.study, call.input, &call.handle.plan, &mut result)?;
+        Ok(Some(result))
+    }
+}

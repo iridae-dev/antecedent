@@ -103,7 +103,7 @@ impl SealedOperation for CheckedAdmgResponseCurveOperation {
         }
         let rebound = self.rebind(data)?;
         let result = rebound.execute(data, ctx)?;
-        stamp_functional(
+        let stamped = stamp_functional(
             handle,
             data,
             result,
@@ -111,7 +111,12 @@ impl SealedOperation for CheckedAdmgResponseCurveOperation {
             &rebound.inference,
             rebound.refute,
             notes.defers_contract(),
-        )
+        );
+        if stamped.is_ok() {
+            notes
+                .record(Rebound::Dispatch(Box::new(PreparedExecution::AdmgResponseCurve(rebound))));
+        }
+        stamped
     }
 }
 
@@ -134,7 +139,7 @@ impl SealedOperation for CheckedPathSpecificEffectOperation {
         }
         let rebound = self.rebind(data)?;
         let result = rebound.execute(data, ctx)?;
-        stamp_functional(
+        let stamped = stamp_functional(
             handle,
             data,
             result,
@@ -142,7 +147,13 @@ impl SealedOperation for CheckedPathSpecificEffectOperation {
             &rebound.inference,
             rebound.refute,
             notes.defers_contract(),
-        )
+        );
+        if stamped.is_ok() {
+            notes.record(Rebound::Dispatch(Box::new(PreparedExecution::PathSpecificEffect(
+                rebound,
+            ))));
+        }
+        stamped
     }
 }
 
@@ -165,7 +176,7 @@ impl SealedOperation for CheckedFunctionalEffectOperation {
         }
         let rebound = self.rebind(data)?;
         let result = rebound.execute(data, ctx)?;
-        stamp_functional(
+        let stamped = stamp_functional(
             handle,
             data,
             result,
@@ -173,7 +184,11 @@ impl SealedOperation for CheckedFunctionalEffectOperation {
             &rebound.inference,
             rebound.refute,
             notes.defers_contract(),
-        )
+        );
+        if stamped.is_ok() {
+            notes.record(Rebound::Dispatch(Box::new(PreparedExecution::FunctionalEffect(rebound))));
+        }
+        stamped
     }
 }
 
@@ -232,16 +247,28 @@ impl SealedOperation for CheckedDistributionOperation {
         if !self.sealed_for_direct_execution() {
             return Ok(None);
         }
-        let mut result = self.execute(data, ctx)?;
-        result.custom_validator_names = self.custom_validator_names.to_vec();
-        handle
+        let rebound = Self {
+            query: self.query.clone(),
+            cache: Arc::clone(&self.cache),
+            fitter: self.fitter.clone(),
+            factor_snapshot_digest: data.storage().content_digest(),
+            prepared: self.rebind(data)?,
+            common: Arc::clone(&self.common),
+        };
+        let mut result = rebound.execute_bound(data, ctx)?;
+        result.custom_validator_names = rebound.custom_validator_names.to_vec();
+        let stamped = handle
             .stamp_distribution(
                 &DataInput::Tabular(data.clone()),
-                self,
+                &rebound,
                 result,
                 notes.defers_contract(),
             )
-            .map(Some)
+            .map(Some);
+        if stamped.is_ok() {
+            notes.record(Rebound::Dispatch(Box::new(PreparedExecution::Distribution(rebound))));
+        }
+        stamped
     }
 }
 

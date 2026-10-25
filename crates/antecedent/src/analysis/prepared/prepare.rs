@@ -93,6 +93,18 @@ impl Study {
         }
         ensure_prepared_supported(self)?;
         let plan = Arc::new(self.compile(ctx)?);
+        let posterior_programs = crate::analysis::contract::graph_posterior_programs(
+            self,
+            plan.logical.record.estimator.as_deref(),
+            ctx,
+        )?
+        .map(|programs| {
+            Ok::<_, CausalError>(Arc::new(super::RetainedPosteriorPrograms {
+                query: crate::analysis::contract_identity::canonical_query_bytes(&self.query)?,
+                programs,
+            }))
+        })
+        .transpose()?;
         let counterfactual = self.compile_counterfactual()?;
         let nested_counterfactual = self.compile_nested_counterfactual()?;
         let (schema, modality, time_regularity) = self.prepared_modality()?;
@@ -122,6 +134,7 @@ impl Study {
         Ok(PreparedStudy {
             state: SampledPreparedState {
                 analysis,
+                posterior_programs,
                 program_cache: std::sync::OnceLock::new(),
                 contract_cache: std::sync::OnceLock::new(),
                 plan,
@@ -252,7 +265,7 @@ impl Study {
     /// A plan whose lowered program retained its identification at compile is
     /// installed from that program and is not identified again. Every other plan
     /// is identified here by [`Self::identify_caches`].
-    fn with_identification_caches(
+    pub(crate) fn with_identification_caches(
         &self,
         plan: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,

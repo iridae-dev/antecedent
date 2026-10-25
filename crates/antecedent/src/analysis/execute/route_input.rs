@@ -302,12 +302,10 @@ pub(crate) enum RouteInput<'a> {
     /// members of the class, each attributed as a DAG or to its noise blocks.
     GcmClass {
         data: &'a TabularData,
-        class: GraphClass,
     },
     /// The same over a temporal CPDAG, a temporal PAG or a temporal ADMG, on a series.
     GcmTemporalClass {
         data: &'a TimeSeriesData,
-        class: GraphClass,
     },
     TemporalCrossWorldClass {
         data: &'a TimeSeriesData,
@@ -481,9 +479,7 @@ fn static_route_input<'a>(
         (
             AnalysisRoute::Distribution,
             GraphRef::Admg(_) | GraphRef::TemporalAdmg(_) | GraphRef::Cpdag(_) | GraphRef::Pag(_),
-        ) => {
-            RouteInput::DistributionMixed { data: tabular(study), query: distribution(study) }
-        }
+        ) => RouteInput::DistributionMixed { data: tabular(study), query: distribution(study) },
         (AnalysisRoute::PathSpecific, GraphRef::Dag(dag)) => RouteInput::PathSpecificDag {
             data: tabular(study),
             query: path_specific(study),
@@ -796,13 +792,13 @@ fn gcm_route_input<'a>(
             AnalysisRoute::Anomaly | AnalysisRoute::ChangeAttribution,
             GraphRef::Admg(_) | GraphRef::Cpdag(_) | GraphRef::Pag(_) | GraphRef::TemporalAdmg(_),
         ) if matches!(study.data, DataInput::Tabular(_)) => {
-            RouteInput::GcmClass { data: tabular(study), class }
+            RouteInput::GcmClass { data: tabular(study) }
         }
         (
             AnalysisRoute::Anomaly | AnalysisRoute::ChangeAttribution,
             GraphRef::TemporalAdmg(_) | GraphRef::TemporalCpdag(_) | GraphRef::TemporalPag(_),
         ) if matches!(study.data, DataInput::Temporal(_) | DataInput::Event(_)) => {
-            RouteInput::GcmTemporalClass { data: series(study), class }
+            RouteInput::GcmTemporalClass { data: series(study) }
         }
         (
             AnalysisRoute::TemporalCrossWorld,

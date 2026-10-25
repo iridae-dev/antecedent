@@ -676,3 +676,157 @@ fn distribution_and_path_specific_cells_state_their_own_targets() {
     let estimated = prepared.estimate_retained(&ctx).unwrap();
     assert_eq!(estimated.lowered_program_identity(), Some(program.identity()));
 }
+
+/// W -> T, T -> A/B, A/B -> Y. The parent W makes both treatment
+/// edges visible. Binary probabilities have denominator 2*4*4*4*8=1024,
+/// so the contingency counts are exact and keep every empirical cell.
+fn identifiable_pag_path_study() -> Study {
+    let mut columns = vec![Vec::new(); 5];
+    let mass = |level: u32, numerator: u32, denominator: u32| {
+        if level == 1 { numerator } else { denominator - numerator }
+    };
+    for w in [0_u32, 1] {
+        for t in [0_u32, 1] {
+            for a in [0_u32, 1] {
+                for b in [0_u32, 1] {
+                    for y in [0_u32, 1] {
+                        let count = mass(t, 1 + 2 * w, 4)
+                            * mass(a, 1 + 2 * t, 4)
+                            * mass(b, 1 + 2 * t, 4)
+                            * mass(y, 1 + 2 * a + b + a * b, 8);
+                        for (column, value) in columns.iter_mut().zip([w, t, a, b, y]) {
+                            column.extend(std::iter::repeat_n(
+                                f64::from(value),
+                                usize::try_from(count).unwrap(),
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    let data = TabularData::from_f64_columns(
+        ["w", "t", "a", "b", "y"].into_iter().zip(columns.iter().map(Vec::as_slice)),
+    )
+    .unwrap();
+    let mut graph = Pag::with_variables(5);
+    for (from, to) in [(0, 1), (1, 2), (1, 3), (2, 4), (3, 4)] {
+        graph.insert_directed(d(from), d(to)).unwrap();
+    }
+    base(data)
+        .graph(graph)
+        .query(CausalQuery::PathSpecific(
+            PathSpecificEffectQuery::binary(v(1), v(4)).with_path_nodes([v(2)]),
+        ))
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+}
+
+#[test]
+fn static_cross_world_cells_retain_execute_refresh_and_export_their_own_family() {
+    use crate::analysis::RetainedOperation;
+    use crate::analysis::builder::DataInput;
+    use antecedent_data::{TableView, ValidityBitmap};
+
+    let ctx = ExecutionContext::for_tests(51);
+    let wanted =
+        ["CounterfactualClass", "PathSpecificCpdag", "PathSpecificMixed", "PathSpecificPag"];
+    let mut exercised = BTreeSet::new();
+    for (name, mut study) in representatives().into_iter().filter(|(name, _)| wanted.contains(name))
+    {
+        // The compiler representative deliberately has invisible PAG edges and
+        // is not an identified executing fixture. Keep that coverage above and
+        // use visible edges for this full numerical/artifact lifecycle.
+        if name == "PathSpecificPag" {
+            study = identifiable_pag_path_study();
+        }
+        let DataInput::Tabular(data) = &study.data else { panic!("static fixture") };
+        let plan = std::sync::Arc::new(study.compile(&ctx).unwrap());
+        let operation = crate::analysis::execute::CheckedStaticCrossWorldOperation::checked(
+            &study,
+            &plan,
+            crate::analysis::lowering::expected_cell(&study).unwrap(),
+        )
+        .unwrap();
+        let unrelated = compile(
+            &base(confounded_data())
+                .graph(confounded_dag())
+                .query(AverageEffectQuery::binary_ate(v(0), v(1)))
+                .build()
+                .unwrap(),
+        );
+        assert!(
+            operation.require_program(&unrelated).is_err(),
+            "{name}: replaced program admitted"
+        );
+        let mut altered = study.clone();
+        altered.query = CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(v(0), v(1)));
+        assert!(
+            operation.execute_checked_static_cross_world(&altered, data, &plan, &ctx).is_err(),
+            "{name}: changed target admitted"
+        );
+        let mut prepared = study.prepare(&ctx).unwrap_or_else(|error| panic!("{name}: {error}"));
+        assert!(
+            matches!(prepared.retained_operation(), RetainedOperation::StaticCrossWorld),
+            "{name}"
+        );
+        let first = prepared.estimate(data, &ctx).unwrap_or_else(|error| panic!("{name}: {error}"));
+        let fresh = study.run(&ctx).unwrap();
+        if name == "PathSpecificPag" {
+            // A(1)-A(0)=1/2 and B follows control with P(B=1)=1/4:
+            // E[Y(1 along A)]-E[Y(0)] = 1/2 * (1/4 + 1/8 * 1/4).
+            assert!((first.effect() - 0.140625).abs() < 1e-12);
+        }
+        assert_eq!(first.effect().to_bits(), fresh.effect().to_bits(), "{name}");
+        assert_eq!(first.lowered_program_identity(), prepared.plan().lowered_program_identity());
+        let original = prepared.clone();
+        let before = original.contract().unwrap().identities;
+        let mut mask = vec![0xff; data.row_count().div_ceil(8)];
+        mask[0] &= !1;
+        let changed = data
+            .with_analysis_mask(ValidityBitmap::from_bytes(mask, data.row_count()).unwrap())
+            .unwrap();
+        let mut changed_study = study.clone();
+        changed_study.data = DataInput::Tabular(changed.clone());
+        let expected = changed_study.run(&ctx).unwrap();
+        let result = prepared.refresh(changed, &ctx).unwrap();
+        assert_eq!(result.effect().to_bits(), expected.effect().to_bits(), "{name} refresh");
+        assert_eq!(before, original.contract().unwrap().identities, "{name} clone");
+        assert_ne!(
+            before.data_snapshot,
+            prepared.contract().unwrap().identities.data_snapshot,
+            "{name}"
+        );
+        let bytes = prepared.encode_contracted_result(&result, name, &ctx).unwrap();
+        let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+        assert_eq!(consumed.body.estimate, Some(result.effect()), "{name} artifact");
+        exercised.insert(name);
+    }
+    assert_eq!(exercised, BTreeSet::from(wanted));
+}
+
+#[test]
+fn signed_zero_query_drift_is_refused_before_static_family_work() {
+    let (_, study) =
+        representatives().into_iter().find(|(name, _)| *name == "PathSpecificMixed").unwrap();
+    let ctx = ExecutionContext::for_tests(52);
+    let plan = std::sync::Arc::new(study.compile(&ctx).unwrap());
+    let operation = crate::analysis::execute::CheckedStaticCrossWorldOperation::checked(
+        &study,
+        &plan,
+        crate::analysis::lowering::expected_cell(&study).unwrap(),
+    )
+    .unwrap();
+    let mut changed = study.clone();
+    let CausalQuery::PathSpecific(query) = &mut changed.query else { panic!("path fixture") };
+    query.control = Intervention::set(query.treatment, Value::f64(-0.0));
+    let crate::analysis::builder::DataInput::Tabular(data) = &study.data else {
+        panic!("table fixture")
+    };
+    let (result, work) = antecedent_expr::execution_counts::count_static_work(|| {
+        operation.execute_checked_static_cross_world(&changed, data, &plan, &ctx)
+    });
+    assert!(result.is_err(), "bit-distinct signed-zero target must require preparation");
+    assert_eq!(work, antecedent_expr::execution_counts::StaticWorkCounts::default());
+}

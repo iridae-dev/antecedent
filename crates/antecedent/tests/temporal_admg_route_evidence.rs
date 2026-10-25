@@ -1197,7 +1197,7 @@ mod window_contrast {
         assert_eq!(result.lowered_program_identity(), plan.lowered_program_identity());
         // The prepared handle freezes the identification and reproduces the point; the artifact
         // names the unfolded window coordinates and survives a round trip.
-        let prepared = built.prepare(&ctx).unwrap();
+        let mut prepared = built.prepare(&ctx).unwrap();
         let again = prepared.estimate_series(&data, &ctx).unwrap();
         assert!((again.effect() - counted).abs() < 1e-12);
         assert!(again.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
@@ -1205,6 +1205,30 @@ mod window_contrast {
             prepared.encode_contracted_result(&again, "temporal_admg_pulse", &ctx).unwrap();
         let consumed = consume_analysis_result(&artifact).unwrap();
         assert_eq!(consumed.body.estimate, Some(again.effect()));
+        assert!(matches!(
+            prepared.retained_operation(),
+            antecedent::analysis::RetainedOperation::TemporalAdmgEffect
+        ));
+        let (changed_x, changed_y, changed_w, changed) = series(320);
+        let expected =
+            study(&changed, template(false), next_period(), InferenceMode::Frequentist, 0)
+                .run(&ctx)
+                .unwrap();
+        let refreshed = prepared.refresh_series(changed, &ctx).unwrap();
+        assert_eq!(refreshed.effect().to_bits(), expected.effect().to_bits());
+        assert!(
+            (refreshed.effect() - counted_contrast(&changed_x, &changed_y, &changed_w)).abs()
+                < 1e-12
+        );
+        assert_eq!(
+            refreshed.lowered_program_identity(),
+            prepared.plan().lowered_program_identity()
+        );
+        let artifact = prepared
+            .encode_contracted_result(&refreshed, "retained-temporal-admg-refresh", &ctx)
+            .unwrap();
+        let consumed = consume_analysis_result(&artifact).unwrap();
+        assert_eq!(consumed.body.estimate, Some(refreshed.effect()));
     }
 
     #[test]
@@ -1288,8 +1312,9 @@ mod window_contrast {
         let prepared = built.prepare(&ctx).unwrap();
         let again = prepared.estimate_series(&data, &ctx).unwrap();
         assert!((again.effect() - counted).abs() < 1e-12);
-        let artifact =
-            prepared.encode_contracted_result(&again, "temporal_admg_conditional_pulse", &ctx).unwrap();
+        let artifact = prepared
+            .encode_contracted_result(&again, "temporal_admg_conditional_pulse", &ctx)
+            .unwrap();
         let consumed = consume_analysis_result(&artifact).unwrap();
         assert_eq!(consumed.body.estimate, Some(again.effect()));
     }
@@ -1423,8 +1448,10 @@ mod window_contrast {
                 assert!((result.effect() - counted).abs() < tolerance, "{}", result.effect());
                 assert!(discloses(&result));
                 for report in &result.refutations {
-                    assert!((report.original_ate - result.effect()).abs() < 1e-12
-                        || report.refuter.as_ref() == "window.split_half");
+                    assert!(
+                        (report.original_ate - result.effect()).abs() < 1e-12
+                            || report.refuter.as_ref() == "window.split_half"
+                    );
                     assert!((0.0..=1.0).contains(&report.comparison), "{report:?}");
                 }
                 // Rotating the treatment removes every link to the outcome: the contrast of the
@@ -1461,14 +1488,10 @@ mod window_contrast {
         let first_half = counted_contrast(&x[..len / 2], &y[..len / 2], &w[..len / 2]);
         assert!(first_half > 0.3, "{first_half}");
         let ctx = ExecutionContext::for_tests(31_011);
-        let result = study_with_suite(
-            &data,
-            next_period(),
-            InferenceMode::Frequentist,
-            RefuteSuite::Full,
-        )
-        .run(&ctx)
-        .unwrap();
+        let result =
+            study_with_suite(&data, next_period(), InferenceMode::Frequentist, RefuteSuite::Full)
+                .run(&ctx)
+                .unwrap();
         let split = result
             .refutations
             .iter()

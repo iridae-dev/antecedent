@@ -103,7 +103,10 @@ fn verify_distribution_coordinate(
         "{coordinate} source"
     );
     assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Licensed), "{coordinate}");
-    let contract = prepared.contract().unwrap();
+    let (contract, inspection_work) =
+        antecedent_expr::execution_counts::count_static_work(|| prepared.contract().unwrap());
+    assert_eq!(inspection_work.factor_builds, 0, "{coordinate}: contract scanned factors");
+    assert_eq!(inspection_work.provider_bindings, 0, "{coordinate}: contract rebound providers");
     assert_eq!(contract.query_kind.as_ref(), "InterventionalDistribution", "{coordinate}");
     assert_eq!(contract.identifier.as_deref(), Some("general.id"), "{coordinate}");
     assert_eq!(contract.estimator.as_deref(), Some("functional.distribution"), "{coordinate}");
@@ -506,4 +509,102 @@ fn conditioned_distribution_refuses_a_forged_scalar_estimate() {
         unresolved.iter().any(|reason| reason.as_ref() == "body.interventional_distribution"),
         "verification must refuse a scalar the atoms do not define: {unresolved:?}"
     );
+}
+
+#[test]
+fn retained_distribution_factor_reuse_checks_contents_masks_weights_validity_and_schema() {
+    use antecedent_data::{
+        Float64Column, OwnedColumn, OwnedColumnarStorage, TableView, ValidityBitmap,
+    };
+    use std::sync::Arc;
+
+    let (data, dag, _, query) = distribution_fixture();
+    let ctx = ExecutionContext::for_tests(2_102);
+    let study = |rows: TabularData| {
+        Study::tabular(rows)
+            .graph(dag.clone())
+            .query(CausalQuery::Distribution(query.clone()))
+            .identifier(IdentifierId::GeneralId)
+            .estimator(EstimatorId::FunctionalDistribution)
+            .bootstrap_replicates(0)
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap()
+    };
+    let original = study(data.clone()).prepare(&ctx).unwrap();
+    let before = original.contract().unwrap().identities;
+    let n = data.row_count();
+    let mut mask = vec![0xff; n.div_ceil(8)];
+    mask[0] &= !1;
+    let mask = ValidityBitmap::from_bytes(mask, n).unwrap();
+    let columns = data.storage().columns().to_vec();
+    let make = |columns, mask, weights| {
+        TabularData::new(
+            OwnedColumnarStorage::try_new(data.schema().clone(), columns, mask, weights).unwrap(),
+        )
+    };
+    let masked = make(columns.clone(), Some(mask.clone()), None);
+    let mut weights = vec![1.0; n];
+    weights[0] = 2.0;
+    let weighted = make(columns.clone(), None, Some(Arc::from(weights)));
+    let mut incomplete_columns = columns.clone();
+    incomplete_columns[1] = OwnedColumn::Float64(
+        Float64Column::new(
+            VariableId::from_raw(1),
+            Arc::from(data.float64_values(VariableId::from_raw(1)).unwrap()),
+            mask,
+        )
+        .unwrap(),
+    );
+    let incomplete = make(incomplete_columns, None, None);
+    let mut changed_columns = columns;
+    let mut outcomes = data.float64_values(VariableId::from_raw(1)).unwrap();
+    outcomes[0] = 1.0;
+    changed_columns[1] = OwnedColumn::Float64(
+        Float64Column::new(
+            VariableId::from_raw(1),
+            Arc::from(outcomes),
+            ValidityBitmap::all_valid(n),
+        )
+        .unwrap(),
+    );
+    let changed = make(changed_columns, None, None);
+    for (label, rows) in
+        [("mask", masked), ("weights", weighted), ("validity", incomplete), ("values", changed)]
+    {
+        let mut prepared = original.clone();
+        let refreshed = prepared.refresh(rows.clone(), &ctx).unwrap();
+        let cold = study(rows.clone()).prepare(&ctx).unwrap();
+        let fresh = cold.estimate(&rows, &ctx).unwrap();
+        let actual = refreshed.distribution().unwrap();
+        let expected = fresh.distribution().unwrap();
+        assert_eq!(actual.mean.to_bits(), expected.mean.to_bits(), "{label}: stale mean");
+        assert_eq!(actual.atoms, expected.atoms, "{label}: stale factor laws");
+        let (contract, work) =
+            antecedent_expr::execution_counts::count_static_work(|| prepared.contract().unwrap());
+        assert_eq!(work.factor_builds, 0, "{label}: refreshed provider was discarded");
+        assert_eq!(work.provider_bindings, 0, "{label}: refreshed provider was discarded");
+        assert_eq!(contract.identities, cold.contract().unwrap().identities, "{label}");
+        assert_eq!(
+            before.program, contract.identities.program,
+            "{label}: frozen scientific program"
+        );
+        assert_ne!(
+            before.data_snapshot, contract.identities.data_snapshot,
+            "{label}: changed snapshot"
+        );
+    }
+    let renamed = TabularData::from_f64_columns([
+        ("renamed_t", data.float64_slice(VariableId::from_raw(0)).unwrap()),
+        ("y", data.float64_slice(VariableId::from_raw(1)).unwrap()),
+        ("z", data.float64_slice(VariableId::from_raw(2)).unwrap()),
+    ])
+    .unwrap();
+    assert_eq!(renamed.storage().content_digest(), data.storage().content_digest());
+    let mut prepared = original.clone();
+    assert!(
+        prepared.refresh(renamed, &ctx).is_err(),
+        "matching storage bytes cannot bypass schema"
+    );
+    assert_eq!(before, prepared.contract().unwrap().identities);
 }

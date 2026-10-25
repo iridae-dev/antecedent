@@ -230,3 +230,30 @@ impl SealedOperation for CheckedTemporalGraphPosteriorEffect {
             .map(Some)
     }
 }
+
+impl SealedOperation for crate::analysis::execute::CheckedTemporalAdmgOperation {
+    series_operation_hooks!();
+
+    fn require_retained_program(
+        &self,
+        plan: &crate::planner::PhysicalExecutionPlan,
+    ) -> Result<(), CausalError> {
+        self.require_program(plan)
+    }
+
+    fn estimate_series(&self, call: &SeriesCall<'_>) -> Result<Option<StudyResult>, CausalError> {
+        let mut result = self.execute_checked_temporal_admg(
+            call.study,
+            call.series,
+            &call.handle.plan,
+            call.ctx,
+        )?;
+        crate::analysis::execute::finish_family_result(
+            call.study,
+            call.input,
+            &call.handle.plan,
+            &mut result,
+        )?;
+        Ok(Some(result))
+    }
+}

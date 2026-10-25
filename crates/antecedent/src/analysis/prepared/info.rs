@@ -197,6 +197,8 @@ pub enum RetainedOperation<'a> {
     ClassAttribution,
     /// Noncausal association of the observed data, sealed to its lowered program.
     Association,
+    /// Mixed/class static cross-world target executed directly by its frozen family operation.
+    StaticCrossWorld,
 }
 
 impl RetainedOperation<'_> {
@@ -273,6 +275,7 @@ impl RetainedOperation<'_> {
             Self::TemporalAdmgEffect => "temporal_admg_effect",
             Self::ClassAttribution => "class_attribution",
             Self::Association => "association",
+            Self::StaticCrossWorld => "static_cross_world",
         }
     }
 }
@@ -384,6 +387,7 @@ impl PreparedStudy {
             E::TemporalAdmgEffect(_) => R::TemporalAdmgEffect,
             E::ClassAttribution(_) => R::ClassAttribution,
             E::Association(_) => R::Association,
+            E::StaticCrossWorld(_) => R::StaticCrossWorld,
         }
     }
 
@@ -504,6 +508,10 @@ impl PreparedStudy {
             (PreparedExecution::Distribution(_), CausalQuery::Distribution(_))
                 | (PreparedExecution::PathSpecificEffect(_), CausalQuery::PathSpecific(_))
                 | (
+                    PreparedExecution::StaticCrossWorld(_),
+                    CausalQuery::PathSpecific(_) | CausalQuery::NestedCounterfactual(_)
+                )
+                | (
                     PreparedExecution::NestedCounterfactual(_),
                     CausalQuery::NestedCounterfactual(_)
                 )
@@ -526,6 +534,9 @@ impl PreparedStudy {
     > {
         self.ensure_schema_compatible(data)?;
         if let Some(operation) = self.execution.functional_effect_operation() {
+            if operation.factor_snapshot_digest == data.storage().content_digest() {
+                return operation.prepared.factor_snapshot().map(Some).map_err(CausalError::from);
+            }
             return operation
                 .rebind(data)?
                 .prepared
@@ -534,12 +545,18 @@ impl PreparedStudy {
                 .map_err(CausalError::from);
         }
         if let Some(operation) = self.execution.path_specific_effect_operation() {
+            if operation.factor_snapshot_digest == data.storage().content_digest() {
+                return operation.prepared.factor_snapshot().map(Some).map_err(CausalError::from);
+            }
             return operation
                 .rebind(data)?
                 .prepared
                 .factor_snapshot()
                 .map(Some)
                 .map_err(CausalError::from);
+        }
+        if let PreparedExecution::StaticCrossWorld(operation) = &self.execution {
+            return operation.functional_factor_snapshot(data);
         }
         // A path-restricted effect executed through the lowered route keeps no operation:
         // its factor laws are those of the identified functional on `data`.
@@ -616,6 +633,9 @@ impl PreparedStudy {
             return Ok(None);
         };
         self.ensure_schema_compatible(data)?;
+        if operation.factor_snapshot_digest == data.storage().content_digest() {
+            return operation.prepared.factor_snapshot().map(Some).map_err(CausalError::from);
+        }
         let prepared = operation.rebind(data)?;
         prepared.factor_snapshot().map(Some).map_err(CausalError::from)
     }
@@ -652,6 +672,20 @@ impl PreparedStudy {
         self.program_cache = std::sync::OnceLock::new();
         self.contract_cache = std::sync::OnceLock::new();
         self.analysis = study;
+    }
+
+    pub(crate) fn posterior_programs(
+        &self,
+        query: &CausalQuery,
+    ) -> Result<Option<&antecedent_io::GraphPosteriorProgramsWire>, CausalError> {
+        self.posterior_programs.as_deref().map(|retained| {
+            if retained.query != crate::analysis::contract_identity::canonical_query_bytes(query)? {
+                return Err(CausalError::Compile {
+                    message: "retained graph-posterior programs require their prepare-time query; re-prepare after changing the target population or query".into(),
+                });
+            }
+            Ok(&retained.programs)
+        }).transpose()
     }
 
     pub(crate) fn program_cache(

@@ -35,6 +35,9 @@ pub(crate) struct CheckedDistributionOperation {
     pub(super) query: InterventionalDistributionQuery,
     pub(super) cache: Arc<super::CachedStaticIdentification>,
     pub(super) fitter: antecedent_estimate::FunctionalDistribution,
+    /// Producing immutable storage contents (values, validity, mask and weights).
+    /// Callers independently check the frozen semantic schema before reuse.
+    pub(super) factor_snapshot_digest: [u8; 32],
     pub(super) prepared: antecedent_estimate::PreparedFunctionalDistribution,
     pub(super) common: Arc<CheckedStaticCommon>,
 }
@@ -50,6 +53,9 @@ pub(crate) struct CheckedFunctionalEffectOperation {
     pub(super) conditional: Option<antecedent_core::ConditionalEffectQuery>,
     pub(super) cache: Arc<super::CachedStaticIdentification>,
     pub(super) fitter: antecedent_estimate::FunctionalEffect,
+    /// Producing immutable storage contents (values, validity, mask and weights).
+    /// Callers independently check the frozen semantic schema before reuse.
+    pub(super) factor_snapshot_digest: [u8; 32],
     pub(super) prepared: antecedent_estimate::PreparedFunctionalEffect,
     pub(super) common: Arc<CheckedStaticCommon>,
 }
@@ -60,6 +66,9 @@ pub(crate) struct CheckedPathSpecificEffectOperation {
     pub(super) query: antecedent_core::PathSpecificEffectQuery,
     pub(super) cache: Arc<super::CachedStaticIdentification>,
     pub(super) fitter: antecedent_estimate::FunctionalEffect,
+    /// Producing immutable storage contents (values, validity, mask and weights).
+    /// Callers independently check the frozen semantic schema before reuse.
+    pub(super) factor_snapshot_digest: [u8; 32],
     pub(super) prepared: antecedent_estimate::PreparedFunctionalEffect,
     pub(super) common: Arc<CheckedStaticCommon>,
 }
@@ -77,19 +86,9 @@ impl CheckedPathSpecificEffectOperation {
     }
 
     pub(super) fn rebind(&self, data: &TabularData) -> Result<Self, CausalError> {
-        let mut extra = vec![self.query.treatment, self.query.outcome];
-        extra.extend(self.query.path_nodes.iter().copied());
-        let prepared = self
-            .fitter
-            .prepare(
-                data,
-                &self.cache.estimand,
-                &self.cache.identification.arena,
-                self.cache.identification.required_assumptions.clone(),
-                &extra,
-            )
-            .map_err(CausalError::from)?;
+        let prepared = self.prepared.rebind_checked(data).map_err(CausalError::from)?;
         Ok(Self {
+            factor_snapshot_digest: data.storage().content_digest(),
             query: self.query.clone(),
             cache: Arc::clone(&self.cache),
             fitter: self.fitter.clone(),
@@ -202,17 +201,9 @@ impl CheckedFunctionalEffectOperation {
     }
 
     pub(super) fn rebind(&self, data: &TabularData) -> Result<Self, CausalError> {
-        let prepared = self
-            .fitter
-            .prepare(
-                data,
-                &self.cache.estimand,
-                &self.cache.identification.arena,
-                self.cache.identification.required_assumptions.clone(),
-                &[self.query.treatment, self.query.outcome],
-            )
-            .map_err(CausalError::from)?;
+        let prepared = self.prepared.rebind_checked(data).map_err(CausalError::from)?;
         Ok(Self {
+            factor_snapshot_digest: data.storage().content_digest(),
             query: self.query.clone(),
             conditional: self.conditional.clone(),
             cache: Arc::clone(&self.cache),
@@ -1864,13 +1855,13 @@ impl CheckedDistributionOperation {
             }
     }
 
-    pub(super) fn execute(
+    /// Execute the already rebound provider; the sealed caller binds it once.
+    pub(super) fn execute_bound(
         &self,
         data: &TabularData,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        let prepared = self.rebind(data)?;
         if matches!(self.graph_class, GraphClass::Admg | GraphClass::TemporalAdmg)
             && !self.query.conditioning.is_empty()
         {
@@ -1878,7 +1869,7 @@ impl CheckedDistributionOperation {
                 message: "ADMG InterventionalDistribution is licensed for unconditional finite-discrete tables; IDC conditionals are a follow-up",
             });
         }
-        let (distribution, posterior) = self.fit_distribution(&prepared, ctx)?;
+        let (distribution, posterior) = self.fit_distribution(&self.prepared, ctx)?;
         let bootstrap_ok = distribution.bootstrap_replicates_ok;
         let cancelled = distribution.bootstrap_cancelled;
         let early_stopped = distribution.bootstrap_early_stopped;

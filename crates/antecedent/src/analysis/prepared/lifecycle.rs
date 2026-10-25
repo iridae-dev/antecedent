@@ -23,6 +23,27 @@ use std::sync::Arc;
 use std::time::Instant;
 
 impl PreparedStudy {
+    /// The retained snapshot, operation, caches, scores and invalidation log
+    /// change together only after execution and final publication both succeed.
+    fn commit_refresh(
+        &mut self,
+        ctx: &ExecutionContext,
+        build: impl FnOnce(&mut Self) -> Result<StudyResult, CausalError>,
+    ) -> Result<StudyResult, CausalError> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "refresh" });
+        }
+        let mut candidate = self.clone();
+        let result = build(&mut candidate)?;
+        // Native estimators may return a usable partial bootstrap result after
+        // cancellation. A mutating transaction must never publish that candidate.
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "refresh" });
+        }
+        *self = candidate;
+        Ok(result)
+    }
+
     /// Refresh a retained AIPW study after changing only its numerical estimator options.
     ///
     /// The checked graph/query and cached identification are immutable inputs to this
@@ -59,35 +80,57 @@ impl PreparedStudy {
         self.transform_capability(antecedent_contract::TransformIntent::CompatibleDataReplace)?;
         self.ensure_schema_compatible(&data)?;
 
-        // Work on a candidate so config installation, score rebuilding and execution fail
-        // atomically from the session's point of view.
-        let mut candidate = self.clone();
-        let spec = EstimatorSpec::Aipw(Box::new(estimator.clone()));
-        Arc::make_mut(&mut candidate.analysis.config).estimator_spec_identity =
+        self.commit_refresh(ctx, |candidate| {
+            let spec = EstimatorSpec::Aipw(Box::new(estimator));
+            candidate.install_numerical_spec(spec);
+            candidate.reconfigure_numerical_plan(&data, ctx)?;
+            candidate.refresh_candidate(data, ctx)
+        })
+    }
+
+    /// A configured estimator owns its overlap policy and replicate budget, as
+    /// it does at initial build. Keep the resolved study fields and identity
+    /// projection synchronized instead of adding a second overlap declaration.
+    fn install_numerical_spec(&mut self, spec: crate::estimator_spec::EstimatorSpec) {
+        Arc::make_mut(&mut self.analysis.config).estimator_spec_identity =
             Some(crate::analysis::contract_identity::estimator_spec_identity(&spec));
-        candidate.analysis.estimator_spec = Some(Arc::new(spec));
-        candidate.program_cache = std::sync::OnceLock::new();
-        candidate.contract_cache = std::sync::OnceLock::new();
-
-        if let PreparedExecution::CheckedAipw(operation) = &mut candidate.execution {
-            let identification = &operation.cache.identification;
-            let estimand_index = identification
-                .estimands
-                .iter()
-                .position(|estimand| estimand == &operation.cache.estimand)
-                .ok_or(CausalError::Unsupported {
-                    message: "retained AIPW estimand is absent from cached identification",
-                })?;
-            let preparation = estimator
-                .prepare_checked(&data, identification, estimand_index)
-                .map_err(CausalError::from)?;
-            operation.fitter = estimator;
-            operation.preparation = preparation;
+        if let Some(replicates) = spec.bootstrap_replicates() {
+            self.analysis.bootstrap_replicates = replicates;
         }
+        self.analysis.overlap_policy = None;
+        self.analysis.estimator_spec = Some(Arc::new(spec));
+        self.program_cache = std::sync::OnceLock::new();
+        self.contract_cache = std::sync::OnceLock::new();
+    }
 
-        let result = candidate.refresh(data, ctx)?;
-        *self = candidate;
-        Ok(result)
+    /// Rebuild statistical work and admission from the new options and rows,
+    /// retaining the key-validated causal proof already held by this plan.
+    fn reconfigure_numerical_plan(
+        &mut self,
+        data: &TabularData,
+        ctx: &ExecutionContext,
+    ) -> Result<(), CausalError> {
+        self.ensure_schema_compatible(data)?;
+        let mut analysis = self.analysis.clone();
+        analysis.data = DataInput::Tabular(data.clone());
+        let mut plan = (*self.plan).clone();
+        crate::analysis::lowering::reconfigure_retained(&analysis, &mut plan, ctx)?;
+        let plan = Arc::new(plan);
+        let binding = plan.binding();
+        let execution = super::sealers::seal_execution(&super::sealers::SealContext {
+            source: &analysis,
+            analysis: &analysis,
+            plan: &plan,
+            binding: &binding,
+            ctx,
+            route: analysis.route_input_classified(),
+            counterfactual: None,
+            nested_counterfactual: None,
+        })?;
+        self.analysis = analysis;
+        self.plan = plan;
+        self.execution = execution;
+        Ok(())
     }
 
     /// Replace retained data and re-estimate (same semantics as [`Self::estimate`]).
@@ -102,6 +145,15 @@ impl PreparedStudy {
     ///
     /// Schema incompatibility, identification / estimation / validation failures.
     pub fn refresh(
+        &mut self,
+        data: TabularData,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        self.commit_refresh(ctx, |candidate| candidate.refresh_candidate(data, ctx))
+    }
+
+    /// Build a complete replacement, including its executed contract, before commit.
+    fn refresh_candidate(
         &mut self,
         data: TabularData,
         ctx: &ExecutionContext,
@@ -187,10 +239,10 @@ impl PreparedStudy {
                 ClickScores::NotBuilt => None,
             };
             self.replace_study(refreshed);
-            // Receipts that bind complete-case rows (linear, GLM, RD, AIPW,
-            // front-door, IV, conditional, cell-AIPW) must describe the
-            // retained snapshot, or the published contract would carry
-            // prepare-time row counts.
+            // Row-bound receipts and empirical factor providers must describe
+            // the retained snapshot. Keep the click's exact rebound operation
+            // so contract publication neither rescans rows nor carries stale
+            // prepare-time laws or row counts.
             if let Some(rebound) = rebound {
                 self.install_rebound(rebound);
             }
@@ -279,13 +331,11 @@ impl PreparedStudy {
                 message: "DML/DR configuration refresh requires the same checked estimator family",
             });
         }
-        Arc::make_mut(&mut self.analysis.config).estimator_spec_identity =
-            Some(crate::analysis::contract_identity::estimator_spec_identity(&spec));
-        self.analysis.overlap_policy = spec.propensity_overlap();
-        self.analysis.estimator_spec = Some(Arc::new(spec));
-        self.program_cache = std::sync::OnceLock::new();
-        self.contract_cache = std::sync::OnceLock::new();
-        self.refresh(data, ctx)
+        self.commit_refresh(ctx, |candidate| {
+            candidate.install_numerical_spec(spec);
+            candidate.reconfigure_numerical_plan(&data, ctx)?;
+            candidate.refresh_candidate(data, ctx)
+        })
     }
 
     /// Second-click / background refute: replace validation on a prior estimate.
@@ -699,6 +749,15 @@ impl PreparedStudy {
         data: PanelData,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        self.commit_refresh(ctx, |candidate| candidate.refresh_panel_candidate(data, ctx))
+    }
+
+    /// Build a complete replacement, including its executed contract, before commit.
+    fn refresh_panel_candidate(
+        &mut self,
+        data: PanelData,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
         self.transform_capability(antecedent_contract::TransformIntent::CompatibleDataReplace)?;
         self.execution.operation().require_retained_program(&self.plan)?;
         self.ensure_panel_compatible(&data)?;
@@ -745,6 +804,15 @@ impl PreparedStudy {
     ///
     /// Same refusals as [`Self::estimate_multi_env`].
     pub fn refresh_multi_env(
+        &mut self,
+        data: antecedent_data::MultiEnvironmentData,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        self.commit_refresh(ctx, |candidate| candidate.refresh_multi_env_candidate(data, ctx))
+    }
+
+    /// Build a complete replacement, including its executed contract, before commit.
+    fn refresh_multi_env_candidate(
         &mut self,
         data: antecedent_data::MultiEnvironmentData,
         ctx: &ExecutionContext,
@@ -829,6 +897,15 @@ impl PreparedStudy {
     ///
     /// Schema / time-index mismatch, or estimation failures.
     pub fn refresh_series(
+        &mut self,
+        data: TimeSeriesData,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        self.commit_refresh(ctx, |candidate| candidate.refresh_series_candidate(data, ctx))
+    }
+
+    /// Build a complete replacement, including its executed contract, before commit.
+    fn refresh_series_candidate(
         &mut self,
         data: TimeSeriesData,
         ctx: &ExecutionContext,

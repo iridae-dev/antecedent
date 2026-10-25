@@ -246,21 +246,21 @@ th, td { border: 1px solid var(--rule); padding: 0.25rem 0.5rem; text-align: lef
 <h3>Physical plan</h3>
 <dl class="facts">
 <dt>backend.quotes[0].alternative</dt><dd>direct_prepared_numeric_views</dd>
-<dt>backend.quotes[0].cost</dt><dd>1200</dd>
+<dt>backend.quotes[0].cost</dt><dd>2000</dd>
 <dt>backend.quotes[0].resident_bytes</dt><dd>3200</dd>
-<dt>backend.quotes[0].work_cells</dt><dd>800</dd>
+<dt>backend.quotes[0].work_cells</dt><dd>1600</dd>
 <dt>backend.quotes[1].alternative</dt><dd>streamed_reduction</dd>
-<dt>backend.quotes[1].cost</dt><dd>1225</dd>
+<dt>backend.quotes[1].cost</dt><dd>2825</dd>
 <dt>backend.quotes[1].resident_bytes</dt><dd>3400</dd>
-<dt>backend.quotes[1].work_cells</dt><dd>800</dd>
+<dt>backend.quotes[1].work_cells</dt><dd>2400</dd>
 <dt>backend.quotes[2].alternative</dt><dd>materialized_design</dd>
-<dt>backend.quotes[2].cost</dt><dd>2000</dd>
+<dt>backend.quotes[2].cost</dt><dd>2800</dd>
 <dt>backend.quotes[2].resident_bytes</dt><dd>6400</dd>
-<dt>backend.quotes[2].work_cells</dt><dd>1200</dd>
+<dt>backend.quotes[2].work_cells</dt><dd>2000</dd>
 <dt>backend.quotes[3].alternative</dt><dd>optional_lazy_preparation</dd>
-<dt>backend.quotes[3].cost</dt><dd>1200</dd>
+<dt>backend.quotes[3].cost</dt><dd>2000</dd>
 <dt>backend.quotes[3].resident_bytes</dt><dd>3200</dd>
-<dt>backend.quotes[3].work_cells</dt><dd>800</dd>
+<dt>backend.quotes[3].work_cells</dt><dd>1600</dd>
 <dt>backend.rejected[0].alternative</dt><dd>direct_prepared_numeric_views</dd>
 <dt>backend.rejected[0].reason</dt><dd>missing operator capability prepared_numeric_view</dd>
 <dt>backend.rejected[1].alternative</dt><dd>streamed_reduction</dd>
@@ -268,7 +268,7 @@ th, td { border: 1px solid var(--rule); padding: 0.25rem 0.5rem; text-align: lef
 <dt>backend.rejected[2].alternative</dt><dd>optional_lazy_preparation</dd>
 <dt>backend.rejected[2].reason</dt><dd>missing operator capability lazy_preparation</dd>
 <dt>backend.selected</dt><dd>materialized_design</dd>
-<dt>backend.selected_cost</dt><dd>2000</dd>
+<dt>backend.selected_cost</dt><dd>2800</dd>
 <dt>design.reason</dt><dd>augmented sequential scores average per-subject nuisance fits</dd>
 <dt>design.source</dt><dd>not_design_based</dd>
 <dt>memory.components[0].bytes</dt><dd>3200</dd>
@@ -277,18 +277,18 @@ th, td { border: 1px solid var(--rule); padding: 0.25rem 0.5rem; text-align: lef
 <dt>memory.components[1].component</dt><dd>masks</dd>
 <dt>memory.components[2].bytes</dt><dd>0</dd>
 <dt>memory.components[2].component</dt><dd>design_expansion</dd>
-<dt>memory.components[3].bytes</dt><dd>0</dd>
+<dt>memory.components[3].bytes</dt><dd>3200</dd>
 <dt>memory.components[3].component</dt><dd>learner_fold_copies</dd>
 <dt>memory.components[4].bytes</dt><dd>4080</dd>
 <dt>memory.components[4].component</dt><dd>solver_scratch</dd>
-<dt>memory.components[5].bytes</dt><dd>0</dd>
+<dt>memory.components[5].bytes</dt><dd>1920</dd>
 <dt>memory.components[5].component</dt><dd>retained_scores_draws</dd>
 <dt>memory.components[6].bytes</dt><dd>680</dd>
 <dt>memory.components[6].component</dt><dd>output</dd>
 <dt>memory.components[7].bytes</dt><dd>0</dd>
 <dt>memory.components[7].component</dt><dd>concurrent_workers</dd>
-<dt>memory.learner_fold_copies</dt><dd>0</dd>
-<dt>memory.total</dt><dd>8010</dd>
+<dt>memory.learner_fold_copies</dt><dd>1</dd>
+<dt>memory.total</dt><dd>13130</dd>
 <dt>memory.workers</dt><dd>1</dd>
 <dt>operators[0].capability</dt><dd>cpu</dd>
 <dt>operators[0].designs</dt><dd>0</dd>

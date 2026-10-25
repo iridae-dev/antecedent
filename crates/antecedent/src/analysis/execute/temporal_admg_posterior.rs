@@ -617,7 +617,6 @@ impl super::Study {
         self.ensure_admg_posterior_window_licensed()?;
         let effect = window_effect_query(query)?;
         let (variables, variable_count) = window_variables(series, gp)?;
-        let max_lag = gp.max_lag.unwrap_or(0);
         let requested = component_slot(query.contrast);
         crate::analysis::execute::report_identify_compute(ctx);
         let found = ctx.map_indexed(gp.n_graphs, |i, inner| {

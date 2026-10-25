@@ -25,6 +25,15 @@ use antecedent_stats::{GlmFamily, GlmOptions, NbAlphaPolicy};
 use crate::estimator_spec::EstimatorSpec;
 use crate::inference::BayesianConfig;
 
+/// Exact query bytes for retained-target guards, using the artifact query codec.
+/// Floating-point fields keep the wire's declared bit representation.
+pub(crate) fn canonical_query_bytes(
+    query: &CausalQuery,
+) -> Result<std::sync::Arc<[u8]>, crate::CausalError> {
+    let wire = antecedent_io::causal_query_to_wire(query).map_err(crate::CausalError::rejected)?;
+    antecedent_io::to_cbor(&wire).map(std::sync::Arc::from).map_err(crate::CausalError::rejected)
+}
+
 /// Overlay the declared grouping inputs `$field` of `$cfg` (cluster labels, multiway
 /// groups, panel times, population registry) onto `$wire` as digests; absent ones stay
 /// `None`.

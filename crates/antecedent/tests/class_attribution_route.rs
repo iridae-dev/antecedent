@@ -452,7 +452,7 @@ fn prepared_body() {
     let query = anomaly_query(1);
     let mut cpdag = Cpdag::with_variables(2);
     cpdag.insert_undirected(node(0), node(1)).unwrap();
-    let study = tabular_study(&data, cpdag, &query, &frequentist());
+    let study = tabular_study(&data, cpdag.clone(), &query, &frequentist());
     let run = study.run(&ctx).unwrap();
     let mut prepared = study.prepare(&ctx).unwrap();
     assert!(matches!(prepared.retained_operation(), RetainedOperation::ClassAttribution));
@@ -462,6 +462,14 @@ fn prepared_body() {
         estimated.anomaly().unwrap()[0].noise_contributions,
         run.anomaly().unwrap()[0].noise_contributions
     );
+    let changed = chain_table(30.0);
+    let expected = tabular_study(&changed, cpdag, &query, &frequentist()).run(&ctx).unwrap();
+    let refreshed = prepared.refresh(changed, &ctx).unwrap();
+    assert_eq!(refreshed.anomaly().unwrap(), expected.anomaly().unwrap());
+    assert_eq!(refreshed.lowered_program_identity(), prepared.plan().lowered_program_identity());
+    let artifact =
+        prepared.encode_contracted_result(&refreshed, "retained-class-attribution", &ctx).unwrap();
+    assert!(antecedent_io::consume_analysis_result(&artifact).is_ok());
 }
 
 /// A series of `x` and `y_t = 0.8 x_{t-1} + noise`, `z_t = noise`.
@@ -507,10 +515,24 @@ fn temporal_cpdag_single_body() {
     let parent = dag.add_lagged(variable(0), Lag::from_raw(1)).unwrap();
     let child = dag.add_lagged(variable(1), Lag::CONTEMPORANEOUS).unwrap();
     dag.insert_directed(parent, child).unwrap();
-    let class = series_study(&data, cpdag).run(&ctx).unwrap();
+    let study = series_study(&data, cpdag.clone());
+    let class = study.run(&ctx).unwrap();
     assert_eq!(class.support_status, Some(CellStatus::Refused));
     let reference = series_study(&data, dag).run(&ctx).unwrap();
     assert_eq!(class.anomaly().unwrap(), reference.anomaly().unwrap());
+    let mut prepared = study.prepare(&ctx).unwrap();
+    assert!(matches!(prepared.retained_operation(), RetainedOperation::ClassAttribution));
+    let retained = prepared.estimate_series(&data, &ctx).unwrap();
+    assert_eq!(retained.anomaly().unwrap(), class.anomaly().unwrap());
+    let changed = lagged_series(10.0);
+    let expected = series_study(&changed, cpdag).run(&ctx).unwrap();
+    let refreshed = prepared.refresh_series(changed, &ctx).unwrap();
+    assert_eq!(refreshed.anomaly().unwrap(), expected.anomaly().unwrap());
+    assert_eq!(refreshed.lowered_program_identity(), prepared.plan().lowered_program_identity());
+    let artifact = prepared
+        .encode_contracted_result(&refreshed, "retained-temporal-class-attribution", &ctx)
+        .unwrap();
+    assert!(antecedent_io::consume_analysis_result(&artifact).is_ok());
 }
 
 #[test]

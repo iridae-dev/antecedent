@@ -1270,6 +1270,22 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        self.execute_path_specific_mixed_prepared(data, admg, source, physical, ctx, None)
+    }
+
+    /// Execute with the immutable checked empirical program a retained click rebound.
+    pub(super) fn execute_path_specific_mixed_prepared(
+        &self,
+        data: &TabularData,
+        admg: &Admg,
+        source: super::PathSpecificMixedSource<'_>,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+        retained: Option<(
+            &antecedent_estimate::FunctionalEffect,
+            &antecedent_estimate::PreparedFunctionalEffect,
+        )>,
+    ) -> Result<StudyResult, CausalError> {
         ensure_admg_path_specific_licensed(self.refute)?;
         let started = Instant::now();
         let (identifier_id, estimator_id) = physical.binding().resolve(RouteDefaults::PATH)?;
@@ -1299,8 +1315,18 @@ impl super::Study {
                 Ok((identification, estimand))
             })?;
 
-        let (estimate, posterior) =
-            self.estimate_functional_effect(data, &estimand, &identification, &roles, ctx)?;
+        let (estimate, posterior) = match retained {
+            Some((fitter, prepared)) => super::run_functional(
+                fitter,
+                prepared,
+                &self.inference,
+                identification.status,
+                ctx,
+            )?,
+            None => {
+                self.estimate_functional_effect(data, &estimand, &identification, &roles, ctx)?
+            }
+        };
         Ok(self.finish_identified_execute(
             IdentifiedExecuteFinish::new(
                 physical,

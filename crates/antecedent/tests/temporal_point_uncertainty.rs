@@ -214,15 +214,32 @@ fn a_tiny_admission_pool_refuses_the_block_bootstrap_and_returns_its_lease() {
     let data = mediated_series(29);
     let graph = mediated_graph();
     let (_, query, _) = cross_world_queries().remove(2);
-    // The pool holds the planned design (about 29 kB for 400 rows and three columns, the
-    // planner's peak estimate) but not the replicate store of 20,000 replicates (the row
-    // map plus about 24 bytes of draw header per replicate), so the plan is admitted and
-    // the shared block bootstrap is the stage the pool refuses.
+    let study = Study::series(data)
+        .graph(graph)
+        .query(query)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(20_000)
+        .build()
+        .unwrap();
     let tiny = ExecutionContext::for_tests(1)
         .with_admission(antecedent_core::execution::AdmissionPool::fixed(1, 40_000));
     let before = tiny.admission.available();
-    let error = run_series(&data, &graph, query, None, 20_000, &tiny).unwrap_err();
-    assert!(error.to_string().contains("admission"), "{error}");
+    // Compilation accounts for declared retained replicates before execution.
+    // The aggregate quote exceeds this pool even though the base design fits.
+    let error = study.compile(&tiny).unwrap_err();
+    assert!(matches!(error, antecedent::CausalError::Resource { .. }), "{error}");
+    assert!(error.to_string().contains("estimated peak memory"), "{error}");
+    assert_eq!(tiny.admission.available(), before, "a rejected quote holds no lease");
+
+    // A prepared plan may later run under a smaller caller pool. Exercise the
+    // block bootstrap's real allocation refusal and cleanup independently of
+    // compile-time admission, retaining the same declared replicate workload.
+    let prepared = study.prepare(&ExecutionContext::for_tests(1)).unwrap();
+    let error = prepared.estimate_retained(&tiny).unwrap_err();
+    assert!(
+        error.to_string().contains("admission pool cannot fund the temporal point block bootstrap"),
+        "{error}"
+    );
     assert_eq!(tiny.admission.available(), before);
 }
 

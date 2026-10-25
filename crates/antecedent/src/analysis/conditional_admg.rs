@@ -414,7 +414,7 @@ mod tests {
     use antecedent_expr::{ContrastOp, ExprNode};
     use antecedent_graph::{Admg, DenseNodeId, TemporalAdmg};
 
-    use crate::{CausalError, EstimatorId, IdentifierId};
+    use crate::{EstimatorId, IdentifierId};
 
     use super::{
         BayesianAdmgConditional, DirichletRowPosterior, FrequentistAdmgConditional,
@@ -575,10 +575,7 @@ mod tests {
         assert_eq!(frequentist.estimator().as_str(), "functional.effect");
         assert_eq!(frequentist.identified.status, direct.identified.status);
         assert_eq!(bayesian.identified.status, direct.identified.status);
-        assert_eq!(
-            frequentist.identified.estimand.method,
-            direct.identified.estimand.method
-        );
+        assert_eq!(frequentist.identified.estimand.method, direct.identified.estimand.method);
         assert_eq!(bayesian.posterior.procedure(), "functional.dirichlet_row_posterior");
         // A template whose variable repeats across lags has no contemporaneous projection.
         let mut repeated = TemporalAdmg::empty();

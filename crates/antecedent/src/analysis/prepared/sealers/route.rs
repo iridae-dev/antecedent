@@ -99,7 +99,10 @@ pub(super) fn temporal_admg_effect(cx: &SealContext<'_>) -> SealOutcome {
     // per-atom window identification of a contrast is frozen in the study's cache, and a
     // mediation identifies each atom's components on its own window at each click.
     let SealContext { analysis, plan, .. } = *cx;
-    if analysis.graph_posterior.as_ref().is_some_and(|posterior| posterior.is_lagged_temporal_admg())
+    if analysis
+        .graph_posterior
+        .as_ref()
+        .is_some_and(|posterior| posterior.is_lagged_temporal_admg())
         && matches!(
             analysis.data,
             crate::analysis::builder::DataInput::Temporal(_)
@@ -111,26 +114,50 @@ pub(super) fn temporal_admg_effect(cx: &SealContext<'_>) -> SealOutcome {
                 | antecedent_core::CausalQuery::Mediation(_)
         )
     {
-        return CheckedRouteOperation::lowered(analysis, plan)
-            .map(|operation| Some(PreparedExecution::TemporalAdmgEffect(operation)));
+        return crate::analysis::execute::CheckedTemporalAdmgOperation::checked(
+            analysis, plan, None,
+        )
+        .map(|operation| Some(PreparedExecution::TemporalAdmgEffect(operation)));
     }
-    let sealed = match cx.route {
-        Some(RouteInput::TemporalEffectAdmg { .. }) => seal(cx, RouteCell::TemporalEffectAdmg)?,
-        Some(RouteInput::TemporalResponseAdmg { .. }) => seal(cx, RouteCell::TemporalResponseAdmg)?,
-        Some(RouteInput::TemporalMediationAdmg { .. }) => {
-            seal(cx, RouteCell::TemporalMediationAdmg)?
-        }
-        Some(RouteInput::TemporalMediationPag { .. }) => seal(cx, RouteCell::TemporalMediationPag)?,
-        _ => None,
+    let cell = match cx.route {
+        Some(RouteInput::TemporalEffectAdmg { .. }) => RouteCell::TemporalEffectAdmg,
+        Some(RouteInput::TemporalResponseAdmg { .. }) => RouteCell::TemporalResponseAdmg,
+        Some(RouteInput::TemporalMediationAdmg { .. }) => RouteCell::TemporalMediationAdmg,
+        Some(RouteInput::TemporalMediationPag { .. }) => RouteCell::TemporalMediationPag,
+        _ => return Ok(None),
     };
-    Ok(sealed.map(PreparedExecution::TemporalAdmgEffect))
+    if analysis.graph_posterior.is_some() {
+        return Ok(None);
+    }
+    crate::analysis::execute::CheckedTemporalAdmgOperation::checked(analysis, plan, Some(cell))
+        .map(|operation| Some(PreparedExecution::TemporalAdmgEffect(operation)))
 }
 
 pub(super) fn class_attribution(cx: &SealContext<'_>) -> SealOutcome {
-    let sealed = match cx.route {
-        Some(RouteInput::GcmClass { .. }) => seal(cx, RouteCell::GcmClass)?,
-        Some(RouteInput::GcmTemporalClass { .. }) => seal(cx, RouteCell::GcmTemporalClass)?,
-        _ => None,
+    let cell = match cx.route {
+        Some(RouteInput::GcmClass { .. }) => RouteCell::GcmClass,
+        Some(RouteInput::GcmTemporalClass { .. }) => RouteCell::GcmTemporalClass,
+        _ => return Ok(None),
     };
-    Ok(sealed.map(PreparedExecution::ClassAttribution))
+    if cx.analysis.graph_posterior.is_some() {
+        return Ok(None);
+    }
+    crate::analysis::execute::CheckedClassAttributionOperation::checked(cx.analysis, cx.plan, cell)
+        .map(|operation| Some(PreparedExecution::ClassAttribution(operation)))
+}
+
+/// Static cross-world cells retain a family operation, not estimator fallback.
+pub(super) fn static_cross_world(cx: &SealContext<'_>) -> SealOutcome {
+    let cell = match cx.route {
+        Some(RouteInput::CounterfactualClass { .. }) => RouteCell::CounterfactualClass,
+        Some(RouteInput::PathSpecificMixed { .. }) => RouteCell::PathSpecificMixed,
+        Some(RouteInput::PathSpecificCpdag { .. }) => RouteCell::PathSpecificCpdag,
+        Some(RouteInput::PathSpecificPag { .. }) => RouteCell::PathSpecificPag,
+        _ => return Ok(None),
+    };
+    if cx.analysis.graph_posterior.is_some() {
+        return Ok(None);
+    }
+    crate::analysis::execute::CheckedStaticCrossWorldOperation::checked(cx.analysis, cx.plan, cell)
+        .map(|operation| Some(PreparedExecution::StaticCrossWorld(operation)))
 }

@@ -73,9 +73,9 @@ impl ClickNotes {
 
 /// The sealed operation a click rebound to its rows.
 ///
-/// Only the routes whose receipts bind complete-case rows appear here: a
-/// refresh must replace exactly these, and no other retained operation, so
-/// the procedure chosen at preparation cannot change under it. Operations are
+/// Routes whose receipts or empirical factor providers bind rows appear here:
+/// refresh retains the exact rebound operation that produced its result without
+/// changing the procedure selected at preparation. Operations are
 /// boxed so a click frame holds one small value however many routes it names.
 pub(crate) enum Rebound {
     Linear(Box<CheckedLinearOperation>),
@@ -86,8 +86,8 @@ pub(crate) enum Rebound {
     Iv(Box<CheckedIvOperation>),
     Conditional(Box<CheckedConditionalOperation>),
     CellAipwResponse(Box<CheckedCellAipwResponseOperation>),
-    /// The receipts [`PreparedExecution::rebind_for_dispatch`] rebinds for the
-    /// shared tabular dispatcher.
+    /// A row-bound operation retained by either the shared dispatcher or a
+    /// sealed functional click, including its checked empirical providers.
     Dispatch(Box<PreparedExecution>),
 }
 

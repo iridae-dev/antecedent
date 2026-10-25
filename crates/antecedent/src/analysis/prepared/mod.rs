@@ -157,6 +157,15 @@ pub struct PreparedStudy<S = SampledPreparedState> {
     pub(crate) state: S,
 }
 
+/// Scientific target and per-atom products compiled together at preparation.
+/// Keeping the query beside its products makes an accidental internal retarget
+/// a typed refusal instead of publication of a stale atom program.
+#[derive(Clone, Debug)]
+struct RetainedPosteriorPrograms {
+    query: Arc<[u8]>,
+    programs: antecedent_io::GraphPosteriorProgramsWire,
+}
+
 /// Retained state for sampled-data modalities of the common prepared handle.
 #[derive(Clone, Debug)]
 pub struct SampledPreparedState {
@@ -166,7 +175,11 @@ pub struct SampledPreparedState {
     program_cache: std::sync::OnceLock<Arc<crate::analysis::contract::ProgramPayloads>>,
     /// Immutable base contract; execution claims and reasoning are rebound per result.
     contract_cache: std::sync::OnceLock<Arc<crate::analysis::contract::CompiledContract>>,
-    /// Ready physical plan from the prepare-time compile (never recompiled on refresh).
+    /// Per-atom scientific programs compiled under the prepare caller's resource
+    /// and cancellation context. Contract inspection only reads these products.
+    posterior_programs: Option<Arc<RetainedPosteriorPrograms>>,
+    /// Caller-admitted physical plan. A compatible estimator-configuration refresh
+    /// re-lowers its numerical work and requotes admission against the new options.
     plan: std::sync::Arc<PhysicalExecutionPlan>,
     /// Schema fingerprint from prepare-time data.
     schema: CausalSchema,

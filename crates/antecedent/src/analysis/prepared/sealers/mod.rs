@@ -274,6 +274,7 @@ pub(super) const SEALERS: [Sealer; ExecutionKind::SEALED_COUNT] = [
     sealer(ExecutionKind::TemporalAdmgEffect, route::temporal_admg_effect),
     sealer(ExecutionKind::ClassAttribution, route::class_attribution),
     sealer(ExecutionKind::Association, route::association),
+    sealer(ExecutionKind::StaticCrossWorld, route::static_cross_world),
     // Last: the estimator families the route-cell sealers above decline.
     sealer(ExecutionKind::EstimatorRoute, estimator::estimator_route),
     sealer(ExecutionKind::FreshRun, estimator::fresh_run),
@@ -418,6 +419,7 @@ mod tests {
         ExecutionKind::TemporalAdmgEffect,
         ExecutionKind::ClassAttribution,
         ExecutionKind::Association,
+        ExecutionKind::StaticCrossWorld,
         ExecutionKind::EstimatorRoute,
         ExecutionKind::FreshRun,
     ];

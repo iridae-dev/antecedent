@@ -77,17 +77,32 @@ fn atom_answer(
     selected: EstimatorId,
     ctx: &ExecutionContext,
 ) -> Result<
-    (Option<antecedent_io::FunctionalProgramWire>, Option<antecedent_io::IdentificationProductWire>),
+    (
+        Option<antecedent_io::FunctionalProgramWire>,
+        Option<antecedent_io::IdentificationProductWire>,
+    ),
     CausalError,
 > {
+    if ctx.cancellation.is_cancelled() {
+        return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_IDENTIFY });
+    }
     // A class is answered per completion: its identification product states which
     // completions identified and how the class weight splits between them.
     if matches!(posterior.atom_kind, GraphPosteriorAtomKind::Cpdag | GraphPosteriorAtomKind::Pag) {
-        let Some(class) = study.class_atom_identification(posterior, index)? else {
+        crate::analysis::execute::report_identify_compute(ctx);
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_IDENTIFY });
+        }
+        let class = study.class_atom_identification(posterior, index)?;
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_IDENTIFY });
+        }
+        let Some(class) = class else {
             return Ok((None, None));
         };
-        let mut product = identification_product_wire(&class.result, class.truncated_completions > 0)
-            .map_err(|err| io_err(&err))?;
+        let mut product =
+            identification_product_wire(&class.result, class.truncated_completions > 0)
+                .map_err(|err| io_err(&err))?;
         product.envelope = Some(antecedent_io::IdentificationEnvelopeWire {
             cases: class.cases as u64,
             identified_weight_bits: class.identified_weight.to_bits(),
@@ -106,20 +121,25 @@ fn atom_answer(
     atom.structure_source = StructureSource::Explicit;
     atom.refute = RefuteSuite::None;
     atom.custom_validators.clear();
-    // Preparing the explicit cell identifies it exactly as its executor does; a refusal is
-    // the atom's unidentified mass, not a failure of the contract.
-    let prepared = match atom.prepare(ctx) {
-        Ok(prepared) => prepared,
+    // The atom's contract needs its compiled identification, not a sampled-data
+    // execution handle. Full preparation would also scan empirical factors and
+    // bind their providers, making contract inspection perform hidden execution.
+    let plan = match atom.compile(ctx) {
+        Ok(plan) => plan,
         Err(error) if error.is_identification_refusal() => return Ok((None, None)),
         Err(error) => return Err(error),
     };
-    let cell = prepared.study();
-    let Some(cached) = contract_identification(cell) else {
+    let cell = match atom.with_identification_caches(&plan, ctx) {
+        Ok(cell) => cell,
+        Err(error) if error.is_identification_refusal() => return Ok((None, None)),
+        Err(error) => return Err(error),
+    };
+    let Some(cached) = contract_identification(&cell) else {
         return Ok((None, None));
     };
     let program = program_wire::functional_program(
         CheckedProgramBinding::None,
-        cell,
+        &cell,
         Some(&cached),
         Some(selected),
     )?;
@@ -135,9 +155,10 @@ fn atom_answer(
 ///
 /// An atom's explicit cell fails to prepare for a reason other than identification, or the
 /// payload cannot be encoded.
-pub(super) fn graph_posterior_programs(
+pub(crate) fn graph_posterior_programs(
     study: &Study,
     resolved_estimator: Option<&str>,
+    ctx: &ExecutionContext,
 ) -> Result<Option<GraphPosteriorProgramsWire>, CausalError> {
     if !answers_per_atom(study, resolved_estimator) {
         return Ok(None);
@@ -150,8 +171,6 @@ pub(super) fn graph_posterior_programs(
     } else {
         EstimatorId::FunctionalEffect
     };
-    // Identification is deterministic and reads no random stream.
-    let ctx = ExecutionContext::production_default(0);
     let mut order: Vec<u64> = Vec::new();
     let mut samples: HashMap<u64, Vec<usize>> = HashMap::new();
     for index in 0..posterior.n_graphs {
@@ -169,7 +188,7 @@ pub(super) fn graph_posterior_programs(
         let members = &samples[&key];
         let weight: f64 = members.iter().map(|&index| posterior.weights[index]).sum();
         let (functional_program, identification_product) =
-            atom_answer(study, posterior, members[0], selected, &ctx)?;
+            atom_answer(study, posterior, members[0], selected, ctx)?;
         atoms.push(GraphPosteriorAtomProgramWire {
             graph_key: key,
             weight_bits: weight.to_bits(),

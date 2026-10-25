@@ -38,11 +38,7 @@ fn d(raw: u32) -> DenseNodeId {
 }
 
 fn bernoulli(p: f64, level: usize) -> f64 {
-    if level == 1 {
-        p
-    } else {
-        1.0 - p
-    }
+    if level == 1 { p } else { 1.0 - p }
 }
 
 /// Columns from the cells of a joint over `N` binary variables, `ROWS` rows in all.
@@ -220,7 +216,11 @@ fn a_bootstrap_interval_accompanies_the_pag_point() {
         .run(&ExecutionContext::for_tests(42))
         .unwrap();
     let effect = result.estimate.as_effect().expect("an effect estimate");
-    assert!(effect.uncertainty.bootstrap.replicates_ok.unwrap_or(0) > 0, "{:?}", effect.uncertainty);
+    assert!(
+        effect.uncertainty.bootstrap.replicates_ok.unwrap_or(0) > 0,
+        "{:?}",
+        effect.uncertainty
+    );
 }
 
 #[test]
@@ -340,10 +340,10 @@ fn prepared_pag_handles_equal_a_fresh_run() {
         let study =
             builder.bootstrap_replicates(0).build().unwrap_or_else(|e| panic!("{name}: {e}"));
         let fresh = study.clone().run(&ctx).unwrap_or_else(|e| panic!("{name}: {e}"));
-        let mut prepared = study.prepare(&ctx).unwrap_or_else(|e| panic!("{name}: {e}"));
+        let prepared = study.prepare(&ctx).unwrap_or_else(|e| panic!("{name}: {e}"));
         assert!(
-            matches!(prepared.retained_operation(), RetainedOperation::EstimatorRoute),
-            "{name} is sealed to the estimator route"
+            matches!(prepared.retained_operation(), RetainedOperation::StaticCrossWorld),
+            "{name} retains its static cross-world operation"
         );
         let first = prepared.estimate(&data, &ctx).unwrap();
         let second = prepared.estimate(&data, &ctx).unwrap();

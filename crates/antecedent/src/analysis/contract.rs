@@ -64,6 +64,7 @@ use super::prepared::{
 mod evidence_needs;
 mod failure_inputs;
 mod posterior_programs;
+pub(crate) use posterior_programs::graph_posterior_programs;
 mod program_wire;
 mod result_wire;
 
@@ -593,6 +594,7 @@ impl PreparedStudy {
             self.study(),
             self.plan().logical.record.estimator.as_deref(),
             self.program_binding(),
+            self.posterior_programs(&self.study().query)?,
         )?);
         Ok(Arc::clone(self.program_cache().get_or_init(|| compiled)))
     }
@@ -638,6 +640,7 @@ impl PreparedStudy {
                 } else {
                     CheckedProgramBinding::None
                 },
+                self.posterior_programs(&study.query)?,
             )?),
         };
         let snapshot = data_snapshot_wire(
@@ -1596,6 +1599,7 @@ fn program_payloads_for(
     study: &Study,
     resolved_estimator: Option<&str>,
     binding: CheckedProgramBinding<'_>,
+    posterior_programs: Option<&antecedent_io::GraphPosteriorProgramsWire>,
 ) -> Result<ProgramPayloads, CausalError> {
     let cached = contract_identification(study);
     let cached = cached.as_deref();
@@ -1605,7 +1609,7 @@ fn program_payloads_for(
         cached.is_some_and(identification_search_capped),
         resolved_estimator,
         binding,
-        posterior_programs::graph_posterior_programs(study, resolved_estimator)?,
+        posterior_programs.cloned(),
     )
 }
 
@@ -2337,7 +2341,7 @@ fn observation_assumption_tag(assumption: &antecedent_core::ObservationAssumptio
     }
 }
 
-fn graph_identity(study: &Study) -> Result<GraphIdentityWire, CausalError> {
+pub(crate) fn graph_identity(study: &Study) -> Result<GraphIdentityWire, CausalError> {
     if let Some(posterior) = &study.graph_posterior {
         return Ok(GraphIdentityWire::GraphPosterior {
             graph_class: study.graph.class().as_str().into(),
@@ -4472,6 +4476,7 @@ mod frontdoor_artifact_tests {
             CheckedProgramBinding::FrontDoor(
                 &prepared.execution().frontdoor_linear().unwrap().preparation,
             ),
+            None,
         );
         assert!(matches!(wrong_binding, Err(CausalError::Compile { .. })));
         let result = prepared.estimate(&data, &context).unwrap();

@@ -288,7 +288,11 @@ fn a_bootstrap_interval_accompanies_the_frequentist_point() {
         .unwrap();
     let result = study.run(&ExecutionContext::for_tests(13)).unwrap();
     let effect = result.estimate.as_effect().expect("an effect estimate");
-    assert!(effect.uncertainty.bootstrap.replicates_ok.unwrap_or(0) > 0, "{:?}", effect.uncertainty);
+    assert!(
+        effect.uncertainty.bootstrap.replicates_ok.unwrap_or(0) > 0,
+        "{:?}",
+        effect.uncertainty
+    );
 }
 
 #[test]
@@ -518,16 +522,16 @@ fn route_cases() -> Vec<(&'static str, antecedent::analysis::StudyBuilder, Tabul
 }
 
 #[test]
-fn prepared_handles_run_through_the_estimator_route_and_equal_a_fresh_run() {
+fn prepared_handles_run_their_static_cross_world_operation_and_equal_a_fresh_run() {
     for (name, builder, data) in route_cases() {
         let ctx = ExecutionContext::for_tests(31);
         let study =
             builder.bootstrap_replicates(0).build().unwrap_or_else(|e| panic!("{name}: {e}"));
         let fresh = study.clone().run(&ctx).unwrap_or_else(|e| panic!("{name}: {e}"));
-        let mut prepared = study.prepare(&ctx).unwrap_or_else(|e| panic!("{name}: {e}"));
+        let prepared = study.prepare(&ctx).unwrap_or_else(|e| panic!("{name}: {e}"));
         assert!(
-            matches!(prepared.retained_operation(), RetainedOperation::EstimatorRoute),
-            "{name} is sealed to the estimator route"
+            matches!(prepared.retained_operation(), RetainedOperation::StaticCrossWorld),
+            "{name} retains its static cross-world operation"
         );
         let first = prepared.estimate(&data, &ctx).unwrap();
         let second = prepared.estimate(&data, &ctx).unwrap();

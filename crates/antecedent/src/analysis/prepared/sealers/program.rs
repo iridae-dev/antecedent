@@ -36,6 +36,7 @@ pub(super) fn distribution(cx: &SealContext<'_>) -> SealOutcome {
                 cache.identification.required_assumptions.clone(),
             )?;
             Some(CheckedDistributionOperation {
+                factor_snapshot_digest: data.storage().content_digest(),
                 query: query.clone(),
                 cache: Arc::clone(cache),
                 fitter,
@@ -97,6 +98,7 @@ pub(super) fn functional_effect(cx: &SealContext<'_>) -> SealOutcome {
                 &[query.treatment, query.outcome],
             )?;
             Some(CheckedFunctionalEffectOperation {
+                factor_snapshot_digest: data.storage().content_digest(),
                 query,
                 conditional,
                 cache: Arc::clone(cache),
@@ -144,6 +146,7 @@ pub(super) fn path_specific_effect(cx: &SealContext<'_>) -> SealOutcome {
                 &extra,
             )?;
             Some(CheckedPathSpecificEffectOperation {
+                factor_snapshot_digest: data.storage().content_digest(),
                 query: query.clone(),
                 cache: Arc::clone(cache),
                 fitter,

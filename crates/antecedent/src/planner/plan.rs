@@ -558,14 +558,14 @@ impl PhysicalExecutionPlan {
     /// program, and admit the quote under the caller's limit before anything is allocated.
     ///
     /// The statistical program supplies what the route will hold beyond its design: the
-    /// cross-fitting folds and nuisance learners (a training copy per fold and learner,
-    /// and out-of-fold predictions), the resampling replicates and posterior draws it
-    /// retains, and the workers each holding a solver scratch copy. The physical
+    /// live cross-fitting window (one shared training/validation design per live
+    /// fold and retained out-of-fold predictions), the resampling replicates and
+    /// each declared model's retained posterior coefficient draws, and the workers
+    /// each holding a solver scratch copy. The physical
     /// alternatives are costed from the same rows, columns and number of passes the
     /// kernel reads the design (one, plus one per fold and per replicate): a direct
-    /// prepared view is implemented only where every design column is numeric, and a
-    /// streamed reduction only where the route reduces without retained rows, which no
-    /// planned route does.
+    /// prepared view is implemented only where every design column is numeric.
+    /// Streamed reductions keep their specialized admission quote.
     ///
     /// A plan whose linear operation sized its own record from the prepared design keeps
     /// that quote.
@@ -588,18 +588,71 @@ impl PhysicalExecutionPlan {
             (Some(rows), Some(columns)) => (rows.max(1), columns.max(1)),
             _ => (self.logical.row_count_hint.max(1), self.logical.design_columns_hint.max(1)),
         };
-        let direct = quoted && design.direct();
+        // Numeric source columns make direct gathering possible, but only an
+        // executor that actually gathers them into its final design implements
+        // that backend. Learner/propensity routes stage selected covariates;
+        // conditional Bayesian fits additionally materialize modifier designs.
+        let direct = quoted
+            && design.direct()
+            && matches!(
+                statistical.estimator(),
+                Some(
+                    EstimatorId::LinearAdjustmentAte
+                        | EstimatorId::GlmAdjustment
+                        | EstimatorId::BayesianGcomp
+                )
+            );
         let folds = statistical.folds().map_or(0, |plan| count(plan.folds()));
         let learners = count(statistical.models().len()).max(1);
         let replicates = statistical.resampling().map_or(0, |plan| u64::from(plan.replicates()));
         let draws = statistical.posterior().map_or(0, |plan| count(plan.draws()));
+        let workers = self.quoted_workers(ctx);
+        // CrossfitPlan::run consumes one fold before fitting the next. Portable
+        // DML/DR learners map their folds onto at most the context's workers.
+        // A bootstrap worker owns one sequential cross-fit at a time. Training
+        // and validation together copy at most one full design per live fold;
+        // its learners share that design, rather than retaining folds * learners
+        // independent training matrices.
+        let bootstrap_window = replicates.min(workers).max(1);
+        let fold_window = if folds < 2 {
+            0
+        } else if matches!(statistical.estimator(), Some(EstimatorId::Dml | EstimatorId::DrLearner))
+        {
+            folds.min(workers)
+        } else {
+            bootstrap_window
+        };
+        // An AIPW outcome model predicts both arms beside the propensity. Other
+        // model slots each declare one retained prediction channel.
+        let channels = if matches!(
+            statistical.estimator(),
+            Some(EstimatorId::Aipw | EstimatorId::BayesianRobustAte)
+        ) {
+            learners.checked_add(1)
+        } else {
+            Some(learners)
+        }
+        .ok_or_else(|| memory_refusal(RouteMemoryError::Unrepresentable))?;
+        let channels = channels
+            .checked_mul(bootstrap_window)
+            .ok_or_else(|| memory_refusal(RouteMemoryError::Unrepresentable))?;
+        let model_draws = draws
+            .checked_mul(learners)
+            .ok_or_else(|| memory_refusal(RouteMemoryError::Unrepresentable))?;
         let profile = RouteMemoryProfile::design(rows, columns)
             .expanded(quoted && !direct)
-            .cross_fitting(folds, learners)
+            .cross_fitting(folds, channels)
             .resampling(replicates)
-            .posterior_draws(draws)
-            .workers(self.quoted_workers(ctx));
-        let memory = admit_memory(profile, ctx)?;
+            .posterior_draws(model_draws)
+            .workers(workers);
+        let declaration = profile
+            .declaration()
+            .map_err(memory_refusal)?
+            .learner_fold_copies(fold_window, profile.design_bytes().map_err(memory_refusal)?);
+        let memory = declaration
+            .admit(RouteBudget::from_limit(ctx.memory_limit_bytes()))
+            .map(antecedent_core::route_memory::AdmittedRouteMemory::estimate)
+            .map_err(memory_refusal)?;
         let fold_passes = if folds >= 2 { folds } else { 0 };
         let passes = 1_u64.saturating_add(fold_passes).saturating_add(replicates);
         let support = BackendSupport::materialized_only()

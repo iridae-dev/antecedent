@@ -152,16 +152,10 @@ fn mask_of(graph: &Admg) -> u64 {
 }
 
 fn dag_mask(edges: &[(usize, usize)]) -> u64 {
-    edges.iter().fold(0_u64, |mask, &(from, to)| {
-        set_edge(mask, 3, from, to, true)
-    })
+    edges.iter().fold(0_u64, |mask, &(from, to)| set_edge(mask, 3, from, to, true))
 }
 
-fn posterior_of(
-    kind: GraphPosteriorAtomKind,
-    weights: &[f64],
-    masks: Vec<u64>,
-) -> GraphPosterior {
+fn posterior_of(kind: GraphPosteriorAtomKind, weights: &[f64], masks: Vec<u64>) -> GraphPosterior {
     GraphPosterior::new(3, weights.to_vec(), masks, vec![0.0; 9], vec![0.0; 9], sampling())
         .unwrap()
         .with_atom_kind(kind)
@@ -215,7 +209,10 @@ fn mean_of_atoms(result: &antecedent::StudyResult) -> f64 {
 fn each_mediation_component_is_mixed_over_the_atoms_that_identify_it() {
     on_large_stack(|| {
         let ctx = ExecutionContext::for_tests(8_001);
-        let graphs = admg_posterior(&[0.5, 0.3, 0.2], &[mask_of(&latent_free()), mask_of(&front_door()), refused_mask()]);
+        let graphs = admg_posterior(
+            &[0.5, 0.3, 0.2],
+            &[mask_of(&latent_free()), mask_of(&front_door()), refused_mask()],
+        );
         let keys = graphs.graph_keys.clone();
         let query = CausalQuery::Mediation(mediation(MediationContrast::Total));
         let built = study(graphs, query, InferenceMode::Frequentist).build().unwrap();
@@ -450,7 +447,10 @@ fn a_path_restricted_effect_over_a_posterior_equals_the_explicit_cell_per_atom()
 fn an_interventional_distribution_is_the_posterior_weighted_mean_probability_of_each_level() {
     on_large_stack(|| {
         let ctx = ExecutionContext::for_tests(8_008);
-        let graphs = admg_posterior(&[0.5, 0.3, 0.2], &[mask_of(&latent_free()), mask_of(&front_door()), refused_mask()]);
+        let graphs = admg_posterior(
+            &[0.5, 0.3, 0.2],
+            &[mask_of(&latent_free()), mask_of(&front_door()), refused_mask()],
+        );
         let keys = graphs.graph_keys.clone();
         let query = CausalQuery::Distribution(InterventionalDistributionQuery::new(
             v(2),
@@ -542,12 +542,15 @@ fn a_bayesian_mixture_keeps_one_atoms_posterior_and_pools_several() {
         let query = CausalQuery::Mediation(mediation(MediationContrast::NaturalDirect));
 
         // One atom that covers the whole posterior keeps its own Bayesian-bootstrap posterior.
-        let single =
-            study(admg_posterior(&[1.0], &[mask_of(&latent_free())]), query.clone(), inference.clone())
-                .build()
-                .unwrap()
-                .run(&ctx)
-                .unwrap();
+        let single = study(
+            admg_posterior(&[1.0], &[mask_of(&latent_free())]),
+            query.clone(),
+            inference.clone(),
+        )
+        .build()
+        .unwrap()
+        .run(&ctx)
+        .unwrap();
         let posterior = single.posterior.as_ref().expect("the atom's own posterior");
         assert_eq!(posterior.draws.n_draws, 400);
         assert!((single.effect() - counted_direct()).abs() < 0.05, "{}", single.effect());
@@ -611,7 +614,8 @@ fn a_frequentist_mixture_of_several_atoms_has_the_standard_error_of_its_shared_r
                 .run(&ctx)
                 .unwrap()
         };
-        let mixture = run(admg_posterior(&[0.5, 0.5], &[mask_of(&latent_free()), mask_of(&front_door())]));
+        let mixture =
+            run(admg_posterior(&[0.5, 0.5], &[mask_of(&latent_free()), mask_of(&front_door())]));
         let effect = mixture.estimate.as_effect().unwrap();
         let se = effect.se_bootstrap().expect("the spread of the shared replicates");
         assert!(se > 0.0 && se < 0.5, "{se}");
@@ -634,7 +638,10 @@ fn a_frequentist_mixture_of_several_atoms_has_the_standard_error_of_its_shared_r
 fn a_prepared_handle_answers_the_same_mixture() {
     on_large_stack(|| {
         let ctx = ExecutionContext::for_tests(8_010);
-        let graphs = admg_posterior(&[0.5, 0.3, 0.2], &[mask_of(&latent_free()), mask_of(&front_door()), refused_mask()]);
+        let graphs = admg_posterior(
+            &[0.5, 0.3, 0.2],
+            &[mask_of(&latent_free()), mask_of(&front_door()), refused_mask()],
+        );
         let built = study(
             graphs,
             CausalQuery::Mediation(mediation(MediationContrast::Total)),
@@ -643,7 +650,7 @@ fn a_prepared_handle_answers_the_same_mixture() {
         .build()
         .unwrap();
         let fresh = built.run(&ctx).unwrap();
-        let mut prepared = built.prepare(&ctx).unwrap();
+        let prepared = built.prepare(&ctx).unwrap();
         let again = prepared.estimate(&table(), &ctx).unwrap();
         assert!((again.effect() - fresh.effect()).abs() < 1e-12);
         let mixture = again.structural_response.as_ref().unwrap();
@@ -660,7 +667,10 @@ fn each_atom_runs_its_own_suite_and_the_reports_mix_by_posterior_weight() {
         let query = CausalQuery::Mediation(mediation(MediationContrast::Total));
         let run = |suite: RefuteSuite| {
             Study::tabular(table())
-                .graph_posterior(admg_posterior(&[0.7, 0.3], &[mask_of(&latent_free()), refused_mask()]))
+                .graph_posterior(admg_posterior(
+                    &[0.7, 0.3],
+                    &[mask_of(&latent_free()), refused_mask()],
+                ))
                 .query(query.clone())
                 .refute(suite)
                 .bootstrap_replicates(0)
@@ -711,11 +721,7 @@ fn contract_posterior(structures: Structures) -> GraphPosterior {
         Structures::Dag => posterior_of(
             GraphPosteriorAtomKind::Dag,
             &weights,
-            vec![
-                dag_mask(&[(0, 1), (0, 2), (1, 2)]),
-                dag_mask(&[(0, 1), (1, 2)]),
-                refused_mask(),
-            ],
+            vec![dag_mask(&[(0, 1), (0, 2), (1, 2)]), dag_mask(&[(0, 1), (1, 2)]), refused_mask()],
         ),
         Structures::Admg => admg_posterior(
             &weights,
@@ -769,6 +775,112 @@ fn program_reasons(consumed: &antecedent_io::AnalysisResultConsumption) -> Vec<S
         .map(|reason| reason.as_ref().to_owned())
         .filter(|reason| reason.starts_with("program."))
         .collect()
+}
+
+/// Reading a compiled posterior contract must not build empirical CPTs or bind
+/// providers. Those are execution products, owned by preparation/estimation.
+#[test]
+fn graph_posterior_contract_builds_no_empirical_providers() {
+    on_large_stack(|| {
+        for structures in [Structures::Dag, Structures::Admg, Structures::Cpdag] {
+            for query in [path_specific_query(), distribution_query()] {
+                let prepared =
+                    study(contract_posterior(structures), query, InferenceMode::Frequentist)
+                        .build()
+                        .unwrap()
+                        .prepare(&ExecutionContext::for_tests(8_102))
+                        .unwrap();
+                let (contract, work) = antecedent_expr::execution_counts::count_static_work(|| {
+                    prepared.contract().unwrap()
+                });
+                assert_eq!(work.factor_builds, 0, "{structures:?}: contract scanned factors");
+                assert_eq!(work.provider_bindings, 0, "{structures:?}: contract bound providers");
+                assert_eq!(work.integrations, 0, "{structures:?}: contract integrated a law");
+                assert_eq!(
+                    work.program_compilations, 0,
+                    "{structures:?}: contract recompiled an atom"
+                );
+                assert_eq!(contract.identities, prepared.contract().unwrap().identities);
+            }
+        }
+    });
+}
+
+/// Atom compilation belongs to the prepare attempt: its progress, cancellation
+/// and admission use the supplied context, never an unobserved default context.
+#[test]
+fn graph_posterior_atom_preparation_uses_the_callers_cancellation_context() {
+    struct CancelIdentification(antecedent_core::CancellationToken);
+    impl antecedent_core::ProgressSink for CancelIdentification {
+        fn report(&self, _fraction: f64, stage: &str) {
+            if stage == "identify.compute" {
+                self.0.cancel();
+            }
+        }
+    }
+    on_large_stack(|| {
+        let mut ctx = ExecutionContext::for_tests(8_103);
+        ctx.progress = Some(std::sync::Arc::new(CancelIdentification(ctx.cancellation.clone())));
+        let built = study(
+            contract_posterior(Structures::Dag),
+            distribution_query(),
+            InferenceMode::Frequentist,
+        )
+        .build()
+        .unwrap();
+        let error = built.prepare(&ctx).unwrap_err();
+        assert!(ctx.cancellation.is_cancelled(), "atom identification bypassed caller progress");
+        assert!(matches!(error, antecedent::CausalError::Cancelled { .. }), "{error}");
+        // Failure never leaves a partially usable handle: a fresh attempt still
+        // prepares and independently emits the full atom contract.
+        let prepared = built.prepare(&ExecutionContext::for_tests(8_103)).unwrap();
+        assert!(prepared.contract().is_ok());
+    });
+}
+
+#[test]
+fn retained_posterior_programs_survive_clone_refresh_and_refuse_population_retarget() {
+    use antecedent_data::{TableView, ValidityBitmap};
+    on_large_stack(|| {
+        let ctx = ExecutionContext::for_tests(8_104);
+        for query in [path_specific_query(), distribution_query()] {
+            let build = |rows| {
+                Study::tabular(rows)
+                    .graph_posterior(contract_posterior(Structures::Dag))
+                    .query(query.clone())
+                    .refute(RefuteSuite::None)
+                    .bootstrap_replicates(0)
+                    .build()
+                    .unwrap()
+            };
+            let rows = table();
+            let original = build(rows.clone()).prepare(&ctx).unwrap();
+            let before = original.contract().unwrap().identities;
+            let mut changed = original.clone();
+            let mut bits = vec![0xff; rows.row_count().div_ceil(8)];
+            bits[0] &= !1;
+            let rows = rows
+                .with_analysis_mask(ValidityBitmap::from_bytes(bits, rows.row_count()).unwrap())
+                .unwrap();
+            let result = changed.refresh(rows.clone(), &ctx).unwrap();
+            let cold = build(rows.clone()).prepare(&ctx).unwrap();
+            let fresh = cold.estimate(&rows, &ctx).unwrap();
+            assert_eq!(result.effect().to_bits(), fresh.effect().to_bits());
+            let after = changed.contract().unwrap().identities;
+            assert_eq!(after, cold.contract().unwrap().identities);
+            assert_eq!(before.program, after.program);
+            assert_ne!(before.data_snapshot, after.data_snapshot);
+            assert_eq!(before, original.contract().unwrap().identities);
+            let error = changed.retarget(&vec![1.0; rows.row_count()], &[], &ctx).unwrap_err();
+            assert_eq!(error.reason_code(), Some("score_table_unavailable"));
+            assert_eq!(after, changed.contract().unwrap().identities);
+            let bytes =
+                changed.encode_contracted_result(&result, "posterior-refresh", &ctx).unwrap();
+            let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+            assert_eq!(programs_of(&consumed).atoms.len(), 3);
+            assert!(program_reasons(&consumed).is_empty());
+        }
+    });
 }
 
 /// A path-restricted effect and an interventional distribution over a graph posterior encode
@@ -888,13 +1000,10 @@ fn a_tampered_atom_program_weight_or_mixture_is_refused() {
         for (label, query) in
             [("path_specific", path_specific_query()), ("distribution", distribution_query())]
         {
-            let built = study(
-                contract_posterior(Structures::Dag),
-                query,
-                InferenceMode::Frequentist,
-            )
-            .build()
-            .unwrap();
+            let built =
+                study(contract_posterior(Structures::Dag), query, InferenceMode::Frequentist)
+                    .build()
+                    .unwrap();
             let consumed = antecedent_io::consume_analysis_result(&encode(&built, &ctx)).unwrap();
             assert!(program_reasons(&consumed).is_empty(), "{label}: the intact artifact verifies");
             let chain = "program.graph_posterior_programs".to_owned();

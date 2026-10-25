@@ -529,3 +529,135 @@ fn a_planning_view_lists_the_simulation_its_program_carries() {
     );
     assert!(view.physical().backend().is_none(), "a standalone plan has no physical record");
 }
+
+#[test]
+fn posterior_storage_is_quoted_before_admission_and_survives_the_retained_workflow() {
+    let x: Vec<f64> = (0..80).map(|i| f64::from(i) / 8.0).collect();
+    let y: Vec<f64> = x.iter().enumerate().map(|(i, x)| 1.0 + 2.0 * x + noise(i)).collect();
+    // Unweighted Gaussian rows use closed-form conjugate marginals and retain
+    // no sampled draws. Nonuniform declared weights select the actual Bayesian
+    // bootstrap, whose retained output must scale with n_draws.
+    let weight: Vec<f64> = (0..80).map(|i| 1.0 + f64::from(i % 3)).collect();
+    let data = TabularData::from_f64_columns([
+        ("x", x.as_slice()),
+        ("y", y.as_slice()),
+        ("weight", weight.as_slice()),
+    ])
+    .unwrap();
+    let study = |draws| {
+        Study::tabular(data.clone())
+            .query(CausalQuery::Association(
+                AssociationQuery::new(VariableId::from_raw(1), [VariableId::from_raw(0)])
+                    .with_weight(VariableId::from_raw(2)),
+            ))
+            .inference(antecedent::InferenceMode::Bayesian(
+                antecedent::BayesianConfig::conjugate().n_draws(draws),
+            ))
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+    };
+    let ctx = ExecutionContext::for_tests(97);
+    let small = study(32).compile(&ctx).unwrap();
+    let large_study = study(512);
+    let large = large_study.compile(&ctx).unwrap();
+    assert_eq!(small.lowered().unwrap().statistical().posterior().unwrap().draws(), 32);
+    assert_eq!(large.lowered().unwrap().statistical().posterior().unwrap().draws(), 512);
+    let small_quote = small.memory_quote.unwrap();
+    let quote = large.memory_quote.unwrap();
+    assert!(quote.retained_scores_draws() > small_quote.retained_scores_draws());
+    assert!(quote.total() > small_quote.total());
+    let tight = ExecutionContext::for_tests(97).with_memory_limit(Some(quote.total() - 1));
+    let available = tight.admission().available();
+    let refused = observe_execution(|| large_study.compile(&tight));
+    assert!(matches!(refused.result, Err(antecedent::CausalError::Resource { .. })));
+    for event in [PhysicalEvent::Scan, PhysicalEvent::Copy, PhysicalEvent::ModelFit] {
+        assert_eq!(refused.report.physical(event).unwrap_or(0), 0);
+    }
+    assert_eq!(tight.admission().available(), available, "a quote is never a reservation");
+
+    let mut prepared = large_study.prepare(&ctx).unwrap();
+    assert_eq!(prepared.plan_view().unwrap().physical().memory_quote(), Some(quote));
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+    assert_eq!(
+        result.association().unwrap().estimate.terms,
+        refreshed.association().unwrap().estimate.terms
+    );
+    let accounting = refreshed.execution_accounting().unwrap();
+    let planned = accounting.get("planned_peak_memory_bytes").unwrap();
+    assert_eq!(planned.basis(), AccountingBasis::Estimate);
+    assert_eq!(planned.value(), Some(quote.total()));
+    assert_eq!(
+        accounting.get("peak_admitted_bytes").unwrap().basis(),
+        AccountingBasis::AdmissionReservation
+    );
+    let bytes =
+        prepared.encode_contracted_result(&refreshed, "statistical-memory-quote", &ctx).unwrap();
+    let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+    assert!(consumed.contract.is_some());
+    assert!(consumed.body.association.is_some());
+    assert_eq!(
+        consumed.body.native_execution,
+        antecedent_io::native_execution_wire::NativeExecutionWire::from_facts(
+            refreshed.execution_facts().unwrap()
+        )
+    );
+}
+
+#[test]
+fn fold_memory_tracks_the_live_window_instead_of_every_fold_and_learner() {
+    use antecedent_core::execution::AdmissionPool;
+    use antecedent_core::{NonZeroThreadCount, Parallelism};
+    let mut ctx =
+        ExecutionContext::for_tests(101).with_admission(AdmissionPool::fixed(2, u64::MAX));
+    ctx.parallelism = Parallelism::bounded(NonZeroThreadCount::new(2).unwrap());
+    let compile = |folds| {
+        let (data, dag, query) = confounded_scm(128, 41);
+        let mut estimator = antecedent_estimate::DmlAte::new();
+        estimator.folds = folds;
+        Study::tabular(data)
+            .graph(dag)
+            .query(query)
+            .estimator(estimator)
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap()
+            .compile(&ctx)
+            .unwrap()
+    };
+    let five = compile(5);
+    let ten = compile(10);
+    assert_eq!(
+        five.plan_view().unwrap().physical().backend().unwrap().selected(),
+        antecedent_core::physical_choice::PhysicalAlternative::MaterializedDesign,
+        "numeric source columns do not grant a learner executor a direct-view backend"
+    );
+    let quote = five.memory_quote.unwrap();
+    assert_eq!(quote.copy_count(), 2, "portable learner folds share the two-worker window");
+    assert_eq!(quote.learner_fold_copies(), quote.encoded_width() * 2);
+    assert_eq!(
+        ten.memory_quote.unwrap(),
+        quote,
+        "more sequential waves do not retain more designs"
+    );
+
+    let predictive = Study::tabular(mixture_data())
+        .query(CausalQuery::Association(
+            AssociationQuery::new(
+                VariableId::from_raw(1),
+                [VariableId::from_raw(0), VariableId::from_raw(2)],
+            )
+            .with_functional(antecedent_core::AssociationFunctional::Predictive { folds: 5 }),
+        ))
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .compile(&ctx)
+        .unwrap();
+    assert_eq!(
+        predictive.memory_quote.unwrap().copy_count(),
+        1,
+        "the predictive association fits and consumes one fold at a time"
+    );
+}
