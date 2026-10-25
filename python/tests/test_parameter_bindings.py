@@ -567,6 +567,42 @@ def test_quantity_transform_reaches_plan():
     assert base.program_id == declared.program_id
 
 
+def test_retain_joint_horizons_reaches_plan():
+    from antecedent.estimation import PreparedAnalysis
+    from antecedent.external import ExternalRefusal
+    from antecedent.horizon_composition import JointHorizonDraws
+
+    rng = np.random.default_rng(11)
+    x, y = np.zeros(300), np.zeros(300)
+    for t in range(2, 300):
+        x[t] = 0.3 + 0.2 * x[t - 1] + 0.3 * rng.standard_normal()
+        y[t] = 1.0 + 2.0 * x[t - 1] + 3.0 * x[t - 2] + 0.5 * rng.standard_normal()
+    data = {"x": x, "y": y}
+    query = ant.ResponseCurve(
+        "x", "y", grid=[0.0, 1.0], horizons=[1, 2], policy="pulse", treatment_lag=1
+    )
+
+    def prepared(**kwargs):
+        return PreparedAnalysis.prepare(
+            data,
+            graph=[("x", 1, "y", 0), ("x", 2, "y", 0)],
+            query=query,
+            refute=False,
+            seed=21,
+            bootstrap=60,
+            **kwargs,
+        )
+
+    kept = prepared(retain_joint_horizons=True).estimate(data, seed=21)
+    dropped = prepared().estimate(data, seed=21)
+    assert isinstance(kept.horizon_draws(0), JointHorizonDraws)
+    with pytest.raises(ExternalRefusal):
+        dropped.horizon_draws(0)
+    # The option is part of the prepared program, so it binds the claim; the surface is unchanged.
+    assert kept.claim_id != dropped.claim_id
+    np.testing.assert_array_equal(kept.response.values, dropped.response.values)
+
+
 def test_dose_units_reaches_plan():
     from antecedent import decision
     from antecedent.errors import CausalValueError

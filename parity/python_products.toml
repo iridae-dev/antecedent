@@ -1228,7 +1228,7 @@ name = "retain_joint_horizons"
 entry_points = ["PreparedAnalysis.prepare"]
 binding = "execution_control"
 reason = ""
-test = "python/tests/test_horizon_draws.py::test_frequentist_horizon_draws_are_the_joint_bootstrap_replicates_of_the_surface"
+test = "python/tests/test_parameter_bindings.py::test_retain_joint_horizons_reaches_plan"
 
 # Shared Python 2.4 lifecycle and persistence conventions are not additional
 # scientific route licenses. Native family validators retain all authority.
