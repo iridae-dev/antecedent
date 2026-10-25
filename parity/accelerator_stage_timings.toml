@@ -1,0 +1,663 @@
+# accelerator stage timings
+[host]
+os = "macos"
+arch = "aarch64"
+logical_cpus = 10
+repeats = 5
+gain_threshold = 2
+adapter = "Apple M1 Max"
+adapter_api = "Metal"
+adapter_type = "IntegratedGpu"
+adapter_max_buffer_bytes = 41747087360
+
+[[measurement]]
+backend = "ndarray"
+workload = "small"
+rows = 256
+cols = 4
+folds = 2
+hidden = 8
+epochs = 8
+flops = 1277952
+[measurement.cold]
+prepare_ns = 153416
+upload_ns = 764459
+fit_ns = 5179168
+synchronize_ns = 59667
+download_ns = 23709
+predict_ns = 47416
+output_ns = 292
+stage_total_ns = 6228127
+wall_ns = 6258667
+[measurement.warm]
+prepare_ns = 10708
+upload_ns = 1958
+fit_ns = 3457080
+synchronize_ns = 6042
+download_ns = 8333
+predict_ns = 46833
+output_ns = 375
+stage_total_ns = 3531329
+wall_ns = 3542459
+
+[[measurement]]
+backend = "wgpu"
+workload = "small"
+rows = 256
+cols = 4
+folds = 2
+hidden = 8
+epochs = 8
+flops = 1277952
+[measurement.cold]
+prepare_ns = 10750
+upload_ns = 4626459
+fit_ns = 709223249
+synchronize_ns = 6916251
+download_ns = 2777959
+predict_ns = 55667
+output_ns = 916
+stage_total_ns = 723611251
+wall_ns = 723655542
+[measurement.warm]
+prepare_ns = 13542
+upload_ns = 3152250
+fit_ns = 87182624
+synchronize_ns = 5531833
+download_ns = 3977668
+predict_ns = 63792
+output_ns = 3457
+stage_total_ns = 99925166
+wall_ns = 98390416
+
+[[measurement]]
+backend = "ndarray"
+workload = "control"
+rows = 4000
+cols = 8
+folds = 3
+hidden = 16
+epochs = 20
+flops = 384048000
+[measurement.cold]
+prepare_ns = 537124
+upload_ns = 46501
+fit_ns = 63500963
+synchronize_ns = 34503
+download_ns = 33249
+predict_ns = 553041
+output_ns = 10166
+stage_total_ns = 64715547
+wall_ns = 64802625
+[measurement.warm]
+prepare_ns = 332832
+upload_ns = 19291
+fit_ns = 62421745
+synchronize_ns = 26249
+download_ns = 27958
+predict_ns = 532916
+output_ns = 4917
+stage_total_ns = 63365908
+wall_ns = 63414333
+
+[[measurement]]
+backend = "wgpu"
+workload = "control"
+rows = 4000
+cols = 8
+folds = 3
+hidden = 16
+epochs = 20
+flops = 384048000
+[measurement.cold]
+prepare_ns = 372833
+upload_ns = 4563917
+fit_ns = 838430382
+synchronize_ns = 21550334
+download_ns = 5592626
+predict_ns = 701167
+output_ns = 6292
+stage_total_ns = 871217551
+wall_ns = 871327000
+[measurement.warm]
+prepare_ns = 533084
+upload_ns = 4969291
+fit_ns = 659126578
+synchronize_ns = 27105250
+download_ns = 6198668
+predict_ns = 818959
+output_ns = 10000
+stage_total_ns = 698761830
+wall_ns = 701960334
+
+[[measurement]]
+backend = "ndarray"
+workload = "large"
+rows = 40000
+cols = 32
+folds = 2
+hidden = 128
+epochs = 15
+flops = 74188800000
+[measurement.cold]
+prepare_ns = 8849709
+upload_ns = 757917
+fit_ns = 1405816453
+synchronize_ns = 62582
+download_ns = 443624
+predict_ns = 73196918
+output_ns = 31666
+stage_total_ns = 1489158869
+wall_ns = 1491532583
+[measurement.warm]
+prepare_ns = 5947375
+upload_ns = 368042
+fit_ns = 1380997377
+synchronize_ns = 64664
+download_ns = 438833
+predict_ns = 73145250
+output_ns = 30584
+stage_total_ns = 1460992125
+wall_ns = 1461727666
+
+[[measurement]]
+backend = "wgpu"
+workload = "large"
+rows = 40000
+cols = 32
+folds = 2
+hidden = 128
+epochs = 15
+flops = 74188800000
+[measurement.cold]
+prepare_ns = 5758793
+upload_ns = 5867292
+fit_ns = 846431666
+synchronize_ns = 8070127
+download_ns = 3111209
+predict_ns = 72803708
+output_ns = 48541
+stage_total_ns = 942091336
+wall_ns = 943055500
+[measurement.warm]
+prepare_ns = 5952334
+upload_ns = 4222750
+fit_ns = 450025625
+synchronize_ns = 9331289
+download_ns = 3391167
+predict_ns = 75444875
+output_ns = 32792
+stage_total_ns = 548400832
+wall_ns = 546872000
+
+[[measurement]]
+backend = "ndarray"
+workload = "sweep_h008"
+rows = 20000
+cols = 16
+folds = 2
+hidden = 8
+epochs = 10
+flops = 240000000
+[measurement.cold]
+prepare_ns = 1760707
+upload_ns = 124126
+fit_ns = 60907332
+synchronize_ns = 20709
+download_ns = 17000
+predict_ns = 5721626
+output_ns = 30959
+stage_total_ns = 68582459
+wall_ns = 68867208
+[measurement.warm]
+prepare_ns = 1553333
+upload_ns = 77792
+fit_ns = 60080623
+synchronize_ns = 17082
+download_ns = 16542
+predict_ns = 5739625
+output_ns = 15208
+stage_total_ns = 67500205
+wall_ns = 67706625
+
+[[measurement]]
+backend = "wgpu"
+workload = "sweep_h008"
+rows = 20000
+cols = 16
+folds = 2
+hidden = 8
+epochs = 10
+flops = 240000000
+[measurement.cold]
+prepare_ns = 1951041
+upload_ns = 3596582
+fit_ns = 243082626
+synchronize_ns = 6966084
+download_ns = 3244584
+predict_ns = 7685126
+output_ns = 24209
+stage_total_ns = 266550252
+wall_ns = 266864250
+[measurement.warm]
+prepare_ns = 2566792
+upload_ns = 3805708
+fit_ns = 249176583
+synchronize_ns = 7494164
+download_ns = 3964125
+predict_ns = 10605791
+output_ns = 24916
+stage_total_ns = 277638079
+wall_ns = 279364584
+
+[[measurement]]
+backend = "ndarray"
+workload = "sweep_h016"
+rows = 20000
+cols = 16
+folds = 2
+hidden = 16
+epochs = 10
+flops = 633600000
+[measurement.cold]
+prepare_ns = 2192958
+upload_ns = 90042
+fit_ns = 88442630
+synchronize_ns = 33752
+download_ns = 24166
+predict_ns = 3219416
+output_ns = 14917
+stage_total_ns = 94017881
+wall_ns = 94497709
+[measurement.warm]
+prepare_ns = 1576335
+upload_ns = 81083
+fit_ns = 85204956
+synchronize_ns = 22544
+download_ns = 22459
+predict_ns = 3115749
+output_ns = 19125
+stage_total_ns = 90042251
+wall_ns = 90325834
+
+[[measurement]]
+backend = "wgpu"
+workload = "sweep_h016"
+rows = 20000
+cols = 16
+folds = 2
+hidden = 16
+epochs = 10
+flops = 633600000
+[measurement.cold]
+prepare_ns = 1596334
+upload_ns = 3609416
+fit_ns = 231787628
+synchronize_ns = 7360129
+download_ns = 4881291
+predict_ns = 3871834
+output_ns = 17583
+stage_total_ns = 253124215
+wall_ns = 253447167
+[measurement.warm]
+prepare_ns = 2910043
+upload_ns = 3688708
+fit_ns = 268399546
+synchronize_ns = 8297038
+download_ns = 4665459
+predict_ns = 6276084
+output_ns = 27917
+stage_total_ns = 294264795
+wall_ns = 295390459
+
+[[measurement]]
+backend = "ndarray"
+workload = "sweep_h032"
+rows = 20000
+cols = 16
+folds = 2
+hidden = 32
+epochs = 10
+flops = 1881600000
+[measurement.cold]
+prepare_ns = 2184251
+upload_ns = 79583
+fit_ns = 122205208
+synchronize_ns = 36250
+download_ns = 51375
+predict_ns = 7083208
+output_ns = 23000
+stage_total_ns = 131662875
+wall_ns = 132144708
+[measurement.warm]
+prepare_ns = 1582375
+upload_ns = 85334
+fit_ns = 117322165
+synchronize_ns = 30874
+download_ns = 48292
+predict_ns = 6941042
+output_ns = 16125
+stage_total_ns = 126026207
+wall_ns = 126326500
+
+[[measurement]]
+backend = "wgpu"
+workload = "sweep_h032"
+rows = 20000
+cols = 16
+folds = 2
+hidden = 32
+epochs = 10
+flops = 1881600000
+[measurement.cold]
+prepare_ns = 1611541
+upload_ns = 3601042
+fit_ns = 374026333
+synchronize_ns = 6674207
+download_ns = 3314500
+predict_ns = 9437167
+output_ns = 26542
+stage_total_ns = 398691332
+wall_ns = 399001125
+[measurement.warm]
+prepare_ns = 2422043
+upload_ns = 3663917
+fit_ns = 261735917
+synchronize_ns = 6563124
+download_ns = 4568416
+predict_ns = 11788833
+output_ns = 24042
+stage_total_ns = 290766292
+wall_ns = 290475875
+
+[[measurement]]
+backend = "ndarray"
+workload = "sweep_h064"
+rows = 20000
+cols = 16
+folds = 2
+hidden = 64
+epochs = 10
+flops = 6220800000
+[measurement.cold]
+prepare_ns = 2080208
+upload_ns = 99000
+fit_ns = 195074249
+synchronize_ns = 41666
+download_ns = 120750
+predict_ns = 15162041
+output_ns = 15833
+stage_total_ns = 212593747
+wall_ns = 213044792
+[measurement.warm]
+prepare_ns = 1566624
+upload_ns = 84833
+fit_ns = 187188583
+synchronize_ns = 38123
+download_ns = 122417
+predict_ns = 15274166
+output_ns = 14583
+stage_total_ns = 204289329
+wall_ns = 204614083
+
+[[measurement]]
+backend = "wgpu"
+workload = "sweep_h064"
+rows = 20000
+cols = 16
+folds = 2
+hidden = 64
+epochs = 10
+flops = 6220800000
+[measurement.cold]
+prepare_ns = 1611208
+upload_ns = 3574959
+fit_ns = 367903540
+synchronize_ns = 8146914
+download_ns = 3766499
+predict_ns = 16104958
+output_ns = 16084
+stage_total_ns = 401124162
+wall_ns = 401420458
+[measurement.warm]
+prepare_ns = 2219208
+upload_ns = 3657291
+fit_ns = 252404667
+synchronize_ns = 6944835
+download_ns = 4265458
+predict_ns = 23699959
+output_ns = 20042
+stage_total_ns = 293211460
+wall_ns = 293441458
+
+[[measurement]]
+backend = "ndarray"
+workload = "sweep_h128"
+rows = 20000
+cols = 16
+folds = 2
+hidden = 128
+epochs = 10
+flops = 22272000000
+[measurement.cold]
+prepare_ns = 1878333
+upload_ns = 99042
+fit_ns = 385835537
+synchronize_ns = 41749
+download_ns = 366750
+predict_ns = 33418167
+output_ns = 18375
+stage_total_ns = 421657953
+wall_ns = 422049833
+[measurement.warm]
+prepare_ns = 1588209
+upload_ns = 89916
+fit_ns = 382612794
+synchronize_ns = 39918
+download_ns = 391167
+predict_ns = 33476916
+output_ns = 15875
+stage_total_ns = 418214795
+wall_ns = 418378916
+
+[[measurement]]
+backend = "wgpu"
+workload = "sweep_h128"
+rows = 20000
+cols = 16
+folds = 2
+hidden = 128
+epochs = 10
+flops = 22272000000
+[measurement.cold]
+prepare_ns = 1594043
+upload_ns = 3595208
+fit_ns = 248944458
+synchronize_ns = 6201460
+download_ns = 3716959
+predict_ns = 34049875
+output_ns = 14917
+stage_total_ns = 298116920
+wall_ns = 298422500
+[measurement.warm]
+prepare_ns = 1831292
+upload_ns = 3554417
+fit_ns = 252663499
+synchronize_ns = 6616292
+download_ns = 4131250
+predict_ns = 39628750
+output_ns = 17125
+stage_total_ns = 308442625
+wall_ns = 314852958
+
+[[measurement]]
+backend = "ndarray"
+workload = "sweep_h256"
+rows = 20000
+cols = 16
+folds = 2
+hidden = 256
+epochs = 10
+flops = 83865600000
+[measurement.cold]
+prepare_ns = 1689458
+upload_ns = 101500
+fit_ns = 861871333
+synchronize_ns = 40540
+download_ns = 1440500
+predict_ns = 128405791
+output_ns = 15041
+stage_total_ns = 993564163
+wall_ns = 993881541
+[measurement.warm]
+prepare_ns = 1606999
+upload_ns = 88834
+fit_ns = 862373381
+synchronize_ns = 40581
+download_ns = 1449083
+predict_ns = 128805583
+output_ns = 15582
+stage_total_ns = 994380043
+wall_ns = 994654875
+
+[[measurement]]
+backend = "wgpu"
+workload = "sweep_h256"
+rows = 20000
+cols = 16
+folds = 2
+hidden = 256
+epochs = 10
+flops = 83865600000
+[measurement.cold]
+prepare_ns = 1571542
+upload_ns = 3678375
+fit_ns = 313883082
+synchronize_ns = 5945789
+download_ns = 4109208
+predict_ns = 139696209
+output_ns = 16126
+stage_total_ns = 468900331
+wall_ns = 469199833
+[measurement.warm]
+prepare_ns = 1609500
+upload_ns = 3547542
+fit_ns = 329244503
+synchronize_ns = 7478997
+download_ns = 4324458
+predict_ns = 144032833
+output_ns = 15500
+stage_total_ns = 490253333
+wall_ns = 489977667
+
+[[comparison]]
+workload = "small"
+cpu_backend = "ndarray"
+device_backend = "wgpu"
+cpu_warm_wall_ns = 3542459
+device_warm_wall_ns = 98390416
+speedup = 0.0360
+meets_gain_threshold = false
+device_wins = false
+max_oof_gap_target_sd = 0.947273
+device_transfer_and_sync_ns = 12661751
+
+[[comparison]]
+workload = "control"
+cpu_backend = "ndarray"
+device_backend = "wgpu"
+cpu_warm_wall_ns = 63414333
+device_warm_wall_ns = 701960334
+speedup = 0.0903
+meets_gain_threshold = false
+device_wins = false
+max_oof_gap_target_sd = 1.021925
+device_transfer_and_sync_ns = 38273209
+
+[[comparison]]
+workload = "large"
+cpu_backend = "ndarray"
+device_backend = "wgpu"
+cpu_warm_wall_ns = 1461727666
+device_warm_wall_ns = 546872000
+speedup = 2.6729
+meets_gain_threshold = true
+device_wins = true
+max_oof_gap_target_sd = 0.792563
+device_transfer_and_sync_ns = 16945206
+
+[[comparison]]
+workload = "sweep_h008"
+cpu_backend = "ndarray"
+device_backend = "wgpu"
+cpu_warm_wall_ns = 67706625
+device_warm_wall_ns = 279364584
+speedup = 0.2424
+meets_gain_threshold = false
+device_wins = false
+max_oof_gap_target_sd = 1.180673
+device_transfer_and_sync_ns = 15263997
+
+[[comparison]]
+workload = "sweep_h016"
+cpu_backend = "ndarray"
+device_backend = "wgpu"
+cpu_warm_wall_ns = 90325834
+device_warm_wall_ns = 295390459
+speedup = 0.3058
+meets_gain_threshold = false
+device_wins = false
+max_oof_gap_target_sd = 0.969461
+device_transfer_and_sync_ns = 16651205
+
+[[comparison]]
+workload = "sweep_h032"
+cpu_backend = "ndarray"
+device_backend = "wgpu"
+cpu_warm_wall_ns = 126326500
+device_warm_wall_ns = 290475875
+speedup = 0.4349
+meets_gain_threshold = false
+device_wins = false
+max_oof_gap_target_sd = 1.236670
+device_transfer_and_sync_ns = 14795457
+
+[[comparison]]
+workload = "sweep_h064"
+cpu_backend = "ndarray"
+device_backend = "wgpu"
+cpu_warm_wall_ns = 204614083
+device_warm_wall_ns = 293441458
+speedup = 0.6973
+meets_gain_threshold = false
+device_wins = false
+max_oof_gap_target_sd = 0.901692
+device_transfer_and_sync_ns = 14867584
+
+[[comparison]]
+workload = "sweep_h128"
+cpu_backend = "ndarray"
+device_backend = "wgpu"
+cpu_warm_wall_ns = 418378916
+device_warm_wall_ns = 314852958
+speedup = 1.3288
+meets_gain_threshold = false
+device_wins = true
+max_oof_gap_target_sd = 1.071714
+device_transfer_and_sync_ns = 14301959
+
+[[comparison]]
+workload = "sweep_h256"
+cpu_backend = "ndarray"
+device_backend = "wgpu"
+cpu_warm_wall_ns = 994654875
+device_warm_wall_ns = 489977667
+speedup = 2.0300
+meets_gain_threshold = true
+device_wins = true
+max_oof_gap_target_sd = 1.747399
+device_transfer_and_sync_ns = 15350997
+
+[crossover]
+smallest_device_win_flops = 22272000000
+workload = "sweep_h128"

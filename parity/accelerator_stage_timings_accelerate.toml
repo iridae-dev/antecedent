@@ -1,0 +1,71 @@
+# accelerator stage timings
+[host]
+os = "macos"
+arch = "aarch64"
+logical_cpus = 10
+repeats = 5
+gain_threshold = 2
+adapter_unavailable = "the device library is not linked in this build"
+
+[[measurement]]
+backend = "ndarray_accelerate"
+workload = "small"
+rows = 256
+cols = 4
+folds = 2
+hidden = 8
+epochs = 8
+flops = 1277952
+[measurement.cold]
+prepare_ns = 53291
+upload_ns = 260792
+fit_ns = 4696584
+synchronize_ns = 23208
+download_ns = 8625
+predict_ns = 47250
+output_ns = 3166
+stage_total_ns = 5092916
+wall_ns = 5111750
+[measurement.warm]
+prepare_ns = 14416
+upload_ns = 1999
+fit_ns = 3224081
+synchronize_ns = 4583
+download_ns = 7833
+predict_ns = 46834
+output_ns = 292
+stage_total_ns = 3300038
+wall_ns = 3317333
+
+[[measurement]]
+backend = "ndarray_accelerate"
+workload = "control"
+rows = 4000
+cols = 8
+folds = 3
+hidden = 16
+epochs = 20
+flops = 384048000
+[measurement.cold]
+prepare_ns = 365458
+upload_ns = 31709
+fit_ns = 53496003
+synchronize_ns = 21833
+download_ns = 29958
+predict_ns = 526916
+output_ns = 4458
+stage_total_ns = 54476335
+wall_ns = 54564250
+[measurement.warm]
+prepare_ns = 334626
+upload_ns = 22834
+fit_ns = 54623035
+synchronize_ns = 26457
+download_ns = 29834
+predict_ns = 534249
+output_ns = 3916
+stage_total_ns = 55574951
+wall_ns = 55642458
+
+[crossover]
+smallest_device_win_flops = "none"
