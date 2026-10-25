@@ -81,11 +81,6 @@ executes_unlicensed = true
 reason = "Cheap and full validation of a counterfactual on an Admg, TemporalAdmg, Cpdag or Pag run the functional refuter state and stay unlicensed. The population-level cross-world functional (or the per-completion unit route of a Cpdag) executes as at validation none; its value is refuted by the placebo treatment, subset stability and, under full, the placebo outcome and bootstrap stability of the whole procedure. The result keeps support status refused: no evidence row or coverage record names the cell, and the verdicts are diagnostics, not a calibration claim."
 
 [[closed]]
-queries = ["Counterfactual"]
-graph_classes = ["Admg", "TemporalAdmg", "Cpdag", "Pag"]
-reason = "Counterfactual on an Admg, TemporalAdmg, Cpdag or Pag executes at validation none, cheap and full over a supplied or accepted structure (the rules around it). A graph posterior over these classes has no counterfactual route. Next attempts: a supplied or accepted structure, or an explicit Dag."
-
-[[closed]]
 queries = [
   "AverageDerivative",
   "DirectionalDerivative",

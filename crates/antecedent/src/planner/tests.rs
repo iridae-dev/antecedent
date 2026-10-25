@@ -93,10 +93,23 @@ fn pcmci_on_tabular_fails() {
 
 #[test]
 fn memory_limit_refuses_dense_plan() {
-    let plan = tabular_plan(10_000);
+    // An estimator with no streamed reduction cannot leave the resident design.
+    let mut plan = tabular_plan(10_000);
+    plan.record.estimator = Some(Arc::from("glm.adjustment"));
     let mut ctx = ExecutionContext::for_tests(1);
     ctx.set_memory_limit(Some(64));
     assert!(matches!(plan.compile_physical(&ctx), Err(CausalError::Resource { .. })));
+}
+
+#[test]
+fn memory_limit_hands_a_streamable_plan_to_the_streamed_reduction() {
+    // The closed-form linear adjustment streams its rows, so the resident quote is not the
+    // admission test: the starting record is admitted and the streamed alternative is chosen
+    // when the route is lowered.
+    let plan = tabular_plan(10_000);
+    let mut ctx = ExecutionContext::for_tests(1);
+    ctx.set_memory_limit(Some(64));
+    assert!(plan.compile_physical(&ctx).is_ok());
 }
 
 #[test]

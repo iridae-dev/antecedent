@@ -1371,10 +1371,10 @@ fn mediation_decompositions_over_mixed_graphs_and_classes_execute_at_every_valid
             }
         }
     }
-    // A graph posterior over atoms of a mixed graph or a class is not one decomposition.
+    // A graph posterior over atoms of a mixed graph or a class decomposes atom by atom.
     for graph in ["Admg", "Cpdag", "Pag"] {
         let c = cell("MediationEffect", graph, "graph_posterior", "Frequentist", "cheap");
-        assert!(!super::executes_unlicensed(c), "{c:?}");
+        assert!(super::executes_unlicensed(c), "{c:?}");
     }
 }
 
@@ -1439,9 +1439,9 @@ fn functional_queries_execute_unlicensed_under_cheap_and_full_validation() {
             }
         }
     }
-    // A graph posterior over a Dag has no single estimand for a counterfactual.
+    // A graph posterior over a Dag answers a counterfactual atom by atom.
     for query in ["Counterfactual"] {
         let c = cell(query, "Dag", "graph_posterior", "Frequentist", "cheap");
-        assert!(!super::executes_unlicensed(c), "{c:?}");
+        assert!(super::executes_unlicensed(c), "{c:?}");
     }
 }

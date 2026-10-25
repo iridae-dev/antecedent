@@ -382,21 +382,6 @@
     },
     {
       "queries": [
-        "Counterfactual"
-      ],
-      "graph_classes": [
-        "Admg",
-        "TemporalAdmg",
-        "Cpdag",
-        "Pag"
-      ],
-      "structures": null,
-      "inferences": null,
-      "validations": null,
-      "reason": "Counterfactual on an Admg, TemporalAdmg, Cpdag or Pag executes at validation none, cheap and full over a supplied or accepted structure (the rules around it). A graph posterior over these classes has no counterfactual route. Next attempts: a supplied or accepted structure, or an explicit Dag."
-    },
-    {
-      "queries": [
         "AverageDerivative",
         "DirectionalDerivative",
         "Elasticity",
