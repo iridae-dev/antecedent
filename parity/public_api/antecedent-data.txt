@@ -180,11 +180,8 @@ impl core::clone::Clone for antecedent_data::file_source::ScanReceipt
 impl core::clone::Clone for antecedent_data::file_source::TableFile
 impl core::clone::Clone for antecedent_data::file_source::TableFileFormat
 impl core::clone::Clone for antecedent_data::file_source::WriteOptions
-impl core::clone::Clone for antecedent_data::lazy_identity::BaseScan
 impl core::clone::Clone for antecedent_data::lazy_identity::FullContentIdentity
-impl core::clone::Clone for antecedent_data::lazy_identity::IncrementalDigest
 impl core::clone::Clone for antecedent_data::lazy_identity::LazyViewIdentity
-impl core::clone::Clone for antecedent_data::lazy_identity::SegmentChunkIdentity
 impl core::clone::Clone for antecedent_data::lazy_identity::VersionedIdentity
 impl core::clone::Clone for antecedent_data::materialize::AdmissionRecord
 impl core::clone::Clone for antecedent_data::materialize::CategoryLevels
@@ -295,9 +292,7 @@ impl core::cmp::Eq for antecedent_data::file_source::ScanReceipt
 impl core::cmp::Eq for antecedent_data::file_source::TableFileFormat
 impl core::cmp::Eq for antecedent_data::file_source::WriteOptions
 impl core::cmp::Eq for antecedent_data::lazy_identity::FullContentIdentity
-impl core::cmp::Eq for antecedent_data::lazy_identity::IncrementalDigest
 impl core::cmp::Eq for antecedent_data::lazy_identity::LazyViewIdentity
-impl core::cmp::Eq for antecedent_data::lazy_identity::SegmentChunkIdentity
 impl core::cmp::Eq for antecedent_data::lazy_identity::VersionedIdentity
 impl core::cmp::Eq for antecedent_data::materialize::AdmissionRecord
 impl core::cmp::Eq for antecedent_data::materialize::CategoryLevels
@@ -418,9 +413,7 @@ impl core::cmp::PartialEq for antecedent_data::file_source::ScanReceipt
 impl core::cmp::PartialEq for antecedent_data::file_source::TableFileFormat
 impl core::cmp::PartialEq for antecedent_data::file_source::WriteOptions
 impl core::cmp::PartialEq for antecedent_data::lazy_identity::FullContentIdentity
-impl core::cmp::PartialEq for antecedent_data::lazy_identity::IncrementalDigest
 impl core::cmp::PartialEq for antecedent_data::lazy_identity::LazyViewIdentity
-impl core::cmp::PartialEq for antecedent_data::lazy_identity::SegmentChunkIdentity
 impl core::cmp::PartialEq for antecedent_data::lazy_identity::VersionedIdentity
 impl core::cmp::PartialEq for antecedent_data::materialize::AdmissionRecord
 impl core::cmp::PartialEq for antecedent_data::materialize::CategoryLevels
@@ -602,11 +595,8 @@ impl core::fmt::Debug for antecedent_data::file_source::TableFile
 impl core::fmt::Debug for antecedent_data::file_source::TableFileFormat
 impl core::fmt::Debug for antecedent_data::file_source::TableStream
 impl core::fmt::Debug for antecedent_data::file_source::WriteOptions
-impl core::fmt::Debug for antecedent_data::lazy_identity::BaseScan
 impl core::fmt::Debug for antecedent_data::lazy_identity::FullContentIdentity
-impl core::fmt::Debug for antecedent_data::lazy_identity::IncrementalDigest
 impl core::fmt::Debug for antecedent_data::lazy_identity::LazyViewIdentity
-impl core::fmt::Debug for antecedent_data::lazy_identity::SegmentChunkIdentity
 impl core::fmt::Debug for antecedent_data::lazy_identity::VersionedIdentity
 impl core::fmt::Debug for antecedent_data::materialize::AdmissionRecord
 impl core::fmt::Debug for antecedent_data::materialize::CategoryLevels
@@ -738,11 +728,8 @@ impl core::marker::Copy for antecedent_data::file_source::ReadOptions
 impl core::marker::Copy for antecedent_data::file_source::RowCursor
 impl core::marker::Copy for antecedent_data::file_source::TableFileFormat
 impl core::marker::Copy for antecedent_data::file_source::WriteOptions
-impl core::marker::Copy for antecedent_data::lazy_identity::BaseScan
 impl core::marker::Copy for antecedent_data::lazy_identity::FullContentIdentity
-impl core::marker::Copy for antecedent_data::lazy_identity::IncrementalDigest
 impl core::marker::Copy for antecedent_data::lazy_identity::LazyViewIdentity
-impl core::marker::Copy for antecedent_data::lazy_identity::SegmentChunkIdentity
 impl core::marker::Copy for antecedent_data::lazy_identity::VersionedIdentity
 impl core::marker::Copy for antecedent_data::materialize::AdmissionRecord
 impl core::marker::Copy for antecedent_data::materialize::DeliveryRecord
@@ -872,11 +859,8 @@ impl core::marker::Freeze for antecedent_data::file_source::TableFile [auto]
 impl core::marker::Freeze for antecedent_data::file_source::TableFileFormat [auto]
 impl core::marker::Freeze for antecedent_data::file_source::TableStream [auto]
 impl core::marker::Freeze for antecedent_data::file_source::WriteOptions [auto]
-impl core::marker::Freeze for antecedent_data::lazy_identity::BaseScan [auto]
 impl core::marker::Freeze for antecedent_data::lazy_identity::FullContentIdentity [auto]
-impl core::marker::Freeze for antecedent_data::lazy_identity::IncrementalDigest [auto]
 impl core::marker::Freeze for antecedent_data::lazy_identity::LazyViewIdentity [auto]
-impl core::marker::Freeze for antecedent_data::lazy_identity::SegmentChunkIdentity [auto]
 impl core::marker::Freeze for antecedent_data::lazy_identity::VersionedIdentity [auto]
 impl core::marker::Freeze for antecedent_data::materialize::AdmissionRecord [auto]
 impl core::marker::Freeze for antecedent_data::materialize::CategoryLevels [auto]
@@ -1021,11 +1005,8 @@ impl core::marker::Send for antecedent_data::file_source::TableFile [auto]
 impl core::marker::Send for antecedent_data::file_source::TableFileFormat [auto]
 impl core::marker::Send for antecedent_data::file_source::TableStream [auto]
 impl core::marker::Send for antecedent_data::file_source::WriteOptions [auto]
-impl core::marker::Send for antecedent_data::lazy_identity::BaseScan [auto]
 impl core::marker::Send for antecedent_data::lazy_identity::FullContentIdentity [auto]
-impl core::marker::Send for antecedent_data::lazy_identity::IncrementalDigest [auto]
 impl core::marker::Send for antecedent_data::lazy_identity::LazyViewIdentity [auto]
-impl core::marker::Send for antecedent_data::lazy_identity::SegmentChunkIdentity [auto]
 impl core::marker::Send for antecedent_data::lazy_identity::VersionedIdentity [auto]
 impl core::marker::Send for antecedent_data::materialize::AdmissionRecord [auto]
 impl core::marker::Send for antecedent_data::materialize::CategoryLevels [auto]
@@ -1143,9 +1124,7 @@ impl core::marker::StructuralPartialEq for antecedent_data::file_source::ScanRec
 impl core::marker::StructuralPartialEq for antecedent_data::file_source::TableFileFormat
 impl core::marker::StructuralPartialEq for antecedent_data::file_source::WriteOptions
 impl core::marker::StructuralPartialEq for antecedent_data::lazy_identity::FullContentIdentity
-impl core::marker::StructuralPartialEq for antecedent_data::lazy_identity::IncrementalDigest
 impl core::marker::StructuralPartialEq for antecedent_data::lazy_identity::LazyViewIdentity
-impl core::marker::StructuralPartialEq for antecedent_data::lazy_identity::SegmentChunkIdentity
 impl core::marker::StructuralPartialEq for antecedent_data::lazy_identity::VersionedIdentity
 impl core::marker::StructuralPartialEq for antecedent_data::materialize::AdmissionRecord
 impl core::marker::StructuralPartialEq for antecedent_data::materialize::CategoryLevels
@@ -1284,11 +1263,8 @@ impl core::marker::Sync for antecedent_data::file_source::ScanReceipt [auto]
 impl core::marker::Sync for antecedent_data::file_source::TableFile [auto]
 impl core::marker::Sync for antecedent_data::file_source::TableFileFormat [auto]
 impl core::marker::Sync for antecedent_data::file_source::WriteOptions [auto]
-impl core::marker::Sync for antecedent_data::lazy_identity::BaseScan [auto]
 impl core::marker::Sync for antecedent_data::lazy_identity::FullContentIdentity [auto]
-impl core::marker::Sync for antecedent_data::lazy_identity::IncrementalDigest [auto]
 impl core::marker::Sync for antecedent_data::lazy_identity::LazyViewIdentity [auto]
-impl core::marker::Sync for antecedent_data::lazy_identity::SegmentChunkIdentity [auto]
 impl core::marker::Sync for antecedent_data::lazy_identity::VersionedIdentity [auto]
 impl core::marker::Sync for antecedent_data::materialize::AdmissionRecord [auto]
 impl core::marker::Sync for antecedent_data::materialize::CategoryLevels [auto]
@@ -1434,11 +1410,8 @@ impl core::marker::Unpin for antecedent_data::file_source::TableFile [auto]
 impl core::marker::Unpin for antecedent_data::file_source::TableFileFormat [auto]
 impl core::marker::Unpin for antecedent_data::file_source::TableStream [auto]
 impl core::marker::Unpin for antecedent_data::file_source::WriteOptions [auto]
-impl core::marker::Unpin for antecedent_data::lazy_identity::BaseScan [auto]
 impl core::marker::Unpin for antecedent_data::lazy_identity::FullContentIdentity [auto]
-impl core::marker::Unpin for antecedent_data::lazy_identity::IncrementalDigest [auto]
 impl core::marker::Unpin for antecedent_data::lazy_identity::LazyViewIdentity [auto]
-impl core::marker::Unpin for antecedent_data::lazy_identity::SegmentChunkIdentity [auto]
 impl core::marker::Unpin for antecedent_data::lazy_identity::VersionedIdentity [auto]
 impl core::marker::Unpin for antecedent_data::materialize::AdmissionRecord [auto]
 impl core::marker::Unpin for antecedent_data::materialize::CategoryLevels [auto]
@@ -1564,11 +1537,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::file_source::T
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::file_source::TableFileFormat [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::file_source::TableStream [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::file_source::WriteOptions [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::lazy_identity::BaseScan [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::lazy_identity::FullContentIdentity [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::lazy_identity::IncrementalDigest [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::lazy_identity::LazyViewIdentity [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::lazy_identity::SegmentChunkIdentity [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::lazy_identity::VersionedIdentity [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::materialize::AdmissionRecord [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::materialize::CategoryLevels [auto]
@@ -1691,11 +1661,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_data::file_source::Tabl
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::file_source::TableFileFormat [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::file_source::TableStream [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::file_source::WriteOptions [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_data::lazy_identity::BaseScan [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::lazy_identity::FullContentIdentity [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_data::lazy_identity::IncrementalDigest [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::lazy_identity::LazyViewIdentity [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_data::lazy_identity::SegmentChunkIdentity [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::lazy_identity::VersionedIdentity [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::materialize::AdmissionRecord [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::materialize::CategoryLevels [auto]
@@ -1802,7 +1769,6 @@ pub const antecedent_data::file_source::DEFAULT_CHUNK_ROWS: usize
 pub const antecedent_data::file_source::DEFAULT_TEXT_BYTES_PER_ROW: u64
 pub const antecedent_data::file_source::FILE_IDENTITY_VERSION: u16
 pub const antecedent_data::lazy_identity::FULL_CONTENT_VERSION: u16
-pub const antecedent_data::lazy_identity::INCREMENTAL_VERSION: u16
 pub const antecedent_data::lazy_identity::LAZY_VIEW_VERSION: u16
 pub const antecedent_data::materialize::PREPARATION_ORDER: [antecedent_data::materialize::PreparationStep; 5]
 pub const antecedent_data::unbalanced_panel::BALANCE_BEFORE_NUISANCE: antecedent_core::refusal::NextAttempt
@@ -1829,7 +1795,6 @@ pub enum antecedent_data::column_closure::ColumnDuty
 pub enum antecedent_data::design_layout::MaskSelection
 pub enum antecedent_data::file_source::FileColumnKind
 pub enum antecedent_data::file_source::TableFileFormat
-pub enum antecedent_data::lazy_identity::BaseScan
 pub enum antecedent_data::lazy_identity::VersionedIdentity
 pub enum antecedent_data::materialize::AdmissionRecord
 pub enum antecedent_data::materialize::DeliveryRecord
@@ -2459,21 +2424,12 @@ pub fn <antecedent_data::file_source::TableStream>::fn columns(&self) -> &[antec
 pub fn <antecedent_data::file_source::TableStream>::fn new(stream: antecedent_data::arrow_ffi::ArrowCStream) -> core::result::Result<Self, antecedent_data::file_source::FileSourceError>
 pub fn <antecedent_data::file_source::TableStream>::fn plan(&self, closure: &antecedent_data::column_closure::ColumnClosure, options: antecedent_data::file_source::ReadOptions) -> core::result::Result<antecedent_data::file_source::ReadPlan, antecedent_data::file_source::FileSourceError>
 pub fn <antecedent_data::file_source::TableStream>::fn reader(self, plan: &antecedent_data::file_source::ReadPlan, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_data::file_source::TableChunkReader, antecedent_data::file_source::FileSourceError>
-pub fn <antecedent_data::lazy_identity::BaseScan>::const fn unverified(_claimed: [u8; 32]) -> Self
-pub fn <antecedent_data::lazy_identity::BaseScan>::fn accept(&self, parts: &[&[u8]], bytes: &[u8]) -> core::result::Result<antecedent_data::lazy_identity::IncrementalDigest, antecedent_data::DataError>
-pub fn <antecedent_data::lazy_identity::BaseScan>::fn accept_for_segmented(&self, source: &antecedent_data::source::SegmentedSource, parts: &[&[u8]], bytes: &[u8]) -> core::result::Result<antecedent_data::lazy_identity::IncrementalDigest, antecedent_data::DataError>
-pub fn <antecedent_data::lazy_identity::BaseScan>::fn accept_for_source(&self, source: &antecedent_data::source::OwnedSource, parts: &[&[u8]], bytes: &[u8]) -> core::result::Result<antecedent_data::lazy_identity::IncrementalDigest, antecedent_data::DataError>
-pub fn <antecedent_data::lazy_identity::BaseScan>::fn verify(source: &antecedent_data::source::OwnedSource) -> core::result::Result<Self, antecedent_data::DataError>
-pub fn <antecedent_data::lazy_identity::BaseScan>::fn verify_segmented(source: &antecedent_data::source::SegmentedSource) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::lazy_identity::FullContentIdentity>::const fn binding(&self) -> [u8; 32]
 pub fn <antecedent_data::lazy_identity::FullContentIdentity>::const fn digest(&self) -> [u8; 32]
 pub fn <antecedent_data::lazy_identity::FullContentIdentity>::const fn version(&self) -> u16
 pub fn <antecedent_data::lazy_identity::FullContentIdentity>::fn try_from_contract(contract: &antecedent_data::source::SnapshotContract) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::lazy_identity::FullContentIdentity>::fn try_from_segmented(source: &antecedent_data::source::SegmentedSource) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::lazy_identity::FullContentIdentity>::fn try_from_source(source: &antecedent_data::source::OwnedSource) -> core::result::Result<Self, antecedent_data::DataError>
-pub fn <antecedent_data::lazy_identity::IncrementalDigest>::const fn digest(&self) -> [u8; 32]
-pub fn <antecedent_data::lazy_identity::IncrementalDigest>::const fn parent(&self) -> [u8; 32]
-pub fn <antecedent_data::lazy_identity::IncrementalDigest>::const fn version(&self) -> u16
 pub fn <antecedent_data::lazy_identity::LazyViewIdentity>::const fn binding(&self) -> [u8; 32]
 pub fn <antecedent_data::lazy_identity::LazyViewIdentity>::const fn digest(&self) -> [u8; 32]
 pub fn <antecedent_data::lazy_identity::LazyViewIdentity>::const fn parent(&self) -> [u8; 32]
@@ -2481,11 +2437,6 @@ pub fn <antecedent_data::lazy_identity::LazyViewIdentity>::const fn rows(&self) 
 pub fn <antecedent_data::lazy_identity::LazyViewIdentity>::const fn version(&self) -> u16
 pub fn <antecedent_data::lazy_identity::LazyViewIdentity>::fn from_chunk(full: &antecedent_data::lazy_identity::FullContentIdentity, chunk: &antecedent_data::source::RowChunk) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::lazy_identity::LazyViewIdentity>::fn is_current_for(&self, source: &antecedent_data::source::OwnedSource) -> core::result::Result<bool, antecedent_data::DataError>
-pub fn <antecedent_data::lazy_identity::SegmentChunkIdentity>::const fn digest(&self) -> [u8; 32]
-pub fn <antecedent_data::lazy_identity::SegmentChunkIdentity>::const fn parent(&self) -> [u8; 32]
-pub fn <antecedent_data::lazy_identity::SegmentChunkIdentity>::const fn part(&self) -> usize
-pub fn <antecedent_data::lazy_identity::SegmentChunkIdentity>::const fn rows(&self) -> core::ops::range::Range<usize>
-pub fn <antecedent_data::lazy_identity::SegmentChunkIdentity>::fn new(source: &antecedent_data::source::SegmentedSource, composite: &antecedent_data::lazy_identity::FullContentIdentity, part: usize, start: usize, end: usize) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::materialize::AdmissionRecord>::const fn materialized_bytes(self) -> core::option::Option<u64>
 pub fn <antecedent_data::materialize::PreparationBudget>::const fn bytes(self) -> u64
 pub fn <antecedent_data::materialize::PreparationBudget>::const fn new(bytes: u64) -> Self
@@ -2764,12 +2715,8 @@ pub struct antecedent_data::file_source::TableStream has private fields
 pub struct antecedent_data::file_source::WriteOptions
 pub struct antecedent_data::lazy_identity::FullContentIdentity
 pub struct antecedent_data::lazy_identity::FullContentIdentity has private fields
-pub struct antecedent_data::lazy_identity::IncrementalDigest
-pub struct antecedent_data::lazy_identity::IncrementalDigest has private fields
 pub struct antecedent_data::lazy_identity::LazyViewIdentity
 pub struct antecedent_data::lazy_identity::LazyViewIdentity has private fields
-pub struct antecedent_data::lazy_identity::SegmentChunkIdentity
-pub struct antecedent_data::lazy_identity::SegmentChunkIdentity has private fields
 pub struct antecedent_data::materialize::CategoryLevels
 pub struct antecedent_data::materialize::PreparationBudget
 pub struct antecedent_data::materialize::PreparationBudget has private fields
@@ -3041,8 +2988,6 @@ pub variant antecedent_data::file_source::MemoryStage::Materialization
 pub variant antecedent_data::file_source::TableFileFormat::ArrowIpcFile
 pub variant antecedent_data::file_source::TableFileFormat::ArrowIpcStream
 pub variant antecedent_data::file_source::TableFileFormat::Parquet
-pub variant antecedent_data::lazy_identity::BaseScan::Unverified
-pub variant antecedent_data::lazy_identity::BaseScan::Verified(antecedent_data::lazy_identity::FullContentIdentity)
 pub variant antecedent_data::lazy_identity::VersionedIdentity::Full(antecedent_data::lazy_identity::FullContentIdentity)
 pub variant antecedent_data::lazy_identity::VersionedIdentity::Lazy(antecedent_data::lazy_identity::LazyViewIdentity)
 pub variant antecedent_data::materialize::AdmissionRecord::Materialized { bytes: u64, budget: u64 }

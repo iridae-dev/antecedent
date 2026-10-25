@@ -426,21 +426,6 @@ pub(crate) struct MatchedDiffs {
     pub(crate) queries: Vec<usize>,
 }
 
-/// What one exact matching pass is quoted before it allocates anything.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-#[cfg_attr(
-    not(test),
-    allow(dead_code, reason = "the figures are asserted against the declared charge in tests")
-)]
-pub(crate) struct MatchingQuote {
-    /// Bytes of the donor index: features, row ids and the search layout.
-    pub(crate) index_bytes: u64,
-    /// Bytes of the output and scratch buffers one pass creates, leased from the caller.
-    pub(crate) pass_bytes: u64,
-    /// Operations of the exact index build plus a full exact scan per query.
-    pub(crate) work: u64,
-}
-
 /// Quote an exact matching pass from the declared charge of
 /// [`ExactMatching`](antecedent_core::search_budget::ExactMatching), then lease the pass buffers
 /// from the caller's admission pool.
@@ -455,7 +440,7 @@ fn quote_exact_matching(
     matches: usize,
     work_limit: Option<u64>,
     ctx: &ExecutionContext,
-) -> Result<Option<(MatchingQuote, AdmissionLease)>, EstimationError> {
+) -> Result<Option<(u64, AdmissionLease)>, EstimationError> {
     let (n_donors, n_queries, dim) = shape;
     let overflow = || EstimationError::data_msg("exact matching quote overflows u64");
     let widen = |value: usize| u64::try_from(value).map_err(|_| overflow());
@@ -516,10 +501,7 @@ fn quote_exact_matching(
         }
         .into(),
     })?;
-    Ok(Some((
-        MatchingQuote { index_bytes: estimate.memory_bytes(), pass_bytes, work: estimate.work() },
-        lease,
-    )))
+    Ok(Some((pass_bytes, lease)))
 }
 
 /// Match each `query` row to its `matches` nearest `donor` rows; returns bias-corrected
@@ -621,7 +603,7 @@ pub(crate) fn match_diffs_with(
         )));
     }
     let n_queries = query_outcome.len();
-    let _quoted_pass = quote_exact_matching(
+    let quoted_pass = quote_exact_matching(
         (n_donors, n_queries, dim),
         distance,
         matches,
@@ -634,6 +616,13 @@ pub(crate) fn match_diffs_with(
     let slots = n_queries.checked_mul(matches).ok_or_else(|| {
         EstimationError::data_msg("matching queries times matches per query overflow usize")
     })?;
+    // The leased bytes must cover the buffers resized below.
+    if let Some((leased_bytes, _)) = &quoted_pass {
+        debug_assert!(
+            *leased_bytes
+                >= (slots * size_of::<usize>() + n_queries * size_of::<f64>()) as u64
+        );
+    }
     let mut donor_rows = std::mem::take(&mut workspace.matching_donor_rows);
     let mut distances = std::mem::take(&mut workspace.matching_distances);
     donor_rows.clear();
@@ -2354,7 +2343,7 @@ mod tests {
         let (donors, queries, dim, matches) = (200usize, 150usize, 3usize, 2usize);
         let mut ctx = ExecutionContext::for_tests(5);
         ctx.set_memory_limit(Some(1 << 30));
-        let (quote, lease) = quote_exact_matching(
+        let (pass_bytes, lease) = quote_exact_matching(
             (donors, queries, dim),
             MatchingDistance::Euclidean,
             matches,
@@ -2371,19 +2360,19 @@ mod tests {
         )
         .estimate()
         .unwrap();
-        assert_eq!((quote.index_bytes, quote.work), (declared.memory_bytes(), declared.work()));
+        assert!(declared.memory_bytes() > 0 && declared.work() > 0);
         // Two row slots per match and three per-query columns, eight bytes each.
         let words = 2 * queries * matches + 3 * queries;
-        assert_eq!(quote.pass_bytes, (words * 8) as u64);
-        assert_eq!(ctx.admission.available().bytes(), (1 << 30) - quote.pass_bytes);
+        assert_eq!(pass_bytes, (words * 8) as u64);
+        assert_eq!(ctx.admission.available().bytes(), (1 << 30) - pass_bytes);
         drop(lease);
         assert_eq!(ctx.admission.available().bytes(), 1 << 30);
         // The scalar pass also builds a sorted copy of the donor scores.
-        let (scalar, _lease) =
+        let (scalar_bytes, _lease) =
             quote_exact_matching((donors, queries, 1), MatchingDistance::Absolute, 1, None, &ctx)
                 .unwrap()
                 .unwrap();
-        assert_eq!(scalar.pass_bytes, ((2 * queries + 3 * queries) * 8 + donors * 16) as u64);
+        assert_eq!(scalar_bytes, ((2 * queries + 3 * queries) * 8 + donors * 16) as u64);
         // A shape the index itself rejects is not quoted.
         assert!(
             quote_exact_matching((donors, queries, 2), MatchingDistance::Absolute, 1, None, &ctx)

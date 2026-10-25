@@ -1665,6 +1665,13 @@ cargo_target = "script"
 path = "python/tests/test_cross_surface_journeys.py"
 gates = ["inventory"]
 
+[[test]]
+id = "cross-surface-python-previous-release"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_cross_surface_previous_release.py"
+gates = ["inventory"]
+
 # Every remaining integration, Python and script test file. The checker's
 # completeness rule (complete = true) fails any test file that has no row.
 
@@ -8322,6 +8329,13 @@ path = "python/tests/test_horizon_composition.py"
 gates = ["inventory"]
 
 [[test]]
+id = "horizon-draws-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_horizon_draws.py"
+gates = ["inventory"]
+
+[[test]]
 id = "identify-admg-python"
 crate = "python"
 cargo_target = "script"
@@ -10559,4 +10573,67 @@ id = "transport-replay-contract-script"
 crate = "scripts"
 cargo_target = "script"
 path = "scripts/test_transport_replay_contract.py"
+gates = ["inventory"]
+
+[[test]]
+id = "cohort-pushdown-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_cohort_pushdown.py"
+gates = ["inventory"]
+
+[[test]]
+id = "finite-discrete-and-logistic-recipe-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_finite_discrete_and_logistic_recipe.py"
+gates = ["inventory"]
+
+[[test]]
+id = "published-decision-score-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_published_decision_score.py"
+gates = ["inventory"]
+
+[[test]]
+id = "family-table-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_family_table.py"
+gates = ["inventory"]
+
+[[test]]
+id = "design-ranking-for-study-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_design_ranking_for_study.py"
+gates = ["inventory"]
+
+[[test]]
+id = "trial-compatible-transport-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_trial_compatible_transport.py"
+gates = ["inventory"]
+
+[[test]]
+id = "panel-future-study-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_panel_future_study.py"
+gates = ["inventory"]
+
+[[test]]
+id = "host-operation-record-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_host_operation_record.py"
+gates = ["inventory"]
+
+[[test]]
+id = "structure-posterior-provenance-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_structure_posterior_provenance.py"
 gates = ["inventory"]

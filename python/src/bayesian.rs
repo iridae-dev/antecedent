@@ -240,6 +240,13 @@ impl PyGraphPosterior {
         crate::compiled_route_api::require_route(self.route.as_ref())?.claim()
     }
 
+    /// Accept the structure posterior this search returned, recording where it came from:
+    /// the provenance (method, inference, class, query, bounds, data snapshot, lowered
+    /// program, claim and review) the acceptance binds to the posterior, and its atom count.
+    fn accept_posterior(&self) -> PyResult<std::collections::HashMap<String, String>> {
+        crate::compiled_route_api::require_route(self.route.as_ref())?.accept_posterior()
+    }
+
     /// Cheap inspection record of the compiled posterior study.
     fn inspect(&self) -> PyResult<std::collections::HashMap<String, String>> {
         crate::compiled_route_api::require_route(self.route.as_ref())?.inspect()

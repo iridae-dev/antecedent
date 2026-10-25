@@ -295,6 +295,15 @@ impl RouteRecord {
         Ok(out)
     }
 
+    /// Accept the structure posterior the route searched and return the provenance the
+    /// acceptance records, as a flat mapping.
+    pub(crate) fn accept_posterior(&self) -> PyResult<HashMap<String, String>> {
+        let accepted = self.execution.accept_posterior(&self.ctx).map_err(py_err)?;
+        let mut out = provenance_map(accepted.provenance());
+        out.insert("atoms".to_owned(), accepted.posterior().weights.len().to_string());
+        Ok(out)
+    }
+
     /// The cheap inspection record as a flat mapping.
     pub(crate) fn inspect(&self) -> PyResult<HashMap<String, String>> {
         let contract = self.execution.inspect().map_err(py_err)?;

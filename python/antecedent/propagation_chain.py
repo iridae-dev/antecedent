@@ -55,6 +55,8 @@ __all__ = [
     "ChainSource",
     "ChainStage",
     "ConsumedPropagationChain",
+    "FamilyEstimate",
+    "FamilyTable",
     "PropagationChain",
     "PropagationChainRefusal",
     "StageResult",
@@ -64,6 +66,7 @@ __all__ = [
     "divide",
     "draws",
     "expression",
+    "family_table",
     "fixed",
     "independent_product_table",
     "input_coefficient",
@@ -822,3 +825,130 @@ def independent_product_table(
     _refuse(refusal)
     assert table is not None
     return [np.asarray(column, dtype=np.float64) for column in table]
+
+
+# ------------------------------------------------------------------ family tables
+
+
+@dataclass(frozen=True)
+class FamilyEstimate:
+    """One estimate a method family produced, with the evidence it used.
+
+    ``meaning`` is ``"sampling"`` (the standard error is a sampling or bootstrap spread) or
+    ``"posterior"``. ``factors`` are ``(kind, id)`` pairs as for :func:`draws`;
+    ``unknown_overlap`` says the list may be partial. ``authority`` is the hex identity of the
+    evidence-ledger source that authorizes the estimate (needed for ``ledger_overlap``).
+    """
+
+    id: str
+    estimate: float
+    standard_error: float
+    meaning: str = "sampling"
+    factors: tuple[tuple[str, str], ...] = ()
+    unknown_overlap: bool = False
+    authority: str | None = None
+
+    def _wire(self) -> tuple[str, float, float, str, list[tuple[str, str]], bool, str | None]:
+        if self.meaning not in ("posterior", "sampling"):
+            raise CausalValueError("meaning must be 'posterior' or 'sampling'")
+        return (
+            _text(self.id, "id"),
+            _real(self.estimate, "estimate"),
+            _real(self.standard_error, "standard_error"),
+            self.meaning,
+            list(_factors(self.factors)),
+            bool(self.unknown_overlap),
+            None if self.authority is None else _text(self.authority, "authority"),
+        )
+
+
+@dataclass(frozen=True)
+class FamilyTable:
+    """The aligned joint-draw table of a method family.
+
+    ``sources`` are the draw columns (each carries its declared factors, plus the row factor
+    a ledger overlap derived), ready for :func:`propagate`; ``covariance`` is the row-major
+    joint covariance the draws carry exactly; ``authority`` pairs each chain source with the
+    ledger source that authorizes it.
+    """
+
+    sources: tuple[ChainSource, ...]
+    covariance: np.ndarray
+    authority: tuple[tuple[str, str], ...]
+
+
+def _source_of_wire(wire: Mapping[str, Any]) -> ChainSource:
+    return ChainSource(
+        id=str(wire["id"]),
+        representation=str(wire["representation"]),
+        values=tuple(_float(bits) for bits in wire["values"]),
+        meaning=wire.get("meaning"),
+        alignment=wire.get("alignment"),
+        complete_disclosure=bool(wire["complete_disclosure"]),
+        factors=tuple((str(f["kind"]), str(f["id"])) for f in wire["factors"]),
+    )
+
+
+def family_table(
+    estimates: Sequence[FamilyEstimate],
+    *,
+    alignment: str,
+    dependence: str = "independent",
+    covariance: Sequence[Sequence[float]] | np.ndarray | None = None,
+    ledger: Any = None,
+    rows: int = 1597,
+    seed: int = 0,
+) -> FamilyTable:
+    """Turn family estimates into one aligned joint-draw table carrying their dependence.
+
+    Each estimate becomes a normal draw column with its mean and standard error. The columns
+    carry the declared joint covariance exactly, so a pool, a derived quantity or a nonlinear
+    utility downstream sees shared evidence once, in the joint law, and the chain rule sees the
+    same evidence as declared factors.
+
+    ``dependence`` is ``"independent"`` (refused when the declared factors share evidence or
+    leave the overlap unknown), ``"covariance"`` (a ``k`` by ``k`` ``covariance`` whose diagonal
+    is the squared standard errors; a nonzero off-diagonal term needs a shared declared factor
+    and a shared factor needs a nonzero term) or ``"ledger_overlap"`` (the correlation is read
+    from the rows the ``ledger`` sources of two estimates share).
+
+    Raises:
+        PropagationChainRefusal: a dependence the declarations do not support
+            (``evidence_double_counted``, ``evidence_overlap_unknown``) or a table the
+            arithmetic refuses.
+    """
+    from .evidence_ledger import EvidenceLedger
+
+    if dependence not in ("independent", "covariance", "ledger_overlap"):
+        raise CausalValueError("dependence must be independent, covariance or ledger_overlap")
+    flat: list[float] | None = None
+    if dependence == "covariance":
+        if covariance is None:
+            raise CausalValueError("dependence='covariance' needs a covariance matrix")
+        flat = list(_floats(np.asarray(covariance, dtype=np.float64).reshape(-1), "covariance"))
+    elif covariance is not None:
+        raise CausalValueError("a covariance matrix applies only to dependence='covariance'")
+    if ledger is not None and not isinstance(ledger, EvidenceLedger):
+        raise CausalTypeError("ledger must be an EvidenceLedger")
+    if isinstance(rows, bool) or not isinstance(rows, int) or rows < 1:
+        raise CausalValueError("rows must be a positive integer")
+    if isinstance(seed, bool) or not isinstance(seed, int) or seed < 0:
+        raise CausalValueError("seed must be a non-negative integer")
+    parts, refusal = _native.propagation_chain_family_table(
+        _text(alignment, "alignment"),
+        [e._wire() for e in estimates],
+        dependence,
+        flat,
+        None if ledger is None else ledger._handle,
+        rows,
+        seed,
+    )
+    _refuse(refusal)
+    assert parts is not None
+    wires, matrix, bindings = parts
+    k = len(wires)
+    return FamilyTable(
+        sources=tuple(_source_of_wire(json.loads(w)) for w in wires),
+        covariance=np.asarray(matrix, dtype=np.float64).reshape(k, k),
+        authority=tuple((str(a), str(b)) for a, b in bindings),
+    )

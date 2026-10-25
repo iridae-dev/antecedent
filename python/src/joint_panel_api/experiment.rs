@@ -267,6 +267,110 @@ impl PyPanelExperiment {
         })
     }
 }
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct FutureRegimeDeclaration {
+    bridge: serde_json::Value,
+    functional: ContrastFunctional,
+    mapping_dependency: String,
+    intercepts: Vec<f64>,
+    slopes: Vec<f64>,
+    mapping_evidence: String,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct FutureStudyDeclaration {
+    id: String,
+    sample_size: u64,
+    observation_variance: f64,
+    cost_utility: Option<f64>,
+    regime: Option<FutureRegimeDeclaration>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct FutureStudiesDeclaration {
+    actions: Vec<Action>,
+    studies: Vec<FutureStudyDeclaration>,
+}
+fn future_regime(d: FutureRegimeDeclaration) -> PyResult<facade::PanelFutureRegime> {
+    let dependency = antecedent_contract::evidence_ledger::parse_digest_hex(&d.mapping_dependency)
+        .ok_or_else(|| crate::value_err("invalid mapping dependency digest"))?;
+    Ok(facade::PanelFutureRegime {
+        functional: d.functional.native(),
+        bridge: crate::scientific_bridge_api::parse_contract(&d.bridge)?,
+        mapping: facade::PanelExperimentMapping {
+            dependency,
+            intercepts: d.intercepts,
+            slopes: d.slopes,
+        },
+        mapping_evidence: origin(&d.mapping_evidence)?,
+    })
+}
+#[pymethods]
+impl PyPanelExperiment {
+    /// Rank candidate studies that may run in their own regime, each with its own licensed
+    /// bridge, response functional, paired affine mapping and current mapping evidence.
+    #[pyo3(signature=(declaration_json,ledger,*,replicates=199,seed=0,threads=1,max_bytes=None,cancel=None))]
+    fn rank_next_studies(
+        &self,
+        py: Python<'_>,
+        declaration_json: &str,
+        ledger: PyRef<'_, EvidenceLedgerHandle>,
+        replicates: usize,
+        seed: u64,
+        threads: u32,
+        max_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<String> {
+        crate::bridge::check_declared_size(
+            declaration_json,
+            crate::bridge::MAX_SPEC_DECLARATION_BYTES,
+            "future-study ranking",
+        )?;
+        let d: FutureStudiesDeclaration =
+            serde_json::from_str(declaration_json).map_err(|e| crate::value_err(e.to_string()))?;
+        if d.actions.is_empty()
+            || d.actions.len() > 512
+            || d.actions.iter().any(|a| {
+                a.id.trim().is_empty()
+                    || !a.intercept.is_finite()
+                    || a.coefficients.iter().any(|v| !v.is_finite())
+            })
+        {
+            return Err(crate::value_err("invalid bounded terminal action utility"));
+        }
+        if d.actions.iter().map(|a| &a.id).collect::<std::collections::BTreeSet<_>>().len()
+            != d.actions.len()
+        {
+            return Err(crate::value_err("terminal action identities must be unique"));
+        }
+        let problem = antecedent_design::decision::DecisionProblem::new(
+            d.actions,
+            std::sync::Arc::new(Utility),
+            vec![],
+        );
+        let mut studies = Vec::with_capacity(d.studies.len());
+        for study in d.studies {
+            studies.push(facade::PanelFutureStudy {
+                sample: facade::PanelFutureSample {
+                    id: study.id,
+                    sample_size: study.sample_size,
+                    observation_variance: study.observation_variance,
+                    cost_utility: study.cost_utility,
+                },
+                regime: study.regime.map(future_regime).transpose()?,
+            });
+        }
+        let ctx = context(seed, threads, max_bytes, cancel)?;
+        let ledger = ledger.ledger().clone();
+        let rows = crate::detach_catch(py, || {
+            self.inner
+                .rank_next_studies(&problem, &studies, replicates, &ledger, &ctx)
+                .map_err(panel_error)
+        })?;
+        Ok(serde_json::json!({"scope":"model_conditional","calibration":"unmeasured","candidates":rows.iter().map(|r|serde_json::json!({"id":r.value.id,"gross_evsi":r.value.gross_evsi,"standard_error":r.value.standard_error,"net_value":r.value.net_value,"dependency_identity":r.value.dependency_identity.to_hex(),"question_identity":r.value.question_identity.to_hex(),"admissible_action_identity":r.value.admissible_action_identity.to_hex(),"regime_identity":r.regime_identity.map(|d|d.to_hex())})).collect::<Vec<_>>()}).to_string())
+    }
+}
 #[pymethods]
 impl super::designs::PyJointDesignResult {
     fn experiment_quantity(&self, functional_json: &str) -> PyResult<String> {

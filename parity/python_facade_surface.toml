@@ -237,8 +237,8 @@ python = "antecedent.preflight.plan_rank_drop"
 [[entry]]
 rust = "antecedent::analysis::api::posterior_predictive_predictor"
 kind = "fn"
-status = "missing"
-reason = "the predictor needs the Rust-typed prepared Bayesian problem and posterior, which Python holds no handle to; replicate_laws lifts replicates Python already has, but the posterior-predictive draws themselves are not exposed; no binding added yet"
+status = "internal"
+reason = "Builds the predictor laws of a Bayesian posterior predictive check from the Rust-typed prepared Bayesian problem and posterior it just fitted; Python never holds those objects between the fit and the check. The predictor-law surface Python reaches is antecedent.predictive_assessment.replicate_laws, which lifts the draw-major replicates a check reports into the same one scoring surface (CRPS and PIT) under a declared fit."
 
 [[entry]]
 rust = "antecedent::analysis::api::preflight_design"
@@ -603,14 +603,14 @@ reason = "evaluate_design_ranking; tested in python/tests/test_design_ranking.py
 [[entry]]
 rust = "antecedent::analysis::design_ranking::compile_for_study"
 kind = "fn"
-status = "missing"
-reason = "compile of an EVSI request into a lowered plan has no Python entry yet; next attempt: bind it beside evaluate_design_ranking in python/src/design_ranking_api.rs"
+status = "bound"
+python = "antecedent.design.study_ranking.compile_for_study"
 
 [[entry]]
 rust = "antecedent::analysis::design_ranking::evaluate_for_study"
 kind = "fn"
-status = "missing"
-reason = "evaluation bound to a lowered EVSI plan has no Python entry yet; next attempt: bind it beside evaluate_design_ranking in python/src/design_ranking_api.rs"
+status = "bound"
+python = "antecedent.design.study_ranking.evaluate_for_study"
 
 [[entry]]
 rust = "antecedent::analysis::design_ranking::rank_structural"
@@ -2461,26 +2461,26 @@ python = "native:python/src/forward_source_api.rs"
 [[entry]]
 rust = "antecedent::analysis::discovered_transport_trial::estimate_trial_compatible_discovered_transport"
 kind = "fn"
-status = "missing"
-reason = "Rust-only opt-in experimental compatibility and durable proof replay; no Python wrapper or native binding currently exposes this distinct trial refinement. Existing Python discovered transport functions retain the ordinary class route."
+status = "bound"
+python = "antecedent.transport.trial_compatible.estimate_trial_compatible_discovered_transport"
 
 [[entry]]
 rust = "antecedent::analysis::discovered_transport_trial::verify_trial_compatible_transport_estimate"
 kind = "fn"
-status = "missing"
-reason = "Rust-only opt-in experimental compatibility and durable proof replay; no Python wrapper or native binding currently exposes this distinct trial refinement. Existing Python discovered transport functions retain the ordinary class route."
+status = "bound"
+python = "antecedent.transport.trial_compatible.verify_trial_compatible_transport_estimate"
 
 [[entry]]
 rust = "antecedent::analysis::discovered_transport_trial::estimate_trial_compatible_transport_confidence_set"
 kind = "fn"
-status = "missing"
-reason = "Rust-only opt-in bounded-outcome whole-procedure set with an explicit scientific support assertion and a distinct logical-bound status. No Python wrapper or native binding exposes this construction; ordinary Python discovered transport retains its existing point/range/refusal behavior."
+status = "bound"
+python = "antecedent.transport.trial_compatible.estimate_trial_compatible_transport_confidence_set"
 
 [[entry]]
 rust = "antecedent::analysis::discovered_transport_trial::verify_trial_compatible_transport_confidence_set_against"
 kind = "fn"
-status = "missing"
-reason = "Rust-only receipt replay against the original structural report, query, datasets, support and execution seed. No Python wrapper or native binding exposes this verifier, and it must not be represented as a self-contained artifact consumer."
+status = "bound"
+python = "antecedent.transport.trial_compatible.verify_trial_compatible_transport_confidence_set_against"
 
 [[entry]]
 rust = "antecedent::analysis::consume_smoothed_dose_posterior_artifact"
@@ -2533,14 +2533,14 @@ python = "antecedent.adaptive_inference.RepeatedMeasuresProcedure.load_posterior
 [[entry]]
 rust = "antecedent::analysis::composition_verification::load_decision"
 kind = "fn"
-status = "missing"
-reason = "Existing mixed-decision replay entry surfaced by regenerated API inventory; the Python composition-verification consumer does not expose this separate Rust-typed mixed-decision workflow. Unrelated to the cyclic implementation."
+status = "internal"
+reason = "Consumes the decision artifact of FlagshipWorkflow, a Rust-only worked mixed workflow (cluster trial, temporal period effect and Bayesian cost with fixed routes), against the DecisionAuthority that workflow builds from its own claim graph; no Python entry produces that artifact or that authority, so Python has nothing to hand this call."
 
 [[entry]]
 rust = "antecedent::analysis::composition_verification::replay_decision"
 kind = "fn"
-status = "missing"
-reason = "Historical numerical replay for the Rust mixed-decision workflow. The Python composition-verification consumer does not expose this typed workflow; replay grants no current decision authority."
+status = "internal"
+reason = "Numerical replay of the decision artifact of FlagshipWorkflow, a Rust-only worked mixed workflow with no Python producer; a joint-law propagation artifact it also accepts is replayed in Python by antecedent.joint_law_propagation.consume_joint_law_propagation_artifact, and the replay grants no current decision authority."
 
 [[entry]]
 rust = "antecedent::analysis::api::route_missing_support"
@@ -2557,8 +2557,8 @@ reason = "The parsed missing-data support registry the builder consults; Python 
 [[entry]]
 rust = "antecedent::accept_discovered_posterior"
 kind = "fn"
-status = "missing"
-reason = "No Python call accepts a structure posterior as a separate step; Python reads the posterior discovery result from the analysis result. Next attempt: a wrapper over the compiled route that returns the accepted posterior with its sealed claim."
+status = "bound"
+python = "native:python/src/bayesian.rs"
 
 [[entry]]
 rust = "antecedent::analysis::confidence_interval_as_posterior"
@@ -2587,8 +2587,8 @@ python = "antecedent.propagation_chain.propagate"
 [[entry]]
 rust = "antecedent::analysis::score_decision"
 kind = "fn"
-status = "missing"
-reason = "Scores a decision demand against published carriers of a prepared answer; the Python decision wrapper evaluates a contract against a joint-distribution artifact (antecedent.decision.Contract.evaluate) and has no call that scores a published answer directly. Next attempt: a wrapper over the compiled demand that takes the published carriers of an analysis result."
+status = "bound"
+python = "antecedent.decision.score_published_answer"
 
 [[entry]]
 rust = "antecedent::host::claim_record"
@@ -2641,8 +2641,8 @@ python = "antecedent.host.schema"
 [[entry]]
 rust = "antecedent::host::operation_record"
 kind = "fn"
-status = "missing"
-reason = "Python reads an operation through inspect() and antecedent.host.operation_status and has no operation-report object to shape as the schema operation_report. Next attempt: a record builder over the inspect() capability report."
+status = "bound"
+python = "antecedent.host.operation_record"
 
 [[entry]]
 rust = "antecedent::host::neighbor_records"
@@ -2683,8 +2683,8 @@ python = "antecedent.horizon_composition.compose_horizons"
 [[entry]]
 rust = "antecedent::analysis::horizon_composition::horizon_draws"
 kind = "fn"
-status = "missing"
-reason = "reads the joint replicates a Rust temporal response retains under StudyBuilder::retain_joint_horizons; Python has no temporal-response study that retains them, so Python composes the joint draws a caller supplies through compose_horizons (same checks and arithmetic). Next attempt: bind retain_joint_horizons on the Python temporal-response prepare and return the draws with the response"
+status = "bound"
+python = "antecedent.results.response.CausalResponseView.horizon_draws"
 
 [[entry]]
 rust = "antecedent::analysis::structure_route::attribution_quantities"
@@ -2779,44 +2779,44 @@ reason = "Exact target identity is derived inside native prepare_joint_design_fo
 [[entry]]
 rust = "antecedent::analysis::family_table"
 kind = "fn"
-status = "missing"
-reason = "Python binds independent_product_table and propagate only; a family table over shared-evidence estimates with a declared dependence and an optional ledger has no Python call. Next attempt: bind it beside propagation_chain_product_table in python/src/propagation_chain_api.rs and expose it in antecedent.propagation_chain"
+status = "bound"
+python = "antecedent.propagation_chain.family_table"
 
 [[entry]]
 rust = "antecedent::analysis::file_table::checked_projection"
 kind = "fn"
-status = "missing"
-reason = "the cohort-checked column projection over a file source has no Python call; TableFile reads projected columns but does not return the checked cohort. Next attempt: bind it on TableFile in python/src/file_source_api.rs"
+status = "bound"
+python = "antecedent.cohort_pushdown.checked_projection"
 
 [[entry]]
 rust = "antecedent::analysis::file_table::checked_push_filter"
 kind = "fn"
-status = "missing"
-reason = "the cohort-checked filter pushdown over a file source has no Python call; TableFile does not take a closure or a filter to check. Next attempt: bind it on TableFile in python/src/file_source_api.rs"
+status = "bound"
+python = "antecedent.cohort_pushdown.checked_push_filter"
 
 [[entry]]
 rust = "antecedent::analysis::finite_discrete_contrast"
 kind = "fn"
-status = "missing"
-reason = "the finite-discrete adjustment over a caller frequency table and weighted posterior draws has no Python entry. Next attempt: bind it in python/src/ with a typed table and draws argument and a wrapper in python/antecedent/"
+status = "bound"
+python = "antecedent.finite_discrete.finite_discrete_contrast"
 
 [[entry]]
 rust = "antecedent::analysis::joint_panel::PanelFutureStudy"
 kind = "type"
-status = "missing"
-reason = "Python binds PanelFutureSample candidates in the joint-panel experiment planner, which are samples of the observed estimand; a candidate study with its own regime and mapping evidence has no Python type. Next attempt: add a PanelFutureStudy class in python/src/joint_panel_api/experiment.rs and accept it in the planner"
+status = "bound"
+python = "antecedent.joint_panel.PanelFutureStudy"
 
 [[entry]]
 rust = "antecedent::analysis::recipe_glm::logistic_provider"
 kind = "fn"
-status = "missing"
-reason = "the logistic outcome-model provider declaration has no Python entry; Python declares providers through the provider protocol, not this recipe pairing. Next attempt: bind it with logistic_standardized_effect"
+status = "bound"
+python = "antecedent.recipe_glm.logistic_provider"
 
 [[entry]]
 rust = "antecedent::analysis::recipe_glm::logistic_standardized_effect"
 kind = "fn"
-status = "missing"
-reason = "the logistic generalized-linear fit averaged by the g-computation recipe has no Python entry. Next attempt: bind it in python/src/ taking a table, treatment, outcome and the provider declaration, and wrap it in python/antecedent/"
+status = "bound"
+python = "antecedent.recipe_glm.logistic_standardized_effect"
 
 [[entry]]
 rust = "antecedent::period_refresh::window_factor_changes"
@@ -2827,8 +2827,8 @@ reason = "names the window factors that differ between two window identities ins
 [[entry]]
 rust = "antecedent::retained_refresh::spill_registry_within_admission"
 kind = "fn"
-status = "missing"
-reason = "builds the spill registry that bounds a retained refresh by its admission pool; Python holds no retained refresh handle to spill. Next attempt: bind retained refresh spill and reload in python/src/ and construct the registry inside that binding"
+status = "internal"
+reason = "Caps the byte budget of a SpillRegistry by the admission pool of the operation that spills a retained refresh; its only consumers are the Rust spill and reload of retained refresh handles (SpilledRefresh), which Python never holds, so the registry has no Python call to configure."
 
 [[entry]]
 rust = "antecedent::strategy_table::identify_cpdag_in_context"

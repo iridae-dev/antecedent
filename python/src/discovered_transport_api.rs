@@ -108,7 +108,7 @@ fn envelope_json(report: &DiscoveredTransportReport) -> Json {
 }
 
 /// A refusal as JSON, or the shared value error for a failure that is not a scientific refusal.
-fn refusal_of(error: &DiscoveredTransportError) -> PyResult<String> {
+pub(crate) fn refusal_of(error: &DiscoveredTransportError) -> PyResult<String> {
     match error {
         DiscoveredTransportError::Refused(refusal) => {
             let external =
@@ -139,7 +139,7 @@ fn refusal_of(error: &DiscoveredTransportError) -> PyResult<String> {
     }
 }
 
-fn query_of(text: &str) -> PyResult<TransportQuery> {
+pub(crate) fn query_of(text: &str) -> PyResult<TransportQuery> {
     let parsed: Json = serde_json::from_str(text)
         .map_err(|e| crate::value_err(format!("the query is not valid JSON: {e}")))?;
     let map: &Map<String, Json> =
@@ -268,7 +268,7 @@ fn discovered_transport_run(
     }
 }
 
-fn answer_json(answer: &TransportAnswer) -> Json {
+pub(crate) fn answer_json(answer: &TransportAnswer) -> Json {
     json!({
         "kind": answer.kind.label(),
         "levels": answer
@@ -288,7 +288,7 @@ fn answer_json(answer: &TransportAnswer) -> Json {
     })
 }
 
-fn estimate_json(estimate: &DiscoveredTransportEstimate) -> Json {
+pub(crate) fn estimate_json(estimate: &DiscoveredTransportEstimate) -> Json {
     let members: Vec<Json> = estimate
         .members()
         .iter()

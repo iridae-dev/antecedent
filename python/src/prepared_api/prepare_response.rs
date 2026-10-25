@@ -262,6 +262,9 @@ impl PyPreparedAnalysis {
             };
             builder = req.opts.apply(builder.query(query));
             builder = req.opts.apply_inference(builder)?;
+            if req.opts.retain_joint_horizons {
+                builder = builder.retain_joint_horizons(true);
+            }
             builder = crate::temporal_api::apply_class_prior(
                 builder,
                 class_prior_ordered,

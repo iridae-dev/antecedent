@@ -7,9 +7,10 @@
 //! to raise as a typed exception.
 
 use antecedent::analysis::propagation_chain::{
-    ChainRefusal, PropagationChain, compile_propagation_chain, consume_propagation_chain,
-    independent_product_table,
+    ChainRefusal, FamilyDependence, FamilyEstimate, LawMeaning, PropagationChain, SharedFactorKind,
+    compile_propagation_chain, consume_propagation_chain, family_table, independent_product_table,
 };
+use antecedent_contract::evidence_ledger::SourceId;
 use antecedent_io::propagation_chain_record::{ChainChangeWire, PropagationChainRecordWire};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
@@ -192,6 +193,99 @@ fn propagation_chain_product_table(
     }
 }
 
+/// One family estimate: id, estimate, standard error, law meaning, `(kind, id)` factors,
+/// whether the factor list may be partial, and the authorizing ledger source as hex.
+type FamilyEstimateArg = (String, f64, f64, String, Vec<(String, String)>, bool, Option<String>);
+/// Chain sources as record-wire JSON, the joint covariance (row-major) and the
+/// `(chain source, ledger source hex)` authority bindings.
+type FamilyTableParts = (Vec<String>, Vec<f64>, Vec<(String, String)>);
+
+fn family_estimates(estimates: Vec<FamilyEstimateArg>) -> Result<Vec<FamilyEstimate>, String> {
+    let mut out = Vec::with_capacity(estimates.len());
+    for (id, estimate, standard_error, meaning, factors, unknown_overlap, authority) in estimates {
+        let meaning = LawMeaning::from_name(&meaning).ok_or_else(|| {
+            format!("estimate `{id}` has meaning `{meaning}`; expected `sampling` or `posterior`")
+        })?;
+        let mut built = FamilyEstimate::new(&id, estimate, standard_error, meaning);
+        for (kind, factor) in &factors {
+            let kind = SharedFactorKind::from_name(kind)
+                .ok_or_else(|| format!("estimate `{id}` names an unknown factor kind `{kind}`"))?;
+            built = built.with_factor(kind, factor);
+        }
+        if unknown_overlap {
+            built = built.with_unknown_overlap();
+        }
+        if let Some(hex) = authority {
+            let source = SourceId::from_hex(&hex).ok_or_else(|| {
+                format!("estimate `{id}` names `{hex}`, which is not a source identity")
+            })?;
+            built = built.with_authority(source);
+        }
+        out.push(built);
+    }
+    Ok(out)
+}
+
+/// Turn family estimates into one aligned joint-draw table with the dependence they share.
+///
+/// `dependence` is `independent`, `covariance` (with the row-major `covariance`) or
+/// `ledger_overlap` (with the `ledger` that holds the authorizing sources).
+#[pyfunction]
+#[pyo3(signature = (alignment, estimates, dependence, covariance=None, ledger=None, rows=1597, seed=0))]
+fn propagation_chain_family_table(
+    alignment: &str,
+    estimates: Vec<FamilyEstimateArg>,
+    dependence: &str,
+    covariance: Option<Vec<f64>>,
+    ledger: Option<PyRef<'_, crate::evidence_ledger_api::EvidenceLedgerHandle>>,
+    rows: usize,
+    seed: u64,
+) -> Refused<FamilyTableParts> {
+    let estimates = match family_estimates(estimates) {
+        Ok(estimates) => estimates,
+        Err(message) => return (None, Some(invalid_json(message))),
+    };
+    let dependence = match (dependence, covariance) {
+        ("independent", None) => FamilyDependence::Independent,
+        ("covariance", Some(matrix)) => FamilyDependence::Covariance(matrix),
+        ("ledger_overlap", None) => FamilyDependence::LedgerOverlap,
+        (other, _) => {
+            return (
+                None,
+                Some(invalid_json(format!(
+                    "dependence `{other}` with this covariance argument is not one of \
+                     `independent`, `covariance` (with a covariance) or `ledger_overlap`"
+                ))),
+            );
+        }
+    };
+    let table = match family_table(
+        alignment,
+        &estimates,
+        &dependence,
+        ledger.as_ref().map(|handle| handle.ledger()),
+        rows,
+        seed,
+    ) {
+        Ok(table) => table,
+        Err(refusal) => return (None, Some(refusal_json(&refusal))),
+    };
+    let mut sources = Vec::with_capacity(table.sources.len());
+    for source in &table.sources {
+        match serde_json::to_string(source) {
+            Ok(wire) => sources.push(wire),
+            Err(error) => return (None, Some(invalid_json(error.to_string()))),
+        }
+    }
+    let bindings = table
+        .authority
+        .bindings()
+        .iter()
+        .map(|(chain_source, ledger_source)| (chain_source.clone(), ledger_source.to_hex()))
+        .collect();
+    (Some((sources, table.covariance, bindings)), None)
+}
+
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(propagation_chain_seal, module)?)?;
     module.add_function(wrap_pyfunction!(propagation_chain_change, module)?)?;
@@ -199,5 +293,6 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(propagation_chain_plan_view, module)?)?;
     module.add_function(wrap_pyfunction!(propagation_chain_dependents, module)?)?;
     module.add_function(wrap_pyfunction!(propagation_chain_product_table, module)?)?;
+    module.add_function(wrap_pyfunction!(propagation_chain_family_table, module)?)?;
     Ok(())
 }

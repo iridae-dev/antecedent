@@ -31,6 +31,7 @@ from functools import cache
 from typing import Any, Literal, cast
 
 from . import _native
+from .errors import CausalTypeError, CausalValueError
 
 __all__ = [
     "CONTRACT_VERSION",
@@ -44,6 +45,7 @@ __all__ = [
     "error_response",
     "fallback_response",
     "inspection_status",
+    "operation_record",
     "operation_status",
     "reason_codes",
     "refusal_code",
@@ -206,6 +208,48 @@ def inspection_status(report: Any) -> HostStatus:
     if applicability == "licensed":
         readiness = "executable" if report.identification.available else "binding_missing"
     return operation_status(applicability, readiness)
+
+
+def operation_record(report: Mapping[str, Any]) -> dict[str, Any]:
+    """Host record of an operation report, shaped as the schema's ``operation_report``.
+
+    ``report`` carries the capability report's fields: ``operation``, ``applicability``,
+    ``readiness`` (or ``None``), ``coordinate`` (or ``None``), ``blockers`` (mappings with
+    ``id``, ``reason`` and ``scientific``), ``next_actions`` (``id``, ``description``),
+    ``neighbors`` and ``unmet_obligations`` (the records an ``inspect()`` capability report and
+    :meth:`antecedent.repair.EvidencePlanStage.capability_report` give). The status is the one
+    :func:`operation_status` reads from the applicability and readiness.
+    """
+    if not isinstance(report, Mapping):
+        raise CausalTypeError("report must be a mapping of the capability report's fields")
+    for key in ("operation", "applicability"):
+        if not isinstance(report.get(key), str):
+            raise CausalValueError(f"report needs the text field {key!r}")
+    readiness = report.get("readiness")
+    coordinate = report.get("coordinate")
+    return {
+        "operation": report["operation"],
+        "applicability": report["applicability"],
+        "readiness": None if readiness is None else str(readiness),
+        "coordinate": None if coordinate is None else str(coordinate),
+        "blockers": [
+            {
+                "id": str(b["id"]),
+                "reason": str(b["reason"]),
+                "scientific": bool(b["scientific"]),
+            }
+            for b in report.get("blockers", ())
+        ],
+        "next_actions": [
+            {"id": str(a["id"]), "description": str(a["description"])}
+            for a in report.get("next_actions", ())
+        ],
+        "neighbors": [dict(n) for n in report.get("neighbors", ())],
+        "unmet_obligations": [dict(o) for o in report.get("unmet_obligations", ())],
+        "status": operation_status(
+            str(report["applicability"]), None if readiness is None else str(readiness)
+        ),
+    }
 
 
 def claim_record(claim: Mapping[str, Any]) -> dict[str, Any]:

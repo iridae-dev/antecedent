@@ -1,5 +1,5 @@
 //! Every setter of every non-file modality yields a new unified source identity, and the
-//! lazy views and incremental digests taken of the earlier source stop matching it.
+//! lazy views taken of the earlier source stop matching it.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -7,9 +7,7 @@ use std::sync::Arc;
 
 use antecedent_core::{CausalSchema, CausalSchemaBuilder, VariableId};
 use antecedent_data::column::ValidityBitmap;
-use antecedent_data::lazy_identity::{
-    BaseScan, FullContentIdentity, IncrementalDigest, LazyViewIdentity, SegmentChunkIdentity,
-};
+use antecedent_data::lazy_identity::{FullContentIdentity, LazyViewIdentity};
 use antecedent_data::source::{OwnedSource, SegmentedSource, SourceModality};
 use antecedent_data::{
     EventData, MultiEnvironmentData, PanelData, PanelUnit, SamplingRegularity, TabularData,
@@ -18,7 +16,6 @@ use antecedent_data::{
 
 const X: [f64; 4] = [1.0, 2.0, 3.0, 4.0];
 const Y: [f64; 4] = [4.0, 3.0, 2.0, 1.0];
-const PART: (&[u8], &[u8]) = (b"increment", b"increment");
 
 fn weights(values: [f64; 4]) -> Arc<[f64]> {
     Arc::from(values.to_vec())
@@ -61,17 +58,13 @@ fn events() -> EventData {
 /// What a consumer holds after reading `source`.
 struct Held {
     source: OwnedSource,
-    scan: BaseScan,
     view: LazyViewIdentity,
-    increment: IncrementalDigest,
 }
 
 fn hold(source: &OwnedSource) -> Held {
     let full = FullContentIdentity::try_from_source(source).unwrap();
     let view = LazyViewIdentity::from_chunk(&full, &source.chunk(1, 3).unwrap()).unwrap();
-    let scan = BaseScan::verify(source).unwrap();
-    let increment = scan.accept_for_source(source, &[PART.0], PART.1).unwrap();
-    Held { source: source.clone(), scan, view, increment }
+    Held { source: source.clone(), view }
 }
 
 fn identity(source: &OwnedSource) -> ([u8; 32], [u8; 32]) {
@@ -83,20 +76,12 @@ fn identity(source: &OwnedSource) -> ([u8; 32], [u8; 32]) {
 fn assert_invalidated(before: &Held, after: &OwnedSource, setter: &str) {
     assert_ne!(identity(&before.source), identity(after), "{setter}: identity unchanged");
     assert!(!before.view.is_current_for(after).unwrap(), "{setter}: stale lazy view accepted");
-    assert!(
-        before.scan.accept_for_source(after, &[PART.0], PART.1).is_err(),
-        "{setter}: stale base scan accepted an increment"
-    );
     // The earlier source is still itself.
     assert!(before.view.is_current_for(&before.source).unwrap());
-    assert_eq!(
-        before.scan.accept_for_source(&before.source, &[PART.0], PART.1).unwrap(),
-        before.increment
-    );
-    // A fresh scan of the new source works and is a different increment.
-    let fresh = BaseScan::verify(after).unwrap();
-    let again = fresh.accept_for_source(after, &[PART.0], PART.1).unwrap();
-    assert_ne!(again.digest(), before.increment.digest(), "{setter}: same increment");
+    // A view of the new source is a different identity.
+    let full = FullContentIdentity::try_from_source(after).unwrap();
+    let fresh = LazyViewIdentity::from_chunk(&full, &after.chunk(1, 3).unwrap()).unwrap();
+    assert_ne!(fresh.digest(), before.view.digest(), "{setter}: same lazy view");
 }
 
 #[test]
@@ -230,17 +215,11 @@ fn event_timestamps_are_bound_into_the_event_source() {
 
 /// What a consumer holds after reading a segmented source.
 struct HeldSegments {
-    source: SegmentedSource,
     composite: FullContentIdentity,
-    scan: BaseScan,
-    view: SegmentChunkIdentity,
 }
 
 fn hold_segments(source: &SegmentedSource) -> HeldSegments {
-    let composite = FullContentIdentity::try_from_segmented(source).unwrap();
-    let view = SegmentChunkIdentity::new(source, &composite, 1, 0, 2).unwrap();
-    let scan = BaseScan::verify_segmented(source).unwrap();
-    HeldSegments { source: source.clone(), composite, scan, view }
+    HeldSegments { composite: FullContentIdentity::try_from_segmented(source).unwrap() }
 }
 
 fn assert_segments_invalidated(before: &HeldSegments, after: &SegmentedSource, setter: &str) {
@@ -249,24 +228,6 @@ fn assert_segments_invalidated(before: &HeldSegments, after: &SegmentedSource, s
         (before.composite.digest(), before.composite.binding()),
         (now.digest(), now.binding()),
         "{setter}: composite identity unchanged"
-    );
-    // A range identity taken under the earlier composite is not a range of the new source.
-    assert!(
-        SegmentChunkIdentity::new(after, &before.composite, 1, 0, 2).is_err(),
-        "{setter}: stale composite accepted"
-    );
-    let fresh = SegmentChunkIdentity::new(after, &now, 1, 0, 2).unwrap();
-    assert_ne!(fresh.digest(), before.view.digest(), "{setter}: same range identity");
-    assert!(
-        before.scan.accept_for_segmented(after, &[PART.0], PART.1).is_err(),
-        "{setter}: stale base scan accepted an increment"
-    );
-    assert!(before.scan.accept_for_segmented(&before.source, &[PART.0], PART.1).is_ok());
-    assert!(
-        BaseScan::verify_segmented(after)
-            .unwrap()
-            .accept_for_segmented(after, &[PART.0], PART.1)
-            .is_ok()
     );
 }
 

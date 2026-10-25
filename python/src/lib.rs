@@ -84,6 +84,11 @@ mod external_api;
 mod factorial_api;
 mod ffi;
 mod file_source_api;
+mod cohort_pushdown_api;
+mod discovered_transport_trial_api;
+mod finite_discrete_api;
+mod published_decision_api;
+mod recipe_logistic_api;
 mod forward_source_api;
 mod functional_source_api;
 mod gcm_api;
@@ -152,6 +157,7 @@ mod recalc_temporal_api;
 mod recovery_api;
 mod recovery_chain_api;
 mod regimes_api;
+mod release_migration_api;
 mod registry;
 mod sequential_evaluation_api;
 mod temporal_design_api;
@@ -3304,6 +3310,7 @@ impl PyCancellationToken {
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     contract_refusals_api::register(m)?;
     inspect_receipt_api::register(m)?;
+    release_migration_api::register(m)?;
     ffi::register(m)?;
     registry::register_module(m)
 }

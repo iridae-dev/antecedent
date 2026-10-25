@@ -1221,6 +1221,15 @@ binding = "execution_control"
 reason = ""
 test = "python/tests/test_parameter_bindings.py::test_dose_units_reaches_plan"
 
+# Retaining the joint horizon draws changes what the prepared response keeps, not the
+# estimand or its claim; the retained draws are read back through the response view.
+[[parameter]]
+name = "retain_joint_horizons"
+entry_points = ["PreparedAnalysis.prepare"]
+binding = "execution_control"
+reason = ""
+test = "python/tests/test_horizon_draws.py::test_frequentist_horizon_draws_are_the_joint_bootstrap_replicates_of_the_surface"
+
 # Shared Python 2.4 lifecycle and persistence conventions are not additional
 # scientific route licenses. Native family validators retain all authority.
 [[ux_contract]]

@@ -70,6 +70,11 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     graph_falsification_api::register(m)?;
     super::intrinsic_influence_api::register(m)?;
     super::file_source_api::register(m)?;
+    super::cohort_pushdown_api::register(m)?;
+    super::discovered_transport_trial_api::register(m)?;
+    super::finite_discrete_api::register(m)?;
+    super::published_decision_api::register(m)?;
+    super::recipe_logistic_api::register(m)?;
     super::intervention_callback_api::register(m)?;
     super::intervention_program_api::register(m)?;
     state_api::register(m)?;

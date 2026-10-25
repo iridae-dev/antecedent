@@ -36,6 +36,44 @@ class ComposedHorizons:
     draws: tuple[float, ...]
 
 
+@dataclass(frozen=True)
+class JointHorizonDraws:
+    """The draws of one dose coupled across the horizons of a temporal response.
+
+    ``columns[k][r]`` is realization ``r`` of horizon ``horizons[k]``; every realization refit
+    all horizons together, so the columns share one ``alignment_id`` and may be composed.
+    ``center`` is the point value of each horizon's cell.
+    """
+
+    horizons: tuple[int, ...]
+    center: tuple[float, ...]
+    columns: tuple[tuple[float, ...], ...]
+    alignment_id: str
+    evidence_id: str
+
+    def compose(
+        self,
+        *,
+        operation: str = "weighted_sum",
+        coefficients: Sequence[float] | None = None,
+        map: Callable[[list[float]], float] | None = None,
+        seed: int = 0,
+    ) -> ComposedHorizons:
+        """Compose these draws with :func:`compose_horizons`."""
+        import numpy as np
+
+        return compose_horizons(
+            self.horizons,
+            [np.asarray(column, dtype=np.float64) for column in self.columns],
+            evidence_id=self.evidence_id,
+            alignment_id=self.alignment_id,
+            operation=operation,
+            coefficients=coefficients,
+            map=map,
+            seed=seed,
+        )
+
+
 def compose_horizons(
     horizons: Sequence[int],
     columns: Sequence[Any],
@@ -79,4 +117,4 @@ def compose_horizons(
     )
 
 
-__all__ = ["ComposedHorizons", "compose_horizons"]
+__all__ = ["ComposedHorizons", "JointHorizonDraws", "compose_horizons"]

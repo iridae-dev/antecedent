@@ -6,9 +6,7 @@
 //! contract (modality, validity policy, cohort order, unit, splits, row count, schema
 //! names, and time index), the row range, and a version. Byte-identical storage under a
 //! different column name, modality, cohort, split, or time index is therefore a different
-//! parent and a different view. A projected column set has no full-source identity. An
-//! incremental digest is accepted only after a base scan has been checked, and it is bound
-//! to that same contract; skipping the scan fails closed.
+//! parent and a different view. A projected column set has no full-source identity.
 //!
 //! This is not another owned snapshot. Callers keep [`OwnedSource`].
 //!
@@ -31,9 +29,6 @@ pub const FULL_CONTENT_VERSION: u16 = 1;
 /// Version recorded on a chunk or lazy view.
 pub const LAZY_VIEW_VERSION: u16 = 1;
 
-/// Version of an incremental continuation of a verified base scan.
-pub const INCREMENTAL_VERSION: u16 = 1;
-
 /// BLAKE3 domain for a chunk or lazy view. Not the storage-digest domain.
 const LAZY_DOMAIN: &str = "antecedent.data.lazy.v1";
 
@@ -45,12 +40,6 @@ const SEGMENT_DOMAIN: &str = "antecedent.data.lazy.segmented.v1";
 
 /// BLAKE3 domain for the binding of a segmented source's parts.
 const SEGMENT_BINDING_DOMAIN: &str = "antecedent.data.lazy.segmented.binding.v1";
-
-/// BLAKE3 domain for a row range inside one part of a segmented source.
-const SEGMENT_VIEW_DOMAIN: &str = "antecedent.data.lazy.segment.view.v1";
-
-/// BLAKE3 domain for a continuation checked against a verified base scan.
-const INCREMENT_DOMAIN: &str = "antecedent.data.lazy.increment.v1";
 
 /// Version 1 full-source digest.
 ///
@@ -84,26 +73,6 @@ pub enum VersionedIdentity {
     Full(FullContentIdentity),
     /// Row range in the lazy domain.
     Lazy(LazyViewIdentity),
-}
-
-/// Incremental continuation bound to a verified parent digest and its contract.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct IncrementalDigest {
-    version: u16,
-    parent: [u8; 32],
-    digest: [u8; 32],
-}
-
-/// Whether the version-1 storage digest has been checked.
-///
-/// [`Self::unverified`] takes a claimed parent and does not scan. [`Self::verify`]
-/// is the required first scan.
-#[derive(Clone, Copy, Debug)]
-pub enum BaseScan {
-    /// No `content_digest` check has run.
-    Unverified,
-    /// Parent digest checked against the owned source.
-    Verified(FullContentIdentity),
 }
 
 impl FullContentIdentity {
@@ -249,88 +218,6 @@ impl LazyViewIdentity {
     }
 }
 
-impl IncrementalDigest {
-    /// Stream `parts` under the increment domain, bound to `parent` and its contract.
-    fn stream(parent: &[u8; 32], binding: &[u8; 32], parts: &[&[u8]]) -> [u8; 32] {
-        let mut hasher = incremental_hasher(parent, binding);
-        for part in parts {
-            hasher.update(part);
-        }
-        finish(&hasher)
-    }
-
-    /// One-shot digest of `bytes` under the same domain, parent, and contract as [`Self::stream`].
-    fn recompute(parent: &[u8; 32], binding: &[u8; 32], bytes: &[u8]) -> [u8; 32] {
-        let mut hasher = incremental_hasher(parent, binding);
-        hasher.update(bytes);
-        finish(&hasher)
-    }
-
-    /// Increment version.
-    #[must_use]
-    pub const fn version(&self) -> u16 {
-        self.version
-    }
-
-    /// Verified parent digest.
-    #[must_use]
-    pub const fn parent(&self) -> [u8; 32] {
-        self.parent
-    }
-
-    /// Accepted continuation digest.
-    #[must_use]
-    pub const fn digest(&self) -> [u8; 32] {
-        self.digest
-    }
-}
-
-impl BaseScan {
-    /// A claimed parent that has not been checked against a base scan.
-    ///
-    /// `claimed` is not recorded. Passing the real storage digest still refuses an increment.
-    #[must_use]
-    pub const fn unverified(_claimed: [u8; 32]) -> Self {
-        Self::Unverified
-    }
-
-    /// Required first scan. Records version 1 of `content_digest` when it matches.
-    ///
-    /// # Errors
-    ///
-    /// The source is a projection, or its recorded digest is not the storage digest.
-    pub fn verify(source: &OwnedSource) -> Result<Self, DataError> {
-        Ok(Self::Verified(FullContentIdentity::try_from_source(source)?))
-    }
-
-    /// Accept streamed `parts` when they are the same bytes as `bytes`.
-    ///
-    /// The streamed digest is checked against [`IncrementalDigest::recompute`].
-    /// An unverified scan is refused before that comparison.
-    ///
-    /// # Errors
-    ///
-    /// The base scan was skipped, or the two digests differ.
-    pub fn accept(&self, parts: &[&[u8]], bytes: &[u8]) -> Result<IncrementalDigest, DataError> {
-        let Self::Verified(full) = self else {
-            return Err(scan_required());
-        };
-        let streamed = IncrementalDigest::stream(&full.digest, &full.binding, parts);
-        let recomputed = IncrementalDigest::recompute(&full.digest, &full.binding, bytes);
-        if streamed != recomputed {
-            return Err(DataError::InvalidArgument {
-                message: "incremental digest does not match a recomputation of the same bytes"
-                    .into(),
-            });
-        }
-        Ok(IncrementalDigest {
-            version: INCREMENTAL_VERSION,
-            parent: full.digest,
-            digest: recomputed,
-        })
-    }
-}
-
 impl FullContentIdentity {
     /// Version 1 composite over every part of a panel or multi-environment source.
     ///
@@ -366,139 +253,6 @@ impl FullContentIdentity {
             digest: finish(&digest),
             binding: finish(&binding),
         })
-    }
-}
-
-/// A row range inside one part of a panel or multi-environment source.
-///
-/// The digest binds the composite parent, the part position, and the part's own
-/// lazy view, so moving the range to another unit or reordering units changes it.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct SegmentChunkIdentity {
-    part: usize,
-    view: LazyViewIdentity,
-    parent: [u8; 32],
-    digest: [u8; 32],
-}
-
-impl SegmentChunkIdentity {
-    /// Identity of rows `start..end` of part `part` under `composite`.
-    ///
-    /// # Errors
-    ///
-    /// `composite` is not the identity of `source`, `part` is past the parts, or
-    /// the range is outside the part.
-    pub fn new(
-        source: &SegmentedSource,
-        composite: &FullContentIdentity,
-        part: usize,
-        start: usize,
-        end: usize,
-    ) -> Result<Self, DataError> {
-        if Self::composite_of(source)?.digest != composite.digest {
-            return Err(DataError::InvalidArgument {
-                message: "composite identity is not that of this segmented source".into(),
-            });
-        }
-        let Some(owned) = source.parts().get(part) else {
-            return Err(DataError::InvalidArgument {
-                message: format!("segment {part} is past {} parts", source.parts().len()),
-            });
-        };
-        let full = FullContentIdentity::try_from_source(owned)?;
-        let view = LazyViewIdentity::from_chunk(&full, &owned.chunk(start, end)?)?;
-        let position = u64::try_from(part).map_err(|_| DataError::InvalidArgument {
-            message: "segment position does not fit in u64".into(),
-        })?;
-        let mut hasher = blake3::Hasher::new_derive_key(SEGMENT_VIEW_DOMAIN);
-        hasher.update(&composite.digest);
-        hasher.update(&composite.binding);
-        hasher.update(&position.to_le_bytes());
-        hasher.update(&view.digest);
-        Ok(Self { part, view, parent: composite.digest, digest: finish(&hasher) })
-    }
-
-    fn composite_of(source: &SegmentedSource) -> Result<FullContentIdentity, DataError> {
-        FullContentIdentity::try_from_segmented(source)
-    }
-
-    /// Part position.
-    #[must_use]
-    pub const fn part(&self) -> usize {
-        self.part
-    }
-
-    /// Row range inside the part.
-    #[must_use]
-    pub const fn rows(&self) -> Range<usize> {
-        self.view.rows()
-    }
-
-    /// Composite parent digest.
-    #[must_use]
-    pub const fn parent(&self) -> [u8; 32] {
-        self.parent
-    }
-
-    /// Domain-separated digest of the whole range identity.
-    #[must_use]
-    pub const fn digest(&self) -> [u8; 32] {
-        self.digest
-    }
-}
-
-impl BaseScan {
-    /// Accept streamed `parts` as a continuation of this base scan, for `source` only.
-    ///
-    /// The base scan records the identity of the source it verified. A source that has
-    /// since changed (other weights, mask, column, schema, time index or event times) has
-    /// another identity, and the continuation is refused: the scan must be taken again.
-    ///
-    /// # Errors
-    ///
-    /// The base scan was skipped, `source` is not the scanned source, or the digests differ.
-    pub fn accept_for_source(
-        &self,
-        source: &OwnedSource,
-        parts: &[&[u8]],
-        bytes: &[u8],
-    ) -> Result<IncrementalDigest, DataError> {
-        let Self::Verified(full) = self else {
-            return Err(scan_required());
-        };
-        if FullContentIdentity::try_from_source(source)? != *full {
-            return Err(stale_base_scan());
-        }
-        self.accept(parts, bytes)
-    }
-
-    /// As [`Self::accept_for_source`] for a panel or multi-environment source.
-    ///
-    /// # Errors
-    ///
-    /// As [`Self::accept_for_source`], over the composite identity.
-    pub fn accept_for_segmented(
-        &self,
-        source: &SegmentedSource,
-        parts: &[&[u8]],
-        bytes: &[u8],
-    ) -> Result<IncrementalDigest, DataError> {
-        let Self::Verified(full) = self else {
-            return Err(scan_required());
-        };
-        if FullContentIdentity::try_from_segmented(source)? != *full {
-            return Err(stale_base_scan());
-        }
-        self.accept(parts, bytes)
-    }
-
-    /// Required first scan of a panel or multi-environment source.
-    ///
-    /// # Errors
-    ///
-    /// A part fails [`FullContentIdentity::try_from_source`].
-    pub fn verify_segmented(source: &SegmentedSource) -> Result<Self, DataError> {
-        Ok(Self::Verified(FullContentIdentity::try_from_segmented(source)?))
     }
 }
 
@@ -611,35 +365,13 @@ fn contract_binding(contract: &SnapshotContract) -> [u8; 32] {
     finish(&hasher)
 }
 
-fn incremental_hasher(parent: &[u8; 32], binding: &[u8; 32]) -> blake3::Hasher {
-    let mut hasher = blake3::Hasher::new_derive_key(INCREMENT_DOMAIN);
-    hasher.update(&INCREMENTAL_VERSION.to_le_bytes());
-    hasher.update(parent);
-    hasher.update(binding);
-    hasher
-}
-
 fn finish(hasher: &blake3::Hasher) -> [u8; 32] {
     *hasher.finalize().as_bytes()
-}
-
-fn stale_base_scan() -> DataError {
-    DataError::InvalidArgument {
-        message: "the base scan was taken of a different source or contract; next attempt: \
-                  verify the current source again before accepting an increment"
-            .into(),
-    }
 }
 
 fn projection_refused() -> DataError {
     DataError::InvalidArgument {
         message: "a projected column set is not the full-source identity".into(),
-    }
-}
-
-fn scan_required() -> DataError {
-    DataError::InvalidArgument {
-        message: "incremental digest requires a verified base scan".into(),
     }
 }
 
@@ -735,27 +467,7 @@ mod tests {
     }
 
     #[test]
-    fn unverified_increment_is_refused_and_verified_matches_recompute() {
-        let owned = source(&[("x", &[1.0, 2.0, 3.0])]);
-        let parent = owned.borrow().storage().content_digest();
-        let parts: &[&[u8]] = &[b"scan-", b"continuation"];
-        let bytes = b"scan-continuation";
-
-        assert!(BaseScan::unverified(parent).accept(parts, bytes).is_err());
-
-        let scan = BaseScan::verify(&owned).unwrap();
-        let accepted = scan.accept(parts, bytes).unwrap();
-        let binding = FullContentIdentity::try_from_source(&owned).unwrap().binding();
-        assert_eq!(accepted.version(), INCREMENTAL_VERSION);
-        assert_eq!(accepted.parent(), parent);
-        assert_eq!(accepted.digest(), IncrementalDigest::recompute(&parent, &binding, bytes));
-        assert_eq!(accepted.digest(), IncrementalDigest::stream(&parent, &binding, parts));
-        assert_ne!(accepted.digest(), parent);
-        assert!(scan.accept(parts, b"scan-other").is_err());
-    }
-
-    #[test]
-    fn time_index_changes_the_lazy_view_and_the_incremental_digest() {
+    fn time_index_changes_the_lazy_view() {
         use crate::temporal::{SamplingRegularity, TimeIndex};
 
         let owned = source(&[("x", &[1.0, 2.0, 3.0, 4.0])]);
@@ -777,13 +489,6 @@ mod tests {
         assert_ne!(base_full.binding(), timed_full.binding());
         assert_ne!(base_view.digest(), timed_view.digest());
         assert_ne!(base_view.binding(), timed_view.binding());
-
-        let parts: &[&[u8]] = &[b"scan"];
-        let bytes = b"scan";
-        let base_inc = BaseScan::verify(&owned).unwrap().accept(parts, bytes).unwrap();
-        let timed_inc = BaseScan::verify(&timed).unwrap().accept(parts, bytes).unwrap();
-        assert_eq!(base_inc.parent(), timed_inc.parent());
-        assert_ne!(base_inc.digest(), timed_inc.digest());
     }
 
     fn series(values: &[f64], interval_ns: u64) -> crate::dataset::TimeSeriesData {
@@ -845,20 +550,17 @@ mod tests {
     }
 
     #[test]
-    fn every_series_setter_invalidates_the_lazy_and_incremental_digests() {
+    fn every_series_setter_invalidates_the_lazy_digest() {
         use std::sync::Arc;
 
         use crate::column::ValidityBitmap;
 
         let data = series(&[1.0, 2.0, 3.0, 4.0], 10);
-        let parts: &[&[u8]] = &[b"scan"];
-        let bytes = b"scan";
         let observe = |data: &crate::dataset::TimeSeriesData| {
             let source = OwnedSource::from_time_series(data, SourceModality::TimeSeries).unwrap();
             let full = FullContentIdentity::try_from_source(&source).unwrap();
             let lazy = LazyViewIdentity::from_chunk(&full, &source.chunk(0, 3).unwrap()).unwrap();
-            let inc = BaseScan::verify(&source).unwrap().accept(parts, bytes).unwrap();
-            (lazy.digest(), inc.digest())
+            lazy.digest()
         };
         let base = observe(&data);
         assert_eq!(base, observe(&data.clone()));
@@ -873,9 +575,7 @@ mod tests {
             .unwrap();
         let retimed = series(&[1.0, 2.0, 3.0, 4.0], 20);
         for changed in [&weights, &mask, &replaced, &retimed] {
-            let seen = observe(changed);
-            assert_ne!(seen.0, base.0);
-            assert_ne!(seen.1, base.1);
+            assert_ne!(observe(changed), base);
         }
     }
 
@@ -947,64 +647,6 @@ mod tests {
         // still moves the composite binding.
         let retimed_full = composite(&retimed);
         assert_ne!(retimed_full.binding(), reference.binding());
-    }
-
-    #[test]
-    fn panel_chunk_and_increment_identities_are_invalidated_by_a_part_setter() {
-        use std::sync::Arc;
-
-        let (a, b) = (series(&[1.0, 2.0, 3.0, 4.0], 10), series(&[5.0, 6.0, 7.0, 8.0], 10));
-        let base = SegmentedSource::from_panel(&panel(&[(0, a.clone()), (1, b.clone())]));
-        let full = composite(&base);
-        let chunk = |source: &SegmentedSource, part: usize| {
-            let full = composite(source);
-            SegmentChunkIdentity::new(source, &full, part, 1, 3).unwrap()
-        };
-        let reference = chunk(&base, 0);
-        assert_eq!(reference.part(), 0);
-        assert_eq!(reference.rows(), 1..3);
-        assert_eq!(reference.parent(), full.digest());
-        assert_ne!(reference.digest(), chunk(&base, 1).digest());
-
-        // A setter on the other unit moves the composite parent, so the chunk of
-        // unit 0 is a different identity even though unit 0 is untouched.
-        let weighted = b.with_weights(Arc::from(vec![1.0, 2.0, 1.0, 2.0])).unwrap();
-        let changed = base
-            .clone()
-            .with_part(
-                1,
-                OwnedSource::from_time_series(&weighted, SourceModality::Panel)
-                    .unwrap()
-                    .with_unit("unit:1"),
-            )
-            .unwrap();
-        assert_ne!(chunk(&changed, 0).digest(), reference.digest());
-        assert_ne!(chunk(&changed, 0).parent(), reference.parent());
-        // Moving the range to a unit with another label is a different identity.
-        let swapped = SegmentedSource::from_panel(&panel(&[(1, a.clone()), (0, b.clone())]));
-        assert_ne!(chunk(&swapped, 0).digest(), reference.digest());
-
-        // Wrong composite, part past the end, and range outside the part refuse.
-        let other = composite(&SegmentedSource::from_panel(&panel(&[(0, a.clone())])));
-        assert!(SegmentChunkIdentity::new(&base, &other, 0, 0, 1).is_err());
-        assert!(SegmentChunkIdentity::new(&base, &full, 2, 0, 1).is_err());
-        assert!(SegmentChunkIdentity::new(&base, &full, 0, 0, 5).is_err());
-
-        let parts: &[&[u8]] = &[b"scan"];
-        let bytes = b"scan";
-        let accepted = |source: &SegmentedSource| {
-            BaseScan::verify_segmented(source).unwrap().accept(parts, bytes).unwrap()
-        };
-        let first = accepted(&base);
-        assert_eq!(first.parent(), full.digest());
-        assert_ne!(accepted(&changed).digest(), first.digest());
-        let retimed =
-            SegmentedSource::from_panel(&panel(&[(0, a), (1, series(&[5.0, 6.0, 7.0, 8.0], 99))]));
-        assert_ne!(accepted(&retimed).digest(), first.digest());
-        assert!(
-            BaseScan::unverified(full.digest()).accept(parts, bytes).is_err(),
-            "an increment needs the segmented base scan"
-        );
     }
 
     #[test]

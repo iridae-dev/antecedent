@@ -427,6 +427,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "recalc_cell",
         "recalc_dr",
         "recovery_chain",
+        "release_migration",
         "repair",
         "scenario_decision",
         "scenario_invariance",

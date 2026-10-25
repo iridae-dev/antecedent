@@ -31,7 +31,7 @@ from ._joint_panel_designs import (
     replay_population_reference,
     replay_reference_decomposition,
 )
-from ._joint_panel_experiment import PanelExperiment
+from ._joint_panel_experiment import PanelExperiment, PanelFutureRegime, PanelFutureStudy
 from ._joint_panel_experiment import acceptance_matrix as experiment_acceptance_matrix
 from .errors import CausalValueError
 from .intervention_programs import Expr
@@ -39,6 +39,8 @@ from .intervention_programs import Expr
 __all__ = [
     "PanelProgramCertificate",
     "PanelExperiment",
+    "PanelFutureRegime",
+    "PanelFutureStudy",
     "experiment_acceptance_matrix",
     "JointDesignResult",
     "NativeJointDesignResult",

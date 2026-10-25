@@ -320,6 +320,7 @@ class ResponseAnalysisResult:
         self,
     ) -> list[tuple[str, bool, bool, float, float, str | None]]: ...
     def program_basis_json(self) -> str | None: ...
+    def horizon_draws_json(self, dose_index: int) -> tuple[str | None, str | None]: ...
     missing_data_json: str | None
     certificate_json: str | None
     treatments: list[str]
@@ -1242,6 +1243,7 @@ class GraphPosterior:
     @property
     def claim(self) -> dict[str, str]: ...
     def inspect(self) -> dict[str, str]: ...
+    def accept_posterior(self) -> dict[str, str]: ...
     def to_weighted_samples(self) -> dict[str, object]: ...
     def edge_marginal_matrix(self) -> list[list[float]]: ...
     @classmethod
@@ -8770,6 +8772,142 @@ def propagation_chain_dependents(
 def propagation_chain_product_table(
     columns: list[list[float]], max_rows: int
 ) -> tuple[list[list[float]] | None, str | None]: ...
+def propagation_chain_family_table(
+    alignment: str,
+    estimates: list[
+        tuple[str, float, float, str, list[tuple[str, str]], bool, str | None]
+    ],
+    dependence: str,
+    covariance: list[float] | None = None,
+    ledger: EvidenceLedgerHandle | None = None,
+    rows: int = 1597,
+    seed: int = 0,
+) -> tuple[tuple[list[str], list[float], list[tuple[str, str]]] | None, str | None]: ...
+def finite_discrete_adjustment_contrast(
+    counts: list[int],
+    draws: list[tuple[list[int], float]],
+    cancel: CancellationToken | None = None,
+) -> tuple[float, float, float, float, int, int]: ...
+
+class LogisticProvider:
+    def __init__(self, id: int, name: str) -> None: ...
+    @property
+    def id(self) -> int: ...
+    @property
+    def name(self) -> str: ...
+    @property
+    def capabilities(self) -> list[str]: ...
+
+def recipe_logistic_standardized_effect(
+    columns: list[tuple[str, list[float]]],
+    treatment: str,
+    outcome: str,
+    adjustment: list[str],
+    provider: LogisticProvider,
+    cancel: CancellationToken | None = None,
+) -> tuple[float, float, float, list[float], list[float], int, int]: ...
+def cohort_checked_projection(
+    closure: tuple[list[str], list[str], list[str], list[str], list[str], list[str]],
+    observed: list[tuple[str, list[bool]]],
+    keep: list[str],
+) -> list[int]: ...
+def cohort_checked_push_filter(
+    closure: tuple[list[str], list[str], list[str], list[str], list[str], list[str]],
+    observed: list[tuple[str, list[bool]]],
+    column: str,
+    drop_row: list[bool],
+) -> list[int]: ...
+def score_published_decision(
+    demand: str,
+    mean: float,
+    posterior_mean: float | None = None,
+    slope: float | None = None,
+    intercept: float | None = None,
+) -> tuple[tuple[float, str] | None, str | None]: ...
+def compile_design_ranking_for_study(
+    request_json: str,
+    names: list[str],
+    columns: list[list[float]],
+    edges: list[tuple[str, str]],
+    treatment: str,
+    outcome: str,
+    *,
+    posterior: bool = True,
+    n_draws: int = 256,
+    prior_scale: float = 1.0e6,
+    checked_prior: CheckedPriorSignal | None = None,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
+def evaluate_design_ranking_for_study(
+    request_json: str,
+    artifact_id: str,
+    names: list[str],
+    columns: list[list[float]],
+    edges: list[tuple[str, str]],
+    treatment: str,
+    outcome: str,
+    *,
+    posterior: bool = True,
+    n_draws: int = 256,
+    prior_scale: float = 1.0e6,
+    checked_prior: CheckedPriorSignal | None = None,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, bytes | None, str | None, str | None]: ...
+def discovered_transport_trial_estimate_run(
+    contract_json: str,
+    names: list[str],
+    source_columns: list[NDArray[np.float64]],
+    target_columns: list[NDArray[np.float64]],
+    query_json: str,
+    selection_targets: list[int],
+    alpha: float,
+    member_bound: int | None = None,
+    bootstrap_replicates: int = 0,
+    *,
+    discovery_columns: list[NDArray[np.float64]] | None = None,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None, str | None, str | None, bytes | None]: ...
+def verify_trial_compatible_transport_estimate_artifact(
+    artifact: bytes, *, seed: int = 0
+) -> str: ...
+def discovered_transport_trial_confidence_set_run(
+    contract_json: str,
+    names: list[str],
+    source_columns: list[NDArray[np.float64]],
+    target_columns: list[NDArray[np.float64]],
+    query_json: str,
+    selection_targets: list[int],
+    alpha: float,
+    support_lower: float,
+    support_upper: float,
+    member_bound: int | None = None,
+    bootstrap_replicates: int = 200,
+    *,
+    discovery_columns: list[NDArray[np.float64]] | None = None,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None, str | None, str | None, bytes | None]: ...
+def verify_trial_confidence_set_against_inputs(
+    receipt: bytes,
+    contract_json: str,
+    names: list[str],
+    source_columns: list[NDArray[np.float64]],
+    target_columns: list[NDArray[np.float64]],
+    query_json: str,
+    selection_targets: list[int],
+    alpha: float,
+    support_lower: float,
+    support_upper: float,
+    member_bound: int | None = None,
+    bootstrap_replicates: int = 200,
+    *,
+    discovery_columns: list[NDArray[np.float64]] | None = None,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None, str | None, str | None, bytes | None]: ...
 
 class SequentialBeliefSession:
     @staticmethod
@@ -10063,6 +10201,17 @@ def consume_instrumented_selection(
 class _JointPanelExperiment:
     def report(self, ledger: EvidenceLedgerHandle) -> str: ...
     def decide(self, contract_json: str, ledger: EvidenceLedgerHandle) -> str: ...
+    def rank_next_studies(
+        self,
+        declaration_json: str,
+        ledger: EvidenceLedgerHandle,
+        *,
+        replicates: int = 199,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
     def rank_next_samples(
         self,
         declaration_json: str,
@@ -10352,4 +10501,13 @@ def replay_reference_decomposition(
     threads: int = 1,
     max_bytes: int | None = None,
     cancel: CancellationToken | None = None,
+) -> str: ...
+def current_score_row_digest_bytes(row_ids: list[int]) -> bytes: ...
+def narrow_score_row_digest_bytes(row_ids: list[int]) -> bytes: ...
+def declared_target_digest(level: float) -> bytes: ...
+def consume_previous_release(
+    artifact: bytes, level: float
+) -> tuple[bytes, bytes, str, list[tuple[str, str]]]: ...
+def consume_previous_routes(
+    artifact: bytes, methods: list[tuple[str, str, str, str, str, str]]
 ) -> str: ...

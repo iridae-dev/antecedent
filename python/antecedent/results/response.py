@@ -499,6 +499,43 @@ class CausalResponseView(ResultModel, ResultAPI):
             raise ExternalRefusal(json.loads(refusal))
         return tuple(ScientificQuantity._from_wire(wire) for wire in json.loads(quantities))
 
+    def horizon_draws(self, dose_index: int = 0) -> Any:
+        """Joint draws of dose number ``dose_index`` across the horizons of a temporal response.
+
+        Available when the response was prepared with ``retain_joint_horizons=True``: the
+        draws are the replicates that refit every horizon together (the joint block-bootstrap
+        replicates, or the block-weight posterior draws under Bayesian inference), so a
+        cumulative effect or a contrast between horizons keeps their dependence. Returns a
+        :class:`~antecedent.horizon_composition.JointHorizonDraws`.
+
+        Raises:
+            CausalValueError: ``dose_index`` is negative, or the view carries no native payload.
+            ExternalRefusal: the response retains no joint draws, is not a temporal mean curve
+                or intervention response, or ``dose_index`` is outside the curve's grid.
+        """
+        from ..horizon_composition import JointHorizonDraws
+
+        native = getattr(self._raw, "horizon_draws_json", None)
+        if native is None:
+            raise CausalValueError(
+                "this response view carries no native response payload to read horizon draws from"
+            )
+        if dose_index < 0:
+            raise CausalValueError("dose_index must be non-negative")
+        draws, refusal = native(int(dose_index))
+        if refusal is not None:
+            from ..external import ExternalRefusal
+
+            raise ExternalRefusal(json.loads(refusal))
+        raw = json.loads(draws)
+        return JointHorizonDraws(
+            horizons=tuple(raw["horizons"]),
+            center=tuple(raw["center"]),
+            columns=tuple(tuple(column) for column in raw["columns"]),
+            alignment_id=raw["alignment_id"],
+            evidence_id=raw["evidence_id"],
+        )
+
     @property
     def simultaneous_band(self) -> SimultaneousBand | None:
         """Band over the whole response grid published next to the pointwise band.

@@ -35,6 +35,7 @@ const KEYS: &[&str] = &[
     "sampling_design",
     "identifier",
     "estimator",
+    "retain_joint_horizons",
 ];
 
 /// Declared inference: mode plus the Bayesian prior and draw budget.
@@ -157,6 +158,9 @@ pub(crate) struct PrepareOptions {
     pub identifier: Option<antecedent::IdentifierId>,
     /// Estimator a route that accepts a family of them was asked for; the compiler validates it.
     pub estimator: Option<antecedent::EstimatorId>,
+    /// Keep the replicates coupled across the horizons of a temporal response, so the draws of
+    /// a quantity built from several horizons can be read back.
+    pub retain_joint_horizons: bool,
 }
 
 impl PrepareOptions {
@@ -267,6 +271,10 @@ impl PrepareOptions {
                 value.extract::<String>()?.parse::<antecedent::EstimatorId>().map_err(unknown)
             })
             .transpose()?;
+        let retain_joint_horizons = item("retain_joint_horizons")?
+            .map(|value| value.extract::<bool>())
+            .transpose()?
+            .unwrap_or(false);
         Ok(Self {
             refute,
             bootstrap,
@@ -284,6 +292,7 @@ impl PrepareOptions {
             sampling_design,
             identifier,
             estimator,
+            retain_joint_horizons,
         })
     }
 
@@ -415,6 +424,7 @@ impl PrepareOptions {
             sampling_design: self.sampling_design,
             identifier: self.identifier,
             estimator: self.estimator,
+            retain_joint_horizons: self.retain_joint_horizons,
         };
         without_bootstrap.apply(builder)
     }

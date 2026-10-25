@@ -44,6 +44,7 @@ from ._native import export_decision_contract as _export_contract
 from ._native import export_decision_result as _export_result
 from ._native import load_decision_contract as _load_contract
 from ._native import replay_decision_result as _replay
+from ._native import score_published_decision as _score_published
 from ._refusal import raise_refusal
 from ._validate import real, text
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError, StructuredRefusal
@@ -935,6 +936,63 @@ def source_digest(source: JointDistributionArtifact) -> str:
     return str(_source_digest(source._native))
 
 
+@dataclass(frozen=True, slots=True)
+class PublishedScore:
+    """An affine decision score and the carrier of the published answer that produced it."""
+
+    value: float
+    """``slope * location + intercept``."""
+    carrier: str
+    """``parameter_posterior`` or ``mean``; never a confidence interval."""
+
+
+def score_published_answer(
+    demand: Literal["affine_posterior", "affine_mean", "nonlinear", "risk"],
+    *,
+    mean: float,
+    posterior_mean: float | None = None,
+    slope: float | None = None,
+    intercept: float | None = None,
+) -> PublishedScore:
+    """Score a decision demand from what an answer published.
+
+    An ``affine_posterior`` demand (utility ``slope * answer + intercept``) reads the posterior
+    mean and needs the answer to be a posterior; an ``affine_mean`` demand reads the published
+    point answer ``mean`` and needs no posterior. A ``nonlinear`` utility or an individual outcome
+    ``risk`` cannot be carried by a mean.
+
+    Raises:
+        DecisionRefusal: the answer cannot publish the carrier the demand needs; the refusal
+            names the missing carrier (``parameter_posterior`` or ``outcome_law``).
+    """
+    scored, missing = _score_published(
+        demand,
+        real(mean, "mean", finite=True),
+        None if posterior_mean is None else real(posterior_mean, "posterior_mean", finite=True),
+        None if slope is None else real(slope, "slope", finite=True),
+        None if intercept is None else real(intercept, "intercept", finite=True),
+    )
+    if scored is None:
+        raise DecisionRefusal(
+            {
+                "code": "distribution_meaning_mismatch",
+                "stage": "score_published_answer",
+                "detail": "decision.carrier_missing",
+                "message": (
+                    f"the {demand} demand needs the {missing} carrier, which the published "
+                    "answer does not carry"
+                ),
+                "offending": missing,
+                "remedy": (
+                    "demand a parameter posterior or an outcome law, or declare the utility's "
+                    "affine form"
+                ),
+            }
+        )
+    value, carrier = scored
+    return PublishedScore(value=value, carrier=carrier)
+
+
 __all__ = [
     "Action",
     "ActionOutcome",
@@ -946,11 +1004,13 @@ __all__ = [
     "DecisionRefusal",
     "Expr",
     "MeanSource",
+    "PublishedScore",
     "Verdict",
     "const",
     "maximum",
     "minimum",
     "replay",
+    "score_published_answer",
     "source_digest",
     "x",
 ]

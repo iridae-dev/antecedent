@@ -10,7 +10,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from .errors import CausalTypeError
+from .errors import CausalTypeError, CausalValueError
 
 
 def acceptance_matrix() -> dict[str, Any]:
@@ -99,6 +99,70 @@ def condition_native(
 
 
 @dataclass(frozen=True, slots=True)
+class PanelFutureRegime:
+    """The setting a future study would run in and how it connects to the retained response.
+
+    ``bridge`` is the licensed :class:`~antecedent.scientific_bridge.BridgeContract` from that
+    study's population, window, dose, duration, exposure, recency and spend to the retained
+    contrast, with its transport premise, mapping uncertainty and source dependence;
+    ``functional`` is the time functional of the retained worlds that the study's estimand
+    corresponds to. ``intercepts`` and ``slopes`` are the paired per-draw affine realization of
+    its mapping (one per retained draw slot) over the fitted source ``mapping_dependency``, and
+    ``mapping_evidence`` the current ledger source of that mapping evidence.
+    """
+
+    bridge: Any
+    mapping_dependency: str
+    intercepts: Sequence[float]
+    slopes: Sequence[float]
+    mapping_evidence: str
+    functional: Any = "terminal_mean"
+
+    def _wire(self) -> dict[str, Any]:
+        from .scientific_bridge import BridgeContract
+
+        if not isinstance(self.bridge, BridgeContract):
+            raise CausalTypeError("a future regime needs a BridgeContract")
+        return {
+            "bridge": self.bridge.to_wire(),
+            "functional": self.functional,
+            "mapping_dependency": self.mapping_dependency,
+            "intercepts": list(self.intercepts),
+            "slopes": list(self.slopes),
+            "mapping_evidence": self.mapping_evidence,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class PanelFutureStudy:
+    """A candidate future study: sampling model and cost, and optionally its own regime.
+
+    ``sample_size``, ``observation_variance`` (of one future observation, in the original
+    experimental source units) and ``cost_utility`` (already in the decision's utility unit, or
+    ``None`` for an uncosted catalog) describe the Gaussian sample. ``regime=None`` is another
+    sample of the already observed estimand; a :class:`PanelFutureRegime` measures a different
+    functional of the same retained joint response through its own licensed bridge and mapping.
+    """
+
+    id: str
+    sample_size: int
+    observation_variance: float
+    cost_utility: float | None = None
+    regime: PanelFutureRegime | None = None
+
+    def _wire(self) -> dict[str, Any]:
+        if self.regime is not None and not isinstance(self.regime, PanelFutureRegime):
+            raise CausalTypeError("regime must be a PanelFutureRegime or None")
+        return {
+            "id": self.id,
+            "sample_size": self.sample_size,
+            "observation_variance": self.observation_variance,
+            "cost_utility": self.cost_utility,
+            "regime": None if self.regime is None else self.regime._wire(),
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class PanelExperiment:
     """Conditional posterior retaining aligned response and uncertain mapping slots.
 
@@ -137,6 +201,46 @@ class PanelExperiment:
         declaration = {"actions": list(actions), "candidates": list(candidates)}
         return json.loads(
             self._handle.rank_next_samples(
+                json.dumps(declaration, allow_nan=False),
+                ledger._handle,
+                replicates=replicates,
+                **execution,
+            )
+        )
+
+    def rank_next_studies(
+        self,
+        *,
+        actions: Sequence[Mapping[str, Any]],
+        studies: Sequence[PanelFutureStudy],
+        ledger: Any,
+        replicates: int = 199,
+        **execution: Any,
+    ) -> dict[str, Any]:
+        """Rank candidate studies, each possibly in a regime other than the observed one.
+
+        Each study is valued through the actual update it would cause: the retained draws,
+        their posterior weights and the terminal responses stay exactly those of this update,
+        and only what each draw predicts the study will observe changes with its regime. A
+        regime whose bridge is unlicensed, whose mapping disagrees with the fitted source, or
+        whose mapping evidence is missing, withdrawn or superseded in ``ledger`` is refused.
+        ``actions`` are as for :meth:`rank_next_samples`. Every candidate reports its
+        ``regime_identity`` (``None`` for the observed estimand).
+        """
+        rank = getattr(self._handle, "rank_next_studies", None)
+        if rank is None:
+            raise CausalValueError(
+                "this experiment source cannot rank studies in another regime; use "
+                "rank_next_samples for samples of the observed estimand"
+            )
+        wires = []
+        for study in studies:
+            if not isinstance(study, PanelFutureStudy):
+                raise CausalTypeError("studies must be PanelFutureStudy declarations")
+            wires.append(study._wire())
+        declaration = {"actions": list(actions), "studies": wires}
+        return json.loads(
+            rank(
                 json.dumps(declaration, allow_nan=False),
                 ledger._handle,
                 replicates=replicates,

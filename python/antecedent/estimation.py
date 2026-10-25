@@ -50,18 +50,15 @@ from ._estimate_helpers import (
 from ._from_raw import _execution_slots, _missing_data_from_raw, _wrap_ate
 from ._native import (
     MediationEffectsSummary,
-    mediation_effects_summary,
-)
-from ._native import (
     _identify_ate,
-)
-from ._native import (
     _identify_ate_admg,
+    mediation_effects_summary,
 )
 from ._study_lifecycle import guard_design, replay_declaration, retain, retain_preparation
 from ._table_file import coerce_table_source
 from ._temporal_design import TemporalDesignQuery
 from ._treatment_labels import TreatmentLabels
+from .descriptive import Association
 from .discovery import (
     DbnPosterior,
     ExactDagPosterior,
@@ -95,7 +92,6 @@ from .policy import (
     MultiActionPolicyValue,
     PolicyValue,
 )
-from .descriptive import Association
 from .population import coerce_target_population
 from .quasi import (
     AugmentedPanelDiD,
@@ -1179,6 +1175,7 @@ class PreparedAnalysis(Generic[ResultT]):
             "independent_subject_trajectories", "clustered_panel", "dependent_time_series"
         ]
         | None = None,
+        retain_joint_horizons: bool = False,
     ) -> PreparedAnalysis[_PreparedResult]:
         """Compile a durable plan for a licensed analysis cell.
 
@@ -1260,8 +1257,24 @@ class PreparedAnalysis(Generic[ResultT]):
         row bootstrap under a trajectory design, is refused with a sampling-design error. The
         declaration is part of the study's data identity. A name that is not one of the three
         raises :class:`CausalValueError`.
+
+        ``retain_joint_horizons=True`` keeps, for a temporal ``ResponseCurve`` or
+        ``InterventionResponse``, the replicates that refit every horizon together (the joint
+        block-bootstrap replicates under Frequentist inference, which needs ``bootstrap=``, or
+        the block-weight posterior draws under Bayesian inference). The result's
+        ``horizon_draws(dose_index)`` reads them back, so a quantity built from several horizons
+        keeps their dependence. Any other query refuses the option.
         """
         data = coerce_table_source(data)
+        if retain_joint_horizons and not (
+            isinstance(query, (ResponseCurve, InterventionResponse))
+            and getattr(query, "is_temporal", False)
+        ):
+            raise CausalUnsupportedError(
+                "retain_joint_horizons= keeps the replicates coupled across the horizons of a "
+                "temporal ResponseCurve or InterventionResponse; this query has no horizons",
+                reason_code="option_not_applicable",
+            )
         from .transport import ExactTransportData, StatisticalTransportData
         from .transport._day1 import prepare_transport, refuse_transport_only_kwargs
         from .transport.advanced import (
@@ -1748,6 +1761,8 @@ class PreparedAnalysis(Generic[ResultT]):
             "inference": _inference_wire(inference),
             "discovery_algorithm": discovery_algorithm,
         }
+        if retain_joint_horizons:
+            options["retain_joint_horizons"] = True
         if missing_policy is not None:
             options["missing"] = native_declaration(missing_policy, names)
         if sampling_design is not None:

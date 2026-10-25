@@ -234,6 +234,45 @@ impl ResponseAnalysisResult {
         ))
     }
 
+    /// The joint draws of dose number `dose_index` across the horizons of a temporal response
+    /// prepared with joint horizons retained.
+    ///
+    /// Returns `(draws_json, refusal_json)`: exactly one is `None`. The draws carry the
+    /// horizons, the point value of each horizon's cell, one column of replicates per horizon
+    /// and the alignment and evidence identities.
+    fn horizon_draws_json(&self, dose_index: usize) -> PyResult<(Option<String>, Option<String>)> {
+        let Some(authority) = &self.authority else {
+            return Err(crate::value_err(
+                "this response carries no native response payload to read horizon draws from",
+            ));
+        };
+        match antecedent::analysis::horizon_composition::horizon_draws(
+            &authority.response,
+            dose_index,
+        ) {
+            Ok(draws) => Ok((
+                Some(
+                    serde_json::json!({
+                        "horizons": draws.horizons,
+                        "center": draws.center,
+                        "columns": draws.columns,
+                        "alignment_id": draws.alignment_id,
+                        "evidence_id": draws.evidence_id,
+                    })
+                    .to_string(),
+                ),
+                None,
+            )),
+            Err(refusal) => {
+                let json = serde_json::to_string(
+                    &antecedent_io::external_binding_wire::RefusalWire::from(refusal),
+                )
+                .map_err(|error| crate::value_err(error.to_string()))?;
+                Ok((None, Some(json)))
+            }
+        }
+    }
+
     /// The scientific coordinates of the response values, derived natively.
     ///
     /// Returns `(quantities_json, refusal_json)`: exactly one is `None`. The

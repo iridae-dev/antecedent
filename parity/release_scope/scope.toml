@@ -23,6 +23,7 @@ retired_capabilities = [
   "Recipe support licenses emitting route and test obligations from an explicit license: no recipe route requested one.",
   "Evidence effect ledger (record-then-combine and dependent-pooling operators with effect identities): no synthesis route recorded effects; evidence is combined through the envelope, dependence and joint-alignment contracts.",
   "Chunked refresh ledger for single-series summaries (appended chunk rows, caller-supplied summaries, cached snapshots, lag-boundary borrowing across chunks): no ingestion, refresh or reuse route called it, and refresh over appended rows is carried by the prepared reuse and refresh routes.",
+  "Incremental continuation digests bound to a verified base scan, and range identities inside one part of a segmented source (the full-content, lazy-view and composite identities stay): the file source and plan routes identify data through the full-content and lazy-view identities, so no route accepted a continuation digest or a per-part range identity.",
 ]
 
 [[entry]]

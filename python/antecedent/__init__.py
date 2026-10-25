@@ -447,6 +447,7 @@ _LAZY_MODULES: tuple[str, ...] = (
     "recalc_static",
     "recalc_temporal",
     "recovery_chain",
+    "release_migration",
     "repair",
     "scenario_decision",
     "scenario_invariance",
@@ -532,6 +533,7 @@ if _TYPE_CHECKING:
     from . import recalc_static as recalc_static
     from . import recalc_temporal as recalc_temporal
     from . import recovery_chain as recovery_chain
+    from . import release_migration as release_migration
     from . import repair as repair
     from . import scenario_decision as scenario_decision
     from . import scenario_invariance as scenario_invariance
