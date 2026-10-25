@@ -853,10 +853,10 @@ fn attach_reason_from_message(err: PyErr, message: &str) -> PyErr {
 impl IntoCausalPyErr for RustCausalError {
     fn into_antecedent_py_err(self) -> PyErr {
         let code = reason_code_of(&self);
-        let remedy = self.remedy();
+        let remedy = self.remedy().map(str::to_owned);
         let fields = self.refusal_fields().map(std::borrow::Cow::into_owned);
         let routes = self.route_diagnostics();
-        let err = with_remedy(uncoded_py_err(self), remedy);
+        let err = with_remedy(uncoded_py_err(self), remedy.as_deref());
         let err = preflight_api::with_refusal_fields(err, fields.as_ref());
         let err = with_route_diagnostics(err, &routes);
         match code {
