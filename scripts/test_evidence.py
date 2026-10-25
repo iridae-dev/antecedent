@@ -1112,6 +1112,7 @@ _BUILDER_DISCARDS = (
 _EXECUTES = re.compile(r"\b(?:execute|estimate(?:_[A-Za-z0-9_]+)?|interval|refresh_series|run|evaluate_exact)\s*\(")
 _INSPECTS_PLAN = re.compile(
     r"\b(?:program|plan|lowering)\b"
+    r"|\.retained_operation\s*\("
     r"|\.logical_plan\b"
     r"|\.checked_(?:temporal_response_info|temporal_mediation_info|bayesian_basis_cate_query)\b",
     re.I,
