@@ -422,8 +422,6 @@ fn arrow_null_and_offset_match_the_owned_table() {
     use crate::arrow_adapter::{tabular_from_arrow_c_columns, tabular_from_record_batch};
     use crate::arrow_ffi::ArrowCColumn;
 
-    let owned = tabular(columns(&[("x", &[1.0, f64::NAN, 3.0])]));
-
     let schema = Schema::new(vec![Field::new("x", DataType::Float64, true)]);
     let batch = RecordBatch::try_new(
         Arc::new(schema),
@@ -431,6 +429,11 @@ fn arrow_null_and_offset_match_the_owned_table() {
     )
     .unwrap();
     let from_batch = tabular_from_record_batch(&batch).unwrap();
+    // The importer declares every float column a context variable; the owned table carries the
+    // same declaration, so the schema digests match and only the rows are compared.
+    let owned = tabular(columns(&[("x", &[1.0, f64::NAN, 3.0])]))
+        .with_schema(from_batch.data.storage().schema().clone())
+        .unwrap();
     assert!(!is_foreign(from_batch.data.storage()));
     assert_same_science(&owned, &tabular(from_batch.data.storage().clone()));
 

@@ -189,17 +189,46 @@ pub fn identify(graph: &Admg, query: &CausalQuery) -> IdentificationResult {
     id.identify(&prepared, query, &mut workspace).unwrap()
 }
 
+/// The value of the identified functional on a model's observational law.
+///
+/// A complete ID derivation can keep a variable free that is not in the query (a parent of
+/// the treatment that is not an ancestor of the outcome once the treatment's incoming edges
+/// are cut); the identity then holds at every value of it with positive support. The functional
+/// is evaluated at every such value, and the values must agree: a functional whose value moved
+/// with the free variable would not be the effect.
 pub fn evaluate(result: &IdentificationResult, scm: &LatentScm) -> f64 {
     let provider = JointProvider { cards: scm.cards.clone(), joint: scm.observational() };
     let functional = result.estimands[0].functional;
-    assert!(
-        result.arena.free_variables(functional).is_empty(),
-        "the path-specific functional must be closed: {}",
-        result.arena.pretty(functional)
-    );
+    let free = result.arena.free_variables(functional);
     let plan = result.arena.compile(functional).unwrap();
-    plan.evaluate_with(&result.arena, &provider, &EvalContext::default(), &Assignment::new())
-        .unwrap()
+    let combinations: usize = free.iter().map(|var| scm.cards[var.raw() as usize]).product();
+    let mut values = Vec::new();
+    for combination in 0..combinations {
+        let mut rest = combination;
+        let mut assignment = Assignment::new();
+        for var in free.iter().rev() {
+            let card = scm.cards[var.raw() as usize];
+            assignment.set(*var, Value::f64((rest % card) as f64));
+            rest /= card;
+        }
+        // A value without support leaves a conditioner on a null event: it carries no claim.
+        if let Ok(value) =
+            plan.evaluate_with(&result.arena, &provider, &EvalContext::default(), &assignment)
+        {
+            values.push(value);
+        }
+    }
+    let first = *values.first().unwrap_or_else(|| {
+        panic!("the functional has no supported value: {}", result.arena.pretty(functional))
+    });
+    for value in &values {
+        assert!(
+            (value - first).abs() < 1e-9,
+            "the functional moves with its free variables {free:?}: {first} against {value} in {}",
+            result.arena.pretty(functional)
+        );
+    }
+    first
 }
 
 pub fn has_rule(result: &IdentificationResult, rule: &str) -> bool {

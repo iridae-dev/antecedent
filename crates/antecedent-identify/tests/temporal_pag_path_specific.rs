@@ -12,8 +12,9 @@
 //! * a cause that precedes the window is a latent common cause of its in-window effects: two
 //!   ancestors of the treatment and of the outcome that share a cause before the window are
 //!   joined by a bidirected edge, and the functional the envelope carries is the effect of the
-//!   model with that confounder, while the functional of the induced sub-graph (which drops
-//!   it) is not;
+//!   model with that confounder; the induced sub-graph (which drops it) yields the same effect
+//!   here, because the confounded ancestors of the treatment and the outcome are observed in
+//!   the window and block every path through the hidden cause;
 //! * a treatment whose edges are all invisible leaves a candidate with a recanting district,
 //!   and the route refuses instead of reporting the functional of one of the models.
 //!
@@ -89,13 +90,16 @@ fn selected_children(contrast: MediationContrast, mediator: usize, outcome: usiz
     }
 }
 
-/// `C -> T -> M -> Y` within one period, and `T -> Y` when `direct`: the only invisible edge
-/// is `C -> T`, and a hidden common cause of `C` and `T` does not reach the effect of `T` on
-/// `Y`.
+/// `C -> T -> M -> Y` within one period, `S -> M`, and `T -> Y` when `direct`: the only
+/// invisible edge is `C -> T`, and a hidden common cause of `C` and `T` does not reach the
+/// effect of `T` on `Y`. The cause `S` of the mediator makes `M <-> Y` a different
+/// m-separation model (it would open `S` to `Y` given `M`), so no model the MAG represents
+/// confounds the mediator and the outcome; without it the direct edge would hide such a model,
+/// whose district a selected and a complementary edge both enter.
 fn chain_template(direct: bool) -> TemporalPag {
     let mut graph = TemporalPag::empty();
-    let nodes: Vec<_> = (0..4).map(|i| lagged(&mut graph, i, 0)).collect();
-    for (from, to) in [(0, 1), (1, 2), (2, 3)] {
+    let nodes: Vec<_> = (0..5).map(|i| lagged(&mut graph, i, 0)).collect();
+    for (from, to) in [(0, 1), (1, 2), (2, 3), (4, 2)] {
         graph.insert_directed(nodes[from], nodes[to]).unwrap();
     }
     if direct {
@@ -108,9 +112,9 @@ fn chain_template(direct: bool) -> TemporalPag {
 fn a_window_without_lags_carries_the_effect_of_every_model_its_mag_represents() {
     // The treatment-outcome path also runs straight, so the three contrasts differ.
     let template = chain_template(true);
-    let directed = [(0, 1), (1, 2), (2, 3), (1, 3)];
+    let directed = [(0, 1), (1, 2), (2, 3), (1, 3), (4, 2)];
     for (contrast, name) in CONTRASTS {
-        let (window, found) = identified(&template, 1, 3, &[2], contrast, 4);
+        let (window, found) = identified(&template, 1, 3, &[2], contrast, 5);
         // History 0 and one period: the coordinates are the variables.
         assert_eq!(window.query.treatment, var(1), "{name}");
         let envelope = &found.envelope;
@@ -124,7 +128,7 @@ fn a_window_without_lags_carries_the_effect_of_every_model_its_mag_represents() 
             for seed in 0..6u64 {
                 let scm = LatentScm::random(
                     &mut Rng::new(80 + seed),
-                    &[2, 2, 2, 2],
+                    &[2, 2, 2, 2, 2],
                     &directed,
                     bidirected,
                     3,
@@ -144,9 +148,11 @@ fn a_window_without_lags_carries_the_effect_of_every_model_its_mag_represents() 
 }
 
 /// `u(t-1) -> p(t)`, `u(t-2) -> q(t)`, `p(t-2) -> x(t)`, `q(t-1) -> y(t)`, `x -> m -> y` and
-/// `x -> y` within a period. The window holds two periods of history, so `u` two periods back
-/// is a cause before the window of `p` two periods back and of `q` one period back, both
-/// ancestors of the treatment and of the outcome.
+/// `x -> y` within a period, and `s -> m` (a cause of the mediator, which makes `m <-> y` a
+/// different m-separation model, so no model the MAG represents confounds them). The window
+/// holds two periods of history, so `u` two periods back is a cause before the window of `p`
+/// two periods back and of `q` one period back, both ancestors of the treatment and of the
+/// outcome.
 fn lagged_confounder_template() -> TemporalPag {
     let mut graph = TemporalPag::empty();
     let u1 = lagged(&mut graph, 0, 1);
@@ -158,29 +164,39 @@ fn lagged_confounder_template() -> TemporalPag {
     let x0 = lagged(&mut graph, 3, 0);
     let m0 = lagged(&mut graph, 4, 0);
     let y0 = lagged(&mut graph, 5, 0);
-    for (from, to) in [(u1, p0), (u2, q0), (p2, x0), (q1, y0), (x0, m0), (m0, y0), (x0, y0)] {
+    let s0 = lagged(&mut graph, 6, 0);
+    for (from, to) in
+        [(u1, p0), (u2, q0), (p2, x0), (q1, y0), (x0, m0), (m0, y0), (x0, y0), (s0, m0)]
+    {
         graph.insert_directed(from, to).unwrap();
     }
     graph
 }
 
-/// Window coordinates: `(offset + 2) * 6 + variable`.
+/// Window coordinates: `(offset + 2) * 7 + variable`.
 const P_MINUS_2: usize = 1;
-const Q_MINUS_1: usize = 8;
-const X_NOW: usize = 15;
-const M_NOW: usize = 16;
-const Y_NOW: usize = 17;
-const WINDOW_NODES: usize = 18;
+const Q_MINUS_1: usize = 9;
+const X_NOW: usize = 17;
+const M_NOW: usize = 18;
+const Y_NOW: usize = 19;
+const S_NOW: usize = 20;
+const WINDOW_NODES: usize = 21;
 
-/// The structural model of the window: the five ancestors of the effect are binary, every
+/// The structural model of the window: the six ancestors of the effect are binary, every
 /// other window node is a constant, and the hidden cause before the window is the latent of
 /// the bidirected edge between `p(-2)` and `q(-1)`.
 fn confounded_window_scm(seed: u64) -> LatentScm {
     let cards: Vec<usize> = (0..WINDOW_NODES)
-        .map(|node| usize::from([P_MINUS_2, Q_MINUS_1, X_NOW, M_NOW, Y_NOW].contains(&node)) + 1)
+        .map(|node| usize::from([P_MINUS_2, Q_MINUS_1, X_NOW, M_NOW, Y_NOW, S_NOW].contains(&node)) + 1)
         .collect();
-    let directed =
-        [(P_MINUS_2, X_NOW), (Q_MINUS_1, Y_NOW), (X_NOW, M_NOW), (M_NOW, Y_NOW), (X_NOW, Y_NOW)];
+    let directed = [
+        (P_MINUS_2, X_NOW),
+        (Q_MINUS_1, Y_NOW),
+        (X_NOW, M_NOW),
+        (M_NOW, Y_NOW),
+        (X_NOW, Y_NOW),
+        (S_NOW, M_NOW),
+    ];
     let mut scm =
         LatentScm::random(&mut Rng::new(seed), &cards, &directed, &[(P_MINUS_2, Q_MINUS_1)], 3);
     for node in 0..WINDOW_NODES {
@@ -197,7 +213,7 @@ fn a_cause_before_the_window_is_a_confounder_of_its_in_window_effects() {
     let template = lagged_confounder_template();
     let mut widest_gap: f64 = 0.0;
     for (contrast, name) in CONTRASTS {
-        let (window, found) = identified(&template, 3, 5, &[4], contrast, 6);
+        let (window, found) = identified(&template, 3, 5, &[4], contrast, 7);
         assert_eq!(window.indexer.history(), 2, "{name}");
         assert_eq!(window.query.treatment.raw() as usize, X_NOW, "{name}");
         assert_eq!(window.query.outcome.raw() as usize, Y_NOW, "{name}");
@@ -210,13 +226,15 @@ fn a_cause_before_the_window_is_a_confounder_of_its_in_window_effects() {
         );
         assert!(envelope.identified_weight.0 > 0.0, "{name}");
         // The sub-graph the window induces drops the cause before the window: no bidirected
-        // edge joins p(-2) and q(-1).
+        // edge joins p(-2) and q(-1). The ancestors it joins are observed, and the path
+        // x <- p <-> q -> y is closed by conditioning on either.
         let directed = [
             (P_MINUS_2, X_NOW),
             (Q_MINUS_1, Y_NOW),
             (X_NOW, M_NOW),
             (M_NOW, Y_NOW),
             (X_NOW, Y_NOW),
+            (S_NOW, M_NOW),
         ];
         let induced = identify(
             &admg(WINDOW_NODES, &directed, &[]),
@@ -241,8 +259,8 @@ fn a_cause_before_the_window_is_a_confounder_of_its_in_window_effects() {
         }
     }
     assert!(
-        widest_gap > 1e-3,
-        "dropping the cause before the window must miss the confounded effect: {widest_gap}"
+        widest_gap < 1e-9,
+        "an observed ancestor of the treatment closes the hidden cause's path: {widest_gap}"
     );
 }
 
@@ -278,5 +296,5 @@ fn a_mediation_without_a_mediator_period_in_the_window_is_a_typed_error() {
     let template = chain_template(false);
     let query = MediationQuery::binary(var(1), var(3), [var(1)], MediationContrast::Total);
     let effect = TemporalEffectQuery::pulse(var(1), var(3), 1.0).with_horizon_steps(1);
-    assert!(temporal_pag_mediation_window(&template, &effect, &query, 4).is_err());
+    assert!(temporal_pag_mediation_window(&template, &effect, &query, 5).is_err());
 }

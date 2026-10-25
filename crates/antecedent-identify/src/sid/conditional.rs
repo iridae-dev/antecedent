@@ -1523,7 +1523,8 @@ mod tests {
         assert!(matches!(decided, ConditionalTransportDecision::ProvenNonTransportable(_)));
         let total = full.operations();
         let witness_peak = full.peak_bytes();
-        // The last charge is a witness attempt: one operation short stops there.
+        // One operation short: the witness search is quoted against the operations the
+        // budget still allows, and the budget (not the shape) refuses its attempts.
         let short = SearchLimits { operations: total - 1, depth: limits.depth };
         let ConditionalTransportDecision::Exhausted(receipt) =
             decide_admg_conditional_transport(&diagram, &query, &catalog, short, &ctx).unwrap()
@@ -1531,7 +1532,7 @@ mod tests {
             panic!("a stop inside the witness search is a receipt");
         };
         assert_eq!(receipt.stop, antecedent_core::SearchStop::Operations);
-        assert_eq!(receipt.operations_consumed, Some(total - 1));
+        assert!(receipt.operations_consumed.is_some_and(|used| used < total));
         assert_eq!(receipt.explored, ["stage:rule_two_reduction", "stage:classical_sid"]);
         assert_eq!(receipt.unevaluated, ["stage:conditional_witness"]);
         // The witness stage charges its own live-state estimate on top of the

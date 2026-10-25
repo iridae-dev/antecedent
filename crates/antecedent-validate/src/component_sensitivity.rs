@@ -1548,7 +1548,7 @@ mod tests {
         let weights: Vec<f64> = (0..n).map(|i| 0.5 + f64::from(i % 3) * 0.5).collect();
         let summaries = msm_parameter_fit(&y, &[first, second], &weights).unwrap();
         let parameters = target(
-            TargetFamily::ScalarAverageEffect,
+            TargetFamily::JointContrast,
             TargetQuadrant::STATIC_FREQUENTIST,
             &["dose", "trend"],
         );

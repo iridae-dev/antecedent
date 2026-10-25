@@ -1200,6 +1200,7 @@ pub fn search_conditional_witness_within(
     let query_cells: Vec<(bool, usize, usize)> =
         (0..query_worlds).map(|world| (true, levels.x_mask, world)).collect();
     let mut attempted = false;
+    let mut budget_refused = false;
     // Order measured on the three- and four-node classes: three latent levels
     // succeed more often than five or two, and target-only mechanisms are the
     // cheapest systems.
@@ -1217,6 +1218,17 @@ pub fn search_conditional_witness_within(
                 Ok(lease) => lease,
                 Err(IdentificationError::Cancelled) => {
                     return Err(IdentificationError::Cancelled);
+                }
+                Err(IdentificationError::Budget { .. })
+                    if pair_quote.work
+                        <= WITNESS_SEARCH_DEFAULT_OPERATIONS
+                            .saturating_mul(WITNESS_WORK_PER_OPERATION) =>
+                {
+                    // The standard allowance would cover this attempt, so the caller's
+                    // remaining budget, not the shape, is what refused it: the search did
+                    // not run its course, which is not a verdict of "no witness".
+                    budget_refused = true;
+                    continue;
                 }
                 Err(_) => continue,
             };
@@ -1309,6 +1321,9 @@ pub fn search_conditional_witness_within(
                 }
             }
         }
+    }
+    if budget_refused {
+        return Err(IdentificationError::budget(crate::IdentificationBudget::Steps));
     }
     Ok(if attempted { WitnessSearch::NotFound } else { WitnessSearch::OutOfScope })
 }
