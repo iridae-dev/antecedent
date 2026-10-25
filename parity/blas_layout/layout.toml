@@ -16,15 +16,160 @@ profile = "release"
 accuracy = "passed before sampling; absolute gap at most 1e-8 * (1 + max abs)"
 
 [[case]]
+op = "eigen"
+layout = "dense"
+rows = 16
+cols = 16
+product = "faer"
+workers = 1
+median_ns = 11368
+low_ns = 11264
+high_ns = 11564
+scratch_bytes = 4736
+
+[[case]]
+op = "eigen"
+layout = "dense"
+rows = 16
+cols = 16
+product = "faer"
+workers = 4
+median_ns = 11362
+low_ns = 11260
+high_ns = 11427
+scratch_bytes = 5120
+
+[[case]]
+op = "eigen"
+layout = "dense"
+rows = 16
+cols = 16
+product = "faer"
+workers = 16
+median_ns = 11275
+low_ns = 11250
+high_ns = 11542
+scratch_bytes = 6656
+
+[[case]]
+op = "eigen"
+layout = "dense"
+rows = 64
+cols = 64
+product = "faer"
+workers = 1
+median_ns = 190614
+low_ns = 189733
+high_ns = 195183
+scratch_bytes = 43520
+
+[[case]]
+op = "eigen"
+layout = "dense"
+rows = 64
+cols = 64
+product = "faer"
+workers = 4
+median_ns = 276513
+low_ns = 267429
+high_ns = 281329
+scratch_bytes = 45056
+
+[[case]]
+op = "eigen"
+layout = "dense"
+rows = 64
+cols = 64
+product = "faer"
+workers = 16
+median_ns = 272144
+low_ns = 267068
+high_ns = 278526
+scratch_bytes = 51200
+
+[[case]]
+op = "eigen"
+layout = "dense"
+rows = 256
+cols = 256
+product = "faer"
+workers = 1
+median_ns = 5193209
+low_ns = 5156333
+high_ns = 5308584
+scratch_bytes = 1669120
+
+[[case]]
+op = "eigen"
+layout = "dense"
+rows = 256
+cols = 256
+product = "faer"
+workers = 4
+median_ns = 3919125
+low_ns = 3878833
+high_ns = 3938500
+scratch_bytes = 1675264
+
+[[case]]
+op = "eigen"
+layout = "dense"
+rows = 256
+cols = 256
+product = "faer"
+workers = 16
+median_ns = 3932250
+low_ns = 3888375
+high_ns = 4005750
+scratch_bytes = 1699840
+
+[[case]]
+op = "eigen"
+layout = "dense"
+rows = 512
+cols = 512
+product = "faer"
+workers = 1
+median_ns = 33355750
+low_ns = 33226083
+high_ns = 33392917
+scratch_bytes = 6483968
+
+[[case]]
+op = "eigen"
+layout = "dense"
+rows = 512
+cols = 512
+product = "faer"
+workers = 4
+median_ns = 26227708
+low_ns = 25021583
+high_ns = 26966125
+scratch_bytes = 6496256
+
+[[case]]
+op = "eigen"
+layout = "dense"
+rows = 512
+cols = 512
+product = "faer"
+workers = 16
+median_ns = 26268541
+low_ns = 26142958
+high_ns = 26769917
+scratch_bytes = 6545408
+
+[[case]]
 op = "gram"
 layout = "dense"
 rows = 64
 cols = 8
 product = "reference"
 workers = 1
-median_ns = 869
-low_ns = 867
-high_ns = 870
+median_ns = 925
+low_ns = 917
+high_ns = 933
+scratch_bytes = 0
 
 [[case]]
 op = "gram"
@@ -33,9 +178,10 @@ rows = 64
 cols = 8
 product = "faer"
 workers = 1
-median_ns = 629
-low_ns = 547
-high_ns = 710
+median_ns = 549
+low_ns = 539
+high_ns = 562
+scratch_bytes = 0
 
 [[case]]
 op = "gram"
@@ -44,9 +190,10 @@ rows = 64
 cols = 8
 product = "faer"
 workers = 4
-median_ns = 544
-low_ns = 543
-high_ns = 545
+median_ns = 548
+low_ns = 544
+high_ns = 560
+scratch_bytes = 0
 
 [[case]]
 op = "gram"
@@ -55,9 +202,106 @@ rows = 64
 cols = 8
 product = "faer"
 workers = 16
-median_ns = 545
-low_ns = 543
-high_ns = 546
+median_ns = 542
+low_ns = 536
+high_ns = 552
+scratch_bytes = 0
+
+[[case]]
+op = "gram"
+layout = "dense"
+rows = 256
+cols = 16
+product = "reference"
+workers = 1
+median_ns = 19245
+low_ns = 19092
+high_ns = 19562
+scratch_bytes = 0
+
+[[case]]
+op = "gram"
+layout = "dense"
+rows = 256
+cols = 16
+product = "faer"
+workers = 1
+median_ns = 4225
+low_ns = 4167
+high_ns = 4267
+scratch_bytes = 0
+
+[[case]]
+op = "gram"
+layout = "dense"
+rows = 256
+cols = 16
+product = "faer"
+workers = 4
+median_ns = 4238
+low_ns = 4221
+high_ns = 4317
+scratch_bytes = 0
+
+[[case]]
+op = "gram"
+layout = "dense"
+rows = 256
+cols = 16
+product = "faer"
+workers = 16
+median_ns = 4188
+low_ns = 4164
+high_ns = 4246
+scratch_bytes = 0
+
+[[case]]
+op = "gram"
+layout = "dense"
+rows = 1024
+cols = 32
+product = "reference"
+workers = 1
+median_ns = 468250
+low_ns = 462215
+high_ns = 476583
+scratch_bytes = 0
+
+[[case]]
+op = "gram"
+layout = "dense"
+rows = 1024
+cols = 32
+product = "faer"
+workers = 1
+median_ns = 63570
+low_ns = 62598
+high_ns = 64621
+scratch_bytes = 0
+
+[[case]]
+op = "gram"
+layout = "dense"
+rows = 1024
+cols = 32
+product = "faer"
+workers = 4
+median_ns = 63888
+low_ns = 62778
+high_ns = 64392
+scratch_bytes = 0
+
+[[case]]
+op = "gram"
+layout = "dense"
+rows = 1024
+cols = 32
+product = "faer"
+workers = 16
+median_ns = 63471
+low_ns = 62557
+high_ns = 64369
+scratch_bytes = 0
 
 [[case]]
 op = "gram"
@@ -66,9 +310,10 @@ rows = 4096
 cols = 128
 product = "reference"
 workers = 1
-median_ns = 31460000
-low_ns = 31418000
-high_ns = 31507000
+median_ns = 31973416
+low_ns = 31902541
+high_ns = 32034333
+scratch_bytes = 0
 
 [[case]]
 op = "gram"
@@ -77,9 +322,10 @@ rows = 4096
 cols = 128
 product = "faer"
 workers = 1
-median_ns = 3182500
-low_ns = 3173600
-high_ns = 3195400
+median_ns = 3215791
+low_ns = 3124625
+high_ns = 3267750
+scratch_bytes = 0
 
 [[case]]
 op = "gram"
@@ -88,9 +334,10 @@ rows = 4096
 cols = 128
 product = "faer"
 workers = 4
-median_ns = 1373200
-low_ns = 1364700
-high_ns = 1389000
+median_ns = 1370250
+low_ns = 1354833
+high_ns = 1493500
+scratch_bytes = 0
 
 [[case]]
 op = "gram"
@@ -99,9 +346,298 @@ rows = 4096
 cols = 128
 product = "faer"
 workers = 16
-median_ns = 1222800
-low_ns = 1218000
-high_ns = 1228300
+median_ns = 1270938
+low_ns = 1214250
+high_ns = 1311750
+scratch_bytes = 0
+
+[[case]]
+op = "gram"
+layout = "dense"
+rows = 16384
+cols = 256
+product = "reference"
+workers = 1
+median_ns = 518027750
+low_ns = 517527250
+high_ns = 518333500
+scratch_bytes = 0
+
+[[case]]
+op = "gram"
+layout = "dense"
+rows = 16384
+cols = 256
+product = "faer"
+workers = 1
+median_ns = 48857625
+low_ns = 48601666
+high_ns = 49340125
+scratch_bytes = 0
+
+[[case]]
+op = "gram"
+layout = "dense"
+rows = 16384
+cols = 256
+product = "faer"
+workers = 4
+median_ns = 45907125
+low_ns = 40505125
+high_ns = 92494250
+scratch_bytes = 0
+
+[[case]]
+op = "gram"
+layout = "dense"
+rows = 16384
+cols = 256
+product = "faer"
+workers = 16
+median_ns = 39891000
+low_ns = 32590500
+high_ns = 55263166
+scratch_bytes = 0
+
+[[case]]
+op = "gram"
+layout = "dense_rowmajor"
+rows = 64
+cols = 8
+product = "reference"
+workers = 1
+median_ns = 1621
+low_ns = 1605
+high_ns = 1649
+scratch_bytes = 0
+
+[[case]]
+op = "gram"
+layout = "dense_rowmajor"
+rows = 64
+cols = 8
+product = "faer"
+workers = 1
+median_ns = 372
+low_ns = 369
+high_ns = 379
+scratch_bytes = 0
+
+[[case]]
+op = "gram"
+layout = "dense_rowmajor"
+rows = 64
+cols = 8
+product = "faer"
+workers = 4
+median_ns = 371
+low_ns = 368
+high_ns = 374
+scratch_bytes = 0
+
+[[case]]
+op = "gram"
+layout = "dense_rowmajor"
+rows = 64
+cols = 8
+product = "faer"
+workers = 16
+median_ns = 369
+low_ns = 366
+high_ns = 377
+scratch_bytes = 0
+
+[[case]]
+op = "gram"
+layout = "dense_rowmajor"
+rows = 256
+cols = 16
+product = "reference"
+workers = 1
+median_ns = 15113
+low_ns = 14975
+high_ns = 15317
+scratch_bytes = 0
+
+[[case]]
+op = "gram"
+layout = "dense_rowmajor"
+rows = 256
+cols = 16
+product = "faer"
+workers = 1
+median_ns = 2863
+low_ns = 2840
+high_ns = 2900
+scratch_bytes = 0
+
+[[case]]
+op = "gram"
+layout = "dense_rowmajor"
+rows = 256
+cols = 16
+product = "faer"
+workers = 4
+median_ns = 2860
+low_ns = 2821
+high_ns = 2926
+scratch_bytes = 0
+
+[[case]]
+op = "gram"
+layout = "dense_rowmajor"
+rows = 256
+cols = 16
+product = "faer"
+workers = 16
+median_ns = 2845
+low_ns = 2814
+high_ns = 2891
+scratch_bytes = 0
+
+[[case]]
+op = "gram"
+layout = "dense_rowmajor"
+rows = 1024
+cols = 32
+product = "reference"
+workers = 1
+median_ns = 153675
+low_ns = 150989
+high_ns = 155031
+scratch_bytes = 0
+
+[[case]]
+op = "gram"
+layout = "dense_rowmajor"
+rows = 1024
+cols = 32
+product = "faer"
+workers = 1
+median_ns = 52069
+low_ns = 51379
+high_ns = 52681
+scratch_bytes = 0
+
+[[case]]
+op = "gram"
+layout = "dense_rowmajor"
+rows = 1024
+cols = 32
+product = "faer"
+workers = 4
+median_ns = 51980
+low_ns = 51414
+high_ns = 52545
+scratch_bytes = 0
+
+[[case]]
+op = "gram"
+layout = "dense_rowmajor"
+rows = 1024
+cols = 32
+product = "faer"
+workers = 16
+median_ns = 51468
+low_ns = 51069
+high_ns = 51824
+scratch_bytes = 0
+
+[[case]]
+op = "gram"
+layout = "dense_rowmajor"
+rows = 4096
+cols = 128
+product = "reference"
+workers = 1
+median_ns = 5630458
+low_ns = 5561208
+high_ns = 5671209
+scratch_bytes = 0
+
+[[case]]
+op = "gram"
+layout = "dense_rowmajor"
+rows = 4096
+cols = 128
+product = "faer"
+workers = 1
+median_ns = 3051375
+low_ns = 2997291
+high_ns = 3081500
+scratch_bytes = 0
+
+[[case]]
+op = "gram"
+layout = "dense_rowmajor"
+rows = 4096
+cols = 128
+product = "faer"
+workers = 4
+median_ns = 1118854
+low_ns = 1097855
+high_ns = 1148500
+scratch_bytes = 0
+
+[[case]]
+op = "gram"
+layout = "dense_rowmajor"
+rows = 4096
+cols = 128
+product = "faer"
+workers = 16
+median_ns = 1024021
+low_ns = 991479
+high_ns = 1089417
+scratch_bytes = 0
+
+[[case]]
+op = "gram"
+layout = "dense_rowmajor"
+rows = 16384
+cols = 256
+product = "reference"
+workers = 1
+median_ns = 164575459
+low_ns = 155288417
+high_ns = 191449958
+scratch_bytes = 0
+
+[[case]]
+op = "gram"
+layout = "dense_rowmajor"
+rows = 16384
+cols = 256
+product = "faer"
+workers = 1
+median_ns = 58570542
+low_ns = 50220709
+high_ns = 84215791
+scratch_bytes = 0
+
+[[case]]
+op = "gram"
+layout = "dense_rowmajor"
+rows = 16384
+cols = 256
+product = "faer"
+workers = 4
+median_ns = 56330708
+low_ns = 43380583
+high_ns = 112839834
+scratch_bytes = 0
+
+[[case]]
+op = "gram"
+layout = "dense_rowmajor"
+rows = 16384
+cols = 256
+product = "faer"
+workers = 16
+median_ns = 54702000
+low_ns = 36917875
+high_ns = 77542291
+scratch_bytes = 0
 
 [[case]]
 op = "gram"
@@ -111,9 +647,10 @@ cols = 16
 nonzeros_per_column = 4
 product = "reference"
 workers = 1
-median_ns = 305
-low_ns = 305
-high_ns = 307
+median_ns = 1475
+low_ns = 1473
+high_ns = 1476
+scratch_bytes = 0
 
 [[case]]
 op = "gram"
@@ -123,9 +660,10 @@ cols = 16
 nonzeros_per_column = 4
 product = "faer"
 workers = 1
-median_ns = 543
-low_ns = 541
-high_ns = 546
+median_ns = 2234
+low_ns = 2214
+high_ns = 2246
+scratch_bytes = 0
 
 [[case]]
 op = "gram"
@@ -135,9 +673,10 @@ cols = 16
 nonzeros_per_column = 4
 product = "faer"
 workers = 4
-median_ns = 20209
-low_ns = 19341
-high_ns = 21342
+median_ns = 2215
+low_ns = 2213
+high_ns = 2217
+scratch_bytes = 0
 
 [[case]]
 op = "gram"
@@ -147,9 +686,62 @@ cols = 16
 nonzeros_per_column = 4
 product = "faer"
 workers = 16
-median_ns = 25324
-low_ns = 24560
-high_ns = 25670
+median_ns = 2214
+low_ns = 2211
+high_ns = 2217
+scratch_bytes = 0
+
+[[case]]
+op = "gram"
+layout = "sparse"
+rows = 1024
+cols = 64
+nonzeros_per_column = 8
+product = "reference"
+workers = 1
+median_ns = 100880
+low_ns = 99915
+high_ns = 101057
+scratch_bytes = 0
+
+[[case]]
+op = "gram"
+layout = "sparse"
+rows = 1024
+cols = 64
+nonzeros_per_column = 8
+product = "faer"
+workers = 1
+median_ns = 217096
+low_ns = 216321
+high_ns = 217407
+scratch_bytes = 0
+
+[[case]]
+op = "gram"
+layout = "sparse"
+rows = 1024
+cols = 64
+nonzeros_per_column = 8
+product = "faer"
+workers = 4
+median_ns = 299367
+low_ns = 246775
+high_ns = 602733
+scratch_bytes = 0
+
+[[case]]
+op = "gram"
+layout = "sparse"
+rows = 1024
+cols = 64
+nonzeros_per_column = 8
+product = "faer"
+workers = 16
+median_ns = 700997
+low_ns = 619378
+high_ns = 904622
+scratch_bytes = 0
 
 [[case]]
 op = "gram"
@@ -159,9 +751,10 @@ cols = 1024
 nonzeros_per_column = 48
 product = "reference"
 workers = 1
-median_ns = 7861900
-low_ns = 7833200
-high_ns = 7904000
+median_ns = 208772167
+low_ns = 208051292
+high_ns = 209053417
+scratch_bytes = 0
 
 [[case]]
 op = "gram"
@@ -171,9 +764,10 @@ cols = 1024
 nonzeros_per_column = 48
 product = "faer"
 workers = 1
-median_ns = 1232500
-low_ns = 1230300
-high_ns = 1235700
+median_ns = 380865875
+low_ns = 380186916
+high_ns = 381089125
+scratch_bytes = 0
 
 [[case]]
 op = "gram"
@@ -183,9 +777,10 @@ cols = 1024
 nonzeros_per_column = 48
 product = "faer"
 workers = 4
-median_ns = 404770
-low_ns = 401340
-high_ns = 411620
+median_ns = 98207375
+low_ns = 97492125
+high_ns = 99128959
+scratch_bytes = 0
 
 [[case]]
 op = "gram"
@@ -195,9 +790,10 @@ cols = 1024
 nonzeros_per_column = 48
 product = "faer"
 workers = 16
-median_ns = 327810
-low_ns = 324450
-high_ns = 334070
+median_ns = 67353833
+low_ns = 63019917
+high_ns = 69232750
+scratch_bytes = 0
 
 [[case]]
 op = "qr"
@@ -216,10 +812,34 @@ layout = "dense"
 rows = 32
 cols = 8
 product = "faer"
+workers = 4
+median_ns = 1256
+low_ns = 1253
+high_ns = 1259
+scratch_bytes = 256
+
+[[case]]
+op = "qr"
+layout = "dense"
+rows = 32
+cols = 8
+product = "faer"
 workers = 10
 median_ns = 1983
 low_ns = 1983
 high_ns = 1983
+
+[[case]]
+op = "qr"
+layout = "dense"
+rows = 32
+cols = 8
+product = "faer"
+workers = 16
+median_ns = 1258
+low_ns = 1255
+high_ns = 1261
+scratch_bytes = 256
 
 [[case]]
 op = "qr"
@@ -238,10 +858,34 @@ layout = "dense"
 rows = 64
 cols = 16
 product = "faer"
+workers = 4
+median_ns = 6468
+low_ns = 6449
+high_ns = 6500
+scratch_bytes = 448
+
+[[case]]
+op = "qr"
+layout = "dense"
+rows = 64
+cols = 16
+product = "faer"
 workers = 10
 median_ns = 8025
 low_ns = 8025
 high_ns = 8025
+
+[[case]]
+op = "qr"
+layout = "dense"
+rows = 64
+cols = 16
+product = "faer"
+workers = 16
+median_ns = 6466
+low_ns = 6396
+high_ns = 6520
+scratch_bytes = 448
 
 [[case]]
 op = "qr"
@@ -260,10 +904,34 @@ layout = "dense"
 rows = 128
 cols = 16
 product = "faer"
+workers = 4
+median_ns = 11491
+low_ns = 11416
+high_ns = 11547
+scratch_bytes = 448
+
+[[case]]
+op = "qr"
+layout = "dense"
+rows = 128
+cols = 16
+product = "faer"
 workers = 10
 median_ns = 13433
 low_ns = 13433
 high_ns = 13433
+
+[[case]]
+op = "qr"
+layout = "dense"
+rows = 128
+cols = 16
+product = "faer"
+workers = 16
+median_ns = 11375
+low_ns = 11348
+high_ns = 11476
+scratch_bytes = 448
 
 [[case]]
 op = "qr"
@@ -282,10 +950,34 @@ layout = "dense"
 rows = 256
 cols = 32
 product = "faer"
+workers = 4
+median_ns = 61497
+low_ns = 61387
+high_ns = 61701
+scratch_bytes = 832
+
+[[case]]
+op = "qr"
+layout = "dense"
+rows = 256
+cols = 32
+product = "faer"
 workers = 10
 median_ns = 75358
 low_ns = 75358
 high_ns = 75358
+
+[[case]]
+op = "qr"
+layout = "dense"
+rows = 256
+cols = 32
+product = "faer"
+workers = 16
+median_ns = 61456
+low_ns = 61280
+high_ns = 61918
+scratch_bytes = 832
 
 [[case]]
 op = "qr"
@@ -304,10 +996,34 @@ layout = "dense"
 rows = 512
 cols = 32
 product = "faer"
+workers = 4
+median_ns = 124566
+low_ns = 124436
+high_ns = 125299
+scratch_bytes = 832
+
+[[case]]
+op = "qr"
+layout = "dense"
+rows = 512
+cols = 32
+product = "faer"
 workers = 10
 median_ns = 149233
 low_ns = 149233
 high_ns = 149233
+
+[[case]]
+op = "qr"
+layout = "dense"
+rows = 512
+cols = 32
+product = "faer"
+workers = 16
+median_ns = 124691
+low_ns = 124490
+high_ns = 125236
+scratch_bytes = 832
 
 [[case]]
 op = "qr"
@@ -326,10 +1042,34 @@ layout = "dense"
 rows = 1024
 cols = 64
 product = "faer"
+workers = 4
+median_ns = 1381396
+low_ns = 1356563
+high_ns = 1417104
+scratch_bytes = 1792
+
+[[case]]
+op = "qr"
+layout = "dense"
+rows = 1024
+cols = 64
+product = "faer"
 workers = 10
 median_ns = 1490175
 low_ns = 1490175
 high_ns = 1490175
+
+[[case]]
+op = "qr"
+layout = "dense"
+rows = 1024
+cols = 64
+product = "faer"
+workers = 16
+median_ns = 1579750
+low_ns = 1474125
+high_ns = 1603167
+scratch_bytes = 1792
 
 [[case]]
 op = "qr"
@@ -348,13 +1088,253 @@ layout = "dense"
 rows = 2048
 cols = 64
 product = "faer"
+workers = 4
+median_ns = 2541958
+low_ns = 2494167
+high_ns = 2665042
+scratch_bytes = 1792
+
+[[case]]
+op = "qr"
+layout = "dense"
+rows = 2048
+cols = 64
+product = "faer"
 workers = 10
 median_ns = 2858591
 low_ns = 2858591
 high_ns = 2858591
 
+[[case]]
+op = "qr"
+layout = "dense"
+rows = 2048
+cols = 64
+product = "faer"
+workers = 16
+median_ns = 2919958
+low_ns = 2856458
+high_ns = 3084917
+scratch_bytes = 1792
+
+[[case]]
+op = "qr"
+layout = "dense"
+rows = 8192
+cols = 128
+product = "faer"
+workers = 1
+median_ns = 30980959
+low_ns = 30915083
+high_ns = 31077292
+scratch_bytes = 3456
+
+[[case]]
+op = "qr"
+layout = "dense"
+rows = 8192
+cols = 128
+product = "faer"
+workers = 4
+median_ns = 17217208
+low_ns = 16903542
+high_ns = 17426583
+scratch_bytes = 3456
+
+[[case]]
+op = "qr"
+layout = "dense"
+rows = 8192
+cols = 128
+product = "faer"
+workers = 16
+median_ns = 15689834
+low_ns = 15545125
+high_ns = 15803958
+scratch_bytes = 3456
+
+[[case]]
+op = "svd"
+layout = "dense"
+rows = 64
+cols = 8
+product = "faer"
+workers = 1
+median_ns = 9868
+low_ns = 9753
+high_ns = 10113
+scratch_bytes = 9472
+
+[[case]]
+op = "svd"
+layout = "dense"
+rows = 64
+cols = 8
+product = "faer"
+workers = 4
+median_ns = 9965
+low_ns = 9839
+high_ns = 10079
+scratch_bytes = 9472
+
+[[case]]
+op = "svd"
+layout = "dense"
+rows = 64
+cols = 8
+product = "faer"
+workers = 16
+median_ns = 9922
+low_ns = 9783
+high_ns = 10034
+scratch_bytes = 9472
+
+[[case]]
+op = "svd"
+layout = "dense"
+rows = 256
+cols = 32
+product = "faer"
+workers = 1
+median_ns = 169157
+low_ns = 167914
+high_ns = 170526
+scratch_bytes = 111424
+
+[[case]]
+op = "svd"
+layout = "dense"
+rows = 256
+cols = 32
+product = "faer"
+workers = 4
+median_ns = 599967
+low_ns = 555042
+high_ns = 616142
+scratch_bytes = 111424
+
+[[case]]
+op = "svd"
+layout = "dense"
+rows = 256
+cols = 32
+product = "faer"
+workers = 16
+median_ns = 601611
+low_ns = 579542
+high_ns = 651931
+scratch_bytes = 111424
+
+[[case]]
+op = "svd"
+layout = "dense"
+rows = 1024
+cols = 64
+product = "faer"
+workers = 1
+median_ns = 1559688
+low_ns = 1516625
+high_ns = 1591125
+scratch_bytes = 693824
+
+[[case]]
+op = "svd"
+layout = "dense"
+rows = 1024
+cols = 64
+product = "faer"
+workers = 4
+median_ns = 2929875
+low_ns = 2845041
+high_ns = 3078417
+scratch_bytes = 693824
+
+[[case]]
+op = "svd"
+layout = "dense"
+rows = 1024
+cols = 64
+product = "faer"
+workers = 16
+median_ns = 3186792
+low_ns = 3094292
+high_ns = 3341625
+scratch_bytes = 693824
+
+[[case]]
+op = "svd"
+layout = "dense"
+rows = 4096
+cols = 128
+product = "faer"
+workers = 1
+median_ns = 16521500
+low_ns = 16255125
+high_ns = 16595958
+scratch_bytes = 5348544
+
+[[case]]
+op = "svd"
+layout = "dense"
+rows = 4096
+cols = 128
+product = "faer"
+workers = 4
+median_ns = 14123791
+low_ns = 13959459
+high_ns = 14299625
+scratch_bytes = 5348544
+
+[[case]]
+op = "svd"
+layout = "dense"
+rows = 4096
+cols = 128
+product = "faer"
+workers = 16
+median_ns = 14198250
+low_ns = 13979083
+high_ns = 14404667
+scratch_bytes = 5348544
+
 # Selections are derived from the cases above by derive_selections.py:
 # the lowest median wins, and a simpler configuration within noise replaces it.
+
+[[selection]]
+op = "eigen"
+layout = "dense"
+rows = 16
+cols = 16
+product = "faer"
+workers = 1
+reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 16 workers is 0.99x the chosen median"
+
+[[selection]]
+op = "eigen"
+layout = "dense"
+rows = 64
+cols = 64
+product = "faer"
+workers = 1
+reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 16 workers is 1.43x the chosen median"
+
+[[selection]]
+op = "eigen"
+layout = "dense"
+rows = 256
+cols = 256
+product = "faer"
+workers = 4
+reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 16 workers is 1.00x the chosen median"
+
+[[selection]]
+op = "eigen"
+layout = "dense"
+rows = 512
+cols = 512
+product = "faer"
+workers = 4
+reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 16 workers is 1.00x the chosen median"
 
 [[selection]]
 op = "gram"
@@ -362,7 +1342,25 @@ layout = "dense"
 rows = 64
 cols = 8
 product = "faer"
-workers = 4
+workers = 1
+reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 16 workers is 0.99x the chosen median"
+
+[[selection]]
+op = "gram"
+layout = "dense"
+rows = 256
+cols = 16
+product = "faer"
+workers = 1
+reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 16 workers is 0.99x the chosen median"
+
+[[selection]]
+op = "gram"
+layout = "dense"
+rows = 1024
+cols = 32
+product = "faer"
+workers = 1
 reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 16 workers is 1.00x the chosen median"
 
 [[selection]]
@@ -372,7 +1370,61 @@ rows = 4096
 cols = 128
 product = "faer"
 workers = 16
-reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 4 workers is 1.12x the chosen median"
+reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 4 workers is 1.08x the chosen median"
+
+[[selection]]
+op = "gram"
+layout = "dense"
+rows = 16384
+cols = 256
+product = "faer"
+workers = 16
+reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 4 workers is 1.15x the chosen median"
+
+[[selection]]
+op = "gram"
+layout = "dense_rowmajor"
+rows = 64
+cols = 8
+product = "faer"
+workers = 1
+reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 16 workers is 0.99x the chosen median"
+
+[[selection]]
+op = "gram"
+layout = "dense_rowmajor"
+rows = 256
+cols = 16
+product = "faer"
+workers = 1
+reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 16 workers is 0.99x the chosen median"
+
+[[selection]]
+op = "gram"
+layout = "dense_rowmajor"
+rows = 1024
+cols = 32
+product = "faer"
+workers = 1
+reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 16 workers is 0.99x the chosen median"
+
+[[selection]]
+op = "gram"
+layout = "dense_rowmajor"
+rows = 4096
+cols = 128
+product = "faer"
+workers = 16
+reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 4 workers is 1.09x the chosen median"
+
+[[selection]]
+op = "gram"
+layout = "dense_rowmajor"
+rows = 16384
+cols = 256
+product = "faer"
+workers = 4
+reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 16 workers is 0.97x the chosen median"
 
 [[selection]]
 op = "gram"
@@ -382,7 +1434,17 @@ cols = 16
 nonzeros_per_column = 4
 product = "reference"
 workers = 1
-reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 1 workers is 1.78x the chosen median"
+reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 16 workers is 1.50x the chosen median"
+
+[[selection]]
+op = "gram"
+layout = "sparse"
+rows = 1024
+cols = 64
+nonzeros_per_column = 8
+product = "reference"
+workers = 1
+reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 1 workers is 2.15x the chosen median"
 
 [[selection]]
 op = "gram"
@@ -392,7 +1454,7 @@ cols = 1024
 nonzeros_per_column = 48
 product = "faer"
 workers = 16
-reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 4 workers is 1.23x the chosen median"
+reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 4 workers is 1.46x the chosen median"
 
 [[selection]]
 op = "qr"
@@ -400,8 +1462,8 @@ layout = "dense"
 rows = 32
 cols = 8
 product = "faer"
-workers = 10
-reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 1 workers is 1.80x the chosen median"
+workers = 4
+reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 16 workers is 1.00x the chosen median"
 
 [[selection]]
 op = "qr"
@@ -409,8 +1471,8 @@ layout = "dense"
 rows = 64
 cols = 16
 product = "faer"
-workers = 1
-reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 10 workers is 1.03x the chosen median"
+workers = 4
+reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 16 workers is 1.00x the chosen median"
 
 [[selection]]
 op = "qr"
@@ -418,8 +1480,8 @@ layout = "dense"
 rows = 128
 cols = 16
 product = "faer"
-workers = 1
-reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 10 workers is 0.98x the chosen median"
+workers = 4
+reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 16 workers is 0.99x the chosen median"
 
 [[selection]]
 op = "qr"
@@ -427,8 +1489,8 @@ layout = "dense"
 rows = 256
 cols = 32
 product = "faer"
-workers = 1
-reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 10 workers is 1.05x the chosen median"
+workers = 4
+reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 16 workers is 1.00x the chosen median"
 
 [[selection]]
 op = "qr"
@@ -436,8 +1498,8 @@ layout = "dense"
 rows = 512
 cols = 32
 product = "faer"
-workers = 1
-reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 10 workers is 1.04x the chosen median"
+workers = 4
+reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 16 workers is 1.00x the chosen median"
 
 [[selection]]
 op = "qr"
@@ -446,7 +1508,7 @@ rows = 1024
 cols = 64
 product = "faer"
 workers = 1
-reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 10 workers is 1.37x the chosen median"
+reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 4 workers is 1.27x the chosen median"
 
 [[selection]]
 op = "qr"
@@ -455,4 +1517,49 @@ rows = 2048
 cols = 64
 product = "faer"
 workers = 1
-reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 10 workers is 1.53x the chosen median"
+reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 4 workers is 1.36x the chosen median"
+
+[[selection]]
+op = "qr"
+layout = "dense"
+rows = 8192
+cols = 128
+product = "faer"
+workers = 16
+reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 4 workers is 1.10x the chosen median"
+
+[[selection]]
+op = "svd"
+layout = "dense"
+rows = 64
+cols = 8
+product = "faer"
+workers = 1
+reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 16 workers is 1.01x the chosen median"
+
+[[selection]]
+op = "svd"
+layout = "dense"
+rows = 256
+cols = 32
+product = "faer"
+workers = 1
+reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 4 workers is 3.55x the chosen median"
+
+[[selection]]
+op = "svd"
+layout = "dense"
+rows = 1024
+cols = 64
+product = "faer"
+workers = 1
+reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 4 workers is 1.88x the chosen median"
+
+[[selection]]
+op = "svd"
+layout = "dense"
+rows = 4096
+cols = 128
+product = "faer"
+workers = 4
+reason = "lowest median within 3% after preferring the simpler configuration; next best faer at 16 workers is 1.01x the chosen median"

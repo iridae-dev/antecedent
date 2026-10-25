@@ -388,35 +388,54 @@ mod tests {
 
     #[test]
     fn measured_shapes_select_their_measured_winner_and_cap_at_the_callers_workers() {
-        let gram = |rows, cols, workers| pick(&dense_request(LayoutOp::Gram, rows, cols, workers));
-        assert_eq!(gram(64, 8, 16), (Product::Faer, 4));
-        assert_eq!(gram(64, 8, 2), (Product::Faer, 2));
-        assert_eq!(gram(64, 8, 1), (Product::Faer, 1));
-        assert_eq!(gram(4096, 128, 16), (Product::Faer, 16));
-        assert_eq!(gram(4096, 128, 10), (Product::Faer, 10));
-        assert_eq!(gram(4096, 128, 1), (Product::Faer, 1));
-        let sparse_request = |rows, cols, nonzeros_per_column| LayoutRequest {
-            storage: StorageLayout::Sparse { nonzeros_per_column },
-            ..dense_request(LayoutOp::Gram, rows, cols, 16)
-        };
-        assert_eq!(pick(&sparse_request(128, 16, 4)), (Product::Reference, 1));
-        assert_eq!(pick(&sparse_request(8192, 1024, 48)), (Product::Faer, 16));
-        let qr = |rows, cols, workers| {
-            pick(&dense_request(LayoutOp::ColumnPivotedQr, rows, cols, workers))
-        };
-        assert_eq!(qr(32, 8, 10), (Product::Faer, 10));
-        assert_eq!(qr(32, 8, 4), (Product::Faer, 4));
-        assert_eq!(qr(64, 16, 10), (Product::Faer, 1));
-        assert_eq!(qr(2048, 64, 10), (Product::Faer, 1));
+        // Every measured dense shape selects its recorded winner when the caller has at least
+        // its workers, never more than the caller has, and runs serial for a single worker.
+        let mut checked = 0;
+        for point in MEASURED {
+            if !matches!(point.storage, StorageLayout::Dense) {
+                continue;
+            }
+            let (rows, cols) = (point.rows as usize, point.cols as usize);
+            let rich = pick(&dense_request(point.op, rows, cols, 64));
+            assert_eq!(rich, (point.product, point.workers), "{:?} {rows}x{cols}", point.op);
+            let capped = pick(&dense_request(point.op, rows, cols, 2));
+            assert_eq!(capped.0, point.product, "{:?} {rows}x{cols}", point.op);
+            assert_eq!(capped.1, point.workers.min(2), "{:?} {rows}x{cols}", point.op);
+            let serial = pick(&dense_request(point.op, rows, cols, 1));
+            assert_eq!(serial.1, 1, "{:?} {rows}x{cols}", point.op);
+            checked += 1;
+        }
+        assert!(checked >= 10, "the record measures dense shapes of every operation");
+        for point in MEASURED {
+            if let StorageLayout::Sparse { nonzeros_per_column } = point.storage {
+                let request = LayoutRequest {
+                    storage: StorageLayout::Sparse { nonzeros_per_column },
+                    ..dense_request(point.op, point.rows as usize, point.cols as usize, 64)
+                };
+                assert_eq!(
+                    pick(&request),
+                    (point.product, point.workers),
+                    "{:?} sparse {}x{}",
+                    point.op,
+                    point.rows,
+                    point.cols
+                );
+            }
+        }
     }
 
     #[test]
     fn unmeasured_shapes_follow_the_nearest_measurement_and_unmeasured_operations_run_serial() {
         // Between the measured small and large dense Gram the nearer one in log work decides.
-        let near_small = pick(&dense_request(LayoutOp::Gram, 128, 8, 16));
-        let near_large = pick(&dense_request(LayoutOp::Gram, 8192, 128, 16));
-        assert_eq!(near_small, (Product::Faer, 4));
-        assert_eq!(near_large, (Product::Faer, 16));
+        let near_small = pick(&dense_request(LayoutOp::Gram, 128, 8, 64));
+        let near_large = pick(&dense_request(LayoutOp::Gram, 8192, 128, 64));
+        let nearest = |rows, cols| {
+            let point = nearest_measured(&dense_request(LayoutOp::Gram, rows, cols, 64))
+                .expect("a dense Gram is measured");
+            (point.product, point.workers)
+        };
+        assert_eq!(near_small, nearest(128, 8));
+        assert_eq!(near_large, nearest(8192, 128));
         assert_eq!(pick(&dense_request(LayoutOp::ThinSvd, 512, 64, 16)), (Product::Faer, 1));
         assert_eq!(pick(&dense_request(LayoutOp::SymmetricEigen, 64, 64, 16)), (Product::Faer, 1));
         let sparse_unmeasured = LayoutRequest {

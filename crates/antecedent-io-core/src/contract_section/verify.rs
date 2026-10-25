@@ -54,6 +54,7 @@ pub(in crate::contract_section) fn contract_unresolved(
     }
     note_replay_dependencies(contract, body, &mut unresolved);
     note_functional_and_nested_replay(contract, body, &mut unresolved);
+    verify_graph_posterior_mixture(contract, body, &mut unresolved);
     note_published_claim(header, body, contract, &mut unresolved);
     unresolved
 }
@@ -79,6 +80,24 @@ pub(in crate::contract_section) fn note_linear_fit_replay(
 fn functional_effect_over_class(contract: &AnalysisResultContractWire) -> bool {
     is_scalar_functional_effect_contract(contract)
         && matches!(contract.graph_class.as_str(), "Cpdag" | "Pag")
+}
+
+/// A path-restricted or natural direct effect, or an interventional distribution, answered
+/// over a static graph posterior.
+///
+/// Such a result is answered per atom and mixed, so no single program reproduces it. The
+/// contract instead carries the per-atom programs, their weights and the mixing rule, which
+/// [`verify_graph_posterior_programs`] and [`verify_graph_posterior_mixture`] check.
+fn graph_posterior_cross_world(contract: &AnalysisResultContractWire) -> bool {
+    contract.structure_source == "graph_posterior"
+        && matches!(contract.graph_class.as_str(), "Dag" | "Admg" | "Cpdag" | "Pag")
+        && ((is_scalar_functional_effect_contract(contract)
+            && matches!(
+                contract.target.query,
+                CausalQueryWire::PathSpecific(_) | CausalQueryWire::NestedCounterfactual { .. }
+            ))
+            || (is_functional_distribution_contract(contract)
+                && matches!(contract.target.query, CausalQueryWire::Distribution(_))))
 }
 
 /// An interventional distribution over an equivalence class is published per completion: no
@@ -702,7 +721,10 @@ pub(in crate::contract_section) fn note_functional_and_nested_replay(
         // An effect over an equivalence class is published per completion: no single
         // program and provider law reproduces the class-level result, so the replay is
         // that of the class's own identification, not of one functional.
-        || (functional_effect_over_class(contract));
+        || (functional_effect_over_class(contract))
+        // A graph-posterior effect is answered per atom: the per-atom programs replace the
+        // single program.
+        || graph_posterior_cross_world(contract);
     let posterior_functional_effect = functional_effect
         && (contract.program.as_ref().is_some_and(|program| {
             program.commitments.inference == "bayesian" || program.commitments.prior_required
@@ -791,6 +813,7 @@ pub(in crate::contract_section) fn note_functional_and_nested_replay(
     if is_functional_distribution_contract(contract)
         && !posterior_distribution
         && !functional_distribution_over_class(contract)
+        && !graph_posterior_cross_world(contract)
     {
         match (
             body.interventional_distribution.as_ref(),
@@ -1241,7 +1264,10 @@ pub(in crate::contract_section) fn verify_stored_payloads(
         // An effect over an equivalence class is published per completion: no single
         // program and provider law reproduces the class-level result, so the replay is
         // that of the class's own identification, not of one functional.
-        || (functional_effect_over_class(contract));
+        || (functional_effect_over_class(contract))
+        // A graph-posterior effect is answered per atom: the per-atom programs replace the
+        // single program.
+        || graph_posterior_cross_world(contract);
     let functional = contract
         .program
         .as_ref()
@@ -1258,6 +1284,7 @@ pub(in crate::contract_section) fn verify_stored_payloads(
         && functional.is_none()
         && !posterior_distribution
         && !functional_distribution_over_class(contract)
+        && !graph_posterior_cross_world(contract)
     {
         // Older artifacts stay readable but cannot advertise a verified
         // executable distribution without the program that was evaluated.
@@ -1402,10 +1429,158 @@ pub(in crate::contract_section) fn verify_stored_payloads(
         Some(&contract.identities.observation),
     );
     verify_checked_aipw_rows(contract, &mut unresolved);
+    verify_graph_posterior_programs(contract, &mut unresolved);
     verify_layer_links(contract, &mut unresolved);
     match contract_seal_of(contract) {
         Ok(seal) if seal == contract.seal => {}
         _ => unresolved.push(ContractReason::ContractSeal),
     }
     unresolved
+}
+
+/// Identification atoms (posterior samples) of a graph-posterior contract.
+fn posterior_identification_atoms(
+    contract: &AnalysisResultContractWire,
+) -> Option<&[crate::PosteriorAtomIdentityWire]> {
+    match &contract.identification.as_ref()?.graph {
+        crate::GraphIdentityWire::GraphPosterior { atoms, .. } => Some(atoms),
+        _ => None,
+    }
+}
+
+/// Check the per-atom programs of a static graph-posterior functional result against what the
+/// contract itself attests: the digest chain over the mixing rule, weights and programs; the
+/// atoms' samples, weights and structures against the identification payload; and each
+/// program against the target schema. A tampered atom program, weight or mixing rule fails
+/// here even when the payload digests and the section seal are recomputed.
+pub(in crate::contract_section) fn verify_graph_posterior_programs(
+    contract: &AnalysisResultContractWire,
+    unresolved: &mut Vec<ContractReason>,
+) {
+    if !graph_posterior_cross_world(contract) {
+        return;
+    }
+    let Some(programs) =
+        contract.program.as_ref().and_then(|program| program.graph_posterior_programs.as_ref())
+    else {
+        unresolved.push(ContractReason::ProgramGraphPosteriorPrograms);
+        return;
+    };
+    let chain_ok = programs.format == antecedent_core::IDENTITY_FORMAT
+        && programs.mixing == crate::GRAPH_POSTERIOR_MIXING_RULE
+        && crate::GraphPosteriorProgramsWire::compute_chain(&programs.mixing, &programs.atoms)
+            .is_ok_and(|chain| chain == programs.chain);
+    if !chain_ok {
+        unresolved.push(ContractReason::ProgramGraphPosteriorPrograms);
+    }
+    let Some(samples) = posterior_identification_atoms(contract) else {
+        unresolved.push(ContractReason::ProgramGraphPosteriorProgramsBinding);
+        return;
+    };
+    let expected_variables: Vec<_> = contract
+        .target
+        .schema
+        .variables
+        .iter()
+        .map(|variable| (variable.id, variable.name.clone()))
+        .collect();
+    let mut claimed = vec![false; samples.len()];
+    let mut keys = std::collections::BTreeSet::new();
+    let mut bound = true;
+    for atom in &programs.atoms {
+        bound &= keys.insert(atom.graph_key) && !atom.samples.is_empty();
+        let mut weight = 0.0_f64;
+        let mut structure = None;
+        for &index in &atom.samples {
+            let slot = usize::try_from(index).ok().filter(|slot| *slot < samples.len());
+            let Some(slot) = slot else {
+                bound = false;
+                continue;
+            };
+            bound &= !std::mem::replace(&mut claimed[slot], true);
+            weight += f64::from_bits(samples[slot].weight_bits);
+            bound &= structure.is_none_or(|graph| graph == &samples[slot].graph);
+            structure = Some(&samples[slot].graph);
+        }
+        let reported = f64::from_bits(atom.weight_bits);
+        bound &= reported.is_finite()
+            && (reported - weight).abs() <= 1e-12 * weight.abs().max(1.0);
+        let class_atom = matches!(
+            structure,
+            Some(crate::PosteriorAtomGraphWire::Cpdag(_) | crate::PosteriorAtomGraphWire::Pag(_))
+        );
+        let single_atom = matches!(
+            structure,
+            Some(crate::PosteriorAtomGraphWire::Static(_) | crate::PosteriorAtomGraphWire::Admg(_))
+        );
+        // A single structure is answered by one program, a class by its identification
+        // product; a refused or non-member atom carries neither.
+        bound &= match (&atom.functional_program, &atom.identification_product) {
+            (None, None) => true,
+            (Some(program), None) => {
+                single_atom
+                    && program.source == program.executable
+                    && program.variables == expected_variables
+                    && crate::functional_program_from_wire(
+                        program,
+                        antecedent_expr::ProgramLimits::default(),
+                    )
+                    .is_ok()
+            }
+            (None, Some(product)) => {
+                class_atom
+                    && product.envelope.is_some()
+                    && identification_product_digest_wire(product).is_ok()
+            }
+            (Some(_), Some(_)) => false,
+        };
+    }
+    bound &= claimed.iter().all(|claimed| *claimed);
+    if !bound {
+        unresolved.push(ContractReason::ProgramGraphPosteriorProgramsBinding);
+    }
+}
+
+/// Check the per-atom programs against the result body's structural mixture: the same atoms
+/// with the same weights, an evaluated atom carried by a program or class product, and the
+/// unidentified mass covering every atom the contract holds no program for.
+pub(in crate::contract_section) fn verify_graph_posterior_mixture(
+    contract: &AnalysisResultContractWire,
+    body: &AnalysisResultWire,
+    unresolved: &mut Vec<ContractReason>,
+) {
+    if !graph_posterior_cross_world(contract) {
+        return;
+    }
+    let Some(programs) =
+        contract.program.as_ref().and_then(|program| program.graph_posterior_programs.as_ref())
+    else {
+        return;
+    };
+    let Some(mixture) = body.structural_response.as_ref() else {
+        unresolved.push(ContractReason::BodyResponse);
+        return;
+    };
+    let mut consistent = mixture.atoms.len() == programs.atoms.len();
+    let mut uncovered = 0.0_f64;
+    for atom in &programs.atoms {
+        let Some(published) = mixture.atoms.iter().find(|item| item.graph_key == atom.graph_key)
+        else {
+            consistent = false;
+            continue;
+        };
+        let weight = f64::from_bits(atom.weight_bits);
+        let carried = atom.functional_program.is_some() || atom.identification_product.is_some();
+        consistent &= (published.weight - weight).abs() <= 1e-9;
+        consistent &= !published.value.is_some() || carried;
+        consistent &= carried
+            || published.identification_status == crate::IdentificationStatusWire::NotIdentified;
+        if !carried {
+            uncovered += weight;
+        }
+    }
+    consistent &= mixture.unidentified_mass + 1e-9 >= uncovered;
+    if !consistent {
+        unresolved.push(ContractReason::ProgramGraphPosteriorProgramsBinding);
+    }
 }

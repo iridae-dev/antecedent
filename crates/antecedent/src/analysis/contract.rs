@@ -63,6 +63,7 @@ use super::prepared::{
 
 mod evidence_needs;
 mod failure_inputs;
+mod posterior_programs;
 mod program_wire;
 mod result_wire;
 
@@ -1604,6 +1605,7 @@ fn program_payloads_for(
         cached.is_some_and(identification_search_capped),
         resolved_estimator,
         binding,
+        posterior_programs::graph_posterior_programs(study, resolved_estimator)?,
     )
 }
 
@@ -1866,6 +1868,7 @@ fn program_payloads(
     search_capped: bool,
     resolved_estimator: Option<&str>,
     binding: CheckedProgramBinding<'_>,
+    graph_posterior_programs: Option<antecedent_io::GraphPosteriorProgramsWire>,
 ) -> Result<ProgramPayloads, CausalError> {
     let selected = resolved_estimator.and_then(|name| name.parse::<crate::EstimatorId>().ok());
     if !program_wire::binding_agrees(binding, selected, &study.query) {
@@ -1937,6 +1940,7 @@ fn program_payloads(
         checked_linear_adjustment_lowering: lowerings.linear_adjustment,
         checked_functional_response_grid: lowerings.functional_response_grid,
         checked_nested_counterfactual: lowerings.nested_counterfactual,
+        graph_posterior_programs,
         structure_provenance: study
             .structure_provenance()
             .map(crate::accepted::StructureProvenance::digest),
@@ -2068,6 +2072,7 @@ fn compile_with_payloads(
             prepared
                 .filter(|prepared| study.query == *prepared.query())
                 .map_or(CheckedProgramBinding::None, PreparedStudy::program_binding),
+            None,
         )?),
     };
     let mut payloads = contract_payloads(program, study, prepared)?;

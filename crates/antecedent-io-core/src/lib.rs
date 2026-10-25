@@ -206,6 +206,7 @@ pub use identity::{
     AdaptiveBudgetWire, BayesianBindingWire, CheckedFrontDoorLoweringWire,
     CheckedFunctionalResponseGridWire, CheckedFunctionalResponseMemberWire,
     CheckedLinearAdjustmentLoweringWire, CheckedNestedCounterfactualWire, ClassPriorIdentityWire,
+    GRAPH_POSTERIOR_MIXING_RULE, GraphPosteriorAtomProgramWire, GraphPosteriorProgramsWire,
     DataPartitionIdentityWire, DataSnapshotIdentityWire, DistributionFactorDomainWire,
     DistributionFactorKeyWire, DistributionFactorLawsWire, DistributionFactorRowWire,
     DistributionFactorTableWire, EstimatorConfigWire, EstimatorSpecWire, ExecutionIdentityWire,

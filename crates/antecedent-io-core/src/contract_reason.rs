@@ -380,6 +380,10 @@ pub enum ContractReason {
     ProgramFunctionalProgram,
     /// `program.functional_program.target`.
     ProgramFunctionalProgramTarget,
+    /// `program.graph_posterior_programs`.
+    ProgramGraphPosteriorPrograms,
+    /// `program.graph_posterior_programs.binding`.
+    ProgramGraphPosteriorProgramsBinding,
     /// `program.identification`.
     ProgramIdentification,
     /// `program.identification_product`.
@@ -766,6 +770,10 @@ impl ContractReason {
             }
             Self::ProgramFunctionalProgram => "program.functional_program",
             Self::ProgramFunctionalProgramTarget => "program.functional_program.target",
+            Self::ProgramGraphPosteriorPrograms => "program.graph_posterior_programs",
+            Self::ProgramGraphPosteriorProgramsBinding => {
+                "program.graph_posterior_programs.binding"
+            }
             Self::ProgramIdentification => "program.identification",
             Self::ProgramIdentificationProduct => "program.identification_product",
             Self::ProgramTarget => "program.target",
@@ -1063,6 +1071,8 @@ pub const ALL_CONTRACT_REASONS: &[ContractReason] = &[
     ContractReason::ProgramFunctionalEffectResponseGridTargetKind,
     ContractReason::ProgramFunctionalProgram,
     ContractReason::ProgramFunctionalProgramTarget,
+    ContractReason::ProgramGraphPosteriorPrograms,
+    ContractReason::ProgramGraphPosteriorProgramsBinding,
     ContractReason::ProgramIdentification,
     ContractReason::ProgramIdentificationProduct,
     ContractReason::ProgramTarget,
@@ -1270,6 +1280,8 @@ const ALL_CONTRACT_REASON_SPELLINGS: &[&str] = &[
     "program.functional_effect_response_grid.target_kind",
     "program.functional_program",
     "program.functional_program.target",
+    "program.graph_posterior_programs",
+    "program.graph_posterior_programs.binding",
     "program.identification",
     "program.identification_product",
     "program.target",

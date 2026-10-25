@@ -687,3 +687,263 @@ fn each_atom_runs_its_own_suite_and_the_reports_mix_by_posterior_weight() {
         }
     });
 }
+
+/// Encode a prepared study's result as a contracted artifact, returning the artifact bytes.
+fn encode(built: &antecedent::analysis::Study, ctx: &ExecutionContext) -> Vec<u8> {
+    let prepared = built.prepare(ctx).expect("the posterior study prepares");
+    let result = prepared.estimate(&table(), ctx).expect("the posterior study estimates");
+    prepared
+        .encode_contracted_result(&result, "graph-posterior-functional", ctx)
+        .expect("a graph-posterior functional result encodes as a contracted artifact")
+}
+
+#[derive(Clone, Copy, Debug)]
+enum Structures {
+    Dag,
+    Admg,
+    Cpdag,
+}
+
+/// Two structures that identify the queries and one mask that is no member of the class.
+fn contract_posterior(structures: Structures) -> GraphPosterior {
+    let weights = [0.5, 0.3, 0.2];
+    match structures {
+        Structures::Dag => posterior_of(
+            GraphPosteriorAtomKind::Dag,
+            &weights,
+            vec![
+                dag_mask(&[(0, 1), (0, 2), (1, 2)]),
+                dag_mask(&[(0, 1), (1, 2)]),
+                refused_mask(),
+            ],
+        ),
+        Structures::Admg => admg_posterior(
+            &weights,
+            &[mask_of(&latent_free()), mask_of(&front_door()), refused_mask()],
+        ),
+        Structures::Cpdag => {
+            let class = |edges: &[(u32, u32)]| {
+                let mut dag = Dag::with_variables(3);
+                for &(a, b) in edges {
+                    dag.insert_directed(node(a), node(b)).unwrap();
+                }
+                adjacency_mask_from_cpdag(&Cpdag::from_dag(&dag)).unwrap()
+            };
+            posterior_of(
+                GraphPosteriorAtomKind::Cpdag,
+                &weights,
+                vec![class(&[(0, 1), (0, 2), (1, 2)]), class(&[(0, 1), (1, 2)]), refused_mask()],
+            )
+        }
+    }
+}
+
+fn path_specific_query() -> CausalQuery {
+    CausalQuery::PathSpecific(PathSpecificEffectQuery::binary(v(0), v(2)).with_path_nodes([v(1)]))
+}
+
+fn distribution_query() -> CausalQuery {
+    CausalQuery::Distribution(InterventionalDistributionQuery::new(
+        v(2),
+        [Intervention::set(v(0), Value::f64(1.0))],
+    ))
+}
+
+fn programs_of(
+    consumed: &antecedent_io::AnalysisResultConsumption,
+) -> &antecedent_io::GraphPosteriorProgramsWire {
+    consumed
+        .contract
+        .as_ref()
+        .and_then(|contract| contract.program.as_ref())
+        .and_then(|program| program.graph_posterior_programs.as_ref())
+        .expect("the contract carries the per-atom programs")
+}
+
+/// Reasons the per-atom programs would raise on consumption.
+fn program_reasons(consumed: &antecedent_io::AnalysisResultConsumption) -> Vec<String> {
+    consumed
+        .acceptance
+        .unresolved
+        .iter()
+        .map(|reason| reason.as_ref().to_owned())
+        .filter(|reason| reason.starts_with("program."))
+        .collect()
+}
+
+/// A path-restricted effect and an interventional distribution over a graph posterior encode
+/// as contracted results and are consumed independently, under both inferences and every
+/// atom kind: the contract carries what each atom was answered by and the weights it was
+/// mixed under, not a single program.
+#[test]
+fn a_graph_posterior_functional_result_round_trips_through_the_contracted_artifact() {
+    on_large_stack(|| {
+        let ctx = ExecutionContext::for_tests(8_101);
+        let inferences = [
+            ("frequentist", InferenceMode::Frequentist),
+            ("bayesian", InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(60))),
+        ];
+        for structures in [Structures::Dag, Structures::Admg, Structures::Cpdag] {
+            for (label, query) in
+                [("path_specific", path_specific_query()), ("distribution", distribution_query())]
+            {
+                for (inference_label, inference) in &inferences {
+                    let case = format!("{structures:?}/{label}/{inference_label}");
+                    let built =
+                        study(contract_posterior(structures), query.clone(), inference.clone())
+                            .build()
+                            .unwrap_or_else(|e| panic!("{case}: {e}"));
+                    let bytes = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        encode(&built, &ctx)
+                    }))
+                    .unwrap_or_else(|_| panic!("{case}: the result does not encode"));
+                    let consumed = antecedent_io::consume_analysis_result(&bytes)
+                        .unwrap_or_else(|e| panic!("{case}: {e}"));
+                    let programs = programs_of(&consumed);
+                    assert_eq!(programs.mixing, antecedent_io::GRAPH_POSTERIOR_MIXING_RULE);
+                    assert_eq!(programs.atoms.len(), 3, "{case}");
+                    let mass: f64 =
+                        programs.atoms.iter().map(|atom| f64::from_bits(atom.weight_bits)).sum();
+                    assert!((mass - 1.0).abs() < 1e-9, "{case}: {mass}");
+                    for atom in &programs.atoms[..2] {
+                        let carried = match structures {
+                            Structures::Cpdag => atom.identification_product.is_some(),
+                            _ => atom.functional_program.is_some(),
+                        };
+                        assert!(carried, "{case}: an identifying atom carries its answer");
+                    }
+                    let refused = &programs.atoms[2];
+                    assert!(
+                        refused.functional_program.is_none()
+                            && refused.identification_product.is_none(),
+                        "{case}: the refused atom carries neither"
+                    );
+                    assert_eq!(
+                        program_reasons(&consumed),
+                        Vec::<String>::new(),
+                        "{case}: the independent consumer verifies the per-atom programs"
+                    );
+                }
+            }
+        }
+    });
+}
+
+/// Seal a contract again after an edit: the payload digest and the section seal are recomputed,
+/// so independent consumption has to find the edit in the content of the per-atom programs.
+fn reseal_and_consume(
+    consumed: &antecedent_io::AnalysisResultConsumption,
+    rechain: bool,
+    edit: impl FnOnce(&mut antecedent_io::ProgramIdentityWire),
+) -> Vec<String> {
+    let mut forged = consumed.contract.clone().expect("a contract");
+    let program = forged.program.as_mut().expect("a program");
+    edit(program);
+    if rechain {
+        if let Some(programs) = program.graph_posterior_programs.as_mut() {
+            programs.chain = antecedent_io::GraphPosteriorProgramsWire::compute_chain(
+                &programs.mixing,
+                &programs.atoms,
+            )
+            .unwrap();
+        }
+    }
+    forged.identities.program =
+        *antecedent_io::program_digest(forged.program.as_ref().unwrap()).unwrap().as_bytes();
+    forged.seal = antecedent_io::contract_seal(
+        &forged.identities,
+        &forged.reasoning,
+        &forged.graph_class,
+        &forged.structure_source,
+        forged.identifier.as_deref(),
+        forged.estimator.as_deref(),
+    )
+    .unwrap();
+    let mut artifact = antecedent_io::encode_analysis_result_artifact(
+        &consumed.body,
+        vec!["t".to_owned(), "m".to_owned(), "y".to_owned()],
+        "graph-posterior-tampered",
+    )
+    .unwrap();
+    let (descriptor, packed) = antecedent_io::pack_section_shared(
+        antecedent_io::CONTRACT_SECTION,
+        "application/cbor",
+        antecedent_io::to_cbor(&forged).unwrap().into(),
+        antecedent_io::CompressPolicy::Auto,
+    );
+    artifact.manifest.sections.push(descriptor);
+    artifact.sections.push(packed);
+    let mut bytes = Vec::new();
+    artifact.write_to(&mut bytes).unwrap();
+    program_reasons(&antecedent_io::consume_analysis_result(&bytes).unwrap())
+}
+
+/// The consumer recomputes the digest chain over the atoms' programs, weights and mixing rule
+/// and checks them against the identification and the body, so an edited atom program, weight
+/// or mixture is refused even when every digest and the seal are recomputed.
+#[test]
+fn a_tampered_atom_program_weight_or_mixture_is_refused() {
+    on_large_stack(|| {
+        let ctx = ExecutionContext::for_tests(8_102);
+        for (label, query) in
+            [("path_specific", path_specific_query()), ("distribution", distribution_query())]
+        {
+            let built = study(
+                contract_posterior(Structures::Dag),
+                query,
+                InferenceMode::Frequentist,
+            )
+            .build()
+            .unwrap();
+            let consumed = antecedent_io::consume_analysis_result(&encode(&built, &ctx)).unwrap();
+            assert!(program_reasons(&consumed).is_empty(), "{label}: the intact artifact verifies");
+            let chain = "program.graph_posterior_programs".to_owned();
+            let binding = "program.graph_posterior_programs.binding".to_owned();
+
+            // A weight edited under a stale chain breaks the chain.
+            let reasons = reseal_and_consume(&consumed, false, |program| {
+                let atoms = &mut program.graph_posterior_programs.as_mut().unwrap().atoms;
+                atoms[0].weight_bits = 0.9_f64.to_bits();
+            });
+            assert!(reasons.contains(&chain), "{label}: {reasons:?}");
+
+            // A weight edited under a recomputed chain no longer matches the posterior samples
+            // the identification attests, nor the mixture the body publishes.
+            let reasons = reseal_and_consume(&consumed, true, |program| {
+                let atoms = &mut program.graph_posterior_programs.as_mut().unwrap().atoms;
+                let moved = f64::from_bits(atoms[0].weight_bits) * 0.5;
+                atoms[0].weight_bits = (f64::from_bits(atoms[0].weight_bits) - moved).to_bits();
+                atoms[1].weight_bits = (f64::from_bits(atoms[1].weight_bits) + moved).to_bits();
+            });
+            assert!(reasons.contains(&binding), "{label}: {reasons:?}");
+
+            // A program that is no longer a well-formed program of the target is refused.
+            let reasons = reseal_and_consume(&consumed, true, |program| {
+                let atoms = &mut program.graph_posterior_programs.as_mut().unwrap().atoms;
+                atoms[0].functional_program.as_mut().unwrap().arena.nodes.clear();
+            });
+            assert!(reasons.contains(&binding), "{label}: {reasons:?}");
+
+            // A program given to the atom the identifier refused, or taken from an atom that
+            // was evaluated, contradicts the mixture the body publishes.
+            let reasons = reseal_and_consume(&consumed, true, |program| {
+                let atoms = &mut program.graph_posterior_programs.as_mut().unwrap().atoms;
+                atoms[1].functional_program = None;
+            });
+            assert!(reasons.contains(&binding), "{label}: {reasons:?}");
+
+            // A mixing rule other than the posterior-weighted mean is refused.
+            let reasons = reseal_and_consume(&consumed, true, |program| {
+                program.graph_posterior_programs.as_mut().unwrap().mixing =
+                    "unweighted_mean".to_owned();
+            });
+            assert!(reasons.contains(&chain), "{label}: {reasons:?}");
+
+            // Dropping the per-atom programs leaves a graph-posterior result with no answer.
+            let reasons = reseal_and_consume(&consumed, false, |program| {
+                program.graph_posterior_programs = None;
+            });
+            assert!(reasons.contains(&chain), "{label}: {reasons:?}");
+        }
+    });
+}

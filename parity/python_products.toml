@@ -373,6 +373,15 @@ reason = ""
 test = "python/tests/test_python_products.py::test_route_path_specific_tabular_explicit"
 
 [[route]]
+kind = "path_specific"
+data = "tabular"
+structure = "graph_posterior"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_path_specific_tabular_graph_posterior"
+
+[[route]]
 kind = "point_derivative"
 data = "tabular"
 structure = "accepted"

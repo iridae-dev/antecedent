@@ -1454,8 +1454,10 @@ fn posterior_atom_graph_wire(
             Ok(PosteriorAtomGraphWire::TemporalAdmg(wire))
         }
         GraphPosteriorAtomKind::Cpdag => {
-            let cpdag = cpdag_from_adjacency_mask(adjacency, posterior.n_vars)
-                .map_err(|err| IoError::Convert(err.to_string()))?;
+            // A mask that is no CPDAG is unidentified mass, as for the other static kinds.
+            let Ok(cpdag) = cpdag_from_adjacency_mask(adjacency, posterior.n_vars) else {
+                return Ok(PosteriorAtomGraphWire::Unrepresentable);
+            };
             let GraphIdentityWire::Cpdag(wire) = cpdag_identity(&cpdag)? else {
                 return Err(IoError::Convert("CPDAG posterior atom must encode as Cpdag".into()));
             };
@@ -1468,8 +1470,9 @@ fn posterior_atom_graph_wire(
                 .and_then(|masks| masks.get(index))
                 .copied()
                 .unwrap_or(AdjacencyMask::EMPTY);
-            let pag = pag_from_adjacency_mask(adjacency, mark_mask, posterior.n_vars)
-                .map_err(|err| IoError::Convert(err.to_string()))?;
+            let Ok(pag) = pag_from_adjacency_mask(adjacency, mark_mask, posterior.n_vars) else {
+                return Ok(PosteriorAtomGraphWire::Unrepresentable);
+            };
             let GraphIdentityWire::Pag(wire) = pag_identity(&pag)? else {
                 return Err(IoError::Convert("PAG posterior atom must encode as Pag".into()));
             };
@@ -2183,6 +2186,12 @@ pub struct ProgramIdentityWire {
     /// Checked linear-Gaussian shared-exogenous natural direct effect operation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub checked_nested_counterfactual: Option<CheckedNestedCounterfactualWire>,
+    /// Per-atom checked programs and the mixing rule of a functional effect or
+    /// interventional distribution answered over a graph posterior. Such a result is
+    /// answered per atom and mixed, so it has no single program; this carries what each
+    /// atom was answered by.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub graph_posterior_programs: Option<GraphPosteriorProgramsWire>,
     /// Digest of the provenance of a discovered structure the program runs on:
     /// the search method, its configuration and bounds, the data snapshot it
     /// read, the discovery program and claim, and the review that accepted it.
@@ -2191,6 +2200,86 @@ pub struct ProgramIdentityWire {
     /// identification); the program that fits and estimates on it binds it here.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub structure_provenance: Option<[u8; 32]>,
+}
+
+/// Mixing rule of a graph-posterior functional result: the posterior-weighted mean over the
+/// atoms that identify and evaluate, with unidentified and unevaluable mass kept apart and
+/// never redistributed.
+pub const GRAPH_POSTERIOR_MIXING_RULE: &str = "posterior_weighted_mean_over_identified_atoms";
+
+/// What one distinct graph of a posterior was answered by.
+///
+/// A single-structure atom (DAG, ADMG) is answered by one checked functional program; a
+/// class atom (CPDAG, PAG) is answered per completion, so it carries the class's
+/// identification product instead. An atom the identifier refuses carries neither.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct GraphPosteriorAtomProgramWire {
+    /// Key of the atom in the result's structural mixture.
+    pub graph_key: u64,
+    /// Total posterior weight of the atom as IEEE-754 bits: the sum of its samples.
+    pub weight_bits: u64,
+    /// Indices of the identification atoms (posterior samples) this atom aggregates.
+    pub samples: Vec<u64>,
+    /// Checked program the atom was answered by.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub functional_program: Option<crate::FunctionalProgramWire>,
+    /// Class identification product the atom was answered by.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub identification_product: Option<IdentificationProductWire>,
+}
+
+/// Per-atom programs of a graph-posterior functional result, chained by digest.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct GraphPosteriorProgramsWire {
+    /// Identity format.
+    pub format: u16,
+    /// Mixing rule, [`GRAPH_POSTERIOR_MIXING_RULE`].
+    pub mixing: String,
+    /// One entry per distinct graph, in order of first appearance.
+    pub atoms: Vec<GraphPosteriorAtomProgramWire>,
+    /// Digest chain over the mixing rule and every atom's key, weight, samples, program and
+    /// product, in order.
+    pub chain: [u8; 32],
+}
+
+impl GraphPosteriorProgramsWire {
+    /// Recompute the digest chain of the mixing rule and atoms.
+    ///
+    /// # Errors
+    ///
+    /// CBOR encode failure.
+    pub fn compute_chain(
+        mixing: &str,
+        atoms: &[GraphPosteriorAtomProgramWire],
+    ) -> Result<[u8; 32], IoError> {
+        let mut hasher =
+            blake3::Hasher::new_derive_key("antecedent.identity.graph_posterior_programs.v1");
+        hasher.update(&to_cbor(&(mixing, u64::try_from(atoms.len()).unwrap_or(u64::MAX)))?);
+        let mut link = *hasher.finalize().as_bytes();
+        for atom in atoms {
+            let mut hasher =
+                blake3::Hasher::new_derive_key("antecedent.identity.graph_posterior_programs.v1");
+            hasher.update(&link);
+            hasher.update(&to_cbor(atom)?);
+            link = *hasher.finalize().as_bytes();
+        }
+        Ok(link)
+    }
+
+    /// Seal the atoms under the mixing rule.
+    ///
+    /// # Errors
+    ///
+    /// CBOR encode failure.
+    pub fn seal(atoms: Vec<GraphPosteriorAtomProgramWire>) -> Result<Self, IoError> {
+        let chain = Self::compute_chain(GRAPH_POSTERIOR_MIXING_RULE, &atoms)?;
+        Ok(Self {
+            format: IDENTITY_FORMAT,
+            mixing: GRAPH_POSTERIOR_MIXING_RULE.to_owned(),
+            atoms,
+            chain,
+        })
+    }
 }
 
 /// Fixed three-node Markovian natural direct effect procedure.
@@ -3070,6 +3159,7 @@ mod tests {
                 checked_linear_adjustment_lowering: None,
                 checked_functional_response_grid: None,
                 checked_nested_counterfactual: None,
+                graph_posterior_programs: None,
                 structure_provenance: None,
             })
             .unwrap();

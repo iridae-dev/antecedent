@@ -1525,6 +1525,130 @@ impl super::Study {
     }
 }
 
+/// What the explicit class cell of one CPDAG or PAG posterior atom identifies, for the contract
+/// that binds the atom to the mixture.
+pub(crate) struct ClassAtomIdentification {
+    /// The class envelope read as one identification product.
+    pub(crate) result: antecedent_identify::IdentificationResult,
+    /// Completions examined.
+    pub(crate) cases: usize,
+    /// Enumeration weight of the identified completions.
+    pub(crate) identified_weight: f64,
+    /// Enumeration weight of the unidentified completions.
+    pub(crate) unidentified_weight: f64,
+    /// Completions whose search was capped.
+    pub(crate) truncated_completions: usize,
+}
+
+impl super::Study {
+    /// Identify a path-restricted effect, a natural direct effect or an interventional
+    /// distribution over the class of posterior sample `index`, exactly as the explicit class
+    /// executor does. `None` when the sample is no member of the posterior's class or the class
+    /// does not identify (its mass is then unidentified).
+    ///
+    /// # Errors
+    ///
+    /// A failure other than an identification refusal.
+    pub(crate) fn class_atom_identification(
+        &self,
+        gp: &GraphPosterior,
+        index: usize,
+    ) -> Result<Option<ClassAtomIdentification>, CausalError> {
+        use super::{
+            envelope_to_identification_result_for, identify_cpdag_distribution,
+            identify_cpdag_path_specific, identify_pag_distribution, identify_pag_path_specific,
+        };
+        let kind = CrossWorldKind::of(&self.query)?;
+        let identifier = Self::cross_world_identifier(kind);
+        let query = match kind {
+            CrossWorldKind::Distribution(q) => CausalQuery::Distribution(q.clone()),
+            CrossWorldKind::PathSpecific(q) => {
+                super::static_path::path_specific_source_parts(
+                    PathSpecificMixedSource::PathSpecific(q),
+                )
+                .0
+            }
+            CrossWorldKind::Nested(q) => {
+                super::static_path::path_specific_source_parts(PathSpecificMixedSource::Nested(q)).0
+            }
+            CrossWorldKind::Mediation(_) => return Ok(None),
+        };
+        let distribution = matches!(kind, CrossWorldKind::Distribution(_));
+        let mask = gp.atoms[index];
+        let summarize = |result, cases, identified: f64, unidentified: f64, truncated| {
+            Some(ClassAtomIdentification {
+                result,
+                cases,
+                identified_weight: identified,
+                unidentified_weight: unidentified,
+                truncated_completions: truncated,
+            })
+        };
+        let refusal = |error: CausalError| {
+            if error.is_identification_refusal() { Ok(None) } else { Err(error) }
+        };
+        match gp.atom_kind {
+            GraphPosteriorAtomKind::Cpdag => {
+                let Ok(cpdag) = cpdag_from_adjacency_mask(mask, gp.n_vars) else {
+                    return Ok(None);
+                };
+                let envelope = if distribution {
+                    identify_cpdag_distribution(identifier, &cpdag, &query)
+                } else {
+                    identify_cpdag_path_specific(identifier, &cpdag, &query)
+                };
+                let envelope = match envelope {
+                    Ok(envelope) => envelope,
+                    Err(error) => return refusal(error),
+                };
+                if matches!(envelope.status, IdentificationStatus::NotIdentified)
+                    || envelope.identified_weight.0 <= 0.0
+                {
+                    return Ok(None);
+                }
+                Ok(summarize(
+                    envelope_to_identification_result_for(&envelope, self.query.clone()),
+                    envelope.cases.len(),
+                    envelope.identified_weight.0,
+                    envelope.unidentified_weight.0,
+                    envelope.truncated_completions,
+                ))
+            }
+            GraphPosteriorAtomKind::Pag => {
+                let mark =
+                    gp.mark_atoms.as_ref().map_or(AdjacencyMask::EMPTY, |marks| marks[index]);
+                let Ok(pag) = pag_from_adjacency_mask(mask, mark, gp.n_vars) else {
+                    return Ok(None);
+                };
+                let envelope = if distribution {
+                    identify_pag_distribution(identifier, &pag, &query)
+                } else {
+                    identify_pag_path_specific(identifier, &pag, &query)
+                };
+                let envelope = match envelope {
+                    Ok(envelope) => envelope,
+                    Err(error) => return refusal(error),
+                };
+                // A candidate ADMG the identifier refuses refuses the whole class.
+                if envelope.unidentified_weight.0 > 0.0
+                    || envelope.identified_weight.0 <= 0.0
+                    || matches!(envelope.status, IdentificationStatus::NotIdentified)
+                {
+                    return Ok(None);
+                }
+                Ok(summarize(
+                    envelope_to_identification_result_for(&envelope, self.query.clone()),
+                    envelope.cases.len(),
+                    envelope.identified_weight.0,
+                    envelope.unidentified_weight.0,
+                    envelope.truncated_completions,
+                ))
+            }
+            _ => Ok(None),
+        }
+    }
+}
+
 /// Resample `n` rows with replacement, in circular blocks of `block` consecutive rows.
 fn resample_rows(n: usize, block: usize, rng: &mut antecedent_core::CausalRng) -> Vec<usize> {
     let block = block.clamp(1, n.max(1));
