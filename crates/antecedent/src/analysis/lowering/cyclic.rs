@@ -163,6 +163,7 @@ fn scientific_problem(
         source_digest: reads_data(payloads).then_some(payloads.data_snapshot.content),
         support_coordinate: None,
         licensed: false,
+        support_status: None,
     })
 }
 

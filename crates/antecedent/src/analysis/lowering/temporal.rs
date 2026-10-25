@@ -715,6 +715,12 @@ fn assemble(
         (true, true) => (UncertaintyReading::Posterior, ClaimKind::Mixture),
         (false, true) => (UncertaintyReading::Posterior, parts.claim),
         (true, false) => (UncertaintyReading::Envelope, ClaimKind::Bounds),
+        // The dependence-honest temporal fits publish no analytic standard error (the iid
+        // one ignores the serial dependence), so their sampling law is the block bootstrap:
+        // a study that asks for no replicates declares a point claim, not a sampling one.
+        (false, false) if statistical.resampling.is_none() && bootstrap_only(estimator) => {
+            (UncertaintyReading::None, parts.claim)
+        }
         (false, false) => (UncertaintyReading::Sampling, parts.claim),
     };
     let claim = ClaimDemand { uncertainty, kind: Some(kind) };
@@ -727,6 +733,7 @@ fn assemble(
         source_digest: None,
         support_coordinate: crate::analysis::contract::matrix_coordinate(study).map(Arc::from),
         licensed: matches!(study.support_status, Some(crate::support::CellStatus::Licensed)),
+        support_status: study.support_status,
     };
     let evidence = super::decision::evidence_program(cx, None, &statistical)?;
     Ok(LoweredParts {
@@ -1000,6 +1007,14 @@ fn slot(
     inputs.sort_unstable_by_key(|variable| variable.raw());
     inputs.dedup();
     ModelSlot { role, family: Arc::from(family), inputs: Arc::from(inputs), output: Some(output) }
+}
+
+/// Whether the estimator's only calibrated sampling uncertainty is its block bootstrap.
+const fn bootstrap_only(estimator: Option<EstimatorId>) -> bool {
+    matches!(
+        estimator,
+        Some(EstimatorId::TemporalLinearAdjustment | EstimatorId::TemporalSequentialGcomp)
+    )
 }
 
 fn recorded_estimator(cx: &LoweringContext<'_>) -> Option<EstimatorId> {

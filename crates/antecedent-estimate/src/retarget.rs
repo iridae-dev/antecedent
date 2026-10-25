@@ -390,7 +390,8 @@ pub fn retarget(
 ) -> Result<(RetargetResult, bool), EstimationError> {
     if weights.len() != table.n_rows {
         return Err(EstimationError::data_msg(
-            "retarget weights must align with the prepared score-table rows",
+            "retarget weights must align with the prepared score-table rows; next attempt: \
+             supply one weight per complete-case row of the score table",
         ));
     }
     if depends_on.is_empty() && !weights_are_constant(weights) {

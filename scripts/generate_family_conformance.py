@@ -1,0 +1,148 @@
+#!/usr/bin/env python3
+"""Generate the cross-family conformance rows from the public route table.
+
+One row per route family. Each row lists the route ids of
+parity/capabilities/route_manifest.toml that the family owns, the representative
+studies the facade conformance suite runs, and the test that discharges each
+shared obligation. A route id absent from every row fails
+crates/antecedent/tests/family_contract_conformance.rs.
+
+    python3 scripts/generate_family_conformance.py            # rewrite the row table
+    python3 scripts/generate_family_conformance.py --check    # fail when it is stale
+"""
+
+from __future__ import annotations
+
+import sys
+import tomllib
+
+from _repo import REPO_ROOT, read_text, write_text
+
+MANIFEST = REPO_ROOT / "parity/capabilities/route_manifest.toml"
+ROWS = REPO_ROOT / "parity/capabilities/family_conformance.toml"
+
+OBLIGATIONS = {
+    "uncertainty_ports": "uncertainty_is_published_through_typed_ports_or_refused_naming_the_next_attempt",
+    "reuse": "reuse_invalidates_exactly_the_dependency_keys",
+    "decision_demand": "a_decision_demand_is_satisfied_or_refused_by_carrier",
+    "artifact_consumer": "a_saved_result_is_re_derived_by_an_independent_consumer",
+    "plan_view": "the_plan_view_agrees_with_the_lowered_program",
+    "refusal_next_attempt": "every_refusal_names_its_next_attempt",
+}
+
+# Manifest target -> route family (`RouteFamily::as_str`).
+FAMILY_OF_TARGET = {
+    "static_effect": [
+        "AverageEffect", "ConditionalEffect", "InterventionalDistribution",
+        "PathSpecificEffect", "Counterfactual", "NestedCounterfactualEffect",
+    ],
+    "static_response": [
+        "AverageDerivative", "DirectionalDerivative", "Elasticity", "PointDerivative",
+        "ResponseJacobian", "SemiElasticity", "InterventionResponse", "ResponseCurve",
+        "DoseResponse",
+    ],
+    "structural": [
+        "AnomalyAttribution", "ChangeAttribution", "MediationEffect", "Attribute",
+        "MechanismChange", "UnitChange", "Simulate", "intrinsic_influence",
+        "mechanism_selection",
+    ],
+    "temporal": [
+        "PulseEffect", "SustainedEffect", "TemporalConditionalPulse",
+        "TemporalConditionalSustained", "TemporalMediationEffect", "temporal_effect",
+    ],
+    "design_based": [
+        "TransportQuery", "InterferenceQuery", "interference", "InterferenceExposureContrast",
+        "survival", "Survival", "continuous_dose_policy", "randomized_effect",
+        "RandomizedEffect", "policy_value", "PolicyValue", "PolicyProgramValue",
+        "difference_in_differences", "longitudinal_regime", "LongitudinalRegime",
+        "complier_effect", "local_polynomial_ratio", "SyntheticControl",
+        "SequentialContrast", "HistoryMatch", "TemporalDesign", "IvBounds",
+    ],
+    "discovery": ["Discover"],
+    "associational": ["Association"],
+    "propagation_chain": ["ComposedQuantity", "MeasurementCorrectedFunctional"],
+    "graph_posterior": [],
+    "cyclic": [],
+    "planning": [],
+}
+
+# Representative studies the facade suite runs per family. A study is built through the
+# family's own public entry: a `Study` for most families, the cyclic family preparation, the
+# experiment-planning compile and the propagation-chain compile for the others.
+REPRESENTATIVES = {
+    "static_effect": [
+        "static_effect", "static_effect_doubly_robust", "static_effect_bayesian",
+        "static_effect_class",
+    ],
+    "static_response": ["static_response"],
+    "structural": ["structural_attribution"],
+    "temporal": ["temporal_effect", "temporal_effect_class"],
+    "design_based": ["randomized_design"],
+    "discovery": ["discovery_search"],
+    "graph_posterior": ["graph_posterior_effect"],
+    "cyclic": ["cyclic_feedback_pair"],
+    "planning": ["planning_cluster_power"],
+    "propagation_chain": ["propagation_chain_five_stage"],
+    "associational": ["association_static"],
+}
+
+ORDER = [
+    "static_effect", "static_response", "structural", "temporal", "design_based",
+    "discovery", "graph_posterior", "cyclic", "planning", "propagation_chain", "associational",
+]
+
+
+def quote(text: str) -> str:
+    return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def array(items: list[str]) -> str:
+    return "[" + ", ".join(quote(item) for item in items) + "]"
+
+
+def render() -> str:
+    routes = tomllib.loads(read_text(MANIFEST))["route"]
+    owner = {target: family for family, targets in FAMILY_OF_TARGET.items() for target in targets}
+    unmapped = sorted({r["target"] for r in routes} - owner.keys())
+    if unmapped:
+        sys.exit(f"route targets with no family: {unmapped}; map them in FAMILY_OF_TARGET")
+    by_family: dict[str, list[str]] = {family: [] for family in ORDER}
+    for route in routes:
+        by_family[owner[route["target"]]].append(route["id"])
+    lines = [
+        "# Cross-family contract conformance rows, one per route family.",
+        "# Generated by scripts/generate_family_conformance.py from",
+        "# parity/capabilities/route_manifest.toml; do not edit by hand.",
+        "#",
+        "# `routes` lists every route id the family owns. A route id missing from every row",
+        "# fails crates/antecedent/tests/family_contract_conformance.rs. A covered family names",
+        "# the representative studies the suite runs and the test that discharges each shared",
+        "# obligation on all of them.",
+        "",
+        "schema = 1",
+    ]
+    for family in ORDER:
+        lines += ["", "[[family]]", f"id = {quote(family)}"]
+        if family not in REPRESENTATIVES:
+            sys.exit(f"family `{family}` has no representative study; add one to the suite")
+        lines.append('status = "covered"')
+        lines.append(f"representatives = {array(REPRESENTATIVES[family])}")
+        for key, test in OBLIGATIONS.items():
+            lines.append(f"{key} = {quote(test)}")
+        lines.append(f"routes = {array(by_family[family])}")
+    return "\n".join(lines) + "\n"
+
+
+def main() -> int:
+    text = render()
+    if "--check" in sys.argv:
+        if not ROWS.exists() or read_text(ROWS) != text:
+            print("parity/capabilities/family_conformance.toml is stale; run this script")
+            return 1
+        return 0
+    write_text(ROWS, text)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

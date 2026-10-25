@@ -412,13 +412,21 @@ fn series_effect_program_reads_the_study_configuration() {
     assert_eq!(statistical.models()[0].output(), Some(XY_OUTCOME));
     assert!(statistical.models()[0].inputs().contains(&X));
     assert_eq!(program.claim().kind(), Some(ClaimKind::Point));
-    assert_eq!(program.claim().uncertainty(), UncertaintyReading::Sampling);
+    assert_eq!(
+        program.claim().uncertainty(),
+        UncertaintyReading::None,
+        "no replicates: the dependence-honest fit publishes no sampling law"
+    );
 
     let base = program.identity();
     assert_eq!(identity(series_effect()), base, "stable across compiles");
 
     let bootstrapped = series_effect().bootstrap_replicates(50).build().unwrap();
     let bootstrapped_plan = compile(&bootstrapped);
+    assert_eq!(
+        bootstrapped_plan.lowered().unwrap().claim().uncertainty(),
+        UncertaintyReading::Sampling
+    );
     let resampling = bootstrapped_plan.lowered().unwrap().statistical().resampling().unwrap();
     assert_eq!(resampling.method(), ResamplingMethod::BlockBootstrap);
     assert_eq!(resampling.unit(), ResampleUnit::CalendarBlock);

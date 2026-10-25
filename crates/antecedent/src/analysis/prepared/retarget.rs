@@ -23,7 +23,9 @@ impl PreparedStudy {
             crate::unsupported_reason!(
                 "score_table_unavailable",
                 "retarget requires a prepared score table on AverageEffect or discrete joint \
-                 InterventionResponse"
+                 InterventionResponse; next attempt: prepare the study with a cross-fitted \
+                 doubly robust estimator (EstimatorId::Aipw), which keeps the score table a \
+                 retarget reweights"
             )
         })
     }

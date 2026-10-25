@@ -311,6 +311,7 @@ fn lower_planning(program: PlanningProgram) -> Result<LoweredProgram, CausalErro
         source_digest: None,
         support_coordinate: None,
         licensed: false,
+        support_status: None,
     };
     let statistical = statistical_program(request)?;
     let uncertainty = if request.criterion.is_bayesian() {

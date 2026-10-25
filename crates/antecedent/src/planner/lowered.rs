@@ -180,6 +180,9 @@ pub struct ScientificProblem {
     pub(crate) source_digest: Option<[u8; 32]>,
     pub(crate) support_coordinate: Option<Arc<str>>,
     pub(crate) licensed: bool,
+    /// Evidence status of the coordinate, read from the study at lowering. Not part of the
+    /// program identity: the identity binds the coordinate and whether it is licensed.
+    pub(crate) support_status: Option<crate::support::CellStatus>,
 }
 
 impl ScientificProblem {
@@ -229,6 +232,12 @@ impl ScientificProblem {
     #[must_use]
     pub const fn licensed(&self) -> bool {
         self.licensed
+    }
+
+    /// Evidence status of the study's support-matrix cell.
+    #[must_use]
+    pub const fn support_status(&self) -> Option<crate::support::CellStatus> {
+        self.support_status
     }
 
     fn write(&self, writer: &mut CanonicalWriter) {

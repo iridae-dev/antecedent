@@ -1128,7 +1128,8 @@ impl SupportView {
         self.licensed
     }
 
-    /// Evidence status of the cell, when the view was taken with the study.
+    /// Evidence status of the cell, read from the lowered program so the view and
+    /// `Study::inspect` state the same status.
     #[must_use]
     pub const fn status(&self) -> Option<CellStatus> {
         self.status
@@ -1692,7 +1693,7 @@ impl PlanView {
         let support = SupportView {
             coordinate: scientific.support_coordinate.clone(),
             licensed: scientific.licensed(),
-            status: study.and_then(|study| study.support_status),
+            status: scientific.support_status(),
         };
         let physical = PhysicalView {
             operators: Arc::clone(&program.physical().operators),

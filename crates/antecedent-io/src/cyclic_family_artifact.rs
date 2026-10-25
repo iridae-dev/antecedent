@@ -1701,7 +1701,10 @@ fn consume_decoded(
     ctx: &ExecutionContext,
 ) -> Result<(Decoded, CyclicFamilyReport), CyclicArtifactError> {
     if bytes.len() > MAX_CYCLIC_ARTIFACT_BYTES || expected_identity.len() != 64 {
-        return Err(invalid("family byte limit or expected identity"));
+        return Err(invalid(
+            "family byte limit or expected identity; next attempt: pass the 64-character \
+             identity the producer retained, and an artifact within the byte limit",
+        ));
     }
     let _retention = crate::cyclic_system_artifact::cyclic_decode_admission(bytes, ctx)?;
     let decoded = decode_record(bytes)?;

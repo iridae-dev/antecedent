@@ -551,7 +551,9 @@ impl PreparedStudy {
         if data.schema() != &self.schema {
             return Err(CausalError::Compile {
                 message: "prepared analysis refresh requires the same schema \
-                    (variable names, types, and order) as prepare-time data"
+                    (variable names, types, and order) as prepare-time data; next attempt: \
+                    supply data with the prepare-time schema, or prepare the study again on \
+                    the new schema"
                     .into(),
             });
         }
@@ -563,7 +565,9 @@ impl PreparedStudy {
         if data.schema() != &self.schema {
             return Err(CausalError::Compile {
                 message: "prepared temporal analysis requires the same schema \
-                    (variable names, types, and order) as prepare-time data"
+                    (variable names, types, and order) as prepare-time data; next attempt: \
+                    supply a series with the prepare-time schema, or prepare the study again \
+                    on the new schema"
                     .into(),
             });
         }
@@ -838,6 +842,8 @@ impl PreparedStudy {
             self.replace_study(refreshed);
             return Ok(result);
         }
+        let snapshot_before =
+            self.contract().ok().map(|contract| contract.identities.data_snapshot);
         let imputes = crate::analysis::missing_imputation::imputes_series(&refreshed);
         let result = match &refreshed.data {
             DataInput::Temporal(series) if imputes => {
@@ -854,6 +860,13 @@ impl PreparedStudy {
             },
         };
         self.replace_study(refreshed);
+        let data = self.analysis.data.clone();
+        // A series whose data snapshot is unchanged is not a new period: no product read a
+        // changed input, so nothing is invalidated.
+        let snapshot_after = self.contract().ok().map(|contract| contract.identities.data_snapshot);
+        if snapshot_before.is_some() && snapshot_before == snapshot_after {
+            return self.stamp(&data, result);
+        }
         // A refreshed series is a new observation period of the same declared study: the
         // graph, query, history, horizon, cadence and initial law are unchanged (the schema
         // and the sampling regularity were checked), so the period is the one factor that
@@ -869,7 +882,6 @@ impl PreparedStudy {
             false,
             "series period replaced on refresh",
         );
-        let data = self.analysis.data.clone();
         self.stamp(&data, result)
     }
 

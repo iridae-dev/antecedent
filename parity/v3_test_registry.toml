@@ -1642,3 +1642,10 @@ crate = "antecedent-discovery"
 cargo_target = "lib"
 path = "crates/antecedent-discovery/src/temporal_admg_posterior.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "cross-family-contract-conformance"
+crate = "antecedent"
+cargo_target = "family_contract_conformance"
+path = "crates/antecedent/tests/family_contract_conformance.rs"
+gates = ["inventory", "named"]

@@ -436,7 +436,10 @@ impl Study {
             antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::RecoveredLinear { .. }
         ) {
             return Err(CyclicArtifactError::Invalid(
-                "prepare_recovered_linear accepts only a recovered linear family".into(),
+                "prepare_recovered_linear accepts only a recovered linear family; next attempt: \
+                 prepare an experimental recovery with prepare_experimental_recovery, or any \
+                 other family with prepare_cyclic_family"
+                    .into(),
             ));
         }
         Self::prepare_cyclic_family(request, ctx)

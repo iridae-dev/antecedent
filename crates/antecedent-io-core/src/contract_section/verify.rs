@@ -1164,7 +1164,9 @@ pub(in crate::contract_section) fn calibration_basis_matches_contract(
             // endpoints; calibration remains unavailable on this axis.
             slot.matrix_status == "off_axis"
                 && slot.matrix_coordinate.is_none()
-                && key.query == "Unknown"
+                && (key.query == "Unknown"
+                    || (key.query == "Discover"
+                        && matches!(contract.target.query, crate::CausalQueryWire::Discover(_))))
                 && (key.interval_method == "none"
                     || (key.inference.eq_ignore_ascii_case("bayesian")
                         && key.interval_method == "posterior_quantile")

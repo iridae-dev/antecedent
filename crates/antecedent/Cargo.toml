@@ -901,3 +901,7 @@ harness = false
 [[test]]
 name = "class_route_artifacts"
 path = "tests/class_route_artifacts.rs"
+
+[[test]]
+name = "family_contract_conformance"
+path = "tests/family_contract_conformance.rs"

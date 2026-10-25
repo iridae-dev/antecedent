@@ -229,6 +229,17 @@ impl EstimationError {
         }
     }
 
+    /// The remedy a refusal built with structured diagnostics records, when it records one.
+    #[must_use]
+    pub fn field_remedy(&self) -> Option<&str> {
+        match self {
+            Self::RefusedWithFields { fields, .. }
+            | Self::UnsupportedWithFields { fields, .. }
+            | Self::OverlapWithFields { fields, .. } => fields.remedy.as_deref(),
+            _ => None,
+        }
+    }
+
     /// Refusal to estimate a quantity whose identification was not certified.
     #[must_use]
     pub fn not_certified(stage: &str, reason: &str, message: &str) -> Self {

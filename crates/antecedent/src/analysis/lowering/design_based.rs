@@ -166,6 +166,7 @@ pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalEr
         source_digest: None,
         support_coordinate: crate::analysis::contract::matrix_coordinate(study).map(Arc::from),
         licensed: matches!(study.support_status, Some(crate::support::CellStatus::Licensed)),
+        support_status: study.support_status,
     };
     // An identified set is read as an envelope under frequentist inference: the sampling
     // interval is about the set, not a replacement for it.

@@ -214,6 +214,7 @@ pub(crate) fn lower_chain(
         source_digest: None,
         support_coordinate: None,
         licensed: false,
+        support_status: None,
     };
     let identification = IdentificationLayer::NonGraphical(Arc::new(
         NonGraphicalIdentification::SharedEvidenceContract { contract: query },

@@ -783,12 +783,16 @@ impl CausalError {
     }
 
     /// What the caller can change to get past this refusal, when the refusal
-    /// names one (an estimator refusal built with a remedy). Additive and
+    /// names one (an estimator refusal built with a remedy, or one whose structured
+    /// diagnostics record it). Additive and
     /// optional: `None` for every other error, and never part of the message.
     #[must_use]
-    pub const fn remedy(&self) -> Option<&'static str> {
+    pub fn remedy(&self) -> Option<&str> {
         match self {
-            Self::Estimate(error) => error.remedy(),
+            Self::Diagnosed { error, fields } => {
+                fields.remedy.as_deref().or_else(|| error.remedy())
+            }
+            Self::Estimate(error) => error.remedy().or_else(|| error.field_remedy()),
             _ => None,
         }
     }

@@ -389,6 +389,7 @@ pub(super) fn assemble(
         source_digest: None,
         support_coordinate: crate::analysis::contract::matrix_coordinate(study).map(Arc::from),
         licensed: matches!(study.support_status, Some(crate::support::CellStatus::Licensed)),
+        support_status: study.support_status,
     };
     let design = DesignShape::not_design_based(cell.width);
     let mut statistical = StatisticalProgram::declared(DeclaredProgram {

@@ -111,7 +111,10 @@ pub enum CyclicArtifactError {
     #[error(transparent)]
     Execution(#[from] antecedent_model::nonlinear_equilibrium::EquilibriumError),
     /// Expected request does not match, or replay differs from stored results.
-    #[error("cyclic artifact identity/replay mismatch")]
+    #[error(
+        "cyclic artifact identity/replay mismatch; next attempt: consume the artifact against the \
+         identity its producer retained, or export it again from its prepared family"
+    )]
     Mismatch,
 }
 
