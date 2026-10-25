@@ -31,8 +31,8 @@ pub enum PredictionNode {
 }
 
 /// Versioned numerical prediction map. Schema and causal identity belong to its owner.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(try_from = "PortablePredictorWire")]
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct PortablePredictor {
     /// Codec version.
     pub version: u32,
@@ -55,17 +55,16 @@ struct PortablePredictorWire {
     model: PredictionMap,
 }
 
-impl TryFrom<PortablePredictorWire> for PortablePredictor {
-    type Error = LearnError;
-
-    fn try_from(wire: PortablePredictorWire) -> Result<Self, Self::Error> {
+impl<'de> Deserialize<'de> for PortablePredictor {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let wire = PortablePredictorWire::deserialize(deserializer)?;
         let predictor = Self {
             version: wire.version,
             columns: wire.columns,
             provenance: wire.provenance,
             model: wire.model,
         };
-        predictor.validate()?;
+        predictor.validate().map_err(serde::de::Error::custom)?;
         Ok(predictor)
     }
 }

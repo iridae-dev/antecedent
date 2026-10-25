@@ -264,6 +264,37 @@ fn replay_refusal(error: EstimationError) -> Refusal {
     }
 }
 
+/// Inspect only the model-owned decode boundary after ordinary decoding has
+/// failed. Checked predictor deserialization remains the single numerical-map
+/// validator; codec error text is never used to infer scientific refusal kinds.
+fn malformed_fold_model(bytes: &[u8]) -> bool {
+    fn field<'a>(value: &'a ciborium::Value, name: &str) -> Option<&'a ciborium::Value> {
+        let ciborium::Value::Map(fields) = value else { return None };
+        let mut matching = fields.iter().filter_map(|(key, value)| {
+            matches!(key, ciborium::Value::Text(key) if key == name).then_some(value)
+        });
+        let value = matching.next()?;
+        // Duplicate keys are a codec failure, not a valid semantic boundary.
+        matching.next().is_none().then_some(value)
+    }
+
+    let Ok(value) = crate::from_cbor::<ciborium::Value>(bytes) else { return false };
+    if field(&value, "version").and_then(|v| v.deserialized::<u32>().ok())
+        != Some(SMOOTHED_DOSE_ARTIFACT_VERSION)
+    {
+        return false;
+    }
+    let Some(models) = field(&value, "result").and_then(|result| field(result, "models")) else {
+        return false;
+    };
+    ["outcome", "membership"].into_iter().any(|role| {
+        let Some(ciborium::Value::Array(models)) = field(models, role) else { return false };
+        models
+            .iter()
+            .any(|model| model.deserialized::<antecedent_learn::PortablePredictor>().is_err())
+    })
+}
+
 impl SmoothedDoseArtifactWire {
     /// Build an artifact from checked premises and an executed estimate, then verify it.
     ///
@@ -399,15 +430,31 @@ impl SmoothedDoseArtifactWire {
     ///
     /// # Errors
     /// [`IoError::UnsupportedVersion`], or a decoding failure (an artifact carrying an
-    /// interval field fails here).
+    /// interval field fails here). Invalid embedded fold predictors retain the
+    /// typed [`Refusal::ProvenanceMismatch`] classification.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
-        crate::decode_with_version(bytes, |version| {
+        Self::decode_with_model_refusal(bytes, SMOOTHED_DOSE_BOUNDS.max_workspace_bytes)
+    }
+
+    fn decode_with_model_refusal(bytes: &[u8], max_reparse_bytes: u64) -> Result<Self, IoError> {
+        match crate::decode_with_version(bytes, |version| {
             if version == SMOOTHED_DOSE_ARTIFACT_VERSION {
                 Ok(())
             } else {
                 Err(IoError::UnsupportedVersion { version })
             }
-        })
+        }) {
+            Err(IoError::Cbor(_))
+                if u64::try_from(bytes.len()).is_ok_and(|size| size <= max_reparse_bytes)
+                    && malformed_fold_model(bytes) =>
+            {
+                // Predictor invariants are enforced during serde, before verify
+                // can classify their violation. Keep the family's semantic error
+                // at its consumption boundary without accepting an invalid model.
+                Err(Refusal::ProvenanceMismatch.into())
+            }
+            result => result,
+        }
     }
 
     /// Decode and independently verify without fitting or resampling, under the caller's
@@ -421,7 +468,8 @@ impl SmoothedDoseArtifactWire {
         limits: SmoothedDoseConsumeLimits,
         ctx: &ExecutionContext,
     ) -> Result<ConsumedSmoothedDose, IoError> {
-        let wire = Self::decode(bytes)?;
+        let reparse_cap = limits.max_memory_bytes.min(smoothed_dose_memory_cap(ctx));
+        let wire = Self::decode_with_model_refusal(bytes, reparse_cap)?;
         let identification = wire.verify(limits, ctx)?;
         Ok(ConsumedSmoothedDose { wire, identification })
     }

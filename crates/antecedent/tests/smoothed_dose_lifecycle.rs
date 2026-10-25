@@ -1229,6 +1229,58 @@ fn coefficient(
 }
 
 #[test]
+fn invalid_fold_predictors_keep_semantic_refusals_at_the_artifact_boundary() {
+    let (bytes, wire) = exported(Design::NestedCohort);
+    assert_eq!(
+        refused(&mutate(&wire, |w| w.result.models.outcome[0].columns += 1, true)),
+        Refusal::ProvenanceMismatch
+    );
+    assert_eq!(
+        refused(&mutate(&wire, |w| w.result.models.membership[0].version = 2, true)),
+        Refusal::ProvenanceMismatch
+    );
+    assert_eq!(
+        refused(&mutate(
+            &wire,
+            |w| {
+                w.result.models.outcome[0].model = PredictionMap::Trees {
+                    trees: vec![vec![PredictionNode::Split {
+                        feature: 0,
+                        threshold: 0.0,
+                        inclusive: true,
+                        left: 0,
+                        right: 0,
+                        missing: 0,
+                    }]],
+                    base: 0.0,
+                    average: false,
+                    logistic: false,
+                    probability: false,
+                };
+            },
+            true
+        )),
+        Refusal::ProvenanceMismatch
+    );
+    // Neither malformed CBOR nor a different field's type failure is a model
+    // semantics refusal; classification follows the owned payload path.
+    assert!(matches!(SmoothedDoseArtifactWire::decode(&[0xff]), Err(IoError::Cbor(_))));
+    let mut with_trailing = bytes.clone();
+    with_trailing.push(0);
+    assert!(matches!(SmoothedDoseArtifactWire::decode(&with_trailing), Err(IoError::Cbor(_))));
+    let mut value: ciborium::Value = ciborium::from_reader(bytes.as_slice()).unwrap();
+    let ciborium::Value::Map(fields) = &mut value else { panic!("artifact map") };
+    let (_, seed) = fields
+        .iter_mut()
+        .find(|(key, _)| matches!(key, ciborium::Value::Text(key) if key == "seed"))
+        .unwrap();
+    *seed = ciborium::Value::Text("not an integer".into());
+    let mut invalid_seed = Vec::new();
+    ciborium::into_writer(&value, &mut invalid_seed).unwrap();
+    assert!(matches!(SmoothedDoseArtifactWire::decode(&invalid_seed), Err(IoError::Cbor(_))));
+}
+
+#[test]
 #[allow(clippy::too_many_lines, reason = "one mutation per assertion group")]
 fn a_mutated_artifact_fails_independent_consumption_with_a_typed_error() {
     let (bytes, original) = exported(Design::NestedCohort);
