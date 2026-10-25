@@ -97,7 +97,13 @@ fn binary_strata(task: PredictionTask, y: &[f64]) -> Option<Vec<u32>> {
 /// Number of folds in a plan that uses every id in `0..folds` at least once.
 fn complete_fold_count(assignment: &[u16], message: &'static str) -> Result<usize, LearnError> {
     let folds = usize::from(*assignment.iter().max().unwrap_or(&0)) + 1;
-    if folds < 2 || (0..folds).any(|f| !assignment.iter().any(|v| usize::from(*v) == f)) {
+    // Fold ids are u16, so the occupancy table is bounded at 65,536 entries.
+    // Visit each row once rather than scanning the full plan for every fold.
+    let mut present = vec![false; folds];
+    for &fold in assignment {
+        present[usize::from(fold)] = true;
+    }
+    if folds < 2 || present.iter().any(|&seen| !seen) {
         return Err(LearnError::Shape { message });
     }
     Ok(folds)
@@ -470,6 +476,16 @@ mod tests {
     use super::*;
     use crate::linear::LinearLearner;
     use crate::transform::Identity;
+
+    #[test]
+    fn supplied_fold_plans_require_every_id() {
+        for assignment in [&[][..], &[0][..], &[1, 1][..], &[0, 2, 2][..], &[0, u16::MAX][..]] {
+            assert!(complete_fold_count(assignment, "invalid").is_err());
+        }
+        assert_eq!(complete_fold_count(&[1, 0, 1], "invalid").unwrap(), 2);
+        let all: Vec<_> = (0..=u16::MAX).rev().collect();
+        assert_eq!(complete_fold_count(&all, "invalid").unwrap(), 65_536);
+    }
 
     #[test]
     fn fold_ids_cannot_wrap() {

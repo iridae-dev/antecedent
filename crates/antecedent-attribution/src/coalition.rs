@@ -101,6 +101,13 @@ impl CoalitionCache {
             return;
         }
         let slots = 1usize << n_players;
+        // The dense index allocates every slot eagerly, even for a cache whose
+        // budget admits only one payoff. Keep small budgets on the sparse map;
+        // choosing an index must not itself exceed the cache's byte allowance.
+        let index_bytes = (slots * std::mem::size_of::<Option<CacheEntry>>()) as u64;
+        if self.max_bytes.is_some_and(|max| index_bytes > max) {
+            return;
+        }
         self.dense = Some(vec![None; slots]);
     }
 
@@ -235,6 +242,21 @@ mod tests {
         assert_eq!(c.get(k), Some(1.5));
         assert_eq!(c.stats().entries, 1);
         assert!(c.map.is_empty(), "tag-0 exact inserts must not land in the HashMap");
+    }
+
+    #[test]
+    fn dense_index_respects_small_cache_budgets_without_changing_payoffs() {
+        let mut c = CoalitionCache::from_policy(CachePolicy::enabled(Some(32)));
+        c.enable_dense_index(DENSE_MASK_MAX_PLAYERS);
+        assert!(c.dense.is_none());
+        let first = CoalitionKey { mask: 0, tag: 0 };
+        let second = CoalitionKey { mask: 1, tag: 0 };
+        c.insert(first, 1.5);
+        c.insert(second, 2.5);
+        assert_eq!(c.get(first), Some(1.5));
+        assert!(c.get(second).is_none());
+        assert_eq!(c.stats().bytes, 32);
+        assert!(c.stats().saturated);
     }
 
     #[test]

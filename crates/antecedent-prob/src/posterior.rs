@@ -97,7 +97,9 @@ impl PosteriorDraws {
         values: impl Into<Arc<[f64]>>,
     ) -> Result<Self, ProbError> {
         let values = values.into();
-        let expected = n_draws.saturating_mul(schema.n_quantities());
+        let expected = n_draws
+            .checked_mul(schema.n_quantities())
+            .ok_or(ProbError::Shape { message: "posterior dimensions overflow" })?;
         if values.len() != expected {
             return Err(ProbError::Shape {
                 message: "posterior values length != n_draws * n_quantities",
@@ -121,8 +123,15 @@ impl PosteriorDraws {
         if q >= self.n_quantities() {
             return Err(ProbError::Shape { message: "quantity index out of range" });
         }
-        let start = q * self.n_draws;
-        Ok(&self.values[start..start + self.n_draws])
+        let start = q
+            .checked_mul(self.n_draws)
+            .ok_or(ProbError::Shape { message: "posterior column offset overflow" })?;
+        let end = start
+            .checked_add(self.n_draws)
+            .ok_or(ProbError::Shape { message: "posterior column end overflow" })?;
+        self.values
+            .get(start..end)
+            .ok_or(ProbError::Shape { message: "posterior column exceeds stored values" })
     }
 
     /// Value at (draw, quantity).
@@ -134,7 +143,10 @@ impl PosteriorDraws {
         if draw >= self.n_draws || quantity >= self.n_quantities() {
             return Err(ProbError::Shape { message: "draw/quantity out of range" });
         }
-        Ok(self.values[quantity * self.n_draws + draw])
+        self.column(quantity)?
+            .get(draw)
+            .copied()
+            .ok_or(ProbError::Shape { message: "posterior draw exceeds stored values" })
     }
 
     /// Contiguous batch view over draw range `[start, start+len)`.
@@ -143,13 +155,14 @@ impl PosteriorDraws {
     ///
     /// Out of range.
     pub fn batch(&self, start: usize, len: usize) -> Result<PosteriorBatch<'_>, ProbError> {
-        if start.saturating_add(len) > self.n_draws {
+        if start.checked_add(len).is_none_or(|end| end > self.n_draws) {
             return Err(ProbError::Shape { message: "batch range out of draws" });
         }
         Ok(PosteriorBatch { draws: self, start, len })
     }
 
-    /// Summary statistics per quantity.
+    /// Summary statistics per quantity. A malformed publicly assembled column
+    /// has undefined (NaN) summaries, just as an empty or failed draw column does.
     #[must_use]
     pub fn summarize(&self) -> PosteriorSummary {
         use antecedent_core::KernelPolicy;
@@ -164,7 +177,9 @@ impl PosteriorDraws {
         let mut q975 = vec![f64::NAN; n_q];
         let policy = KernelPolicy::default_policy();
         for q in 0..n_q {
-            let col = &self.values[q * self.n_draws..(q + 1) * self.n_draws];
+            let Ok(col) = self.column(q) else {
+                continue;
+            };
             // No draws carry no location information either: NaN, never a zero mean.
             mean[q] =
                 reduce_posterior_draws(col, PosteriorReduceOp::Mean, &policy).unwrap_or(f64::NAN);
@@ -190,11 +205,14 @@ impl PosteriorDraws {
     ///
     /// # Errors
     ///
-    /// Out of range.
+    /// Out of range, no draws, a non-finite draw, or a NaN threshold. Infinite
+    /// thresholds are valid boundaries for a finite draw column.
     pub fn probability_below(&self, q: usize, threshold: f64) -> Result<f64, ProbError> {
         let col = self.column(q)?;
-        if col.is_empty() {
-            return Ok(0.0);
+        if col.is_empty() || col.iter().any(|draw| !draw.is_finite()) || threshold.is_nan() {
+            return Err(ProbError::Numerical {
+                message: "posterior probability requires finite draws, at least one draw, and a non-NaN threshold".into(),
+            });
         }
         let count = col.iter().filter(|&&x| x < threshold).count();
         Ok(count as f64 / col.len() as f64)
@@ -220,7 +238,12 @@ impl<'a> PosteriorBatch<'a> {
     /// Out of range.
     pub fn column(&self, q: usize) -> Result<&'a [f64], ProbError> {
         let full = self.draws.column(q)?;
-        Ok(&full[self.start..self.start + self.len])
+        let end = self
+            .start
+            .checked_add(self.len)
+            .ok_or(ProbError::Shape { message: "posterior batch end overflow" })?;
+        full.get(self.start..end)
+            .ok_or(ProbError::Shape { message: "posterior batch range out of draws" })
     }
 }
 
@@ -302,6 +325,45 @@ mod tests {
         assert_eq!(batch.column(0).unwrap(), &[2.0, 3.0]);
         // Storage is a single Arc<[f64]>, not Vec of draw objects.
         assert_eq!(draws.values.len(), 6);
+    }
+
+    #[test]
+    fn posterior_probability_refuses_undefined_or_failed_draws() {
+        for values in [vec![], vec![-1.0, f64::NAN, 1.0], vec![f64::INFINITY]] {
+            let draws = PosteriorDraws::from_column_major(
+                PosteriorSchema::coefficients(1),
+                values.len(),
+                values,
+            )
+            .unwrap();
+            assert!(draws.probability_below(0, 0.0).is_err());
+        }
+        let draws =
+            PosteriorDraws::from_column_major(PosteriorSchema::coefficients(1), 2, vec![-1.0, 1.0])
+                .unwrap();
+        assert!(draws.probability_below(0, f64::NAN).is_err());
+        assert_eq!(draws.probability_below(0, f64::NEG_INFINITY).unwrap(), 0.0);
+        assert_eq!(draws.probability_below(0, f64::INFINITY).unwrap(), 1.0);
+        assert_eq!(draws.probability_below(0, 0.0).unwrap(), 0.5);
+    }
+
+    #[test]
+    fn malformed_public_draw_and_batch_fields_return_shape_errors() {
+        let draws = PosteriorDraws {
+            schema: PosteriorSchema::coefficients(2),
+            n_draws: usize::MAX,
+            values: Arc::from([]),
+        };
+        assert!(draws.column(1).is_err());
+        assert!(draws.get(0, 1).is_err());
+        assert!(draws.summarize().mean.iter().all(|mean| mean.is_nan()));
+        assert!(draws.batch(usize::MAX, 1).is_err());
+        let valid =
+            PosteriorDraws::from_column_major(PosteriorSchema::coefficients(1), 1, vec![1.0])
+                .unwrap();
+        for (start, len) in [(2, 0), (0, 2), (usize::MAX, 1)] {
+            assert!(PosteriorBatch { draws: &valid, start, len }.column(0).is_err());
+        }
     }
 
     #[test]

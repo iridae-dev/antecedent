@@ -29,9 +29,13 @@ pub fn cholesky_spd_into(a: &[f64], n: usize, l: &mut [f64]) -> Result<(), ProbE
 ///
 /// # Errors
 ///
-/// Non-positive pivot.
+/// Non-positive pivot, an overflowing dimension, or an input shorter than `n²`.
 pub fn cholesky_spd(a: &[f64], n: usize) -> Result<Vec<f64>, ProbError> {
-    let mut l = vec![0.0; n.saturating_mul(n)];
+    let cells =
+        n.checked_mul(n).filter(|&cells| a.len() >= cells).ok_or_else(|| ProbError::Numerical {
+            message: "Cholesky input shorter than n² or dimension overflow".into(),
+        })?;
+    let mut l = vec![0.0; cells];
     cholesky_spd_into(a, n, &mut l)?;
     Ok(l)
 }
@@ -64,7 +68,7 @@ pub fn solve_chol_into(chol: &[f64], n: usize, b: &[f64], y: &mut [f64], x: &mut
 ///
 /// # Errors
 ///
-/// Cholesky failure.
+/// Cholesky failure, or a right-hand side, output or scratch shorter than `n`.
 pub fn solve_spd_into(
     a: &[f64],
     n: usize,
@@ -73,6 +77,11 @@ pub fn solve_spd_into(
     factor: &mut [f64],
     y: &mut [f64],
 ) -> Result<(), ProbError> {
+    if b.len() < n || x.len() < n || y.len() < n {
+        return Err(ProbError::Numerical {
+            message: "SPD solve right-hand side, output or scratch shorter than n".into(),
+        });
+    }
     cholesky_spd_into(a, n, factor)?;
     solve_chol_into(factor, n, b, y, x);
     Ok(())
@@ -101,6 +110,26 @@ mod tests {
         solve_spd_into(&a, 2, &b, &mut x_into, &mut factor, &mut y).unwrap();
         assert!((x_into[0] - 1.0 / 11.0).abs() < 1e-12);
         assert!((x_into[1] - 7.0 / 11.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn invalid_solve_buffers_are_refused_before_mutation() {
+        let a = [4.0, 1.0, 1.0, 3.0];
+        for short in 0..3 {
+            let mut factor = [9.0; 4];
+            let mut x = [9.0; 2];
+            let mut y = [9.0; 2];
+            let b = [1.0, 2.0];
+            let rhs = if short == 0 { &b[..1] } else { &b[..] };
+            let output = if short == 1 { &mut x[..1] } else { &mut x[..] };
+            let scratch = if short == 2 { &mut y[..1] } else { &mut y[..] };
+            assert!(solve_spd_into(&a, 2, rhs, output, &mut factor, scratch).is_err());
+            assert_eq!(factor, [9.0; 4]);
+            assert_eq!(x, [9.0; 2]);
+            assert_eq!(y, [9.0; 2]);
+        }
+        assert!(cholesky_spd(&[], usize::MAX).is_err());
+        assert!(cholesky_spd(&[1.0], 2).is_err());
     }
 
     #[test]
