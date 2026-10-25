@@ -290,6 +290,7 @@ def acceptance(
         "cpu": inspect_wheel(cpu, "cpu"),
         "accelerator": inspect_wheel(accelerator, "accelerator"),
     }
+    work = work.resolve()
     work.mkdir(parents=True, exist_ok=True)
     cpu_artifact, acc_artifact = (
         work / "cpu_model.json",

@@ -17,6 +17,7 @@ from pathlib import Path
 import antecedent as ac
 import numpy as np
 from antecedent.estimators import DML
+from antecedent.estimators import DRLearner
 from antecedent.learners import Logistic, NeuralNet
 from antecedent.prediction import FittedEffectModel
 
@@ -40,6 +41,23 @@ def analyze(device: str, *, n: int = 160, hidden: int = 4, epochs: int = 3):
             outcome=NeuralNet(
                 hidden=hidden, epochs=epochs, learning_rate=0.01, device=device
             ),
+            treatment=Logistic(),
+            folds=2,
+        ),
+        bootstrap=0,
+        refute=False,
+        seed=3,
+    )
+
+
+def analyze_portable(device: str):
+    """The same neural analysis through the learner that keeps a portable fitted effect."""
+    return ac.analyze(
+        data(160),
+        graph=[("z", "t"), ("z", "y"), ("t", "y")],
+        query=ac.AverageEffect(treatment="t", outcome="y"),
+        estimator=DRLearner(
+            outcome=NeuralNet(hidden=4, epochs=3, learning_rate=0.01, device=device),
             treatment=Logistic(),
             folds=2,
         ),
@@ -163,7 +181,7 @@ def accelerator_checks(report: Report) -> None:
 
 
 def write_artifact(path: Path) -> None:
-    model = analyze("cpu").fitted_model
+    model = analyze_portable("cpu").fitted_model
     exported = model.export()
     binary = isinstance(exported, bytes)
     body = base64.b64encode(exported).decode() if binary else exported
