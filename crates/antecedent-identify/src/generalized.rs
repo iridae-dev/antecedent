@@ -104,9 +104,7 @@ pub struct GeneralizedAdjustmentConfig {
 
 impl GeneralizedAdjustmentConfig {
     /// Limits and context of the completion search these settings configure.
-    pub(crate) fn completion_search(
-        &self,
-    ) -> (antecedent_core::SearchLimits, ExecutionContext) {
+    pub(crate) fn completion_search(&self) -> (antecedent_core::SearchLimits, ExecutionContext) {
         (
             antecedent_core::SearchLimits {
                 operations: self.completion_operations,
@@ -231,7 +229,8 @@ impl GeneralizedAdjustmentIdentifier {
                 clippy::cast_precision_loss,
                 reason = "a completion carries a handful of candidate functionals"
             )]
-            let w = ProbabilityMass(self.config.per_completion_weight / results.len().max(1) as f64);
+            let w =
+                ProbabilityMass(self.config.per_completion_weight / results.len().max(1) as f64);
             for result in results {
                 cases.push(GraphIdentificationCase {
                     graph: completion.graph.clone(),
@@ -339,7 +338,8 @@ impl GeneralizedAdjustmentIdentifier {
             }
         }
 
-        let mut backdoor = BackdoorIdentifier::new().with_max_candidates(self.config.max_candidates);
+        let mut backdoor =
+            BackdoorIdentifier::new().with_max_candidates(self.config.max_candidates);
         backdoor.config.context.clone_from(&self.config.context);
         let mut workspace = IdentificationWorkspace::default();
         let cq = CausalQuery::AverageEffect(query.clone());
@@ -729,6 +729,19 @@ fn constrained_conditional_set(
             break;
         }
     }
+    Ok(finish_conditional_search(&found, &candidates, nodes, examined, budget_exhausted, config))
+}
+
+/// Translate the completed dense search and rank its admissible sets. An exhausted
+/// selection search still carries the ancestral set whose validity was established.
+fn finish_conditional_search(
+    found: &[Vec<DenseNodeId>],
+    candidates: &[DenseNodeId],
+    nodes: &[antecedent_graph::NodeRef],
+    examined: u64,
+    budget_exhausted: bool,
+    config: &crate::backdoor::AdjustmentSearchConfig,
+) -> ConditionalSearch {
     let mut sets: Vec<Vec<VariableId>> = found
         .iter()
         .map(|set| {
@@ -754,11 +767,11 @@ fn constrained_conditional_set(
         );
     }
     rank_conditional_sets(&mut sets, config);
-    Ok(if sets.is_empty() {
+    if sets.is_empty() {
         ConditionalSearch::Absent
     } else {
         ConditionalSearch::Found(sets, examined, budget_exhausted)
-    })
+    }
 }
 
 fn gac_conditional_candidates(

@@ -231,9 +231,9 @@ fn window_mag(
             return Err(IdentificationError::msg("a seed lies outside the window"));
         }
         keep[seed] = true;
-        for inner in 0..n {
+        for (inner, retained) in keep.iter_mut().enumerate() {
             if ancestors[seed + shift].contains(DenseNodeId::from_index(inner + shift)) {
-                keep[inner] = true;
+                *retained = true;
             }
         }
     }
@@ -285,6 +285,37 @@ fn functional_form(result: &IdentificationResult) -> Option<String> {
     let estimand = result.estimands.first()?;
     ((estimand.functional.raw() as usize) < result.arena.len())
         .then(|| result.arena.pretty(estimand.functional))
+}
+
+/// Publish the deterministic-subset limitation whenever completion enumeration
+/// or the finite equivalence audit could not establish the complete class.
+fn mark_incomplete_window(
+    envelope: &mut IdentificationEnvelope<TemporalCompletionGraph>,
+    sampler: &TemporalPagCompletionSampler,
+    finite_audit: Option<bool>,
+    max_completions: usize,
+) {
+    let incomplete =
+        sampler.hit_cap() || sampler.class_audit_incomplete() || finite_audit.is_none();
+    if incomplete {
+        envelope.truncated_completions = envelope.truncated_completions.max(1);
+        envelope.invariant = None;
+        let stopped = sampler
+            .search_stop()
+            .map_or_else(String::new, |stop| format!(" (search stopped: {})", stop.code()));
+        envelope.push_features([GraphFeature {
+            kind: Arc::from("completion_enumeration_capped"),
+            detail: Arc::from(format!(
+                "retained {} temporal completion case(s) under max_completions={}{stopped}; \
+                 identification is established only over the deterministic retained subset",
+                envelope.cases.len(),
+                max_completions,
+            )),
+        }]);
+        if envelope.status == IdentificationStatus::NonparametricallyIdentified {
+            envelope.status = IdentificationStatus::PartiallyIdentified;
+        }
+    }
 }
 
 impl GeneralizedAdjustmentIdentifier {
@@ -395,27 +426,7 @@ impl GeneralizedAdjustmentIdentifier {
                           in the unfolded mediation window",
             });
         }
-        let incomplete =
-            sampler.hit_cap() || sampler.class_audit_incomplete() || finite_audit.is_none();
-        if incomplete {
-            envelope.truncated_completions = envelope.truncated_completions.max(1);
-            envelope.invariant = None;
-            let stopped = sampler
-                .search_stop()
-                .map_or_else(String::new, |stop| format!(" (search stopped: {})", stop.code()));
-            envelope.push_features([GraphFeature {
-                kind: Arc::from("completion_enumeration_capped"),
-                detail: Arc::from(format!(
-                    "retained {} temporal completion case(s) under max_completions={}{stopped}; \
-                     identification is established only over the deterministic retained subset",
-                    envelope.cases.len(),
-                    self.config.max_completions,
-                )),
-            }]);
-            if envelope.status == IdentificationStatus::NonparametricallyIdentified {
-                envelope.status = IdentificationStatus::PartiallyIdentified;
-            }
-        }
+        mark_incomplete_window(&mut envelope, &sampler, finite_audit, self.config.max_completions);
         Ok(TemporalClassEnvelope { envelope, indexers })
     }
 

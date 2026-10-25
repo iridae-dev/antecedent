@@ -221,17 +221,21 @@ pub(crate) fn group_players(
         let mut representative: Option<VariableId> = None;
         for &variable in block {
             let Some(dense) = model.dense_of(variable) else { continue };
-            let Some(position) = players_dense.iter().position(|&player| player == dense) else {
+            // Both slices have one entry per player. Borrow the matching slot
+            // directly so its player association never becomes an unchecked index.
+            let Some((_, slot)) =
+                players_dense.iter().zip(&mut group_of).find(|(player, _)| **player == dense)
+            else {
                 continue;
             };
-            match group_of[position] {
+            match *slot {
                 Some(held) if held == group => continue,
                 Some(_) => {
                     return Err(AttributionError::invalid_input(
                         "noise blocks overlap: a mechanism belongs to two blocks",
                     ));
                 }
-                None => group_of[position] = Some(group),
+                None => *slot = Some(group),
             }
             representative = Some(match representative {
                 Some(current) if current.raw() <= variable.raw() => current,
@@ -285,21 +289,15 @@ pub fn distribution_change_blocks(
 ) -> Result<ChangeAttributionResult, AttributionError> {
     validate_distribution_change_query(query)?;
     let (baseline_data, comparison_data) = resolve_change_populations(data, query)?;
-    let (baseline_store, comparison_store) = match refit {
-        Some(refit) => {
-            refit_populations(graph_model, &baseline_data, &comparison_data, refit, ctx)?
-        }
-        None => {
-            let registry = MechanismRegistry::standard();
-            let (baseline, _) =
-                registry.assign_and_fit(graph_model, &baseline_data, SelectionPolicy::BestScore)?;
-            let (comparison, _) = registry.assign_and_fit(
-                graph_model,
-                &comparison_data,
-                SelectionPolicy::BestScore,
-            )?;
-            (baseline, comparison)
-        }
+    let (baseline_store, comparison_store) = if let Some(refit) = refit {
+        refit_populations(graph_model, &baseline_data, &comparison_data, refit, ctx)?
+    } else {
+        let registry = MechanismRegistry::standard();
+        let (baseline, _) =
+            registry.assign_and_fit(graph_model, &baseline_data, SelectionPolicy::BestScore)?;
+        let (comparison, _) =
+            registry.assign_and_fit(graph_model, &comparison_data, SelectionPolicy::BestScore)?;
+        (baseline, comparison)
     };
     let abduct = |store: &CompiledMechanismStore,
                   population: &TabularData|

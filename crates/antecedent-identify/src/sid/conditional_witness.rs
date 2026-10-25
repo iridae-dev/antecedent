@@ -1271,14 +1271,7 @@ pub fn search_conditional_witness_within(
                     // screening, lifting, perturbation and exact check).
                     meter.charge(bytes)?;
                     // The query's change along the direction, modulo P.
-                    let q1: Vec<u64> = gradient
-                        .iter()
-                        .map(|row| {
-                            row.iter()
-                                .zip(&direction)
-                                .fold(0, |acc, (a, b)| fp_add(acc, fp_mul(*a, *b)))
-                        })
-                        .collect();
+                    let q1 = modular_direction_effect(&gradient, &direction);
                     let Some(at) = levels.first_moved(&q0, &q1) else { continue };
                     let Some(direction) =
                         direction.iter().map(|a| reconstruct(*a)).collect::<Option<Vec<_>>>()
@@ -1288,35 +1281,15 @@ pub fn search_conditional_witness_within(
                     let Some(second) = perturb(&shape, &base, block, &columns, &direction) else {
                         continue;
                     };
-                    let mut record = ConditionalWitnessRecord {
-                        first: model_record(&shape, &base),
-                        second: model_record(&shape, &second),
-                        treatment_level: at.0,
-                        conditioned_level: at.1,
-                        outcome_level: at.2,
-                        first_value: String::new(),
-                        second_value: String::new(),
+                    let certification = WitnessCertification {
+                        diagram,
+                        query,
+                        shape: &shape,
+                        quoted_operations,
+                        ctx,
                     };
-                    // The exact verifier is the only certificate: the pair's
-                    // values are read off once, and the record then passes
-                    // through the public verifier exactly as a consumer runs it.
-                    match evaluate(&shape, query, &record, quoted_operations, ctx) {
-                        Ok((a, b, _)) if a != b => {
-                            record.first_value = a.to_text();
-                            record.second_value = b.to_text();
-                            let check = verify_conditional_witness_within(
-                                diagram,
-                                query,
-                                &record,
-                                quoted_operations,
-                                ctx,
-                            )?;
-                            return Ok(WitnessSearch::Found(Box::new(record), check));
-                        }
-                        Err(IdentificationError::Cancelled) => {
-                            return Err(IdentificationError::Cancelled);
-                        }
-                        _ => {}
+                    if let Some(witness) = certification.try_pair(&base, &second, at)? {
+                        return Ok(witness);
                     }
                 }
             }
@@ -1326,6 +1299,61 @@ pub fn search_conditional_witness_within(
         return Err(IdentificationError::budget(crate::IdentificationBudget::Steps));
     }
     Ok(if attempted { WitnessSearch::NotFound } else { WitnessSearch::OutOfScope })
+}
+
+/// Screen the query's change along a null-space direction modulo the search
+/// prime. Row and coefficient order agree with the Jacobian construction.
+fn modular_direction_effect(gradient: &[Vec<u64>], direction: &[u64]) -> Vec<u64> {
+    gradient
+        .iter()
+        .map(|row| row.iter().zip(direction).fold(0, |acc, (a, b)| fp_add(acc, fp_mul(*a, *b))))
+        .collect()
+}
+
+/// Exact certification boundary for a candidate pair found by modular search.
+/// Screening alone never publishes a witness: evaluate and then run the same
+/// public verifier that independent consumers use.
+struct WitnessCertification<'a> {
+    diagram: &'a SelectionDiagram,
+    query: &'a ConditionalTransportQuery,
+    shape: &'a Shape,
+    quoted_operations: u64,
+    ctx: &'a ExecutionContext,
+}
+
+impl WitnessCertification<'_> {
+    fn try_pair(
+        &self,
+        first: &Model,
+        second: &Model,
+        at: (Vec<u8>, Vec<u8>, Vec<u8>),
+    ) -> Result<Option<WitnessSearch>, IdentificationError> {
+        let mut record = ConditionalWitnessRecord {
+            first: model_record(self.shape, first),
+            second: model_record(self.shape, second),
+            treatment_level: at.0,
+            conditioned_level: at.1,
+            outcome_level: at.2,
+            first_value: String::new(),
+            second_value: String::new(),
+        };
+        match evaluate(self.shape, self.query, &record, self.quoted_operations, self.ctx) {
+            Ok((a, b, _)) if a != b => {
+                record.first_value = a.to_text();
+                record.second_value = b.to_text();
+                let check = verify_conditional_witness_within(
+                    self.diagram,
+                    self.query,
+                    &record,
+                    self.quoted_operations,
+                    self.ctx,
+                )?;
+                Ok(Some(WitnessSearch::Found(Box::new(record), check)))
+            }
+            Err(IdentificationError::Cancelled) => Err(IdentificationError::Cancelled),
+            _ => Ok(None),
+        }
+    }
 }
 
 /// Query coordinates as dense masks, for the search's modular screening.

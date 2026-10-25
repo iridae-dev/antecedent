@@ -208,7 +208,7 @@ fn cholesky(a: &[f64], d: usize) -> Option<Vec<f64>> {
                 sum -= l[i * d + k] * l[j * d + k];
             }
             if i == j {
-                if !(sum > 1e-300) || !sum.is_finite() {
+                if !sum.is_finite() || sum <= 1e-300 {
                     return None;
                 }
                 l[i * d + i] = sum.sqrt();

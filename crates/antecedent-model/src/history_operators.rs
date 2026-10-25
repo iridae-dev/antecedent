@@ -2693,7 +2693,7 @@ impl HistoryProgram {
             ("trajectory_reduction", reduction.frame()),
         ];
         if let Some((operator, _)) = checks.iter().find(|(_, other)| *other != frame) {
-            return Err(HistoryExecutionError::FrameMismatch { operator: *operator });
+            return Err(HistoryExecutionError::FrameMismatch { operator });
         }
         if weights.as_ref().is_some_and(|w| w.frame() != frame) {
             return Err(HistoryExecutionError::FrameMismatch {

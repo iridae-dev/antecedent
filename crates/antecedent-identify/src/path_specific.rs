@@ -572,14 +572,7 @@ fn district_g_formula(
         ),
     );
 
-    let (mut outcome, mut treatment) = (BitSet::with_len(n), BitSet::with_len(n));
-    outcome.insert(y);
-    treatment.insert(t);
-    problems.push(AssignedProblem {
-        y: outcome,
-        x: treatment,
-        assign: Arc::from([(t, control.clone())]),
-    });
+    problems.push(control_reference_problem(n, t, y, control.clone()));
 
     let mut arena = CausalExprArena::new();
     let functionals = match identify_assigned_problems(
@@ -609,6 +602,53 @@ fn district_g_formula(
             ));
         }
     };
+    let functional = district_contrast(prepared, q, y, &v_star, &mut arena, &functionals)?;
+    derivation.push(
+        "path_specific.district_gformula",
+        "district formula with the active level on districts entered by a selected treatment edge",
+    );
+    let estimand = IdentifiedEstimand::new(
+        Arc::from(EstimandMethod::PathSpecificNatural.as_str()),
+        Arc::from([]),
+        Arc::from([]),
+        Arc::clone(&q.path_nodes),
+        functional,
+        None,
+    );
+    Ok(IdentificationResult::identified(
+        query,
+        vec![estimand],
+        arena,
+        derivation,
+        crate::id::with_causal_markov(prepared, "path_specific.district_gformula"),
+        perf,
+    ))
+}
+
+/// The reference side is the ordinary outcome law under control treatment,
+/// rather than a district kernel intervening on every node outside a district.
+fn control_reference_problem(
+    nodes: usize,
+    t: DenseNodeId,
+    y: DenseNodeId,
+    control: Value,
+) -> AssignedProblem {
+    let (mut outcome, mut treatment) = (BitSet::with_len(nodes), BitSet::with_len(nodes));
+    outcome.insert(y);
+    treatment.insert(t);
+    AssignedProblem { y: outcome, x: treatment, assign: Arc::from([(t, control)]) }
+}
+
+/// Assemble the contrast after all district kernels and the control reference
+/// have been identified. Expression interning order is the district order.
+fn district_contrast(
+    prepared: &PreparedAdmg,
+    q: &PathSpecificEffectQuery,
+    y: DenseNodeId,
+    v_star: &BitSet,
+    arena: &mut CausalExprArena,
+    functionals: &[ExprId],
+) -> Result<ExprId, IdentificationError> {
     let Some((&reference, kernels)) = functionals.split_last() else {
         return Err(IdentificationError::unsupported("path-specific district formula is empty"));
     };
@@ -649,28 +689,7 @@ fn district_g_formula(
             )),
         ),
     );
-    let functional =
-        arena.simplify(contrast).map_err(|e| IdentificationError::msg(e.to_string()))?;
-    derivation.push(
-        "path_specific.district_gformula",
-        "district formula with the active level on districts entered by a selected treatment edge",
-    );
-    let estimand = IdentifiedEstimand::new(
-        Arc::from(EstimandMethod::PathSpecificNatural.as_str()),
-        Arc::from([]),
-        Arc::from([]),
-        Arc::clone(&q.path_nodes),
-        functional,
-        None,
-    );
-    Ok(IdentificationResult::identified(
-        query,
-        vec![estimand],
-        arena,
-        derivation,
-        crate::id::with_causal_markov(prepared, "path_specific.district_gformula"),
-        perf,
-    ))
+    arena.simplify(contrast).map_err(|e| IdentificationError::msg(e.to_string()))
 }
 
 /// Edge g-formula for a path-specific natural effect (Avin, Shpitser & Pearl

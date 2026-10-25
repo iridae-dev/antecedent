@@ -2,7 +2,7 @@
 //!
 //! A bidirected edge records a latent common cause, so an observed covariate set is a valid
 //! adjustment for a treatment/outcome pair only when it m-separates the pair in the proper
-//! back-door graph (Shpitser, VanderWeele and Robins 2010, adjustment criterion; Perkovic et
+//! back-door graph (Shpitser, `VanderWeele` and Robins 2010, adjustment criterion; Perkovic et
 //! al. 2018 for the constructive set) and contains no forbidden node. The proper back-door
 //! graph deletes the first edge of every proper causal path from the treatment, and the
 //! forbidden set is the descendants of the treatment's causal-path children. A valid set
@@ -38,8 +38,8 @@ use antecedent_expr::EstimandMethod;
 use crate::envelope::IdentificationEnvelope;
 use crate::error::IdentificationError;
 use crate::generalized::{
-    GeneralizedAdjustmentIdentifier, directed_closure, mag_dense_to_var, mag_to_admg, mag_to_confounded_admg,
-    not_identified, pag_var_to_dense,
+    GeneralizedAdjustmentIdentifier, directed_closure, mag_dense_to_var, mag_to_admg,
+    mag_to_confounded_admg, not_identified, pag_var_to_dense,
 };
 use crate::response::{append_observation_assumptions, response_pairs};
 use crate::result::{DerivationTrace, IdentificationPerformanceRecord, IdentificationResult};

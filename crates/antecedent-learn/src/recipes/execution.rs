@@ -370,6 +370,7 @@ impl Posterior {
     }
 
     /// Posterior mean of coordinate `index`.
+    #[must_use]
     pub fn mean(&self, index: usize) -> f64 {
         self.expectation(|point| point[index])
     }

@@ -481,7 +481,7 @@ fn draw_spec(
                         // The probabilities are assigned by level name: the order of a row's
                         // cells is not part of the declaration.
                         let row: &mut TabularRow = &mut table[*row_index];
-                        for (level, p) in row.probabilities.iter_mut() {
+                        for (level, p) in &mut row.probabilities {
                             let Some(position) = cells.iter().position(|(l, _)| l == level) else {
                                 return Err(ObservationQueryError::Invalid(
                                     "a table row names a level the retained counts do not",
