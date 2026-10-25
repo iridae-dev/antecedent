@@ -1,8 +1,40 @@
 //! Versioned executable design proofs retaining identifying functionals and source data.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 use super::{
-    JointDesignEstimate, JointDesignPosterior, gaussian_longitudinal::*, instrumented::*,
-    local_instrument::*, longitudinal::*, randomized::*, rollout::*, switchback::*, synthetic::*,
+    JointDesignEstimate, JointDesignPosterior,
+    gaussian_longitudinal::{
+        GaussianLongitudinalDesign, GaussianLongitudinalEpisode, GaussianLongitudinalPrior,
+        gaussian_longitudinal_bootstrap, gaussian_longitudinal_posterior,
+    },
+    instrumented::{
+        JointInstrumentedDesign, JointInstrumentedUnit, JointIvGaussianPrior,
+        instrumented_joint_contrasts, instrumented_joint_posterior,
+    },
+    local_instrument::{
+        LocalInstrumentDesign, LocalInstrumentResult, LocalInstrumentUnit, local_instrument_effect,
+    },
+    longitudinal::{
+        LongitudinalDirichletPrior, LongitudinalEpisode, LongitudinalJointDesign,
+        longitudinal_joint_means, longitudinal_joint_posterior,
+    },
+    randomized::{
+        JointRandomizedDesign, JointRandomizedUnit, RandomizedFinitePopulationPrior,
+        RandomizedGaussianPrior, randomized_joint_means, randomized_joint_posterior,
+        randomized_weighted_population_posterior,
+    },
+    rollout::{
+        JointRolloutDesign, JointRolloutGaussianPrior, JointRolloutUnit, rollout_joint_effects,
+        rollout_joint_posterior,
+    },
+    switchback::{
+        JointSwitchbackDesign, JointSwitchbackRandomizationTest, SwitchbackGaussianPrior,
+        switchback_joint_means, switchback_joint_posterior, switchback_joint_sharp_null_test,
+    },
+    synthetic::{
+        JointSyntheticConformal, JointSyntheticCoordinate, JointSyntheticDesign,
+        JointSyntheticObservation, JointSyntheticPrior, synthetic_joint_conformal,
+        synthetic_joint_point, synthetic_joint_posterior,
+    },
 };
 
 /// Versioned design-native execution recipe. Old panel artifacts retain their own decoder.

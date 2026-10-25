@@ -204,30 +204,15 @@ pub struct JointRolloutGaussianPrior {
     /// Deterministic stream seed.
     pub seed: u64,
 }
-/// Joint Bayesian regime/cohort/time panel likelihood, retaining cohort ATT targets.
-/// Unit effects, calendar effects and every observed post-adoption cohort-time
-/// effect are fitted together with proper Gaussian priors and declared known
-/// AR1 outcome errors. Already-treated units have their own saturated effects;
-/// their unmodeled treatment responses are never used as untreated comparisons.
-/// Native untreated-comparison support and causal premises are checked first.
-/// # Errors
-/// Invalid design/support, omitted observed treated cohort-time effect, invalid proper
-/// prior/covariance, excessive dimensions or numerical posterior failure.
-pub fn rollout_joint_posterior(
+/// Validate proper priors and complete modeled treated cohort/time support before
+/// building the joint unit/calendar likelihood. Native identification runs first.
+fn validate_rollout_likelihood(
     design: &JointRolloutDesign,
     units: &[JointRolloutUnit],
     prior: &JointRolloutGaussianPrior,
-) -> Result<super::JointDesignPosterior, String> {
-    let _identified = rollout_joint_effects(design, units)?;
-    let times = units
-        .iter()
-        .flat_map(|u| u.outcomes.iter().map(|(t, _)| *t))
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect::<Vec<_>>();
+    parameters: usize,
+) -> Result<(), String> {
     let k = design.cells.len();
-    let n = units.len();
-    let parameters = n + times.len() - 1 + k;
     if parameters > 2048
         || prior.effect_mean.len() != k
         || prior.effect_variance.len() != k
@@ -259,6 +244,34 @@ pub fn rollout_joint_posterior(
             }
         }
     }
+    Ok(())
+}
+
+/// Joint Bayesian regime/cohort/time panel likelihood, retaining cohort ATT targets.
+/// Unit effects, calendar effects and every observed post-adoption cohort-time
+/// effect are fitted together with proper Gaussian priors and declared known
+/// AR1 outcome errors. Already-treated units have their own saturated effects;
+/// their unmodeled treatment responses are never used as untreated comparisons.
+/// Native untreated-comparison support and causal premises are checked first.
+/// # Errors
+/// Invalid design/support, omitted observed treated cohort-time effect, invalid proper
+/// prior/covariance, excessive dimensions or numerical posterior failure.
+pub fn rollout_joint_posterior(
+    design: &JointRolloutDesign,
+    units: &[JointRolloutUnit],
+    prior: &JointRolloutGaussianPrior,
+) -> Result<super::JointDesignPosterior, String> {
+    let _identified = rollout_joint_effects(design, units)?;
+    let times = units
+        .iter()
+        .flat_map(|u| u.outcomes.iter().map(|(t, _)| *t))
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    let k = design.cells.len();
+    let n = units.len();
+    let parameters = n + times.len() - 1 + k;
+    validate_rollout_likelihood(design, units, prior, parameters)?;
     let offset = n + times.len() - 1;
     let mut precision = vec![0.0; parameters * parameters];
     let mut rhs = vec![0.0; parameters];

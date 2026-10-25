@@ -45,8 +45,7 @@ pub fn randomized_joint_means(
     units: &[JointRandomizedUnit],
 ) -> Result<JointDesignEstimate, String> {
     let k = design.worlds.len();
-    if k < 2
-        || k > 256
+    if !(2..=256).contains(&k)
         || units.len() > 65536
         || units.len() < 2
         || [
@@ -57,7 +56,7 @@ pub fn randomized_joint_means(
         ]
         .iter()
         .any(|s| s.trim().is_empty())
-        || design.worlds.iter().any(|s| s.is_empty())
+        || design.worlds.iter().any(String::is_empty)
         || design.worlds.iter().collect::<BTreeSet<_>>().len() != k
     {
         return Err("joint randomization requires distinct programs, independent units and explicit population/consistency/isolation premises".into());
@@ -181,6 +180,12 @@ pub fn randomized_joint_posterior(
 ) -> Result<super::JointDesignPosterior, String> {
     let _design_check = randomized_joint_means(design, units)?;
     let k = design.worlds.len();
+    #[allow(
+        clippy::float_cmp,
+        reason = "this common-arm-mean likelihood requires exactly equal declared population weights; unequal weights require another response model"
+    )]
+    let unequal_weight =
+        |u: &JointRandomizedUnit| u.population_weight != units[0].population_weight;
     if prior.mean.len() != k
         || prior.variance.len() != k
         || prior.outcome_variance.len() != units.len()
@@ -188,7 +193,7 @@ pub fn randomized_joint_posterior(
         || prior.draws > 1_000_000
         || prior.mean.iter().any(|v| !v.is_finite())
         || prior.variance.iter().chain(&prior.outcome_variance).any(|v| !v.is_finite() || *v <= 0.0)
-        || units.iter().any(|u| u.population_weight != units[0].population_weight)
+        || units.iter().any(unequal_weight)
     {
         return Err("Gaussian randomized posterior requires proper finite priors, known variances and equal population weights".into());
     }

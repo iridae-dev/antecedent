@@ -216,7 +216,7 @@ pub struct GaussianLongitudinalDesign {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct GaussianLongitudinalPrior {
-    /// Coefficients have independent N(0, coefficient_scale * sigma²) priors.
+    /// Coefficients have independent N(0, `coefficient_scale` * sigma²) priors.
     pub coefficient_scale: f64,
     /// Proper inverse-gamma variance shape.
     pub variance_shape: f64,
@@ -347,6 +347,18 @@ fn validate(
     if check(&design.model.outcome, (h, 0), h) {
         return Err("terminal outcome mechanism has invalid history features".into());
     }
+    validate_episodes(design, episodes, h, d, m)?;
+    Ok((h, d, m))
+}
+/// Validate independent source episodes against the already checked history axes
+/// and declared treatment support, before any regression or integration.
+fn validate_episodes(
+    design: &GaussianLongitudinalDesign,
+    episodes: &[GaussianLongitudinalEpisode],
+    h: usize,
+    d: usize,
+    m: usize,
+) -> Result<(), String> {
     let mut ids = BTreeSet::new();
     for e in episodes {
         if e.id.is_empty()
@@ -370,7 +382,7 @@ fn validate(
             }
         }
     }
-    Ok((h, d, m))
+    Ok(())
 }
 fn regression(
     features: &[GaussianHistoryFeature],
@@ -507,7 +519,7 @@ pub fn gaussian_longitudinal_bootstrap(
     ctx: &ExecutionContext,
 ) -> Result<LongitudinalGaussianBootstrap, String> {
     let point = gaussian_longitudinal_point(design, episodes, ctx)?;
-    if replicates < 2 || replicates > 100_000 {
+    if !(2..=100_000).contains(&replicates) {
         return Err("full longitudinal bootstrap needs bounded multiple realizations".into());
     }
     let mut rng = CausalRng::from_seed(seed);

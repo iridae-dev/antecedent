@@ -269,6 +269,10 @@ impl PosteriorMechanism<'_> {
             let mean = if let Some(value) = self.outcomes.get(&key) {
                 *value
             } else {
+                #[allow(
+                    clippy::float_cmp,
+                    reason = "finite outcome values identify exact declared categories when counting the Dirichlet cells"
+                )]
                 let counts = self
                     .prior
                     .outcome_values

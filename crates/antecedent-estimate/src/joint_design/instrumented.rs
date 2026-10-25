@@ -229,30 +229,16 @@ pub struct JointIvGaussianPrior {
     /// Deterministic stream seed.
     pub seed: u64,
 }
-/// Genuine Bayesian joint structural-feature IV likelihood update.
-/// The raw first stages and structural equation are fitted jointly with a proper
-/// Gaussian parameter prior and declared known correlated Gaussian disturbances.
-/// Each structural-feature value is checked against its raw-dose polynomial;
-/// projecting raw doses and multiplying projections is never substituted.
-/// # Errors
-/// Missing native IV premises/rank, invalid feature expansion, nonsingular error
-/// covariance/proper priors, excessive dimensions or numerical posterior failure.
-pub fn instrumented_joint_coefficient_posterior(
-    design: &JointInstrumentedDesign,
-    units: &[JointInstrumentedUnit],
+/// Check the proper prior, actual raw-dose feature bindings and declared joint
+/// disturbance covariance before forming the triangular likelihood precision.
+fn validate_structural_likelihood(
     prior: &JointIvGaussianPrior,
-) -> Result<Vec<Vec<f64>>, String> {
-    let _identified = instrumented_joint_contrasts(design, units)?;
-    let p = units[0].endogenous.len();
-    let q = units[0].instruments.len();
-    let r = units[0].exogenous.len();
+    units: &[JointInstrumentedUnit],
+    p: usize,
+    parameters: usize,
+    errors: usize,
+) -> Result<(), String> {
     let raw = prior.raw_feature_indices.len();
-    let stage = q.checked_add(r).ok_or("joint IV first-stage dimension overflow")?;
-    let parameters = raw
-        .checked_mul(stage)
-        .and_then(|v| v.checked_add(p + r))
-        .ok_or("joint IV posterior dimension overflow")?;
-    let errors = raw + 1;
     if raw == 0
         || raw > 16
         || parameters > 1024
@@ -298,6 +284,34 @@ pub fn instrumented_joint_coefficient_posterior(
     }) {
         return Err("joint triangular IV disturbance covariance must be symmetric".into());
     }
+    Ok(())
+}
+
+/// Genuine Bayesian joint structural-feature IV likelihood update.
+/// The raw first stages and structural equation are fitted jointly with a proper
+/// Gaussian parameter prior and declared known correlated Gaussian disturbances.
+/// Each structural-feature value is checked against its raw-dose polynomial;
+/// projecting raw doses and multiplying projections is never substituted.
+/// # Errors
+/// Missing native IV premises/rank, invalid feature expansion, nonsingular error
+/// covariance/proper priors, excessive dimensions or numerical posterior failure.
+pub fn instrumented_joint_coefficient_posterior(
+    design: &JointInstrumentedDesign,
+    units: &[JointInstrumentedUnit],
+    prior: &JointIvGaussianPrior,
+) -> Result<Vec<Vec<f64>>, String> {
+    let _identified = instrumented_joint_contrasts(design, units)?;
+    let p = units[0].endogenous.len();
+    let q = units[0].instruments.len();
+    let r = units[0].exogenous.len();
+    let raw = prior.raw_feature_indices.len();
+    let stage = q.checked_add(r).ok_or("joint IV first-stage dimension overflow")?;
+    let parameters = raw
+        .checked_mul(stage)
+        .and_then(|v| v.checked_add(p + r))
+        .ok_or("joint IV posterior dimension overflow")?;
+    let errors = raw + 1;
+    validate_structural_likelihood(prior, units, p, parameters, errors)?;
     let noise_chol = antecedent_stats::cholesky_spd(&prior.disturbance_covariance, errors)
         .ok_or("joint IV disturbance covariance is not positive definite")?;
     let mut noise_precision = vec![0.0; errors * errors];
@@ -473,7 +487,12 @@ pub fn fit_instrumented_joint_polynomial(
     verify_features(units, &features)?;
     let p = units[0].endogenous.len();
     let r = units[0].exogenous.len();
-    if !(0..r).any(|j| units.iter().all(|u| u.exogenous[j] == 1.0)) {
+    #[allow(
+        clippy::float_cmp,
+        reason = "the unconditional disturbance moment requires an exactly coded intercept column of ones, not an approximately constant covariate"
+    )]
+    let has_intercept = (0..r).any(|j| units.iter().all(|u| u.exogenous[j] == 1.0));
+    if !has_intercept {
         return Err("population structural world means require an included intercept moment establishing E[disturbance]=0".into());
     }
     let refs = units.iter().collect::<Vec<_>>();
