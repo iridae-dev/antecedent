@@ -452,8 +452,10 @@ fn bootstrap_draws(
             .ok_or_else(|| PanelError::Numerical("spatial correlation is not factorable".into()))?;
         for (index, group) in simulated.groups.iter_mut().enumerate() {
             let intercept = match &spatial {
-                Some(draws) => draws[index],
-                None => p.group_sd * standard_normal(&mut rng),
+                likelihood::SpatialPriorIntercepts::Correlated(draws) => draws[index],
+                likelihood::SpatialPriorIntercepts::Independent => {
+                    p.group_sd * standard_normal(&mut rng)
+                }
             };
             let mut error =
                 p.innovation_sd / (1.0 - p.rho.powi(2)).sqrt() * standard_normal(&mut rng);

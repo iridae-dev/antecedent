@@ -54,17 +54,24 @@ pub struct SelectionDecomposition {
     pub no_change_mass: f64,
 }
 
-/// Split a temporal decomposition by the specification each aligned draw selected.
-///
-/// `draws` must be the exact aligned law the decomposition was computed from.
-///
-/// # Errors
-/// Misaligned axes, a decomposed slot whose law slot failed, or no complete slot.
-pub fn decomposition_selection(
+/// One complete positive-mass source slot, retaining the law's selected specification.
+struct SelectionRow<'a> {
+    choice: &'a TemporalModelChoice,
+    mass: f64,
+    shapley: [f64; 4],
+}
+
+/// Members of one specification, in source-slot order and normalized to total law mass.
+struct SpecificationGroup<'a> {
+    choice: &'a TemporalModelChoice,
+    members: Vec<(f64, [f64; 4])>,
+}
+
+/// Validate source alignment before grouping or computing any conditional moments.
+fn aligned_selection_rows<'a>(
     decomposition: &PanelDecomposition,
-    point: &TemporalPanelDraw,
-    draws: &[Option<TemporalPanelDraw>],
-) -> Result<SelectionDecomposition, PanelError> {
+    draws: &'a [Option<TemporalPanelDraw>],
+) -> Result<(f64, Vec<SelectionRow<'a>>), PanelError> {
     if draws.len() != decomposition.draws.len()
         || decomposition.weights.as_ref().is_some_and(|w| w.len() != draws.len())
     {
@@ -81,7 +88,7 @@ pub fn decomposition_selection(
             (Some(row), Some(law)) => {
                 if mass > 0.0 {
                     total_mass += mass;
-                    rows.push((&law.choice, mass, row.shapley));
+                    rows.push(SelectionRow { choice: &law.choice, mass, shapley: row.shapley });
                 }
             }
             (None, _) => {}
@@ -93,16 +100,35 @@ pub fn decomposition_selection(
     if rows.is_empty() || total_mass <= 0.0 || !total_mass.is_finite() {
         return Err(invalid("selection split requires at least one complete positive-mass slot"));
     }
-    let mut groups: Vec<(&TemporalModelChoice, Vec<(f64, [f64; 4])>)> = Vec::new();
-    for (choice, mass, shapley) in &rows {
-        match groups.iter_mut().find(|(known, _)| *known == *choice) {
-            Some((_, members)) => members.push((mass / total_mass, *shapley)),
-            None => groups.push((*choice, vec![(mass / total_mass, *shapley)])),
+    Ok((total_mass, rows))
+}
+
+/// Split a temporal decomposition by the specification each aligned draw selected.
+///
+/// `draws` must be the exact aligned law the decomposition was computed from.
+///
+/// # Errors
+/// Misaligned axes, a decomposed slot whose law slot failed, or no complete slot.
+pub fn decomposition_selection(
+    decomposition: &PanelDecomposition,
+    point: &TemporalPanelDraw,
+    draws: &[Option<TemporalPanelDraw>],
+) -> Result<SelectionDecomposition, PanelError> {
+    let (total_mass, rows) = aligned_selection_rows(decomposition, draws)?;
+    let mut groups: Vec<SpecificationGroup<'_>> = Vec::new();
+    for row in &rows {
+        match groups.iter_mut().find(|group| group.choice == row.choice) {
+            Some(group) => group.members.push((row.mass / total_mass, row.shapley)),
+            None => groups.push(SpecificationGroup {
+                choice: row.choice,
+                members: vec![(row.mass / total_mass, row.shapley)],
+            }),
         }
     }
     let mut mean = [0.0; 4];
     let mut specifications = Vec::with_capacity(groups.len());
-    for (choice, members) in &groups {
+    for group in &groups {
+        let members = &group.members;
         let group_mass: f64 = members.iter().map(|(m, _)| m).sum();
         let mut group_mean = [0.0; 4];
         for (m, shapley) in members {
@@ -120,7 +146,7 @@ pub fn decomposition_selection(
             mean[j] += group_mass * group_mean[j];
         }
         specifications.push(SpecificationShare {
-            choice: (**choice).clone(),
+            choice: group.choice.clone(),
             slots: members.len(),
             mass: group_mass,
             shapley_mean: group_mean,

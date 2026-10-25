@@ -79,6 +79,10 @@ impl ContinuousResponseEstimator {
     /// A functional other than a first-order point or observed-law average derivative, a
     /// non-point identification status, duplicated or missing columns, a non-converging
     /// additive fit, or fewer than two successful replicates when uncertainty is requested.
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "preserves the existing public signature and its separate scientific, identification and inference inputs"
+    )]
     pub fn front_door_derivative(
         &self,
         data: &TabularData,
@@ -118,11 +122,39 @@ impl ContinuousResponseEstimator {
             });
         }
         let stages = self.front_door_stages(data, outcome, treatment, mediators)?;
-        let n = stages.first.len();
         let mut workspace = GamWorkspace::default();
-        let pseudo = self.front_door_pseudo_outcome(&stages, None, &mut workspace)?;
-        let value = self.front_door_value(&stages, functional, &pseudo, None, &mut workspace)?;
-        let level = self.options.confidence_level;
+        let pseudo = Self::front_door_pseudo_outcome(&stages, None, &mut workspace)?;
+        let value = Self::front_door_value(&stages, functional, &pseudo, None, &mut workspace)?;
+        let (value, uncertainty, draws_used) = Self::front_door_uncertainty(
+            &stages,
+            functional,
+            inference,
+            self.options.confidence_level,
+            value,
+            ctx,
+        )?;
+        Ok(Self::front_door_response(
+            functional,
+            status,
+            assumptions,
+            &stages,
+            value,
+            uncertainty,
+            draws_used,
+        ))
+    }
+
+    /// Refit both prepared stages under the declared resampling law, preserving
+    /// each replicate's stream and the Bayesian posterior mean publication.
+    fn front_door_uncertainty(
+        stages: &Stages,
+        functional: &ResponseFunctional,
+        inference: FrontDoorDerivativeInference,
+        level: f64,
+        value: f64,
+        ctx: &ExecutionContext,
+    ) -> Result<(f64, ResponseUncertainty, usize), EstimationError> {
+        let n = stages.first.len();
         let (uncertainty, draws_used) = match inference {
             FrontDoorDerivativeInference::Frequentist { replicates: 0, .. } => {
                 (ResponseUncertainty::None, 0)
@@ -137,14 +169,13 @@ impl ContinuousResponseEstimator {
                             ));
                         }
                         let mut rng = ctx.rng.stream_for(StreamDomain::Resample, replicate as u64);
-                        let counts = circular_block_counts(n, block, &mut rng);
+                        let counts = circular_block_counts(n, block, &mut rng)?;
                         let mut local = GamWorkspace::default();
                         // A replicate whose fit fails is dropped, not substituted.
-                        Ok(self
-                            .front_door_pseudo_outcome(&stages, Some(&counts), &mut local)
+                        Ok(Self::front_door_pseudo_outcome(stages, Some(&counts), &mut local)
                             .and_then(|w| {
-                                self.front_door_value(
-                                    &stages,
+                                Self::front_door_value(
+                                    stages,
                                     functional,
                                     &w,
                                     Some(&counts),
@@ -189,16 +220,12 @@ impl ContinuousResponseEstimator {
                     let weights = block_bayesian_weights(n, block, &mut rng);
                     let mut local = GamWorkspace::default();
                     let pseudo =
-                        self.front_door_pseudo_outcome(&stages, Some(&weights), &mut local)?;
-                    self.front_door_value(&stages, functional, &pseudo, Some(&weights), &mut local)
+                        Self::front_door_pseudo_outcome(stages, Some(&weights), &mut local)?;
+                    Self::front_door_value(stages, functional, &pseudo, Some(&weights), &mut local)
                 })?;
                 let (mean, lo, hi, sd) = summarize_scalar_draws(&values, level)?;
                 let used = values.len();
-                return Ok(self.front_door_response(
-                    functional,
-                    status,
-                    assumptions,
-                    &stages,
+                return Ok((
                     mean,
                     ResponseUncertainty::Scalar {
                         standard_error: sd,
@@ -212,15 +239,7 @@ impl ContinuousResponseEstimator {
                 ));
             }
         };
-        Ok(self.front_door_response(
-            functional,
-            status,
-            assumptions,
-            &stages,
-            value,
-            uncertainty,
-            draws_used,
-        ))
+        Ok((value, uncertainty, draws_used))
     }
 
     /// Stage one regresses the outcome on `(X, M, Z)`; stage two regresses the pseudo-outcome on
@@ -254,8 +273,16 @@ impl ContinuousResponseEstimator {
             columns.push((name.as_str(), &first.adjustment[j * n..(j + 1) * n]));
         }
         let table = TabularData::from_f64_columns(columns)?;
-        let second_adjustment: Vec<VariableId> =
-            (0..first.adjustment_cols).map(|j| VariableId::from_raw(2 + j as u32)).collect();
+        let second_adjustment =
+            (0..first.adjustment_cols)
+                .map(|j| {
+                    u32::try_from(j).ok().and_then(|id| id.checked_add(2))
+                    .map(VariableId::from_raw)
+                    .ok_or_else(|| EstimationError::unsupported(
+                        "front-door adjustment columns exceed the variable identifier range",
+                    ))
+                })
+                .collect::<Result<Vec<_>, _>>()?;
         let second = CompleteSample::read(
             &table,
             VariableId::from_raw(0),
@@ -269,7 +296,6 @@ impl ContinuousResponseEstimator {
     /// `W_i = α̂ + Σ_k f̂_k(M_ik) + mean_j ĝ(X_j) + ĉ(Z_i)` under `weights` (row multiplicities or
     /// Bayesian-bootstrap weights), the front-door plug-in of the outcome given the treatment.
     fn front_door_pseudo_outcome(
-        &self,
         stages: &Stages,
         weights: Option<&[f64]>,
         workspace: &mut GamWorkspace,
@@ -310,7 +336,6 @@ impl ContinuousResponseEstimator {
 
     /// The derivative of the pseudo-outcome's regression on `(X, Z)` on the functional's scale.
     fn front_door_value(
-        &self,
         stages: &Stages,
         functional: &ResponseFunctional,
         pseudo: &[f64],
@@ -319,31 +344,26 @@ impl ContinuousResponseEstimator {
     ) -> Result<f64, EstimationError> {
         let second = &stages.second;
         let fit = fit_additive_design(&stages.design_second, pseudo, weights, workspace)?;
-        match functional {
-            ResponseFunctional::PointDerivative { at, scale, .. } => {
-                let (level, gradient) =
-                    Self::plugin_gradient_at_fit(&fit, second, &[*at], weights)?;
-                transform_derivative(gradient[0], *at, level, *scale)
+        if let ResponseFunctional::PointDerivative { at, scale, .. } = functional {
+            let (level, gradient) = Self::plugin_gradient_at_fit(&fit, second, &[*at], weights)?;
+            transform_derivative(gradient[0], *at, level, *scale)
+        } else {
+            let smooth = fit.smooth_for_raw_col(0).ok_or_else(|| {
+                EstimationError::unsupported("front-door treatment smooth is missing")
+            })?;
+            let n = second.len();
+            let mut total = 0.0;
+            let mut mass = 0.0;
+            for row in 0..n {
+                let w = weights.map_or(1.0, |w| w[row]);
+                total += w * fit.smooth_derivative(smooth, second.treatments[row])?;
+                mass += w;
             }
-            _ => {
-                let smooth = fit.smooth_for_raw_col(0).ok_or_else(|| {
-                    EstimationError::unsupported("front-door treatment smooth is missing")
-                })?;
-                let n = second.len();
-                let mut total = 0.0;
-                let mut mass = 0.0;
-                for row in 0..n {
-                    let w = weights.map_or(1.0, |w| w[row]);
-                    total += w * fit.smooth_derivative(smooth, second.treatments[row])?;
-                    mass += w;
-                }
-                Ok(total / mass)
-            }
+            Ok(total / mass)
         }
     }
 
     fn front_door_response(
-        &self,
         functional: &ResponseFunctional,
         status: IdentificationStatus,
         mut assumptions: AssumptionSet,
@@ -419,12 +439,18 @@ impl ContinuousResponseEstimator {
 /// Row multiplicities of a circular block bootstrap: `ceil(n / block)` blocks of `block`
 /// consecutive rows (wrapping), started uniformly, rescaled so the multiplicities sum to `n`.
 /// A block of one is the independent-row bootstrap.
-fn circular_block_counts(n: usize, block: usize, rng: &mut antecedent_core::CausalRng) -> Vec<f64> {
+fn circular_block_counts(
+    n: usize,
+    block: usize,
+    rng: &mut antecedent_core::CausalRng,
+) -> Result<Vec<f64>, EstimationError> {
     let block = block.clamp(1, n);
     let blocks = n.div_ceil(block);
     let mut counts = vec![0.0_f64; n];
     for _ in 0..blocks {
-        let start = ((u128::from(rng.next_u64()) * n as u128) >> 64) as usize;
+        // Multiply-high sampling is strictly below n and therefore fits usize.
+        let start = usize::try_from((u128::from(rng.next_u64()) * n as u128) >> 64)
+            .map_err(|_| EstimationError::unsupported("front-door block index exceeds usize"))?;
         for offset in 0..block {
             counts[(start + offset) % n] += 1.0;
         }
@@ -433,7 +459,7 @@ fn circular_block_counts(n: usize, block: usize, rng: &mut antecedent_core::Caus
     for count in &mut counts {
         *count *= scale;
     }
-    counts
+    Ok(counts)
 }
 
 /// Bayesian-bootstrap weights with one Exp(1) weight per block of consecutive rows, rescaled

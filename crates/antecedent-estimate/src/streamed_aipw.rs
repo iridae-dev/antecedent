@@ -437,8 +437,8 @@ impl AipwAte {
                     &row_mask,
                 )
                 .filtered(filter);
-                beta[usize::from(treated)] =
-                    run_engine(&mut source, &options, &mut facts)?.coefficients.clone();
+                beta[usize::from(treated)]
+                    .clone_from(&run_engine(&mut source, &options, &mut facts)?.coefficients);
             }
             // The scoring pass over the fold's validation rows.
             facts.passes += 1;

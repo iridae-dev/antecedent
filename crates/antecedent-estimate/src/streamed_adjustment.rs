@@ -228,14 +228,12 @@ impl LinearAdjustmentAte {
             .ok_or_else(|| EstimationError::data_msg("the reduction summary was not resident"))?;
         let t_col = 1;
         let n = result.residual.positive_weight_rows;
-        let se_coef = match self.se_kind {
-            AnalyticSeKind::Hc0 => result.robust_covariance[t_col * p + t_col].max(0.0).sqrt(),
-            _ => {
-                let sigma2 = result.residual.weighted_rss / (n as f64 - p as f64).max(1.0);
-                invert_square(&result.cross_products.xtwx, p).map_or(f64::NAN, |inverse| {
-                    (sigma2 * inverse[t_col * p + t_col].max(0.0)).sqrt()
-                })
-            }
+        let se_coef = if self.se_kind == AnalyticSeKind::Hc0 {
+            result.robust_covariance[t_col * p + t_col].max(0.0).sqrt()
+        } else {
+            let sigma2 = result.residual.weighted_rss / (n as f64 - p as f64).max(1.0);
+            invert_square(&result.cross_products.xtwx, p)
+                .map_or(f64::NAN, |inverse| (sigma2 * inverse[t_col * p + t_col].max(0.0)).sqrt())
         };
         Ok(StreamedAdjustmentEstimate {
             ate: result.coefficients[t_col] * delta,

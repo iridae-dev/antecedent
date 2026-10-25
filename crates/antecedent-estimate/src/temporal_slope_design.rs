@@ -572,15 +572,6 @@ impl TemporalSlopeDesign {
         stream: u64,
         rng: &antecedent_core::RngFactory,
     ) -> Result<(Vec<SlopePosterior>, usize), EstimationError> {
-        let SlopePosteriorSpec { prior_scale, draws, structural_span } = spec;
-        if draws < 2 {
-            return Err(EstimationError::stats_msg(
-                "a temporal slope posterior needs at least two draws",
-            ));
-        }
-        if designs.is_empty() {
-            return Err(EstimationError::unsupported("a joint posterior needs a design"));
-        }
         struct Part {
             mean: Vec<f64>,
             inverse: Vec<f64>,
@@ -589,6 +580,15 @@ impl TemporalSlopeDesign {
             effective_rows: f64,
             scores: Vec<Vec<f64>>,
             times: Vec<usize>,
+        }
+        let SlopePosteriorSpec { prior_scale, draws, structural_span } = spec;
+        if draws < 2 {
+            return Err(EstimationError::stats_msg(
+                "a temporal slope posterior needs at least two draws",
+            ));
+        }
+        if designs.is_empty() {
+            return Err(EstimationError::unsupported("a joint posterior needs a design"));
         }
         let mut parts = Vec::with_capacity(designs.len());
         for design in designs {
@@ -744,7 +744,7 @@ pub(crate) fn joint_dependence_factor(
     // Stacked score series on the series time axis.
     let mut stacked: Vec<Vec<f64>> = Vec::with_capacity(total);
     for part in parts {
-        for score in part.scores.iter() {
+        for score in part.scores {
             let mut axis = vec![0.0; span];
             for (&time, &value) in part.times.iter().zip(score) {
                 axis[time - first] = value;

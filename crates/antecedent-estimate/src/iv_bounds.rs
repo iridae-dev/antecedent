@@ -387,7 +387,10 @@ impl IvBoundsEstimator {
             )?;
             let mut multiplicity = vec![0.0_f64; rows];
             for id in &drawn {
-                multiplicity[id.get() as usize] += 1.0;
+                let row = usize::try_from(id.get()).map_err(|_| {
+                    EstimationError::unsupported("IV bounds bootstrap row index exceeds usize")
+                })?;
+                multiplicity[row] += 1.0;
             }
             let cells = prepared.cells(|row| prepared.weight[row] * multiplicity[row]);
             match observed_law(&cells).and_then(|(law, _)| bounds_of(law)) {

@@ -868,21 +868,27 @@ pub(super) fn marginal(
         joint_factor: None,
     })
 }
-/// Group intercepts drawn from the fitted spatial prior, or `None` for independent groups.
+/// Whether the group intercepts are independent or jointly drawn from a spatial prior.
+pub(super) enum SpatialPriorIntercepts {
+    Independent,
+    Correlated(Vec<f64>),
+}
+
+/// Group intercepts drawn from the fitted prior; a factorization failure refuses the draw.
 pub(super) fn spatial_prior_intercepts(
     data: &PanelData,
     p: &PanelParameters,
     rng: &mut antecedent_core::CausalRng,
-) -> Option<Option<Vec<f64>>> {
+) -> Option<SpatialPriorIntercepts> {
     if data.family.spatial.is_none() {
-        return Some(None);
+        return Some(SpatialPriorIntercepts::Independent);
     }
     let groups = data.groups.len();
     let kernel = spatial_correlation(data, p.family.spatial_range)?;
     let mut lower = vec![0.0; groups * groups];
     antecedent_kernels::cholesky_spd_into(&kernel, groups, &mut lower).ok()?;
     let z: Vec<f64> = (0..groups).map(|_| antecedent_kernels::standard_normal(rng)).collect();
-    Some(Some(
+    Some(SpatialPriorIntercepts::Correlated(
         (0..groups)
             .map(|i| p.group_sd * (0..=i).map(|j| lower[i * groups + j] * z[j]).sum::<f64>())
             .collect(),

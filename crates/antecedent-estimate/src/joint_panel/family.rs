@@ -212,6 +212,10 @@ pub struct PanelFamilyParameters {
     #[serde(default, skip_serializing_if = "is_zero")]
     pub spatial_range: f64,
 }
+#[allow(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "serde skip_serializing_if requires a borrowed field"
+)]
 fn is_zero(value: &f64) -> bool {
     *value == 0.0
 }

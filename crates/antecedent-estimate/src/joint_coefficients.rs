@@ -75,6 +75,15 @@ impl CoefficientDraws {
     }
 }
 
+/// Draw columns grouped by regression, then coefficient.
+pub(crate) type JointCoefficientDraws = Vec<Vec<Vec<f64>>>;
+
+struct Moments {
+    mean: Vec<f64>,
+    covariance: Vec<f64>,
+    factor: Vec<f64>,
+}
+
 /// Joint draws: `theta[k][j]` is draw column `j` of regression `k`, and draw `r` of every column
 /// is one draw of the whole stack. Returns them with the dependence block length.
 ///
@@ -87,15 +96,10 @@ pub(crate) fn joint_draws(
     structural_span: usize,
     seed: u64,
     rng: &antecedent_core::RngFactory,
-) -> Result<(Vec<Vec<Vec<f64>>>, usize), EstimationError> {
+) -> Result<(JointCoefficientDraws, usize), EstimationError> {
     let n_draws = fits.iter().filter_map(|f| f.coef.first().map(Vec::len)).min().unwrap_or(0);
     if n_draws < 2 {
         return Err(EstimationError::stats_msg("a joint law needs at least two draws"));
-    }
-    struct Moments {
-        mean: Vec<f64>,
-        covariance: Vec<f64>,
-        factor: Vec<f64>,
     }
     let mut moments = Vec::with_capacity(fits.len());
     for fit in fits {
@@ -142,7 +146,7 @@ pub(crate) fn joint_draws(
     let (joint, block) = joint_dependence_factor(&parts, structural_span)?;
     let widths: Vec<usize> = fits.iter().map(|f| f.coef.len()).collect();
     let total: usize = widths.iter().sum();
-    let mut theta: Vec<Vec<Vec<f64>>> =
+    let mut theta: JointCoefficientDraws =
         widths.iter().map(|&w| vec![Vec::with_capacity(n_draws); w]).collect();
     let base = antecedent_core::derive_stream(seed, JOINT_STREAM);
     let mut z = vec![0.0; total];

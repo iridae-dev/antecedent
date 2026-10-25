@@ -661,46 +661,8 @@ impl TemporalLinearAdjustment {
         // treatment next to rooted covariates would fit a different model. When any unit
         // carries sampling weights, the rooted blocks are stacked column by column instead
         // (an unweighted unit is the weight-one block of the same design).
-        let sampling_weights = if units.iter().any(|unit| unit.sampling_weights.is_some()) {
-            let ncols = first.design.ncols;
-            let mut matrix = vec![0.0; rows * ncols];
-            let mut outcome = Vec::with_capacity(rows);
-            let mut offset = 0;
-            for unit in units {
-                let nrows = unit.design.nrows;
-                for column in 0..ncols {
-                    matrix[column * rows + offset..column * rows + offset + nrows]
-                        .copy_from_slice(&unit.design.matrix[column * nrows..(column + 1) * nrows]);
-                }
-                outcome.extend_from_slice(&unit.design.outcome);
-                offset += nrows;
-            }
-            design.matrix = Arc::from(matrix);
-            design.outcome = Arc::from(outcome);
-            let mut record = crate::sampling_weights::SamplingWeightRecord {
-                rows_used: 0,
-                zero_weight_rows: 0,
-                effective_sample_size: 0.0,
-                weight_sum: 0.0,
-            };
-            for unit in units {
-                let unit_record = unit.sampling_weights.unwrap_or(
-                    crate::sampling_weights::SamplingWeightRecord {
-                        rows_used: unit.design.nrows as u64,
-                        zero_weight_rows: 0,
-                        effective_sample_size: unit.design.nrows as f64,
-                        weight_sum: unit.design.nrows as f64,
-                    },
-                );
-                record.rows_used += unit_record.rows_used;
-                record.zero_weight_rows += unit_record.zero_weight_rows;
-                record.effective_sample_size += unit_record.effective_sample_size;
-                record.weight_sum += unit_record.weight_sum;
-            }
-            Some(record)
-        } else {
-            None
-        };
+        let sampling_weights =
+            stack_sampling_weighted_design(units, &mut design, rows, first.design.ncols);
 
         Ok((
             PreparedEstimationProblem {
@@ -1578,6 +1540,54 @@ pub fn nested_direct_fit_moments(
         return Err(EstimationError::data_msg("aligned row count does not fit the moment record"));
     };
     Ok(NestedDirectFitMoments { complete_case_rows, gram, outcome_cross })
+}
+
+/// Stack already rooted unit designs when any unit carries sampling weights.
+/// Raw treatment columns must not be mixed with rooted covariates.
+fn stack_sampling_weighted_design(
+    units: &[&PreparedEstimationProblem],
+    design: &mut CompiledDesign,
+    rows: usize,
+    ncols: usize,
+) -> Option<crate::sampling_weights::SamplingWeightRecord> {
+    if units.iter().any(|unit| unit.sampling_weights.is_some()) {
+        let mut matrix = vec![0.0; rows * ncols];
+        let mut outcome = Vec::with_capacity(rows);
+        let mut offset = 0;
+        for unit in units {
+            let nrows = unit.design.nrows;
+            for column in 0..ncols {
+                matrix[column * rows + offset..column * rows + offset + nrows]
+                    .copy_from_slice(&unit.design.matrix[column * nrows..(column + 1) * nrows]);
+            }
+            outcome.extend_from_slice(&unit.design.outcome);
+            offset += nrows;
+        }
+        design.matrix = Arc::from(matrix);
+        design.outcome = Arc::from(outcome);
+        let mut record = crate::sampling_weights::SamplingWeightRecord {
+            rows_used: 0,
+            zero_weight_rows: 0,
+            effective_sample_size: 0.0,
+            weight_sum: 0.0,
+        };
+        for unit in units {
+            let unit_record =
+                unit.sampling_weights.unwrap_or(crate::sampling_weights::SamplingWeightRecord {
+                    rows_used: unit.design.nrows as u64,
+                    zero_weight_rows: 0,
+                    effective_sample_size: unit.design.nrows as f64,
+                    weight_sum: unit.design.nrows as f64,
+                });
+            record.rows_used += unit_record.rows_used;
+            record.zero_weight_rows += unit_record.zero_weight_rows;
+            record.effective_sample_size += unit_record.effective_sample_size;
+            record.weight_sum += unit_record.weight_sum;
+        }
+        Some(record)
+    } else {
+        None
+    }
 }
 
 #[cfg(test)]

@@ -12,7 +12,7 @@
 use std::sync::Arc;
 
 use crate::error::EstimationError;
-use crate::joint_coefficients::{CoefficientDraws, joint_draws};
+use crate::joint_coefficients::{CoefficientDraws, JointCoefficientDraws, joint_draws};
 use crate::serial_dependence::{DependenceScope, SerialDependence};
 use crate::temporal_adjustment::TemporalLinearAdjustment;
 use crate::white_innovation_posterior::{
@@ -528,7 +528,7 @@ fn joint_trajectory_draws(
     structural_span: usize,
     seed: u64,
     rng: &antecedent_core::RngFactory,
-) -> Result<(Vec<Vec<Vec<f64>>>, usize), EstimationError> {
+) -> Result<(JointCoefficientDraws, usize), EstimationError> {
     let draws: Vec<&CoefficientDraws> = fits.iter().map(|fit| &fit.draws).collect();
     joint_draws(&draws, structural_span, seed, rng)
 }

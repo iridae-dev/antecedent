@@ -578,8 +578,10 @@ fn bootstrap_data(
     for (index, group) in simulated.groups.iter_mut().enumerate() {
         check_cancelled(ctx)?;
         let intercept = match &spatial {
-            Some(draws) => draws[index],
-            None => base.group_sd * standard_normal(&mut rng),
+            likelihood::SpatialPriorIntercepts::Correlated(draws) => draws[index],
+            likelihood::SpatialPriorIntercepts::Independent => {
+                base.group_sd * standard_normal(&mut rng)
+            }
         };
         let mut error =
             base.innovation_sd / (1.0 - base.rho.powi(2)).sqrt() * standard_normal(&mut rng);

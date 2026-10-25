@@ -37,6 +37,9 @@ type Evaluator<T> = fn(
     &ExecutionContext,
 ) -> Result<Vec<PanelResponse>, PanelError>;
 
+/// A consumer receives an aligned tile without retaining the complete fitted law.
+type TileSink<'a> = dyn FnMut(usize, &[Option<Vec<PanelResponse>>]) -> Result<(), PanelError> + 'a;
+
 fn tile_bytes(programs: &[PanelProgram], tile_draws: usize) -> Result<u64, PanelError> {
     let slot = response_storage_bytes(programs)?
         .checked_add(std::mem::size_of::<Option<Vec<PanelResponse>>>() as u64)
@@ -54,7 +57,7 @@ fn stream_law<T>(
     tile_draws: usize,
     ctx: &ExecutionContext,
     evaluate: Evaluator<T>,
-    sink: &mut dyn FnMut(usize, &[Option<Vec<PanelResponse>>]) -> Result<(), PanelError>,
+    sink: &mut TileSink<'_>,
 ) -> Result<PanelStreamReceipt, PanelError> {
     if tile_draws == 0 {
         return Err(invalid("a streamed tile must hold at least one draw"));

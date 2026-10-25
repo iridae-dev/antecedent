@@ -103,39 +103,7 @@ impl TwoStageLeastSquares {
         batch_rows: usize,
         ceiling_bytes: u64,
     ) -> Result<StreamedIvEstimate, EstimationError> {
-        if !self.supports_streamed_reduction() {
-            return Err(EstimationError::unsupported(
-                "a streamed reduction needs two-stage least squares without clustering, \
-                 multiway ids or panel times",
-            ));
-        }
-        crate::util::require_explicit_override(
-            self.overlap,
-            "IV estimators require ExplicitOverride overlap policy (not propensity-based)",
-        )?;
-        if estimand.method_kind().ok() != Some(antecedent_expr::EstimandMethod::Iv) {
-            return Err(EstimationError::IncompatibleEstimand {
-                message: "IV estimators expect an \"iv\" estimand",
-            });
-        }
-        if estimand.instruments.is_empty() {
-            return Err(EstimationError::IncompatibleEstimand {
-                message: "IV estimators require a non-empty instrument set",
-            });
-        }
-        query.validate()?;
-        if !query.effect_modifiers.is_empty() {
-            return Err(EstimationError::unsupported(
-                "IV estimators do not support effect modifiers",
-            ));
-        }
-        if query.target_population != TargetPopulation::AllObserved {
-            return Err(EstimationError::refused(
-                antecedent_core::reason_code!("population_not_estimable"),
-                "IV estimators only support TargetPopulation::AllObserved",
-            ));
-        }
-        let (_, _, delta) = treatment_contrast(&query.active, &query.control)?;
+        let delta = self.validate_streamed_query(estimand, query)?;
         let mut ids =
             Vec::with_capacity(2 + estimand.instruments.len() + estimand.adjustment_set.len());
         ids.push(query.treatment);
@@ -217,6 +185,47 @@ impl TwoStageLeastSquares {
             batches: result.batches,
             choice: *result.physical_choice(),
         })
+    }
+    /// Validate the supported IV estimand and population before scanning rows.
+    fn validate_streamed_query(
+        &self,
+        estimand: &IdentifiedEstimand,
+        query: &AverageEffectQuery,
+    ) -> Result<f64, EstimationError> {
+        if !self.supports_streamed_reduction() {
+            return Err(EstimationError::unsupported(
+                "a streamed reduction needs two-stage least squares without clustering, \
+                 multiway ids or panel times",
+            ));
+        }
+        crate::util::require_explicit_override(
+            self.overlap,
+            "IV estimators require ExplicitOverride overlap policy (not propensity-based)",
+        )?;
+        if estimand.method_kind().ok() != Some(antecedent_expr::EstimandMethod::Iv) {
+            return Err(EstimationError::IncompatibleEstimand {
+                message: "IV estimators expect an \"iv\" estimand",
+            });
+        }
+        if estimand.instruments.is_empty() {
+            return Err(EstimationError::IncompatibleEstimand {
+                message: "IV estimators require a non-empty instrument set",
+            });
+        }
+        query.validate()?;
+        if !query.effect_modifiers.is_empty() {
+            return Err(EstimationError::unsupported(
+                "IV estimators do not support effect modifiers",
+            ));
+        }
+        if query.target_population != TargetPopulation::AllObserved {
+            return Err(EstimationError::refused(
+                antecedent_core::reason_code!("population_not_estimable"),
+                "IV estimators only support TargetPopulation::AllObserved",
+            ));
+        }
+        let (_, _, delta) = treatment_contrast(&query.active, &query.control)?;
+        Ok(delta)
     }
 }
 

@@ -161,6 +161,7 @@ impl PreparationSummary {
     /// Summarize `receipt`.
     #[must_use]
     pub fn from_receipt(receipt: &antecedent_data::materialize::PreparationReceipt) -> Self {
+        use antecedent_data::materialize::{AdmissionRecord, DeliveryRecord};
         let route_bound = match receipt.route_bound() {
             antecedent_data::materialize::RouteBound::Proved { .. } => "proved",
             antecedent_data::materialize::RouteBound::RowsOnly { .. } => "rows_only",
@@ -168,7 +169,6 @@ impl PreparationSummary {
                 "not_an_end_to_end_route"
             }
         };
-        use antecedent_data::materialize::{AdmissionRecord, DeliveryRecord};
         let (admitted_bytes, budget_bytes) = match receipt.admission() {
             AdmissionRecord::Materialized { bytes, budget } => (bytes, Some(budget)),
             AdmissionRecord::Unmetered { bytes } => (bytes, None),

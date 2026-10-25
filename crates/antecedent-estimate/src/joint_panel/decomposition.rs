@@ -191,12 +191,12 @@ impl MomentAccumulator {
         self.total_product += total_delta * (draw.total - self.total_mean);
         for (kind, values) in [draw.shapley, draw.sequential].iter().enumerate() {
             let delta: [f64; 4] = std::array::from_fn(|j| values[j] - self.means[kind][j]);
-            for j in 0..4 {
-                self.means[kind][j] += delta[j] / n;
+            for (j, step) in delta.iter().enumerate() {
+                self.means[kind][j] += step / n;
             }
-            for j in 0..4 {
-                for k in 0..4 {
-                    self.products[kind][j][k] += delta[j] * (values[k] - self.means[kind][k]);
+            for (j, step) in delta.iter().enumerate() {
+                for (k, value) in values.iter().enumerate() {
+                    self.products[kind][j][k] += step * (value - self.means[kind][k]);
                 }
             }
         }
@@ -274,8 +274,8 @@ fn weighted_joint_uncertainty(
         complete += 1;
         let normalized = weight / total;
         for (kind, values) in [draw.shapley, draw.sequential].iter().enumerate() {
-            for j in 0..4 {
-                means[kind][j] += normalized * values[j];
+            for (j, value) in values.iter().enumerate() {
+                means[kind][j] += normalized * value;
             }
         }
         total_mean += normalized * draw.total;

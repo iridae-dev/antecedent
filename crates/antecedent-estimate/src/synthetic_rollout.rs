@@ -252,16 +252,7 @@ pub fn conformal_synthetic_control_at_level(
     let post: Vec<usize> =
         (0..panel.periods.len()).filter(|t| panel.periods[*t] >= intervention).collect();
     let alpha = 1.0 - level;
-    if post.is_empty() {
-        return Err(invalid("conformal synthetic control needs at least one post-period"));
-    }
-    if ((pre.len() + 1) as f64) * alpha < 1.0 {
-        let needed = (1.0 / alpha).ceil() as usize - 1;
-        return Err(refused(format!(
-            "the requested conformal level needs at least {needed} pre-periods so that one over pre-periods plus one is no greater than alpha; the panel has {}; next attempt: a longer pre-period, or the placebo-variance interval",
-            pre.len()
-        )));
-    }
+    require_conformal_periods(pre.len(), post.len(), alpha)?;
     let donors: Vec<usize> = (0..panel.labels.len()).filter(|u| *u != unit).collect();
     if donors.len() < 2 {
         return Err(invalid("conformal synthetic control needs at least two donors"));
@@ -344,6 +335,21 @@ pub fn conformal_synthetic_control_at_level(
         smallest_period_p_value: 1.0 / (pre.len() + 1) as f64,
         unbounded_intervals: unbounded,
     })
+}
+
+/// Require enough pre-periods for the requested finite conformal rank. The
+/// caller derives positive finite alpha from its checked level in (0, 1).
+fn require_conformal_periods(pre: usize, post: usize, alpha: f64) -> Result<(), EstimationError> {
+    if post == 0 {
+        return Err(invalid("conformal synthetic control needs at least one post-period"));
+    }
+    if ((pre + 1) as f64) * alpha < 1.0 {
+        let needed = (1.0 / alpha).ceil() - 1.0;
+        return Err(refused(format!(
+            "the requested conformal level needs at least {needed:.0} pre-periods so that one over pre-periods plus one is no greater than alpha; the panel has {pre}; next attempt: a longer pre-period, or the placebo-variance interval"
+        )));
+    }
+    Ok(())
 }
 
 /// Moving-block conformal p-value of `target` (adjusted under the null) against `donors`, the

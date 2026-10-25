@@ -1128,7 +1128,6 @@ impl AssociationEstimator {
         reason = "a multiplier is a small non-negative resample count rounded to an integer"
     )]
     fn statistics(
-        &self,
         prepared: &PreparedAssociation,
         mult: &[f64],
     ) -> Result<Vec<f64>, EstimationError> {
@@ -1137,10 +1136,10 @@ impl AssociationEstimator {
         if let Some(strata) = &prepared.strata {
             let mut numerator = vec![0.0; strata.labels.len()];
             let mut denominator = vec![0.0; strata.labels.len()];
-            for row in 0..prepared.rows {
+            for (row, &weight) in effective.iter().enumerate() {
                 let k = strata.of_row[row];
-                numerator[k] += effective[row] * prepared.y[row];
-                denominator[k] += effective[row];
+                numerator[k] += weight * prepared.y[row];
+                denominator[k] += weight;
             }
             return Ok(numerator
                 .iter()
@@ -1263,7 +1262,7 @@ impl AssociationEstimator {
     ) -> Result<(Vec<Option<f64>>, Option<&'static str>), EstimationError> {
         let analysis = prepared.selection.analysis;
         if let Some(strata) = &prepared.strata {
-            let means = self.statistics(prepared, &vec![1.0; prepared.rows])?;
+            let means = Self::statistics(prepared, &vec![1.0; prepared.rows])?;
             let series = self.modality == Modality::Series;
             let mut errors = Vec::with_capacity(means.len());
             for (k, mean) in means.iter().enumerate() {
@@ -1314,7 +1313,7 @@ impl AssociationEstimator {
         if analysis == AssociationAnalysis::PearsonCorrelation
             && self.modality == Modality::CrossSection
         {
-            let r = self.statistics(prepared, &vec![1.0; prepared.rows])?[0];
+            let r = Self::statistics(prepared, &vec![1.0; prepared.rows])?[0];
             let total: f64 = prepared.weight.iter().sum();
             let squares: f64 = prepared.weight.iter().map(|w| w * w).sum();
             let effective_rows = total * total / squares;
@@ -1386,7 +1385,7 @@ impl AssociationEstimator {
                 multiplier[source] += 1.0;
             }
             draws.push(
-                self.statistics(prepared, &multiplier).unwrap_or_else(|_| vec![f64::NAN; terms]),
+                Self::statistics(prepared, &multiplier).unwrap_or_else(|_| vec![f64::NAN; terms]),
             );
         }
         Ok(ReplicateDraws { draws, block_length })
@@ -1430,7 +1429,7 @@ impl AssociationEstimator {
                 }
             };
             draws.push(
-                self.statistics(prepared, &multiplier).unwrap_or_else(|_| vec![f64::NAN; terms]),
+                Self::statistics(prepared, &multiplier).unwrap_or_else(|_| vec![f64::NAN; terms]),
             );
         }
         Ok(ReplicateDraws { draws, block_length })
@@ -1438,7 +1437,7 @@ impl AssociationEstimator {
 
     /// Whether the closed-form conjugate posterior applies: a Gaussian outcome on independent
     /// rows with no sampling-weight column.
-    fn conjugate_applies(&self, prepared: &PreparedAssociation) -> bool {
+    fn conjugate_applies(prepared: &PreparedAssociation) -> bool {
         bayesian_method(&prepared.selection, !prepared.unit_weights)
             == "conjugate_normal_inverse_gamma"
     }
@@ -1652,7 +1651,7 @@ impl AssociationEstimator {
             ));
         }
         let rows = prepared.rows;
-        let point = self.statistics(prepared, &vec![1.0; rows])?;
+        let point = Self::statistics(prepared, &vec![1.0; rows])?;
         if point.iter().any(|value| !value.is_finite()) {
             return Err(refuse_invalid(
                 "a reported quantity is not defined on these rows (a constant column has no \
@@ -1679,32 +1678,10 @@ impl AssociationEstimator {
         let mut posterior = None;
         match self.bayesian {
             None if self.bootstrap_replicates > 0 => {
-                let drawn = self.bootstrap_draws(prepared, ctx)?;
-                let series = self.modality == Modality::Series;
-                let scale =
-                    drawn.block_length.map_or(1.0, |length| circular_fixed_b_scale(length, rows));
-                let attempted = drawn.draws.len();
-                let mut ok = attempted;
-                for (k, term) in terms.iter_mut().enumerate() {
-                    let values = finite_column(&drawn.draws, k);
-                    ok = ok.min(values.len());
-                    if values.len() >= 2 && values.len() * 2 >= attempted {
-                        term.standard_error = Some(sample_std(&values) * scale);
-                        term.standard_error_method =
-                            Some(if series { "bootstrap_circular_block" } else { "bootstrap_row" });
-                    }
-                    term.spread = percentile_spread(values);
-                }
-                resampling = Some(ResamplingRecord {
-                    method: if series { "block_bootstrap" } else { "bootstrap" },
-                    unit: if series { "calendar_block" } else { "row" },
-                    replicates_requested: self.bootstrap_replicates,
-                    replicates_ok: u32::try_from(ok).unwrap_or(u32::MAX),
-                    block_length: drawn.block_length,
-                });
+                resampling = Some(self.publish_bootstrap(prepared, &mut terms, ctx)?);
             }
             None => {}
-            Some(settings) if self.conjugate_applies(prepared) => {
+            Some(settings) if Self::conjugate_applies(prepared) => {
                 let marginals = Self::conjugate(prepared, settings)?;
                 for (term, marginal) in terms.iter_mut().zip(marginals) {
                     term.posterior = Some(marginal);
@@ -1760,6 +1737,38 @@ impl AssociationEstimator {
             posterior,
             prediction,
             assumptions: descriptive_assumptions(&prepared.selection),
+        })
+    }
+
+    /// Publish the frequentist bootstrap summaries and their construction record.
+    fn publish_bootstrap(
+        &self,
+        prepared: &PreparedAssociation,
+        terms: &mut [AssociationTerm],
+        ctx: &ExecutionContext,
+    ) -> Result<ResamplingRecord, EstimationError> {
+        let rows = prepared.rows;
+        let drawn = self.bootstrap_draws(prepared, ctx)?;
+        let series = self.modality == Modality::Series;
+        let scale = drawn.block_length.map_or(1.0, |length| circular_fixed_b_scale(length, rows));
+        let attempted = drawn.draws.len();
+        let mut ok = attempted;
+        for (k, term) in terms.iter_mut().enumerate() {
+            let values = finite_column(&drawn.draws, k);
+            ok = ok.min(values.len());
+            if values.len() >= 2 && values.len() * 2 >= attempted {
+                term.standard_error = Some(sample_std(&values) * scale);
+                term.standard_error_method =
+                    Some(if series { "bootstrap_circular_block" } else { "bootstrap_row" });
+            }
+            term.spread = percentile_spread(values);
+        }
+        Ok(ResamplingRecord {
+            method: if series { "block_bootstrap" } else { "bootstrap" },
+            unit: if series { "calendar_block" } else { "row" },
+            replicates_requested: self.bootstrap_replicates,
+            replicates_ok: u32::try_from(ok).unwrap_or(u32::MAX),
+            block_length: drawn.block_length,
         })
     }
 }

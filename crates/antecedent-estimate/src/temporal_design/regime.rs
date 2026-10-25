@@ -363,8 +363,10 @@ fn inverse_probability_mean(
 ) -> Result<RegimeValue, EstimationError> {
     let (mut numerator, mut denominator) = (0.0, 0.0);
     let mut minimum = 1.0_f64;
-    for unit in 0..panel.units {
-        let w = weights[unit];
+    let weights = weights.get(..panel.units).ok_or_else(|| {
+        EstimationError::unsupported("regime weights do not cover every panel unit")
+    })?;
+    for (unit, &w) in weights.iter().enumerate() {
         if w <= 0.0 {
             continue;
         }
@@ -457,12 +459,11 @@ fn evaluate(
     floor: f64,
 ) -> Result<Evaluation, EstimationError> {
     let ones;
-    let weights: &[f64] = match unit_weights {
-        Some(weights) => weights,
-        None => {
-            ones = vec![1.0; panel.units];
-            &ones
-        }
+    let weights: &[f64] = if let Some(weights) = unit_weights {
+        weights
+    } else {
+        ones = vec![1.0; panel.units];
+        &ones
     };
     let treatment = if method.needs_treatment_models() {
         Some(fit_treatment_models(panel, weights, ridge)?)

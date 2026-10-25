@@ -590,18 +590,7 @@ pub(crate) fn match_diffs_with(
     let MatchSide { features: donor_features, outcome: donor_outcome } = donors;
     let MatchSide { features: query_features, outcome: query_outcome } = queries;
     let n_donors = donor_outcome.len();
-    if n_donors == 0 {
-        return Err(EstimationError::data_msg("matching requires at least one donor row"));
-    }
-    if matches == 0 {
-        return Err(EstimationError::data_msg("matching requires at least one match per query"));
-    }
-    if n_donors < matches {
-        return Err(EstimationError::data_msg(format!(
-            "matching with {matches} matches per query needs at least {matches} donor rows; the \
-             donor arm has {n_donors}"
-        )));
-    }
+    require_match_counts(n_donors, matches)?;
     let n_queries = query_outcome.len();
     let quoted_pass = quote_exact_matching(
         (n_donors, n_queries, dim),
@@ -620,7 +609,7 @@ pub(crate) fn match_diffs_with(
     if let Some((leased_bytes, _)) = &quoted_pass {
         debug_assert!(
             *leased_bytes
-                >= (slots * size_of::<usize>() + n_queries * size_of::<f64>()) as u64
+                >= (slots * size_of::<usize>() + std::mem::size_of_val(query_outcome)) as u64
         );
     }
     let mut donor_rows = std::mem::take(&mut workspace.matching_donor_rows);
@@ -694,8 +683,43 @@ pub(crate) fn match_diffs_with(
             }
         }
     }
+    let matched = matched_outcome_diffs(donors, queries, dim, matches, &donor_rows);
+    workspace.matching_donor_rows = donor_rows;
+    workspace.matching_distances = distances;
+    Ok(matched)
+}
+
+/// Validate donor availability and the requested exact neighbourhood size.
+fn require_match_counts(n_donors: usize, matches: usize) -> Result<(), EstimationError> {
+    if n_donors == 0 {
+        return Err(EstimationError::data_msg("matching requires at least one donor row"));
+    }
+    if matches == 0 {
+        return Err(EstimationError::data_msg("matching requires at least one match per query"));
+    }
+    if n_donors < matches {
+        return Err(EstimationError::data_msg(format!(
+            "matching with {matches} matches per query needs at least {matches} donor rows; the \
+             donor arm has {n_donors}"
+        )));
+    }
+    Ok(())
+}
+
+/// Form bias-corrected outcome differences only after the exact neighbour pass.
+/// A single donor is read directly; multi-donor averaging retains match order.
+fn matched_outcome_diffs(
+    donors: MatchSide<'_>,
+    queries: MatchSide<'_>,
+    dim: usize,
+    matches: usize,
+    donor_rows: &[usize],
+) -> MatchedDiffs {
+    let MatchSide { features: donor_features, outcome: donor_outcome } = donors;
+    let MatchSide { features: query_features, outcome: query_outcome } = queries;
+    let n_queries = query_outcome.len();
     let mut diffs = Vec::with_capacity(n_queries);
-    let mut used_donors = Vec::with_capacity(slots);
+    let mut used_donors = Vec::with_capacity(donor_rows.len());
     let mut used_queries = Vec::with_capacity(n_queries);
     let mu_donor = fit_linear_mean(donor_features, donor_outcome, dim);
     // One match is read off directly so single-neighbour results do not pass through a sum.
@@ -722,9 +746,7 @@ pub(crate) fn match_diffs_with(
             used_queries.push(q);
         }
     }
-    workspace.matching_donor_rows = donor_rows;
-    workspace.matching_distances = distances;
-    Ok(MatchedDiffs { diffs, donors: used_donors, queries: used_queries })
+    MatchedDiffs { diffs, donors: used_donors, queries: used_queries }
 }
 
 /// A caliper is a maximum distance: finite and non-negative.
