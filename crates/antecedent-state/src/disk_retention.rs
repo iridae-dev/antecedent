@@ -22,7 +22,7 @@
 
 use std::collections::BTreeMap;
 use std::fs;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
@@ -257,6 +257,7 @@ struct Entry {
     digest: String,
     kind: &'static str,
     last_used: u64,
+    generation: u64,
 }
 
 #[derive(Debug, Default)]
@@ -397,8 +398,12 @@ impl SpillRegistry {
             }
             evicted.push(oldest);
         }
-        inner.sequence = inner.sequence.saturating_add(1);
-        let path = self.path_for(key, inner.sequence);
+        inner.sequence = inner
+            .sequence
+            .checked_add(1)
+            .ok_or_else(|| StateError::InvalidEvent("spill generation exhausted".into()))?;
+        let generation = inner.sequence;
+        let path = self.path_for(key, generation);
         let temporary = path.with_extension("tmp");
         let written = fs::File::create(&temporary)
             .and_then(|mut file| file.write_all(&frame).and_then(|()| file.sync_all()))
@@ -418,7 +423,14 @@ impl SpillRegistry {
         inner.spills = inner.spills.saturating_add(1);
         inner.entries.insert(
             key.to_owned(),
-            Entry { path, bytes: need, digest: digest.clone(), kind: T::KIND, last_used: tick },
+            Entry {
+                path,
+                bytes: need,
+                digest: digest.clone(),
+                kind: T::KIND,
+                last_used: tick,
+                generation,
+            },
         );
         drop(inner);
         Ok(SpillHandle {
@@ -426,6 +438,7 @@ impl SpillRegistry {
             key: key.to_owned(),
             bytes: need,
             digest,
+            generation,
             evicted,
         })
     }
@@ -436,7 +449,15 @@ impl SpillRegistry {
     /// The key is not on disk (never spilled, evicted, or removed: rebuild it from the
     /// source rows), or the file was changed, truncated or is of another kind.
     pub fn reload<T: Spillable>(&self, key: &str) -> Result<T, StateError> {
-        let (path, digest) = {
+        self.reload_generation(key, None)
+    }
+
+    fn reload_generation<T: Spillable>(
+        &self,
+        key: &str,
+        generation: Option<u64>,
+    ) -> Result<T, StateError> {
+        let (frame, digest, loaded_generation) = {
             let inner = self.lock();
             let entry = inner.entries.get(key).ok_or_else(|| {
                 StateError::UnknownId(format!(
@@ -444,6 +465,11 @@ impl SpillRegistry {
                      budget, or removed); rebuild it from the source rows"
                 ))
             })?;
+            if generation.is_some_and(|expected| expected != entry.generation) {
+                return Err(StateError::StaleCache(
+                    "spilled state was replaced; rebuild it from the source rows".into(),
+                ));
+            }
             if entry.kind != T::KIND {
                 return Err(StateError::StaleCache(format!(
                     "spilled state {key} is a {}, not a {}",
@@ -451,9 +477,21 @@ impl SpillRegistry {
                     T::KIND
                 )));
             }
-            (entry.path.clone(), entry.digest.clone())
+            // Read while the entry is pinned by the registry lock: replacement or eviction
+            // must not unlink the frame between lookup and reading its snapshot.
+            let file = fs::File::open(&entry.path)
+                .map_err(|error| io_error("cannot read the spill", &error))?;
+            let mut frame = Vec::new();
+            file.take(entry.bytes.saturating_add(1))
+                .read_to_end(&mut frame)
+                .map_err(|error| io_error("cannot read the spill", &error))?;
+            if frame.len() as u64 != entry.bytes {
+                return Err(StateError::StaleCache(
+                    "spilled file size differs from its reserved frame".into(),
+                ));
+            }
+            (frame, entry.digest.clone(), entry.generation)
         };
-        let frame = fs::read(&path).map_err(|error| io_error("cannot read the spill", &error))?;
         let (payload, actual) = open_frame(&frame, T::KIND)?;
         if actual != digest {
             return Err(StateError::StaleCache(
@@ -467,7 +505,9 @@ impl SpillRegistry {
         inner.tick = inner.tick.saturating_add(1);
         let tick = inner.tick;
         if let Some(entry) = inner.entries.get_mut(key) {
-            entry.last_used = tick;
+            if entry.generation == loaded_generation {
+                entry.last_used = tick;
+            }
         }
         inner.reloads = inner.reloads.saturating_add(1);
         drop(inner);
@@ -476,7 +516,16 @@ impl SpillRegistry {
 
     /// Remove `key` from disk. Returns whether it was there.
     pub fn remove(&self, key: &str) -> bool {
+        self.remove_generation(key, None)
+    }
+
+    fn remove_generation(&self, key: &str, generation: Option<u64>) -> bool {
         let mut inner = self.lock();
+        if generation.is_some_and(|expected| {
+            inner.entries.get(key).is_none_or(|entry| entry.generation != expected)
+        }) {
+            return false;
+        }
         match inner.entries.remove(key) {
             Some(entry) => {
                 let _ = fs::remove_file(&entry.path);
@@ -505,6 +554,7 @@ pub struct SpillHandle {
     key: String,
     bytes: u64,
     digest: String,
+    generation: u64,
     evicted: Vec<String>,
 }
 
@@ -539,10 +589,14 @@ impl SpillHandle {
         RetentionMode::DiskBacked
     }
 
-    /// Whether the file is still on disk (it is not once evicted or removed).
+    /// Whether this generation is still on disk (false after replacement, eviction or removal).
     #[must_use]
     pub fn on_disk(&self) -> bool {
-        self.registry.contains(&self.key)
+        self.registry
+            .lock()
+            .entries
+            .get(&self.key)
+            .is_some_and(|entry| entry.generation == self.generation)
     }
 
     /// Accept `operation` on the spilled result, or refuse it with the next attempt.
@@ -565,13 +619,12 @@ impl SpillHandle {
     /// The errors of [`SpillRegistry::reload`].
     pub fn reload<T: Spillable>(&self) -> Result<T, StateError> {
         self.require(RetainedOperation::ReadDiskArtifact)?;
-        let value = self.registry.reload::<T>(&self.key)?;
-        Ok(value)
+        self.registry.reload_generation::<T>(&self.key, Some(self.generation))
     }
 
     /// Remove the artifact from disk and return its reservation.
     pub fn remove(self) -> bool {
-        self.registry.remove(&self.key)
+        self.registry.remove_generation(&self.key, Some(self.generation))
     }
 }
 
@@ -595,6 +648,43 @@ mod tests {
             decoder.finish()?;
             Ok(Self(values))
         }
+    }
+
+    #[test]
+    fn replaced_handles_cannot_reload_or_remove_the_new_generation() {
+        let directory = scratch("replacement");
+        let registry = SpillRegistry::new(&directory, 4096).unwrap();
+        let old = registry.spill("same", &Blob(vec![1.0])).unwrap();
+        let current = registry.spill("same", &Blob(vec![2.0])).unwrap();
+        assert!(!old.on_disk());
+        assert!(matches!(old.reload::<Blob>(), Err(StateError::StaleCache(_))));
+        assert!(!old.remove());
+        assert!(current.on_disk());
+        assert_eq!(current.reload::<Blob>().unwrap(), Blob(vec![2.0]));
+        // Equal content is still a separate retained generation.
+        let replacement = registry.spill("same", &Blob(vec![2.0])).unwrap();
+        assert!(!current.on_disk());
+        assert!(!current.remove());
+        assert_eq!(replacement.reload::<Blob>().unwrap(), Blob(vec![2.0]));
+        assert!(replacement.remove());
+        assert_eq!(registry.stats().used_bytes, 0);
+        drop(registry);
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn enlarged_spill_is_refused_against_the_reserved_frame_size() {
+        let directory = scratch("enlarged");
+        let registry = SpillRegistry::new(&directory, 4096).unwrap();
+        let handle = registry.spill("a", &Blob(vec![1.0])).unwrap();
+        let path = registry.lock().entries["a"].path.clone();
+        let mut file = fs::OpenOptions::new().append(true).open(path).unwrap();
+        file.write_all(&[0; 4096]).unwrap();
+        assert!(matches!(handle.reload::<Blob>(), Err(StateError::StaleCache(_))));
+        assert_eq!(registry.stats().reloads, 0);
+        assert!(handle.remove());
+        drop(registry);
+        let _ = fs::remove_dir_all(directory);
     }
 
     fn scratch(name: &str) -> PathBuf {

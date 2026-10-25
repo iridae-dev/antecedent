@@ -130,6 +130,7 @@ pub struct ArtifactReader<R> {
     by_id: HashMap<String, usize>,
     inner: R,
     stats: SectionLoadStats,
+    loaded: Vec<bool>,
 }
 
 impl<R: Read + Seek> ArtifactReader<R> {
@@ -143,7 +144,8 @@ impl<R: Read + Seek> ArtifactReader<R> {
         stats.bytes_skipped = index.iter().map(|e| u64::from(e.on_wire_len)).sum();
         stats.sections_skipped = index.len() as u64;
         let by_id = index_by_id(&index);
-        Ok(Self { manifest, index, by_id, inner, stats })
+        let loaded = vec![false; index.len()];
+        Ok(Self { manifest, index, by_id, inner, stats, loaded })
     }
 
     /// Manifest (always available after open).
@@ -192,7 +194,8 @@ impl<R: Read + Seek> ArtifactReader<R> {
             &desc.id,
             desc.uncompressed_size,
         )?;
-        self.note_loaded(entry.on_wire_len, decompressed);
+        let pos = self.by_id[id];
+        note_loaded(&mut self.stats, &mut self.loaded[pos], entry.on_wire_len, decompressed);
         Ok(SectionAccess::Shared(logical))
     }
 
@@ -232,19 +235,6 @@ impl<R: Read + Seek> ArtifactReader<R> {
             .ok_or_else(|| IoError::Convert(format!("unknown section `{id}`")))?;
         Ok((&self.index[pos], &self.manifest.sections[pos]))
     }
-
-    fn note_loaded(&mut self, on_wire_len: u32, decompressed: bool) {
-        self.stats.sections_loaded += 1;
-        self.stats.bytes_loaded += u64::from(on_wire_len);
-        if decompressed {
-            self.stats.decompressions += 1;
-        }
-        if self.stats.sections_skipped > 0 {
-            self.stats.sections_skipped = self.stats.sections_skipped.saturating_sub(1);
-            self.stats.bytes_skipped =
-                self.stats.bytes_skipped.saturating_sub(u64::from(on_wire_len));
-        }
-    }
 }
 
 /// Artifact reader over an owned snapshot or a file-backed map.
@@ -258,6 +248,7 @@ pub struct MappedArtifactReader {
     /// (immutable bytes) and for a mapped file only while the caller upholds
     /// the immutability contract of [`Self::open_path_mapped`].
     verified: Vec<bool>,
+    loaded: Vec<bool>,
 }
 
 impl MappedArtifactReader {
@@ -331,7 +322,8 @@ impl MappedArtifactReader {
         stats.sections_skipped = index.len() as u64;
         let by_id = index_by_id(&index);
         let verified = vec![false; index.len()];
-        Ok(Self { backing, manifest, index, by_id, stats, verified })
+        let loaded = vec![false; index.len()];
+        Ok(Self { backing, manifest, index, by_id, stats, verified, loaded })
     }
 
     /// Manifest.
@@ -370,13 +362,7 @@ impl MappedArtifactReader {
             return Err(IoError::ManifestMismatch { message: "uncompressed mmap size mismatch" });
         }
         self.stats.mmap_views += 1;
-        self.stats.sections_loaded += 1;
-        self.stats.bytes_loaded += u64::from(entry.on_wire_len);
-        if self.stats.sections_skipped > 0 {
-            self.stats.sections_skipped = self.stats.sections_skipped.saturating_sub(1);
-            self.stats.bytes_skipped =
-                self.stats.bytes_skipped.saturating_sub(u64::from(entry.on_wire_len));
-        }
+        note_loaded(&mut self.stats, &mut self.loaded[pos], entry.on_wire_len, false);
         Ok(MappedSection { backing: self.backing.clone(), start, len, id: id.into() })
     }
 
@@ -400,16 +386,7 @@ impl MappedArtifactReader {
             &desc.id,
             desc.uncompressed_size,
         )?;
-        self.stats.sections_loaded += 1;
-        self.stats.bytes_loaded += u64::from(entry.on_wire_len);
-        if decompressed {
-            self.stats.decompressions += 1;
-        }
-        if self.stats.sections_skipped > 0 {
-            self.stats.sections_skipped = self.stats.sections_skipped.saturating_sub(1);
-            self.stats.bytes_skipped =
-                self.stats.bytes_skipped.saturating_sub(u64::from(entry.on_wire_len));
-        }
+        note_loaded(&mut self.stats, &mut self.loaded[pos], entry.on_wire_len, decompressed);
         Ok(SectionAccess::Shared(logical))
     }
 
@@ -441,6 +418,20 @@ impl MappedArtifactReader {
             .get(id)
             .copied()
             .ok_or_else(|| IoError::Convert(format!("unknown section `{id}`")))
+    }
+}
+
+/// Count load work on every call, but remove a section from the skipped set only once.
+fn note_loaded(stats: &mut SectionLoadStats, loaded: &mut bool, bytes: u32, decompressed: bool) {
+    stats.sections_loaded += 1;
+    stats.bytes_loaded += u64::from(bytes);
+    if decompressed {
+        stats.decompressions += 1;
+    }
+    if !*loaded {
+        *loaded = true;
+        stats.sections_skipped -= 1;
+        stats.bytes_skipped -= u64::from(bytes);
     }
 }
 
@@ -519,6 +510,31 @@ mod tests {
         assert_eq!(meta.as_bytes(), b"meta");
         assert_eq!(reader.stats().sections_loaded, 1);
         assert!(reader.stats().bytes_loaded < 48 * 1024);
+    }
+
+    #[test]
+    fn repeated_loads_keep_unvisited_sections_skipped() {
+        let mut bytes = Vec::new();
+        artifact_with_blob().write_to(&mut bytes).unwrap();
+        let mut seek = ArtifactReader::open_seek(Cursor::new(&bytes)).unwrap();
+        let mut mapped = MappedArtifactReader::from_bytes(Arc::from(bytes.clone())).unwrap();
+        for _ in 0..3 {
+            seek.load_section("meta").unwrap();
+            mapped.load_section("meta").unwrap();
+            for stats in [seek.stats(), mapped.stats()] {
+                assert_eq!(stats.sections_skipped, 1);
+                assert_eq!(stats.bytes_skipped, 48 * 1024);
+            }
+        }
+        assert_eq!(seek.stats().sections_loaded, 3);
+        assert_eq!(mapped.stats().mmap_views, 3);
+        seek.load_section("blob").unwrap();
+        mapped.load_section("blob").unwrap();
+        for stats in [seek.stats(), mapped.stats()] {
+            assert_eq!(stats.sections_skipped, 0);
+            assert_eq!(stats.bytes_skipped, 0);
+            assert_eq!(stats.sections_loaded, 4);
+        }
     }
 
     #[test]

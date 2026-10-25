@@ -61,7 +61,7 @@ impl Dag {
         g
     }
 
-    /// Copy nodes `0..n` and the directed edges `keep` accepts.
+    /// Copy every node, preserving its label and dense id, and the directed edges `keep` accepts.
     ///
     /// # Errors
     ///
@@ -70,8 +70,10 @@ impl Dag {
         &self,
         mut keep: impl FnMut(DenseNodeId, DenseNodeId) -> bool,
     ) -> Result<Self, GraphError> {
-        let n = u32::try_from(self.node_count()).map_err(|_| GraphError::TooManyNodes)?;
-        let mut out = Self::with_variables(n);
+        let mut out = Self::empty();
+        for node in self.nodes() {
+            out.add_node(*node)?;
+        }
         for edge in self.edges() {
             let Some((from, to)) = edge.parent_child() else {
                 continue;
@@ -454,6 +456,27 @@ impl Dag {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn filtered_copy_preserves_semantic_node_labels() {
+        for labels in [
+            [NodeRef::Static(VariableId::from_raw(7)), NodeRef::Static(VariableId::from_raw(3))],
+            [
+                NodeRef::Unfolded { variable: VariableId::from_raw(7), offset: -1 },
+                NodeRef::Unfolded { variable: VariableId::from_raw(7), offset: 0 },
+            ],
+        ] {
+            let mut graph = Dag::empty();
+            let from = graph.add_node(labels[0]).unwrap();
+            let to = graph.add_node(labels[1]).unwrap();
+            graph.insert_directed(from, to).unwrap();
+            assert_eq!(graph.copy_filtered(|_, _| true).unwrap(), graph);
+            let removed = graph.copy_filtered(|_, _| false).unwrap();
+            assert_eq!(removed.nodes(), graph.nodes());
+            assert!(removed.directed_edge_pairs_sorted().is_empty());
+            assert_eq!(graph.directed_edge_pairs_sorted(), vec![(0, 1)]);
+        }
+    }
 
     #[test]
     fn directed_edge_pairs_are_sorted_raw_ids() {

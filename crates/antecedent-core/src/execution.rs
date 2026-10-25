@@ -510,9 +510,6 @@ struct LeaseSlot {
     threads: u32,
     bytes: u64,
     observation: Option<crate::execution_attempt::ObservedAdmission>,
-    /// Set when a test asks the cancellation scan to return this slot.
-    /// A live owner is not marked by [`CancellationToken::cancel`].
-    cancelled: bool,
 }
 
 enum GrantError {
@@ -674,7 +671,6 @@ fn push_lease(
         threads: request.threads,
         bytes: request.bytes,
         observation,
-        cancelled: false,
     });
     id
 }
@@ -741,28 +737,6 @@ fn close_slot(
         }
     }
     Ok(AdmissionRemainder::new(threads, bytes))
-}
-
-/// Return every slot marked `cancelled`, visiting each slot once.
-///
-/// The index is not reset after a removal. Resetting it would rescan slots that
-/// were already kept and could miss a slot that slid into the removed index
-/// only on a later pass.
-#[cfg(test)]
-fn reap_cancelled(state: &mut AdmissionState) -> Result<(usize, usize), AdmissionError> {
-    let mut index = 0;
-    let mut removed = 0;
-    let mut visits = 0;
-    while index < state.leases.len() {
-        visits += 1;
-        if state.leases[index].cancelled {
-            close_slot(state, index)?;
-            removed += 1;
-        } else {
-            index += 1;
-        }
-    }
-    Ok((removed, visits))
 }
 
 fn close_and_notify(
@@ -2680,7 +2654,6 @@ mod tests {
                 parent: None,
                 threads: 1,
                 bytes: 0,
-                cancelled: false,
             }],
             next_id: 8,
             blocked_waiters: 0,
@@ -2689,7 +2662,6 @@ mod tests {
         assert!(matches!(refused, AdmissionError::Overflow), "{refused}");
         assert_eq!(state.leases.len(), 1);
         assert_eq!(state.leases[0].id, 7);
-        assert!(!state.leases[0].cancelled);
     }
 
     #[test]
@@ -2738,54 +2710,25 @@ mod tests {
     }
 
     #[test]
-    fn reap_removes_every_cancelled_lease_in_one_scan() {
+    fn closing_child_then_parent_preserves_other_lease_holdings() {
         let mut state = AdmissionState {
             thread_budget: 10,
             byte_budget: 100,
             threads_free: 4,
             bytes_free: 40,
             leases: vec![
-                LeaseSlot {
-                    id: 3,
-                    parent: Some(1),
-                    threads: 1,
-                    bytes: 10,
-                    observation: None,
-                    cancelled: true,
-                },
-                LeaseSlot {
-                    id: 2,
-                    parent: None,
-                    threads: 3,
-                    bytes: 30,
-                    observation: None,
-                    cancelled: false,
-                },
-                LeaseSlot {
-                    id: 1,
-                    parent: None,
-                    threads: 2,
-                    bytes: 20,
-                    observation: None,
-                    cancelled: true,
-                },
-                LeaseSlot {
-                    id: 4,
-                    parent: Some(2),
-                    threads: 0,
-                    bytes: 0,
-                    observation: None,
-                    cancelled: false,
-                },
+                LeaseSlot { id: 3, parent: Some(1), threads: 1, bytes: 10, observation: None },
+                LeaseSlot { id: 2, parent: None, threads: 3, bytes: 30, observation: None },
+                LeaseSlot { id: 1, parent: None, threads: 2, bytes: 20, observation: None },
+                LeaseSlot { id: 4, parent: Some(2), threads: 0, bytes: 0, observation: None },
             ],
             next_id: 5,
             blocked_waiters: 0,
         };
-        let (removed, visits) = reap_cancelled(&mut state).unwrap();
-        assert_eq!(removed, 2);
-        assert_eq!(visits, 4, "a restart would visit kept slots again");
+        close_slot(&mut state, 0).unwrap();
+        let parent_index = lease_index(&state.leases, 1).unwrap();
+        close_slot(&mut state, parent_index).unwrap();
         assert_eq!(state.leases.iter().map(|slot| slot.id).collect::<Vec<_>>(), vec![2, 4]);
-        assert!(state.leases.iter().all(|slot| !slot.cancelled));
         assert_eq!(state.leases[1].parent, Some(2));
         assert_eq!(state.threads_free, 7);
         assert_eq!(state.bytes_free, 70);

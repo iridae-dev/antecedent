@@ -82,24 +82,30 @@ impl CategoryDomain {
         unknown_policy: UnknownCategoryPolicy,
     ) -> Result<Self, DataError> {
         let levels = levels.into();
-        if levels.is_empty() {
+        let domain = Self { id, levels, ordered, reference, unknown_policy };
+        domain.validate()?;
+        Ok(domain)
+    }
+
+    fn validate(&self) -> Result<(), DataError> {
+        if self.levels.is_empty() {
             return Err(DataError::InvalidValidity {
                 message: "category domain requires at least one level",
             });
         }
-        let n = u32::try_from(levels.len())
+        let n = u32::try_from(self.levels.len())
             .map_err(|_| DataError::InvalidValidity { message: "too many category levels" })?;
-        if let Some(r) = reference {
+        if let Some(r) = self.reference {
             if r.raw() >= n {
                 return Err(DataError::InvalidValidity { message: "reference code out of range" });
             }
         }
-        if let UnknownCategoryPolicy::MapToOther { other } = unknown_policy {
+        if let UnknownCategoryPolicy::MapToOther { other } = self.unknown_policy {
             if other.raw() >= n {
                 return Err(DataError::InvalidValidity { message: "Other code out of range" });
             }
         }
-        Ok(Self { id, levels, ordered, reference, unknown_policy })
+        Ok(())
     }
 
     /// Number of levels.
@@ -147,6 +153,7 @@ impl CategoricalColumn {
         validity: ValidityBitmap,
         domain: Arc<CategoryDomain>,
     ) -> Result<Self, DataError> {
+        domain.validate()?;
         let codes = codes.into();
         if validity.len() != codes.len() {
             return Err(DataError::LengthMismatch {
@@ -528,6 +535,51 @@ mod tests {
             )
             .unwrap(),
         )
+    }
+
+    #[test]
+    fn categorical_column_rechecks_public_domain_declarations() {
+        let invalid = CategoryDomain {
+            id: CategoryDomainId::from_raw(0),
+            levels: Arc::from([CategoryLevel { label: Arc::from("only") }]),
+            ordered: false,
+            reference: None,
+            unknown_policy: UnknownCategoryPolicy::MapToOther { other: CategoryCode::from_raw(9) },
+        };
+        let id = antecedent_core::VariableId::from_raw(0);
+        assert!(
+            CategoricalColumn::try_new(
+                id,
+                vec![CategoryCode::from_raw(2)],
+                ValidityBitmap::all_valid(1),
+                Arc::new(invalid.clone()),
+            )
+            .is_err()
+        );
+        let empty = CategoryDomain { levels: Arc::from([]), ..invalid.clone() };
+        assert!(
+            CategoricalColumn::try_new(
+                id,
+                Vec::<CategoryCode>::new(),
+                ValidityBitmap::all_valid(0),
+                Arc::new(empty),
+            )
+            .is_err()
+        );
+        let bad_reference = CategoryDomain {
+            reference: Some(CategoryCode::from_raw(9)),
+            unknown_policy: UnknownCategoryPolicy::Fail,
+            ..invalid
+        };
+        assert!(
+            CategoricalColumn::try_new(
+                id,
+                vec![CategoryCode::from_raw(0)],
+                ValidityBitmap::all_valid(1),
+                Arc::new(bad_reference),
+            )
+            .is_err()
+        );
     }
 
     #[test]
