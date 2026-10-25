@@ -196,7 +196,7 @@ pub fn fit_staged<B: AutodiffBackend>(
     let mut losses = Vec::with_capacity(epochs);
 
     let start = Instant::now();
-    let mut model = Mlp::<B>::new(device, ncols, hidden);
+    let mut model = Mlp::<B>::seeded(device, ncols, hidden, seed);
     let mut optim = AdamConfig::new().init::<B, Mlp<B>>();
     B::sync(device);
     fit += start.elapsed();

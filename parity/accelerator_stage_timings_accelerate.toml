@@ -17,25 +17,25 @@ hidden = 8
 epochs = 8
 flops = 1277952
 [measurement.cold]
-prepare_ns = 53291
-upload_ns = 260792
-fit_ns = 4696584
-synchronize_ns = 23208
-download_ns = 8625
-predict_ns = 47250
-output_ns = 3166
-stage_total_ns = 5092916
-wall_ns = 5111750
+prepare_ns = 14707
+upload_ns = 271417
+fit_ns = 4415584
+synchronize_ns = 18835
+download_ns = 51875
+predict_ns = 50709
+output_ns = 209
+stage_total_ns = 4823336
+wall_ns = 4882917
 [measurement.warm]
-prepare_ns = 14416
-upload_ns = 1999
-fit_ns = 3224081
-synchronize_ns = 4583
-download_ns = 7833
-predict_ns = 46834
-output_ns = 292
-stage_total_ns = 3300038
-wall_ns = 3317333
+prepare_ns = 11001
+upload_ns = 1917
+fit_ns = 3259544
+synchronize_ns = 5627
+download_ns = 7624
+predict_ns = 47708
+output_ns = 416
+stage_total_ns = 3333837
+wall_ns = 3343500
 
 [[measurement]]
 backend = "ndarray_accelerate"
@@ -47,25 +47,56 @@ hidden = 16
 epochs = 20
 flops = 384048000
 [measurement.cold]
-prepare_ns = 365458
-upload_ns = 31709
-fit_ns = 53496003
-synchronize_ns = 21833
-download_ns = 29958
-predict_ns = 526916
-output_ns = 4458
-stage_total_ns = 54476335
-wall_ns = 54564250
+prepare_ns = 365208
+upload_ns = 40251
+fit_ns = 53459001
+synchronize_ns = 23458
+download_ns = 25585
+predict_ns = 521167
+output_ns = 3834
+stage_total_ns = 54438504
+wall_ns = 54530709
 [measurement.warm]
-prepare_ns = 334626
-upload_ns = 22834
-fit_ns = 54623035
-synchronize_ns = 26457
-download_ns = 29834
-predict_ns = 534249
-output_ns = 3916
-stage_total_ns = 55574951
-wall_ns = 55642458
+prepare_ns = 334790
+upload_ns = 19376
+fit_ns = 53548867
+synchronize_ns = 23833
+download_ns = 28459
+predict_ns = 531251
+output_ns = 4708
+stage_total_ns = 54491284
+wall_ns = 54561083
+
+[[measurement]]
+backend = "ndarray_accelerate"
+workload = "large"
+rows = 40000
+cols = 32
+folds = 2
+hidden = 128
+epochs = 15
+flops = 74188800000
+[measurement.cold]
+prepare_ns = 6771459
+upload_ns = 617792
+fit_ns = 909984499
+synchronize_ns = 54919
+download_ns = 417000
+predict_ns = 73223709
+output_ns = 30041
+stage_total_ns = 991099419
+wall_ns = 992518625
+[measurement.warm]
+prepare_ns = 5905500
+upload_ns = 358417
+fit_ns = 892601835
+synchronize_ns = 53417
+download_ns = 426084
+predict_ns = 73231834
+output_ns = 37167
+stage_total_ns = 972614254
+wall_ns = 973506625
 
 [crossover]
 smallest_device_win_flops = "none"
+smallest_gain_threshold_flops = "none"

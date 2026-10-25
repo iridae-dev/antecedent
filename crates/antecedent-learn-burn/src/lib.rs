@@ -12,7 +12,7 @@
 
 use burn::backend::{Autodiff, NdArray};
 use burn::module::{AutodiffModule, Module};
-use burn::nn::{Linear, LinearConfig};
+use burn::nn::Linear;
 use burn::optim::{AdamConfig, GradientsParams, Optimizer};
 use burn::tensor::activation::{relu, sigmoid};
 use burn::tensor::{Tensor, TensorData, backend::Backend};
@@ -155,6 +155,23 @@ pub fn train(
     y: &[f64],
     spec: &MlpSpec,
 ) -> Result<TrainedMlp, LearnBurnError> {
+    train_cancellable(x_colmajor, nrows, ncols, y, spec, &|| false)
+}
+
+/// [`train`] that polls `stop` before every epoch and returns
+/// [`LearnBurnError::Cancelled`] once it reports true.
+///
+/// # Errors
+///
+/// As [`train`], or cancellation.
+pub fn train_cancellable(
+    x_colmajor: &[f64],
+    nrows: usize,
+    ncols: usize,
+    y: &[f64],
+    spec: &MlpSpec,
+    stop: &dyn Fn() -> bool,
+) -> Result<TrainedMlp, LearnBurnError> {
     let MlpSpec { binary, hidden, epochs, learning_rate, seed } = *spec;
     if nrows == 0 || ncols == 0 {
         return Err(LearnBurnError::EmptyDesign);
@@ -193,12 +210,15 @@ pub fn train(
         reason = "the network trains in f32, so narrowing the standardized target is the intended precision"
     )]
     let y_f: Vec<f32> = y.iter().map(|&v| ((v - y_center) / y_scale) as f32).collect();
-    let mut model = Mlp::<TrainBackend>::new(&device, ncols, hidden);
+    let mut model = Mlp::<TrainBackend>::seeded(&device, ncols, hidden, seed);
     let mut optim = AdamConfig::new().init();
     let x_t = tensor2(&x_rm, [nrows, ncols], &device);
     let y_t = tensor2(&y_f, [nrows, 1], &device);
     let lr = learning_rate;
     for _ in 0..epochs {
+        if stop() {
+            return Err(LearnBurnError::Cancelled);
+        }
         let pred = model.forward(x_t.clone());
         let loss = if binary {
             let p = sigmoid(pred.clone()).clamp(1e-6, 1.0 - 1e-6);
@@ -305,11 +325,14 @@ struct Mlp<B: Backend> {
 }
 
 impl<B: Backend> Mlp<B> {
-    fn new(device: &B::Device, din: usize, hidden: usize) -> Self {
+    /// Initial weights drawn on the host from `seed`, so every backend starts from the same
+    /// values. Backend RNGs differ between implementations; this does not depend on them.
+    fn seeded(device: &B::Device, din: usize, hidden: usize, seed: u64) -> Self {
+        let mut rng = HostRng(seed);
         Self {
-            l1: LinearConfig::new(din, hidden).init(device),
-            l2: LinearConfig::new(hidden, hidden).init(device),
-            out: LinearConfig::new(hidden, 1).init(device),
+            l1: seeded_linear(device, din, hidden, &mut rng),
+            l2: seeded_linear(device, hidden, hidden, &mut rng),
+            out: seeded_linear(device, hidden, 1, &mut rng),
         }
     }
 
@@ -317,6 +340,44 @@ impl<B: Backend> Mlp<B> {
         let x = relu(self.l1.forward(x));
         let x = relu(self.l2.forward(x));
         self.out.forward(x)
+    }
+}
+
+/// SplitMix64: a small deterministic generator whose stream is the same on every host.
+struct HostRng(u64);
+
+impl HostRng {
+    fn next_unit(&mut self) -> f64 {
+        self.0 = self.0.wrapping_add(0x9E37_79B9_7F4A_7C15);
+        let mut z = self.0;
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        z ^= z >> 31;
+        #[allow(clippy::cast_precision_loss, reason = "53 high bits fill the f64 mantissa exactly")]
+        let unit = (z >> 11) as f64 / (1u64 << 53) as f64;
+        unit
+    }
+}
+
+/// A linear layer with weight and bias uniform on `(-1/sqrt(din), 1/sqrt(din))`, the
+/// distribution Burn's default initializer uses, drawn on the host.
+fn seeded_linear<B: Backend>(
+    device: &B::Device,
+    din: usize,
+    dout: usize,
+    rng: &mut HostRng,
+) -> Linear<B> {
+    #[allow(clippy::cast_precision_loss, reason = "layer widths are small")]
+    let bound = 1.0 / (din as f64).sqrt();
+    #[allow(clippy::cast_possible_truncation, reason = "the network trains in f32")]
+    let mut draw = |n: usize| -> Vec<f32> {
+        (0..n).map(|_| ((rng.next_unit() * 2.0 - 1.0) * bound) as f32).collect()
+    };
+    let weight = draw(din * dout);
+    let bias = draw(dout);
+    Linear {
+        weight: burn::module::Param::from_tensor(tensor2::<B, 2>(&weight, [din, dout], device)),
+        bias: Some(burn::module::Param::from_tensor(tensor2::<B, 1>(&bias, [dout], device))),
     }
 }
 

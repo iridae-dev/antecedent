@@ -20,25 +20,25 @@ hidden = 8
 epochs = 8
 flops = 1277952
 [measurement.cold]
-prepare_ns = 153416
-upload_ns = 764459
-fit_ns = 5179168
-synchronize_ns = 59667
-download_ns = 23709
-predict_ns = 47416
-output_ns = 292
-stage_total_ns = 6228127
-wall_ns = 6258667
+prepare_ns = 210665
+upload_ns = 704501
+fit_ns = 5179084
+synchronize_ns = 66625
+download_ns = 22834
+predict_ns = 46334
+output_ns = 250
+stage_total_ns = 6230293
+wall_ns = 6255666
 [measurement.warm]
-prepare_ns = 10708
-upload_ns = 1958
-fit_ns = 3457080
-synchronize_ns = 6042
-download_ns = 8333
-predict_ns = 46833
-output_ns = 375
-stage_total_ns = 3531329
-wall_ns = 3542459
+prepare_ns = 9708
+upload_ns = 1624
+fit_ns = 2950501
+synchronize_ns = 4581
+download_ns = 7458
+predict_ns = 46709
+output_ns = 208
+stage_total_ns = 3020789
+wall_ns = 3028542
 
 [[measurement]]
 backend = "wgpu"
@@ -50,25 +50,25 @@ hidden = 8
 epochs = 8
 flops = 1277952
 [measurement.cold]
-prepare_ns = 10750
-upload_ns = 4626459
-fit_ns = 709223249
-synchronize_ns = 6916251
-download_ns = 2777959
-predict_ns = 55667
-output_ns = 916
-stage_total_ns = 723611251
-wall_ns = 723655542
+prepare_ns = 10125
+upload_ns = 4083626
+fit_ns = 85628165
+synchronize_ns = 3723127
+download_ns = 2669084
+predict_ns = 49376
+output_ns = 583
+stage_total_ns = 96164086
+wall_ns = 96195292
 [measurement.warm]
-prepare_ns = 13542
-upload_ns = 3152250
-fit_ns = 87182624
-synchronize_ns = 5531833
-download_ns = 3977668
-predict_ns = 63792
-output_ns = 3457
-stage_total_ns = 99925166
-wall_ns = 98390416
+prepare_ns = 12043
+upload_ns = 2617459
+fit_ns = 73151667
+synchronize_ns = 3796461
+download_ns = 2902583
+predict_ns = 62250
+output_ns = 376
+stage_total_ns = 82542839
+wall_ns = 82397417
 
 [[measurement]]
 backend = "ndarray"
@@ -80,25 +80,25 @@ hidden = 16
 epochs = 20
 flops = 384048000
 [measurement.cold]
-prepare_ns = 537124
-upload_ns = 46501
-fit_ns = 63500963
-synchronize_ns = 34503
-download_ns = 33249
-predict_ns = 553041
-output_ns = 10166
-stage_total_ns = 64715547
-wall_ns = 64802625
+prepare_ns = 437583
+upload_ns = 42958
+fit_ns = 59211876
+synchronize_ns = 24582
+download_ns = 23167
+predict_ns = 531792
+output_ns = 2625
+stage_total_ns = 60274583
+wall_ns = 60354500
 [measurement.warm]
-prepare_ns = 332832
-upload_ns = 19291
-fit_ns = 62421745
-synchronize_ns = 26249
-download_ns = 27958
-predict_ns = 532916
-output_ns = 4917
-stage_total_ns = 63365908
-wall_ns = 63414333
+prepare_ns = 310666
+upload_ns = 13500
+fit_ns = 58418751
+synchronize_ns = 18956
+download_ns = 21709
+predict_ns = 507710
+output_ns = 2792
+stage_total_ns = 59294084
+wall_ns = 59352750
 
 [[measurement]]
 backend = "wgpu"
@@ -110,25 +110,25 @@ hidden = 16
 epochs = 20
 flops = 384048000
 [measurement.cold]
-prepare_ns = 372833
-upload_ns = 4563917
-fit_ns = 838430382
-synchronize_ns = 21550334
-download_ns = 5592626
-predict_ns = 701167
-output_ns = 6292
-stage_total_ns = 871217551
-wall_ns = 871327000
+prepare_ns = 455750
+upload_ns = 4159084
+fit_ns = 573698752
+synchronize_ns = 17933123
+download_ns = 5569792
+predict_ns = 852458
+output_ns = 9916
+stage_total_ns = 602678875
+wall_ns = 602767041
 [measurement.warm]
-prepare_ns = 533084
-upload_ns = 4969291
-fit_ns = 659126578
-synchronize_ns = 27105250
-download_ns = 6198668
-predict_ns = 818959
-output_ns = 10000
-stage_total_ns = 698761830
-wall_ns = 701960334
+prepare_ns = 668208
+upload_ns = 4244958
+fit_ns = 635213248
+synchronize_ns = 22320380
+download_ns = 6270334
+predict_ns = 1042000
+output_ns = 14416
+stage_total_ns = 669773544
+wall_ns = 669326209
 
 [[measurement]]
 backend = "ndarray"
@@ -140,25 +140,25 @@ hidden = 128
 epochs = 15
 flops = 74188800000
 [measurement.cold]
-prepare_ns = 8849709
-upload_ns = 757917
-fit_ns = 1405816453
-synchronize_ns = 62582
-download_ns = 443624
-predict_ns = 73196918
-output_ns = 31666
-stage_total_ns = 1489158869
-wall_ns = 1491532583
+prepare_ns = 10131958
+upload_ns = 1205501
+fit_ns = 1228738374
+synchronize_ns = 54583
+download_ns = 418667
+predict_ns = 72312875
+output_ns = 27583
+stage_total_ns = 1312889541
+wall_ns = 1316022667
 [measurement.warm]
-prepare_ns = 5947375
-upload_ns = 368042
-fit_ns = 1380997377
-synchronize_ns = 64664
-download_ns = 438833
-predict_ns = 73145250
-output_ns = 30584
-stage_total_ns = 1460992125
-wall_ns = 1461727666
+prepare_ns = 5760125
+upload_ns = 366541
+fit_ns = 1221794170
+synchronize_ns = 54248
+download_ns = 425417
+predict_ns = 72271041
+output_ns = 28042
+stage_total_ns = 1300699584
+wall_ns = 1301653875
 
 [[measurement]]
 backend = "wgpu"
@@ -170,25 +170,25 @@ hidden = 128
 epochs = 15
 flops = 74188800000
 [measurement.cold]
-prepare_ns = 5758793
-upload_ns = 5867292
-fit_ns = 846431666
-synchronize_ns = 8070127
-download_ns = 3111209
-predict_ns = 72803708
-output_ns = 48541
-stage_total_ns = 942091336
-wall_ns = 943055500
+prepare_ns = 5829957
+upload_ns = 4969251
+fit_ns = 512203711
+synchronize_ns = 7136756
+download_ns = 2957375
+predict_ns = 80253667
+output_ns = 27625
+stage_total_ns = 613378342
+wall_ns = 614333375
 [measurement.warm]
-prepare_ns = 5952334
-upload_ns = 4222750
-fit_ns = 450025625
-synchronize_ns = 9331289
-download_ns = 3391167
-predict_ns = 75444875
-output_ns = 32792
-stage_total_ns = 548400832
-wall_ns = 546872000
+prepare_ns = 6058417
+upload_ns = 3678709
+fit_ns = 462463042
+synchronize_ns = 7107713
+download_ns = 3256792
+predict_ns = 86718292
+output_ns = 45875
+stage_total_ns = 569328840
+wall_ns = 575303625
 
 [[measurement]]
 backend = "ndarray"
@@ -200,25 +200,25 @@ hidden = 8
 epochs = 10
 flops = 240000000
 [measurement.cold]
-prepare_ns = 1760707
-upload_ns = 124126
-fit_ns = 60907332
-synchronize_ns = 20709
-download_ns = 17000
-predict_ns = 5721626
-output_ns = 30959
-stage_total_ns = 68582459
-wall_ns = 68867208
+prepare_ns = 1523501
+upload_ns = 130375
+fit_ns = 58071206
+synchronize_ns = 12543
+download_ns = 15958
+predict_ns = 5634875
+output_ns = 16999
+stage_total_ns = 65405457
+wall_ns = 65669667
 [measurement.warm]
-prepare_ns = 1553333
-upload_ns = 77792
-fit_ns = 60080623
-synchronize_ns = 17082
-download_ns = 16542
-predict_ns = 5739625
-output_ns = 15208
-stage_total_ns = 67500205
-wall_ns = 67706625
+prepare_ns = 1495082
+upload_ns = 49958
+fit_ns = 58150083
+synchronize_ns = 8709
+download_ns = 12333
+predict_ns = 5639083
+output_ns = 14417
+stage_total_ns = 65369665
+wall_ns = 65615750
 
 [[measurement]]
 backend = "wgpu"
@@ -230,25 +230,25 @@ hidden = 8
 epochs = 10
 flops = 240000000
 [measurement.cold]
-prepare_ns = 1951041
-upload_ns = 3596582
-fit_ns = 243082626
-synchronize_ns = 6966084
-download_ns = 3244584
-predict_ns = 7685126
-output_ns = 24209
-stage_total_ns = 266550252
-wall_ns = 266864250
+prepare_ns = 1538209
+upload_ns = 2950333
+fit_ns = 199056171
+synchronize_ns = 5011542
+download_ns = 2524375
+predict_ns = 6041083
+output_ns = 14458
+stage_total_ns = 217136171
+wall_ns = 217406875
 [measurement.warm]
-prepare_ns = 2566792
-upload_ns = 3805708
-fit_ns = 249176583
-synchronize_ns = 7494164
-download_ns = 3964125
-predict_ns = 10605791
-output_ns = 24916
-stage_total_ns = 277638079
-wall_ns = 279364584
+prepare_ns = 2917376
+upload_ns = 3391000
+fit_ns = 240555079
+synchronize_ns = 5815915
+download_ns = 3712501
+predict_ns = 12144458
+output_ns = 30583
+stage_total_ns = 268566912
+wall_ns = 268792416
 
 [[measurement]]
 backend = "ndarray"
@@ -260,25 +260,25 @@ hidden = 16
 epochs = 10
 flops = 633600000
 [measurement.cold]
-prepare_ns = 2192958
-upload_ns = 90042
-fit_ns = 88442630
-synchronize_ns = 33752
-download_ns = 24166
-predict_ns = 3219416
-output_ns = 14917
-stage_total_ns = 94017881
-wall_ns = 94497709
+prepare_ns = 2149042
+upload_ns = 76709
+fit_ns = 90349333
+synchronize_ns = 18916
+download_ns = 20334
+predict_ns = 3123375
+output_ns = 14875
+stage_total_ns = 95752584
+wall_ns = 96225208
 [measurement.warm]
-prepare_ns = 1576335
-upload_ns = 81083
-fit_ns = 85204956
-synchronize_ns = 22544
-download_ns = 22459
-predict_ns = 3115749
-output_ns = 19125
-stage_total_ns = 90042251
-wall_ns = 90325834
+prepare_ns = 1515749
+upload_ns = 62167
+fit_ns = 78155793
+synchronize_ns = 9166
+download_ns = 20334
+predict_ns = 3038417
+output_ns = 14125
+stage_total_ns = 82815751
+wall_ns = 83097667
 
 [[measurement]]
 backend = "wgpu"
@@ -290,25 +290,25 @@ hidden = 16
 epochs = 10
 flops = 633600000
 [measurement.cold]
-prepare_ns = 1596334
-upload_ns = 3609416
-fit_ns = 231787628
-synchronize_ns = 7360129
-download_ns = 4881291
-predict_ns = 3871834
-output_ns = 17583
-stage_total_ns = 253124215
-wall_ns = 253447167
+prepare_ns = 1684709
+upload_ns = 3032167
+fit_ns = 210804625
+synchronize_ns = 4752876
+download_ns = 2908542
+predict_ns = 3837792
+output_ns = 17875
+stage_total_ns = 227038586
+wall_ns = 227314250
 [measurement.warm]
-prepare_ns = 2910043
-upload_ns = 3688708
-fit_ns = 268399546
-synchronize_ns = 8297038
-download_ns = 4665459
-predict_ns = 6276084
-output_ns = 27917
-stage_total_ns = 294264795
-wall_ns = 295390459
+prepare_ns = 3499001
+upload_ns = 3508000
+fit_ns = 239847628
+synchronize_ns = 5770750
+download_ns = 3583459
+predict_ns = 7366292
+output_ns = 35083
+stage_total_ns = 263610213
+wall_ns = 263719708
 
 [[measurement]]
 backend = "ndarray"
@@ -320,25 +320,25 @@ hidden = 32
 epochs = 10
 flops = 1881600000
 [measurement.cold]
-prepare_ns = 2184251
-upload_ns = 79583
-fit_ns = 122205208
-synchronize_ns = 36250
-download_ns = 51375
-predict_ns = 7083208
-output_ns = 23000
-stage_total_ns = 131662875
-wall_ns = 132144708
+prepare_ns = 2513416
+upload_ns = 88375
+fit_ns = 115887415
+synchronize_ns = 24999
+download_ns = 40959
+predict_ns = 7033667
+output_ns = 15417
+stage_total_ns = 125604248
+wall_ns = 126265791
 [measurement.warm]
-prepare_ns = 1582375
-upload_ns = 85334
-fit_ns = 117322165
-synchronize_ns = 30874
-download_ns = 48292
-predict_ns = 6941042
-output_ns = 16125
-stage_total_ns = 126026207
-wall_ns = 126326500
+prepare_ns = 1518417
+upload_ns = 56958
+fit_ns = 106312835
+synchronize_ns = 18082
+download_ns = 46458
+predict_ns = 6856916
+output_ns = 14084
+stage_total_ns = 114823750
+wall_ns = 115068708
 
 [[measurement]]
 backend = "wgpu"
@@ -350,25 +350,25 @@ hidden = 32
 epochs = 10
 flops = 1881600000
 [measurement.cold]
-prepare_ns = 1611541
-upload_ns = 3601042
-fit_ns = 374026333
-synchronize_ns = 6674207
-download_ns = 3314500
-predict_ns = 9437167
-output_ns = 26542
-stage_total_ns = 398691332
-wall_ns = 399001125
+prepare_ns = 1574749
+upload_ns = 2909334
+fit_ns = 225969207
+synchronize_ns = 4376790
+download_ns = 2771834
+predict_ns = 7387667
+output_ns = 15375
+stage_total_ns = 245004956
+wall_ns = 245276333
 [measurement.warm]
-prepare_ns = 2422043
-upload_ns = 3663917
-fit_ns = 261735917
-synchronize_ns = 6563124
-download_ns = 4568416
-predict_ns = 11788833
-output_ns = 24042
-stage_total_ns = 290766292
-wall_ns = 290475875
+prepare_ns = 3145709
+upload_ns = 3428417
+fit_ns = 238648542
+synchronize_ns = 5903543
+download_ns = 3982000
+predict_ns = 13846208
+output_ns = 30208
+stage_total_ns = 268984627
+wall_ns = 274346042
 
 [[measurement]]
 backend = "ndarray"
@@ -380,25 +380,25 @@ hidden = 64
 epochs = 10
 flops = 6220800000
 [measurement.cold]
-prepare_ns = 2080208
-upload_ns = 99000
-fit_ns = 195074249
-synchronize_ns = 41666
-download_ns = 120750
-predict_ns = 15162041
-output_ns = 15833
-stage_total_ns = 212593747
-wall_ns = 213044792
+prepare_ns = 2225166
+upload_ns = 81625
+fit_ns = 177279457
+synchronize_ns = 35373
+download_ns = 115500
+predict_ns = 14896500
+output_ns = 13833
+stage_total_ns = 194647454
+wall_ns = 195164833
 [measurement.warm]
-prepare_ns = 1566624
-upload_ns = 84833
-fit_ns = 187188583
-synchronize_ns = 38123
-download_ns = 122417
-predict_ns = 15274166
-output_ns = 14583
-stage_total_ns = 204289329
-wall_ns = 204614083
+prepare_ns = 1519916
+upload_ns = 92541
+fit_ns = 168942873
+synchronize_ns = 22793
+download_ns = 117041
+predict_ns = 14910042
+output_ns = 14375
+stage_total_ns = 185619581
+wall_ns = 185877500
 
 [[measurement]]
 backend = "wgpu"
@@ -410,25 +410,25 @@ hidden = 64
 epochs = 10
 flops = 6220800000
 [measurement.cold]
-prepare_ns = 1611208
-upload_ns = 3574959
-fit_ns = 367903540
-synchronize_ns = 8146914
-download_ns = 3766499
-predict_ns = 16104958
-output_ns = 16084
-stage_total_ns = 401124162
-wall_ns = 401420458
+prepare_ns = 1557584
+upload_ns = 2992001
+fit_ns = 222807122
+synchronize_ns = 4316625
+download_ns = 2877376
+predict_ns = 15582750
+output_ns = 15375
+stage_total_ns = 250148833
+wall_ns = 250422333
 [measurement.warm]
-prepare_ns = 2219208
-upload_ns = 3657291
-fit_ns = 252404667
-synchronize_ns = 6944835
-download_ns = 4265458
-predict_ns = 23699959
-output_ns = 20042
-stage_total_ns = 293211460
-wall_ns = 293441458
+prepare_ns = 2426582
+upload_ns = 3000416
+fit_ns = 241273375
+synchronize_ns = 5180540
+download_ns = 3637917
+predict_ns = 27815166
+output_ns = 21833
+stage_total_ns = 283355829
+wall_ns = 283931583
 
 [[measurement]]
 backend = "ndarray"
@@ -440,25 +440,25 @@ hidden = 128
 epochs = 10
 flops = 22272000000
 [measurement.cold]
-prepare_ns = 1878333
-upload_ns = 99042
-fit_ns = 385835537
-synchronize_ns = 41749
-download_ns = 366750
-predict_ns = 33418167
-output_ns = 18375
-stage_total_ns = 421657953
-wall_ns = 422049833
+prepare_ns = 1991458
+upload_ns = 105000
+fit_ns = 338302288
+synchronize_ns = 36376
+download_ns = 385333
+predict_ns = 33136084
+output_ns = 14041
+stage_total_ns = 373970580
+wall_ns = 374397250
 [measurement.warm]
-prepare_ns = 1588209
-upload_ns = 89916
-fit_ns = 382612794
-synchronize_ns = 39918
-download_ns = 391167
-predict_ns = 33476916
-output_ns = 15875
-stage_total_ns = 418214795
-wall_ns = 418378916
+prepare_ns = 1537251
+upload_ns = 78000
+fit_ns = 342479625
+synchronize_ns = 33668
+download_ns = 380709
+predict_ns = 33189458
+output_ns = 14167
+stage_total_ns = 377712878
+wall_ns = 377761542
 
 [[measurement]]
 backend = "wgpu"
@@ -470,25 +470,145 @@ hidden = 128
 epochs = 10
 flops = 22272000000
 [measurement.cold]
-prepare_ns = 1594043
-upload_ns = 3595208
-fit_ns = 248944458
-synchronize_ns = 6201460
-download_ns = 3716959
-predict_ns = 34049875
-output_ns = 14917
-stage_total_ns = 298116920
-wall_ns = 298422500
+prepare_ns = 1597041
+upload_ns = 2995333
+fit_ns = 237477043
+synchronize_ns = 4360292
+download_ns = 2879417
+predict_ns = 34645125
+output_ns = 14333
+stage_total_ns = 283968584
+wall_ns = 284245958
 [measurement.warm]
-prepare_ns = 1831292
-upload_ns = 3554417
-fit_ns = 252663499
-synchronize_ns = 6616292
-download_ns = 4131250
-predict_ns = 39628750
-output_ns = 17125
-stage_total_ns = 308442625
-wall_ns = 314852958
+prepare_ns = 1510417
+upload_ns = 2898082
+fit_ns = 209236834
+synchronize_ns = 4399289
+download_ns = 2755333
+predict_ns = 32829208
+output_ns = 14667
+stage_total_ns = 253643830
+wall_ns = 253949333
+
+[[measurement]]
+backend = "ndarray"
+workload = "sweep_h160"
+rows = 20000
+cols = 16
+folds = 2
+hidden = 160
+epochs = 10
+flops = 33984000000
+[measurement.cold]
+prepare_ns = 1534626
+upload_ns = 57999
+fit_ns = 461531002
+synchronize_ns = 51168
+download_ns = 570208
+predict_ns = 47645375
+output_ns = 14750
+stage_total_ns = 511405128
+wall_ns = 511683958
+[measurement.warm]
+prepare_ns = 1544999
+upload_ns = 66209
+fit_ns = 464309336
+synchronize_ns = 33251
+download_ns = 574375
+predict_ns = 47756249
+output_ns = 14834
+stage_total_ns = 514299253
+wall_ns = 515076291
+
+[[measurement]]
+backend = "wgpu"
+workload = "sweep_h160"
+rows = 20000
+cols = 16
+folds = 2
+hidden = 160
+epochs = 10
+flops = 33984000000
+[measurement.cold]
+prepare_ns = 1573376
+upload_ns = 2998292
+fit_ns = 225911998
+synchronize_ns = 4862876
+download_ns = 2960167
+predict_ns = 49372167
+output_ns = 14541
+stage_total_ns = 287693417
+wall_ns = 287973333
+[measurement.warm]
+prepare_ns = 1551124
+upload_ns = 2951666
+fit_ns = 209250997
+synchronize_ns = 4280791
+download_ns = 2725250
+predict_ns = 48991875
+output_ns = 14375
+stage_total_ns = 269766078
+wall_ns = 270248542
+
+[[measurement]]
+backend = "ndarray"
+workload = "sweep_h192"
+rows = 20000
+cols = 16
+folds = 2
+hidden = 192
+epochs = 10
+flops = 48153600000
+[measurement.cold]
+prepare_ns = 1549459
+upload_ns = 79791
+fit_ns = 542862958
+synchronize_ns = 36580
+download_ns = 806583
+predict_ns = 77513832
+output_ns = 14250
+stage_total_ns = 622863453
+wall_ns = 623153417
+[measurement.warm]
+prepare_ns = 1554666
+upload_ns = 81292
+fit_ns = 545974705
+synchronize_ns = 35458
+download_ns = 828916
+predict_ns = 77427375
+output_ns = 14208
+stage_total_ns = 625916620
+wall_ns = 626138417
+
+[[measurement]]
+backend = "wgpu"
+workload = "sweep_h192"
+rows = 20000
+cols = 16
+folds = 2
+hidden = 192
+epochs = 10
+flops = 48153600000
+[measurement.cold]
+prepare_ns = 1559001
+upload_ns = 3040458
+fit_ns = 271586212
+synchronize_ns = 5048668
+download_ns = 2943542
+predict_ns = 90150125
+output_ns = 14625
+stage_total_ns = 374342631
+wall_ns = 374622458
+[measurement.warm]
+prepare_ns = 1555584
+upload_ns = 2920708
+fit_ns = 265156121
+synchronize_ns = 4621415
+download_ns = 3153041
+predict_ns = 84822375
+output_ns = 14041
+stage_total_ns = 362243285
+wall_ns = 362693958
 
 [[measurement]]
 backend = "ndarray"
@@ -500,25 +620,25 @@ hidden = 256
 epochs = 10
 flops = 83865600000
 [measurement.cold]
-prepare_ns = 1689458
-upload_ns = 101500
-fit_ns = 861871333
-synchronize_ns = 40540
-download_ns = 1440500
-predict_ns = 128405791
-output_ns = 15041
-stage_total_ns = 993564163
-wall_ns = 993881541
+prepare_ns = 1551875
+upload_ns = 80668
+fit_ns = 791391459
+synchronize_ns = 36374
+download_ns = 1377500
+predict_ns = 128546125
+output_ns = 14125
+stage_total_ns = 922998126
+wall_ns = 923284542
 [measurement.warm]
-prepare_ns = 1606999
-upload_ns = 88834
-fit_ns = 862373381
-synchronize_ns = 40581
-download_ns = 1449083
-predict_ns = 128805583
-output_ns = 15582
-stage_total_ns = 994380043
-wall_ns = 994654875
+prepare_ns = 1560541
+upload_ns = 83292
+fit_ns = 790349204
+synchronize_ns = 35793
+download_ns = 1382251
+predict_ns = 127661333
+output_ns = 14500
+stage_total_ns = 921086914
+wall_ns = 921027125
 
 [[measurement]]
 backend = "wgpu"
@@ -530,134 +650,161 @@ hidden = 256
 epochs = 10
 flops = 83865600000
 [measurement.cold]
-prepare_ns = 1571542
-upload_ns = 3678375
-fit_ns = 313883082
-synchronize_ns = 5945789
-download_ns = 4109208
-predict_ns = 139696209
-output_ns = 16126
-stage_total_ns = 468900331
-wall_ns = 469199833
+prepare_ns = 1552209
+upload_ns = 3013250
+fit_ns = 280852790
+synchronize_ns = 4748542
+download_ns = 2805125
+predict_ns = 129071750
+output_ns = 14084
+stage_total_ns = 422057750
+wall_ns = 422332916
 [measurement.warm]
-prepare_ns = 1609500
-upload_ns = 3547542
-fit_ns = 329244503
-synchronize_ns = 7478997
-download_ns = 4324458
-predict_ns = 144032833
-output_ns = 15500
-stage_total_ns = 490253333
-wall_ns = 489977667
+prepare_ns = 1569999
+upload_ns = 3013208
+fit_ns = 271774086
+synchronize_ns = 4706500
+download_ns = 2943209
+predict_ns = 129627958
+output_ns = 14084
+stage_total_ns = 413649044
+wall_ns = 413834167
 
 [[comparison]]
 workload = "small"
 cpu_backend = "ndarray"
 device_backend = "wgpu"
-cpu_warm_wall_ns = 3542459
-device_warm_wall_ns = 98390416
-speedup = 0.0360
+cpu_warm_wall_ns = 3028542
+device_warm_wall_ns = 82397417
+speedup = 0.0368
 meets_gain_threshold = false
 device_wins = false
-max_oof_gap_target_sd = 0.947273
-device_transfer_and_sync_ns = 12661751
+max_oof_gap_target_sd = 0.000000
+device_transfer_and_sync_ns = 9316503
 
 [[comparison]]
 workload = "control"
 cpu_backend = "ndarray"
 device_backend = "wgpu"
-cpu_warm_wall_ns = 63414333
-device_warm_wall_ns = 701960334
-speedup = 0.0903
+cpu_warm_wall_ns = 59352750
+device_warm_wall_ns = 669326209
+speedup = 0.0887
 meets_gain_threshold = false
 device_wins = false
-max_oof_gap_target_sd = 1.021925
-device_transfer_and_sync_ns = 38273209
+max_oof_gap_target_sd = 0.000001
+device_transfer_and_sync_ns = 32835672
 
 [[comparison]]
 workload = "large"
 cpu_backend = "ndarray"
 device_backend = "wgpu"
-cpu_warm_wall_ns = 1461727666
-device_warm_wall_ns = 546872000
-speedup = 2.6729
+cpu_warm_wall_ns = 1301653875
+device_warm_wall_ns = 575303625
+speedup = 2.2626
 meets_gain_threshold = true
 device_wins = true
-max_oof_gap_target_sd = 0.792563
-device_transfer_and_sync_ns = 16945206
+max_oof_gap_target_sd = 0.000075
+device_transfer_and_sync_ns = 14043214
 
 [[comparison]]
 workload = "sweep_h008"
 cpu_backend = "ndarray"
 device_backend = "wgpu"
-cpu_warm_wall_ns = 67706625
-device_warm_wall_ns = 279364584
-speedup = 0.2424
+cpu_warm_wall_ns = 65615750
+device_warm_wall_ns = 268792416
+speedup = 0.2441
 meets_gain_threshold = false
 device_wins = false
-max_oof_gap_target_sd = 1.180673
-device_transfer_and_sync_ns = 15263997
+max_oof_gap_target_sd = 0.000000
+device_transfer_and_sync_ns = 12919416
 
 [[comparison]]
 workload = "sweep_h016"
 cpu_backend = "ndarray"
 device_backend = "wgpu"
-cpu_warm_wall_ns = 90325834
-device_warm_wall_ns = 295390459
-speedup = 0.3058
+cpu_warm_wall_ns = 83097667
+device_warm_wall_ns = 263719708
+speedup = 0.3151
 meets_gain_threshold = false
 device_wins = false
-max_oof_gap_target_sd = 0.969461
-device_transfer_and_sync_ns = 16651205
+max_oof_gap_target_sd = 0.000000
+device_transfer_and_sync_ns = 12862209
 
 [[comparison]]
 workload = "sweep_h032"
 cpu_backend = "ndarray"
 device_backend = "wgpu"
-cpu_warm_wall_ns = 126326500
-device_warm_wall_ns = 290475875
-speedup = 0.4349
+cpu_warm_wall_ns = 115068708
+device_warm_wall_ns = 274346042
+speedup = 0.4194
 meets_gain_threshold = false
 device_wins = false
-max_oof_gap_target_sd = 1.236670
-device_transfer_and_sync_ns = 14795457
+max_oof_gap_target_sd = 0.000001
+device_transfer_and_sync_ns = 13313960
 
 [[comparison]]
 workload = "sweep_h064"
 cpu_backend = "ndarray"
 device_backend = "wgpu"
-cpu_warm_wall_ns = 204614083
-device_warm_wall_ns = 293441458
-speedup = 0.6973
+cpu_warm_wall_ns = 185877500
+device_warm_wall_ns = 283931583
+speedup = 0.6547
 meets_gain_threshold = false
 device_wins = false
-max_oof_gap_target_sd = 0.901692
-device_transfer_and_sync_ns = 14867584
+max_oof_gap_target_sd = 0.012261
+device_transfer_and_sync_ns = 11818873
 
 [[comparison]]
 workload = "sweep_h128"
 cpu_backend = "ndarray"
 device_backend = "wgpu"
-cpu_warm_wall_ns = 418378916
-device_warm_wall_ns = 314852958
-speedup = 1.3288
+cpu_warm_wall_ns = 377761542
+device_warm_wall_ns = 253949333
+speedup = 1.4875
 meets_gain_threshold = false
 device_wins = true
-max_oof_gap_target_sd = 1.071714
-device_transfer_and_sync_ns = 14301959
+max_oof_gap_target_sd = 0.009054
+device_transfer_and_sync_ns = 10052704
+
+[[comparison]]
+workload = "sweep_h160"
+cpu_backend = "ndarray"
+device_backend = "wgpu"
+cpu_warm_wall_ns = 515076291
+device_warm_wall_ns = 270248542
+speedup = 1.9059
+meets_gain_threshold = false
+device_wins = true
+max_oof_gap_target_sd = 0.000001
+device_transfer_and_sync_ns = 9957707
+
+[[comparison]]
+workload = "sweep_h192"
+cpu_backend = "ndarray"
+device_backend = "wgpu"
+cpu_warm_wall_ns = 626138417
+device_warm_wall_ns = 362693958
+speedup = 1.7264
+meets_gain_threshold = false
+device_wins = true
+max_oof_gap_target_sd = 0.015297
+device_transfer_and_sync_ns = 10695164
 
 [[comparison]]
 workload = "sweep_h256"
 cpu_backend = "ndarray"
 device_backend = "wgpu"
-cpu_warm_wall_ns = 994654875
-device_warm_wall_ns = 489977667
-speedup = 2.0300
+cpu_warm_wall_ns = 921027125
+device_warm_wall_ns = 413834167
+speedup = 2.2256
 meets_gain_threshold = true
 device_wins = true
-max_oof_gap_target_sd = 1.747399
-device_transfer_and_sync_ns = 15350997
+max_oof_gap_target_sd = 0.028752
+device_transfer_and_sync_ns = 10662917
 
 [crossover]
 smallest_device_win_flops = 22272000000
 workload = "sweep_h128"
+smallest_gain_threshold_flops = 74188800000
+smallest_gain_threshold_per_fit_flops = 37094400000
+smallest_gain_threshold_workload = "large"

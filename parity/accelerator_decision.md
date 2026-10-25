@@ -1,8 +1,70 @@
 # Accelerator decision
 
-Status: the device route is implemented and instrumented. Promotion is decided by the
-same-host staged run below, not by this text. No timing, speedup, or coverage figure is
-recorded here until that run has produced `parity/accelerator_stage_timings.toml`.
+Status: decided from the same-host staged run recorded in
+`parity/accelerator_stage_timings.toml` (device against the `NdArray<f32>` CPU backend) and
+`parity/accelerator_stage_timings_accelerate.toml` (Accelerate CPU backend). Host: Apple M1
+Max, Metal, five repeats per workload (one cold, four warm, median). The host was not idle:
+the 1-minute load average was about 23 during the timed runs (a long-running test binary and
+desktop applications), while the CPU was about 65-78 percent idle, so absolute times carry
+that background noise; the device was not contended by other GPU work.
+
+## Decision
+
+Promote the device for fits whose work is at or above `policy::DEFAULT_MIN_DEVICE_WORK`
+= 37,094,400,000 `fit_flops` (per fit: about 20,000 training rows, 32 columns, hidden width
+128, 15 epochs). `auto` runs the CPU below that. `gpu` is always honoured. The threshold is the
+per-fit work of the smallest measured workload whose warm end-to-end device time (transfers
+included) is at most half the CPU time with the out-of-fold gap inside tolerance.
+
+The threshold is the lowest measured point that clears the rule, not an interpolation: the
+hidden-width sweep reaches 1.91x at 1.7e10 per-fit flops and 1.73x at 2.4e10, and the
+`large` shape is the first to clear 2x.
+
+## Measured results
+
+Out-of-fold gap is the largest CPU-versus-device difference in target standard deviations; the
+tolerance is 0.05.
+
+| Workload | Total flops | CPU ms | Device ms | Speedup | Gap (SD) | 2x rule |
+| --- | --- | --- | --- | --- | --- | --- |
+| small | 1.28e6 | 3.0 | 82.4 | 0.04 | 0 | no |
+| control | 3.84e8 | 59.4 | 669.3 | 0.09 | 1e-6 | no |
+| sweep_h008 | 2.40e8 | 65.6 | 268.8 | 0.24 | 0 | no |
+| sweep_h016 | 6.34e8 | 83.1 | 263.7 | 0.32 | 0 | no |
+| sweep_h032 | 1.88e9 | 115.1 | 274.3 | 0.42 | 1e-6 | no |
+| sweep_h064 | 6.22e9 | 185.9 | 283.9 | 0.65 | 0.012 | no |
+| sweep_h128 | 2.23e10 | 377.8 | 253.9 | 1.49 | 0.009 | no |
+| sweep_h160 | 3.40e10 | 515.1 | 270.2 | 1.91 | 1e-6 | no |
+| sweep_h192 | 4.82e10 | 626.1 | 362.7 | 1.73 | 0.015 | no |
+| large | 7.42e10 | 1301.7 | 575.3 | 2.26 | 7.5e-5 | yes |
+| sweep_h256 | 8.4e10 | 921.0 | 413.8 | 2.23 | 0.029 | yes |
+
+(The `large` row is 2.60x in a first run and 2.26x in the second, h256 2.15x and 2.23x: the
+2x rule is met in both, with run-to-run spread of about 15 percent under background load.)
+
+The device pays a fixed cost of roughly 250 ms per workload (two folds) regardless of size
+that the CPU does not, so it loses everywhere below about 2e10 flops and never wins on the
+CPU control workload.
+
+## What was wrong with the earlier fits
+
+An earlier run recorded a 0.8-1.7 SD gap between CPU and device fits. That was not float noise:
+each backend initialised the weights from its own RNG (`B::seed` is backend-specific), so the
+two fits trained different networks. The weights are now drawn on the host from the seed
+(SplitMix64, uniform on plus or minus 1/sqrt(fan_in), the same distribution as Burn's default
+initializer) and uploaded, and the fit is full-batch so there is no sample order to differ.
+The gap is 1e-6 SD on the small and control workloads and at most 0.029 SD (hidden 256) on
+the largest, from f32 accumulation order. `tests/device_cpu_agreement.rs` asserts this on the
+device. Changing the initial weights changes the values of seeded CPU fits relative to
+earlier releases; they remain bitwise reproducible on one host and build.
+
+## Evaluated next backend: Accelerate
+
+`NdArray<f32>` with Apple Accelerate BLAS has no transfer cost but gains little. Warm wall
+times against the plain ndarray backend: small 3.34 ms (3.0 plain), control 54.6 ms (59.4
+plain, 1.09x), large 973.5 ms (1301.7 plain, 1.34x). It never reaches 2x over the CPU
+control, so it is not promoted as a route; it is the evaluated alternative for CPU-only
+accelerator builds and the device is 1.7x faster than it on the `large` workload.
 
 ## Candidates
 
@@ -50,7 +112,8 @@ Each `[[measurement]]` reports cold (first run, runtime and shader setup include
 (per-stage median) clocks. Each `[[comparison]]` reports the end-to-end warm speedup of the
 device over the CPU backend of the same build, the largest out-of-fold prediction gap in
 target standard deviations, and the transfer and synchronize share. `[crossover]` names the
-smallest workload where the device wins.
+smallest workload where the device wins and the smallest that meets the gain threshold with
+the gap inside tolerance.
 
 ## Promotion rule
 
@@ -60,7 +123,9 @@ end-to-end device time (transfer included) is at most half the CPU time
 `tests/accelerator_acceptance.rs`, and the downstream causal estimate and its standard error
 agree (`scripts/distribution_acceptance.py all`). If the device fails the gain requirement the
 `accelerate` run is measured against the same rule. A failure is recorded with its numbers and
-the next approach is implemented; it is not recorded as a feasibility deferral.
+the next approach is implemented; it is not recorded as a feasibility deferral. The device
+met the rule at the workloads above, so the fused-step and half-precision follow-ups were not
+needed.
 
 ## Public policy
 
@@ -69,8 +134,8 @@ never probes a device, and keeps the plain `burn` provenance label. `gpu` is ref
 coded reason when the dtype is not `f32`, sample weights are present, the build does not link
 the device runtime (`runtime_not_compiled`), no adapter is usable (`no_device`), or the device
 account cannot hold the fit (`device_memory`). `auto` takes the device only when every check
-passes and the fit is above the crossover (`policy::DEFAULT_MIN_DEVICE_WORK`, set from
-`[crossover]`), otherwise it runs on the CPU and records the code as `fallback=` in the
+passes and the fit is at or above the crossover (`policy::DEFAULT_MIN_DEVICE_WORK`, set from
+`smallest_gain_threshold_per_fit_flops` in `[crossover]`), otherwise it runs on the CPU and records the code as `fallback=` in the
 learner provenance. The label names the library, device, dtype, and requested policy of the
 route that ran, so CPU work is never labelled as device work. `ANTECEDENT_DISABLE_DEVICE=1`
 hides the device from a device-capable build.

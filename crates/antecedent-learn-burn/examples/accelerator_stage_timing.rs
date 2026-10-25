@@ -32,6 +32,9 @@ use antecedent_learn_burn::staged::{
 /// faster than the CPU control, transfer included.
 const GAIN_THRESHOLD: f64 = 2.0;
 
+/// Largest tolerated device-vs-CPU out-of-fold gap, in target standard deviations.
+const DEVICE_VS_CPU_SD: f64 = 0.05;
+
 struct Backend {
     label: String,
     run: fn(&Workload) -> Result<WorkloadRun, antecedent_learn_burn::LearnBurnError>,
@@ -150,12 +153,14 @@ fn probe_wgpu_workload_fn(
 
 /// Hidden-width sweep at fixed rows: the smallest width where the device wins is the crossover.
 fn sweep_workloads() -> Vec<Workload> {
-    const WIDTHS: [(usize, &str); 6] = [
+    const WIDTHS: [(usize, &str); 8] = [
         (8, "sweep_h008"),
         (16, "sweep_h016"),
         (32, "sweep_h032"),
         (64, "sweep_h064"),
         (128, "sweep_h128"),
+        (160, "sweep_h160"),
+        (192, "sweep_h192"),
         (256, "sweep_h256"),
     ];
     WIDTHS
@@ -250,6 +255,7 @@ fn write_comparisons(
         return Ok(());
     };
     let mut crossover: Option<(u64, &str)> = None;
+    let mut promoted: Option<(u64, &str)> = None;
     for cpu in all.iter().filter(|m| m.backend == cpu_label) {
         for device in
             all.iter().filter(|m| m.backend != cpu_label && m.workload.name == cpu.workload.name)
@@ -272,6 +278,12 @@ fn write_comparisons(
             if speedup > 1.0 && crossover.is_none_or(|(flops, _)| cpu.workload.flops() < flops) {
                 crossover = Some((cpu.workload.flops(), cpu.workload.name));
             }
+            if speedup >= GAIN_THRESHOLD
+                && gap <= DEVICE_VS_CPU_SD
+                && promoted.is_none_or(|(flops, _)| cpu.workload.flops() < flops)
+            {
+                promoted = Some((cpu.workload.flops(), cpu.workload.name));
+            }
         }
     }
     writeln!(report, "\n[crossover]")?;
@@ -281,5 +293,15 @@ fn write_comparisons(
             writeln!(report, "workload = \"{name}\"")
         }
         None => writeln!(report, "smallest_device_win_flops = \"none\""),
+    }?;
+    // The auto policy compares per-fit work, so the promotion point is reported per fit.
+    match promoted {
+        Some((flops, name)) => {
+            let folds = all.iter().find(|m| m.workload.name == name).map_or(1, |m| m.workload.folds);
+            writeln!(report, "smallest_gain_threshold_flops = {flops}")?;
+            writeln!(report, "smallest_gain_threshold_per_fit_flops = {}", flops / folds as u64)?;
+            writeln!(report, "smallest_gain_threshold_workload = \"{name}\"")
+        }
+        None => writeln!(report, "smallest_gain_threshold_flops = \"none\""),
     }
 }

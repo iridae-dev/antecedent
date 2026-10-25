@@ -407,10 +407,12 @@ impl Provenance {
 
 /// Smallest fit work, in [`fit_flops`] units, for which `auto` picks the device.
 ///
-/// This starting value is replaced by the crossover the `accelerator_stage_timing` example
-/// reports on the target host. Below it, copies and kernel launches cost more than the
-/// device saves.
-pub const DEFAULT_MIN_DEVICE_WORK: u64 = 1_000_000_000;
+/// Measured on Apple M1 Max (Metal against the `NdArray<f32>` CPU backend): the per-fit work
+/// of the smallest workload where the device end to end is at least twice as fast as the CPU
+/// with the out-of-fold gap inside tolerance (40,000 rows, 32 columns, hidden 128, 15 epochs,
+/// two folds). Below it, copies, kernel launches, and the fixed per-fit device cost mean the
+/// CPU is faster or the gain is under the 2x rule; see `parity/accelerator_decision.md`.
+pub const DEFAULT_MIN_DEVICE_WORK: u64 = 37_094_400_000;
 
 /// Thresholds `auto` applies.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -635,7 +637,7 @@ pub fn fit_with_policy(
             Err(error) => Err(PolicyError::Fit(error)),
         };
     }
-    let model = super::train(x_colmajor, nrows, ncols, y, spec)?;
+    let model = super::train_cancellable(x_colmajor, nrows, ncols, y, spec, context.stop)?;
     Ok(PolicyFit { model, provenance: plan.provenance, timings: None })
 }
 
@@ -658,7 +660,7 @@ fn fall_back_or_refuse(
     if (context.stop)() {
         return Err(PolicyError::Fit(LearnBurnError::Cancelled));
     }
-    let model = super::train(x_colmajor, nrows, ncols, y, spec)?;
+    let model = super::train_cancellable(x_colmajor, nrows, ncols, y, spec, context.stop)?;
     Ok(PolicyFit {
         model,
         provenance: Provenance::cpu(ComputePolicy::Auto, Some(reason)),
@@ -871,6 +873,13 @@ mod tests {
                 .unwrap();
         assert_eq!(below.route, Route::Cpu);
         assert!(matches!(below.provenance.fallback, Some(FallbackReason::BelowCrossover { .. })));
+
+        let at_threshold = AutoPolicy { min_device_work: request(ComputePolicy::Auto, 16).work() };
+        let at = plan(&request(ComputePolicy::Auto, 16), &present(), None, at_threshold).unwrap();
+        assert_eq!(at.route, Route::Wgpu, "work equal to the threshold takes the device");
+        let past = AutoPolicy { min_device_work: at_threshold.min_device_work + 1 };
+        let under = plan(&request(ComputePolicy::Auto, 16), &present(), None, past).unwrap();
+        assert_eq!(under.route, Route::Cpu, "work one below the threshold stays on the cpu");
 
         let above = plan(&request(ComputePolicy::Auto, 16), &present(), None, EAGER).unwrap();
         assert_eq!(above.route, Route::Wgpu);
