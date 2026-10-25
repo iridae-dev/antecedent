@@ -36,6 +36,7 @@ python3 scripts/derive_milestone_readiness.py --self-test
 python3 scripts/closure_audit.py --self-test
 python3 scripts/test_closure_audit.py
 python3 scripts/test_gate_compiler_bypass.py
+python3 scripts/test_check_architecture.py
 python3 scripts/test_gate_retained_routes.py
 python3 scripts/test_calibration_recipe_receipts.py
 python3 scripts/test_generate_calibration_backlog.py

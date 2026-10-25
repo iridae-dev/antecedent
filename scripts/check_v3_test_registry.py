@@ -255,11 +255,14 @@ def problems(root: Path, head: str | None) -> list[str]:
             if suite_line is not None:
                 errors.append(f"FAIL: {entry_id}: suite_map_line set but test is not consolidated")
             continue
-        manifest_path = root / "crates" / crate / "Cargo.toml"
+        # The native Python binding is a workspace crate outside crates/.
+        # Its Rust unit tests must be registered as compiled tests, not scripts.
+        crate_dir = root / "python" if crate == "python" else root / "crates" / crate
+        manifest_path = crate_dir / "Cargo.toml"
         if not manifest_path.is_file():
             errors.append(f"FAIL: {entry_id}: crate {crate} has no Cargo.toml")
             continue
-        prefix = f"crates/{crate}/"
+        prefix = "python/" if crate == "python" else f"crates/{crate}/"
         if not rel.startswith(prefix):
             errors.append(f"FAIL: {entry_id}: path {rel} is not in crate {crate}")
             continue
@@ -382,6 +385,21 @@ path = "tests/suite_01.rs"
 
 def self_test() -> int:
     import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _write(root, "python/Cargo.toml", '[package]\nname = "antecedent-py"\n')
+        _write(root, "python/src/callbacks.rs", "#[test]\nfn evidence_boundary() {}\n")
+        _registry(root, [{
+            "id": "native-binding-unit",
+            "crate": "python",
+            "cargo_target": "lib",
+            "path": "python/src/callbacks.rs",
+            "gates": ["inventory", "named"],
+        }])
+        _expect_ok("native binding compiled unit test", root)
+        _write(root, "python/src/callbacks.rs", "#[test]\n#[ignore]\nfn missing() {}\n")
+        _expect_fail("native binding ignored-only unit", root, "has no non-ignored test")
 
     head = head_sha(ROOT)
     if head is None:

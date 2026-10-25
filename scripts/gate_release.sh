@@ -47,6 +47,7 @@ section_end() {
 
 if [[ "$section" == all || "$section" == inventory ]]; then
 section_start inventory
+python3 scripts/check_architecture.py
 
 # Runs unconditionally: the inventory honesty pass below reads `status` with a
 # regex default, so a row missing the key would sail through it. SKIP_PRIOR_GATES

@@ -136,6 +136,11 @@ jobs:
       - name: Every test file is compiled
         run: python3 scripts/check_test_targets.py
 
+      - name: Production crate ownership
+        run: |
+          python3 scripts/check_architecture.py
+          python3 scripts/test_check_architecture.py
+
       - name: Split Rust suites preserve workspace features
         if: matrix.os == 'ubuntu-latest' && matrix.suite == 'rest'
         run: python3 scripts/check_rust_ci_feature_parity.py "$RUST_CI_REST_FEATURES" "$RUST_CI_FACADE_FEATURES"

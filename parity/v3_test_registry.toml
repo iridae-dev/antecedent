@@ -10637,3 +10637,17 @@ crate = "python"
 cargo_target = "script"
 path = "python/tests/test_structure_posterior_provenance.py"
 gates = ["inventory"]
+
+[[test]]
+id = "engineering-production-crate-ownership"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/check_architecture.py"
+gates = ["inventory"]
+
+[[test]]
+id = "engineering-production-crate-ownership-negative-controls"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_check_architecture.py"
+gates = ["inventory"]
