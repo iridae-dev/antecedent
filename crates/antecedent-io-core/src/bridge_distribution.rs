@@ -263,6 +263,10 @@ impl BridgedDistribution {
     ///
     /// # Errors
     /// A mapping that has no draws propagation to express.
+    #[allow(
+        clippy::result_large_err,
+        reason = "the public bridge API returns the shared structured BridgeRefusal by value; boxing would break typed callers"
+    )]
     pub fn chain_stage(&self, stage_id: &str) -> Result<BridgeChainStage, BridgeRefusal> {
         if let Some(affine) = &self.affine {
             return Ok(self.affine_stage(stage_id, affine));
@@ -526,12 +530,12 @@ fn map_affine(
     variance: f64,
     residual: bool,
     rng: &mut CausalRng,
-) -> Result<Mapped, BridgeRefusal> {
+) -> Result<Mapped, Box<BridgeRefusal>> {
     if let Some((low, high)) = law.domain {
         let outside: Vec<f64> =
             source.iter().copied().filter(|value| *value < low || *value > high).collect();
         if let Some(first) = outside.first() {
-            return Err(draws_outside_domain(outside.len(), source.len(), *first));
+            return Err(draws_outside_domain(outside.len(), source.len(), *first).into());
         }
     }
     let innovation = law.innovation(variance)?;
@@ -582,7 +586,7 @@ fn map_correction(
     law: &CorrectionDrawLaw,
     source: &[f64],
     rng: &mut CausalRng,
-) -> Result<Mapped, BridgeRefusal> {
+) -> Result<Mapped, Box<BridgeRefusal>> {
     let exact = law.sensitivity_variance == 0.0 && law.specificity_variance == 0.0;
     let mut values = Vec::with_capacity(source.len());
     let mut sensitivities = Vec::with_capacity(source.len());
@@ -628,7 +632,7 @@ fn map_correction(
         }
     }
     if let Some(first) = first {
-        return Err(draws_outside_domain(outside, source.len(), first));
+        return Err(draws_outside_domain(outside, source.len(), first).into());
     }
     Ok(Mapped {
         values,
@@ -660,6 +664,10 @@ fn map_correction(
 #[allow(
     clippy::too_many_lines,
     reason = "one linear derivation: locate the column, plan, draw per mapping, assemble the table"
+)]
+#[allow(
+    clippy::result_large_err,
+    reason = "the public draw-bridge API preserves structured BridgeRefusal for artifact and Python callers; only private mapping helpers box it"
 )]
 pub fn bridge_draws(
     contract: &BridgeContract,
@@ -732,8 +740,12 @@ pub fn bridge_draws(
     let mut rng = CausalRng::from_seed(derive_stream(seed, BRIDGE_DRAWS_STREAM));
     let residual = planned.includes_residual();
     let mapped = match planned.mapping() {
-        DrawMapping::Affine(law) => map_affine(law, &values, mean, variance, residual, &mut rng)?,
-        DrawMapping::Correction(law) => map_correction(law, &values, &mut rng)?,
+        DrawMapping::Affine(law) => {
+            map_affine(law, &values, mean, variance, residual, &mut rng).map_err(|error| *error)?
+        }
+        DrawMapping::Correction(law) => {
+            map_correction(law, &values, &mut rng).map_err(|error| *error)?
+        }
         _ => {
             return Err(draws_unusable("mapping", "the mapping has no draws propagation"));
         }

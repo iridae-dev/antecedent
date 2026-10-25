@@ -1505,8 +1505,7 @@ pub(in crate::contract_section) fn verify_graph_posterior_programs(
             structure = Some(&samples[slot].graph);
         }
         let reported = f64::from_bits(atom.weight_bits);
-        bound &= reported.is_finite()
-            && (reported - weight).abs() <= 1e-12 * weight.abs().max(1.0);
+        bound &= reported.is_finite() && (reported - weight).abs() <= 1e-12 * weight.abs().max(1.0);
         let class_atom = matches!(
             structure,
             Some(crate::PosteriorAtomGraphWire::Cpdag(_) | crate::PosteriorAtomGraphWire::Pag(_))
@@ -1574,7 +1573,7 @@ pub(in crate::contract_section) fn verify_graph_posterior_mixture(
         let weight = f64::from_bits(atom.weight_bits);
         let carried = atom.functional_program.is_some() || atom.identification_product.is_some();
         consistent &= (published.weight - weight).abs() <= 1e-9;
-        consistent &= !published.value.is_some() || carried;
+        consistent &= published.value.is_none() || carried;
         consistent &= carried
             || published.identification_status == crate::IdentificationStatusWire::NotIdentified;
         if !carried {

@@ -216,38 +216,7 @@ pub(in crate::analysis_result_artifact) fn validate_association(
     if section.terms.is_empty() || section.rows == 0 || section.assumptions.is_empty() {
         return fail("an association reports at least one quantity, its rows and its assumptions");
     }
-    let finite = |value: Option<f64>| value.is_none_or(f64::is_finite);
-    for term in &section.terms {
-        if !term.estimate.is_finite()
-            || !finite(term.standard_error)
-            || term.standard_error.is_some_and(|se| se < 0.0)
-            || !finite(term.spread_lower)
-            || !finite(term.spread_upper)
-            || term.spread_lower.zip(term.spread_upper).is_some_and(|(lower, upper)| lower > upper)
-            || !finite(term.posterior_mean)
-            || !finite(term.posterior_sd)
-            || term.posterior_sd.is_some_and(|sd| sd < 0.0)
-            || !finite(term.posterior_lower)
-            || !finite(term.posterior_upper)
-            || term
-                .posterior_lower
-                .zip(term.posterior_upper)
-                .is_some_and(|(lower, upper)| lower > upper)
-        {
-            return fail("a reported quantity is not finite and ordered");
-        }
-        if term.standard_error.is_some() != term.standard_error_method.is_some() {
-            return fail("a standard error comes with its construction and the reverse");
-        }
-        let has_posterior = term.posterior_mean.is_some();
-        if has_posterior != section.posterior.is_some() {
-            return fail("a posterior summary comes with the posterior record and the reverse");
-        }
-        let has_spread = term.spread_lower.is_some() || term.spread_upper.is_some();
-        if has_spread && section.resampling.is_none() {
-            return fail("a percentile spread comes from resampling the section records");
-        }
-    }
+    validate_terms(section)?;
     if let Some(resampling) = &section.resampling {
         if resampling.replicates_ok > resampling.replicates_requested
             || !(0.0..1.0).contains(&resampling.spread_level)
@@ -289,6 +258,44 @@ pub(in crate::analysis_result_artifact) fn validate_association(
     };
     if section.uncertainty != expected {
         return fail("the uncertainty label names an uncertainty the section does not hold");
+    }
+    Ok(())
+}
+
+/// Check numerical term summaries and their links to section-level uncertainty.
+fn validate_terms(section: &AssociationWire) -> Result<(), IoError> {
+    let fail = |message: &str| Err(IoError::Convert(format!("association section: {message}")));
+    let finite = |value: Option<f64>| value.is_none_or(f64::is_finite);
+    for term in &section.terms {
+        if !term.estimate.is_finite()
+            || !finite(term.standard_error)
+            || term.standard_error.is_some_and(|se| se < 0.0)
+            || !finite(term.spread_lower)
+            || !finite(term.spread_upper)
+            || term.spread_lower.zip(term.spread_upper).is_some_and(|(lower, upper)| lower > upper)
+            || !finite(term.posterior_mean)
+            || !finite(term.posterior_sd)
+            || term.posterior_sd.is_some_and(|sd| sd < 0.0)
+            || !finite(term.posterior_lower)
+            || !finite(term.posterior_upper)
+            || term
+                .posterior_lower
+                .zip(term.posterior_upper)
+                .is_some_and(|(lower, upper)| lower > upper)
+        {
+            return fail("a reported quantity is not finite and ordered");
+        }
+        if term.standard_error.is_some() != term.standard_error_method.is_some() {
+            return fail("a standard error comes with its construction and the reverse");
+        }
+        let has_posterior = term.posterior_mean.is_some();
+        if has_posterior != section.posterior.is_some() {
+            return fail("a posterior summary comes with the posterior record and the reverse");
+        }
+        let has_spread = term.spread_lower.is_some() || term.spread_upper.is_some();
+        if has_spread && section.resampling.is_none() {
+            return fail("a percentile spread comes from resampling the section records");
+        }
     }
     Ok(())
 }

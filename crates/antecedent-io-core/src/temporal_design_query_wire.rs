@@ -167,26 +167,17 @@ fn arcs(values: &[String]) -> Arc<[Arc<str>]> {
     values.iter().map(|value| Arc::<str>::from(value.as_str())).collect::<Vec<_>>().into()
 }
 
-impl TemporalDesignQueryWire {
-    /// Wire form of a domain query.
-    ///
-    /// # Errors
-    /// An arm index that does not fit the wire integer.
-    pub fn from_domain(query: &TemporalDesignQuery) -> Result<Self, IoError> {
-        let assignment = match &query.assignment {
-            TemporalAssignment::TwoArm { assignment, probability } => {
-                TemporalAssignmentWire::TwoArm {
-                    assignment: assignment.to_vec(),
-                    probability: probability.to_vec(),
-                }
-            }
-            TemporalAssignment::MultiArm {
-                assignment,
-                probabilities,
-                arms,
-                categorical,
-                ordered,
-            } => TemporalAssignmentWire::MultiArm {
+/// Convert assignment-specific data without changing row order or arm indices.
+fn assignment_from_domain(
+    assignment: &TemporalAssignment,
+) -> Result<TemporalAssignmentWire, IoError> {
+    Ok(match assignment {
+        TemporalAssignment::TwoArm { assignment, probability } => TemporalAssignmentWire::TwoArm {
+            assignment: assignment.to_vec(),
+            probability: probability.to_vec(),
+        },
+        TemporalAssignment::MultiArm { assignment, probabilities, arms, categorical, ordered } => {
+            TemporalAssignmentWire::MultiArm {
                 assignment: assignment
                     .iter()
                     .map(|arm| fit_u64(*arm))
@@ -195,80 +186,85 @@ impl TemporalDesignQueryWire {
                 arms: texts(arms),
                 categorical: *categorical,
                 ordered: *ordered,
-            },
-            TemporalAssignment::Factorial {
-                first,
-                first_probability,
-                second,
-                second_probability,
-            } => TemporalAssignmentWire::Factorial {
+            }
+        }
+        TemporalAssignment::Factorial { first, first_probability, second, second_probability } => {
+            TemporalAssignmentWire::Factorial {
                 first: first.to_vec(),
                 first_probability: first_probability.to_vec(),
                 second: second.to_vec(),
                 second_probability: second_probability.to_vec(),
-            },
-            TemporalAssignment::Interference { assignment, probability, clusters } => {
-                TemporalAssignmentWire::Interference {
-                    assignment: assignment.to_vec(),
-                    probability: probability.to_vec(),
-                    clusters: texts(clusters),
-                }
             }
-            TemporalAssignment::Dose { dose, density, bandwidth, target } => {
-                TemporalAssignmentWire::Dose {
-                    dose: dose.to_vec(),
-                    density: density.to_vec(),
-                    bandwidth: *bandwidth,
-                    target: match target {
-                        TemporalDoseTarget::SmoothedCurve { grid } => {
-                            TemporalDoseTargetWire::SmoothedCurve { grid: grid.to_vec() }
+        }
+        TemporalAssignment::Interference { assignment, probability, clusters } => {
+            TemporalAssignmentWire::Interference {
+                assignment: assignment.to_vec(),
+                probability: probability.to_vec(),
+                clusters: texts(clusters),
+            }
+        }
+        TemporalAssignment::Dose { dose, density, bandwidth, target } => {
+            TemporalAssignmentWire::Dose {
+                dose: dose.to_vec(),
+                density: density.to_vec(),
+                bandwidth: *bandwidth,
+                target: match target {
+                    TemporalDoseTarget::SmoothedCurve { grid } => {
+                        TemporalDoseTargetWire::SmoothedCurve { grid: grid.to_vec() }
+                    }
+                    TemporalDoseTarget::SmoothedContrast { active, control } => {
+                        TemporalDoseTargetWire::SmoothedContrast {
+                            active: *active,
+                            control: *control,
                         }
-                        TemporalDoseTarget::SmoothedContrast { active, control } => {
-                            TemporalDoseTargetWire::SmoothedContrast {
-                                active: *active,
-                                control: *control,
-                            }
-                        }
-                        TemporalDoseTarget::LocalQuadratic {
-                            grid,
-                            derivative,
-                            curvature_bound,
-                        } => TemporalDoseTargetWire::LocalQuadratic {
+                    }
+                    TemporalDoseTarget::LocalQuadratic { grid, derivative, curvature_bound } => {
+                        TemporalDoseTargetWire::LocalQuadratic {
                             grid: grid.to_vec(),
                             derivative: *derivative,
                             curvature_bound: *curvature_bound,
-                        },
-                    },
-                }
+                        }
+                    }
+                },
             }
-            TemporalAssignment::RegimeSurvival { treatment, censored, confounders, horizon } => {
-                TemporalAssignmentWire::RegimeSurvival {
-                    treatment: treatment.raw(),
-                    censored: censored.raw(),
-                    confounders: vars_to_raw(confounders),
-                    horizon: *horizon,
-                }
-            }
-            TemporalAssignment::ObservationalExcursion { treatment, history } => {
-                TemporalAssignmentWire::ObservationalExcursion {
-                    treatment: treatment.raw(),
-                    history: vars_to_raw(history),
-                }
-            }
-            TemporalAssignment::ObservationalRegime {
-                treatment,
-                confounders,
-                active,
-                reference,
-                method,
-            } => TemporalAssignmentWire::ObservationalRegime {
+        }
+        TemporalAssignment::RegimeSurvival { treatment, censored, confounders, horizon } => {
+            TemporalAssignmentWire::RegimeSurvival {
                 treatment: treatment.raw(),
+                censored: censored.raw(),
                 confounders: vars_to_raw(confounders),
-                active: active.to_vec(),
-                reference: reference.to_vec(),
-                method: method.name().to_owned(),
-            },
-        };
+                horizon: *horizon,
+            }
+        }
+        TemporalAssignment::ObservationalExcursion { treatment, history } => {
+            TemporalAssignmentWire::ObservationalExcursion {
+                treatment: treatment.raw(),
+                history: vars_to_raw(history),
+            }
+        }
+        TemporalAssignment::ObservationalRegime {
+            treatment,
+            confounders,
+            active,
+            reference,
+            method,
+        } => TemporalAssignmentWire::ObservationalRegime {
+            treatment: treatment.raw(),
+            confounders: vars_to_raw(confounders),
+            active: active.to_vec(),
+            reference: reference.to_vec(),
+            method: method.name().to_owned(),
+        },
+    })
+}
+
+impl TemporalDesignQueryWire {
+    /// Wire form of a domain query.
+    ///
+    /// # Errors
+    /// An arm index that does not fit the wire integer.
+    pub fn from_domain(query: &TemporalDesignQuery) -> Result<Self, IoError> {
+        let assignment = assignment_from_domain(&query.assignment)?;
         Ok(Self {
             outcome: query.outcome.raw(),
             units: texts(&query.units),

@@ -326,6 +326,10 @@ pub enum RetainedMechanismWire {
         /// The variable the mechanism produces.
         variable: String,
         /// `(parent configuration, (level, count))`, one entry per configuration.
+        #[allow(
+            clippy::type_complexity,
+            reason = "the public versioned wire keeps its parent-configuration and level/count tuple shape; a one-use alias would hide this artifact contract"
+        )]
         rows: Vec<(Vec<(String, String)>, Vec<(String, u64)>)>,
     },
 }
@@ -1179,7 +1183,7 @@ fn draw_quantities(
         .collect()
 }
 
-fn digest_error(error: IoError) -> ObservationQueryArtifactError {
+fn digest_error(error: &IoError) -> ObservationQueryArtifactError {
     ObservationQueryArtifactError::Encode(error.to_string())
 }
 
@@ -1202,16 +1206,16 @@ fn parameter_draws_distribution(
     };
     let premises = MechanismCompositionPremisesWire::from_spec(spec);
     let basis = inference_basis_of(spec);
-    let source =
-        observation_query_identity(Some(&premises), query, basis.as_str()).map_err(digest_error)?;
+    let source = observation_query_identity(Some(&premises), query, basis.as_str())
+        .map_err(|error| digest_error(&error))?;
     let snapshot = crate::digest_hex(
         IdentityDomain::Program,
         &("observation_query_retained_data_v1", retained, prior),
     )
-    .map_err(digest_error)?;
+    .map_err(|error| digest_error(&error))?;
     let contract =
         crate::digest_hex(IdentityDomain::Program, &("observation_query_premises_v1", &premises))
-            .map_err(digest_error)?;
+            .map_err(|error| digest_error(&error))?;
     let quantities = draw_quantities(spec, target, &draws.quantities);
     let semantic = if target.has_interventions() {
         DistributionMeaningWire::InterventionalPredictive
@@ -1276,7 +1280,7 @@ fn evaluate_redraw(
     }
     let alignment_identity = parameter_draws_distribution(spec, query, &drawn)?
         .alignment_identity()
-        .map_err(digest_error)?;
+        .map_err(|error| digest_error(&error))?;
     Ok(ObservationResultWire::ParameterDraws {
         quantities: drawn.quantities.clone(),
         draws: *draws,
