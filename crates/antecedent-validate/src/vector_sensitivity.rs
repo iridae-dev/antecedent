@@ -25,14 +25,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::float_cmp,
-    reason = "quantile positions are non-negative and below the sample size; the tests compare probed grid values that are stored, not computed"
-)]
-
 use antecedent_core::ExecutionContext;
+use antecedent_kernels::quantile_type7_sorted as quantile_sorted;
 use antecedent_stats::student_t_ppf;
 
 use crate::ValidationError;
@@ -128,13 +122,6 @@ pub fn evalue_vector_range(
 }
 
 /// Linear-interpolated quantile of an ascending sample.
-fn quantile_sorted(sorted: &[f64], p: f64) -> f64 {
-    let position = p * (sorted.len() - 1) as f64;
-    let below = position.floor() as usize;
-    let above = position.ceil() as usize;
-    let weight = position - below as f64;
-    sorted[below] * (1.0 - weight) + sorted[above] * weight
-}
 
 fn sorted_copy(values: &[f64]) -> Vec<f64> {
     let mut sorted = values.to_vec();
@@ -514,6 +501,10 @@ pub fn rosenbaum_vector_range(
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::float_cmp,
+    reason = "tests locate exact values copied verbatim from the declared sensitivity grids"
+)]
 mod tests {
     use super::*;
     use crate::target_native::{TargetFamily, TargetQuadrant};

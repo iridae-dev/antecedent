@@ -25,7 +25,7 @@ use burn::tensor::backend::{AutodiffBackend, Backend};
 
 use super::device::{EpochLoss, record_host_loss};
 use super::{
-    DenseLayer, LearnBurnError, Mlp, MlpSpec, TRAIN_LOCK, TrainedMlp, colmajor_to_rowmajor_f32,
+    DenseLayer, LearnBurnError, Mlp, MlpSpec, TrainedMlp, colmajor_to_rowmajor_f32,
     column_standardization, standardized, target_standardization, tensor2,
 };
 
@@ -180,9 +180,8 @@ pub fn fit_staged<B: AutodiffBackend>(
     let y_f: Vec<f32> = y.iter().map(|&v| ((v - y_center) / y_scale) as f32).collect();
     let prepare = start.elapsed();
 
-    // The backend RNG is process-global. A panic on a device must not brick the CPU route,
-    // and the lock only serializes seeding, so a poisoned lock is recovered.
-    let _guard = TRAIN_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    // Serialize the whole fit and share the CPU fallback's poison recovery rule.
+    let _guard = super::training_guard();
     B::seed(seed);
 
     let start = Instant::now();

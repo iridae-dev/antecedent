@@ -1394,19 +1394,17 @@ where
     Ok(finalize_bootstrap_se_ex(&ates, attempted, cancelled, false))
 }
 
-/// Coefficients and residuals of one `FaerBackend` least-squares solve.
+/// Coefficients and rank consumed from one `FaerBackend` least-squares solve.
 pub(crate) struct LsFit {
     /// Coefficient vector, length `ncols`.
     pub coefficients: Vec<f64>,
-    /// Residuals, length `nrows`.
-    pub residuals: Vec<f64>,
     /// Numerical rank.
     pub rank: usize,
 }
 
 /// Solve `min ||X β − y||` on a column-major design.
 ///
-/// The coefficients, residuals, and rank are the backend fit's fields.
+/// The coefficients and rank are the backend fit's fields.
 ///
 /// # Errors
 ///
@@ -1421,7 +1419,7 @@ pub(crate) fn ls_fit(
 ) -> Result<LsFit, EstimationError> {
     let fit =
         backend.least_squares(design_colmajor, nrows, ncols, y, workspace).map_err(stats_err)?;
-    Ok(LsFit { coefficients: fit.coefficients, residuals: fit.residuals, rank: fit.rank })
+    Ok(LsFit { coefficients: fit.coefficients, rank: fit.rank })
 }
 
 /// OLS residual variance `σ² = RSS / (n − p)` for a fitted coefficient vector.

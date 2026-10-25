@@ -155,20 +155,6 @@ impl CrossfitPlan {
         Ok(())
     }
 
-    /// Run `f` on every fold under the context's thread budget; results come back in fold order
-    /// and the lowest-fold error wins.
-    ///
-    /// # Errors
-    ///
-    /// The error of the lowest failing fold.
-    pub(crate) fn map_folds<T: Send, E: Send>(
-        &self,
-        ctx: &antecedent_core::ExecutionContext,
-        f: impl Fn(FoldRows<'_>, &antecedent_core::ExecutionContext) -> Result<T, E> + Sync,
-    ) -> Result<Vec<T>, E> {
-        ctx.map_indexed(self.folds, |fold, inner| f(self.rows(fold), inner))
-    }
-
     /// Fit folds on leased workers and consume their results in fold order on the caller,
     /// with at most `window` fold results alive (being produced, waiting, or being consumed).
     ///

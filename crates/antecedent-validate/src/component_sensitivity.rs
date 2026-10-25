@@ -30,12 +30,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::float_cmp,
-    clippy::cast_precision_loss,
-    reason = "exact zero tests of coefficients and counts that convert exactly"
-)]
-
+use antecedent_kernels::quantile_type7_sorted as quantile_sorted;
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, student_t_ppf};
 
 use crate::ValidationError;
@@ -255,16 +250,6 @@ pub struct MediationPosterior<'a> {
     pub rho_tilde: &'a [Vec<f64>],
     /// `total_effect[k][d]`: the treatment coefficient of the total-effect regression.
     pub total_effect: &'a [Vec<f64>],
-}
-
-fn quantile_sorted(sorted: &[f64], p: f64) -> f64 {
-    let position = p * (sorted.len() - 1) as f64;
-    let below = position.floor();
-    let weight = position - below;
-    // `position` lies in `[0, len - 1]`, so both indices are in range.
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, reason = "in range")]
-    let (lo, hi) = (below as usize, position.ceil() as usize);
-    sorted[lo] * (1.0 - weight) + sorted[hi] * weight
 }
 
 fn quantile_of(values: &[f64], p: f64) -> f64 {
@@ -990,6 +975,10 @@ fn stabilized_weights(periods: &[MsmWeightPeriod], unit_weights: &[f64]) -> Opti
 /// Misaligned inputs or a treatment not coded 0/1, fewer than [`MIN_MSM_REPLICATES`] replicates,
 /// a weight model that does not converge on the full data, more than five percent failed
 /// replicates, or any error of [`msm_parameter_fit`].
+#[allow(
+    clippy::float_cmp,
+    reason = "treatment labels are validated against the exact binary category codes zero and one"
+)]
 pub fn msm_parameter_fit_refitting_weights(
     outcome: &[f64],
     exposures: &[Vec<f64>],
@@ -1063,6 +1052,10 @@ pub fn msm_parameter_fit_refitting_weights(
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::float_cmp,
+    reason = "tests locate exact values copied verbatim from the declared sensitivity grids"
+)]
 mod tests {
     use super::*;
     use crate::evalue_scales::evalue_range;

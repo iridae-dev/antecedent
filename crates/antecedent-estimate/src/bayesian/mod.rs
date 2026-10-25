@@ -215,7 +215,8 @@ impl CausalPosterior {
     ///
     /// # Errors
     ///
-    /// Missing effect column.
+    /// Missing or malformed effect column, no draws, non-finite draws, or a NaN
+    /// threshold. Failed draws cannot support a finite posterior probability.
     pub fn probability_below(&self, threshold: f64) -> Result<f64, EstimationError> {
         let q = self
             .effect_column()

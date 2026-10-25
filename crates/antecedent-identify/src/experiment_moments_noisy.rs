@@ -124,12 +124,6 @@ const ROWS: usize = 40_000;
 /// The four training regimes: clamp {x}, {y, z}, {x, z}, {x, y}.
 const TRAINING: [(&[u32], u64); 4] = [(&[0], 1), (&[1, 2], 2), (&[0, 2], 3), (&[0, 1], 4)];
 
-fn training_contract() -> AcceptedRegimeContract {
-    accepted(
-        TRAINING.iter().map(|(targets, source)| regime(&[0, 1, 2], targets, *source)).collect(),
-    )
-}
-
 fn assemble_training() -> AssembledExperimentConstraints {
     assemble_designs(&TRAINING, 1000)
 }

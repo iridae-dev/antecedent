@@ -2208,7 +2208,6 @@ mod tests {
         assert_eq!(pooled.admit_summation([4u64, 5, 3].into_iter()), Err(SearchStop::Memory));
         assert_eq!(small.admission().available().bytes(), 100);
     }
-    use super::*;
     use antecedent_core::{
         CounterfactualEvent, DistributionAvailability, EvidenceKind, EvidenceRegime, RegimeKind,
         WorldId, WorldSpec,

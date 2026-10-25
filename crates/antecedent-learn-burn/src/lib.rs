@@ -30,6 +30,14 @@ type InferBackend = NdArray<f32>;
 /// reseed each other.
 static TRAIN_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
+// The lock protects RNG sequencing, not mutable model state. All model/tensor
+// state belongs to the fit and unwinds on panic; every next fit reseeds before
+// creating tensors. Recovering this unit lock lets auto fall back after a device
+// panic while preserving whole-fit serialization on both training routes.
+fn training_guard() -> std::sync::MutexGuard<'static, ()> {
+    TRAIN_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
 /// Trained two-hidden-layer MLP. Predicts one value per row.
 ///
 /// Weights are copied out of Burn so the fitted artifact is `Send + Sync`.
@@ -195,7 +203,7 @@ pub fn train_cancellable(
     }
     // Burn's backend RNG is global. Hold the lock through training so concurrent
     // folds cannot reseed each other's initialization or stochastic operations.
-    let _guard = TRAIN_LOCK.lock().map_err(|_| LearnBurnError::LockPoisoned)?;
+    let _guard = training_guard();
     InferBackend::seed(seed);
     let device = <InferBackend as Backend>::Device::default();
     // Standardize inputs and (for regression) the target before training. Raw f32 inputs
@@ -498,6 +506,31 @@ mod tests {
             y[i] = offset + slope * (i as f64);
         }
         (x, y)
+    }
+
+    #[test]
+    fn cpu_and_staged_training_reseed_after_a_panicked_fit() {
+        let (x, y) = line(20, 2.0, 0.5);
+        let spec = MlpSpec { binary: false, hidden: 4, epochs: 2, learning_rate: 0.05, seed: 17 };
+        let before = train(&x, 20, 2, &y, &spec).unwrap();
+        let failed = std::panic::catch_unwind(|| {
+            let _held = training_guard();
+            panic!("simulated backend failure while training");
+        });
+        assert!(failed.is_err());
+        let after = train(&x, 20, 2, &y, &spec).unwrap();
+        let device = <TrainBackend as Backend>::Device::default();
+        let staged =
+            staged::fit_staged::<TrainBackend>(&device, &x, 20, 2, &y, &spec, &|| false).unwrap();
+        let mut reference = vec![0.0; 20];
+        before.predict(&x, 20, 2, &mut reference).unwrap();
+        for model in [&after, &staged.model] {
+            let mut predictions = vec![0.0; 20];
+            model.predict(&x, 20, 2, &mut predictions).unwrap();
+            for (expected, actual) in reference.iter().zip(predictions) {
+                assert_eq!(expected.to_bits(), actual.to_bits());
+            }
+        }
     }
 
     /// Mean absolute error relative to the target's SD.

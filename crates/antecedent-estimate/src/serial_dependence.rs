@@ -815,7 +815,7 @@ impl ResidualFit {
 /// Cached design-level fits, most recently used first: at most this many
 /// designs, and at most `FIT_CACHE_MAX_ELEMENTS` retained `f64` values across
 /// them (the cache keeps each design's rows alive to verify a hit by content,
-/// so a few large designs evict the rest; the most recent always stays).
+/// so large designs evict older entries; an oversized fit is used without retention).
 const FIT_CACHE_CAPACITY: usize = 16;
 const FIT_CACHE_MAX_ELEMENTS: usize = 1 << 21;
 
@@ -826,6 +826,25 @@ struct CachedFit {
     matrix: Arc<[f64]>,
     outcome: Arc<[f64]>,
     fit: Arc<ResidualFit>,
+}
+
+impl CachedFit {
+    fn retained_elements(&self) -> usize {
+        let fit = &self.fit;
+        [
+            self.matrix.len(),
+            self.outcome.len(),
+            fit.residuals.capacity(),
+            fit.xtx.capacity(),
+            fit.model.phi.capacity(),
+            fit.model.z.capacity(),
+            fit.df_loss.capacity(),
+            fit.info_chol.as_ref().map_or(0, Vec::capacity),
+        ]
+        .into_iter()
+        .chain(fit.quadratic.iter().flatten().map(Vec::capacity))
+        .fold(0, usize::saturating_add)
+    }
 }
 
 static FIT_CACHE: std::sync::Mutex<Vec<CachedFit>> = std::sync::Mutex::new(Vec::new());
@@ -859,23 +878,24 @@ fn residual_fit(design: &CompiledDesign) -> Result<Arc<ResidualFit>, EstimationE
     }
     drop(cache);
     let fit = Arc::new(ResidualFit::new(design)?);
+    let entry = CachedFit {
+        n,
+        p,
+        hash,
+        matrix: Arc::clone(&design.matrix),
+        outcome: Arc::clone(&design.outcome),
+        fit: Arc::clone(&fit),
+    };
+    if entry.retained_elements() > FIT_CACHE_MAX_ELEMENTS {
+        return Ok(fit);
+    }
     let mut cache = FIT_CACHE.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    cache.insert(
-        0,
-        CachedFit {
-            n,
-            p,
-            hash,
-            matrix: Arc::clone(&design.matrix),
-            outcome: Arc::clone(&design.outcome),
-            fit: Arc::clone(&fit),
-        },
-    );
+    cache.insert(0, entry);
     cache.truncate(FIT_CACHE_CAPACITY);
-    let retained = |c: &CachedFit| c.matrix.len() + c.outcome.len() + c.fit.residuals.len();
-    let mut total: usize = cache.iter().map(retained).sum();
-    while total > FIT_CACHE_MAX_ELEMENTS && cache.len() > 1 {
-        total -= cache.pop().map_or(0, |c| retained(&c));
+    let mut total = cache.iter().map(CachedFit::retained_elements).fold(0, usize::saturating_add);
+    while total > FIT_CACHE_MAX_ELEMENTS {
+        let Some(evicted) = cache.pop() else { break };
+        total = total.saturating_sub(evicted.retained_elements());
     }
     Ok(fit)
 }
@@ -1805,6 +1825,28 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn oversized_design_is_fitted_without_process_cache_retention() {
+        let mut d = design(100, 0.4, 912);
+        // Retaining this Arc would retain its unused tail too. The fit itself
+        // reads only the declared n*p design, so this exercises retention without
+        // a large numerical fit.
+        let mut padded = d.matrix.to_vec();
+        padded.resize(FIT_CACHE_MAX_ELEMENTS + 1, 0.0);
+        d.matrix = padded.into();
+        let first = residual_fit(&d).unwrap();
+        let second = residual_fit(&d).unwrap();
+        assert!(!Arc::ptr_eq(&first, &second), "oversized source must not be retained");
+        assert_eq!(first.residuals, second.residuals);
+        assert_eq!(first.model.z, second.model.z);
+        assert_eq!(first.df_loss, second.df_loss);
+        let held = FIT_CACHE.lock().unwrap();
+        assert!(held.iter().all(|entry| !Arc::ptr_eq(&entry.matrix, &d.matrix)));
+        assert!(
+            held.iter().map(CachedFit::retained_elements).sum::<usize>() <= FIT_CACHE_MAX_ELEMENTS
+        );
     }
 
     #[test]
