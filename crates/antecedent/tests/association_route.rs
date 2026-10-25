@@ -404,3 +404,56 @@ fn every_association_counterpart_retains_its_own_operation_and_executes_its_prog
         assert_eq!(terms.iter().all(|term| term.posterior.is_some()), posterior);
     }
 }
+
+#[test]
+fn every_association_counterpart_agrees_with_its_view_stamps_its_result_and_refuses_reentry() {
+    let query = AssociationQuery::new(v(1), [v(0)]);
+    let (table, _, _) = line();
+    let rows = series(120);
+    let bayesian = || InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(100));
+    let mut studies = Vec::new();
+    for inference in [InferenceMode::Frequentist, bayesian()] {
+        studies.push((
+            "AssociationStatic",
+            Study::tabular(table.clone())
+                .query(CausalQuery::Association(query.clone()))
+                .inference(inference.clone())
+                .build()
+                .unwrap(),
+        ));
+        studies.push((
+            "AssociationTemporal",
+            Study::series(rows.clone())
+                .query(CausalQuery::Association(query.clone()))
+                .inference(inference)
+                .build()
+                .unwrap(),
+        ));
+    }
+    for (route, study) in &studies {
+        let plan = study.compile(&ctx(4)).unwrap();
+        let program = plan.lowered().expect("a lowered program").clone();
+        assert_eq!(program.route(), *route);
+        // The declared selection rule is inspectable before any execution: the retained program
+        // fixes the analysis, and identification is not claimed.
+        assert_eq!(program.statistical().models()[0].family(), "linear_regression");
+        let view = plan.plan_view().unwrap();
+        assert_eq!(view.family(), RouteFamily::Associational);
+        assert_eq!(view.identification().kind(), IdentificationKind::NotClaimed);
+        assert_eq!(view.identity(), program.identity());
+        // The sealed operation is the association, bound to the same lowered identity.
+        let prepared = study.prepare(&ctx(4)).unwrap();
+        assert!(matches!(prepared.retained_operation(), RetainedOperation::Association));
+        assert_eq!(prepared.plan().lowered_program_identity(), Some(program.identity()));
+        // A lowered dispatch executes its program; it never compiles through the public builder.
+        let refusal = study.compile(&ctx(4).enter_lowered_dispatch(program.identity()));
+        assert!(refusal.unwrap_err().to_string().contains("public_builder_reentry"), "{route}");
+        // The result carries the stamp of the program that produced it.
+        let result = if *route == "AssociationStatic" {
+            prepared.estimate(&table, &ctx(4)).unwrap()
+        } else {
+            prepared.estimate_series(&rows, &ctx(4)).unwrap()
+        };
+        assert_eq!(result.lowered_program_identity(), Some(program.identity()), "{route}");
+    }
+}
