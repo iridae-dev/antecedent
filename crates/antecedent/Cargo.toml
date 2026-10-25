@@ -897,3 +897,7 @@ path = "../../examples/rust/reference_host.rs"
 [[bench]]
 name = "transport_measured"
 harness = false
+
+[[test]]
+name = "class_route_artifacts"
+path = "tests/class_route_artifacts.rs"

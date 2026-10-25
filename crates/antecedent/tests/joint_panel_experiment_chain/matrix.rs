@@ -173,7 +173,7 @@ fn translated_fixture(
     let mapped =
         states.iter().enumerate().map(|(i, v)| (v - intercepts[i]) / slopes[i]).collect::<Vec<_>>();
     fixture.update.observed_mean = mapped.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-    fixture.update.observation_variance = 0.01;
+    fixture.update.observation_variance = likelihood_variance(&mapped, 20, 0.01);
     fixture.update.sample_size = 20;
     fixture.update.functional = functional;
     fixture.update.bridge = bridge;

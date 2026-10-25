@@ -245,6 +245,7 @@ impl super::Study {
                         DataInput::Tabular(_),
                         GraphClass::Dag
                             | GraphClass::Cpdag
+                            | GraphClass::Pag
                             | GraphClass::Admg
                             | GraphClass::TemporalAdmg
                     ) | (
@@ -256,7 +257,7 @@ impl super::Study {
                 ) =>
             {
                 return Err(CausalError::Unsupported {
-                    message: "CausalQuery::Distribution requires tabular data and a static Dag or Admg",
+                    message: "CausalQuery::Distribution requires tabular data and a static Dag, Cpdag, Pag or Admg",
                 });
             }
             (_, CausalQuery::PathSpecific(_), class)

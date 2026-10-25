@@ -2674,9 +2674,9 @@ inference = "Complete prespecified piecewise/smooth selection with full-selectio
 gap = "theory"
 missing = "Unique causal change attribution and whole-procedure calibration are not established by the implemented conditional model/selection law."
 owner = "crates/antecedent-estimate"
-fixtures = "crates/antecedent-estimate/src/joint_panel/time_varying.rs::changed_mechanism_likelihood_and_response_share_lags_histories_and_reference_worlds;crates/antecedent/tests/joint_panel_workflow.rs::temporal_panel_bootstrap_reruns_mechanism_selection_per_replicate"
+fixtures = "crates/antecedent-estimate/src/joint_panel/time_varying.rs::changed_mechanism_likelihood_and_response_share_lags_histories_and_reference_worlds;crates/antecedent/tests/joint_panel_workflow.rs::temporal_panel_bootstrap_reruns_mechanism_selection_per_replicate;crates/antecedent/tests/joint_panel_workflow.rs::temporal_frequentist_frame_decomposes_on_reference_worlds_and_translates_experiments"
 consumer = "crates/antecedent-io/src/joint_panel_artifact.rs::FrozenPanelFit;crates/antecedent/src/analysis/joint_panel.rs;crates/antecedent/tests/joint_panel_workflow.rs::fresh_process_panel_artifact_consumer"
-notes = "Both prespecified piecewise and smooth attempts execute through the retained X02 compiler. Carryover remains temporal; a failed unique attribution leads to the typed coarser contrast, without a new scientific license."
+notes = "Both prespecified piecewise and smooth attempts execute through the retained X02 compiler. Carryover remains temporal; a failed unique attribution leads to the typed coarser contrast, without a new scientific license. The decomposition runs on the time-varying fit with early and late fitted mechanism periods as reference worlds; efficiency, endpoint antisymmetry, hybrid complement symmetry and the retained world responses are checked independently, and selection mass is accounted per specification. A design that proves no block names the missing proof and executes the coarser contrast."
 
 [[child]]
 id = "X03.temporal.bayesian"
@@ -2688,9 +2688,9 @@ inference = "Proper fixed prior across the declared no-change/piecewise/smooth m
 gap = "theory"
 missing = "Unique causal change attribution and whole-procedure calibration are not established by the implemented conditional model/selection law."
 owner = "crates/antecedent-estimate"
-fixtures = "crates/antecedent-estimate/src/joint_panel/time_varying.rs::smooth_path_and_selection_prior_are_explicit_not_selected_only_uncertainty;crates/antecedent/tests/joint_panel_workflow.rs::temporal_panel_public_preparation_retains_attempts_and_reuses_selected_mechanism"
+fixtures = "crates/antecedent-estimate/src/joint_panel/time_varying.rs::smooth_path_and_selection_prior_are_explicit_not_selected_only_uncertainty;crates/antecedent/tests/joint_panel_workflow.rs::temporal_panel_public_preparation_retains_attempts_and_reuses_selected_mechanism;crates/antecedent/tests/joint_panel_workflow.rs::temporal_bayesian_frame_decomposes_on_reference_worlds_and_translates_experiments"
 consumer = "crates/antecedent-io/src/joint_panel_artifact.rs::FrozenPanelFit;crates/antecedent/src/analysis/joint_panel.rs;crates/antecedent/tests/joint_panel_workflow.rs::fresh_process_panel_artifact_consumer"
-notes = "Both prespecified piecewise and smooth attempts execute through the retained X02 compiler. Carryover remains temporal; a failed unique attribution leads to the typed coarser contrast, without a new scientific license."
+notes = "Both prespecified piecewise and smooth attempts execute through the retained X02 compiler. Carryover remains temporal; a failed unique attribution leads to the typed coarser contrast, without a new scientific license. The decomposition runs on the time-varying fit with early and late fitted mechanism periods as reference worlds; efficiency, endpoint antisymmetry, hybrid complement symmetry and the retained world responses are checked independently, and selection mass is accounted per specification. A design that proves no block names the missing proof and executes the coarser contrast."
 
 [[child]]
 id = "X04.1.static.frequentist"
@@ -2826,11 +2826,11 @@ target = "geo-experiment to longitudinal model to decision"
 module = "none"
 inference = "none"
 gap = "theory"
-missing = "no proved map from a windowed experiment estimand through recency, dose, transport, and update to a decision"
+missing = "a bootstrap sampling law is not a prior: the modular experiment update refuses it at both entry points with a typed reason, and the next design is the Bayesian selection posterior on the same temporal frame; a proved map from a windowed experiment estimand through recency, dose, transport and update to a frequentist decision is not claimed"
 owner = "crates/antecedent-design"
-fixtures = "crates/antecedent/tests/joint_panel_experiment_chain.rs::fresh_process_experiment_artifact_consumer"
+fixtures = "crates/antecedent/tests/joint_panel_workflow.rs::temporal_frequentist_frame_decomposes_on_reference_worlds_and_translates_experiments;crates/antecedent/tests/joint_panel_experiment_chain.rs::fresh_process_experiment_artifact_consumer"
 consumer = "crates/antecedent-io/src/joint_panel_experiment_artifact.rs"
-notes = "Promotion candidate. Experimental priors alone do not close it."
+notes = "Promotion candidate. Experimental priors alone do not close it. Executed next design: the Bayesian temporal counterpart carries the update, response, decision and net study value."
 
 [[child]]
 id = "X05.static.bayesian"
@@ -2856,9 +2856,9 @@ inference = "FrozenJointImportance modular update of actual shared panel posteri
 gap = "theory"
 missing = "Joint observational-experimental refitting, new-regime bridge proofs and whole-chain Q09/E14 calibration are not claimed."
 owner = "crates/antecedent-design"
-fixtures = "crates/antecedent/tests/joint_panel_experiment_chain.rs::fresh_process_experiment_artifact_consumer;python/tests/test_joint_panel_experiment.py::test_native_target_experiment_update_decision_next_study_and_current_replay"
+fixtures = "crates/antecedent/tests/joint_panel_workflow.rs::temporal_bayesian_frame_decomposes_on_reference_worlds_and_translates_experiments;crates/antecedent/tests/joint_panel_experiment_chain.rs::fresh_process_experiment_artifact_consumer;python/tests/test_joint_panel_experiment.py::test_native_target_experiment_update_decision_next_study_and_current_replay"
 consumer = "crates/antecedent-io/src/joint_panel_experiment_artifact.rs"
-notes = "The actual conditional update→response→decision→same-estimand next-sample chain executes through the retained compiler. Historical artifact replay grants no current authority; live selected ledger sources and complete request/frozen-law identities govern current use."
+notes = "The actual conditional update→response→decision→same-estimand next-sample chain executes through the retained compiler. Historical artifact replay grants no current authority; live selected ledger sources and complete request/frozen-law identities govern current use. The chain also executes on the time-varying panel: the posterior over change-point, smoothing and mechanism selection is conditioned on the experiment with the paired bridge uncertainty, and the decision and net study values are checked against independent arithmetic."
 
 [[child]]
 id = "X06.static.frequentist"

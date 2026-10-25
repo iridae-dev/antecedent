@@ -409,3 +409,75 @@ fn a_cluster_randomized_design_is_re_randomized_under_full_validation_on_every_c
         assert!(unbiased.original_ate.abs() < 1.0, "{class}: {unbiased:?}");
     }
 }
+
+/// A transport query over a CPDAG or a PAG publishes a contracted result that an independent
+/// consumer reads back, for both inferences.
+#[test]
+fn a_cpdag_and_a_pag_transport_publish_an_artifact_a_consumer_reads() {
+    on_large_stack(|| {
+        let ctx = ExecutionContext::for_tests(9_102);
+        for inference in [
+            InferenceMode::Frequentist,
+            InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(50)),
+        ] {
+            for name in ["cpdag", "pag"] {
+                let graph = if name == "cpdag" {
+                    ClassGraph::Cpdag(open_chain())
+                } else {
+                    ClassGraph::Pag(circle_pair())
+                };
+                let built = class_study(graph, inference.clone(), RefuteSuite::None);
+                let prepared = built.prepare(&ctx).unwrap_or_else(|e| panic!("{name}: {e}"));
+                let result =
+                    prepared.estimate_retained(&ctx).unwrap_or_else(|e| panic!("{name}: {e}"));
+                let artifact = prepared
+                    .encode_contracted_result(&result, &format!("class-transport-{name}"), &ctx)
+                    .unwrap_or_else(|e| panic!("{name}: {e}"));
+                antecedent_io::consume_analysis_result(&artifact)
+                    .unwrap_or_else(|e| panic!("{name}: {e}"));
+            }
+        }
+    });
+}
+
+/// An interference query published under every supplied graph class is a sealed artifact that
+/// an independent consumer reads back, for each assignment design.
+#[test]
+fn every_class_interference_route_publishes_an_artifact_a_consumer_reads() {
+    let ctx = ExecutionContext::for_tests(9_204);
+    for class in CLASS_NAMES {
+        for (design, fixture) in [
+            ("observed", observed_fixture()),
+            ("saturation", saturation_fixture()),
+            ("cluster", cluster_fixture()),
+        ] {
+            let (data, assignment, query, edges) = fixture;
+            let network = NetworkData::try_new(data.clone(), edges).unwrap();
+            let builder = Study::tabular(data);
+            let builder = match class {
+                "dag" => builder.graph(Dag::with_variables(1)),
+                "admg" => builder.graph(Admg::with_variables(1)),
+                "temporal_admg" => builder.graph(
+                    TemporalAdmg::from_static_contemporaneous(&Admg::with_variables(1)).unwrap(),
+                ),
+                "cpdag" => builder.graph(Cpdag::with_variables(1)),
+                _ => builder.graph(Pag::with_variables(1)),
+            };
+            let built = builder
+                .query(CausalQuery::Interference(query))
+                .interference(InterferenceSpec { network, assignment: Arc::from(assignment) })
+                .refute(RefuteSuite::None)
+                .build()
+                .unwrap_or_else(|e| panic!("{class} {design}: {e}"));
+            let prepared = built.prepare(&ctx).unwrap_or_else(|e| panic!("{class} {design}: {e}"));
+            let result =
+                prepared.estimate_retained(&ctx).unwrap_or_else(|e| panic!("{class} {design}: {e}"));
+            let artifact = prepared
+                .encode_contracted_result(&result, &format!("interference-{class}-{design}"), &ctx)
+                .unwrap_or_else(|e| panic!("{class} {design}: {e}"));
+            let consumed = antecedent_io::consume_analysis_result(&artifact)
+                .unwrap_or_else(|e| panic!("{class} {design}: {e}"));
+            assert_eq!(consumed.body.estimate, Some(result.effect()), "{class} {design}");
+        }
+    }
+}

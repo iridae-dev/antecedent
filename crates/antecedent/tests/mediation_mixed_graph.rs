@@ -369,3 +369,63 @@ fn completions_that_disagree_publish_the_identified_set_of_each_atom() {
     });
     assert!(found, "{:?}", envelope.fields);
 }
+
+/// Each mixed-graph coordinate publishes a contracted result that an independent consumer reads
+/// back: the decomposition on an ADMG, a CPDAG and a temporal ADMG, and the
+/// interventional distribution on an ADMG and a CPDAG.
+#[test]
+fn mixed_graph_mediation_and_distribution_publish_an_artifact_a_consumer_reads() {
+    let ctx = ExecutionContext::for_tests(69);
+    let mut dag = Dag::with_variables(3);
+    for (a, b) in [(0, 1), (0, 2), (1, 2)] {
+        dag.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+    }
+    let mut interleaved = (Vec::new(), Vec::new(), Vec::new());
+    let mut remaining: Vec<(f64, f64, f64, usize)> = CELLS.to_vec();
+    while remaining.iter().any(|cell| cell.3 > 0) {
+        for cell in remaining.iter_mut().filter(|cell| cell.3 > 0) {
+            interleaved.0.push(cell.0);
+            interleaved.1.push(cell.1);
+            interleaved.2.push(cell.2);
+            cell.3 -= 1;
+        }
+    }
+    let series = TimeSeriesData::from_f64_columns(
+        [
+            ("t", interleaved.0.as_slice()),
+            ("m", interleaved.1.as_slice()),
+            ("y", interleaved.2.as_slice()),
+        ],
+        1,
+    )
+    .unwrap();
+    let template = TemporalAdmg::from_static_contemporaneous(&latent_free()).unwrap();
+    let mediation = |study: antecedent::StudyBuilder| {
+        study
+            .query(CausalQuery::Mediation(query(MediationContrast::NaturalDirect)))
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(20)
+            .build()
+            .unwrap()
+    };
+    let cases = [
+        ("admg-mediation", mediation(Study::tabular(table()).graph(latent_free()))),
+        ("cpdag-mediation", mediation(Study::tabular(table()).graph(Cpdag::from_dag(&dag)))),
+        ("temporal-admg-mediation", mediation(Study::series(series).graph(template))),
+        ("admg-distribution", distribution_study(latent_free())),
+        ("dag-distribution", distribution_study(dag.clone())),
+        ("cpdag-distribution", distribution_study(Cpdag::from_dag(&dag))),
+    ];
+    for (label, built) in cases {
+        let prepared = built.prepare(&ctx).unwrap_or_else(|e| panic!("{label}: {e}"));
+        let result = prepared.estimate_retained(&ctx).unwrap_or_else(|e| panic!("{label}: {e}"));
+        let artifact = prepared
+            .encode_contracted_result(&result, &format!("mixed-graph-{label}"), &ctx)
+            .unwrap_or_else(|e| panic!("{label}: {e}"));
+        let consumed = antecedent_io::consume_analysis_result(&artifact)
+            .unwrap_or_else(|e| panic!("{label}: {e}"));
+        if label.ends_with("mediation") {
+            assert_eq!(consumed.body.estimate, Some(result.effect()), "{label}");
+        }
+    }
+}

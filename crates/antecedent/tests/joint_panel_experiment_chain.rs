@@ -146,6 +146,29 @@ fn experiment_fixture(original: &JointPanelResult) -> ExperimentFixture {
         / n as f64;
     let target = original.experiment_quantity(&functional).unwrap();
     let bridge = declared_bridge(&target, slope_mean, slope_variance, covariance);
+    let (ledger, model, mapping, experiment) = fixture_ledger(original);
+    let predicted =
+        states.iter().zip(&slopes).map(|(value, slope)| value / slope).collect::<Vec<_>>();
+    let observed = predicted.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    let observation_variance = likelihood_variance(&predicted, 100, 1e-5);
+    let update = PanelExperimentUpdate {
+        bridge,
+        functional: functional.clone(),
+        observed_mean: observed,
+        observation_variance,
+        sample_size: 100,
+        modular_policy: PanelExperimentModularPolicy::FrozenJointImportance,
+        mapping: PanelExperimentMapping {
+            dependency: original.dependency_identity(),
+            intercepts: vec![0.0; n],
+            slopes,
+        },
+        evidence: PanelExperimentEvidence { model, prior_origins: vec![], experiment, mapping },
+    };
+    ExperimentFixture { update, ledger, coefficients }
+}
+
+fn fixture_ledger(original: &JointPanelResult) -> (EvidenceLedger, SourceId, SourceId, SourceId) {
     let mut ledger = EvidenceLedger::new();
     let model = ledger
         .add_source(
@@ -168,24 +191,54 @@ fn experiment_fixture(original: &JointPanelResult) -> ExperimentFixture {
                 .with_observations([ObservationId::from_key("geo", b"observed")]),
         )
         .unwrap();
-    let predicted =
-        states.iter().zip(&slopes).map(|(value, slope)| value / slope).collect::<Vec<_>>();
-    let observed = predicted.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    (ledger, model, mapping, experiment)
+}
+
+/// A sampling distribution is not a prior: the frequentist temporal law refuses the Bayesian
+/// modular update at both entry points with a typed reason, and its response law is not
+/// admitted as a posterior source. The next design is the Bayesian selection posterior on the
+/// same temporal frame, which the caller executes through `exercise`.
+pub fn exercise_frequentist_boundary(
+    prepared: &PreparedStudy<JointPanelState>,
+    original: &JointPanelResult,
+    ctx: &ExecutionContext,
+) {
+    let functional = JointPanelResponseFunctional::TerminalMean;
+    let n = original.draws.len();
+    let target = original.experiment_quantity(&functional).unwrap();
+    let bridge = declared_bridge(&target, 1.0, 0.0, 0.0);
+    let (ledger, model, mapping, experiment) = fixture_ledger(original);
     let update = PanelExperimentUpdate {
         bridge,
-        functional: functional.clone(),
-        observed_mean: observed,
-        observation_variance: 1e-5,
+        functional,
+        observed_mean: 0.1,
+        observation_variance: 1e-3,
         sample_size: 100,
         modular_policy: PanelExperimentModularPolicy::FrozenJointImportance,
         mapping: PanelExperimentMapping {
             dependency: original.dependency_identity(),
             intercepts: vec![0.0; n],
-            slopes,
+            slopes: vec![1.0; n],
         },
         evidence: PanelExperimentEvidence { model, prior_origins: vec![], experiment, mapping },
     };
-    ExperimentFixture { update, ledger, coefficients }
+    let refused = prepared.with_experiment(update.clone(), &ledger).err().expect("refused");
+    assert!(format!("{refused:?}").contains("cannot become a Bayesian experimental prior"));
+    assert!(original.condition_experiment(update, &ledger, ctx).is_err());
+}
+
+/// A posterior of tens of thousands of slots keeps neighbours of its extreme slot under a very
+/// sharp likelihood, so `sharp` is used there. A small panel (a temporal frame fitted in debug
+/// time) would be collapsed onto that single slot, leaving no uncertainty for later studies to
+/// price: there the standard error of the sample mean is a sixth of the spread of the
+/// predicted observations.
+fn likelihood_variance(predicted: &[f64], sample_size: u64, sharp: f64) -> f64 {
+    if predicted.len() >= 1_000 {
+        return sharp;
+    }
+    let high = predicted.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    let low = predicted.iter().copied().fold(f64::INFINITY, f64::min);
+    sample_size as f64 * ((high - low) / 6.0).powi(2)
 }
 
 fn declared_bridge(

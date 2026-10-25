@@ -1284,6 +1284,36 @@ mod window_contrast {
         let result = built.run(&ctx).unwrap();
         assert!((result.effect() - counted).abs() < 1e-12, "{} vs {counted}", result.effect());
         assert!(discloses(&result));
+        // The conditional contrast is a sealed artifact an independent consumer reads back.
+        let prepared = built.prepare(&ctx).unwrap();
+        let again = prepared.estimate_series(&data, &ctx).unwrap();
+        assert!((again.effect() - counted).abs() < 1e-12);
+        let artifact =
+            prepared.encode_contracted_result(&again, "temporal_admg_conditional_pulse", &ctx).unwrap();
+        let consumed = consume_analysis_result(&artifact).unwrap();
+        assert_eq!(consumed.body.estimate, Some(again.effect()));
+    }
+
+    #[test]
+    fn a_conditional_sustained_contrast_is_idc_on_the_same_window() {
+        let (x, y, w, data) = series(400);
+        let query = TemporalEffectQuery::pulse(v(0), v(1), 1.0)
+            .with_policy(TemporalPolicy::sustained(0, 1))
+            .with_horizon_steps(2)
+            .with_effect_modifiers([v(2)]);
+        let ctx = ExecutionContext::for_tests(31_008);
+        let built = study(&data, template(false), query, InferenceMode::Frequentist, 0);
+        let result = built.run(&ctx).unwrap();
+        assert!(result.effect().is_finite());
+        assert!((result.effect() - counted_conditional(&x, &y, &w)).abs() < 0.5);
+        assert!(discloses(&result));
+        let prepared = built.prepare(&ctx).unwrap();
+        let again = prepared.estimate_series(&data, &ctx).unwrap();
+        let artifact = prepared
+            .encode_contracted_result(&again, "temporal_admg_conditional_sustained", &ctx)
+            .unwrap();
+        let consumed = consume_analysis_result(&artifact).unwrap();
+        assert_eq!(consumed.body.estimate, Some(again.effect()));
     }
 
     #[test]
@@ -1295,11 +1325,19 @@ mod window_contrast {
             .with_policy(TemporalPolicy::sustained(0, 1))
             .with_horizon_steps(2);
         let ctx = ExecutionContext::for_tests(31_005);
-        let result =
-            study(&data, template(false), query, InferenceMode::Frequentist, 0).run(&ctx).unwrap();
+        let result = study(&data, template(false), query.clone(), InferenceMode::Frequentist, 0)
+            .run(&ctx)
+            .unwrap();
         assert!(result.effect().is_finite());
         assert!((result.effect() - counted_contrast(&x, &y, &w)).abs() < 0.5);
         assert!(discloses(&result));
+        let built = study(&data, template(false), query, InferenceMode::Frequentist, 0);
+        let prepared = built.prepare(&ctx).unwrap();
+        let again = prepared.estimate_series(&data, &ctx).unwrap();
+        let artifact =
+            prepared.encode_contracted_result(&again, "temporal_admg_sustained", &ctx).unwrap();
+        let consumed = consume_analysis_result(&artifact).unwrap();
+        assert_eq!(consumed.body.estimate, Some(again.effect()));
     }
 
     #[test]

@@ -102,7 +102,12 @@ const TEMPORAL_RESPONSE_SERIES: &[GraphClass] = &[
     GraphClass::TemporalAdmg,
 ];
 const TEMPORAL_MEDIATION: &[GraphClass] =
-    &[GraphClass::TemporalDag, GraphClass::TemporalCpdag, GraphClass::TemporalAdmg];
+    &[
+        GraphClass::TemporalDag,
+        GraphClass::TemporalCpdag,
+        GraphClass::TemporalPag,
+        GraphClass::TemporalAdmg,
+    ];
 const DAG: &[GraphClass] = &[GraphClass::Dag];
 const TEMPORAL_DAG: &[GraphClass] = &[GraphClass::TemporalDag];
 /// The classes an anomaly or change attribution runs on over a table: a Dag, each DAG of a
@@ -358,8 +363,8 @@ fn kind_license(kind: CausalQueryKind) -> KindLicense {
                 message: "static mediation requires a supplied Dag, Cpdag, Pag or Admg",
             }),
             series: rule(TEMPORAL_MEDIATION, || CausalError::Unsupported {
-                message: "PreparedStudy supports TemporalMediationEffect on TemporalDag or \
-                          TemporalCpdag",
+                message: "PreparedStudy supports TemporalMediationEffect on TemporalDag, \
+                          TemporalCpdag, TemporalPag or TemporalAdmg",
             }),
             ..UNLICENSED
         },

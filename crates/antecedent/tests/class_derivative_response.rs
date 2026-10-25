@@ -337,6 +337,23 @@ fn frequentist_class_and_latent_confounded_derivatives_match_the_structural_refe
                         reference.naive_y
                     );
                 }
+                // A class route is also served by the prepared handle; it must agree.
+                {
+                    let prepared = built.prepare(&ctx).unwrap();
+                    let click = prepared.estimate(&data, &ctx).unwrap();
+                    assert_eq!(click.response().unwrap(), fresh.response().unwrap(), "{label}");
+                    // An independent consumer reads the contracted result back and either
+                    // verifies the program or names what it could not verify.
+                    let artifact = prepared
+                        .encode_contracted_result(&click, "class-derivative-response", &ctx)
+                        .unwrap();
+                    let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+                    assert!(
+                        consumed.acceptance.accepts_as_verified_program()
+                            || !consumed.acceptance.unresolved.is_empty(),
+                        "{label}: the consumer must verify or explain"
+                    );
+                }
                 // A single-model additive-GAM gradient (Jacobian, directional derivative) keeps
                 // its frequentist band withheld until its coverage is measured: the point is
                 // published and the withholding is disclosed.
@@ -363,23 +380,6 @@ fn frequentist_class_and_latent_confounded_derivatives_match_the_structural_refe
                     assert!(
                         lower[j].is_nan() || upper[j].is_nan() || lower[j] <= upper[j],
                         "{label}"
-                    );
-                }
-                // A class route is also served by the prepared handle; it must agree.
-                if !matches!(structure, Structure::Admg) {
-                    let prepared = built.prepare(&ctx).unwrap();
-                    let click = prepared.estimate(&data, &ctx).unwrap();
-                    assert_eq!(click.response().unwrap(), fresh.response().unwrap(), "{label}");
-                    // An independent consumer reads the contracted result back and either
-                    // verifies the program or names what it could not verify.
-                    let artifact = prepared
-                        .encode_contracted_result(&click, "class-derivative-response", &ctx)
-                        .unwrap();
-                    let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
-                    assert!(
-                        consumed.acceptance.accepts_as_verified_program()
-                            || !consumed.acceptance.unresolved.is_empty(),
-                        "{label}: the consumer must verify or explain"
                     );
                 }
             }

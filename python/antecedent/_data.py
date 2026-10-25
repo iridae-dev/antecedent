@@ -635,6 +635,8 @@ def bounded_arrow_reader(data: Any, max_rows: int) -> Any:
         except TypeError:
             return _split_reader(data.to_reader(), max_rows)
     if hasattr(data, "fetch_record_batch"):  # DuckDB relation or result
+        if hasattr(data, "to_arrow_reader"):
+            return data.to_arrow_reader(batch_size=max_rows)
         return data.fetch_record_batch(rows_per_batch=max_rows)
     if hasattr(data, "iter_slices") and hasattr(data, "to_arrow"):  # Polars DataFrame
         first = data.head(0).to_arrow()

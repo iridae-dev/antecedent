@@ -183,7 +183,8 @@ def test_arrow_chunks_are_joined_once_by_the_native_loader_not_in_python():
     receipt = antecedent.data.ingestion_receipt(chunked)
     # Python hands the chunks over as they are; the loader makes the table's single owned copy.
     assert receipt.python_copy_count == 0
-    assert receipt.ownership_bytes_copied == COLUMN_BYTES
+    # The join writes the values once and the column's validity bitmap (one bit per row).
+    assert receipt.ownership_bytes_copied == COLUMN_BYTES + (ROWS + 7) // 8
     assert receipt.bytes_borrowed == 0
     single = pa.table({"a": pa.chunked_array([pa.array(np.arange(ROWS, dtype=np.float64))])})
     one = antecedent.data.ingestion_receipt(single)
@@ -202,7 +203,7 @@ def test_columns_chunked_differently_are_joined_in_python_and_recorded():
     same = pa.table({"a": pa.chunked_array([half, half]), "b": pa.chunked_array([half, half])})
     agreeing = antecedent.data.ingestion_receipt(same)
     assert agreeing.python_copy_count == 0
-    assert agreeing.ownership_bytes_copied == 2 * COLUMN_BYTES
+    assert agreeing.ownership_bytes_copied == 2 * (COLUMN_BYTES + (ROWS + 7) // 8)
 
 
 def test_arrow_nulls_are_filled_into_a_new_buffer_only_when_numpy_is_read():

@@ -730,7 +730,7 @@ def route_methods(src: Sources) -> list[dict]:
                 "uncertainty_by_structure": [],
                 "decision_ports": route["decision_ports"],
                 "owning_module": owner,
-                "implementation": [owner] + ([IMPLEMENTATION_EXTRA[rid]] if rid in IMPLEMENTATION_EXTRA else []),
+                "implementation": [owner] + implementation_extra(rid),
                 "provenance": list(info["provenance"]) if info else [],
                 "evidence": evidence,
                 "artifact_consumer": override
@@ -944,11 +944,118 @@ IMPLEMENTATION_EXTRA = {
 }
 
 
+def implementation_extra(rid: str) -> list[str]:
+    extra = IMPLEMENTATION_EXTRA.get(rid, [])
+    return [extra] if isinstance(extra, str) else list(extra)
+
+
+# The graph-class routes that execute without a coverage record. Each runs the finite-discrete or
+# regression estimator of its query on the identified functional of every completion, atom or
+# window; the frequentist interval is the design-aware resample (row, cluster or circular block)
+# of that functional and the Bayesian form is the Bayesian bootstrap over the same resamples, so
+# the declared procedure is the design-aware resample the executing sources construct.
+X = "crates/antecedent/src/analysis/execute/"
+CLOSED_IMPLEMENTATION = {
+    "AnomalyAttribution": [X + "attribution_path.rs", X + "class_attribution.rs", X + "temporal_attribution.rs"],
+    "ChangeAttribution": [X + "attribution_path.rs", X + "class_attribution.rs", X + "temporal_attribution.rs"],
+    "Counterfactual": [X + "class_counterfactual.rs", X + "cross_world_posterior.rs"],
+    "MediationEffect": [X + "mediation_mixed.rs", X + "mediation_refutation.rs"],
+    "TemporalMediationEffect": [X + "temporal_pag_mediation.rs", X + "temporal_admg_mediation.rs", X + "mediation_mixed.rs"],
+    "NestedCounterfactualEffect": [X + "class_path_specific.rs", X + "static_path.rs"],
+    "PathSpecificEffect": [X + "class_path_specific.rs", X + "static_path.rs"],
+    "InterventionalDistribution": [X + "class_distribution.rs"],
+    "PulseEffect": [X + "temporal_admg_path.rs"],
+    "SustainedEffect": [X + "temporal_admg_path.rs"],
+    "TemporalConditionalPulse": [X + "temporal_admg_path.rs"],
+    "TemporalConditionalSustained": [X + "temporal_admg_path.rs"],
+    "InterferenceQuery": [X + "checked_interference.rs", X + "transport_interference_path.rs"],
+    "ConditionalEffect": [X + "temporal_admg_path.rs", X + "atom_mix.rs"],
+    "TransportQuery": [X + "transport_class.rs", X + "checked_transport_trial.rs"],
+}
+for _q in ("AverageDerivative", "PointDerivative", "DirectionalDerivative", "Elasticity", "SemiElasticity", "ResponseJacobian"):
+    CLOSED_IMPLEMENTATION[_q] = [X + "response_path.rs", X + "temporal_response_execution.rs"]
+ARTIFACTS = T + "class_route_artifacts.rs::"
+DERIVATIVE_STATIC = [
+    T + "class_derivative_response.rs::frequentist_class_and_latent_confounded_derivatives_match_the_structural_reference",
+    T + "class_derivative_response.rs::bayesian_class_and_latent_confounded_derivatives_publish_credible_intervals",
+    T + "derivative_validation_on_classes.rs::class_derivative_validation_checks_the_finite_difference_against_the_regression_slope",
+]
+DERIVATIVE_TEMPORAL = [
+    T + "temporal_admg_derivative.rs::every_derivative_functional_on_a_temporal_admg_publishes_a_consumable_artifact",
+    T + "temporal_admg_derivative.rs::the_window_adjustment_recovers_the_structural_slope_with_a_block_band",
+    T + "temporal_admg_derivative.rs::the_bayesian_derivative_publishes_a_credible_band_around_the_same_slope",
+]
+CP = T + "class_attribution_route.rs::"
+GP = T + "graph_posterior_attribution_routes.rs::"
+PS = T + "path_specific_admg_route.rs::"
+PP = T + "path_specific_pag_route.rs::"
+MM = T + "mediation_mixed_graph.rs::"
+MV = T + "mediation_decomposition_validation.rs::"
+CF = T + "counterfactual_class_route.rs::"
+TA = T + "temporal_admg_route_evidence.rs::"
+CD = T + "class_and_design_validation_suites.rs::"
+# The tests that run each closed route and encode its contracted result for an independent reader.
+CLOSED_EVIDENCE = {
+    ("AnomalyAttribution", "Admg"): [CP + "an_admg_anomaly_is_attributed_to_the_noise_blocks", ARTIFACTS + "static_class_attributions_publish_an_artifact_a_consumer_reads"],
+    ("AnomalyAttribution", "Cpdag"): [CP + "a_cpdag_anomaly_is_the_mean_of_its_dag_completions", CP + "a_bayesian_cpdag_publishes_a_shared_posterior_and_never_a_mixture", ARTIFACTS + "static_class_attributions_publish_an_artifact_a_consumer_reads"],
+    ("AnomalyAttribution", "Pag"): [CP + "a_pag_with_a_hedged_completion_keeps_the_identified_mass", ARTIFACTS + "static_class_attributions_publish_an_artifact_a_consumer_reads"],
+    ("AnomalyAttribution", "TemporalCpdag"): [CP + "a_temporal_cpdag_is_the_mean_of_its_temporal_dag_completions", ARTIFACTS + "temporal_class_attributions_publish_an_artifact_a_consumer_reads"],
+    ("AnomalyAttribution", "TemporalPag"): [ARTIFACTS + "temporal_class_attributions_publish_an_artifact_a_consumer_reads"],
+    ("AnomalyAttribution", "TemporalAdmg"): [CP + "a_temporal_admg_whose_latent_edge_misses_the_ancestors_is_the_temporal_dag_route", ARTIFACTS + "temporal_class_attributions_publish_an_artifact_a_consumer_reads"],
+    ("ChangeAttribution", "Admg"): [CP + "an_admg_change_matches_the_known_shift_of_each_block", ARTIFACTS + "static_class_attributions_publish_an_artifact_a_consumer_reads"],
+    ("ChangeAttribution", "Cpdag"): [CP + "a_cpdag_change_that_every_member_agrees_on_keeps_one_value", ARTIFACTS + "static_class_attributions_publish_an_artifact_a_consumer_reads"],
+    ("ChangeAttribution", "Pag"): [GP + "a_change_attribution_carries_the_graph_sensitivity_across_the_atoms", ARTIFACTS + "static_class_attributions_publish_an_artifact_a_consumer_reads"],
+    ("ChangeAttribution", "TemporalCpdag"): [CP + "a_temporal_cpdag_is_the_mean_of_its_temporal_dag_completions", ARTIFACTS + "temporal_class_attributions_publish_an_artifact_a_consumer_reads"],
+    ("ChangeAttribution", "TemporalPag"): [ARTIFACTS + "temporal_class_attributions_publish_an_artifact_a_consumer_reads"],
+    ("ChangeAttribution", "TemporalAdmg"): [ARTIFACTS + "temporal_class_attributions_publish_an_artifact_a_consumer_reads"],
+    ("Counterfactual", "Admg"): [CF + "an_admg_counterfactual_is_the_enumerated_effect_on_the_treated", CF + "the_bayesian_bootstrap_posterior_centres_on_the_identified_functional", CF + "every_class_counterfactual_publishes_an_artifact_a_consumer_reads"],
+    ("Counterfactual", "Cpdag"): [CF + "a_cpdag_whose_completions_disagree_publishes_the_mean_and_the_identified_set", CF + "every_class_counterfactual_publishes_an_artifact_a_consumer_reads"],
+    ("Counterfactual", "Pag"): [CF + "a_pag_is_read_through_the_admgs_its_mag_stands_for", CF + "every_class_counterfactual_publishes_an_artifact_a_consumer_reads"],
+    ("Counterfactual", "TemporalAdmg"): [CF + "a_temporal_admg_reads_its_contemporaneous_projection_and_resamples_in_blocks", CF + "every_class_counterfactual_publishes_an_artifact_a_consumer_reads"],
+    ("MediationEffect", "Admg"): [MM + "an_admg_decomposition_is_the_counted_total_direct_and_indirect_effect", MM + "the_bayesian_bootstrap_pairs_the_component_posteriors", MM + "mixed_graph_mediation_and_distribution_publish_an_artifact_a_consumer_reads"],
+    ("MediationEffect", "Cpdag"): [MM + "the_contemporaneous_projection_and_a_fully_oriented_cpdag_give_the_same_decomposition", MM + "mixed_graph_mediation_and_distribution_publish_an_artifact_a_consumer_reads"],
+    ("MediationEffect", "Pag"): [MV + "a_pag_decomposition_is_refuted_member_by_member_against_the_structural_effect", MV + "a_pag_decomposition_publishes_an_artifact_a_consumer_reads"],
+    ("MediationEffect", "TemporalAdmg"): [MM + "a_temporal_admg_window_with_one_period_reproduces_the_counted_decomposition", MM + "mixed_graph_mediation_and_distribution_publish_an_artifact_a_consumer_reads"],
+    ("TemporalMediationEffect", "TemporalPag"): [T + "temporal_pag_mediation.rs::a_lagged_window_matches_the_structural_decomposition_of_the_series", T + "temporal_pag_mediation.rs::a_temporal_pag_decomposition_publishes_an_artifact_a_consumer_reads"],
+    ("TemporalMediationEffect", "TemporalAdmg"): [MM + "a_temporal_admg_window_with_one_period_reproduces_the_counted_decomposition", MM + "mixed_graph_mediation_and_distribution_publish_an_artifact_a_consumer_reads", T + "temporal_admg_posterior.rs::a_mediation_posterior_mixes_each_component_over_the_atoms_that_identify_it"],
+    ("NestedCounterfactualEffect", "Admg"): [PS + "natural_direct_effect_with_covariate_confounding_matches_the_structural_effect", PS + "contracted_results_round_trip_through_the_consumer"],
+    ("NestedCounterfactualEffect", "Cpdag"): [PS + "the_natural_direct_effect_over_a_class_matches_its_one_completion", PS + "contracted_results_round_trip_through_the_consumer"],
+    ("NestedCounterfactualEffect", "Pag"): [PP + "the_natural_direct_effect_over_a_pag_lies_in_its_identified_set", PP + "contracted_pag_results_round_trip_through_the_consumer"],
+    ("NestedCounterfactualEffect", "TemporalAdmg"): [PS + "contracted_results_round_trip_through_the_consumer", PS + "prepared_handles_run_through_the_estimator_route_and_equal_a_fresh_run"],
+    ("PathSpecificEffect", "Admg"): [PS + "effect_through_a_confounded_child_uses_the_district_formula", PS + "a_bootstrap_interval_accompanies_the_frequentist_point", PS + "contracted_results_round_trip_through_the_consumer"],
+    ("PathSpecificEffect", "Cpdag"): [PS + "a_class_with_one_completion_reproduces_the_structural_effect", PS + "completions_that_disagree_publish_the_identified_set", PS + "contracted_results_round_trip_through_the_consumer"],
+    ("PathSpecificEffect", "Pag"): [PP + "a_pag_with_visible_edges_reproduces_the_structural_effect", PP + "a_bootstrap_interval_accompanies_the_pag_point", PP + "contracted_pag_results_round_trip_through_the_consumer"],
+    ("PathSpecificEffect", "TemporalAdmg"): [PS + "contracted_results_round_trip_through_the_consumer", PS + "prepared_handles_run_through_the_estimator_route_and_equal_a_fresh_run"],
+    ("InterventionalDistribution", "Cpdag"): [MM + "a_cpdag_whose_completions_agree_gives_the_counted_interventional_distribution", MM + "completions_that_disagree_publish_the_identified_set_of_each_atom", MM + "mixed_graph_mediation_and_distribution_publish_an_artifact_a_consumer_reads"],
+    ("InterventionalDistribution", "Pag"): [MV + "a_pag_interventional_distribution_publishes_an_artifact_a_consumer_reads"],
+    ("PulseEffect", "TemporalAdmg"): [TA + "a_pulse_is_the_counted_contrast_and_stays_unlicensed", TA + "overlapping_windows_are_resampled_in_blocks_and_never_row_by_row", TA + "the_bayesian_form_shares_one_dirichlet_weight_per_block"],
+    ("SustainedEffect", "TemporalAdmg"): [TA + "a_sustained_contrast_sets_every_treated_period", TA + "overlapping_windows_are_resampled_in_blocks_and_never_row_by_row"],
+    ("TemporalConditionalPulse", "TemporalAdmg"): [TA + "a_conditional_contrast_is_idc_on_the_same_window", T + "admg_conditional_effect.rs::a_temporal_admg_conditional_is_the_contemporaneous_projection_contrast"],
+    ("TemporalConditionalSustained", "TemporalAdmg"): [TA + "a_conditional_sustained_contrast_is_idc_on_the_same_window"],
+    ("ConditionalEffect", "TemporalAdmg"): [T + "admg_conditional_effect.rs::a_temporal_admg_conditional_is_the_contemporaneous_projection_contrast", T + "graph_posterior_functional_routes.rs::the_temporal_admg_conditional_mixture_is_the_counted_contrast_with_the_lost_mass", T + "graph_posterior_functional_routes.rs::the_bayesian_temporal_admg_conditional_pools_the_atoms_draw_by_draw"],
+    ("TransportQuery", "Dag"): [T + "checked_transport_trial_route_evidence.rs::a_dag_is_the_confounder_free_selection_diagram_of_a_transport_query", T + "checked_transport_trial_route_evidence.rs::transport_trial_executes_from_retained_sid_proof_after_builder_drop"],
+    ("TransportQuery", "Cpdag"): [CD + "a_cpdag_and_a_pag_transport_publish_an_artifact_a_consumer_reads", CD + "a_cpdag_and_a_pag_run_the_transport_suite_on_both_inferences", T + "graph_posterior_exposure_routes.rs::a_cpdag_whose_members_certify_different_formulas_is_partially_identified"],
+    ("TransportQuery", "Pag"): [CD + "a_cpdag_and_a_pag_transport_publish_an_artifact_a_consumer_reads", CD + "a_cpdag_and_a_pag_run_the_transport_suite_on_both_inferences", T + "graph_posterior_exposure_routes.rs::a_pag_is_read_through_the_graphs_its_completions_stand_for"],
+}
+for _class in ("Admg", "Cpdag", "Pag", "TemporalAdmg"):
+    CLOSED_EVIDENCE[("InterferenceQuery", _class)] = [
+        CD + "every_class_interference_route_publishes_an_artifact_a_consumer_reads",
+        T + "staged_attribution_transport_interference.rs::interference_is_stated_under_every_static_structure_class_with_the_design_identification",
+        CD + "supplied_exposure_probabilities_are_checked_against_the_realized_exposures_on_every_class",
+    ]
+    for _q in ("AverageDerivative", "PointDerivative", "DirectionalDerivative", "Elasticity", "SemiElasticity", "ResponseJacobian"):
+        CLOSED_EVIDENCE[(_q, _class)] = list(DERIVATIVE_TEMPORAL if _class == "TemporalAdmg" else DERIVATIVE_STATIC)
+for (_q, _class), _tests in CLOSED_EVIDENCE.items():
+    _rid = f"closed.{_q}.{_class}"
+    EVIDENCE_OVERRIDE[_rid] = _tests
+    DECLARED_KIND[_rid] = "design_aware_resampling"
+    IMPLEMENTATION_EXTRA[_rid] = CLOSED_IMPLEMENTATION[_q]
+
+
 def sources_of(ev: Evidence, m: dict) -> list[str]:
     owner = m["owning_module"]
     files = [owner] if (ev.root / owner).is_file() else []
-    if m["route"] in IMPLEMENTATION_EXTRA:
-        files.append(IMPLEMENTATION_EXTRA[m["route"]])
+    files.extend(implementation_extra(m["route"]))
     folder = (ev.root / owner).parent
     stem = Path(owner).stem
     for sibling in sorted(folder.glob(f"{stem}*.rs")) + sorted((folder / stem).glob("*.rs") if (folder / stem).is_dir() else []):

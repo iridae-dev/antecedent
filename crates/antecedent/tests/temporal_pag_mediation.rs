@@ -376,3 +376,28 @@ fn a_request_for_two_horizons_is_refused_with_the_next_attempt() {
         .unwrap_err();
     assert!(error.to_string().contains("one outcome horizon"), "{error}");
 }
+
+/// The temporal PAG decomposition publishes a contracted result that an independent consumer
+/// reads back, for both inferences.
+#[test]
+fn a_temporal_pag_decomposition_publishes_an_artifact_a_consumer_reads() {
+    let ctx = ExecutionContext::for_tests(76);
+    let series = contemporaneous_series(20_000.0);
+    for inference in
+        [InferenceMode::Frequentist, InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(8))]
+    {
+        let built = study(
+            series.clone(),
+            contemporaneous_template(),
+            query(MediationContrast::NaturalDirect),
+            inference,
+            0,
+        );
+        let prepared = built.prepare(&ctx).unwrap();
+        let result = prepared.estimate_retained(&ctx).unwrap();
+        let artifact =
+            prepared.encode_contracted_result(&result, "temporal-pag-mediation", &ctx).unwrap();
+        let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+        assert_eq!(consumed.body.estimate, Some(result.effect()));
+    }
+}

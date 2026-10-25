@@ -1147,3 +1147,165 @@ fn temporal_panel_fits_a_broader_family_through_the_same_selection_procedure() {
     assert!(!prepared.inspect().identification.is_identified_claim());
     assert!(result.point.iter().all(|world| world.means.len() == 24));
 }
+
+fn temporal_frame_spec() -> antecedent_estimate::joint_panel::time_varying::TemporalPanelSpec {
+    use antecedent_estimate::joint_panel::time_varying::{PanelMeanParameter, TemporalPanelSpec};
+    TemporalPanelSpec {
+        varying: vec![PanelMeanParameter::Interaction { id: "ab".into() }],
+        change_points: vec![8, 12, 16],
+        minimum_segment: 4,
+        weak_change_gap: 4.0,
+        smooth_knots: vec![0, 8, 16, 23],
+        smoothing: vec![1.0],
+        path_prior_sd: 1.0,
+    }
+}
+
+/// Reference worlds chosen on the time-varying fit: the early and the late fitted mechanism
+/// periods stand for the before and after worlds of one unchanged program. The component
+/// blocks are checked against arithmetic that does not use the decomposition owner: the
+/// retained world responses, the efficiency of the exact orderings, antisymmetry under
+/// swapping the endpoints, and invariance of every hybrid that does not take the changed block.
+fn exercise_temporal_reference_worlds(
+    result: &antecedent::analysis::joint_panel::JointPanelResult,
+    ctx: &ExecutionContext,
+) {
+    use antecedent::analysis::joint_panel::{
+        ChangeComponent, DecompositionEndpoint, MechanismPeriodMap, PanelDecompositionRequest,
+    };
+    let JointPanelFit::Varying(fit) = &result.fit else { panic!("time-varying fit") };
+    let worlds = &result.request().worlds;
+    let horizon = worlds[0].horizon();
+    let groups = result.prepared().model_data().groups.len();
+    let weights = vec![1.0 / groups as f64; groups];
+    let endpoint = |index: usize| DecompositionEndpoint {
+        program: worlds[index].program.clone(),
+        population_weights: weights.clone(),
+    };
+    let mut terminal = vec![0.0; horizon];
+    terminal[horizon - 1] = 1.0;
+    let order = [
+        ChangeComponent::Exposure,
+        ChangeComponent::Saturation,
+        ChangeComponent::Population,
+        ChangeComponent::Mechanism,
+    ];
+    let request = |before: usize, after: usize| PanelDecompositionRequest {
+        before: endpoint(before),
+        after: endpoint(after),
+        time_weights: terminal.clone(),
+        order,
+    };
+    let identity: Vec<usize> = (0..horizon).collect();
+    // The late-period mechanism replaces the early one at every response period.
+    let early = vec![0; horizon];
+    let late = vec![horizon - 1; horizon];
+    let changed = MechanismPeriodMap { before: early.clone(), after: late.clone() };
+    let same = MechanismPeriodMap { before: identity.clone(), after: identity.clone() };
+    let forward = result.decompose_reference(&request(0, 3), &changed, ctx).unwrap();
+    let swapped = result
+        .decompose_reference(
+            &request(3, 0),
+            &MechanismPeriodMap { before: late.clone(), after: early.clone() },
+            ctx,
+        )
+        .unwrap();
+    let held = result.decompose_reference(&request(0, 3), &same, ctx).unwrap();
+    assert_eq!(forward.draws.len(), result.draws.len(), "no slot is dropped or renumbered");
+    let check = |a: &antecedent::analysis::joint_panel::ReferenceDecomposition,
+                 b: &antecedent::analysis::joint_panel::ReferenceDecomposition| {
+        assert!((a.shapley.iter().sum::<f64>() - a.total).abs() < 1e-9, "efficiency");
+        assert!((a.total + b.total).abs() < 1e-9, "swapping the endpoints negates the total");
+        for j in 0..4 {
+            assert!((a.shapley[j] + b.shapley[j]).abs() < 1e-9, "antisymmetry");
+        }
+        // Complementing every block of a hybrid is the same world seen from the other endpoint.
+        for mask in 0..16usize {
+            assert!((a.hybrids[mask] - b.hybrids[mask ^ 15]).abs() < 1e-9, "hybrid {mask}");
+        }
+    };
+    check(&forward.point, &swapped.point);
+    for (f, s) in forward.draws.iter().zip(&swapped.draws) {
+        assert_eq!(f.is_some(), s.is_some());
+        if let (Some(f), Some(s)) = (f, s) {
+            check(f, s);
+        }
+    }
+    // Independent of the owner: the fit's own point worlds. With the identity map and an
+    // exposure-only endpoint change the all-after hybrid is the fitted terminal response.
+    let terminal_of = |world: usize| *result.point[world].means.last().unwrap();
+    assert!((held.point.hybrids[0] - terminal_of(0)).abs() < 1e-9);
+    assert!((held.point.hybrids[15] - terminal_of(3)).abs() < 1e-9);
+    // The change block moves the response exactly when the fitted early and late periods differ.
+    let early_p = &fit.point.parameters[0];
+    let late_p = &fit.point.parameters[horizon - 1];
+    let moved = format!("{early_p:?}") != format!("{late_p:?}");
+    let mechanism_effect = forward.point.hybrids[8] - forward.point.hybrids[0];
+    if !moved {
+        assert!(mechanism_effect.abs() < 1e-9, "an unchanged mechanism has no change effect");
+    }
+    // The change-point/smoothing selection is carried through the decomposed law.
+    let split = result.decomposition_selection(&forward).unwrap().unwrap();
+    let complete = forward.draws.iter().flatten().count();
+    assert_eq!((split.requested, split.complete), (forward.draws.len(), complete));
+    assert_eq!(split.specifications.iter().map(|s| s.slots).sum::<usize>(), complete);
+    assert!((split.specifications.iter().map(|s| s.mass).sum::<f64>() - 1.0).abs() < 1e-12);
+    // This design earns no proof of the mechanism block: the finer claim is executed as
+    // model-conditional and names the next design instead of calling any step identified.
+    let adaptive = result
+        .attempt_design_adaptive_reference(&request(0, 3), &changed, None, ctx)
+        .unwrap();
+    assert!(!adaptive.is_complete() && adaptive.identified_steps.is_empty());
+    assert!(adaptive.next_designs.iter().any(|step| {
+        step.obligation
+            == antecedent::analysis::joint_panel::ReferenceObligation::MissingIdentificationProof
+    }));
+}
+
+#[test]
+fn temporal_frequentist_frame_decomposes_on_reference_worlds_and_translates_experiments() {
+    let ctx = cached_context(20_261_041);
+    let data = fixture::source(false);
+    let mut request = fixture::request(&data, false, PanelInference::Frequentist { draws: 8 });
+    request.temporal = Some(temporal_frame_spec());
+    let prepared = Study::prepare_joint_panel(data, request, &ctx).unwrap();
+    let result = prepared.estimate(&ctx).unwrap();
+    let JointPanelFit::Varying(fit) = &result.fit else { panic!("retained temporal program") };
+    assert_eq!(fit.calibration, "unmeasured");
+    assert!(result.draws.iter().flatten().count() > 0);
+    assert!(!prepared.inspect().identification.is_identified_claim());
+    exercise_reference_decomposition(&result, &ctx);
+    exercise_temporal_reference_worlds(&result, &ctx);
+    experiment_chain::exercise_frequentist_boundary(&prepared, &result, &ctx);
+}
+
+#[test]
+fn temporal_bayesian_frame_decomposes_on_reference_worlds_and_translates_experiments() {
+    let ctx = cached_context(20_261_042);
+    let data = fixture::source(false);
+    // Effort and thresholds are stated for a deliberately small debug-time panel; they do not
+    // change the production defaults, and the fit keeps its own convergence verdict.
+    let sampler = antecedent_estimate::joint_panel::PanelSamplingOptions {
+        chains: 2,
+        warmup: 150,
+        draws: 150,
+        proposal_scale: 0.2,
+        max_rhat: 5.0,
+        min_ess: 1.0,
+    };
+    let mut request = fixture::request(
+        &data,
+        false,
+        PanelInference::Bayesian { prior: PanelPrior::default(), sampler },
+    );
+    request.temporal = Some(temporal_frame_spec());
+    let prepared = Study::prepare_joint_panel(data, request, &ctx).unwrap();
+    let result = prepared.estimate(&ctx).unwrap();
+    let JointPanelFit::Varying(fit) = &result.fit else { panic!("retained temporal program") };
+    assert_eq!(result.draws.len(), 300);
+    assert!(fit.posterior_diagnostics.is_some());
+    assert!(!prepared.inspect().identification.is_identified_claim());
+    exercise_reference_decomposition(&result, &ctx);
+    exercise_temporal_reference_worlds(&result, &ctx);
+    experiment_chain::exercise(&prepared, &result, &ctx);
+}

@@ -276,7 +276,14 @@ reason = "Cheap and full validation of a ConditionalEffect on a TemporalAdmg run
 [[closed]]
 queries = ["ConditionalEffect"]
 graph_classes = ["TemporalAdmg"]
-reason = "ConditionalEffect on a TemporalAdmg runs at validation none over a supplied or accepted template (the rule above); cheap and full have no refuter suite for the IDC contrast over a modifier law, and graph-posterior mixing over TemporalAdmg atoms is not staged."
+structures = ["graph_posterior"]
+executes_unlicensed = true
+reason = "A ConditionalEffect on a graph posterior of TemporalAdmg atoms reads tabular rows, which carry no time index, so every atom is read as the contemporaneous projection of its template (each variable once, at lag 0, with the template's directed and bidirected edges) and answered by the executor the query has on a supplied ADMG: the modifier-conditioned IDC contrast on a latent-confounded atom, the DAG estimator on a latent-free one. The atoms mix by posterior probability. An atom the identifier refuses is unidentified posterior mass and an atom whose estimator cannot be evaluated is unevaluable mass; neither is redistributed, the result states both and resolves its status to graph-dependent when either exceeds the tolerance. The uncertainty of a mixture: one contributing atom carries its own interval and posterior; several atoms that report row influence publish the interval of the weighted influence on one shared sample, and otherwise are re-run on shared resampled tables with the standard error the spread of the draw-wise posterior-weighted mixture (Frequentist), or their draws are pooled draw by draw because every atom runs in one context (Bayesian); an interval that cannot be formed is withheld with the reason stated (estimate.graph_posterior.uncertainty_withheld). Cheap and full run each atom's own refuter suite against that atom's own estimate and mix the reports of each refuter by the posterior weight of the atoms that produced them; a mixed verdict passes only if every contributing atom passes, and a refuter that ran on only part of the contributing mass says so (refute.envelope.partial_coverage). It is not the temporal conditional contrast, which is TemporalConditionalPulse or TemporalConditionalSustained on one series. The result keeps support status refused: no evidence row or coverage record names the cell."
+
+[[closed]]
+queries = ["ConditionalEffect"]
+graph_classes = ["TemporalAdmg"]
+reason = "ConditionalEffect on a TemporalAdmg runs over a supplied or accepted template (the rules above) and over a graph posterior (the rule below); every other coordinate of the query on a TemporalAdmg is refused."
 
 [[closed]]
 queries = ["ConditionalEffect"]

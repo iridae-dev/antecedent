@@ -328,6 +328,116 @@ fn the_bayesian_conditional_mixture_pools_the_atoms_draw_by_draw() {
     });
 }
 
+/// A posterior of temporal-ADMG atoms over the same three tabular variables: each atom is read
+/// as the contemporaneous projection of its template.
+fn temporal_admg_posterior(masks: &[u64], weights: &[f64]) -> GraphPosterior {
+    let n = 3;
+    GraphPosterior::new(
+        n,
+        weights.to_vec(),
+        masks.to_vec(),
+        vec![0.0; n * n],
+        vec![0.0; n * n],
+        sampling("graph_posterior_functional_temporal_admg"),
+    )
+    .unwrap()
+    .with_atom_kind(GraphPosteriorAtomKind::TemporalAdmg)
+}
+
+#[test]
+fn the_temporal_admg_conditional_mixture_is_the_counted_contrast_with_the_lost_mass() {
+    on_large_stack(|| {
+        let graphs = [mask_of(&confounded_modifier()), mask_of(&modifier_outside()), refused_mask()];
+        let weights = [0.5, 0.3, 0.2];
+        let posterior = temporal_admg_posterior(&graphs, &weights);
+        let keys = posterior.graph_keys.clone();
+        let study = conditional_study(posterior, InferenceMode::Frequentist, 80);
+        assert_eq!(study.support_status(), Some(CellStatus::Refused));
+        let ctx = ExecutionContext::for_tests(8_901);
+        let result = study.run(&ctx).unwrap();
+        // The contrast is the modifier-stratified difference counted from the contingency table.
+        let counted = stratified_difference();
+        assert!((ate(&result) - counted).abs() < 1e-9, "{} vs {counted}", ate(&result));
+        assert_eq!(result.support_status, Some(CellStatus::Refused));
+        assert_eq!(result.identification.status, IdentificationStatus::GraphDependent);
+        let mixture = result.structural_response.as_ref().expect("a structural mixture");
+        assert!((mixture.identified_mass - 0.8).abs() < 1e-9, "{}", mixture.identified_mass);
+        assert!((mixture.unidentified_mass + mixture.unevaluable_mass - 0.2).abs() < 1e-9);
+        for key in [keys[0], keys[1]] {
+            match value_of(&result, key) {
+                Some(ResponseValue::Scalar(value)) => assert!((value - counted).abs() < 1e-12),
+                other => panic!("an identified atom carries its own contrast, got {other:?}"),
+            }
+        }
+        assert!(value_of(&result, keys[2]).is_none());
+        assert!(has(&result, "estimate.graph_posterior.atom_route"));
+        // The same posterior over Admg atoms answers identically: the projection is the atom.
+        let admg = conditional_study(admg_posterior(&graphs, &weights), InferenceMode::Frequentist, 80)
+            .run(&ExecutionContext::for_tests(8_901))
+            .unwrap();
+        assert!((ate(&admg) - ate(&result)).abs() < 1e-12);
+        let se = result.estimate.as_effect().unwrap().se_analytic();
+        assert!(se.is_finite() && se > 0.01 && se < 0.2, "{se}");
+        // No atom identifies: the identifier's refusal.
+        let none = conditional_study(
+            temporal_admg_posterior(&[refused_mask(), refused_mask()], &[0.5, 0.5]),
+            InferenceMode::Frequentist,
+            0,
+        )
+        .run(&ExecutionContext::for_tests(8_902))
+        .unwrap_err();
+        assert!(none.is_identification_refusal(), "{none}");
+    });
+}
+
+#[test]
+fn the_bayesian_temporal_admg_conditional_pools_the_atoms_draw_by_draw() {
+    on_large_stack(|| {
+        let posterior = temporal_admg_posterior(
+            &[mask_of(&confounded_modifier()), mask_of(&modifier_outside())],
+            &[0.6, 0.4],
+        );
+        let study = conditional_study(
+            posterior,
+            InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(256).prior_scale(1_000.0)),
+            0,
+        );
+        let result = study.run(&ExecutionContext::for_tests(8_903)).unwrap();
+        let pooled = result.posterior.as_ref().expect("the atoms ran in one context");
+        assert_eq!(pooled.draws.n_draws, 256);
+        assert!((ate(&result) - stratified_difference()).abs() < 0.03);
+        assert!(has(&result, "estimate.graph_posterior.atom_route"));
+    });
+}
+
+#[test]
+fn a_temporal_admg_conditional_mixture_mixes_the_atoms_refuter_reports() {
+    on_large_stack(|| {
+        for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
+            let result = Study::tabular(conditional_data())
+                .graph_posterior(temporal_admg_posterior(
+                    &[mask_of(&confounded_modifier()), mask_of(&modifier_outside())],
+                    &[0.6, 0.4],
+                ))
+                .query(conditional_query())
+                .refute(suite)
+                .bootstrap_replicates(20)
+                .build()
+                .unwrap()
+                .run(&ExecutionContext::for_tests(8_904))
+                .unwrap();
+            assert_eq!(result.support_status, Some(CellStatus::Refused));
+            assert!(!result.refutations.is_empty());
+            let mut ids: Vec<&str> =
+                result.refutations.iter().map(|r| r.refuter.as_ref()).collect();
+            let before = ids.len();
+            ids.sort_unstable();
+            ids.dedup();
+            assert_eq!(ids.len(), before, "reports of one refuter are mixed: {ids:?}");
+        }
+    });
+}
+
 // ---------------------------------------------------------------------------
 // Derivatives over a posterior of Dag atoms.
 // ---------------------------------------------------------------------------

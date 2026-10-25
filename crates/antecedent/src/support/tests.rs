@@ -580,15 +580,20 @@ fn closed_conditional_effect_off_dag_is_enforced() {
     assert!(super::executes_unlicensed(temporal), "TemporalAdmg");
     let message = refuse_if_not_applicable(temporal).unwrap_err().to_string();
     assert!(message.contains("TemporalConditionalPulse"), "TemporalAdmg: {message}");
-    // Validation over the projection runs the functional refuter state, unlicensed; graph-posterior
-    // mixing over the projection stays refused.
+    // Validation over the projection runs the functional refuter state, unlicensed; a graph
+    // posterior of temporal atoms is mixed atom by atom at every validation and inference.
     for validation in ["cheap", "full"] {
         let c = cell("ConditionalEffect", "TemporalAdmg", "explicit", "Frequentist", validation);
         assert!(super::executes_unlicensed(c), "{c:?}");
     }
-    let posterior =
-        cell("ConditionalEffect", "TemporalAdmg", "graph_posterior", "Frequentist", "cheap");
-    assert!(!super::executes_unlicensed(posterior), "{posterior:?}");
+    for inference in ["Frequentist", "Bayesian"] {
+        for validation in ["none", "cheap", "full"] {
+            let posterior =
+                cell("ConditionalEffect", "TemporalAdmg", "graph_posterior", inference, validation);
+            assert_eq!(classify(posterior), CellStatus::Refused, "{posterior:?}");
+            assert!(super::executes_unlicensed(posterior), "{posterior:?}");
+        }
+    }
     for graph in ["Cpdag", "Pag"] {
         for inference in ["Frequentist", "Bayesian"] {
             for validation in ["none", "cheap", "full"] {

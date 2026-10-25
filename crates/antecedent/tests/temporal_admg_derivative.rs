@@ -349,3 +349,87 @@ fn a_front_door_slope_on_the_window_is_estimated_not_refused() {
         "the block bootstrap must publish an interval"
     );
 }
+
+/// Every derivative family on the temporal window publishes an artifact that an independent
+/// consumer reads back, for both inferences.
+#[test]
+fn every_derivative_functional_on_a_temporal_admg_publishes_a_consumable_artifact() {
+    use antecedent_core::DerivativeWeighting;
+    use std::sync::Arc;
+
+    let data = series();
+    let point = |scale| ResponseFunctional::PointDerivative {
+        outcome: v(Y),
+        treatment: v(X),
+        at: 2.0,
+        order: 1,
+        scale,
+    };
+    let functionals = [
+        ("point", point(DerivativeScale::Identity)),
+        ("elasticity", point(DerivativeScale::LogLog)),
+        ("semi_treatment", point(DerivativeScale::LogTreatment)),
+        (
+            "average",
+            ResponseFunctional::AverageDerivative {
+                outcome: v(Y),
+                treatment: v(X),
+                weighting: DerivativeWeighting::Observed,
+            },
+        ),
+        (
+            "jacobian",
+            ResponseFunctional::Jacobian {
+                outcomes: Arc::from([v(Y)]),
+                treatments: Arc::from([v(X)]),
+                at: Arc::from([2.0]),
+                scale: DerivativeScale::Identity,
+            },
+        ),
+        (
+            "directional",
+            ResponseFunctional::DirectionalDerivative {
+                outcomes: Arc::from([v(Y)]),
+                treatments: Arc::from([v(X)]),
+                at: Arc::from([2.0]),
+                direction: Arc::from([1.0]),
+            },
+        ),
+    ];
+    let ctx = ExecutionContext::for_tests(21);
+    for (mode, inference) in [
+        ("frequentist", InferenceMode::Frequentist),
+        ("bayesian", InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(16))),
+    ] {
+        for (key, functional) in &functionals {
+            let label = format!("{key} {mode}");
+            let query = CausalQuery::Response(
+                ResponseQuery::new(functional.clone()).with_temporal(
+                    TemporalResponseSpec::new(vec![1_u32], TemporalPolicy::pulse(-1), None)
+                        .unwrap(),
+                ),
+            );
+            let study = Study::series(data.clone())
+                .graph(template())
+                .query(query)
+                .inference(inference.clone())
+                .refute(RefuteSuite::None)
+                .bootstrap_replicates(0)
+                .build()
+                .unwrap();
+            let prepared = study.prepare(&ctx).unwrap_or_else(|e| panic!("{label}: {e}"));
+            let result =
+                prepared.estimate_series(&data, &ctx).unwrap_or_else(|e| panic!("{label}: {e}"));
+            let artifact = prepared
+                .encode_contracted_result(&result, &format!("temporal-admg-{key}"), &ctx)
+                .unwrap_or_else(|e| panic!("{label}: {e}"));
+            let consumed = antecedent_io::consume_analysis_result(&artifact)
+                .unwrap_or_else(|e| panic!("{label}: {e}"));
+            assert!(
+                consumed.acceptance.accepts_as_verified_program()
+                    || !consumed.acceptance.unresolved.is_empty(),
+                "{label}: the consumer must verify or explain"
+            );
+        }
+    }
+}

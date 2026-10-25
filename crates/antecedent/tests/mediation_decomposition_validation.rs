@@ -924,3 +924,50 @@ fn a_pulse_posterior_runs_the_window_suite_per_atom_and_mixes_the_reports() {
         assert!(stretch.original_ate.is_finite() && stretch.refuted_ate.is_finite());
     }
 }
+
+/// A PAG decomposition publishes a contracted result that an independent consumer reads back.
+#[test]
+fn a_pag_decomposition_publishes_an_artifact_a_consumer_reads() {
+    let ctx = ExecutionContext::for_tests(207);
+    let query = MediationQuery::binary(var(2), var(4), [var(3)], MediationContrast::NaturalDirect);
+    for inference in [InferenceMode::Frequentist, bayesian()] {
+        let built = Study::tabular(mediated_data())
+            .graph(mediated_pag())
+            .query(CausalQuery::Mediation(query.clone()))
+            .inference(inference)
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap();
+        let prepared = built.prepare(&ctx).unwrap();
+        let result = prepared.estimate_retained(&ctx).unwrap();
+        let artifact =
+            prepared.encode_contracted_result(&result, "pag-mediation", &ctx).unwrap();
+        let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+        assert_eq!(consumed.body.estimate, Some(result.effect()));
+    }
+}
+
+/// The interventional distribution of the outcome on a PAG with visible edges publishes a
+/// contracted result that an independent consumer reads back.
+#[test]
+fn a_pag_interventional_distribution_publishes_an_artifact_a_consumer_reads() {
+    let ctx = ExecutionContext::for_tests(208);
+    let query = antecedent_core::InterventionalDistributionQuery::new(
+        var(4),
+        [antecedent_core::Intervention::set(var(2), antecedent_core::Value::f64(1.0))],
+    );
+    let built = Study::tabular(mediated_data())
+        .graph(mediated_pag())
+        .query(CausalQuery::Distribution(query))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let prepared = built.prepare(&ctx).unwrap();
+    let result = prepared.estimate_retained(&ctx).unwrap();
+    assert!(result.payload.distribution().is_some());
+    let artifact = prepared.encode_contracted_result(&result, "pag-distribution", &ctx).unwrap();
+    let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+    assert!(consumed.body.interventional_distribution.is_some());
+}

@@ -490,6 +490,14 @@ fn route_cases() -> Vec<(&'static str, antecedent::analysis::StudyBuilder, Tabul
         routed_data(),
     ));
     cases.push((
+        "temporal_admg_nested",
+        Study::tabular(covariate_data())
+            .graph(temporal(&covariate_admg()))
+            .query(nested())
+            .refute(RefuteSuite::None),
+        covariate_data(),
+    ));
+    cases.push((
         "cpdag_path",
         Study::tabular(markovian_data())
             .graph(compelled_cpdag())

@@ -51,10 +51,10 @@ reduced claim, the failed attempt and the next attempt are recorded beside it. A
 | `P13.attribution` | licensed | licensed | licensed | licensed |
 | `P13.refuter` | executing | executing | executing | executing |
 | `P14` | licensed | licensed | licensed | licensed |
-| `P15.conditional` | licensed | licensed | licensed | licensed |
+| `P15.conditional` | licensed | licensed | executing | executing |
 | `P15.projection` | licensed | licensed | licensed | licensed |
-| `P15.pulse` | n/a (theory) | n/a (theory) | licensed | licensed |
-| `P15.sustained` | n/a (theory) | n/a (theory) | licensed | licensed |
+| `P15.pulse` | n/a (theory) | n/a (theory) | executing | executing |
+| `P15.sustained` | n/a (theory) | n/a (theory) | executing | executing |
 | `P16` | executing | executing | executing | executing |
 | `P17` | executing | executing | executing | executing |
 | `P18` | executing | executing | executing | executing |
@@ -126,12 +126,12 @@ reduced claim, the failed attempt and the next attempt are recorded beside it. A
 | `P13.refuter.temporal.bayesian` | executing | measure the whole-procedure coverage of this interval and record its boundary |
 | `P14.temporal.frequentist` | licensed | measure the whole-procedure coverage of this interval and record its boundary |
 | `P14.temporal.bayesian` | licensed | measure the whole-procedure coverage of this interval and record its boundary |
-| `P15.conditional.temporal.frequentist` | licensed | measure the whole-procedure coverage of this interval and record its boundary |
-| `P15.conditional.temporal.bayesian` | licensed | measure the whole-procedure coverage of this interval and record its boundary |
-| `P15.pulse.temporal.frequentist` | licensed | measure the whole-procedure coverage of this interval and record its boundary |
-| `P15.pulse.temporal.bayesian` | licensed | measure the whole-procedure coverage of this interval and record its boundary |
-| `P15.sustained.temporal.frequentist` | licensed | measure the whole-procedure coverage of this interval and record its boundary |
-| `P15.sustained.temporal.bayesian` | licensed | measure the whole-procedure coverage of this interval and record its boundary |
+| `P15.conditional.temporal.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |
+| `P15.conditional.temporal.bayesian` | executing | measure the whole-procedure coverage of this interval and record its boundary |
+| `P15.pulse.temporal.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |
+| `P15.pulse.temporal.bayesian` | executing | measure the whole-procedure coverage of this interval and record its boundary |
+| `P15.sustained.temporal.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |
+| `P15.sustained.temporal.bayesian` | executing | measure the whole-procedure coverage of this interval and record its boundary |
 | `P16.static.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |
 | `P16.static.bayesian` | executing | measure the whole-procedure coverage of this interval and record its boundary |
 | `P16.temporal.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |

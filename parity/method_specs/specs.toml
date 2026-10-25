@@ -22,7 +22,7 @@ provenance = [
   "estimate.gcomp",
   "estimate.temporal_linear_adjustment",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 41 of 41 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 41 of 42 public items reviewed"
 identifying_result = "AverageEffect identified by backdoor.adjustment"
 assumptions = "the identification premises of AverageEffect on the recorded route; the module documents no further premise"
 sampling_units = "independent rows of the declared sample; the study's sampling design may declare clusters or weights"
@@ -221,7 +221,7 @@ decision_basis = "licensed per the counterpart inventory; execution crates/antec
 provenance = [
   "estimate.gcomp",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 18 of 18 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 18 of 19 public items reviewed"
 identifying_result = "Fits a logistic GLM Y ~ T + Z and recovers the ATE by finite-difference g-computation: the fitted model is evaluated at T = active and T = control for every row (holding Z fixed), and the ATE is the mean of the per-row predicted-probability contrast."
 assumptions = "the identification premises of AverageEffect on the recorded route; the module documents no further premise"
 sampling_units = "independent rows of the declared sample; the study's sampling design may declare clusters or weights"
@@ -422,7 +422,7 @@ provenance = [
   "estimate.penalized_propensity_aipw",
   "estimate.penalized_propensity_aipw.bayesian",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 40 of 40 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 40 of 41 public items reviewed"
 identifying_result = "ATT/ATC, trimmed, and predicate-target fits stay on the full-sample path and do not export that table."
 assumptions = "A declared GLM-to-penalized fallback re-runs the whole route with the penalized destination when the GLM propensity fit fails. That function accounts for the estimated propensity and arm share only when *both* nuisance models are consistent: the ATT/ATC point estimate stays doubly robust, but its analytic SE does not, because under a misspecified propensity or outcome model the estimator's influence function picks up nuisance-estimation terms the efficient influence function omits."
 sampling_units = "When the overlap policy sets a trim threshold, units whose raw propensity falls outside [trim, 1 − trim] are excluded from the outcome-model fits and the ψ average (the estimand becomes the common-support population, matching the overlap report)."
@@ -3812,8 +3812,8 @@ gap = "validation"
 route = "closed.TemporalConditionalPulse.TemporalAdmg"
 target = "ConditionalEffect"
 review_status = "admitted"
-admission = "licensed"
-decision_basis = "licensed per the counterpart inventory; execution crates/antecedent-identify/src/temporal_admg.rs::a_pre_treatment_covariate_identifies_the_conditional_contrast_on_the_window; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty design_aware_resampling (measured_record)"
+admission = "executing_unlicensed"
+decision_basis = "executing_unlicensed per the counterpart inventory; execution crates/antecedent-identify/src/temporal_admg.rs::a_pre_treatment_covariate_identifies_the_conditional_contrast_on_the_window; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty design_aware_resampling (declared_and_corroborated)"
 provenance = [
   "not_applicable: lowers a temporal contrast to the unrolled window and counts it; the identification is the existing do-calculus routine",
 ]
@@ -3836,8 +3836,8 @@ gap = "validation"
 route = "closed.TemporalConditionalPulse.TemporalAdmg"
 target = "ConditionalEffect"
 review_status = "admitted"
-admission = "licensed"
-decision_basis = "licensed per the counterpart inventory; execution crates/antecedent-identify/src/temporal_admg.rs::a_pre_treatment_covariate_identifies_the_conditional_contrast_on_the_window; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (measured_record)"
+admission = "executing_unlicensed"
+decision_basis = "executing_unlicensed per the counterpart inventory; execution crates/antecedent-identify/src/temporal_admg.rs::a_pre_treatment_covariate_identifies_the_conditional_contrast_on_the_window; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty design_aware_resampling (declared_and_corroborated)"
 provenance = [
   "not_applicable: lowers a temporal contrast to the unrolled window and counts it; the identification is the existing do-calculus routine",
 ]
@@ -3866,7 +3866,7 @@ provenance = [
   "estimate.functional_distribution",
   "estimate.functional_effect",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 39 of 39 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 39 of 40 public items reviewed"
 identifying_result = "AverageEffect identified by general.id"
 assumptions = "The estimators here evaluate the functional at each observed value r of its free variables and report Σ_r P̂(r) θ̂(r) / Σ_r P̂(r) over the values at which every required empirical cell exists."
 sampling_units = "P̂(r) comes from the same row law as the other factors, so bootstrap and Bayesian-bootstrap draws reweight it consistently."
@@ -3891,7 +3891,7 @@ provenance = [
   "estimate.functional_distribution",
   "estimate.functional_effect",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 39 of 39 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 39 of 40 public items reviewed"
 identifying_result = "AverageEffect"
 assumptions = "The estimators here evaluate the functional at each observed value r of its free variables and report Σ_r P̂(r) θ̂(r) / Σ_r P̂(r) over the values at which every required empirical cell exists."
 sampling_units = "P̂(r) comes from the same row law as the other factors, so bootstrap and Bayesian-bootstrap draws reweight it consistently."
@@ -3917,7 +3917,7 @@ provenance = [
   "estimate.functional_distribution",
   "estimate.functional_effect",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 39 of 39 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 39 of 40 public items reviewed"
 identifying_result = "TemporalAdmg functional.effect is the contemporaneous projection, not Pulse or Sustained"
 assumptions = "Same projection note on InterventionResponse.TemporalAdmg and ResponseCurve.TemporalAdmg."
 sampling_units = "P̂(r) comes from the same row law as the other factors, so bootstrap and Bayesian-bootstrap draws reweight it consistently."
@@ -4009,8 +4009,8 @@ gap = "validation"
 route = "closed.PulseEffect.TemporalAdmg"
 target = "PulseEffect"
 review_status = "admitted"
-admission = "licensed"
-decision_basis = "licensed per the counterpart inventory; execution crates/antecedent-identify/src/temporal_admg.rs::a_multi_lag_template_is_identified_when_history_is_observed; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty design_aware_resampling (measured_record)"
+admission = "executing_unlicensed"
+decision_basis = "executing_unlicensed per the counterpart inventory; execution crates/antecedent-identify/src/temporal_admg.rs::a_multi_lag_template_is_identified_when_history_is_observed; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty design_aware_resampling (declared_and_corroborated)"
 provenance = [
   "not_applicable: lowers a temporal contrast to the unrolled window and counts it; the identification is the existing do-calculus routine",
 ]
@@ -4034,8 +4034,8 @@ gap = "validation"
 route = "closed.PulseEffect.TemporalAdmg"
 target = "PulseEffect"
 review_status = "admitted"
-admission = "licensed"
-decision_basis = "licensed per the counterpart inventory; execution crates/antecedent-identify/src/temporal_admg.rs::a_multi_lag_template_is_identified_when_history_is_observed; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (measured_record)"
+admission = "executing_unlicensed"
+decision_basis = "executing_unlicensed per the counterpart inventory; execution crates/antecedent-identify/src/temporal_admg.rs::a_multi_lag_template_is_identified_when_history_is_observed; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty design_aware_resampling (declared_and_corroborated)"
 provenance = [
   "not_applicable: lowers a temporal contrast to the unrolled window and counts it; the identification is the existing do-calculus routine",
 ]
@@ -4107,8 +4107,8 @@ gap = "validation"
 route = "closed.SustainedEffect.TemporalAdmg"
 target = "SustainedEffect"
 review_status = "admitted"
-admission = "licensed"
-decision_basis = "licensed per the counterpart inventory; execution crates/antecedent-identify/src/temporal_admg.rs::a_multi_lag_template_is_identified_when_history_is_observed; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty design_aware_resampling (measured_record)"
+admission = "executing_unlicensed"
+decision_basis = "executing_unlicensed per the counterpart inventory; execution crates/antecedent-identify/src/temporal_admg.rs::a_multi_lag_template_is_identified_when_history_is_observed; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty design_aware_resampling (declared_and_corroborated)"
 provenance = [
   "not_applicable: lowers a temporal contrast to the unrolled window and counts it; the identification is the existing do-calculus routine",
 ]
@@ -4132,8 +4132,8 @@ gap = "validation"
 route = "closed.SustainedEffect.TemporalAdmg"
 target = "SustainedEffect"
 review_status = "admitted"
-admission = "licensed"
-decision_basis = "licensed per the counterpart inventory; execution crates/antecedent-identify/src/temporal_admg.rs::a_multi_lag_template_is_identified_when_history_is_observed; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (measured_record)"
+admission = "executing_unlicensed"
+decision_basis = "executing_unlicensed per the counterpart inventory; execution crates/antecedent-identify/src/temporal_admg.rs::a_multi_lag_template_is_identified_when_history_is_observed; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty design_aware_resampling (declared_and_corroborated)"
 provenance = [
   "not_applicable: lowers a temporal contrast to the unrolled window and counts it; the identification is the existing do-calculus routine",
 ]

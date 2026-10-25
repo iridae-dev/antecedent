@@ -6,7 +6,7 @@ milestone = "K0"
 ready = true
 conditions = 17
 met = 17
-checked_in_plan = false
+checked_in_plan = true
 
 [[condition]]
 id = "prerequisite.B01"

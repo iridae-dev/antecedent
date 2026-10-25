@@ -351,3 +351,39 @@ fn a_cpdag_with_one_completion_is_the_per_unit_route_on_that_dag() {
     assert!((class.effect() - supplied.effect()).abs() < 1e-12);
     assert!(class.counterfactual().is_some(), "the unit effects of the single completion");
 }
+
+/// The class routes publish a contracted result that an independent consumer reads back.
+#[test]
+fn every_class_counterfactual_publishes_an_artifact_a_consumer_reads() {
+    let (_, front) = front_door();
+    let pag_scm = LatentScm::random(&mut Rng::new(4), &[2, 2, 2], &[(0, 1), (1, 2)], &[(0, 1)], 3);
+    let pag_data = table_of(&pag_scm, &["w", "x", "y"]);
+    let mut pag = Pag::with_variables(3);
+    pag.insert_directed(d(0), d(1)).unwrap();
+    pag.insert_directed(d(1), d(2)).unwrap();
+    let mut cpdag = Cpdag::with_variables(2);
+    cpdag.insert_undirected(d(0), d(1)).unwrap();
+    let temporal = TemporalAdmg::from_static_contemporaneous(&front_door_admg()).unwrap();
+    for (mode, inference) in [
+        ("frequentist", InferenceMode::Frequentist),
+        ("bayesian", InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(20))),
+    ] {
+        let cases = [
+            ("admg", study(front.clone(), front_door_admg(), query(2, 0), inference.clone(), 0)),
+            ("temporal-admg", study(front.clone(), temporal.clone(), query(2, 0), inference.clone(), 0)),
+            ("pag", study(pag_data.clone(), pag.clone(), query(2, 1), inference.clone(), 0)),
+            ("cpdag", study(chain_table(), cpdag.clone(), query(1, 0), inference.clone(), 0)),
+        ];
+        for (class, built) in cases {
+            let label = format!("{class} {mode}");
+            let prepared = built.prepare(&ctx()).unwrap_or_else(|e| panic!("{label}: {e}"));
+            let result = prepared.estimate_retained(&ctx()).unwrap_or_else(|e| panic!("{label}: {e}"));
+            let artifact = prepared
+                .encode_contracted_result(&result, &format!("class-counterfactual-{class}"), &ctx())
+                .unwrap_or_else(|e| panic!("{label}: {e}"));
+            let consumed = antecedent_io::consume_analysis_result(&artifact)
+                .unwrap_or_else(|e| panic!("{label}: {e}"));
+            assert_eq!(consumed.body.estimate, Some(result.effect()), "{label}");
+        }
+    }
+}

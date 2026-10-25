@@ -81,6 +81,14 @@ fn functional_effect_over_class(contract: &AnalysisResultContractWire) -> bool {
         && matches!(contract.graph_class.as_str(), "Cpdag" | "Pag")
 }
 
+/// An interventional distribution over an equivalence class is published per completion: no
+/// single program and provider law reproduces the class-level atoms, so the replay is that of
+/// the class's own identification, not of one functional.
+fn functional_distribution_over_class(contract: &AnalysisResultContractWire) -> bool {
+    is_functional_distribution_contract(contract)
+        && matches!(contract.graph_class.as_str(), "Cpdag" | "Pag")
+}
+
 pub(in crate::contract_section) fn note_checked_program_targets(
     contract: &AnalysisResultContractWire,
     unresolved: &mut Vec<ContractReason>,
@@ -780,7 +788,10 @@ pub(in crate::contract_section) fn note_functional_and_nested_replay(
     if body.identification.query != body.query {
         unresolved.push(ContractReason::BodyIdentificationQuery);
     }
-    if is_functional_distribution_contract(contract) && !posterior_distribution {
+    if is_functional_distribution_contract(contract)
+        && !posterior_distribution
+        && !functional_distribution_over_class(contract)
+    {
         match (
             body.interventional_distribution.as_ref(),
             contract.program.as_ref().and_then(|program| program.functional_program.as_ref()),
@@ -1246,6 +1257,7 @@ pub(in crate::contract_section) fn verify_stored_payloads(
     if is_functional_distribution_contract(contract)
         && functional.is_none()
         && !posterior_distribution
+        && !functional_distribution_over_class(contract)
     {
         // Older artifacts stay readable but cannot advertise a verified
         // executable distribution without the program that was evaluated.
