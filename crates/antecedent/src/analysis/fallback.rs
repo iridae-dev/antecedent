@@ -359,6 +359,98 @@ pub fn failure_next_actions(
     })
 }
 
+/// What a failed identification adds to a capability report: the evidence-gathering next
+/// actions, one licensed neighbor per route family that could repair it, and one unresolved
+/// obligation per evidence obligation (an assumption obligation is `uncheckable`: no study
+/// establishes it).
+#[derive(Clone, Debug)]
+pub struct FailureCapabilityParts {
+    /// `measure_variable`, `run_experiment`, `find_instrument`, `collect_panel` actions.
+    pub next_actions: Vec<NextAction>,
+    /// One neighbor per route family: the evidence regime that would replace the observed law.
+    pub neighbors: Vec<antecedent_contract::LicensedNeighbor>,
+    /// One unresolved obligation per evidence obligation, carrying its proof step as the
+    /// required check.
+    pub unmet_obligations: Vec<antecedent_contract::ObligationRecord>,
+}
+
+/// The capability-report parts of the verified `obligations` of a failed identification.
+#[must_use]
+pub fn failure_capability_parts(
+    obligations: &[EvidenceObligation],
+    observed: &[VariableId],
+    names: &[String],
+) -> FailureCapabilityParts {
+    use antecedent_contract::{LicensedNeighbor, ObligationKind, ObligationRecord, PremiseChange};
+    use antecedent_core::{AssumptionSource, AssumptionStatus};
+
+    let next_actions = failure_next_actions(obligations, observed, names);
+    let mut families: Vec<&str> =
+        obligations.iter().map(|o| o.provenance.family.as_ref()).collect();
+    families.sort_unstable();
+    families.dedup();
+    let neighbors = families
+        .into_iter()
+        .map(|family| {
+            let own: Vec<EvidenceObligation> = obligations
+                .iter()
+                .filter(|o| o.provenance.family.as_ref() == family)
+                .cloned()
+                .collect();
+            let action = failure_next_actions(&own, observed, names)
+                .first()
+                .map_or_else(|| "establish_assumption".to_owned(), |a| a.id.to_string());
+            LicensedNeighbor::new(
+                format!("identified_by:{family}"),
+                vec![PremiseChange::new("evidence", "observational_base_law", family)],
+                action,
+            )
+        })
+        .collect();
+    let unmet_obligations = obligations
+        .iter()
+        .map(|o| {
+            let assumption = !o.satisfiable_by_study();
+            let record = ObligationRecord::new(
+                format!("evidence.{}", o.id),
+                o.scope,
+                AssumptionSource::Derived { from: Arc::from("identification_failure") },
+                if assumption { ObligationKind::Uncheckable } else { ObligationKind::CheckNotRun },
+                if assumption { AssumptionStatus::Untestable } else { AssumptionStatus::Declared },
+                Arc::clone(&o.reason),
+            );
+            match o.provenance.proof_step.as_deref() {
+                Some(step) => record.with_required_check(step),
+                None => record,
+            }
+        })
+        .collect();
+    FailureCapabilityParts { next_actions, neighbors, unmet_obligations }
+}
+
+/// `base` with the failure's evidence needs appended: the report a refused study's host
+/// record carries (actions, neighbors and unmet obligations), the base entries first.
+#[must_use]
+pub fn failure_capability(
+    base: &antecedent_contract::OperationReport,
+    obligations: &[EvidenceObligation],
+    observed: &[VariableId],
+    names: &[String],
+) -> antecedent_contract::OperationReport {
+    let parts = failure_capability_parts(obligations, observed, names);
+    let mut report = base.clone();
+    let mut actions = base.next_actions.to_vec();
+    actions.extend(parts.next_actions);
+    let mut neighbors = base.neighbors.to_vec();
+    neighbors.extend(parts.neighbors);
+    let mut unmet = base.unmet_obligations.to_vec();
+    unmet.extend(parts.unmet_obligations);
+    report.next_actions = Arc::from(actions);
+    report.neighbors = Arc::from(neighbors);
+    report.unmet_obligations = Arc::from(unmet);
+    report
+}
+
 /// Cancellation and resource limits are not scientific: they are returned, never described.
 fn is_stop(error: &CausalError) -> bool {
     matches!(error.peeled(), CausalError::Cancelled { .. } | CausalError::Resource { .. })

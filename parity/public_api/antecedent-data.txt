@@ -2133,9 +2133,11 @@ pub field antecedent_data::missing::MissingConversion::chunks: alloc::sync::Arc<
 pub field antecedent_data::missing::MissingConversion::policy: antecedent_data::MissingPolicy
 pub field antecedent_data::missing::MissingConversion::population_bound: bool
 pub field antecedent_data::source::SnapshotContract::cohort: antecedent_data::source::CohortOrder
+pub field antecedent_data::source::SnapshotContract::event_times: core::option::Option<[u8; 32]>
 pub field antecedent_data::source::SnapshotContract::identity: antecedent_data::source::SourceIdentity
 pub field antecedent_data::source::SnapshotContract::modality: antecedent_data::source::SourceModality
 pub field antecedent_data::source::SnapshotContract::rows: usize
+pub field antecedent_data::source::SnapshotContract::schema: [u8; 32]
 pub field antecedent_data::source::SnapshotContract::schema_names: alloc::sync::Arc<[alloc::sync::Arc<str>]>
 pub field antecedent_data::source::SnapshotContract::splits: alloc::vec::Vec<antecedent_data::source::SplitSpan>
 pub field antecedent_data::source::SnapshotContract::time_index: core::option::Option<antecedent_data::TimeIndex>
@@ -2205,8 +2207,11 @@ pub fn <antecedent_data::EventData>::const fn regularity(&self) -> antecedent_da
 pub fn <antecedent_data::EventData>::fn align_to_grid(&self, interval_ns: u64) -> core::result::Result<antecedent_data::TimeSeriesData, antecedent_data::DataError>
 pub fn <antecedent_data::EventData>::fn event_times_ns(&self) -> &[i64]
 pub fn <antecedent_data::EventData>::fn reject_integer_lag_planning(&self) -> core::result::Result<(), antecedent_data::DataError>
+pub fn <antecedent_data::EventData>::fn source(&self) -> antecedent_data::source::OwnedSource
 pub fn <antecedent_data::EventData>::fn storage(&self) -> &antecedent_data::OwnedColumnarStorage
 pub fn <antecedent_data::EventData>::fn try_new(storage: antecedent_data::OwnedColumnarStorage, event_times_ns: impl core::convert::Into<alloc::sync::Arc<[i64]>>) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::EventData>::fn with_event_times(&self, event_times_ns: impl core::convert::Into<alloc::sync::Arc<[i64]>>) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::EventData>::fn with_storage(&self, storage: antecedent_data::OwnedColumnarStorage) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::F64Buffer>::const fn is_foreign(&self) -> bool
 pub fn <antecedent_data::F64Buffer>::const fn is_nan_free(&self) -> bool
 pub fn <antecedent_data::F64Buffer>::fn as_slice(&self) -> &[f64]
@@ -2301,7 +2306,9 @@ pub fn <antecedent_data::MultiEnvironmentData>::fn env_count(&self) -> usize
 pub fn <antecedent_data::MultiEnvironmentData>::fn environment(&self, i: usize) -> core::result::Result<&antecedent_data::TimeSeriesData, antecedent_data::DataError>
 pub fn <antecedent_data::MultiEnvironmentData>::fn environments(&self) -> &[antecedent_data::TimeSeriesData]
 pub fn <antecedent_data::MultiEnvironmentData>::fn schema(&self) -> &antecedent_core::schema::CausalSchema
+pub fn <antecedent_data::MultiEnvironmentData>::fn source(&self) -> antecedent_data::source::SegmentedSource
 pub fn <antecedent_data::MultiEnvironmentData>::fn try_new(environments: impl core::convert::Into<alloc::sync::Arc<[antecedent_data::TimeSeriesData]>>) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::MultiEnvironmentData>::fn with_environment(&self, index: usize, series: antecedent_data::TimeSeriesData) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::NetworkData>::const fn units(&self) -> &antecedent_data::TabularData
 pub fn <antecedent_data::NetworkData>::fn edges(&self) -> &[antecedent_data::NetworkEdge]
 pub fn <antecedent_data::NetworkData>::fn incoming(&self, unit: usize) -> core::result::Result<&[antecedent_data::NetworkEdge], antecedent_data::DataError>
@@ -2318,6 +2325,7 @@ pub fn <antecedent_data::OwnedColumnarStorage>::fn columns_arc(&self) -> &alloc:
 pub fn <antecedent_data::OwnedColumnarStorage>::fn content_digest(&self) -> [u8; 32]
 pub fn <antecedent_data::OwnedColumnarStorage>::fn try_new(schema: antecedent_core::schema::CausalSchema, columns: alloc::vec::Vec<antecedent_data::OwnedColumn>, analysis_mask: core::option::Option<antecedent_data::ValidityBitmap>, weights: core::option::Option<alloc::sync::Arc<[f64]>>) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::OwnedColumnarStorage>::fn weights(&self) -> core::option::Option<&[f64]>
+pub fn <antecedent_data::OwnedColumnarStorage>::fn with_schema(&self, schema: antecedent_core::schema::CausalSchema) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::PanelBalanceReport>::const fn attrited_units(&self) -> usize
 pub fn <antecedent_data::PanelBalanceReport>::const fn balanced_units(&self) -> usize
 pub fn <antecedent_data::PanelBalanceReport>::const fn cells_expected(&self) -> u64
@@ -2340,11 +2348,14 @@ pub fn <antecedent_data::PanelBalanceReport>::fn unit_count(&self) -> usize
 pub fn <antecedent_data::PanelBalanceReport>::fn units(&self) -> &[antecedent_data::UnitSummary]
 pub fn <antecedent_data::PanelData>::fn as_multi_env(&self) -> core::result::Result<antecedent_data::MultiEnvironmentData, antecedent_data::DataError>
 pub fn <antecedent_data::PanelData>::fn schema(&self) -> &antecedent_core::schema::CausalSchema
+pub fn <antecedent_data::PanelData>::fn source(&self) -> antecedent_data::source::SegmentedSource
 pub fn <antecedent_data::PanelData>::fn total_rows(&self) -> usize
 pub fn <antecedent_data::PanelData>::fn try_new(units: impl core::convert::Into<alloc::sync::Arc<[antecedent_data::PanelUnit]>>) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::PanelData>::fn unit(&self, i: usize) -> core::result::Result<&antecedent_data::PanelUnit, antecedent_data::DataError>
 pub fn <antecedent_data::PanelData>::fn unit_count(&self) -> usize
 pub fn <antecedent_data::PanelData>::fn units(&self) -> &[antecedent_data::PanelUnit]
+pub fn <antecedent_data::PanelData>::fn with_unit_id(&self, index: usize, unit_id: u32) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::PanelData>::fn with_unit_series(&self, index: usize, series: antecedent_data::TimeSeriesData) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::PanelLayout>::fn assess<S: core::convert::AsRef<str>>(subjects: &[S], periods: &[i64], observed: &[bool]) -> core::result::Result<antecedent_data::PanelBalanceReport, antecedent_data::PanelPreparationError>
 pub fn <antecedent_data::PanelPreparationError>::const fn code(&self) -> &'static str
 pub fn <antecedent_data::PanelPreparationError>::const fn detail(&self) -> &'static str
@@ -2398,22 +2409,27 @@ pub fn <antecedent_data::TabularData>::fn float64_selected_into(&self, id: antec
 pub fn <antecedent_data::TabularData>::fn from_f64_columns<'a, S>(columns: impl core::iter::traits::collect::IntoIterator<Item = (S, &'a [f64])>) -> core::result::Result<Self, antecedent_data::DataError> where S: core::convert::Into<alloc::sync::Arc<str>>
 pub fn <antecedent_data::TabularData>::fn new(storage: antecedent_data::OwnedColumnarStorage) -> Self
 pub fn <antecedent_data::TabularData>::fn project(&self, ids: &[antecedent_core::ids::VariableId]) -> core::result::Result<(Self, antecedent_data::IdRemap), antecedent_data::DataError>
+pub fn <antecedent_data::TabularData>::fn source(&self) -> antecedent_data::source::OwnedSource
 pub fn <antecedent_data::TabularData>::fn storage(&self) -> &antecedent_data::OwnedColumnarStorage
 pub fn <antecedent_data::TabularData>::fn try_from_schema_f64<'a>(schema: antecedent_core::schema::CausalSchema, columns: impl core::iter::traits::collect::IntoIterator<Item = (&'a str, &'a [f64])>) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::TabularData>::fn with_analysis_mask(&self, mask: antecedent_data::ValidityBitmap) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::TabularData>::fn with_appended_float(&self, name: &str, values: alloc::sync::Arc<[f64]>) -> core::result::Result<(Self, antecedent_core::ids::VariableId), antecedent_data::DataError>
 pub fn <antecedent_data::TabularData>::fn with_replaced_float(&self, id: antecedent_core::ids::VariableId, values: alloc::sync::Arc<[f64]>) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::TabularData>::fn with_replaced_floats(&self, replacements: &[(antecedent_core::ids::VariableId, alloc::sync::Arc<[f64]>)]) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::TabularData>::fn with_schema(&self, schema: antecedent_core::schema::CausalSchema) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::TabularData>::fn with_weights(&self, weights: alloc::sync::Arc<[f64]>) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::TimeRange>::const fn is_empty(self) -> bool
 pub fn <antecedent_data::TimeRange>::const fn len(self) -> usize
 pub fn <antecedent_data::TimeSeriesData>::fn from_f64_columns<'a, S>(columns: impl core::iter::traits::collect::IntoIterator<Item = (S, &'a [f64])>, interval_ns: u64) -> core::result::Result<Self, antecedent_data::DataError> where S: core::convert::Into<alloc::sync::Arc<str>>
 pub fn <antecedent_data::TimeSeriesData>::fn plan_lagged_sample(&self, max_lag: u32, columns: impl core::convert::Into<alloc::sync::Arc<[antecedent_data::LaggedColumn]>>) -> core::result::Result<antecedent_data::LaggedSamplePlan, antecedent_data::DataError>
+pub fn <antecedent_data::TimeSeriesData>::fn source(&self, modality: antecedent_data::source::SourceModality) -> core::result::Result<antecedent_data::source::OwnedSource, antecedent_data::DataError>
 pub fn <antecedent_data::TimeSeriesData>::fn storage(&self) -> &antecedent_data::OwnedColumnarStorage
 pub fn <antecedent_data::TimeSeriesData>::fn time_index(&self) -> &antecedent_data::TimeIndex
 pub fn <antecedent_data::TimeSeriesData>::fn try_new(storage: antecedent_data::OwnedColumnarStorage, time_index: antecedent_data::TimeIndex) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::TimeSeriesData>::fn with_analysis_mask(&self, mask: antecedent_data::ValidityBitmap) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::TimeSeriesData>::fn with_replaced_float(&self, id: antecedent_core::ids::VariableId, values: alloc::sync::Arc<[f64]>) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::TimeSeriesData>::fn with_schema(&self, schema: antecedent_core::schema::CausalSchema) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::TimeSeriesData>::fn with_time_index(&self, time_index: antecedent_data::TimeIndex) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::TimeSeriesData>::fn with_weights(&self, weights: alloc::sync::Arc<[f64]>) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::TimestampColumn>::fn is_empty(&self) -> bool
 pub fn <antecedent_data::TimestampColumn>::fn len(&self) -> usize
@@ -2582,6 +2598,8 @@ pub fn <antecedent_data::file_source::TableStream>::fn plan(&self, closure: &ant
 pub fn <antecedent_data::file_source::TableStream>::fn reader(self, plan: &antecedent_data::file_source::ReadPlan, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_data::file_source::TableChunkReader, antecedent_data::file_source::FileSourceError>
 pub fn <antecedent_data::lazy_identity::BaseScan>::const fn unverified(_claimed: [u8; 32]) -> Self
 pub fn <antecedent_data::lazy_identity::BaseScan>::fn accept(&self, parts: &[&[u8]], bytes: &[u8]) -> core::result::Result<antecedent_data::lazy_identity::IncrementalDigest, antecedent_data::DataError>
+pub fn <antecedent_data::lazy_identity::BaseScan>::fn accept_for_segmented(&self, source: &antecedent_data::source::SegmentedSource, parts: &[&[u8]], bytes: &[u8]) -> core::result::Result<antecedent_data::lazy_identity::IncrementalDigest, antecedent_data::DataError>
+pub fn <antecedent_data::lazy_identity::BaseScan>::fn accept_for_source(&self, source: &antecedent_data::source::OwnedSource, parts: &[&[u8]], bytes: &[u8]) -> core::result::Result<antecedent_data::lazy_identity::IncrementalDigest, antecedent_data::DataError>
 pub fn <antecedent_data::lazy_identity::BaseScan>::fn verify(source: &antecedent_data::source::OwnedSource) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::lazy_identity::BaseScan>::fn verify_segmented(source: &antecedent_data::source::SegmentedSource) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::lazy_identity::FullContentIdentity>::const fn binding(&self) -> [u8; 32]
@@ -2599,6 +2617,7 @@ pub fn <antecedent_data::lazy_identity::LazyViewIdentity>::const fn parent(&self
 pub fn <antecedent_data::lazy_identity::LazyViewIdentity>::const fn rows(&self) -> core::ops::range::Range<usize>
 pub fn <antecedent_data::lazy_identity::LazyViewIdentity>::const fn version(&self) -> u16
 pub fn <antecedent_data::lazy_identity::LazyViewIdentity>::fn from_chunk(full: &antecedent_data::lazy_identity::FullContentIdentity, chunk: &antecedent_data::source::RowChunk) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::lazy_identity::LazyViewIdentity>::fn is_current_for(&self, source: &antecedent_data::source::OwnedSource) -> core::result::Result<bool, antecedent_data::DataError>
 pub fn <antecedent_data::lazy_identity::SegmentChunkIdentity>::const fn digest(&self) -> [u8; 32]
 pub fn <antecedent_data::lazy_identity::SegmentChunkIdentity>::const fn parent(&self) -> [u8; 32]
 pub fn <antecedent_data::lazy_identity::SegmentChunkIdentity>::const fn part(&self) -> usize
@@ -2644,15 +2663,21 @@ pub fn <antecedent_data::source::BorrowedSource<'_>>::fn storage(&self) -> &ante
 pub fn <antecedent_data::source::OwnedSource>::fn borrow(&self) -> antecedent_data::source::BorrowedSource<'_>
 pub fn <antecedent_data::source::OwnedSource>::fn chunk(&self, start: usize, end: usize) -> core::result::Result<antecedent_data::source::RowChunk, antecedent_data::DataError>
 pub fn <antecedent_data::source::OwnedSource>::fn contract(&self) -> &antecedent_data::source::SnapshotContract
+pub fn <antecedent_data::source::OwnedSource>::fn from_event_series(events: &antecedent_data::EventData) -> Self
 pub fn <antecedent_data::source::OwnedSource>::fn from_storage(storage: antecedent_data::OwnedColumnarStorage, modality: antecedent_data::source::SourceModality) -> Self
 pub fn <antecedent_data::source::OwnedSource>::fn from_tabular(data: &antecedent_data::TabularData) -> Self
 pub fn <antecedent_data::source::OwnedSource>::fn from_time_series(series: &antecedent_data::TimeSeriesData, modality: antecedent_data::source::SourceModality) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::source::OwnedSource>::fn project(&self, columns: &[u32]) -> core::result::Result<antecedent_data::source::SnapshotContract, antecedent_data::DataError>
+pub fn <antecedent_data::source::OwnedSource>::fn with_analysis_mask(self, mask: antecedent_data::ValidityBitmap) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::source::OwnedSource>::fn with_cohort(self, cohort: antecedent_data::source::CohortOrder) -> Self
+pub fn <antecedent_data::source::OwnedSource>::fn with_event_times(self, times_ns: &[i64]) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::source::OwnedSource>::fn with_replaced_float(self, id: antecedent_core::ids::VariableId, values: alloc::sync::Arc<[f64]>) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::source::OwnedSource>::fn with_schema(self, schema: antecedent_core::schema::CausalSchema) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::source::OwnedSource>::fn with_splits(self, splits: alloc::vec::Vec<antecedent_data::source::SplitSpan>) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::source::OwnedSource>::fn with_time_index(self, time_index: antecedent_data::TimeIndex) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::source::OwnedSource>::fn with_unit(self, unit: impl core::convert::Into<alloc::sync::Arc<str>>) -> Self
 pub fn <antecedent_data::source::OwnedSource>::fn with_validity(self, validity: antecedent_data::source::ValidityPolicy) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::source::OwnedSource>::fn with_weights(self, weights: alloc::sync::Arc<[f64]>) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::source::RowChunk>::fn parent(&self) -> [u8; 32]
 pub fn <antecedent_data::source::RowChunk>::fn rows(&self) -> core::ops::range::Range<usize>
 pub fn <antecedent_data::source::SegmentedSource>::fn from_multi_environment(environments: &antecedent_data::MultiEnvironmentData) -> Self
@@ -2691,6 +2716,7 @@ pub fn antecedent_data::pool_multi_env_lagged_frame(data: &antecedent_data::Mult
 pub fn antecedent_data::resample::fill_declared_resample(declaration: antecedent_core::sampling_design::SamplingDesignDeclaration, n: usize, cluster_ids: core::option::Option<&[u32]>, block_length: usize, embargo: u32, rng: &mut antecedent_core::execution::CausalRng, out: &mut alloc::vec::Vec<antecedent_data::GlobalId>) -> core::result::Result<(), antecedent_data::DataError>
 pub fn antecedent_data::resample::fill_resample_weight_replicate(plan: antecedent_data::ResamplingPlan, n: usize, ctx: &antecedent_core::execution::ExecutionContext, stream_base: u64, replicate: u64, out: &mut alloc::vec::Vec<f64>) -> core::result::Result<(), antecedent_data::DataError>
 pub fn antecedent_data::resample::resample_timeseries(data: &antecedent_data::TimeSeriesData, plan: antecedent_data::ResamplingPlan, rng: &mut antecedent_core::execution::CausalRng, index_scratch: &mut alloc::vec::Vec<antecedent_data::GlobalId>) -> core::result::Result<antecedent_data::TimeSeriesData, antecedent_data::DataError>
+pub fn antecedent_data::source::schema_digest(schema: &antecedent_core::schema::CausalSchema) -> [u8; 32]
 pub fn antecedent_data::surrogate::surrogate_permute_columns(data: &antecedent_data::TimeSeriesData, rng: &mut antecedent_core::execution::CausalRng) -> core::result::Result<antecedent_data::TimeSeriesData, antecedent_data::DataError>
 pub fn antecedent_data::surrogate::surrogate_phase_randomize(data: &antecedent_data::TimeSeriesData, rng: &mut antecedent_core::execution::CausalRng) -> core::result::Result<antecedent_data::TimeSeriesData, antecedent_data::DataError>
 pub mod antecedent_data::aligned_buffer
@@ -3222,6 +3248,7 @@ pub variant antecedent_data::source::CohortOrder::Labeled(alloc::sync::Arc<str>)
 pub variant antecedent_data::source::CohortOrder::Storage
 pub variant antecedent_data::source::SourceIdentity::Full([u8; 32])
 pub variant antecedent_data::source::SourceIdentity::Projected { parent: [u8; 32], columns: u64 }
+pub variant antecedent_data::source::SourceModality::EventSeries
 pub variant antecedent_data::source::SourceModality::MultiEnvironment
 pub variant antecedent_data::source::SourceModality::Panel
 pub variant antecedent_data::source::SourceModality::Tabular

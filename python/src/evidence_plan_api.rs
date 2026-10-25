@@ -16,7 +16,7 @@ use antecedent::analysis::evidence_plan::{
     EvidencePlanFacadeError, EvidencePlanRequest, EvidenceValueRequest, plan_over_routes,
     variable_names,
 };
-use antecedent::analysis::fallback::failure_next_actions;
+use antecedent::analysis::fallback::{failure_capability_parts, failure_next_actions};
 use antecedent_core::{AssumptionSet, AverageEffectQuery, CausalQuery, SearchLimits, VariableId};
 use antecedent_design::structure_identification::{
     GraphIdentFlag, GraphPosteriorSample, identified_under_intervention, structure_posterior,
@@ -281,6 +281,26 @@ impl FailureStage {
             .map(|a| json!({ "id": a.id.as_ref(), "description": a.description.as_ref() }))
             .collect();
         crate::transport_z_api::to_py_json(py, &Value::Array(values))
+    }
+
+    /// The failure as a capability report: the evidence-gathering `next_actions`, one
+    /// licensed `neighbors` entry per repairing route family, and one `unmet_obligations`
+    /// entry per obligation (an assumption is `uncheckable`: no study establishes it),
+    /// shaped as the host record's members.
+    fn capability_report(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        let obligations = self.routes.obligations();
+        let parts = failure_capability_parts(&obligations, &self.observed, &self.names);
+        let value = json!({
+            "next_actions": parts
+                .next_actions
+                .iter()
+                .map(|a| json!({ "id": a.id.as_ref(), "description": a.description.as_ref() }))
+                .collect::<Vec<_>>(),
+            "neighbors": antecedent::host::neighbor_records(&parts.neighbors),
+            "unmet_obligations":
+                antecedent::host::unmet_obligation_records(&parts.unmet_obligations),
+        });
+        crate::transport_z_api::to_py_json(py, &value)
     }
 
     /// The unfinished studies those obligations determine.

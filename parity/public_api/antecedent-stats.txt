@@ -175,6 +175,7 @@ impl core::clone::Clone for antecedent_stats::SymbolicCmi
 impl core::clone::Clone for antecedent_stats::SynthesisError
 impl core::clone::Clone for antecedent_stats::TauPrior
 impl core::clone::Clone for antecedent_stats::TwoSlsFit
+impl core::clone::Clone for antecedent_stats::TwoSlsMomentFit
 impl core::clone::Clone for antecedent_stats::UnaryFn
 impl core::clone::Clone for antecedent_stats::ValueBounds
 impl core::clone::Clone for antecedent_stats::ValueFunctional
@@ -776,6 +777,7 @@ impl core::fmt::Debug for antecedent_stats::SymbolicCmi
 impl core::fmt::Debug for antecedent_stats::SynthesisError
 impl core::fmt::Debug for antecedent_stats::TauPrior
 impl core::fmt::Debug for antecedent_stats::TwoSlsFit
+impl core::fmt::Debug for antecedent_stats::TwoSlsMomentFit
 impl core::fmt::Debug for antecedent_stats::UnaryFn
 impl core::fmt::Debug for antecedent_stats::ValueBounds
 impl core::fmt::Debug for antecedent_stats::ValueFunctional
@@ -1205,6 +1207,7 @@ impl core::marker::Freeze for antecedent_stats::SymbolicCmi [auto]
 impl core::marker::Freeze for antecedent_stats::SynthesisError [auto]
 impl core::marker::Freeze for antecedent_stats::TauPrior [auto]
 impl core::marker::Freeze for antecedent_stats::TwoSlsFit [auto]
+impl core::marker::Freeze for antecedent_stats::TwoSlsMomentFit [auto]
 impl core::marker::Freeze for antecedent_stats::UnaryFn [auto]
 impl core::marker::Freeze for antecedent_stats::ValueBounds [auto]
 impl core::marker::Freeze for antecedent_stats::ValueFunctional [auto]
@@ -1471,6 +1474,7 @@ impl core::marker::Send for antecedent_stats::SymbolicCmi [auto]
 impl core::marker::Send for antecedent_stats::SynthesisError [auto]
 impl core::marker::Send for antecedent_stats::TauPrior [auto]
 impl core::marker::Send for antecedent_stats::TwoSlsFit [auto]
+impl core::marker::Send for antecedent_stats::TwoSlsMomentFit [auto]
 impl core::marker::Send for antecedent_stats::UnaryFn [auto]
 impl core::marker::Send for antecedent_stats::ValueBounds [auto]
 impl core::marker::Send for antecedent_stats::ValueFunctional [auto]
@@ -1961,6 +1965,7 @@ impl core::marker::Sync for antecedent_stats::SymbolicCmi [auto]
 impl core::marker::Sync for antecedent_stats::SynthesisError [auto]
 impl core::marker::Sync for antecedent_stats::TauPrior [auto]
 impl core::marker::Sync for antecedent_stats::TwoSlsFit [auto]
+impl core::marker::Sync for antecedent_stats::TwoSlsMomentFit [auto]
 impl core::marker::Sync for antecedent_stats::UnaryFn [auto]
 impl core::marker::Sync for antecedent_stats::ValueBounds [auto]
 impl core::marker::Sync for antecedent_stats::ValueFunctional [auto]
@@ -2228,6 +2233,7 @@ impl core::marker::Unpin for antecedent_stats::SymbolicCmi [auto]
 impl core::marker::Unpin for antecedent_stats::SynthesisError [auto]
 impl core::marker::Unpin for antecedent_stats::TauPrior [auto]
 impl core::marker::Unpin for antecedent_stats::TwoSlsFit [auto]
+impl core::marker::Unpin for antecedent_stats::TwoSlsMomentFit [auto]
 impl core::marker::Unpin for antecedent_stats::UnaryFn [auto]
 impl core::marker::Unpin for antecedent_stats::ValueBounds [auto]
 impl core::marker::Unpin for antecedent_stats::ValueFunctional [auto]
@@ -2496,6 +2502,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::SymbolicCmi [
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::SynthesisError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::TauPrior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::TwoSlsFit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::TwoSlsMomentFit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::UnaryFn [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::ValueBounds [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::ValueFunctional [auto]
@@ -2763,6 +2770,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::SymbolicCmi [aut
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::SynthesisError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::TauPrior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::TwoSlsFit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::TwoSlsMomentFit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::UnaryFn [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::ValueBounds [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::ValueFunctional [auto]
@@ -2915,6 +2923,7 @@ impl<'a> core::clone::Clone for antecedent_stats::BlockTest<'a>
 impl<'a> core::clone::Clone for antecedent_stats::CiBatchRequest<'a>
 impl<'a> core::clone::Clone for antecedent_stats::GlmDesignRef<'a>
 impl<'a> core::clone::Clone for antecedent_stats::IvBlocks<'a>
+impl<'a> core::clone::Clone for antecedent_stats::IvMoments<'a>
 impl<'a> core::clone::Clone for antecedent_stats::MultinomialDesignRef<'a>
 impl<'a> core::clone::Clone for antecedent_stats::PredictorMatrix<'a>
 impl<'a> core::clone::Clone for antecedent_stats::SandwichKind<'a>
@@ -2932,6 +2941,7 @@ impl<'a> core::fmt::Debug for antecedent_stats::BlockTest<'a>
 impl<'a> core::fmt::Debug for antecedent_stats::CiBatchRequest<'a>
 impl<'a> core::fmt::Debug for antecedent_stats::GlmDesignRef<'a>
 impl<'a> core::fmt::Debug for antecedent_stats::IvBlocks<'a>
+impl<'a> core::fmt::Debug for antecedent_stats::IvMoments<'a>
 impl<'a> core::fmt::Debug for antecedent_stats::MultinomialDesignRef<'a>
 impl<'a> core::fmt::Debug for antecedent_stats::PredictorMatrix<'a>
 impl<'a> core::fmt::Debug for antecedent_stats::SandwichKind<'a>
@@ -2947,6 +2957,7 @@ impl<'a> core::fmt::Debug for antecedent_stats::measurement_error::LinearErrorDa
 impl<'a> core::marker::Copy for antecedent_stats::BlockTest<'a>
 impl<'a> core::marker::Copy for antecedent_stats::GlmDesignRef<'a>
 impl<'a> core::marker::Copy for antecedent_stats::IvBlocks<'a>
+impl<'a> core::marker::Copy for antecedent_stats::IvMoments<'a>
 impl<'a> core::marker::Copy for antecedent_stats::MultinomialDesignRef<'a>
 impl<'a> core::marker::Copy for antecedent_stats::PredictorMatrix<'a>
 impl<'a> core::marker::Copy for antecedent_stats::SandwichKind<'a>
@@ -2963,6 +2974,7 @@ impl<'a> core::marker::Freeze for antecedent_stats::BlockTest<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::CiBatchRequest<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::GlmDesignRef<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::IvBlocks<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_stats::IvMoments<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::MultinomialDesignRef<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::PredictorMatrix<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::SandwichKind<'a> [auto]
@@ -2981,6 +2993,7 @@ impl<'a> core::marker::Send for antecedent_stats::BlockTest<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::CiBatchRequest<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::GlmDesignRef<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::IvBlocks<'a> [auto]
+impl<'a> core::marker::Send for antecedent_stats::IvMoments<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::MultinomialDesignRef<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::PredictorMatrix<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::SandwichKind<'a> [auto]
@@ -3000,6 +3013,7 @@ impl<'a> core::marker::Sync for antecedent_stats::BlockTest<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::CiBatchRequest<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::GlmDesignRef<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::IvBlocks<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_stats::IvMoments<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::MultinomialDesignRef<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::PredictorMatrix<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::SandwichKind<'a> [auto]
@@ -3018,6 +3032,7 @@ impl<'a> core::marker::Unpin for antecedent_stats::BlockTest<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::CiBatchRequest<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::GlmDesignRef<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::IvBlocks<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_stats::IvMoments<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::MultinomialDesignRef<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::PredictorMatrix<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::SandwichKind<'a> [auto]
@@ -3036,6 +3051,7 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::BlockTest
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::CiBatchRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::GlmDesignRef<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::IvBlocks<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::IvMoments<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::MultinomialDesignRef<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::PredictorMatrix<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::SandwichKind<'a> [auto]
@@ -3054,6 +3070,7 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::BlockTest<'a
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::CiBatchRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::GlmDesignRef<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::IvBlocks<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::IvMoments<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::MultinomialDesignRef<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::PredictorMatrix<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::SandwichKind<'a> [auto]
@@ -3367,6 +3384,12 @@ pub field antecedent_stats::IvBlocks::instruments_colmajor: &'a [f64]
 pub field antecedent_stats::IvBlocks::nrows: usize
 pub field antecedent_stats::IvBlocks::x_ncols: usize
 pub field antecedent_stats::IvBlocks::z_ncols: usize
+pub field antecedent_stats::IvMoments::cross_outcome: &'a [f64]
+pub field antecedent_stats::IvMoments::gram: &'a [f64]
+pub field antecedent_stats::IvMoments::nrows: usize
+pub field antecedent_stats::IvMoments::outcome_sum_squares: f64
+pub field antecedent_stats::IvMoments::x_ncols: usize
+pub field antecedent_stats::IvMoments::z_ncols: usize
 pub field antecedent_stats::JointTwoSlsFit::first_stage_diagnostics: alloc::vec::Vec<antecedent_stats::FirstStageDiagnostics>
 pub field antecedent_stats::JointTwoSlsFit::first_stages: alloc::vec::Vec<antecedent_stats::LeastSquaresFit>
 pub field antecedent_stats::JointTwoSlsFit::fitted_endogenous: alloc::vec::Vec<f64>
@@ -3551,6 +3574,9 @@ pub field antecedent_stats::TwoSlsFit::fitted_endogenous: alloc::vec::Vec<f64>
 pub field antecedent_stats::TwoSlsFit::second_stage: antecedent_stats::LeastSquaresFit
 pub field antecedent_stats::TwoSlsFit::structural_residuals: alloc::vec::Vec<f64>
 pub field antecedent_stats::TwoSlsFit::structural_rss: f64
+pub field antecedent_stats::TwoSlsMomentFit::coefficients: alloc::vec::Vec<f64>
+pub field antecedent_stats::TwoSlsMomentFit::first_stage_diagnostics: antecedent_stats::FirstStageDiagnostics
+pub field antecedent_stats::TwoSlsMomentFit::structural_rss: f64
 pub field antecedent_stats::ValueBounds::lower: f64
 pub field antecedent_stats::ValueBounds::upper: f64
 pub field antecedent_stats::WeightedPartialCorrelation::align_to_series_end: bool
@@ -4409,6 +4435,7 @@ pub fn antecedent_stats::aligned_functional_mean(x: &[f64], y: &[f64], functiona
 pub fn antecedent_stats::aligned_linear_draws(coefficients: &[f64], columns: &[&[f64]]) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_stats::JointLawError>
 pub fn antecedent_stats::aligned_map_draws(columns: &[&[f64]], map: &dyn core::ops::function::Fn(&[f64]) -> f64, cancel: &antecedent_core::execution::CancellationToken) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_stats::JointLawError>
 pub fn antecedent_stats::anderson_rubin_confidence_set(blocks: &antecedent_stats::IvBlocks<'_>, y: &[f64], t: &[f64], level: f64, backend: &impl antecedent_stats::DenseLinearAlgebra, workspace: &mut antecedent_stats::LeastSquaresWorkspace) -> core::result::Result<(core::option::Option<(f64, f64, f64)>, core::option::Option<&'static str>), antecedent_stats::StatsError>
+pub fn antecedent_stats::anderson_rubin_confidence_set_from_moments(moments: &antecedent_stats::IvMoments<'_>, level: f64) -> core::result::Result<(core::option::Option<(f64, f64, f64)>, core::option::Option<&'static str>), antecedent_stats::StatsError>
 pub fn antecedent_stats::anderson_rubin_kf_critical(level: f64, k: usize, df: usize) -> f64
 pub fn antecedent_stats::anderson_rubin_statistic(blocks: &antecedent_stats::IvBlocks<'_>, y: &[f64], t: &[f64], beta0: f64, backend: &impl antecedent_stats::DenseLinearAlgebra, workspace: &mut antecedent_stats::LeastSquaresWorkspace) -> core::result::Result<f64, antecedent_stats::StatsError>
 pub fn antecedent_stats::bartlett_weight(lag: usize, l_eff: usize) -> f64
@@ -4476,6 +4503,7 @@ pub fn antecedent_stats::faer_backend::observe_solver_traffic<R>(work: impl core
 pub fn antecedent_stats::fdr::holm(p_values: &[f64]) -> alloc::vec::Vec<f64>
 pub fn antecedent_stats::first_col_is_exact_ones(x_colmajor: &[f64], nrows: usize) -> bool
 pub fn antecedent_stats::fit_2sls(blocks: &antecedent_stats::IvBlocks<'_>, endogenous: &[f64], y: &[f64], backend: &impl antecedent_stats::DenseLinearAlgebra, workspace: &mut antecedent_stats::LeastSquaresWorkspace) -> core::result::Result<antecedent_stats::TwoSlsFit, antecedent_stats::StatsError>
+pub fn antecedent_stats::fit_2sls_from_moments(moments: &antecedent_stats::IvMoments<'_>) -> core::result::Result<antecedent_stats::TwoSlsMomentFit, antecedent_stats::StatsError>
 pub fn antecedent_stats::fit_counts::count_least_squares_solves<R>(work: impl core::ops::function::FnOnce() -> R) -> (R, u64)
 pub fn antecedent_stats::fit_gam(predictors: &antecedent_stats::PredictorMatrix<'_>, y: &[f64], specs: &[antecedent_stats::SmoothSpec], options: &antecedent_stats::GamOptions, backend: &impl antecedent_stats::DenseLinearAlgebra, workspace: &mut antecedent_stats::GamWorkspace) -> core::result::Result<antecedent_stats::GamFit, antecedent_stats::StatsError>
 pub fn antecedent_stats::fit_gam_weighted(predictors: &antecedent_stats::PredictorMatrix<'_>, y: &[f64], specs: &[antecedent_stats::SmoothSpec], options: &antecedent_stats::GamOptions, weights: core::option::Option<&[f64]>, _backend: &impl antecedent_stats::DenseLinearAlgebra, workspace: &mut antecedent_stats::GamWorkspace) -> core::result::Result<antecedent_stats::GamFit, antecedent_stats::StatsError>
@@ -4694,6 +4722,7 @@ pub struct antecedent_stats::HierarchicalPosterior
 pub struct antecedent_stats::IdentifiedSetInterval
 pub struct antecedent_stats::IntervalCandidate
 pub struct antecedent_stats::IvBlocks<'a>
+pub struct antecedent_stats::IvMoments<'a>
 pub struct antecedent_stats::JointTwoSlsFit
 pub struct antecedent_stats::KaplanMeierIpcw
 pub struct antecedent_stats::KnnDependence
@@ -4757,6 +4786,7 @@ pub struct antecedent_stats::StandardizedColumn
 pub struct antecedent_stats::SymbolicCmi
 pub struct antecedent_stats::TauPrior
 pub struct antecedent_stats::TwoSlsFit
+pub struct antecedent_stats::TwoSlsMomentFit
 pub struct antecedent_stats::ValueBounds
 pub struct antecedent_stats::WeightedPartialCorrelation
 pub struct antecedent_stats::adaptive_inference::AdaptiveEstimate
@@ -5376,13 +5406,17 @@ pub use antecedent_stats::synthesis::random_effects_dersimonian_laird = antecede
 pub use antecedent_stats::synthesis::random_effects_reml = antecedent_stats::random_effects_reml
 pub use antecedent_stats::twosls::FirstStageDiagnostics = antecedent_stats::FirstStageDiagnostics
 pub use antecedent_stats::twosls::IvBlocks = antecedent_stats::IvBlocks
+pub use antecedent_stats::twosls::IvMoments = antecedent_stats::IvMoments
 pub use antecedent_stats::twosls::JointTwoSlsFit = antecedent_stats::JointTwoSlsFit
 pub use antecedent_stats::twosls::TwoSlsFit = antecedent_stats::TwoSlsFit
+pub use antecedent_stats::twosls::TwoSlsMomentFit = antecedent_stats::TwoSlsMomentFit
 pub use antecedent_stats::twosls::anderson_rubin_confidence_set = antecedent_stats::anderson_rubin_confidence_set
+pub use antecedent_stats::twosls::anderson_rubin_confidence_set_from_moments = antecedent_stats::anderson_rubin_confidence_set_from_moments
 pub use antecedent_stats::twosls::anderson_rubin_kf_critical = antecedent_stats::anderson_rubin_kf_critical
 pub use antecedent_stats::twosls::anderson_rubin_statistic = antecedent_stats::anderson_rubin_statistic
 pub use antecedent_stats::twosls::f_critical = antecedent_stats::f_critical
 pub use antecedent_stats::twosls::fit_2sls = antecedent_stats::fit_2sls
+pub use antecedent_stats::twosls::fit_2sls_from_moments = antecedent_stats::fit_2sls_from_moments
 pub use antecedent_stats::twosls::fit_joint_2sls = antecedent_stats::fit_joint_2sls
 pub use antecedent_stats::twosls::fit_wls = antecedent_stats::fit_wls
 pub use antecedent_stats::validate_spec = antecedent_stats::propagation_chain::validate_spec

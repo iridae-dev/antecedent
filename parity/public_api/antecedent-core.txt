@@ -577,6 +577,7 @@ impl core::clone::Clone for antecedent_core::TemporalIndexError
 impl core::clone::Clone for antecedent_core::TemporalIndexer
 impl core::clone::Clone for antecedent_core::TemporalNodeKey
 impl core::clone::Clone for antecedent_core::TemporalPolicy
+impl core::clone::Clone for antecedent_core::TemporalRegimeMethod
 impl core::clone::Clone for antecedent_core::TemporalResponseLicense
 impl core::clone::Clone for antecedent_core::TemporalResponseSpec
 impl core::clone::Clone for antecedent_core::TheoremFamily
@@ -1022,6 +1023,7 @@ impl core::cmp::Eq for antecedent_core::TemporalIndexError
 impl core::cmp::Eq for antecedent_core::TemporalIndexer
 impl core::cmp::Eq for antecedent_core::TemporalNodeKey
 impl core::cmp::Eq for antecedent_core::TemporalPolicy
+impl core::cmp::Eq for antecedent_core::TemporalRegimeMethod
 impl core::cmp::Eq for antecedent_core::TemporalResponseLicense
 impl core::cmp::Eq for antecedent_core::TheoremFamily
 impl core::cmp::Eq for antecedent_core::TheoremScope
@@ -1560,6 +1562,7 @@ impl core::cmp::PartialEq for antecedent_core::TemporalIndexError
 impl core::cmp::PartialEq for antecedent_core::TemporalIndexer
 impl core::cmp::PartialEq for antecedent_core::TemporalNodeKey
 impl core::cmp::PartialEq for antecedent_core::TemporalPolicy
+impl core::cmp::PartialEq for antecedent_core::TemporalRegimeMethod
 impl core::cmp::PartialEq for antecedent_core::TemporalResponseLicense
 impl core::cmp::PartialEq for antecedent_core::TemporalResponseSpec
 impl core::cmp::PartialEq for antecedent_core::TheoremFamily
@@ -2237,6 +2240,7 @@ impl core::fmt::Debug for antecedent_core::TemporalIndexError
 impl core::fmt::Debug for antecedent_core::TemporalIndexer
 impl core::fmt::Debug for antecedent_core::TemporalNodeKey
 impl core::fmt::Debug for antecedent_core::TemporalPolicy
+impl core::fmt::Debug for antecedent_core::TemporalRegimeMethod
 impl core::fmt::Debug for antecedent_core::TemporalResponseLicense
 impl core::fmt::Debug for antecedent_core::TemporalResponseSpec
 impl core::fmt::Debug for antecedent_core::TheoremFamily
@@ -3037,6 +3041,7 @@ impl core::marker::Copy for antecedent_core::SyntheticPanelMethod
 impl core::marker::Copy for antecedent_core::TargetSampling
 impl core::marker::Copy for antecedent_core::TemporalDesignFunctional
 impl core::marker::Copy for antecedent_core::TemporalNodeKey
+impl core::marker::Copy for antecedent_core::TemporalRegimeMethod
 impl core::marker::Copy for antecedent_core::TemporalResponseLicense
 impl core::marker::Copy for antecedent_core::TheoremFamily
 impl core::marker::Copy for antecedent_core::ToleranceClass
@@ -3496,6 +3501,7 @@ impl core::marker::Freeze for antecedent_core::TemporalIndexError [auto]
 impl core::marker::Freeze for antecedent_core::TemporalIndexer [auto]
 impl core::marker::Freeze for antecedent_core::TemporalNodeKey [auto]
 impl core::marker::Freeze for antecedent_core::TemporalPolicy [auto]
+impl core::marker::Freeze for antecedent_core::TemporalRegimeMethod [auto]
 impl core::marker::Freeze for antecedent_core::TemporalResponseLicense [auto]
 impl core::marker::Freeze for antecedent_core::TemporalResponseSpec [auto]
 impl core::marker::Freeze for antecedent_core::TheoremFamily [auto]
@@ -4022,6 +4028,7 @@ impl core::marker::Send for antecedent_core::TemporalIndexError [auto]
 impl core::marker::Send for antecedent_core::TemporalIndexer [auto]
 impl core::marker::Send for antecedent_core::TemporalNodeKey [auto]
 impl core::marker::Send for antecedent_core::TemporalPolicy [auto]
+impl core::marker::Send for antecedent_core::TemporalRegimeMethod [auto]
 impl core::marker::Send for antecedent_core::TemporalResponseLicense [auto]
 impl core::marker::Send for antecedent_core::TemporalResponseSpec [auto]
 impl core::marker::Send for antecedent_core::TheoremFamily [auto]
@@ -4538,6 +4545,7 @@ impl core::marker::StructuralPartialEq for antecedent_core::TemporalIndexError
 impl core::marker::StructuralPartialEq for antecedent_core::TemporalIndexer
 impl core::marker::StructuralPartialEq for antecedent_core::TemporalNodeKey
 impl core::marker::StructuralPartialEq for antecedent_core::TemporalPolicy
+impl core::marker::StructuralPartialEq for antecedent_core::TemporalRegimeMethod
 impl core::marker::StructuralPartialEq for antecedent_core::TemporalResponseLicense
 impl core::marker::StructuralPartialEq for antecedent_core::TemporalResponseSpec
 impl core::marker::StructuralPartialEq for antecedent_core::TheoremFamily
@@ -5056,6 +5064,7 @@ impl core::marker::Sync for antecedent_core::TemporalIndexError [auto]
 impl core::marker::Sync for antecedent_core::TemporalIndexer [auto]
 impl core::marker::Sync for antecedent_core::TemporalNodeKey [auto]
 impl core::marker::Sync for antecedent_core::TemporalPolicy [auto]
+impl core::marker::Sync for antecedent_core::TemporalRegimeMethod [auto]
 impl core::marker::Sync for antecedent_core::TemporalResponseLicense [auto]
 impl core::marker::Sync for antecedent_core::TemporalResponseSpec [auto]
 impl core::marker::Sync for antecedent_core::TheoremFamily [auto]
@@ -5586,6 +5595,7 @@ impl core::marker::Unpin for antecedent_core::TemporalIndexError [auto]
 impl core::marker::Unpin for antecedent_core::TemporalIndexer [auto]
 impl core::marker::Unpin for antecedent_core::TemporalNodeKey [auto]
 impl core::marker::Unpin for antecedent_core::TemporalPolicy [auto]
+impl core::marker::Unpin for antecedent_core::TemporalRegimeMethod [auto]
 impl core::marker::Unpin for antecedent_core::TemporalResponseLicense [auto]
 impl core::marker::Unpin for antecedent_core::TemporalResponseSpec [auto]
 impl core::marker::Unpin for antecedent_core::TheoremFamily [auto]
@@ -6119,6 +6129,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TemporalIndexE
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TemporalIndexer [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TemporalNodeKey [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TemporalPolicy [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TemporalRegimeMethod [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TemporalResponseLicense [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TemporalResponseSpec [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TheoremFamily [auto]
@@ -6648,6 +6659,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TemporalIndexErro
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TemporalIndexer [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TemporalNodeKey [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TemporalPolicy [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TemporalRegimeMethod [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TemporalResponseLicense [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TemporalResponseSpec [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TheoremFamily [auto]
@@ -7133,6 +7145,7 @@ pub enum antecedent_core::TargetSampling
 pub enum antecedent_core::TemporalAssignment
 pub enum antecedent_core::TemporalDesignFunctional
 pub enum antecedent_core::TemporalDoseTarget
+pub enum antecedent_core::TemporalRegimeMethod
 pub enum antecedent_core::ToleranceClass
 pub enum antecedent_core::ToleranceError
 pub enum antecedent_core::TransportOutcomeKind
@@ -8780,6 +8793,8 @@ pub fn <antecedent_core::TemporalPolicy>::fn active_offsets(&self) -> core::resu
 pub fn <antecedent_core::TemporalPolicy>::fn dynamic(rule: antecedent_core::DynamicRuleId, active_at: impl core::convert::Into<alloc::sync::Arc<[i32]>>) -> Self
 pub fn <antecedent_core::TemporalPolicy>::fn is_active_at(&self, t: i32) -> bool
 pub fn <antecedent_core::TemporalPolicy>::fn validate(&self) -> core::result::Result<(), antecedent_core::InterventionError>
+pub fn <antecedent_core::TemporalRegimeMethod>::const fn name(self) -> &'static str
+pub fn <antecedent_core::TemporalRegimeMethod>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_core::TemporalResponseSpec>::const fn license() -> antecedent_core::TemporalResponseLicense
 pub fn <antecedent_core::TemporalResponseSpec>::fn max_horizon(&self) -> u32
 pub fn <antecedent_core::TemporalResponseSpec>::fn new(horizons: impl core::convert::Into<alloc::sync::Arc<[u32]>>, policy: antecedent_core::TemporalPolicy, max_history_lag: core::option::Option<u32>) -> core::result::Result<Self, antecedent_core::QueryError>
@@ -10238,6 +10253,7 @@ pub use antecedent_core::query::TemporalDesignQuery = antecedent_core::TemporalD
 pub use antecedent_core::query::TemporalDoseTarget = antecedent_core::TemporalDoseTarget
 pub use antecedent_core::query::TemporalEffectQuery = antecedent_core::TemporalEffectQuery
 pub use antecedent_core::query::TemporalPolicy = antecedent_core::TemporalPolicy
+pub use antecedent_core::query::TemporalRegimeMethod = antecedent_core::TemporalRegimeMethod
 pub use antecedent_core::query::TemporalResponseLicense = antecedent_core::TemporalResponseLicense
 pub use antecedent_core::query::TemporalResponseSpec = antecedent_core::TemporalResponseSpec
 pub use antecedent_core::query::TheoremFamily = antecedent_core::TheoremFamily
@@ -11104,6 +11120,7 @@ pub variant antecedent_core::TemporalAssignment::Factorial { first: alloc::sync:
 pub variant antecedent_core::TemporalAssignment::Interference { assignment: alloc::sync::Arc<[bool]>, probability: alloc::sync::Arc<[f64]>, clusters: alloc::sync::Arc<[alloc::sync::Arc<str>]> }
 pub variant antecedent_core::TemporalAssignment::MultiArm { assignment: alloc::sync::Arc<[usize]>, probabilities: alloc::sync::Arc<[alloc::vec::Vec<f64>]>, arms: alloc::sync::Arc<[alloc::sync::Arc<str>]>, categorical: bool, ordered: bool }
 pub variant antecedent_core::TemporalAssignment::ObservationalExcursion { treatment: antecedent_core::VariableId, history: alloc::sync::Arc<[antecedent_core::VariableId]> }
+pub variant antecedent_core::TemporalAssignment::ObservationalRegime { treatment: antecedent_core::VariableId, confounders: alloc::sync::Arc<[antecedent_core::VariableId]>, active: alloc::sync::Arc<[bool]>, reference: alloc::sync::Arc<[bool]>, method: antecedent_core::TemporalRegimeMethod }
 pub variant antecedent_core::TemporalAssignment::RegimeSurvival { treatment: antecedent_core::VariableId, censored: antecedent_core::VariableId, confounders: alloc::sync::Arc<[antecedent_core::VariableId]>, horizon: u32 }
 pub variant antecedent_core::TemporalAssignment::TwoArm { assignment: alloc::sync::Arc<[bool]>, probability: alloc::sync::Arc<[f64]> }
 pub variant antecedent_core::TemporalDesignFunctional::Mean
@@ -11116,6 +11133,9 @@ pub variant antecedent_core::TemporalIndexError::UnknownVariable { id: anteceden
 pub variant antecedent_core::TemporalPolicy::Dynamic { rule: antecedent_core::DynamicRuleId, active_at: alloc::sync::Arc<[i32]> }
 pub variant antecedent_core::TemporalPolicy::Pulse { at: i32 }
 pub variant antecedent_core::TemporalPolicy::Sustained { from: i32, until: i32 }
+pub variant antecedent_core::TemporalRegimeMethod::DoublyRobust
+pub variant antecedent_core::TemporalRegimeMethod::GFormula
+pub variant antecedent_core::TemporalRegimeMethod::InverseProbability
 pub variant antecedent_core::TheoremFamily::ClassicalSid
 pub variant antecedent_core::TheoremFamily::FiniteCatalogSearch
 pub variant antecedent_core::TheoremFamily::LimitedExperiment

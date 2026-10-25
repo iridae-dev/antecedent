@@ -1119,6 +1119,19 @@ class FailureContract:
         """
         return tuple(dict(action) for action in self._stage.next_actions())
 
+    def capability_report(self) -> dict[str, Any]:
+        """The failure as the capability report a host reads beside the refusal.
+
+        ``next_actions`` are the evidence-gathering actions of :meth:`next_actions`;
+        ``neighbors`` lists one alternative per route family that could repair the failure
+        (``identified_by:<family>``, the evidence premise it changes and the action that
+        starts it); ``unmet_obligations`` lists every owed obligation with its proof step as
+        ``required_check``. An assumption obligation is ``uncheckable`` with status
+        ``untestable``: no study establishes it. Advice only; nothing is executed.
+        """
+        report = self._stage.capability_report()
+        return {key: tuple(dict(item) for item in report[key]) for key in report}
+
 
 @dataclass(frozen=True, slots=True)
 class UnmatchedObligation:

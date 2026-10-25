@@ -479,6 +479,39 @@ impl Study {
         Ok((obligations.to_vec(), actions.to_vec()))
     }
 
+    /// The capability report of a study whose effect is not identified: the cheap
+    /// inspection report with the evidence-gathering next actions (`measure_variable`,
+    /// `run_experiment`, `find_instrument`, `collect_panel`), one licensed neighbor per
+    /// repairing route family and one unmet obligation per evidence obligation appended.
+    /// An assumption obligation is listed as unmet and `uncheckable`; no study satisfies it.
+    ///
+    /// A prepared study cannot be refused, so this is the report a host reads beside the
+    /// unchanged refusal.
+    ///
+    /// # Errors
+    /// As [`Study::evidence_obligations`], and canonical-encoding failures of the base report.
+    pub fn failure_capability(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<antecedent_contract::OperationReport, EvidencePlanFacadeError> {
+        let inputs = self.retained_failure(ctx)?;
+        let (obligations, _) = failure_evidence_needs(self, &inputs.result);
+        let routes = failure_routes(
+            &inputs.result,
+            &inputs.graph,
+            &inputs.observed,
+            STUDY_POPULATION,
+            None,
+        )
+        .ok();
+        let names = routes.as_ref().map_or_else(
+            || inputs.names.iter().map(ToString::to_string).collect(),
+            |routes| variable_names(&inputs.names, routes, &inputs.graph),
+        );
+        let base = self.capability().map_err(EvidencePlanFacadeError::Compile)?;
+        Ok(super::fallback::failure_capability(&base, &obligations, &inputs.observed, &names))
+    }
+
     /// The unfinished studies the retained not-identified product determines, as
     /// [`PreparedStudy::candidate_templates`] but for a study that cannot be prepared.
     ///

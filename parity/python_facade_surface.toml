@@ -703,6 +703,18 @@ status = "bound"
 python = "antecedent.repair.FailureContract.next_actions"
 
 [[entry]]
+rust = "antecedent::analysis::fallback::failure_capability_parts"
+kind = "fn"
+status = "bound"
+python = "antecedent.repair.FailureContract.capability_report"
+
+[[entry]]
+rust = "antecedent::analysis::fallback::failure_capability"
+kind = "fn"
+status = "internal"
+reason = "merges the failure's parts into a study's cheap inspection report; Python reads the parts through antecedent.repair.FailureContract.capability_report"
+
+[[entry]]
 rust = "antecedent::analysis::fallback::fallback_roles"
 kind = "fn"
 status = "bound"

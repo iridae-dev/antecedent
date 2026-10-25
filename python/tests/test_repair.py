@@ -639,3 +639,30 @@ def test_sensitivity_finding_owes_the_confounder_it_names():
     with pytest.raises(repair.RepairRefusal) as caught:
         sensitivity_contract(robust=True)
     assert caught.value.detail == "identification_repair.not_a_failure"
+
+
+def test_a_failure_reports_its_evidence_needs_as_a_capability_report():
+    graph = Dag.from_edges(["z", "t", "y", "u"], [("z", "t"), ("t", "y"), ("u", "t"), ("u", "y")])
+    contract = repair.FailureContract(
+        graph=graph, treatment="t", outcome="y", population="study", observed=["t", "y"]
+    )
+    report = contract.capability_report()
+    assert set(report) == {"next_actions", "neighbors", "unmet_obligations"}
+    actions = {a["id"] for a in report["next_actions"]}
+    assert actions == {a["id"] for a in contract.next_actions()}
+    assert "find_instrument" in actions
+    # One neighbor per repairing route family, each naming the premise it changes.
+    by_family = {n["coordinate"]: n for n in report["neighbors"]}
+    assert "identified_by:instrument" in by_family
+    assert by_family["identified_by:instrument"]["required_action"] == "find_instrument"
+    assert by_family["identified_by:instrument"]["changed"][0]["axis"] == "evidence"
+    # Every owed obligation is unmet and carries its proof step; an assumption is uncheckable.
+    owed = repair.obligations(contract)
+    assert len(report["unmet_obligations"]) == len(owed)
+    steps = {o.proof_step for o in owed}
+    assert {u["required_check"] for u in report["unmet_obligations"]} == steps
+    uncheckable = [u for u in report["unmet_obligations"] if u["kind"] == "uncheckable"]
+    assert len(uncheckable) == len([o for o in owed if o.kind == "establish_assumption"]) > 0
+    assert all(u["status"] == "untestable" for u in uncheckable)
+    # A study can meet the rest, but never an assumption.
+    assert any(u["kind"] == "check_not_run" for u in report["unmet_obligations"])

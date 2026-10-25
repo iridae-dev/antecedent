@@ -239,6 +239,7 @@ impl core::clone::Clone for antecedent_model::history_operators::Transition
 impl core::clone::Clone for antecedent_model::history_operators::TransitionFit
 impl core::clone::Clone for antecedent_model::history_operators::TruncationCertificate
 impl core::clone::Clone for antecedent_model::history_operators::WeightRole
+impl core::clone::Clone for antecedent_model::history_operators::WindowWeights
 impl core::clone::Clone for antecedent_model::information_time::AvailableOutcome
 impl core::clone::Clone for antecedent_model::information_time::CadenceTick
 impl core::clone::Clone for antecedent_model::information_time::ForwardOnly
@@ -588,6 +589,7 @@ impl core::cmp::PartialEq for antecedent_model::history_operators::Transition
 impl core::cmp::PartialEq for antecedent_model::history_operators::TransitionFit
 impl core::cmp::PartialEq for antecedent_model::history_operators::TruncationCertificate
 impl core::cmp::PartialEq for antecedent_model::history_operators::WeightRole
+impl core::cmp::PartialEq for antecedent_model::history_operators::WindowWeights
 impl core::cmp::PartialEq for antecedent_model::information_time::AvailableOutcome
 impl core::cmp::PartialEq for antecedent_model::information_time::CadenceTick
 impl core::cmp::PartialEq for antecedent_model::information_time::ForwardOnly
@@ -903,6 +905,7 @@ impl core::fmt::Debug for antecedent_model::history_operators::Transition
 impl core::fmt::Debug for antecedent_model::history_operators::TransitionFit
 impl core::fmt::Debug for antecedent_model::history_operators::TruncationCertificate
 impl core::fmt::Debug for antecedent_model::history_operators::WeightRole
+impl core::fmt::Debug for antecedent_model::history_operators::WindowWeights
 impl core::fmt::Debug for antecedent_model::information_time::AvailableOutcome
 impl core::fmt::Debug for antecedent_model::information_time::CadenceTick
 impl core::fmt::Debug for antecedent_model::information_time::ForwardOnly
@@ -1303,6 +1306,7 @@ impl core::marker::Freeze for antecedent_model::history_operators::Transition [a
 impl core::marker::Freeze for antecedent_model::history_operators::TransitionFit [auto]
 impl core::marker::Freeze for antecedent_model::history_operators::TruncationCertificate [auto]
 impl core::marker::Freeze for antecedent_model::history_operators::WeightRole [auto]
+impl core::marker::Freeze for antecedent_model::history_operators::WindowWeights [auto]
 impl core::marker::Freeze for antecedent_model::information_time::AvailableOutcome [auto]
 impl core::marker::Freeze for antecedent_model::information_time::CadenceTick [auto]
 impl core::marker::Freeze for antecedent_model::information_time::ForwardOnly [auto]
@@ -1573,6 +1577,7 @@ impl core::marker::Send for antecedent_model::history_operators::Transition [aut
 impl core::marker::Send for antecedent_model::history_operators::TransitionFit [auto]
 impl core::marker::Send for antecedent_model::history_operators::TruncationCertificate [auto]
 impl core::marker::Send for antecedent_model::history_operators::WeightRole [auto]
+impl core::marker::Send for antecedent_model::history_operators::WindowWeights [auto]
 impl core::marker::Send for antecedent_model::information_time::AvailableOutcome [auto]
 impl core::marker::Send for antecedent_model::information_time::CadenceTick [auto]
 impl core::marker::Send for antecedent_model::information_time::ForwardOnly [auto]
@@ -1807,6 +1812,7 @@ impl core::marker::StructuralPartialEq for antecedent_model::history_operators::
 impl core::marker::StructuralPartialEq for antecedent_model::history_operators::TransitionFit
 impl core::marker::StructuralPartialEq for antecedent_model::history_operators::TruncationCertificate
 impl core::marker::StructuralPartialEq for antecedent_model::history_operators::WeightRole
+impl core::marker::StructuralPartialEq for antecedent_model::history_operators::WindowWeights
 impl core::marker::StructuralPartialEq for antecedent_model::information_time::AvailableOutcome
 impl core::marker::StructuralPartialEq for antecedent_model::information_time::CadenceTick
 impl core::marker::StructuralPartialEq for antecedent_model::information_time::ForwardOnly
@@ -2072,6 +2078,7 @@ impl core::marker::Sync for antecedent_model::history_operators::Transition [aut
 impl core::marker::Sync for antecedent_model::history_operators::TransitionFit [auto]
 impl core::marker::Sync for antecedent_model::history_operators::TruncationCertificate [auto]
 impl core::marker::Sync for antecedent_model::history_operators::WeightRole [auto]
+impl core::marker::Sync for antecedent_model::history_operators::WindowWeights [auto]
 impl core::marker::Sync for antecedent_model::information_time::AvailableOutcome [auto]
 impl core::marker::Sync for antecedent_model::information_time::CadenceTick [auto]
 impl core::marker::Sync for antecedent_model::information_time::ForwardOnly [auto]
@@ -2342,6 +2349,7 @@ impl core::marker::Unpin for antecedent_model::history_operators::Transition [au
 impl core::marker::Unpin for antecedent_model::history_operators::TransitionFit [auto]
 impl core::marker::Unpin for antecedent_model::history_operators::TruncationCertificate [auto]
 impl core::marker::Unpin for antecedent_model::history_operators::WeightRole [auto]
+impl core::marker::Unpin for antecedent_model::history_operators::WindowWeights [auto]
 impl core::marker::Unpin for antecedent_model::information_time::AvailableOutcome [auto]
 impl core::marker::Unpin for antecedent_model::information_time::CadenceTick [auto]
 impl core::marker::Unpin for antecedent_model::information_time::ForwardOnly [auto]
@@ -2604,6 +2612,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_opera
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::TransitionFit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::TruncationCertificate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::WeightRole [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::WindowWeights [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::information_time::AvailableOutcome [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::information_time::CadenceTick [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::information_time::ForwardOnly [auto]
@@ -2865,6 +2874,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operator
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::TransitionFit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::TruncationCertificate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::WeightRole [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::WindowWeights [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::information_time::AvailableOutcome [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::information_time::CadenceTick [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::information_time::ForwardOnly [auto]
@@ -3648,6 +3658,11 @@ pub field antecedent_model::history_operators::TrajectoryExecution::policy_value
 pub field antecedent_model::history_operators::TrajectoryExecution::reference: alloc::vec::Vec<f64>
 pub field antecedent_model::history_operators::TrajectoryExecution::reference_value: f64
 pub field antecedent_model::history_operators::TrajectoryExecution::windows: usize
+pub field antecedent_model::history_operators::WindowWeights::effective_sample_size: f64
+pub field antecedent_model::history_operators::WindowWeights::rows_used: usize
+pub field antecedent_model::history_operators::WindowWeights::weight_sum: f64
+pub field antecedent_model::history_operators::WindowWeights::weights: alloc::vec::Vec<f64>
+pub field antecedent_model::history_operators::WindowWeights::zero_weight_windows: usize
 pub field antecedent_model::intervention_request::ClampTarget::dimension: usize
 pub field antecedent_model::intervention_request::ClampTarget::indices: alloc::vec::Vec<usize>
 pub field antecedent_model::intervention_request::HardClampIdentity::dimension: usize
@@ -4077,6 +4092,7 @@ pub fn <antecedent_model::history_operators::CensoringAssignmentWeight>::const f
 pub fn <antecedent_model::history_operators::CensoringAssignmentWeight>::const fn frame(&self) -> &antecedent_model::history_operators::OperatorFrame
 pub fn <antecedent_model::history_operators::CensoringAssignmentWeight>::fn row_weights(&self, censoring_probability: &[f64], assignment_probability: &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_model::history_operators::HistoryExecutionError>
 pub fn <antecedent_model::history_operators::CensoringAssignmentWeight>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: antecedent_core::scientific_target::model::InitialLaw, censoring: f64, assignment: f64) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
+pub fn <antecedent_model::history_operators::CensoringAssignmentWeight>::fn window_weights(&self, sampling: &[f64]) -> core::result::Result<antecedent_model::history_operators::WindowWeights, antecedent_model::history_operators::HistoryExecutionError>
 pub fn <antecedent_model::history_operators::DelayedAction>::const fn level_at(self, step: i32) -> f64
 pub fn <antecedent_model::history_operators::DelayedAction>::const fn permanent_level(self) -> f64
 pub fn <antecedent_model::history_operators::DelayedAction>::fn pulse(at_step: i32, level: f64) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
@@ -4140,6 +4156,8 @@ pub fn <antecedent_model::history_operators::SequentialRegression>::const fn fra
 pub fn <antecedent_model::history_operators::SequentialRegression>::fn fit(&self, windows: &antecedent_model::history_operators::HistoryWindows, weights: core::option::Option<&[f64]>) -> core::result::Result<antecedent_model::history_operators::TransitionFit, antecedent_model::history_operators::HistoryExecutionError>
 pub fn <antecedent_model::history_operators::SequentialRegression>::fn fit_columns(&self, columns: &[&[f64]], target: &[f64], weights: core::option::Option<&[f64]>) -> core::result::Result<antecedent_model::history_operators::ColumnFit, antecedent_model::history_operators::HistoryExecutionError>
 pub fn <antecedent_model::history_operators::SequentialRegression>::fn outcome(&self) -> &str
+pub fn <antecedent_model::history_operators::SequentialRegression>::fn solve_coefficients(x_colmajor: &[f64], nrows: usize, ncols: usize, y: &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_stats::error::StatsError>
+pub fn <antecedent_model::history_operators::SequentialRegression>::fn solve_design(x_colmajor: &[f64], nrows: usize, ncols: usize, y: &[f64], weights: core::option::Option<&[f64]>, workspace: &mut antecedent_stats::linalg::LeastSquaresWorkspace) -> core::result::Result<antecedent_stats::linalg::LeastSquaresFit, antecedent_stats::error::StatsError>
 pub fn <antecedent_model::history_operators::SequentialRegression>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: antecedent_core::scientific_target::model::InitialLaw, outcome: impl core::convert::Into<alloc::sync::Arc<str>>) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
 pub fn <antecedent_model::history_operators::TargetResponse>::const fn action(self) -> antecedent_model::history_operators::DelayedAction
 pub fn <antecedent_model::history_operators::TargetResponse>::const fn level(self) -> f64
@@ -4590,6 +4608,7 @@ pub struct antecedent_model::history_operators::TransitionFit
 pub struct antecedent_model::history_operators::TransitionFit has private fields
 pub struct antecedent_model::history_operators::TruncationCertificate
 pub struct antecedent_model::history_operators::TruncationCertificate has private fields
+pub struct antecedent_model::history_operators::WindowWeights
 pub struct antecedent_model::information_time::AvailableOutcome
 pub struct antecedent_model::information_time::AvailableOutcome has private fields
 pub struct antecedent_model::information_time::CadenceTick
@@ -5113,9 +5132,11 @@ pub variant antecedent_model::history_operators::HistoryExecutionError::HistoryS
 pub variant antecedent_model::history_operators::HistoryExecutionError::HorizonUncountable
 pub variant antecedent_model::history_operators::HistoryExecutionError::InitialStateRequired { law: alloc::string::String }
 pub variant antecedent_model::history_operators::HistoryExecutionError::InitialStateShape { outcomes: usize, actions: usize, depth: u32 }
+pub variant antecedent_model::history_operators::HistoryExecutionError::NoPositiveSamplingWeight
 pub variant antecedent_model::history_operators::HistoryExecutionError::NonFinitePolicyLevel { value: f64 }
 pub variant antecedent_model::history_operators::HistoryExecutionError::NonFiniteValue { tick: usize }
 pub variant antecedent_model::history_operators::HistoryExecutionError::ProbabilityOutOfRange { role: antecedent_model::history_operators::WeightRole, tick: usize, value: f64 }
+pub variant antecedent_model::history_operators::HistoryExecutionError::SamplingWeightInvalid { window: usize, value: f64 }
 pub variant antecedent_model::history_operators::HistoryExecutionError::Scan { message: alloc::string::String }
 pub variant antecedent_model::history_operators::HistoryExecutionError::SeriesLengthMismatch { outcome: usize, action: usize }
 pub variant antecedent_model::history_operators::HistoryExecutionError::SeriesTooShort { depth: u32, columns: usize, needed: usize, got: usize }

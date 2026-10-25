@@ -408,6 +408,57 @@ fn a_hedge_is_answered_by_an_experiment_and_a_cheaper_survey_cannot_answer_it() 
 }
 
 #[test]
+fn a_refused_study_reports_its_evidence_needs_through_the_capability_report_and_host_record() {
+    let ctx = ctx(12);
+    let instrument_study = study(zxy(), instrument(), 1, 2);
+    let report = instrument_study.failure_capability(&ctx).unwrap();
+    let ids: Vec<&str> = report.next_actions.iter().map(|a| a.id.as_ref()).collect();
+    assert!(ids.contains(&"find_instrument"), "{ids:?}");
+    assert!(ids.contains(&"measure_variable:common_cause_of_x_y"), "{ids:?}");
+    // The instrument's validity is owed and uncheckable: no study satisfies it.
+    assert!(
+        report.unmet_obligations.iter().any(|o| o.kind.as_str() == "uncheckable"
+            && o.status.as_str() == "untestable"
+            && o.required_check.is_some()),
+        "{:?}",
+        report.unmet_obligations
+    );
+    // Every obligation that a study could meet is an unrun check carrying its proof step.
+    assert!(report.unmet_obligations.iter().any(|o| o.kind.as_str() == "check_not_run"));
+    assert!(
+        report.neighbors.iter().any(|n| n.coordinate.as_ref() == "identified_by:instrument"
+            && n.required_action.as_ref() == "find_instrument")
+    );
+
+    let record = antecedent::host::operation_record(&report);
+    let recorded: Vec<&str> = record["next_actions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|a| a["id"].as_str().unwrap())
+        .collect();
+    assert_eq!(recorded, ids);
+    assert_eq!(
+        record["unmet_obligations"].as_array().unwrap().len(),
+        report.unmet_obligations.len()
+    );
+    assert_eq!(record["neighbors"].as_array().unwrap().len(), report.neighbors.len());
+
+    // A hedge owes experiments on its nodes; the same report names them.
+    let hedge_report = study(twy(), hedge(), 0, 2).failure_capability(&ctx).unwrap();
+    let hedge_ids: Vec<&str> = hedge_report.next_actions.iter().map(|a| a.id.as_ref()).collect();
+    assert!(hedge_ids.contains(&"run_experiment:t") && hedge_ids.contains(&"run_experiment:w"));
+    assert!(hedge_report.neighbors.iter().any(|n| n.coordinate.as_ref() == "identified_by:hedge"));
+
+    // An identified study has no failure to report.
+    let identified = study(zxy(), admg(3, &[(0, 1), (1, 2)], &[]), 1, 2);
+    assert!(matches!(
+        identified.failure_capability(&ctx),
+        Err(EvidencePlanFacadeError::NoFailure)
+    ));
+}
+
+#[test]
 fn an_identified_study_owes_no_evidence() {
     // x -> y with nothing hidden, and a front-door structure whose mediator is measured: the
     // complete algorithm identifies both, so there is no structural gap to plan for.

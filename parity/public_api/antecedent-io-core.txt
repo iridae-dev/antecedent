@@ -213,6 +213,8 @@ impl core::clone::Clone for antecedent_io_core::FormatVersion
 impl core::clone::Clone for antecedent_io_core::FunctionalProgramWire
 impl core::clone::Clone for antecedent_io_core::GlmOptionsWire
 impl core::clone::Clone for antecedent_io_core::GraphIdentityWire
+impl core::clone::Clone for antecedent_io_core::GraphPosteriorAtomProgramWire
+impl core::clone::Clone for antecedent_io_core::GraphPosteriorProgramsWire
 impl core::clone::Clone for antecedent_io_core::GridSpecWire
 impl core::clone::Clone for antecedent_io_core::HedgeCertificateWire
 impl core::clone::Clone for antecedent_io_core::HistoryMatchWire
@@ -1426,6 +1428,8 @@ impl core::cmp::PartialEq for antecedent_io_core::FormatVersion
 impl core::cmp::PartialEq for antecedent_io_core::FunctionalProgramWire
 impl core::cmp::PartialEq for antecedent_io_core::GlmOptionsWire
 impl core::cmp::PartialEq for antecedent_io_core::GraphIdentityWire
+impl core::cmp::PartialEq for antecedent_io_core::GraphPosteriorAtomProgramWire
+impl core::cmp::PartialEq for antecedent_io_core::GraphPosteriorProgramsWire
 impl core::cmp::PartialEq for antecedent_io_core::GridSpecWire
 impl core::cmp::PartialEq for antecedent_io_core::HedgeCertificateWire
 impl core::cmp::PartialEq for antecedent_io_core::HistoryMatchWire
@@ -2309,6 +2313,8 @@ impl core::fmt::Debug for antecedent_io_core::FormatVersion
 impl core::fmt::Debug for antecedent_io_core::FunctionalProgramWire
 impl core::fmt::Debug for antecedent_io_core::GlmOptionsWire
 impl core::fmt::Debug for antecedent_io_core::GraphIdentityWire
+impl core::fmt::Debug for antecedent_io_core::GraphPosteriorAtomProgramWire
+impl core::fmt::Debug for antecedent_io_core::GraphPosteriorProgramsWire
 impl core::fmt::Debug for antecedent_io_core::GridSpecWire
 impl core::fmt::Debug for antecedent_io_core::HedgeCertificateWire
 impl core::fmt::Debug for antecedent_io_core::HistoryMatchWire
@@ -3273,6 +3279,8 @@ impl core::marker::Freeze for antecedent_io_core::FormatVersion [auto]
 impl core::marker::Freeze for antecedent_io_core::FunctionalProgramWire [auto]
 impl core::marker::Freeze for antecedent_io_core::GlmOptionsWire [auto]
 impl core::marker::Freeze for antecedent_io_core::GraphIdentityWire [auto]
+impl core::marker::Freeze for antecedent_io_core::GraphPosteriorAtomProgramWire [auto]
+impl core::marker::Freeze for antecedent_io_core::GraphPosteriorProgramsWire [auto]
 impl core::marker::Freeze for antecedent_io_core::GridSpecWire [auto]
 impl core::marker::Freeze for antecedent_io_core::HedgeCertificateWire [auto]
 impl core::marker::Freeze for antecedent_io_core::HistoryMatchWire [auto]
@@ -4067,6 +4075,8 @@ impl core::marker::Send for antecedent_io_core::FormatVersion [auto]
 impl core::marker::Send for antecedent_io_core::FunctionalProgramWire [auto]
 impl core::marker::Send for antecedent_io_core::GlmOptionsWire [auto]
 impl core::marker::Send for antecedent_io_core::GraphIdentityWire [auto]
+impl core::marker::Send for antecedent_io_core::GraphPosteriorAtomProgramWire [auto]
+impl core::marker::Send for antecedent_io_core::GraphPosteriorProgramsWire [auto]
 impl core::marker::Send for antecedent_io_core::GridSpecWire [auto]
 impl core::marker::Send for antecedent_io_core::HedgeCertificateWire [auto]
 impl core::marker::Send for antecedent_io_core::HistoryMatchWire [auto]
@@ -4862,6 +4872,8 @@ impl core::marker::StructuralPartialEq for antecedent_io_core::FormatVersion
 impl core::marker::StructuralPartialEq for antecedent_io_core::FunctionalProgramWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::GlmOptionsWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::GraphIdentityWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::GraphPosteriorAtomProgramWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::GraphPosteriorProgramsWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::GridSpecWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::HedgeCertificateWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::HistoryMatchWire
@@ -5605,6 +5617,8 @@ impl core::marker::Sync for antecedent_io_core::FormatVersion [auto]
 impl core::marker::Sync for antecedent_io_core::FunctionalProgramWire [auto]
 impl core::marker::Sync for antecedent_io_core::GlmOptionsWire [auto]
 impl core::marker::Sync for antecedent_io_core::GraphIdentityWire [auto]
+impl core::marker::Sync for antecedent_io_core::GraphPosteriorAtomProgramWire [auto]
+impl core::marker::Sync for antecedent_io_core::GraphPosteriorProgramsWire [auto]
 impl core::marker::Sync for antecedent_io_core::GridSpecWire [auto]
 impl core::marker::Sync for antecedent_io_core::HedgeCertificateWire [auto]
 impl core::marker::Sync for antecedent_io_core::HistoryMatchWire [auto]
@@ -6403,6 +6417,8 @@ impl core::marker::Unpin for antecedent_io_core::FormatVersion [auto]
 impl core::marker::Unpin for antecedent_io_core::FunctionalProgramWire [auto]
 impl core::marker::Unpin for antecedent_io_core::GlmOptionsWire [auto]
 impl core::marker::Unpin for antecedent_io_core::GraphIdentityWire [auto]
+impl core::marker::Unpin for antecedent_io_core::GraphPosteriorAtomProgramWire [auto]
+impl core::marker::Unpin for antecedent_io_core::GraphPosteriorProgramsWire [auto]
 impl core::marker::Unpin for antecedent_io_core::GridSpecWire [auto]
 impl core::marker::Unpin for antecedent_io_core::HedgeCertificateWire [auto]
 impl core::marker::Unpin for antecedent_io_core::HistoryMatchWire [auto]
@@ -7201,6 +7217,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::FormatVersi
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::FunctionalProgramWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::GlmOptionsWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::GraphIdentityWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::GraphPosteriorAtomProgramWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::GraphPosteriorProgramsWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::GridSpecWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::HedgeCertificateWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::HistoryMatchWire [auto]
@@ -7998,6 +8016,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::FormatVersion 
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::FunctionalProgramWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::GlmOptionsWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::GraphIdentityWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::GraphPosteriorAtomProgramWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::GraphPosteriorProgramsWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::GridSpecWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::HedgeCertificateWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::HistoryMatchWire [auto]
@@ -8781,6 +8801,8 @@ impl serde_core::ser::Serialize for antecedent_io_core::FormatVersion
 impl serde_core::ser::Serialize for antecedent_io_core::FunctionalProgramWire
 impl serde_core::ser::Serialize for antecedent_io_core::GlmOptionsWire
 impl serde_core::ser::Serialize for antecedent_io_core::GraphIdentityWire
+impl serde_core::ser::Serialize for antecedent_io_core::GraphPosteriorAtomProgramWire
+impl serde_core::ser::Serialize for antecedent_io_core::GraphPosteriorProgramsWire
 impl serde_core::ser::Serialize for antecedent_io_core::GridSpecWire
 impl serde_core::ser::Serialize for antecedent_io_core::HedgeCertificateWire
 impl serde_core::ser::Serialize for antecedent_io_core::HistoryMatchWire
@@ -9444,6 +9466,8 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::FormatVersion
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::FunctionalProgramWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::GlmOptionsWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::GraphIdentityWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::GraphPosteriorAtomProgramWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::GraphPosteriorProgramsWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::GridSpecWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::HedgeCertificateWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::HistoryMatchWire
@@ -10001,6 +10025,7 @@ pub const antecedent_io_core::CONTENT_BYTES: &str
 pub const antecedent_io_core::CONTENT_CBOR: &str
 pub const antecedent_io_core::CONTRACT_SECTION: &str
 pub const antecedent_io_core::CONTRACT_SECTION_FORMAT: u16
+pub const antecedent_io_core::GRAPH_POSTERIOR_MIXING_RULE: &str
 pub const antecedent_io_core::IV_BOUNDS_BAYESIAN_METHOD: &str
 pub const antecedent_io_core::IV_BOUNDS_FREQUENTIST_METHOD: &str
 pub const antecedent_io_core::IV_BOUNDS_POINT_UNCERTAINTY: &str
@@ -10835,6 +10860,7 @@ pub field antecedent_io_core::EstimandFingerprint::query_kind: alloc::string::St
 pub field antecedent_io_core::EstimandFingerprint::temporal: core::option::Option<alloc::boxed::Box<antecedent_io_core::TemporalCoordinates>>
 pub field antecedent_io_core::EstimandFingerprint::treatment: alloc::string::String
 pub field antecedent_io_core::EstimatorConfigWire::backend: alloc::string::String
+pub field antecedent_io_core::EstimatorConfigWire::bootstrap_interval: core::option::Option<alloc::string::String>
 pub field antecedent_io_core::EstimatorConfigWire::bootstrap_replicates: u32
 pub field antecedent_io_core::EstimatorConfigWire::caliper_bits: core::option::Option<u64>
 pub field antecedent_io_core::EstimatorConfigWire::caliper_scale: core::option::Option<alloc::string::String>
@@ -10930,6 +10956,15 @@ pub field antecedent_io_core::GlmOptionsWire::max_iter: u32
 pub field antecedent_io_core::GlmOptionsWire::nb_alpha: alloc::string::String
 pub field antecedent_io_core::GlmOptionsWire::ridge_on_separation_bits: core::option::Option<u64>
 pub field antecedent_io_core::GlmOptionsWire::tol_bits: u64
+pub field antecedent_io_core::GraphPosteriorAtomProgramWire::functional_program: core::option::Option<antecedent_io_core::FunctionalProgramWire>
+pub field antecedent_io_core::GraphPosteriorAtomProgramWire::graph_key: u64
+pub field antecedent_io_core::GraphPosteriorAtomProgramWire::identification_product: core::option::Option<antecedent_io_core::IdentificationProductWire>
+pub field antecedent_io_core::GraphPosteriorAtomProgramWire::samples: alloc::vec::Vec<u64>
+pub field antecedent_io_core::GraphPosteriorAtomProgramWire::weight_bits: u64
+pub field antecedent_io_core::GraphPosteriorProgramsWire::atoms: alloc::vec::Vec<antecedent_io_core::GraphPosteriorAtomProgramWire>
+pub field antecedent_io_core::GraphPosteriorProgramsWire::chain: [u8; 32]
+pub field antecedent_io_core::GraphPosteriorProgramsWire::format: u16
+pub field antecedent_io_core::GraphPosteriorProgramsWire::mixing: alloc::string::String
 pub field antecedent_io_core::HedgeCertificateWire::f: alloc::vec::Vec<u32>
 pub field antecedent_io_core::HedgeCertificateWire::f_dense: alloc::vec::Vec<u32>
 pub field antecedent_io_core::HedgeCertificateWire::f_prime: alloc::vec::Vec<u32>
@@ -11367,6 +11402,7 @@ pub field antecedent_io_core::ProgramIdentityWire::commitments: antecedent_io_co
 pub field antecedent_io_core::ProgramIdentityWire::completion_budget: core::option::Option<u64>
 pub field antecedent_io_core::ProgramIdentityWire::format: u16
 pub field antecedent_io_core::ProgramIdentityWire::functional_program: core::option::Option<antecedent_io_core::FunctionalProgramWire>
+pub field antecedent_io_core::ProgramIdentityWire::graph_posterior_programs: core::option::Option<antecedent_io_core::GraphPosteriorProgramsWire>
 pub field antecedent_io_core::ProgramIdentityWire::identification: [u8; 32]
 pub field antecedent_io_core::ProgramIdentityWire::identification_product: core::option::Option<[u8; 32]>
 pub field antecedent_io_core::ProgramIdentityWire::structure_provenance: core::option::Option<[u8; 32]>
@@ -13932,6 +13968,8 @@ pub fn <antecedent_io_core::EncodedArtifact>::fn write_to<W: std::io::Write>(&se
 pub fn <antecedent_io_core::EstimandFingerprint>::fn new(query_kind: impl core::convert::Into<alloc::string::String>, treatment: impl core::convert::Into<alloc::string::String>, outcome: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn <antecedent_io_core::EstimandFingerprint>::fn with_temporal(self, temporal: antecedent_io_core::TemporalCoordinates) -> Self
 pub fn <antecedent_io_core::GraphIdentityWire>::fn premises(&self) -> Self
+pub fn <antecedent_io_core::GraphPosteriorProgramsWire>::fn compute_chain(mixing: &str, atoms: &[antecedent_io_core::GraphPosteriorAtomProgramWire]) -> core::result::Result<[u8; 32], antecedent_io_core::IoError>
+pub fn <antecedent_io_core::GraphPosteriorProgramsWire>::fn seal(atoms: alloc::vec::Vec<antecedent_io_core::GraphPosteriorAtomProgramWire>) -> core::result::Result<Self, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::IdentifiedSetIntervalMethodWire>::const fn method(self) -> antecedent_stats::identified_set::IdentifiedSetIntervalMethod
 pub fn <antecedent_io_core::IdentifiedSetIntervalMethodWire>::fn try_from_method(method: antecedent_stats::identified_set::IdentifiedSetIntervalMethod) -> core::result::Result<Self, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::InterventionWire>::fn from_domain(iv: &antecedent_core::intervention::Intervention) -> core::result::Result<Self, antecedent_io_core::IoError>
@@ -15041,6 +15079,8 @@ pub struct antecedent_io_core::FeedbackDeclarationWire
 pub struct antecedent_io_core::FormatVersion
 pub struct antecedent_io_core::FunctionalProgramWire
 pub struct antecedent_io_core::GlmOptionsWire
+pub struct antecedent_io_core::GraphPosteriorAtomProgramWire
+pub struct antecedent_io_core::GraphPosteriorProgramsWire
 pub struct antecedent_io_core::HedgeCertificateWire
 pub struct antecedent_io_core::HistoryMatchWire
 pub struct antecedent_io_core::HorizonAdjustmentNodeWire
@@ -15897,8 +15937,11 @@ pub use antecedent_io_core::identity::EstimatorSpecWire = antecedent_io_core::Es
 pub use antecedent_io_core::identity::ExecutionIdentityWire = antecedent_io_core::ExecutionIdentityWire
 pub use antecedent_io_core::identity::ExternalComposeIdentityWire = antecedent_io_core::ExternalComposeIdentityWire
 pub use antecedent_io_core::identity::ExternalPriorSourceIdentityWire = antecedent_io_core::ExternalPriorSourceIdentityWire
+pub use antecedent_io_core::identity::GRAPH_POSTERIOR_MIXING_RULE = antecedent_io_core::GRAPH_POSTERIOR_MIXING_RULE
 pub use antecedent_io_core::identity::GlmOptionsWire = antecedent_io_core::GlmOptionsWire
 pub use antecedent_io_core::identity::GraphIdentityWire = antecedent_io_core::GraphIdentityWire
+pub use antecedent_io_core::identity::GraphPosteriorAtomProgramWire = antecedent_io_core::GraphPosteriorAtomProgramWire
+pub use antecedent_io_core::identity::GraphPosteriorProgramsWire = antecedent_io_core::GraphPosteriorProgramsWire
 pub use antecedent_io_core::identity::IdentificationEnvelopeWire = antecedent_io_core::IdentificationEnvelopeWire
 pub use antecedent_io_core::identity::IdentificationIdentityWire = antecedent_io_core::IdentificationIdentityWire
 pub use antecedent_io_core::identity::IdentificationProductWire = antecedent_io_core::IdentificationProductWire
@@ -16548,6 +16591,8 @@ pub variant antecedent_io_core::ContractReason::ProgramFunctionalEffectResponseG
 pub variant antecedent_io_core::ContractReason::ProgramFunctionalEffectResponseGridTargetKind
 pub variant antecedent_io_core::ContractReason::ProgramFunctionalProgram
 pub variant antecedent_io_core::ContractReason::ProgramFunctionalProgramTarget
+pub variant antecedent_io_core::ContractReason::ProgramGraphPosteriorPrograms
+pub variant antecedent_io_core::ContractReason::ProgramGraphPosteriorProgramsBinding
 pub variant antecedent_io_core::ContractReason::ProgramIdentification
 pub variant antecedent_io_core::ContractReason::ProgramIdentificationProduct
 pub variant antecedent_io_core::ContractReason::ProgramTarget
@@ -16886,6 +16931,7 @@ pub variant antecedent_io_core::TemporalAssignmentWire::Factorial { first: alloc
 pub variant antecedent_io_core::TemporalAssignmentWire::Interference { assignment: alloc::vec::Vec<bool>, probability: alloc::vec::Vec<f64>, clusters: alloc::vec::Vec<alloc::string::String> }
 pub variant antecedent_io_core::TemporalAssignmentWire::MultiArm { assignment: alloc::vec::Vec<u64>, probabilities: alloc::vec::Vec<alloc::vec::Vec<f64>>, arms: alloc::vec::Vec<alloc::string::String>, categorical: bool, ordered: bool }
 pub variant antecedent_io_core::TemporalAssignmentWire::ObservationalExcursion { treatment: u32, history: alloc::vec::Vec<u32> }
+pub variant antecedent_io_core::TemporalAssignmentWire::ObservationalRegime { treatment: u32, confounders: alloc::vec::Vec<u32>, active: alloc::vec::Vec<bool>, reference: alloc::vec::Vec<bool>, method: alloc::string::String }
 pub variant antecedent_io_core::TemporalAssignmentWire::RegimeSurvival { treatment: u32, censored: u32, confounders: alloc::vec::Vec<u32>, horizon: u32 }
 pub variant antecedent_io_core::TemporalAssignmentWire::TwoArm { assignment: alloc::vec::Vec<bool>, probability: alloc::vec::Vec<f64> }
 pub variant antecedent_io_core::TemporalDoseTargetWire::LocalQuadratic { grid: alloc::vec::Vec<f64>, derivative: bool, curvature_bound: core::option::Option<f64> }

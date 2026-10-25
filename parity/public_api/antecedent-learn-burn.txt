@@ -760,6 +760,7 @@ pub fn antecedent_learn_burn::staged::fit_staged<B: burn_tensor::tensor::backend
 pub fn antecedent_learn_burn::staged::max_gap_in_target_sd(left: &[f64], right: &[f64], truth: &[f64]) -> f64
 pub fn antecedent_learn_burn::staged::run_workload<B: burn_tensor::tensor::backend::base::AutodiffBackend>(device: &<B as burn_tensor::tensor::backend::base::Backend>::Device, workload: &antecedent_learn_burn::staged::Workload, stop: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<antecedent_learn_burn::staged::WorkloadRun, antecedent_learn_burn::LearnBurnError>
 pub fn antecedent_learn_burn::train(x_colmajor: &[f64], nrows: usize, ncols: usize, y: &[f64], spec: &antecedent_learn_burn::MlpSpec) -> core::result::Result<antecedent_learn_burn::TrainedMlp, antecedent_learn_burn::LearnBurnError>
+pub fn antecedent_learn_burn::train_cancellable(x_colmajor: &[f64], nrows: usize, ncols: usize, y: &[f64], spec: &antecedent_learn_burn::MlpSpec, stop: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<antecedent_learn_burn::TrainedMlp, antecedent_learn_burn::LearnBurnError>
 pub mod antecedent_learn_burn::accelerator_probe
 pub mod antecedent_learn_burn::admission
 pub mod antecedent_learn_burn::device

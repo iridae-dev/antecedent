@@ -1,0 +1,147 @@
+# Owners of residual limitations. Hand-maintained; read by scripts/residual_limitations.py.
+#
+# The first rule whose patterns all match a scanned limitation owns it. A rule carries
+#   name        a short label written into the ledger row
+#   limitation  exact ledger id                      (optional)
+#   kind        regular expression on the row kind   (optional)
+#   path        regular expression on the source     (optional)
+#   locator     regular expression on the locator    (optional)
+#   text        regular expression on the text       (optional)
+#   item        the tracker item whose completion claims the limitation's subject (optional;
+#               a counterpart row takes it from its id)
+# and exactly one of
+#   owner       an open tracker item id (TODO.md) that carries the work that removes the limitation
+#   decision    "scope" with a written rationale: the limitation is a recorded boundary of the
+#               release, not pending work
+# scripts/check_residual_limitations.py rejects an unmapped limitation, an owner that is the
+# limitation's own item, an owner that is closed or absent from the tracker, and a scope decision
+# without a rationale.
+
+# ---- theory boundaries: the target does not exist in the closed design cell -------------------
+
+[[owner]]
+name = "estimand_has_no_static_design"
+kind = "^theory_reason$"
+locator = "static\\.(frequentist|bayesian)$|#static\\."
+decision = "scope"
+rationale = "The estimand is indexed by time, a lag, a horizon, an adoption cohort or a panel path, so a static design cell has no such target. The row closes the cell with its typed refusal and theory reason, which is the intended behaviour; a static route would answer a different question."
+
+[[owner]]
+name = "estimand_has_no_sampling_distribution"
+kind = "^theory_reason$"
+decision = "scope"
+rationale = "The target does not exist for a sampling distribution: updating a prior by an experiment is a posterior-side statement only. The frequentist cell stays closed with its theory reason because no frequentist estimator can define the quantity."
+
+# ---- route-manifest next attempts ---------------------------------------------------------------
+
+[[owner]]
+name = "interference_observational_contrast"
+kind = "^route_counterpart$"
+locator = "interference"
+owner = "P09"
+
+[[owner]]
+name = "temporal_measurement_correction"
+kind = "^route_counterpart$"
+locator = "^measurement\\."
+owner = "P16"
+
+[[owner]]
+name = "composed_horizon_interval_coverage"
+kind = "^route_narrowed$"
+owner = "E14"
+
+# ---- counterpart narrowed promises ---------------------------------------------------------------
+
+[[owner]]
+name = "unmeasured_composed_and_selected_decision_reliability"
+kind = "^narrowed_promise$"
+locator = "^(P16|X04\\.1|X04\\.2|X05|X06)\\."
+owner = "E14"
+
+[[owner]]
+name = "interval_derivation_without_independent_owner"
+kind = "^narrowed_promise$"
+locator = "^(P02|P04)\\."
+owner = "P20"
+
+[[owner]]
+name = "attribution_prior_grid_without_independent_owner"
+kind = "^narrowed_promise$"
+locator = "^P13\\.attribution\\.static\\.bayesian$"
+owner = "P20"
+
+[[owner]]
+name = "observational_world_route_without_independent_owner"
+kind = "^narrowed_promise$"
+locator = "^X02\\.static\\."
+owner = "P20"
+
+[[owner]]
+name = "manifest_diff_audited_by_release_closure"
+kind = "^narrowed_promise$"
+locator = "^P19\\."
+owner = "P20"
+
+[[owner]]
+name = "closure_report_zero_rows_gates_the_breadth_milestone"
+kind = "^narrowed_promise$"
+locator = "^P20\\."
+owner = "K2"
+
+[[owner]]
+name = "interference_observational_contrast_row"
+kind = "^narrowed_promise$"
+locator = "interference"
+owner = "P09"
+
+[[owner]]
+name = "composed_interval_row"
+kind = "^narrowed_promise$"
+locator = "^composition\\."
+owner = "E14"
+
+[[owner]]
+name = "point_only_route_row"
+kind = "^narrowed_promise$"
+locator = "^licensed\\."
+owner = "Q08"
+
+[[owner]]
+name = "whole_procedure_calibration_of_narrowed_routes"
+kind = "^narrowed_promise$"
+locator = "^(P07|P10|P11|P13|P14|P15|X02|X03)\\."
+owner = "Q08"
+
+# ---- failed promotion gate -----------------------------------------------------------------------
+
+[[owner]]
+name = "temporal_continuous_cross_world_transport"
+kind = "^failed_gate$"
+owner = "P14"
+
+# ---- recorded evidence rows whose interval has no coverage record ---------------------------------
+
+[[owner]]
+name = "evidence_row_coverage_measurement"
+kind = "^evidence_limit$"
+owner = "Q08"
+
+# ---- source comments and prose ---------------------------------------------------------------------
+
+[[owner]]
+name = "selected_decision_and_adaptive_reliability"
+kind = "^source_phrase$"
+path = "antecedent-design/src/(planning|program_search)|adaptive_inference\\.rs"
+owner = "E14"
+
+[[owner]]
+name = "documentation_states_measured_outcomes"
+kind = "^source_phrase$"
+path = "^docs/"
+owner = "Q15"
+
+[[owner]]
+name = "source_comment_coverage_measurement"
+kind = "^source_phrase$"
+owner = "Q08"
