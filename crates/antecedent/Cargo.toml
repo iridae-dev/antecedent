@@ -863,6 +863,10 @@ name = "evidence_plan_study"
 path = "tests/evidence_plan_study.rs"
 
 [[test]]
+name = "study_ranking_verified_unlocks"
+path = "tests/study_ranking_verified_unlocks.rs"
+
+[[test]]
 name = "joint_panel_streamed_memory"
 path = "tests/joint_panel_streamed_memory.rs"
 
