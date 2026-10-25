@@ -164,13 +164,6 @@ impl DiscreteCell {
         }
     }
 
-    /// Whether this cell is a posterior mixture.
-    #[allow(dead_code, reason = "the facade has not branched on the posterior cells yet")]
-    #[must_use]
-    pub(crate) const fn is_bayesian(self) -> bool {
-        matches!(self, Self::StaticBayesian | Self::HorizonOneBayesian)
-    }
-
     /// Whether this cell cites the horizon-one regime.
     #[must_use]
     pub(crate) const fn is_horizon(self) -> bool {
@@ -261,7 +254,6 @@ pub(crate) struct FittedCell {
 
 impl FittedCell {
     /// Cell this fit belongs to.
-    #[allow(dead_code, reason = "the facade has not selected a cell from a fit yet")]
     #[must_use]
     pub(crate) const fn cell(&self) -> DiscreteCell {
         self.cell
@@ -464,8 +456,10 @@ pub(crate) struct FiniteDiscreteSlice {
 impl FiniteDiscreteSlice {
     /// Fitted cell.
     #[must_use]
-    pub(crate) const fn cell(&self, cell: DiscreteCell) -> &FittedCell {
-        &self.cells[cell.index()]
+    pub(crate) fn cell(&self, cell: DiscreteCell) -> &FittedCell {
+        let fitted = &self.cells[cell.index()];
+        debug_assert_eq!(fitted.cell(), cell, "a slice stores each fit at its cell's index");
+        fitted
     }
 
     /// Static and horizon-one citations of the adjustment.

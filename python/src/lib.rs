@@ -61,7 +61,7 @@ mod cross_world_execution_api;
 mod cyclic_system_api;
 mod decision_api;
 mod decision_reliability_api;
-#[allow(dead_code, reason = "signature literals are checked against this table in tests")]
+#[cfg(test)]
 mod defaults;
 mod derived_treatment_api;
 mod descriptive_api;

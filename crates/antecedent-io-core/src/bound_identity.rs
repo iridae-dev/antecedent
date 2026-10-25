@@ -1,7 +1,7 @@
 //! Bound target, program, source, inference, and claim identities.
 //!
 //! [`bind`] compares one presented identity with the expected identity a
-//! consumer retained independently. [`bind_all`] does that for each slot.
+//! consumer retained independently.
 //! `None` means that consumer does not require an expected identity for the
 //! slot. A self-described digest is not that retained identity.
 //!
@@ -43,7 +43,7 @@ pub enum IdentitySlot {
 }
 
 impl IdentitySlot {
-    /// Closed set, in the order [`bind_all`] reports.
+    /// Closed set, in slot order.
     pub const ALL: [Self; 5] =
         [Self::Target, Self::Program, Self::Source, Self::Inference, Self::Claim];
 
@@ -132,41 +132,6 @@ pub struct ExpectedIdentity {
     pub alignment: SemanticDigest,
     /// Cyclic-solution tag the consumer retained.
     pub cyclic_solution: CyclicSolution,
-}
-
-/// The five presented identities, one per [`IdentitySlot`].
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-#[must_use]
-pub struct BoundIdentities {
-    /// Presented target identity. Its slot is [`IdentitySlot::Target`].
-    pub target: BoundIdentity,
-    /// Presented program identity. Its slot is [`IdentitySlot::Program`].
-    pub program: BoundIdentity,
-    /// Presented source identity. Its slot is [`IdentitySlot::Source`].
-    pub source: BoundIdentity,
-    /// Presented inference identity. Its slot is [`IdentitySlot::Inference`].
-    pub inference: BoundIdentity,
-    /// Presented claim identity. Its slot is [`IdentitySlot::Claim`].
-    pub claim: BoundIdentity,
-}
-
-/// Expected identities retained where a consumer requires them.
-///
-/// `None` means that slot is not required. A presented self-description does
-/// not fill `None`.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-#[must_use]
-pub struct ExpectedIdentities {
-    /// Retained target identity, when the consumer requires one.
-    pub target: Option<ExpectedIdentity>,
-    /// Retained program identity, when the consumer requires one.
-    pub program: Option<ExpectedIdentity>,
-    /// Retained source identity, when the consumer requires one.
-    pub source: Option<ExpectedIdentity>,
-    /// Retained inference identity, when the consumer requires one.
-    pub inference: Option<ExpectedIdentity>,
-    /// Retained claim identity, when the consumer requires one.
-    pub claim: Option<ExpectedIdentity>,
 }
 
 /// Result of comparing one presented identity with a consumer's requirement.
@@ -314,27 +279,6 @@ pub fn bind(
     Ok(BoundMatch::Bound { slot: required })
 }
 
-/// Bind every slot in [`IdentitySlot::ALL`] order.
-///
-/// Each field of `expected` is that slot's retained identity. The first
-/// refusal in that order is returned. A `None` field is [`BoundMatch::NotRequired`]
-/// for its slot when the presentation is consistent.
-///
-/// # Errors
-///
-/// Any slot's presented identity is refused by [`bind`].
-pub fn bind_all(
-    bound: &BoundIdentities,
-    expected: &ExpectedIdentities,
-) -> Result<[BoundMatch; 5], BoundRefusal> {
-    let target = bind(IdentitySlot::Target, &bound.target, expected.target.as_ref())?;
-    let program = bind(IdentitySlot::Program, &bound.program, expected.program.as_ref())?;
-    let source = bind(IdentitySlot::Source, &bound.source, expected.source.as_ref())?;
-    let inference = bind(IdentitySlot::Inference, &bound.inference, expected.inference.as_ref())?;
-    let claim = bind(IdentitySlot::Claim, &bound.claim, expected.claim.as_ref())?;
-    Ok([target, program, source, inference, claim])
-}
-
 const fn slot_tag(slot: IdentitySlot) -> u8 {
     match slot {
         IdentitySlot::Target => 0,
@@ -409,26 +353,6 @@ mod tests {
 
     fn honest(bound: &BoundIdentity) -> SelfDescribedDigest {
         SelfDescribedDigest { advertised: facet_digest(bound) }
-    }
-
-    const fn require_all(retained: ExpectedIdentity) -> ExpectedIdentities {
-        ExpectedIdentities {
-            target: Some(retained),
-            program: Some(retained),
-            source: Some(retained),
-            inference: Some(retained),
-            claim: Some(retained),
-        }
-    }
-
-    const fn presented_all() -> BoundIdentities {
-        BoundIdentities {
-            target: presented(IdentitySlot::Target),
-            program: presented(IdentitySlot::Program),
-            source: presented(IdentitySlot::Source),
-            inference: presented(IdentitySlot::Inference),
-            claim: presented(IdentitySlot::Claim),
-        }
     }
 
     #[test]
@@ -623,48 +547,34 @@ mod tests {
     #[test]
     fn retained_expectations_bind_each_required_slot() {
         let retained = retained();
-        let bound = presented_all();
-        let matches = [
-            BoundMatch::Bound { slot: IdentitySlot::Target },
-            BoundMatch::Bound { slot: IdentitySlot::Program },
-            BoundMatch::Bound { slot: IdentitySlot::Source },
-            BoundMatch::Bound { slot: IdentitySlot::Inference },
-            BoundMatch::Bound { slot: IdentitySlot::Claim },
-        ];
-        assert_eq!(bind_all(&bound, &require_all(retained)), Ok(matches));
-
-        let partial = ExpectedIdentities {
-            target: Some(retained),
-            program: None,
-            source: None,
-            inference: None,
-            claim: Some(retained),
-        };
-        assert_eq!(
-            bind_all(&bound, &partial),
-            Ok([
-                BoundMatch::Bound { slot: IdentitySlot::Target },
-                BoundMatch::NotRequired { slot: IdentitySlot::Program },
-                BoundMatch::NotRequired { slot: IdentitySlot::Source },
-                BoundMatch::NotRequired { slot: IdentitySlot::Inference },
-                BoundMatch::Bound { slot: IdentitySlot::Claim },
-            ]),
-        );
+        for slot in [
+            IdentitySlot::Target,
+            IdentitySlot::Program,
+            IdentitySlot::Source,
+            IdentitySlot::Inference,
+            IdentitySlot::Claim,
+        ] {
+            assert_eq!(
+                bind(slot, &presented(slot), Some(&retained)),
+                Ok(BoundMatch::Bound { slot })
+            );
+            assert_eq!(bind(slot, &presented(slot), None), Ok(BoundMatch::NotRequired { slot }));
+        }
     }
 
     #[test]
     fn presented_slot_must_match_the_field() {
-        let mut bound = presented_all();
-        bound.program.slot = IdentitySlot::Claim;
+        let mut bound = presented(IdentitySlot::Program);
+        bound.slot = IdentitySlot::Claim;
         assert_eq!(
-            bind_all(&bound, &require_all(retained())),
+            bind(IdentitySlot::Program, &bound, Some(&retained())),
             Err(BoundRefusal::SlotMismatch {
                 presented: IdentitySlot::Claim,
                 expected: IdentitySlot::Program,
             }),
         );
         assert_eq!(
-            bind(IdentitySlot::Target, &bound.program, Some(&retained())),
+            bind(IdentitySlot::Target, &bound, Some(&retained())),
             Err(BoundRefusal::SlotMismatch {
                 presented: IdentitySlot::Claim,
                 expected: IdentitySlot::Target,

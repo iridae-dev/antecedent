@@ -41,7 +41,6 @@ pub mod experimental_recovery;
 pub mod frontdoor;
 pub mod generalized;
 pub mod hedge;
-pub mod history_identification;
 pub mod id;
 pub mod idc;
 pub mod identifier;

@@ -27,7 +27,6 @@ pub mod callback_result_artifact;
 pub mod canonical_json;
 pub mod capacity_account;
 pub mod causal_artifact;
-pub mod chunk_refresh;
 mod claim_identity;
 pub mod cohort_decision;
 pub mod compact_export;

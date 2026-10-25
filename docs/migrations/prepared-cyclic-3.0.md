@@ -30,8 +30,8 @@ These changes preserve each family's model-conditional interpretation, failed
 draw slots, unresolved solution regions and unmeasured calibration. Compilation
 does not add identification or scientific authorization. See
 [repair acceptance](compiler-integration-acceptance-3.0.md) for the reviewed
-execution/resource scope and verification. Aggregate Y15 and statistical release
-attestation remain separate backlog obligations.
+execution/resource scope and verification. Aggregate execution accounting and statistical release
+attestation remain separate obligations.
 
 Returned equilibrium and family reports retain admission reservations after their
 prepared handle is dropped. Cancellation leaves those live output reservations

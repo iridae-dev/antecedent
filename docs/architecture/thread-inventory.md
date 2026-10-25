@@ -1,6 +1,6 @@
-# Thread inventory (R01)
+# Thread inventory
 
-What exists today. R02 enforces the dispositions. No redesign.
+What exists today. The thread checker enforces the dispositions. No redesign.
 
 Dispositions: `already_bounded` (this call clamps to the study `ExecutionContext`), `bound_per_operation` (the API can take a per-call width; the call site does not), `startup_only` (process lifetime, not per study), `isolate_or_refuse` (a study thread budget cannot be applied).
 

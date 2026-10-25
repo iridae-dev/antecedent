@@ -44,9 +44,8 @@ pub struct FaerScope {
 pub struct FaerScratch {
     /// Bytes the kernel reads. The lease stays alive until this buffer is dropped.
     pub buffer: MemBuffer,
-    /// Child lease funding `buffer`. Read by drop, so the bytes return to the pool.
-    #[allow(dead_code)]
-    lease: AdmissionLease,
+    /// Child lease funding `buffer`. Held for its drop, so the bytes return to the pool.
+    _lease: AdmissionLease,
 }
 
 impl FaerScope {
@@ -131,7 +130,7 @@ impl FaerScope {
         required: StackReq,
     ) -> Result<FaerScratch, FaerScopeError> {
         let lease = self.admit_scratch(parent, required)?;
-        Ok(FaerScratch { buffer: MemBuffer::new(required), lease })
+        Ok(FaerScratch { buffer: MemBuffer::new(required), _lease: lease })
     }
 }
 

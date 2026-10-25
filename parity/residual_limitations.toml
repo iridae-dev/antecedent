@@ -5,7 +5,7 @@
 # self-ownership, closed or absent owners and a decision without a rationale.
 
 schema = 1
-count = 151
+count = 152
 
 [[limitation]]
 id = "phrase.declaration.0aa33e3f48"
@@ -169,6 +169,18 @@ kind = "source_phrase"
 source = "docs/guides/temporal-designs.md"
 locator = ""
 text = "no identifying premise, and coverage has not been measured."
+item = ""
+owner = "Q15"
+decision = ""
+rationale = ""
+rule = "documentation_states_measured_outcomes"
+
+[[limitation]]
+id = "phrase.compiled-execution-3.0.2b8b39a48f"
+kind = "source_phrase"
+source = "docs/migrations/compiled-execution-3.0.md"
+locator = ""
+text = "unrelated to this repair remains open; this repair grants no new identification or"
 item = ""
 owner = "Q15"
 decision = ""

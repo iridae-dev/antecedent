@@ -2775,3 +2775,69 @@ rust = "antecedent::analysis::joint_panel::designs::joint_design_world_identity"
 kind = "fn"
 status = "internal"
 reason = "Exact target identity is derived inside native prepare_joint_design_for_panel; callers provide explicit compiled source bindings through antecedent.joint_panel."
+
+[[entry]]
+rust = "antecedent::analysis::family_table"
+kind = "fn"
+status = "missing"
+reason = "Python binds independent_product_table and propagate only; a family table over shared-evidence estimates with a declared dependence and an optional ledger has no Python call. Next attempt: bind it beside propagation_chain_product_table in python/src/propagation_chain_api.rs and expose it in antecedent.propagation_chain"
+
+[[entry]]
+rust = "antecedent::analysis::file_table::checked_projection"
+kind = "fn"
+status = "missing"
+reason = "the cohort-checked column projection over a file source has no Python call; TableFile reads projected columns but does not return the checked cohort. Next attempt: bind it on TableFile in python/src/file_source_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::file_table::checked_push_filter"
+kind = "fn"
+status = "missing"
+reason = "the cohort-checked filter pushdown over a file source has no Python call; TableFile does not take a closure or a filter to check. Next attempt: bind it on TableFile in python/src/file_source_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::finite_discrete_contrast"
+kind = "fn"
+status = "missing"
+reason = "the finite-discrete adjustment over a caller frequency table and weighted posterior draws has no Python entry. Next attempt: bind it in python/src/ with a typed table and draws argument and a wrapper in python/antecedent/"
+
+[[entry]]
+rust = "antecedent::analysis::joint_panel::PanelFutureStudy"
+kind = "type"
+status = "missing"
+reason = "Python binds PanelFutureSample candidates in the joint-panel experiment planner, which are samples of the observed estimand; a candidate study with its own regime and mapping evidence has no Python type. Next attempt: add a PanelFutureStudy class in python/src/joint_panel_api/experiment.rs and accept it in the planner"
+
+[[entry]]
+rust = "antecedent::analysis::recipe_glm::logistic_provider"
+kind = "fn"
+status = "missing"
+reason = "the logistic outcome-model provider declaration has no Python entry; Python declares providers through the provider protocol, not this recipe pairing. Next attempt: bind it with logistic_standardized_effect"
+
+[[entry]]
+rust = "antecedent::analysis::recipe_glm::logistic_standardized_effect"
+kind = "fn"
+status = "missing"
+reason = "the logistic generalized-linear fit averaged by the g-computation recipe has no Python entry. Next attempt: bind it in python/src/ taking a table, treatment, outcome and the provider declaration, and wrap it in python/antecedent/"
+
+[[entry]]
+rust = "antecedent::period_refresh::window_factor_changes"
+kind = "fn"
+status = "internal"
+reason = "names the window factors that differ between two window identities inside the temporal extension recalculation; Python reaches it through the period refresh and temporal extension calls (antecedent.transport._period_refresh, antecedent.transport._temporal_extensions) and has no separate call"
+
+[[entry]]
+rust = "antecedent::retained_refresh::spill_registry_within_admission"
+kind = "fn"
+status = "missing"
+reason = "builds the spill registry that bounds a retained refresh by its admission pool; Python holds no retained refresh handle to spill. Next attempt: bind retained refresh spill and reload in python/src/ and construct the registry inside that binding"
+
+[[entry]]
+rust = "antecedent::strategy_table::identify_cpdag_in_context"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::strategy_table::identify_static_query_in_context"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"

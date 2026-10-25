@@ -393,7 +393,7 @@ equal-weight and unequal-weight geo populations, and factorial and multi-arm
 assignment each require their own evidence. A frequentist sampling-law refusal
 records the early statistical guard; downstream Bayesian stages are explicitly
 inapplicable in that case. Neither the generated protocol nor this implementation
-acceptance report grants a Q08/E14 release calibration license.
+acceptance report grants a release calibration license.
 
 An encouragement-specific local IV ratio keeps its original complier target.
 Its unconditioned ratio law does not automatically establish an expected value.

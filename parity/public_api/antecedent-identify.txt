@@ -327,15 +327,6 @@ impl core::clone::Clone for antecedent_identify::experimental_recovery::Recovery
 impl core::clone::Clone for antecedent_identify::experimental_recovery::RecoveryWarning
 impl core::clone::Clone for antecedent_identify::experimental_recovery::UncertaintyFault
 impl core::clone::Clone for antecedent_identify::experimental_recovery::UniquenessRestriction
-impl core::clone::Clone for antecedent_identify::history_identification::CertifiedHistory
-impl core::clone::Clone for antecedent_identify::history_identification::FeedbackAncestor
-impl core::clone::Clone for antecedent_identify::history_identification::HistoryIdentification
-impl core::clone::Clone for antecedent_identify::history_identification::HistoryIdentificationRefusal
-impl core::clone::Clone for antecedent_identify::history_identification::HistoryIdentificationTarget
-impl core::clone::Clone for antecedent_identify::history_identification::HistorySearchBound
-impl core::clone::Clone for antecedent_identify::history_identification::PulseFallbackHistory
-impl core::clone::Clone for antecedent_identify::history_identification::UncertifiedHistory
-impl core::clone::Clone for antecedent_identify::history_identification::UncertifiedReason
 impl core::clone::Clone for antecedent_identify::sid::Rule
 impl core::clone::Clone for antecedent_identify::sid::SHedgeCertificate
 impl core::clone::Clone for antecedent_identify::sid::SHedgeRecord
@@ -544,15 +535,6 @@ impl core::cmp::Eq for antecedent_identify::experimental_recovery::InadmissibleC
 impl core::cmp::Eq for antecedent_identify::experimental_recovery::RecoveryWarning
 impl core::cmp::Eq for antecedent_identify::experimental_recovery::UncertaintyFault
 impl core::cmp::Eq for antecedent_identify::experimental_recovery::UniquenessRestriction
-impl core::cmp::Eq for antecedent_identify::history_identification::CertifiedHistory
-impl core::cmp::Eq for antecedent_identify::history_identification::FeedbackAncestor
-impl core::cmp::Eq for antecedent_identify::history_identification::HistoryIdentification
-impl core::cmp::Eq for antecedent_identify::history_identification::HistoryIdentificationRefusal
-impl core::cmp::Eq for antecedent_identify::history_identification::HistoryIdentificationTarget
-impl core::cmp::Eq for antecedent_identify::history_identification::HistorySearchBound
-impl core::cmp::Eq for antecedent_identify::history_identification::PulseFallbackHistory
-impl core::cmp::Eq for antecedent_identify::history_identification::UncertifiedHistory
-impl core::cmp::Eq for antecedent_identify::history_identification::UncertifiedReason
 impl core::cmp::Eq for antecedent_identify::sid::Rule
 impl core::cmp::Eq for antecedent_identify::sid::cpdag_completion::CompletionDag
 impl core::cmp::Eq for antecedent_identify::sid::cpdag_completion::CompletionRecord
@@ -795,15 +777,6 @@ impl core::cmp::PartialEq for antecedent_identify::experimental_recovery::Recove
 impl core::cmp::PartialEq for antecedent_identify::experimental_recovery::RecoveryWarning
 impl core::cmp::PartialEq for antecedent_identify::experimental_recovery::UncertaintyFault
 impl core::cmp::PartialEq for antecedent_identify::experimental_recovery::UniquenessRestriction
-impl core::cmp::PartialEq for antecedent_identify::history_identification::CertifiedHistory
-impl core::cmp::PartialEq for antecedent_identify::history_identification::FeedbackAncestor
-impl core::cmp::PartialEq for antecedent_identify::history_identification::HistoryIdentification
-impl core::cmp::PartialEq for antecedent_identify::history_identification::HistoryIdentificationRefusal
-impl core::cmp::PartialEq for antecedent_identify::history_identification::HistoryIdentificationTarget
-impl core::cmp::PartialEq for antecedent_identify::history_identification::HistorySearchBound
-impl core::cmp::PartialEq for antecedent_identify::history_identification::PulseFallbackHistory
-impl core::cmp::PartialEq for antecedent_identify::history_identification::UncertifiedHistory
-impl core::cmp::PartialEq for antecedent_identify::history_identification::UncertifiedReason
 impl core::cmp::PartialEq for antecedent_identify::sid::Rule
 impl core::cmp::PartialEq for antecedent_identify::sid::SHedgeRecord
 impl core::cmp::PartialEq for antecedent_identify::sid::SelectionForestRecord
@@ -888,7 +861,6 @@ impl core::error::Error for antecedent_identify::cyclic_id::CyclicIdError
 impl core::error::Error for antecedent_identify::discovered_transport::DiscoveredTransportError
 impl core::error::Error for antecedent_identify::experimental_recovery::PointCollapseRefusal
 impl core::error::Error for antecedent_identify::experimental_recovery::UncertaintyFault
-impl core::error::Error for antecedent_identify::history_identification::HistoryIdentificationRefusal
 impl core::error::Error for antecedent_identify::sid::cpdag_completion::CpdagScenarioError
 impl core::error::Error for antecedent_identify::sid::scenario_invariance::InvarianceReportError
 impl core::error::Error for antecedent_identify::sid::scenarios::ScenarioSetRefusal
@@ -1176,15 +1148,6 @@ impl core::fmt::Debug for antecedent_identify::experimental_recovery::RecoveryDr
 impl core::fmt::Debug for antecedent_identify::experimental_recovery::RecoveryWarning
 impl core::fmt::Debug for antecedent_identify::experimental_recovery::UncertaintyFault
 impl core::fmt::Debug for antecedent_identify::experimental_recovery::UniquenessRestriction
-impl core::fmt::Debug for antecedent_identify::history_identification::CertifiedHistory
-impl core::fmt::Debug for antecedent_identify::history_identification::FeedbackAncestor
-impl core::fmt::Debug for antecedent_identify::history_identification::HistoryIdentification
-impl core::fmt::Debug for antecedent_identify::history_identification::HistoryIdentificationRefusal
-impl core::fmt::Debug for antecedent_identify::history_identification::HistoryIdentificationTarget
-impl core::fmt::Debug for antecedent_identify::history_identification::HistorySearchBound
-impl core::fmt::Debug for antecedent_identify::history_identification::PulseFallbackHistory
-impl core::fmt::Debug for antecedent_identify::history_identification::UncertifiedHistory
-impl core::fmt::Debug for antecedent_identify::history_identification::UncertifiedReason
 impl core::fmt::Debug for antecedent_identify::sid::Rule
 impl core::fmt::Debug for antecedent_identify::sid::SHedgeCertificate
 impl core::fmt::Debug for antecedent_identify::sid::SHedgeRecord
@@ -1249,7 +1212,6 @@ impl core::fmt::Display for antecedent_identify::experiment_moments::MomentAssem
 impl core::fmt::Display for antecedent_identify::experiment_moments::RegimeInconsistency
 impl core::fmt::Display for antecedent_identify::experimental_recovery::PointCollapseRefusal
 impl core::fmt::Display for antecedent_identify::experimental_recovery::UncertaintyFault
-impl core::fmt::Display for antecedent_identify::history_identification::HistoryIdentificationRefusal
 impl core::fmt::Display for antecedent_identify::sid::cpdag_completion::CpdagScenarioError
 impl core::fmt::Display for antecedent_identify::sid::scenario_invariance::InvarianceReportError
 impl core::fmt::Display for antecedent_identify::sid::scenarios::ScenarioSetRefusal
@@ -1294,9 +1256,6 @@ impl core::hash::Hash for antecedent_identify::experimental_recovery::Inadmissib
 impl core::hash::Hash for antecedent_identify::experimental_recovery::RecoveryWarning
 impl core::hash::Hash for antecedent_identify::experimental_recovery::UncertaintyFault
 impl core::hash::Hash for antecedent_identify::experimental_recovery::UniquenessRestriction
-impl core::hash::Hash for antecedent_identify::history_identification::FeedbackAncestor
-impl core::hash::Hash for antecedent_identify::history_identification::HistoryIdentificationTarget
-impl core::hash::Hash for antecedent_identify::history_identification::HistorySearchBound
 impl core::marker::Copy for antecedent_identify::BinaryIvLaw
 impl core::marker::Copy for antecedent_identify::ChainPartial
 impl core::marker::Copy for antecedent_identify::ChainRecoveryDetail
@@ -1358,11 +1317,6 @@ impl core::marker::Copy for antecedent_identify::experimental_recovery::PointCol
 impl core::marker::Copy for antecedent_identify::experimental_recovery::RecoveryWarning
 impl core::marker::Copy for antecedent_identify::experimental_recovery::UncertaintyFault
 impl core::marker::Copy for antecedent_identify::experimental_recovery::UniquenessRestriction
-impl core::marker::Copy for antecedent_identify::history_identification::FeedbackAncestor
-impl core::marker::Copy for antecedent_identify::history_identification::HistoryIdentificationRefusal
-impl core::marker::Copy for antecedent_identify::history_identification::HistoryIdentificationTarget
-impl core::marker::Copy for antecedent_identify::history_identification::HistorySearchBound
-impl core::marker::Copy for antecedent_identify::history_identification::UncertifiedReason
 impl core::marker::Copy for antecedent_identify::sid::Rule
 impl core::marker::Copy for antecedent_identify::sid::scenarios::ScenarioDecisionLimits
 impl core::marker::Copy for antecedent_identify::sid::temporal_sequence::MechanismAssumption
@@ -1651,15 +1605,6 @@ impl core::marker::Freeze for antecedent_identify::experimental_recovery::Recove
 impl core::marker::Freeze for antecedent_identify::experimental_recovery::RecoveryWarning [auto]
 impl core::marker::Freeze for antecedent_identify::experimental_recovery::UncertaintyFault [auto]
 impl core::marker::Freeze for antecedent_identify::experimental_recovery::UniquenessRestriction [auto]
-impl core::marker::Freeze for antecedent_identify::history_identification::CertifiedHistory [auto]
-impl core::marker::Freeze for antecedent_identify::history_identification::FeedbackAncestor [auto]
-impl core::marker::Freeze for antecedent_identify::history_identification::HistoryIdentification [auto]
-impl core::marker::Freeze for antecedent_identify::history_identification::HistoryIdentificationRefusal [auto]
-impl core::marker::Freeze for antecedent_identify::history_identification::HistoryIdentificationTarget [auto]
-impl core::marker::Freeze for antecedent_identify::history_identification::HistorySearchBound [auto]
-impl core::marker::Freeze for antecedent_identify::history_identification::PulseFallbackHistory [auto]
-impl core::marker::Freeze for antecedent_identify::history_identification::UncertifiedHistory [auto]
-impl core::marker::Freeze for antecedent_identify::history_identification::UncertifiedReason [auto]
 impl core::marker::Freeze for antecedent_identify::sid::Rule [auto]
 impl core::marker::Freeze for antecedent_identify::sid::SHedgeCertificate [auto]
 impl core::marker::Freeze for antecedent_identify::sid::SHedgeRecord [auto]
@@ -1992,15 +1937,6 @@ impl core::marker::Send for antecedent_identify::experimental_recovery::Recovery
 impl core::marker::Send for antecedent_identify::experimental_recovery::RecoveryWarning [auto]
 impl core::marker::Send for antecedent_identify::experimental_recovery::UncertaintyFault [auto]
 impl core::marker::Send for antecedent_identify::experimental_recovery::UniquenessRestriction [auto]
-impl core::marker::Send for antecedent_identify::history_identification::CertifiedHistory [auto]
-impl core::marker::Send for antecedent_identify::history_identification::FeedbackAncestor [auto]
-impl core::marker::Send for antecedent_identify::history_identification::HistoryIdentification [auto]
-impl core::marker::Send for antecedent_identify::history_identification::HistoryIdentificationRefusal [auto]
-impl core::marker::Send for antecedent_identify::history_identification::HistoryIdentificationTarget [auto]
-impl core::marker::Send for antecedent_identify::history_identification::HistorySearchBound [auto]
-impl core::marker::Send for antecedent_identify::history_identification::PulseFallbackHistory [auto]
-impl core::marker::Send for antecedent_identify::history_identification::UncertifiedHistory [auto]
-impl core::marker::Send for antecedent_identify::history_identification::UncertifiedReason [auto]
 impl core::marker::Send for antecedent_identify::sid::Rule [auto]
 impl core::marker::Send for antecedent_identify::sid::SHedgeCertificate [auto]
 impl core::marker::Send for antecedent_identify::sid::SHedgeRecord [auto]
@@ -2253,15 +2189,6 @@ impl core::marker::StructuralPartialEq for antecedent_identify::experimental_rec
 impl core::marker::StructuralPartialEq for antecedent_identify::experimental_recovery::RecoveryWarning
 impl core::marker::StructuralPartialEq for antecedent_identify::experimental_recovery::UncertaintyFault
 impl core::marker::StructuralPartialEq for antecedent_identify::experimental_recovery::UniquenessRestriction
-impl core::marker::StructuralPartialEq for antecedent_identify::history_identification::CertifiedHistory
-impl core::marker::StructuralPartialEq for antecedent_identify::history_identification::FeedbackAncestor
-impl core::marker::StructuralPartialEq for antecedent_identify::history_identification::HistoryIdentification
-impl core::marker::StructuralPartialEq for antecedent_identify::history_identification::HistoryIdentificationRefusal
-impl core::marker::StructuralPartialEq for antecedent_identify::history_identification::HistoryIdentificationTarget
-impl core::marker::StructuralPartialEq for antecedent_identify::history_identification::HistorySearchBound
-impl core::marker::StructuralPartialEq for antecedent_identify::history_identification::PulseFallbackHistory
-impl core::marker::StructuralPartialEq for antecedent_identify::history_identification::UncertifiedHistory
-impl core::marker::StructuralPartialEq for antecedent_identify::history_identification::UncertifiedReason
 impl core::marker::StructuralPartialEq for antecedent_identify::sid::Rule
 impl core::marker::StructuralPartialEq for antecedent_identify::sid::SHedgeRecord
 impl core::marker::StructuralPartialEq for antecedent_identify::sid::SelectionForestRecord
@@ -2572,15 +2499,6 @@ impl core::marker::Sync for antecedent_identify::experimental_recovery::Recovery
 impl core::marker::Sync for antecedent_identify::experimental_recovery::RecoveryWarning [auto]
 impl core::marker::Sync for antecedent_identify::experimental_recovery::UncertaintyFault [auto]
 impl core::marker::Sync for antecedent_identify::experimental_recovery::UniquenessRestriction [auto]
-impl core::marker::Sync for antecedent_identify::history_identification::CertifiedHistory [auto]
-impl core::marker::Sync for antecedent_identify::history_identification::FeedbackAncestor [auto]
-impl core::marker::Sync for antecedent_identify::history_identification::HistoryIdentification [auto]
-impl core::marker::Sync for antecedent_identify::history_identification::HistoryIdentificationRefusal [auto]
-impl core::marker::Sync for antecedent_identify::history_identification::HistoryIdentificationTarget [auto]
-impl core::marker::Sync for antecedent_identify::history_identification::HistorySearchBound [auto]
-impl core::marker::Sync for antecedent_identify::history_identification::PulseFallbackHistory [auto]
-impl core::marker::Sync for antecedent_identify::history_identification::UncertifiedHistory [auto]
-impl core::marker::Sync for antecedent_identify::history_identification::UncertifiedReason [auto]
 impl core::marker::Sync for antecedent_identify::sid::Rule [auto]
 impl core::marker::Sync for antecedent_identify::sid::SHedgeCertificate [auto]
 impl core::marker::Sync for antecedent_identify::sid::SHedgeRecord [auto]
@@ -2913,15 +2831,6 @@ impl core::marker::Unpin for antecedent_identify::experimental_recovery::Recover
 impl core::marker::Unpin for antecedent_identify::experimental_recovery::RecoveryWarning [auto]
 impl core::marker::Unpin for antecedent_identify::experimental_recovery::UncertaintyFault [auto]
 impl core::marker::Unpin for antecedent_identify::experimental_recovery::UniquenessRestriction [auto]
-impl core::marker::Unpin for antecedent_identify::history_identification::CertifiedHistory [auto]
-impl core::marker::Unpin for antecedent_identify::history_identification::FeedbackAncestor [auto]
-impl core::marker::Unpin for antecedent_identify::history_identification::HistoryIdentification [auto]
-impl core::marker::Unpin for antecedent_identify::history_identification::HistoryIdentificationRefusal [auto]
-impl core::marker::Unpin for antecedent_identify::history_identification::HistoryIdentificationTarget [auto]
-impl core::marker::Unpin for antecedent_identify::history_identification::HistorySearchBound [auto]
-impl core::marker::Unpin for antecedent_identify::history_identification::PulseFallbackHistory [auto]
-impl core::marker::Unpin for antecedent_identify::history_identification::UncertifiedHistory [auto]
-impl core::marker::Unpin for antecedent_identify::history_identification::UncertifiedReason [auto]
 impl core::marker::Unpin for antecedent_identify::sid::Rule [auto]
 impl core::marker::Unpin for antecedent_identify::sid::SHedgeCertificate [auto]
 impl core::marker::Unpin for antecedent_identify::sid::SHedgeRecord [auto]
@@ -3245,15 +3154,6 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::experiment
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::experimental_recovery::RecoveryWarning [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::experimental_recovery::UncertaintyFault [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::experimental_recovery::UniquenessRestriction [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::history_identification::CertifiedHistory [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::history_identification::FeedbackAncestor [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::history_identification::HistoryIdentification [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::history_identification::HistoryIdentificationRefusal [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::history_identification::HistoryIdentificationTarget [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::history_identification::HistorySearchBound [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::history_identification::PulseFallbackHistory [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::history_identification::UncertifiedHistory [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::history_identification::UncertifiedReason [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::sid::Rule [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::sid::SHedgeCertificate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::sid::SHedgeRecord [auto]
@@ -3577,15 +3477,6 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::experimental_
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::experimental_recovery::RecoveryWarning [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::experimental_recovery::UncertaintyFault [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::experimental_recovery::UniquenessRestriction [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::history_identification::CertifiedHistory [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::history_identification::FeedbackAncestor [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::history_identification::HistoryIdentification [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::history_identification::HistoryIdentificationRefusal [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::history_identification::HistoryIdentificationTarget [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::history_identification::HistorySearchBound [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::history_identification::PulseFallbackHistory [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::history_identification::UncertifiedHistory [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::history_identification::UncertifiedReason [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::sid::Rule [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::sid::SHedgeCertificate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::sid::SHedgeRecord [auto]
@@ -3899,8 +3790,6 @@ pub const antecedent_identify::cross_world::CROSS_WORLD_MAX_NODES: usize
 pub const antecedent_identify::discovered_transport::DEFAULT_ENVELOPE_MEMBER_BOUND: usize
 pub const antecedent_identify::discovered_transport::DISCOVERED_TRANSPORT_REASON: &str
 pub const antecedent_identify::discovered_transport::ENVELOPE_ASSUMPTIONS: [&str; 4]
-pub const antecedent_identify::history_identification::HISTORY_PULSE_FALLBACK_CODE: &str
-pub const antecedent_identify::history_identification::HISTORY_SEARCH_BOUNDED_CODE: &str
 pub const antecedent_identify::recovery::MISSING_LEVEL: &str
 pub const antecedent_identify::sid::cpdag_completion::CPDAG_BOUNDS_EXCEEDED_DETAIL: &str
 pub const antecedent_identify::sid::cpdag_completion::CPDAG_EVIDENCE_MISMATCH_DETAIL: &str
@@ -3928,8 +3817,6 @@ pub const antecedent_identify::sid::temporal_sequence::TEMPORAL_SEARCH_INCOMPLET
 pub const antecedent_identify::temporal_iv::TEMPORAL_IV_METHOD: &str
 pub const fn antecedent_identify::carries_identified_mass(status: antecedent_core::identification::IdentificationStatus) -> bool
 pub const fn antecedent_identify::experimental_recovery::recover_declared_coefficients(equation_rank: core::option::Option<&antecedent_identify::DeclaredEquationRank>, weak_stability: antecedent_identify::WeakStability) -> antecedent_identify::experimental_recovery::DeclarationRecovery
-pub const fn antecedent_identify::history_identification::is_feedback_certified(identification: &antecedent_identify::history_identification::HistoryIdentification) -> bool
-pub const fn antecedent_identify::history_identification::search_bound(identification: &antecedent_identify::history_identification::HistoryIdentification) -> core::option::Option<antecedent_identify::history_identification::HistorySearchBound>
 pub enum antecedent_identify::CatalogTransportResult
 pub enum antecedent_identify::ChainRecoveryDecision
 pub enum antecedent_identify::ChainRecoveryDetail
@@ -4000,10 +3887,6 @@ pub enum antecedent_identify::experimental_recovery::InadmissibleCoefficientDraw
 pub enum antecedent_identify::experimental_recovery::RecoveryWarning
 pub enum antecedent_identify::experimental_recovery::UncertaintyFault
 pub enum antecedent_identify::experimental_recovery::UniquenessRestriction
-pub enum antecedent_identify::history_identification::HistoryIdentification
-pub enum antecedent_identify::history_identification::HistoryIdentificationRefusal
-pub enum antecedent_identify::history_identification::HistoryIdentificationTarget
-pub enum antecedent_identify::history_identification::UncertifiedReason
 pub enum antecedent_identify::sid::Rule
 pub enum antecedent_identify::sid::cpdag_completion::CpdagEvidence
 pub enum antecedent_identify::sid::cpdag_completion::CpdagScenarioError
@@ -5342,19 +5225,6 @@ pub fn <antecedent_identify::experimental_recovery::RecoveredCoefficientUncertai
 pub fn <antecedent_identify::experimental_recovery::RecoveredCoefficientUncertainty>::fn total_mass(&self) -> f64
 pub fn <antecedent_identify::experimental_recovery::RecoveredCoefficientUncertainty>::fn try_collapse(&self) -> core::result::Result<antecedent_identify::experimental_recovery::RecoveredCoefficientPoint, antecedent_identify::experimental_recovery::PointCollapseRefusal>
 pub fn <antecedent_identify::experimental_recovery::RecoveryWarning>::const fn design_fault(self) -> antecedent_identify::DesignFault
-pub fn <antecedent_identify::history_identification::CertifiedHistory>::const fn initial_law(&self) -> &antecedent_core::scientific_target::model::InitialLaw
-pub fn <antecedent_identify::history_identification::CertifiedHistory>::const fn search_bound(&self) -> antecedent_identify::history_identification::HistorySearchBound
-pub fn <antecedent_identify::history_identification::CertifiedHistory>::fn ancestry(&self) -> &[antecedent_identify::history_identification::FeedbackAncestor]
-pub fn <antecedent_identify::history_identification::FeedbackAncestor>::const fn lag(self) -> u32
-pub fn <antecedent_identify::history_identification::FeedbackAncestor>::const fn new(node: antecedent_core::temporal::TemporalNodeKey) -> core::result::Result<Self, antecedent_identify::history_identification::HistoryIdentificationRefusal>
-pub fn <antecedent_identify::history_identification::FeedbackAncestor>::const fn node(self) -> antecedent_core::temporal::TemporalNodeKey
-pub fn <antecedent_identify::history_identification::HistorySearchBound>::const fn declared(steps: u32) -> Self
-pub fn <antecedent_identify::history_identification::HistorySearchBound>::const fn steps(self) -> u32
-pub fn <antecedent_identify::history_identification::PulseFallbackHistory>::const fn diagnostic(&self) -> &antecedent_core::diagnostic::Diagnostic
-pub fn <antecedent_identify::history_identification::UncertifiedHistory>::const fn diagnostic(&self) -> &antecedent_core::diagnostic::Diagnostic
-pub fn <antecedent_identify::history_identification::UncertifiedHistory>::const fn missing_ancestor(&self) -> core::option::Option<antecedent_identify::history_identification::FeedbackAncestor>
-pub fn <antecedent_identify::history_identification::UncertifiedHistory>::const fn reason(&self) -> antecedent_identify::history_identification::UncertifiedReason
-pub fn <antecedent_identify::history_identification::UncertifiedHistory>::const fn search_bound(&self) -> antecedent_identify::history_identification::HistorySearchBound
 pub fn <antecedent_identify::sid::SHedgeCertificate>::fn from_record_checked(record: antecedent_identify::sid::SHedgeRecord, diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ClassicalTransportQuery, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::sid::SHedgeCertificate>::fn to_record(&self) -> antecedent_identify::sid::SHedgeRecord
 pub fn <antecedent_identify::sid::cpdag_completion::CpdagCompletionDecision>::const fn is_exportable(&self) -> bool
@@ -5469,7 +5339,6 @@ pub fn antecedent_identify::experimental_recovery::recover_assembled_coefficient
 pub fn antecedent_identify::experimental_recovery::regime_is_identified(decision: &antecedent_identify::ExperimentalRecoveryDecision, design: &[antecedent_identify::DeclaredClampExperiment], regime: &antecedent_identify::DeclaredClampExperiment) -> bool
 pub fn antecedent_identify::generalized::invisible_directed_edges(mag: &antecedent_graph::pag::Pag) -> alloc::vec::Vec<(antecedent_graph::types::DenseNodeId, antecedent_graph::types::DenseNodeId)>
 pub fn antecedent_identify::generalized::mag_to_confounded_admg(mag: &antecedent_graph::pag::Pag) -> core::option::Option<antecedent_graph::admg::Admg>
-pub fn antecedent_identify::history_identification::identify_history(target: antecedent_identify::history_identification::HistoryIdentificationTarget, graph: &antecedent_graph::temporal::TemporalDag, focus: antecedent_core::temporal::TemporalNodeKey, initial_law: core::option::Option<&antecedent_core::scientific_target::model::InitialLaw>, bound: antecedent_identify::history_identification::HistorySearchBound) -> core::result::Result<antecedent_identify::history_identification::HistoryIdentification, antecedent_identify::history_identification::HistoryIdentificationRefusal>
 pub fn antecedent_identify::identify_catalog_transport(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ClassicalTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::CatalogTransportResult, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::identify_catalog_transport_selection_standardization_first(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ClassicalTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::CatalogTransportResult, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::identify_catalog_transport_standardization_first(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ClassicalTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::CatalogTransportResult, antecedent_identify::IdentificationError>
@@ -5545,7 +5414,6 @@ pub mod antecedent_identify::experimental_recovery
 pub mod antecedent_identify::frontdoor
 pub mod antecedent_identify::generalized
 pub mod antecedent_identify::hedge
-pub mod antecedent_identify::history_identification
 pub mod antecedent_identify::id
 pub mod antecedent_identify::idc
 pub mod antecedent_identify::identifier
@@ -5823,16 +5691,6 @@ pub struct antecedent_identify::experimental_recovery::RecoveredCoefficientPoint
 pub struct antecedent_identify::experimental_recovery::RecoveredCoefficientUncertainty
 pub struct antecedent_identify::experimental_recovery::RecoveredCoefficientUncertainty has private fields
 pub struct antecedent_identify::experimental_recovery::RecoveryDrawInput
-pub struct antecedent_identify::history_identification::CertifiedHistory
-pub struct antecedent_identify::history_identification::CertifiedHistory has private fields
-pub struct antecedent_identify::history_identification::FeedbackAncestor
-pub struct antecedent_identify::history_identification::FeedbackAncestor has private fields
-pub struct antecedent_identify::history_identification::HistorySearchBound
-pub struct antecedent_identify::history_identification::HistorySearchBound has private fields
-pub struct antecedent_identify::history_identification::PulseFallbackHistory
-pub struct antecedent_identify::history_identification::PulseFallbackHistory has private fields
-pub struct antecedent_identify::history_identification::UncertifiedHistory
-pub struct antecedent_identify::history_identification::UncertifiedHistory has private fields
 pub struct antecedent_identify::sid::SHedgeCertificate
 pub struct antecedent_identify::sid::SHedgeCertificate has private fields
 pub struct antecedent_identify::sid::SHedgeRecord
@@ -6566,16 +6424,6 @@ pub variant antecedent_identify::experimental_recovery::UniquenessRestriction::B
 pub variant antecedent_identify::experimental_recovery::UniquenessRestriction::Faithfulness
 pub variant antecedent_identify::experimental_recovery::UniquenessRestriction::MinimumNormCompletion
 pub variant antecedent_identify::experimental_recovery::UniquenessRestriction::NotOffered
-pub variant antecedent_identify::history_identification::HistoryIdentification::Certified(antecedent_identify::history_identification::CertifiedHistory)
-pub variant antecedent_identify::history_identification::HistoryIdentification::PulseFallback(antecedent_identify::history_identification::PulseFallbackHistory)
-pub variant antecedent_identify::history_identification::HistoryIdentification::Uncertified(antecedent_identify::history_identification::UncertifiedHistory)
-pub variant antecedent_identify::history_identification::HistoryIdentificationRefusal::FutureAncestor { offset: i32 }
-pub variant antecedent_identify::history_identification::HistoryIdentificationRefusal::MissingInitialLaw
-pub variant antecedent_identify::history_identification::HistoryIdentificationTarget::FeedbackAncestry
-pub variant antecedent_identify::history_identification::HistoryIdentificationTarget::PulseParentAdjustment
-pub variant antecedent_identify::history_identification::UncertifiedReason::AncestorAbsent(antecedent_identify::history_identification::FeedbackAncestor)
-pub variant antecedent_identify::history_identification::UncertifiedReason::AncestorPastBound(antecedent_identify::history_identification::FeedbackAncestor)
-pub variant antecedent_identify::history_identification::UncertifiedReason::FrontierOpen
 pub variant antecedent_identify::sid::Rule::Ancestors
 pub variant antecedent_identify::sid::Rule::DirectTransport
 pub variant antecedent_identify::sid::Rule::Districts

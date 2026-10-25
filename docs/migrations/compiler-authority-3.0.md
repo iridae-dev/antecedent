@@ -26,5 +26,5 @@ their numerical role and grant no bridge authority.
 
 Validation: the 14 flagship unit tests cover replay, invalidation and independent
 summaries. Bridge propagation tests include refusal without the principal
-assumption. This closes only the propagation-licensing portion of H12; mean
+assumption. This closes only the propagation-licensing portion; mean
 provenance and decision-classification consolidation remain open.

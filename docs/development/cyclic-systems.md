@@ -1,15 +1,11 @@
 # General cyclic systems for 3.0
 
-Y18 and all Y19 families are mandatory 3.0 implementation work, promoted on
-20 October 2026. Calibration and attestation are separate topics and do not block
-implementation closure. Y18, Y19 and their ten acceptance children are complete
-under the standalone implementation gate, with the mathematical scopes below.
-
-Development began on `codex/general-cyclic-systems`, based on `3.0.0`, and was
-merged into `3.0.0` at `232b007de` after the concurrent user commits. Those commits
-are preserved. `TODO.md` is a
-locally ignored planning file; the tracked roadmap, release-scope registry and
-this document preserve the promoted commitment independently.
+This page records the mathematical scope of the general cyclic-system families.
+For a practitioner walk-through start with the [cyclic systems guide](../guides/cyclic-systems.md).
+Calibration and attestation are separate topics: every family is complete under
+the standalone implementation gate, with the scopes below, and its statistical
+outputs remain calibration-unmeasured. The tracked roadmap and release-scope
+registry record the commitment.
 
 ## Executing workflows
 
@@ -222,7 +218,7 @@ Python workflow tests and a fresh-process CPU replay of the retained first
 integration milestone. The API, provenance, Python surface and targeted Clippy
 checks also passed.
 
-The acceptance inventory covers the two Y18 and eight Y19 children independently.
+The acceptance inventory covers the ten cyclic-system families independently.
 Checked functional consumers evaluate finite observational laws and continuous
 Gaussian densities, including fitted densities; source-bound native evidence
 connects the family outputs to existing decision contracts. Mechanism interoperability

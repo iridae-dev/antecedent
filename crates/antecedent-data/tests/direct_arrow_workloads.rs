@@ -28,8 +28,8 @@ use antecedent_core::{ExecutionContext, KernelPolicy, VariableId};
 use antecedent_data::design_layout::{DesignLayout, OwnershipCopy};
 use antecedent_data::file_source::{ReadOptions, TableFile};
 use antecedent_data::{
-    CalendarSpan, DeclaredSplit, GlobalId, LaggedFrame, MultiEnvironmentData, PopulationUnit,
-    TableView, TabularData, TimeSeriesData, UnitPartition, tabular_from_record_batch,
+    GlobalId, LaggedFrame, MultiEnvironmentData, TableView, TabularData, TimeSeriesData,
+    tabular_from_record_batch,
 };
 use arrow_array::{ArrayRef, Float64Array, RecordBatch};
 use arrow_schema::{DataType, Field, Schema};
@@ -396,36 +396,6 @@ fn panel_and_environment_lag_windows_stay_inside_their_unit_with_bounded_allocat
             .unwrap();
     assert_eq!(env_frame.n_effective(), pooled.n_effective());
 
-    // Windows: a lag never leaves its unit, and a cut does not move a lag.
-    let calendar: Vec<i64> = (0..rows as i64).collect();
-    let split_end = rows;
-    let (windows, window_time) = best_of(3, || {
-        (0..units as u32)
-            .map(|unit| {
-                let partition = UnitPartition::try_new(
-                    PopulationUnit::panel(unit),
-                    calendar.clone(),
-                    1,
-                    [DeclaredSplit::try_new("fit", 0..split_end).unwrap()],
-                )
-                .unwrap();
-                partition.window("fit", CalendarSpan::try_new(0, rows as i64).unwrap()).unwrap()
-            })
-            .collect::<Vec<_>>()
-    });
-    for window in &windows {
-        assert!(window.borrow_lag(0, 1).is_err(), "lag 1 of the first row is another unit");
-        assert_eq!(window.borrow_lag(rows / 2, 2).unwrap(), rows / 2 - 2);
-        let (head, tail) = window.chunk_at(rows / 2).unwrap();
-        let joined: Vec<usize> = head.local_rows().chain(tail.local_rows()).collect();
-        assert_eq!(joined, window.eager_rows());
-        assert_eq!(
-            tail.borrow_lag(rows / 2, 2).unwrap(),
-            window.borrow_lag(rows / 2, 2).unwrap(),
-            "a chunk cut is not a boundary"
-        );
-    }
-
     // Identity: the Parquet route returns a unit with the Arrow route's digest.
     let scratch = Scratch::new("panel");
     let path = scratch.0.join("unit.parquet");
@@ -439,7 +409,6 @@ fn panel_and_environment_lag_windows_stay_inside_their_unit_with_bounded_allocat
     record("panel_environment_window", "owned_bytes", owned_bytes);
     record("panel_environment_window", "pooled_peak_bytes", pooled_peak);
     record("panel_environment_window", "pooled_ns", pooled_time.as_nanos());
-    record("panel_environment_window", "windows_ns", window_time.as_nanos());
 }
 
 #[test]

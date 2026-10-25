@@ -51,7 +51,7 @@ Cyclic NumPy output views retain admission in their actual native base owner,
 so discarding receipts or prepared handles cannot release a live array's budget.
 
 This is the resource and observation foundation for the compiler integration
-repair. It does not close H03/H04 or establish complete workflow resource accounting.
+repair. It does not establish complete workflow resource accounting.
 
 Execution observations now include retained source and frozen-fit reservations that
 were acquired before the observed call. Reattaching a live reservation is

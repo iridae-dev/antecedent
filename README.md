@@ -139,7 +139,14 @@ Read the [2.4.1 release notes](docs/release-notes/v2.4.1.md) for method boundari
 
 ## Documentation and contribution
 
-The [documentation index](docs/index.md) covers concepts, workflows and APIs. See [CONTRIBUTING.md](CONTRIBUTING.md) to contribute; commits require Developer Certificate of Origin sign-off.
+The [documentation index](docs/index.md) covers concepts, workflows and APIs.
+
+Task guides for the newer surfaces:
+
+- [Cyclic systems and feedback loops](docs/guides/cyclic-systems.md) and [joint intervention responses](docs/guides/joint-intervention-responses.md)
+- [Study ranking and power](docs/design-ranking.md), [staleness and refresh](docs/guides/staleness.md) and the [readable report](docs/guides/report.md)
+- [Embedding in applications and agents](docs/embedding.md), [bringing your own table](docs/guides/your-data.md) and [Parquet, Arrow IPC and large tables](docs/guides/large-tables.md)
+- [Migration from the previous release](docs/migration/from_previous_release.md) and the [Rust/Python naming dictionary](docs/api_naming.md) See [CONTRIBUTING.md](CONTRIBUTING.md) to contribute; commits require Developer Certificate of Origin sign-off.
 
 ## License
 

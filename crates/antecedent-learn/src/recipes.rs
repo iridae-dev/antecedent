@@ -26,8 +26,7 @@
 //! `usize`.
 //!
 //! Accepting a provider is not identification and is not calibration. It does
-//! not open a support-matrix route. `recipe_license` emits the route and test
-//! obligations a checked recipe owes, and only from an explicit license.
+//! not open a support-matrix route.
 
 use std::collections::BTreeSet;
 use std::fmt;

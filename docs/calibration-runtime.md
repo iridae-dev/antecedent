@@ -67,9 +67,9 @@ alone does not prevent oversubscription.
 
 When two same-version checkouts share a Cargo target directory, a successful
 `--no-run` alone does not prove that the executable matches the second checkout.
-An observed C30/e15 switch reused the C30 binary in 0.14 seconds even though the
+An observed switch between two checkouts reused the first checkout's binary in 0.14 seconds even though the
 ranking test source differed: the second checkout's older file timestamps made
-Cargo call every local artifact fresh. This was caught before any e15 simulation.
+Cargo call every local artifact fresh. This was caught before any simulation.
 The rejected binary and source receipts were retained; only source-file timestamps
 were invalidated, leaving source bytes and Git identities unchanged.
 

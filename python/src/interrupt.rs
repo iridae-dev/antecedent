@@ -97,21 +97,6 @@ pub(crate) fn link(token: &CancellationToken) {
     }
 }
 
-/// Release the GIL without the interrupt worker.
-///
-/// [`run`] gives every detached call a 64 MiB thread so Ctrl-C can cancel it.
-/// This is the cheap path for a call that does not poll a cancellation token.
-/// Call sites stay on [`run`] until each one is classified: switching one drops
-/// cooperative Ctrl-C for that call.
-#[allow(dead_code)]
-pub(crate) fn detach_fast<F, T>(py: Python<'_>, f: F) -> PyResult<T>
-where
-    F: FnOnce() -> PyResult<T> + Send,
-    T: Send,
-{
-    py.detach(|| catch_ffi(f))
-}
-
 /// Callback failures awaiting attribution, by the id their message carries.
 static STASH: Mutex<BTreeMap<u64, PyErr>> = Mutex::new(BTreeMap::new());
 

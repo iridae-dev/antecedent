@@ -512,7 +512,6 @@ struct LeaseSlot {
     observation: Option<crate::execution_attempt::ObservedAdmission>,
     /// Set when a test asks the cancellation scan to return this slot.
     /// A live owner is not marked by [`CancellationToken::cancel`].
-    #[allow(dead_code)]
     cancelled: bool,
 }
 

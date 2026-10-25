@@ -285,7 +285,7 @@ def route_rows(routes: list[dict], lowerings: dict[str, str], evidenced: Evidenc
             and "counterpart_design" not in route
         ):
             continue
-        targets = [route_method(route), *counterparts]
+        targets = list(dict.fromkeys([route_method(route), *counterparts]))
         for inference in inferences:
             kind, basis = evidenced.route_kind(route["id"], inference) if not closed else ("none", "refused_route")
             methods = evidenced.for_side(evidenced.by_route.get(route["id"], []), inference)

@@ -45,7 +45,6 @@ use crate::{CausalError, EstimatorId, IdentifierId};
 #[derive(Clone, Debug)]
 pub(crate) struct IdentifiedAdmgConditional {
     /// Conditional effect the two laws realise.
-    #[allow(dead_code, reason = "the estimand is what callers read; the query is the request")]
     pub(crate) query: ConditionalEffectQuery,
     /// Mean contrast, method `general.id`.
     pub(crate) estimand: IdentifiedEstimand,
@@ -160,7 +159,7 @@ pub(crate) fn admg_conditional_identification(
          observed law",
     );
     Ok(IdentificationResult::identified(
-        CausalQuery::ConditionalEffect(query.clone()),
+        CausalQuery::ConditionalEffect(identified.query),
         vec![identified.estimand],
         identified.arena,
         derivation,

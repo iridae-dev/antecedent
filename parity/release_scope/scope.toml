@@ -12,6 +12,18 @@ public_claim_changes_only_after_named_attempts_are_exhausted = true
 delta_ab_identified_claim = "pending"
 model_conditional_rule = "A world becomes model-conditional only after both the supported-world design and the joint-assignment design leave it unsupported."
 gaussian_panel_record = "parity/method_specs/specs.toml"
+retired_capabilities = [
+  "Feedback-ancestor history identification (certified, pulse-fallback and uncertified history targets over a temporal graph): no identification, lowering or artifact route consumed it; history targets are certified through the history match and history operator routes.",
+  "Standalone robust-decision evaluators over identified sets, coverage regions, unnormalized model mass and bounded-simulation comparison: no decision route called them; robust conclusions are produced by the robustness evaluator and its result artifact.",
+  "Cached-decision consumption permission (source withdrawal, supersession and calibration re-read at the consuming coordinate): no decision, reuse or refresh route called it; reuse invalidation is carried by the dependency keys and the composition verification graph.",
+  "Isolated-call cancellation boundary (cancel sites, provider dispositions, abandoned-call retention, stop and success receipts): no execution route entered it; study cancellation is carried by the cancellation token and the admission pool.",
+  "Panel unit windows with declared splits, calendar spans, lag borrowing and chunk cuts (the unit identity itself stays): only a workload exercised them; lag construction stays in the lagged frame, which never reads across units.",
+  "Sealed dependency keys over eight dependency classes (the class and product catalog stays): reuse and refresh invalidate through the identity axes of the reusable products, so no route sealed these keys.",
+  "Joint presentation and expectation of all five bound identities in one call (single-slot binding stays): the cyclic contract section binds one slot at a time.",
+  "Recipe support licenses emitting route and test obligations from an explicit license: no recipe route requested one.",
+  "Evidence effect ledger (record-then-combine and dependent-pooling operators with effect identities): no synthesis route recorded effects; evidence is combined through the envelope, dependence and joint-alignment contracts.",
+  "Chunked refresh ledger for single-series summaries (appended chunk rows, caller-supplied summaries, cached snapshots, lag-boundary borrowing across chunks): no ingestion, refresh or reuse route called it, and refresh over appended rows is carried by the prepared reuse and refresh routes.",
+]
 
 [[entry]]
 id = "licensed.AnomalyAttribution.Dag"

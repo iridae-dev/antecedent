@@ -419,15 +419,6 @@ evidence_assertion = "gcm_fit_intervene"
 notes = "Core GCM+CF+basic anomaly/arrow strength done; Shapley in attribution inventory (parity/gcm.toml)"
 
 [[capabilities]]
-id = "estimate.secondary_surfaces"
-group = "secondary_surfaces"
-description = "Graph learners, transformers, interpreters, time-series helpers"
-status = "pending"
-evidence_kind = "implementation_exists"
-owner = "release"
-notes = "pinned baseline secondary package is not mirrored; equivalent surfaces live as dedicated inventory IDs (discovery, transforms, effects, facade). Downgraded: no single executing test evidences this aggregate row; the equivalent surfaces are evidenced by their dedicated inventory rows."
-
-[[capabilities]]
 id = "estimate.handoff.adjustment"
 group = "external_handoff"
 description = "Certified adjustment-set handoff for a caller-owned learner"
@@ -443,6 +434,12 @@ notes = "Antecedent emits the certified adjustment set and records a caller-fitt
 # The adjustment handoff ships (estimate.handoff.adjustment). What stays out is
 # an in-process learner wrapper or model composition, not the handoff itself.
 econml_model_composition = true
+# The pinned baseline's secondary package (graph learners, transformers,
+# interpreters, time-series helpers) is not mirrored as one surface, so there is no
+# aggregate capability to evidence. Each equivalent surface is a dedicated inventory
+# row with its own executing test: discovery, transforms, effects and the facade.
+# An aggregate row would claim evidence none of those tests provides.
+secondary_package_aggregate = true
 
 [optional_adapters]
 causalml = "pending"  # unimplemented; a second learner uses the adjustment handoff. See adr/0025-provider-protocol.md

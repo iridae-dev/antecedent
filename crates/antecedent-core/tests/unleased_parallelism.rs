@@ -48,13 +48,6 @@ const ALLOWLIST: &[Allowed] = &[
                  spawns and holds it until the workers join",
     },
     Allowed {
-        path: "crates/antecedent-core/src/cancellation_boundary.rs",
-        marker: "acquire_admission(1, call_bytes)",
-        reason: "an uninterruptible call runs on its own thread, which holds one worker slot \
-                 and the call's bytes from the admission pool until the call returns, even \
-                 after the caller stops waiting",
-    },
-    Allowed {
         path: "crates/antecedent-data/src/resample.rs",
         marker: "admit_resample_scratch",
         reason: "batch resampling leases its workers and per-worker scratch with \

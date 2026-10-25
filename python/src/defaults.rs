@@ -11,15 +11,12 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Discovery and estimation significance level (`alpha=0.05`).
-#[allow(dead_code, reason = "signature attributes repeat this literal")]
 pub(crate) const ALPHA: f64 = 0.05;
 
 /// Seed of the discovery-style entry points (`seed=1`).
-#[allow(dead_code, reason = "signature attributes repeat this literal")]
 pub(crate) const SEED: u64 = 1;
 
 /// Seed of the entry points that already default to zero (`seed=0`).
-#[allow(dead_code, reason = "signature attributes repeat this literal")]
 pub(crate) const SEED_ZERO: u64 = 0;
 
 #[cfg(test)]

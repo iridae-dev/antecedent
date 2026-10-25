@@ -10,6 +10,7 @@ from _repo import ensure_scripts_on_path
 ensure_scripts_on_path()
 import check_residual_limitations as check  # noqa: E402
 import residual_limitations as gen  # noqa: E402
+from _repo import load_toml, read_text  # noqa: E402
 
 TRACKER = "\n".join([
     "- [ ] **A1** open item that carries work",
@@ -64,8 +65,8 @@ class Scanning(unittest.TestCase):
             root = Path(tmp)
             (root / "crates/a/src").mkdir(parents=True)
             (root / "crates/a/tests").mkdir(parents=True)
-            (root / "crates/a/src/lib.rs").write_text("// Coverage has not been measured.\nfn f() {}\n")
-            (root / "crates/a/tests/t.rs").write_text("// coverage has not been measured\n")
+            (root / "crates/a/src/lib.rs").write_text("// Coverage has not been measured.\nfn f() {}\n", encoding="utf-8")
+            (root / "crates/a/tests/t.rs").write_text("// coverage has not been measured\n", encoding="utf-8")
             found = gen.phrase_limitations(root)
         self.assertEqual([r["source"] for r in found], ["crates/a/src/lib.rs"])
         self.assertEqual(found[0]["text"], "Coverage has not been measured.")
@@ -144,8 +145,9 @@ class Rejections(unittest.TestCase):
 
 class Repository(unittest.TestCase):
     def test_the_committed_ledger_is_complete_and_current(self) -> None:
-        tracker = gen.parse_tracker(gen.read_text(gen.ROOT / gen.TRACKER))
-        stored = gen.load_toml(gen.ROOT / gen.LEDGER).get("limitation", [])
+        tracker_path, ledger_path = gen.ROOT / gen.TRACKER, gen.ROOT / gen.LEDGER
+        tracker = gen.parse_tracker(read_text(tracker_path))
+        stored = load_toml(ledger_path).get("limitation", [])
         self.assertEqual(check.problems(stored, tracker), [])
 
 

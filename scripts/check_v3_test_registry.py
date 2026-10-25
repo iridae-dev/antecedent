@@ -52,6 +52,16 @@ SHA = re.compile(r"[0-9a-f]{40}")
 REVISION = re.compile(r'(?m)^revision\s*=\s*"(.*)"\s*$')
 STAMP = re.compile(r"(?m)^#\s*v3-evidence\s*$")
 PATH_ATTR = re.compile(r'#\[path\s*=\s*"([^"]+)"\]')
+TEST_ATTR = re.compile(r"#\[(?:\w+::)?test\b|proptest!\s*\{|#\[rstest\]|#\[test_case\b")
+IGNORED = re.compile(r"#\[ignore\b")
+PY_TEST = re.compile(r"(?m)^\s*(?:async\s+)?def test_|^class Test")
+# Directories whose top-level test files must each have a registry row when the
+# registry declares ``complete = true``.
+COMPLETE_GLOBS = (
+    "crates/*/tests/*.rs",
+    "python/tests/test_*.py",
+    "scripts/test_*.py",
+)
 
 
 def head_sha(repo: Path) -> str | None:
@@ -142,6 +152,37 @@ def evidence_problems(root: Path, entry_id: str, rel: object, head: str | None) 
     return []
 
 
+def runnable_python(text: str) -> bool:
+    """A pytest test, or a script that runs itself (a gate or a self-test)."""
+    return bool(PY_TEST.search(text)) or "__main__" in text or "unittest" in text
+
+
+def executes_tests(text: str) -> bool:
+    """True when the source carries at least one test that is not ignored."""
+    attrs = len(TEST_ATTR.findall(text))
+    return attrs > len(IGNORED.findall(text))
+
+
+def unregistered(root: Path, registered: set[str]) -> list[str]:
+    """Test files that exist but have no registry row."""
+    found: list[str] = []
+    for pattern in COMPLETE_GLOBS:
+        for path in sorted(root.glob(pattern)):
+            rel = path.relative_to(root).as_posix()
+            if path.name.startswith("suite_") or path.name == "__init__.py":
+                continue
+            text = path.read_text(encoding="utf-8")
+            is_test = bool(PY_TEST.search(text)) if rel.endswith(".py") else bool(TEST_ATTR.search(text))
+            if is_test and rel not in registered and rel not in INCLUDED_MODULES:
+                found.append(rel)
+    return found
+
+
+# Files compiled only as a module of another registered test file; they carry
+# tests but have no cargo target of their own.
+INCLUDED_MODULES = {"crates/antecedent/tests/joint_panel_experiment_chain.rs"}
+
+
 def problems(root: Path, head: str | None) -> list[str]:
     registry = root / REGISTRY
     if not registry.is_file():
@@ -202,6 +243,10 @@ def problems(root: Path, head: str | None) -> list[str]:
             errors.append(f"FAIL: {entry_id}: path {rel} does not exist")
             continue
         suite_line = entry.get("suite_map_line")
+        if "named" in gates and cargo_target != "script" and not executes_tests(path.read_text(encoding="utf-8")):
+            errors.append(f"FAIL: {entry_id}: gate named but {rel} has no non-ignored test")
+        if cargo_target == "script" and rel.endswith(".py") and not runnable_python(path.read_text(encoding="utf-8")):
+            errors.append(f"FAIL: {entry_id}: {rel} defines no test function")
         if cargo_target == "script":
             if rel.startswith("crates/") or (root / "crates" / crate).is_dir():
                 errors.append(f"FAIL: {entry_id}: cargo_target script is not a crate test")
@@ -255,6 +300,10 @@ def problems(root: Path, head: str | None) -> list[str]:
             errors.append(f"FAIL: {entry_id}: consolidated test requires suite_map_line")
         elif suite_line.strip() != line[0]:
             errors.append(f"FAIL: {entry_id}: suite_map_line does not match tests/suite_map.txt")
+    if data.get("complete") is True:
+        registered = {e.get("path") for e in entries if isinstance(e, dict)}
+        for rel in unregistered(root, registered):
+            errors.append(f"FAIL: {rel}: test file has no registry row")
     return errors
 
 
@@ -327,7 +376,7 @@ name = "suite_01"
 path = "tests/suite_01.rs"
 """)
     _write(crate, "tests/suite_01.rs", '#[path = "foo.rs"]\nmod foo;\n')
-    _write(crate, "tests/foo.rs", "// consolidated test\n")
+    _write(crate, "tests/foo.rs", "#[test]\nfn runs() {}\n")
     _write(crate, "tests/suite_map.txt", suite_map_text)
 
 
@@ -372,7 +421,7 @@ edition = "2021"
 autotests = false
 """)
         _write(crate, "tests/suite_01.rs", '#[path = "foo.rs"]\nmod foo;\n')
-        _write(crate, "tests/foo.rs", "// not built\n")
+        _write(crate, "tests/foo.rs", "#[test]\nfn runs() {}\n")
         _write(crate, "tests/suite_map.txt", "suite_01: foo\n")
         _registry(root, [{
             "id": "unbuilt",
@@ -444,7 +493,7 @@ autotests = false
 
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
-        _write(root, "scripts/check_v3_test_registry.py", "# sentinel\n")
+        _write(root, "scripts/check_v3_test_registry.py", "if __name__ == \"__main__\":\n    pass\n")
         _registry(root, [{
             "id": "v3-registry-sentinel",
             "crate": "scripts",
@@ -468,6 +517,33 @@ autotests = false
             "evidence_path": "parity/fresh.toml",
         }])
         _expect_ok("positive consolidated test with fresh evidence", root)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _crate(root, "suite_01: foo\n")
+        _write(root, "crates/demo/tests/foo.rs", "#[test]\n#[ignore]\nfn never_runs() {}\n")
+        _registry(root, [{
+            "id": "ignored",
+            "crate": "demo",
+            "cargo_target": "suite_01",
+            "path": "crates/demo/tests/foo.rs",
+            "suite_map_line": "suite_01: foo",
+            "gates": ["named"],
+        }])
+        _expect_fail("named gate on an ignored-only file", root, "has no non-ignored test")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _write(root, "scripts/test_orphan.py", "def test_runs():\n    pass\n")
+        _write(root, "scripts/test_listed.py", "def test_runs():\n    pass\n")
+        _write(root, REGISTRY, "schema = 1\ncomplete = true\n\n" + _entry({
+            "id": "listed",
+            "crate": "scripts",
+            "cargo_target": "script",
+            "path": "scripts/test_listed.py",
+            "gates": ["inventory"],
+        }))
+        _expect_fail("complete registry with an unregistered test", root, "scripts/test_orphan.py: test file has no registry row")
 
     print("v3 test registry self-test: ok")
     return 0

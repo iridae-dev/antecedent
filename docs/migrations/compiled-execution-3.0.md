@@ -43,8 +43,8 @@ predates this execution account. Unknown measurements remain absent. See
 Public Gaussian and four-way behavioral tests replace demonstration-function-name
 checks in the checked-execution registry. The accompanying dose-grid/cyclic
 integration and verification evidence are recorded in
-[repair acceptance](compiler-integration-acceptance-3.0.md). H03/H04 remain open
-for unrelated library-wide work; this repair grants no new identification or
+[repair acceptance](compiler-integration-acceptance-3.0.md). Library-wide work
+unrelated to this repair remains open; this repair grants no new identification or
 calibration guarantees.
 
 The costed physical choice is made before preparing the checked design and is

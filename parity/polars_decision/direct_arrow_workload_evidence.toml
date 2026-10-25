@@ -3,7 +3,6 @@
 panel_environment_window.owned_bytes = 4561920
 panel_environment_window.pooled_peak_bytes = 4766311
 panel_environment_window.pooled_ns = 13669834
-panel_environment_window.windows_ns = 1137583
 shared_design.build_peak_bytes = 576
 shared_design.consumer_peak_bytes = 0
 wide_adjustment.input_bytes = 16000000

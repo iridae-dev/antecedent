@@ -173,7 +173,6 @@ const fn dense(
     MeasuredPoint { op, storage: StorageLayout::Dense, rows, cols, product, workers }
 }
 
-#[allow(dead_code, reason = "the generated table uses it once a row-major shape is measured")]
 const fn dense_rowmajor(
     op: LayoutOp,
     rows: u32,

@@ -2,7 +2,7 @@
 
 This repair addresses the reviewed 3.0 compiler integration, authority, resource,
 and observation defects. It does not promote new causal methods or calibrations.
-H03, H04, H12 and Y15 remain open for their unrelated aggregate obligations.
+Aggregate obligations unrelated to this repair remain open.
 
 ## Execution boundaries
 

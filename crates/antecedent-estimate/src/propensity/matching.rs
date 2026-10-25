@@ -532,7 +532,8 @@ fn quote_exact_matching(
 /// Reuses [`PropensityEstimationWorkspace`]'s cached [`MatchingIndex`] when donor geometry
 /// is unchanged. One-dimensional absolute distance is answered by [`SortedScalarIndex`]:
 /// the same donor a forward scan keeps, including ties, calipers, and replacement.
-/// Multivariate queries stay on the cached index and its memory guard. Before either is built,
+/// Multivariate queries stay on the cached index and its memory guard, or on the exact
+/// bounding-box tree in high dimension ([`SpatialIndex::for_dimension`]). Before either is built,
 /// the pass is quoted from the caller's budget ([`quote_exact_matching`]): its buffers are
 /// leased and its work is checked against the workspace's declared ceiling.
 #[expect(
@@ -558,7 +559,7 @@ pub(crate) fn match_diffs(
         caliper,
         workspace,
         ctx,
-        SpatialIndex::SplitPlane,
+        SpatialIndex::for_dimension(dim),
     )
 }
 
@@ -568,12 +569,24 @@ pub(crate) fn match_diffs(
 /// built when the caller's budget also holds it; otherwise the pass stays on the cached
 /// split-plane index, whose memory guard is unchanged.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-#[cfg_attr(not(test), allow(dead_code, reason = "selected by benchmarks and tests"))]
 pub(crate) enum SpatialIndex {
     /// The cached [`MatchingIndex`] (split-plane k-d tree).
     SplitPlane,
     /// [`BoxTreeIndex`], when the memory guard permits it.
     BoundingBox,
+}
+
+impl SpatialIndex {
+    /// Smallest feature dimension at which the bounding-box tree is the default. The measured
+    /// record (`parity/matching_spatial/bench.toml`) has it faster on clustered data at every
+    /// size and on uniform data from eight dimensions, and slower on low-dimensional uniform
+    /// data, where the split-plane index stays.
+    const BOUNDING_BOX_MIN_DIMENSION: usize = 8;
+
+    /// Index the production pass uses for `dim`-dimensional features.
+    pub(crate) const fn for_dimension(dim: usize) -> Self {
+        if dim >= Self::BOUNDING_BOX_MIN_DIMENSION { Self::BoundingBox } else { Self::SplitPlane }
+    }
 }
 
 /// [`match_diffs`] with an explicit multivariate [`SpatialIndex`].
@@ -641,9 +654,9 @@ pub(crate) fn match_diffs_with(
             )?;
         } else {
             // Multivariate Euclidean search keeps `MatchingIndex` and its memory guard.
-            // `antecedent_stats::BoxTreeIndex` is the exact bounding-box candidate, measured
-            // beside it by the `matching_spatial` benchmark; it does not replace this path or
-            // lift the guard until those records support a change.
+            // `antecedent_stats::BoxTreeIndex` answers the same queries exactly; it is chosen
+            // by `SpatialIndex::for_dimension` where the `matching_spatial` record supports it,
+            // and its own size guard falls back to the cached index.
             let boxed = if spatial == SpatialIndex::BoundingBox
                 && matches!(distance, MatchingDistance::Euclidean)
             {

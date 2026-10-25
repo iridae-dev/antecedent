@@ -657,13 +657,6 @@ impl core::clone::Clone for antecedent_design::repair_artifact::SensitivityFindi
 impl core::clone::Clone for antecedent_design::repair_artifact::SensitivityMethodWire
 impl core::clone::Clone for antecedent_design::repair_artifact::TransportPremisesWire
 impl core::clone::Clone for antecedent_design::repair_artifact::ZTransportPremisesWire
-impl core::clone::Clone for antecedent_design::robust_decision::CoverageConclusions
-impl core::clone::Clone for antecedent_design::robust_decision::CoverageRegion
-impl core::clone::Clone for antecedent_design::robust_decision::ExpectationNotRobust
-impl core::clone::Clone for antecedent_design::robust_decision::RobustDecisionError
-impl core::clone::Clone for antecedent_design::robust_decision::SetConclusions
-impl core::clone::Clone for antecedent_design::robust_decision::SimulationComparison
-impl core::clone::Clone for antecedent_design::robust_decision::UnnormalizedMass
 impl core::clone::Clone for antecedent_design::rollout_artifact::RolloutArtifact
 impl core::clone::Clone for antecedent_design::rollout_artifact::RolloutExpectation
 impl core::clone::Clone for antecedent_design::rollout_artifact::RolloutSource
@@ -752,7 +745,6 @@ impl core::clone::Clone for antecedent_design::signal::SignalTrustLabel
 impl core::clone::Clone for antecedent_design::signal::SignalUpdateMode
 impl core::clone::Clone for antecedent_design::source_evidence::SourceEvidence
 impl core::clone::Clone for antecedent_design::source_evidence::SourceEvidenceError
-impl core::clone::Clone for antecedent_design::source_permission::SourcePermission
 impl core::clone::Clone for antecedent_design::source_projection_artifact::ProjectionReport
 impl core::clone::Clone for antecedent_design::source_projection_artifact::ProjectionSource
 impl core::clone::Clone for antecedent_design::source_projection_artifact::SourceProjection
@@ -1572,13 +1564,6 @@ impl core::cmp::PartialEq for antecedent_design::repair_artifact::SensitivityFin
 impl core::cmp::PartialEq for antecedent_design::repair_artifact::SensitivityMethodWire
 impl core::cmp::PartialEq for antecedent_design::repair_artifact::TransportPremisesWire
 impl core::cmp::PartialEq for antecedent_design::repair_artifact::ZTransportPremisesWire
-impl core::cmp::PartialEq for antecedent_design::robust_decision::CoverageConclusions
-impl core::cmp::PartialEq for antecedent_design::robust_decision::CoverageRegion
-impl core::cmp::PartialEq for antecedent_design::robust_decision::ExpectationNotRobust
-impl core::cmp::PartialEq for antecedent_design::robust_decision::RobustDecisionError
-impl core::cmp::PartialEq for antecedent_design::robust_decision::SetConclusions
-impl core::cmp::PartialEq for antecedent_design::robust_decision::SimulationComparison
-impl core::cmp::PartialEq for antecedent_design::robust_decision::UnnormalizedMass
 impl core::cmp::PartialEq for antecedent_design::rollout_artifact::StateInterpretation
 impl core::cmp::PartialEq for antecedent_design::scientific_source::ScientificConsumptionScope
 impl core::cmp::PartialEq for antecedent_design::sensitivity_decision::SamplingReport
@@ -1651,7 +1636,6 @@ impl core::cmp::PartialEq for antecedent_design::signal::SignalReceipt
 impl core::cmp::PartialEq for antecedent_design::signal::SignalRequest
 impl core::cmp::PartialEq for antecedent_design::signal::SignalTrustLabel
 impl core::cmp::PartialEq for antecedent_design::signal::SignalUpdateMode
-impl core::cmp::PartialEq for antecedent_design::source_permission::SourcePermission
 impl core::cmp::PartialEq for antecedent_design::source_projection_artifact::ProjectionReport
 impl core::cmp::PartialEq for antecedent_design::source_projection_artifact::ProjectionSource
 impl core::cmp::PartialEq for antecedent_design::source_projection_artifact::SourceProjection
@@ -1701,8 +1685,6 @@ impl core::convert::From<&antecedent_design::inverse_query::InverseConstraint> f
 impl core::convert::From<&antecedent_design::inverse_query::InverseResult> for antecedent_design::inverse_query_artifact::InverseResultWire
 impl core::convert::From<&antecedent_design::inverse_query::MemberStatus> for antecedent_design::inverse_query_artifact::MemberStatusWire
 impl core::convert::From<&antecedent_design::inverse_query::PosteriorFeasibility> for antecedent_design::inverse_query_artifact::PosteriorFeasibilityWire
-impl core::convert::From<antecedent_contract::composition_verification::graph::GraphError> for antecedent_design::source_permission::PermissionError
-impl core::convert::From<antecedent_contract::evidence_ledger::refusal::LedgerError> for antecedent_design::source_permission::PermissionError
 impl core::convert::From<antecedent_contract::external_refusal::ExternalRefusal> for antecedent_design::sequential_evaluation::SequentialEvaluationError
 impl core::convert::From<antecedent_core::query::error::QueryError> for antecedent_design::ZTransportPlanningError
 impl core::convert::From<antecedent_design::DesignError> for antecedent_design::design_ranking_artifact::DesignRankingArtifactError
@@ -1799,12 +1781,10 @@ impl core::error::Error for antecedent_design::joint_coupling::CouplingAbsent
 impl core::error::Error for antecedent_design::planning::PlanningRefusal
 impl core::error::Error for antecedent_design::program_search::ProgramSearchError
 impl core::error::Error for antecedent_design::proposal_receipt::ProposalReceiptError
-impl core::error::Error for antecedent_design::robust_decision::RobustDecisionError
 impl core::error::Error for antecedent_design::scientific_source::ScientificSourceError
 impl core::error::Error for antecedent_design::sensitivity_decision::SensitivityDecisionError
 impl core::error::Error for antecedent_design::sequential_evaluation::SequentialEvaluationError
 impl core::error::Error for antecedent_design::source_evidence::SourceEvidenceError
-impl core::error::Error for antecedent_design::source_permission::PermissionError
 impl core::error::Error for antecedent_design::transport_sensitivity::TransportSensitivityRefusal
 impl core::fmt::Debug for antecedent_design::ActionKind
 impl core::fmt::Debug for antecedent_design::AffineUtility
@@ -2376,13 +2356,6 @@ impl core::fmt::Debug for antecedent_design::repair_artifact::SensitivityFinding
 impl core::fmt::Debug for antecedent_design::repair_artifact::SensitivityMethodWire
 impl core::fmt::Debug for antecedent_design::repair_artifact::TransportPremisesWire
 impl core::fmt::Debug for antecedent_design::repair_artifact::ZTransportPremisesWire
-impl core::fmt::Debug for antecedent_design::robust_decision::CoverageConclusions
-impl core::fmt::Debug for antecedent_design::robust_decision::CoverageRegion
-impl core::fmt::Debug for antecedent_design::robust_decision::ExpectationNotRobust
-impl core::fmt::Debug for antecedent_design::robust_decision::RobustDecisionError
-impl core::fmt::Debug for antecedent_design::robust_decision::SetConclusions
-impl core::fmt::Debug for antecedent_design::robust_decision::SimulationComparison
-impl core::fmt::Debug for antecedent_design::robust_decision::UnnormalizedMass
 impl core::fmt::Debug for antecedent_design::rollout_artifact::RolloutArtifact
 impl core::fmt::Debug for antecedent_design::rollout_artifact::RolloutExpectation
 impl core::fmt::Debug for antecedent_design::rollout_artifact::RolloutSource
@@ -2472,8 +2445,6 @@ impl core::fmt::Debug for antecedent_design::signal::SignalTrustLabel
 impl core::fmt::Debug for antecedent_design::signal::SignalUpdateMode
 impl core::fmt::Debug for antecedent_design::source_evidence::SourceEvidence
 impl core::fmt::Debug for antecedent_design::source_evidence::SourceEvidenceError
-impl core::fmt::Debug for antecedent_design::source_permission::PermissionError
-impl core::fmt::Debug for antecedent_design::source_permission::SourcePermission
 impl core::fmt::Debug for antecedent_design::source_projection_artifact::ProjectionReport
 impl core::fmt::Debug for antecedent_design::source_projection_artifact::ProjectionSource
 impl core::fmt::Debug for antecedent_design::source_projection_artifact::SourceProjection
@@ -2531,13 +2502,11 @@ impl core::fmt::Display for antecedent_design::joint_coupling::CouplingAbsent
 impl core::fmt::Display for antecedent_design::planning::PlanningRefusal
 impl core::fmt::Display for antecedent_design::program_search::ProgramSearchError
 impl core::fmt::Display for antecedent_design::proposal_receipt::ProposalReceiptError
-impl core::fmt::Display for antecedent_design::robust_decision::RobustDecisionError
 impl core::fmt::Display for antecedent_design::scientific_source::ScientificSourceError
 impl core::fmt::Display for antecedent_design::sensitivity_decision::SensitivityDecisionError
 impl core::fmt::Display for antecedent_design::sequential_evaluation::HistoryKey
 impl core::fmt::Display for antecedent_design::sequential_evaluation::SequentialEvaluationError
 impl core::fmt::Display for antecedent_design::source_evidence::SourceEvidenceError
-impl core::fmt::Display for antecedent_design::source_permission::PermissionError
 impl core::fmt::Display for antecedent_design::transport_sensitivity::TransportSensitivityRefusal
 impl core::hash::Hash for antecedent_design::ActionKind
 impl core::hash::Hash for antecedent_design::DecisionProblemId
@@ -3358,13 +3327,6 @@ impl core::marker::Freeze for antecedent_design::repair_artifact::SensitivityFin
 impl core::marker::Freeze for antecedent_design::repair_artifact::SensitivityMethodWire [auto]
 impl core::marker::Freeze for antecedent_design::repair_artifact::TransportPremisesWire [auto]
 impl core::marker::Freeze for antecedent_design::repair_artifact::ZTransportPremisesWire [auto]
-impl core::marker::Freeze for antecedent_design::robust_decision::CoverageConclusions [auto]
-impl core::marker::Freeze for antecedent_design::robust_decision::CoverageRegion [auto]
-impl core::marker::Freeze for antecedent_design::robust_decision::ExpectationNotRobust [auto]
-impl core::marker::Freeze for antecedent_design::robust_decision::RobustDecisionError [auto]
-impl core::marker::Freeze for antecedent_design::robust_decision::SetConclusions [auto]
-impl core::marker::Freeze for antecedent_design::robust_decision::SimulationComparison [auto]
-impl core::marker::Freeze for antecedent_design::robust_decision::UnnormalizedMass [auto]
 impl core::marker::Freeze for antecedent_design::rollout_artifact::RolloutArtifact [auto]
 impl core::marker::Freeze for antecedent_design::rollout_artifact::RolloutExpectation [auto]
 impl core::marker::Freeze for antecedent_design::rollout_artifact::RolloutSource [auto]
@@ -3454,8 +3416,6 @@ impl core::marker::Freeze for antecedent_design::signal::SignalTrustLabel [auto]
 impl core::marker::Freeze for antecedent_design::signal::SignalUpdateMode [auto]
 impl core::marker::Freeze for antecedent_design::source_evidence::SourceEvidence [auto]
 impl core::marker::Freeze for antecedent_design::source_evidence::SourceEvidenceError [auto]
-impl core::marker::Freeze for antecedent_design::source_permission::PermissionError [auto]
-impl core::marker::Freeze for antecedent_design::source_permission::SourcePermission [auto]
 impl core::marker::Freeze for antecedent_design::source_projection_artifact::ProjectionReport [auto]
 impl core::marker::Freeze for antecedent_design::source_projection_artifact::ProjectionSource [auto]
 impl core::marker::Freeze for antecedent_design::source_projection_artifact::SourceProjection [auto]
@@ -4062,13 +4022,6 @@ impl core::marker::Send for antecedent_design::repair_artifact::SensitivityFindi
 impl core::marker::Send for antecedent_design::repair_artifact::SensitivityMethodWire [auto]
 impl core::marker::Send for antecedent_design::repair_artifact::TransportPremisesWire [auto]
 impl core::marker::Send for antecedent_design::repair_artifact::ZTransportPremisesWire [auto]
-impl core::marker::Send for antecedent_design::robust_decision::CoverageConclusions [auto]
-impl core::marker::Send for antecedent_design::robust_decision::CoverageRegion [auto]
-impl core::marker::Send for antecedent_design::robust_decision::ExpectationNotRobust [auto]
-impl core::marker::Send for antecedent_design::robust_decision::RobustDecisionError [auto]
-impl core::marker::Send for antecedent_design::robust_decision::SetConclusions [auto]
-impl core::marker::Send for antecedent_design::robust_decision::SimulationComparison [auto]
-impl core::marker::Send for antecedent_design::robust_decision::UnnormalizedMass [auto]
 impl core::marker::Send for antecedent_design::rollout_artifact::RolloutArtifact [auto]
 impl core::marker::Send for antecedent_design::rollout_artifact::RolloutExpectation [auto]
 impl core::marker::Send for antecedent_design::rollout_artifact::RolloutSource [auto]
@@ -4158,8 +4111,6 @@ impl core::marker::Send for antecedent_design::signal::SignalTrustLabel [auto]
 impl core::marker::Send for antecedent_design::signal::SignalUpdateMode [auto]
 impl core::marker::Send for antecedent_design::source_evidence::SourceEvidence [auto]
 impl core::marker::Send for antecedent_design::source_evidence::SourceEvidenceError [auto]
-impl core::marker::Send for antecedent_design::source_permission::PermissionError [auto]
-impl core::marker::Send for antecedent_design::source_permission::SourcePermission [auto]
 impl core::marker::Send for antecedent_design::source_projection_artifact::ProjectionReport [auto]
 impl core::marker::Send for antecedent_design::source_projection_artifact::ProjectionSource [auto]
 impl core::marker::Send for antecedent_design::source_projection_artifact::SourceProjection [auto]
@@ -4688,13 +4639,6 @@ impl core::marker::StructuralPartialEq for antecedent_design::repair_artifact::S
 impl core::marker::StructuralPartialEq for antecedent_design::repair_artifact::SensitivityMethodWire
 impl core::marker::StructuralPartialEq for antecedent_design::repair_artifact::TransportPremisesWire
 impl core::marker::StructuralPartialEq for antecedent_design::repair_artifact::ZTransportPremisesWire
-impl core::marker::StructuralPartialEq for antecedent_design::robust_decision::CoverageConclusions
-impl core::marker::StructuralPartialEq for antecedent_design::robust_decision::CoverageRegion
-impl core::marker::StructuralPartialEq for antecedent_design::robust_decision::ExpectationNotRobust
-impl core::marker::StructuralPartialEq for antecedent_design::robust_decision::RobustDecisionError
-impl core::marker::StructuralPartialEq for antecedent_design::robust_decision::SetConclusions
-impl core::marker::StructuralPartialEq for antecedent_design::robust_decision::SimulationComparison
-impl core::marker::StructuralPartialEq for antecedent_design::robust_decision::UnnormalizedMass
 impl core::marker::StructuralPartialEq for antecedent_design::rollout_artifact::StateInterpretation
 impl core::marker::StructuralPartialEq for antecedent_design::scientific_source::ScientificConsumptionScope
 impl core::marker::StructuralPartialEq for antecedent_design::sensitivity_decision::SamplingReport
@@ -4767,7 +4711,6 @@ impl core::marker::StructuralPartialEq for antecedent_design::signal::SignalRece
 impl core::marker::StructuralPartialEq for antecedent_design::signal::SignalRequest
 impl core::marker::StructuralPartialEq for antecedent_design::signal::SignalTrustLabel
 impl core::marker::StructuralPartialEq for antecedent_design::signal::SignalUpdateMode
-impl core::marker::StructuralPartialEq for antecedent_design::source_permission::SourcePermission
 impl core::marker::StructuralPartialEq for antecedent_design::source_projection_artifact::ProjectionReport
 impl core::marker::StructuralPartialEq for antecedent_design::source_projection_artifact::ProjectionSource
 impl core::marker::StructuralPartialEq for antecedent_design::source_projection_artifact::SourceProjection
@@ -5373,13 +5316,6 @@ impl core::marker::Sync for antecedent_design::repair_artifact::SensitivityFindi
 impl core::marker::Sync for antecedent_design::repair_artifact::SensitivityMethodWire [auto]
 impl core::marker::Sync for antecedent_design::repair_artifact::TransportPremisesWire [auto]
 impl core::marker::Sync for antecedent_design::repair_artifact::ZTransportPremisesWire [auto]
-impl core::marker::Sync for antecedent_design::robust_decision::CoverageConclusions [auto]
-impl core::marker::Sync for antecedent_design::robust_decision::CoverageRegion [auto]
-impl core::marker::Sync for antecedent_design::robust_decision::ExpectationNotRobust [auto]
-impl core::marker::Sync for antecedent_design::robust_decision::RobustDecisionError [auto]
-impl core::marker::Sync for antecedent_design::robust_decision::SetConclusions [auto]
-impl core::marker::Sync for antecedent_design::robust_decision::SimulationComparison [auto]
-impl core::marker::Sync for antecedent_design::robust_decision::UnnormalizedMass [auto]
 impl core::marker::Sync for antecedent_design::rollout_artifact::RolloutArtifact [auto]
 impl core::marker::Sync for antecedent_design::rollout_artifact::RolloutExpectation [auto]
 impl core::marker::Sync for antecedent_design::rollout_artifact::RolloutSource [auto]
@@ -5469,8 +5405,6 @@ impl core::marker::Sync for antecedent_design::signal::SignalTrustLabel [auto]
 impl core::marker::Sync for antecedent_design::signal::SignalUpdateMode [auto]
 impl core::marker::Sync for antecedent_design::source_evidence::SourceEvidence [auto]
 impl core::marker::Sync for antecedent_design::source_evidence::SourceEvidenceError [auto]
-impl core::marker::Sync for antecedent_design::source_permission::PermissionError [auto]
-impl core::marker::Sync for antecedent_design::source_permission::SourcePermission [auto]
 impl core::marker::Sync for antecedent_design::source_projection_artifact::ProjectionReport [auto]
 impl core::marker::Sync for antecedent_design::source_projection_artifact::ProjectionSource [auto]
 impl core::marker::Sync for antecedent_design::source_projection_artifact::SourceProjection [auto]
@@ -6078,13 +6012,6 @@ impl core::marker::Unpin for antecedent_design::repair_artifact::SensitivityFind
 impl core::marker::Unpin for antecedent_design::repair_artifact::SensitivityMethodWire [auto]
 impl core::marker::Unpin for antecedent_design::repair_artifact::TransportPremisesWire [auto]
 impl core::marker::Unpin for antecedent_design::repair_artifact::ZTransportPremisesWire [auto]
-impl core::marker::Unpin for antecedent_design::robust_decision::CoverageConclusions [auto]
-impl core::marker::Unpin for antecedent_design::robust_decision::CoverageRegion [auto]
-impl core::marker::Unpin for antecedent_design::robust_decision::ExpectationNotRobust [auto]
-impl core::marker::Unpin for antecedent_design::robust_decision::RobustDecisionError [auto]
-impl core::marker::Unpin for antecedent_design::robust_decision::SetConclusions [auto]
-impl core::marker::Unpin for antecedent_design::robust_decision::SimulationComparison [auto]
-impl core::marker::Unpin for antecedent_design::robust_decision::UnnormalizedMass [auto]
 impl core::marker::Unpin for antecedent_design::rollout_artifact::RolloutArtifact [auto]
 impl core::marker::Unpin for antecedent_design::rollout_artifact::RolloutExpectation [auto]
 impl core::marker::Unpin for antecedent_design::rollout_artifact::RolloutSource [auto]
@@ -6174,8 +6101,6 @@ impl core::marker::Unpin for antecedent_design::signal::SignalTrustLabel [auto]
 impl core::marker::Unpin for antecedent_design::signal::SignalUpdateMode [auto]
 impl core::marker::Unpin for antecedent_design::source_evidence::SourceEvidence [auto]
 impl core::marker::Unpin for antecedent_design::source_evidence::SourceEvidenceError [auto]
-impl core::marker::Unpin for antecedent_design::source_permission::PermissionError [auto]
-impl core::marker::Unpin for antecedent_design::source_permission::SourcePermission [auto]
 impl core::marker::Unpin for antecedent_design::source_projection_artifact::ProjectionReport [auto]
 impl core::marker::Unpin for antecedent_design::source_projection_artifact::ProjectionSource [auto]
 impl core::marker::Unpin for antecedent_design::source_projection_artifact::SourceProjection [auto]
@@ -6777,13 +6702,6 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::repair_artif
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::repair_artifact::SensitivityMethodWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::repair_artifact::TransportPremisesWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::repair_artifact::ZTransportPremisesWire [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::robust_decision::CoverageConclusions [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::robust_decision::CoverageRegion [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::robust_decision::ExpectationNotRobust [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::robust_decision::RobustDecisionError [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::robust_decision::SetConclusions [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::robust_decision::SimulationComparison [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::robust_decision::UnnormalizedMass [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::rollout_artifact::RolloutArtifact [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::rollout_artifact::RolloutExpectation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::rollout_artifact::RolloutSource [auto]
@@ -6871,8 +6789,6 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::signal::Sign
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::signal::SignalUpdateMode [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::source_evidence::SourceEvidence [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::source_evidence::SourceEvidenceError [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::source_permission::PermissionError [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::source_permission::SourcePermission [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::source_projection_artifact::ProjectionReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::source_projection_artifact::ProjectionSource [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::source_projection_artifact::SourceProjection [auto]
@@ -7474,13 +7390,6 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::repair_artifact
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::repair_artifact::SensitivityMethodWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::repair_artifact::TransportPremisesWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::repair_artifact::ZTransportPremisesWire [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_design::robust_decision::CoverageConclusions [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_design::robust_decision::CoverageRegion [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_design::robust_decision::ExpectationNotRobust [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_design::robust_decision::RobustDecisionError [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_design::robust_decision::SetConclusions [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_design::robust_decision::SimulationComparison [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_design::robust_decision::UnnormalizedMass [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::rollout_artifact::RolloutArtifact [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::rollout_artifact::RolloutExpectation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::rollout_artifact::RolloutSource [auto]
@@ -7568,8 +7477,6 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::signal::SignalT
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::signal::SignalUpdateMode [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::source_evidence::SourceEvidence [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::source_evidence::SourceEvidenceError [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_design::source_permission::PermissionError [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_design::source_permission::SourcePermission [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::source_projection_artifact::ProjectionReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::source_projection_artifact::ProjectionSource [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::source_projection_artifact::SourceProjection [auto]
@@ -8368,8 +8275,6 @@ pub const antecedent_design::transported_synthesis::DETAIL_UNKNOWN_SOURCE: &str
 pub const antecedent_design::transported_synthesis::TRANSPORTED_SYNTHESIS_RESULT_VERSION: u32
 pub const fn antecedent_design::joint_coupling::acting_utility(x: i64, y: i64) -> i64
 pub const fn antecedent_design::joint_coupling::joint_sensitive_decision(source: antecedent_design::joint_coupling::CouplingSource) -> core::result::Result<antecedent_design::joint_coupling::ChosenAction, antecedent_design::joint_coupling::CouplingAbsent>
-pub const fn antecedent_design::robust_decision::probability_of_coverage_region(coverage: f64) -> core::result::Result<f64, antecedent_design::robust_decision::RobustDecisionError>
-pub const fn antecedent_design::robust_decision::weight_scenarios(weights: &[f64]) -> core::result::Result<&[f64], antecedent_design::robust_decision::RobustDecisionError>
 pub enum antecedent_design::ActionKind
 pub enum antecedent_design::CandidateDesign
 pub enum antecedent_design::DecisionContractError
@@ -8537,7 +8442,6 @@ pub enum antecedent_design::proposal_receipt::ChangedPremise
 pub enum antecedent_design::proposal_receipt::EvidenceState
 pub enum antecedent_design::ranking::DesignRankingBasis
 pub enum antecedent_design::repair_artifact::SensitivityMethodWire
-pub enum antecedent_design::robust_decision::RobustDecisionError
 pub enum antecedent_design::rollout_artifact::StateInterpretation
 pub enum antecedent_design::scientific_source::ScientificConsumptionScope
 pub enum antecedent_design::scientific_source::ScientificSourceError
@@ -8549,7 +8453,6 @@ pub enum antecedent_design::signal::ExternalLaw
 pub enum antecedent_design::signal::PreparedLaw
 pub enum antecedent_design::signal::SignalTrustLabel
 pub enum antecedent_design::signal::SignalUpdateMode
-pub enum antecedent_design::source_permission::PermissionError
 pub enum antecedent_design::source_projection_artifact::ProjectionSource
 pub enum antecedent_design::source_projection_artifact::SourceProjection
 pub enum antecedent_design::transported_synthesis::TransportedSynthesisMethod
@@ -10425,28 +10328,6 @@ pub field antecedent_design::repair_artifact::TransportPremisesWire::treatments:
 pub field antecedent_design::repair_artifact::ZTransportPremisesWire::sid_depth: usize
 pub field antecedent_design::repair_artifact::ZTransportPremisesWire::sid_steps: usize
 pub field antecedent_design::repair_artifact::ZTransportPremisesWire::snapshot: antecedent_design::ZTransportFailureSnapshotWire
-pub field antecedent_design::robust_decision::CoverageConclusions::coverages: alloc::vec::Vec<(alloc::string::String, f64)>
-pub field antecedent_design::robust_decision::CoverageConclusions::set: antecedent_design::robust_decision::SetConclusions
-pub field antecedent_design::robust_decision::CoverageRegion::action_id: alloc::string::String
-pub field antecedent_design::robust_decision::CoverageRegion::coverage: f64
-pub field antecedent_design::robust_decision::CoverageRegion::hard_exclusions: alloc::vec::Vec<alloc::string::String>
-pub field antecedent_design::robust_decision::CoverageRegion::lower: f64
-pub field antecedent_design::robust_decision::CoverageRegion::upper: f64
-pub field antecedent_design::robust_decision::ExpectationNotRobust::gross_evsi: f64
-pub field antecedent_design::robust_decision::ExpectationNotRobust::is_robust_conclusion: bool
-pub field antecedent_design::robust_decision::ExpectationNotRobust::net_value: core::option::Option<f64>
-pub field antecedent_design::robust_decision::SetConclusions::decision: antecedent_design::decision_adapters::IdentifiedSetDecision
-pub field antecedent_design::robust_decision::SetConclusions::endpoint_average_action: core::option::Option<alloc::string::String>
-pub field antecedent_design::robust_decision::SetConclusions::endpoint_average_is_robust: bool
-pub field antecedent_design::robust_decision::SetConclusions::robust: antecedent_design::decision_adapters::IdentifiedVerdict
-pub field antecedent_design::robust_decision::SimulationComparison::absolute_gap: f64
-pub field antecedent_design::robust_decision::SimulationComparison::receipt: antecedent_design::decision_reliability::McEstimate
-pub field antecedent_design::robust_decision::SimulationComparison::reference_mean: f64
-pub field antecedent_design::robust_decision::SimulationComparison::within_two_standard_errors: bool
-pub field antecedent_design::robust_decision::UnnormalizedMass::evaluated_mass: f64
-pub field antecedent_design::robust_decision::UnnormalizedMass::unevaluated_mass: f64
-pub field antecedent_design::robust_decision::UnnormalizedMass::unidentified_mass: f64
-pub field antecedent_design::robust_decision::UnnormalizedMass::weighted_values: alloc::vec::Vec<(alloc::string::String, f64)>
 pub field antecedent_design::rollout_artifact::RolloutArtifact::binding: antecedent_design::rollout_artifact::RolloutExpectation
 pub field antecedent_design::rollout_artifact::RolloutArtifact::digest: alloc::string::String
 pub field antecedent_design::rollout_artifact::RolloutArtifact::ranking_artifact: alloc::vec::Vec<u8>
@@ -10772,15 +10653,6 @@ pub field antecedent_design::signal::SignalRequest::sample_size: u64
 pub field antecedent_design::signal::SignalRequest::state_quantity: antecedent_contract::quantity::ScientificQuantity
 pub field antecedent_design::source_evidence::SourceEvidenceError::code: &'static str
 pub field antecedent_design::source_evidence::SourceEvidenceError::detail: &'static str
-pub field antecedent_design::source_permission::SourcePermission::authority: antecedent_contract::composition_verification::revalidate::PriorAuthority
-pub field antecedent_design::source_permission::SourcePermission::cache_identity_matches: bool
-pub field antecedent_design::source_permission::SourcePermission::calibration: antecedent_contract::composition_verification::revalidate::CalibrationState
-pub field antecedent_design::source_permission::SourcePermission::class: antecedent_core::recalc::Revalidation
-pub field antecedent_design::source_permission::SourcePermission::decision_key: alloc::string::String
-pub field antecedent_design::source_permission::SourcePermission::overlap_accounted: bool
-pub field antecedent_design::source_permission::SourcePermission::repeated_use: antecedent_contract::evidence_ledger::overlap::MassAccount
-pub field antecedent_design::source_permission::SourcePermission::scientific_permission_retained: bool
-pub field antecedent_design::source_permission::SourcePermission::withdrawals: alloc::vec::Vec<antecedent_contract::composition_verification::revalidate::Withdrawal>
 pub field antecedent_design::source_projection_artifact::ProjectionReport::output: serde_json::value::Value
 pub field antecedent_design::source_projection_artifact::ProjectionReport::quantities: alloc::vec::Vec<antecedent_io_core::quantity_wire::ScientificQuantityWire>
 pub field antecedent_design::source_projection_artifact::ProjectionReport::scope: alloc::string::String
@@ -11707,12 +11579,6 @@ pub fn antecedent_design::program_search::selection::simultaneous_program_interv
 pub fn antecedent_design::proposal_receipt::on_arrival(receipt: &antecedent_design::proposal_receipt::ProposalReceipt, family: antecedent_design::RepairFamilyRef<'_>, candidate: &antecedent_design::DurableStudyCandidate, arrival: &antecedent_design::proposal_receipt::Arrival, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_design::proposal_receipt::ArrivalVerdict, antecedent_design::proposal_receipt::ProposalReceiptError>
 pub fn antecedent_design::proposal_receipt::verify(bundle: &antecedent_design::proposal_receipt::ProposalBundle, repair: &antecedent_design::RepairReportArtifact, ranking: &antecedent_design::design_ranking_artifact::DesignRankingArtifactWire) -> core::result::Result<(), antecedent_design::proposal_receipt::ProposalReceiptError>
 pub fn antecedent_design::repair(family: &dyn antecedent_design::RepairFamily, candidates: &[antecedent_design::DurableStudyCandidate], objective: antecedent_design::RepairObjective, limits: antecedent_design::RepairLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_design::RepairReport, antecedent_design::RepairError>
-pub fn antecedent_design::robust_decision::compare_bounded_simulation(materialized: &[f64], draws: &[f64], max_draws: usize) -> core::result::Result<antecedent_design::robust_decision::SimulationComparison, antecedent_design::robust_decision::RobustDecisionError>
-pub fn antecedent_design::robust_decision::evaluate_coverage_regions(contract: &antecedent_design::decision_contract::AdmissibleDecisionContract, regions: &[antecedent_design::robust_decision::CoverageRegion]) -> core::result::Result<antecedent_design::robust_decision::CoverageConclusions, antecedent_design::robust_decision::RobustDecisionError>
-pub fn antecedent_design::robust_decision::evaluate_model_mass(contract: &antecedent_design::DecisionContract, atoms: &[antecedent_design::decision_structural::StructuralAtom]) -> core::result::Result<antecedent_design::robust_decision::UnnormalizedMass, antecedent_design::robust_decision::RobustDecisionError>
-pub fn antecedent_design::robust_decision::evaluate_robust_set(contract: &antecedent_design::decision_contract::AdmissibleDecisionContract, utilities: &[antecedent_design::decision_adapters::IdentifiedUtility]) -> core::result::Result<antecedent_design::robust_decision::SetConclusions, antecedent_design::robust_decision::RobustDecisionError>
-pub fn antecedent_design::robust_decision::future_study_expectation(program: &antecedent_design::evsi::FutureStudyProgram) -> core::result::Result<antecedent_design::robust_decision::ExpectationNotRobust, antecedent_design::robust_decision::RobustDecisionError>
-pub fn antecedent_design::robust_decision::unnormalized_mass(result: &antecedent_design::decision_structural::StructuralDecisionResult) -> antecedent_design::robust_decision::UnnormalizedMass
 pub fn antecedent_design::rollout_artifact::consume(bytes: &[u8], expected: &antecedent_design::rollout_artifact::RolloutExpectation) -> core::result::Result<antecedent_design::rollout_artifact::RolloutArtifact, antecedent_io_core::error::IoError>
 pub fn antecedent_design::rollout_artifact::decision_digest(decision: &antecedent_design::design_ranking_artifact::DecisionWire) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
 pub fn antecedent_design::sensitivity_decision::contract_from_artifact(artifact: &antecedent_io_core::sensitivity_artifact::SensitivityArtifact, policy: antecedent_design::StructuralPolicy) -> core::result::Result<antecedent_design::DecisionContract, antecedent_design::sensitivity_decision::SensitivityDecisionError>
@@ -11726,7 +11592,6 @@ pub fn antecedent_design::sequential_evaluation::stream_uniform(seed: u64, rollo
 pub fn antecedent_design::sequential_evaluation::value_of_collecting_evidence(model: &antecedent_design::sequential_evaluation::FiniteSequentialModel, request: &antecedent_design::sequential_evaluation::VoiRequest, limits: antecedent_design::sequential_evaluation::EvaluationLimits, ctx: &antecedent_core::execution::ExecutionContext) -> antecedent_design::sequential_evaluation::SequentialResult<antecedent_design::sequential_evaluation::VoiCheck>
 pub fn antecedent_design::sequential_evaluation_artifact::consume(bytes: &[u8], expected: core::option::Option<&antecedent_design::sequential_evaluation_artifact::ExpectedEvaluation>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_design::sequential_evaluation_artifact::SequentialEvaluationArtifact, antecedent_io_core::error::IoError>
 pub fn antecedent_design::snapshot_z_transport_failure(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::sid::z_transport::ZTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_identify::sid::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_design::ZTransportFailureSnapshot, antecedent_design::ZTransportPlanningError>
-pub fn antecedent_design::source_permission::consume_decision(decision_key: &str, previous: &antecedent_contract::composition_verification::graph::CompositionGraph, current: &antecedent_contract::composition_verification::graph::CompositionGraph, ledger: &antecedent_contract::evidence_ledger::ledger::EvidenceLedger, ledger_bindings: &[(&str, antecedent_contract::evidence_ledger::ids::ResultId)], cached_identity: core::option::Option<antecedent_core::identity::SemanticDigest>) -> core::result::Result<antecedent_design::source_permission::SourcePermission, antecedent_design::source_permission::PermissionError>
 pub fn antecedent_design::structure_identification::identifies(graph: &antecedent_graph::admg::Admg, treatment: antecedent_core::ids::VariableId, outcome: antecedent_core::ids::VariableId) -> core::result::Result<antecedent_prob::graph_samples::GraphIdentFlag, antecedent_design::StructureIdentificationError>
 pub fn antecedent_design::structure_identification::structure_posterior(samples: &[antecedent_design::GraphPosteriorSample], treatment: antecedent_core::ids::VariableId, outcome: antecedent_core::ids::VariableId) -> core::result::Result<antecedent_prob::graph_samples::WeightedGraphSamples, antecedent_design::StructureIdentificationError>
 pub fn antecedent_design::temporal_policy_transport::evaluate_temporal_policy(request: &antecedent_design::temporal_policy_transport::TemporalPolicyRequest<'_>, ctx: &antecedent_core::execution::ExecutionContext) -> antecedent_design::sequential_evaluation::SequentialResult<antecedent_design::temporal_policy_transport::TemporalPolicyEvaluation>
@@ -11800,7 +11665,6 @@ pub mod antecedent_design::ranking
 pub mod antecedent_design::repair
 pub mod antecedent_design::repair_artifact
 pub mod antecedent_design::result
-pub mod antecedent_design::robust_decision
 pub mod antecedent_design::rollout_artifact
 pub mod antecedent_design::scientific_source
 pub mod antecedent_design::sensitivity_decision
@@ -11808,7 +11672,6 @@ pub mod antecedent_design::sequential_evaluation
 pub mod antecedent_design::sequential_evaluation_artifact
 pub mod antecedent_design::signal
 pub mod antecedent_design::source_evidence
-pub mod antecedent_design::source_permission
 pub mod antecedent_design::source_projection_artifact
 pub mod antecedent_design::structure_identification
 pub mod antecedent_design::study_candidate
@@ -12284,12 +12147,6 @@ pub struct antecedent_design::repair_artifact::RepairStopWire
 pub struct antecedent_design::repair_artifact::SensitivityFindingWire
 pub struct antecedent_design::repair_artifact::TransportPremisesWire
 pub struct antecedent_design::repair_artifact::ZTransportPremisesWire
-pub struct antecedent_design::robust_decision::CoverageConclusions
-pub struct antecedent_design::robust_decision::CoverageRegion
-pub struct antecedent_design::robust_decision::ExpectationNotRobust
-pub struct antecedent_design::robust_decision::SetConclusions
-pub struct antecedent_design::robust_decision::SimulationComparison
-pub struct antecedent_design::robust_decision::UnnormalizedMass
 pub struct antecedent_design::rollout_artifact::RolloutArtifact
 pub struct antecedent_design::rollout_artifact::RolloutExpectation
 pub struct antecedent_design::rollout_artifact::RolloutSource
@@ -12372,7 +12229,6 @@ pub struct antecedent_design::signal::SignalRequest
 pub struct antecedent_design::source_evidence::SourceEvidence
 pub struct antecedent_design::source_evidence::SourceEvidence has private fields
 pub struct antecedent_design::source_evidence::SourceEvidenceError
-pub struct antecedent_design::source_permission::SourcePermission
 pub struct antecedent_design::source_projection_artifact::ProjectionReport
 pub struct antecedent_design::source_projection_artifact::SourceProjectionArtifact
 pub struct antecedent_design::source_projection_artifact::SourceProjectionArtifact has private fields
@@ -13506,14 +13362,6 @@ pub variant antecedent_design::ranking::RankingError::SourceDigestMismatch
 pub variant antecedent_design::repair_artifact::SensitivityMethodWire::EValue
 pub variant antecedent_design::repair_artifact::SensitivityMethodWire::OmittedVariableBias
 pub variant antecedent_design::repair_artifact::SensitivityMethodWire::Tipping
-pub variant antecedent_design::robust_decision::RobustDecisionError::Adapter(antecedent_design::decision_adapters::AdapterError)
-pub variant antecedent_design::robust_decision::RobustDecisionError::CoverageIsNotAProbability
-pub variant antecedent_design::robust_decision::RobustDecisionError::DrawBoundExceeded { draws: usize, max_draws: usize }
-pub variant antecedent_design::robust_decision::RobustDecisionError::EmptyLaw
-pub variant antecedent_design::robust_decision::RobustDecisionError::FutureStudy(antecedent_design::evsi::FutureStudyError)
-pub variant antecedent_design::robust_decision::RobustDecisionError::Reliability(antecedent_design::decision_reliability::ReliabilityError)
-pub variant antecedent_design::robust_decision::RobustDecisionError::ScenariosHaveNoProbabilities
-pub variant antecedent_design::robust_decision::RobustDecisionError::Structural(antecedent_design::decision_structural::StructuralError)
 pub variant antecedent_design::rollout_artifact::StateInterpretation::InterventionalState
 pub variant antecedent_design::rollout_artifact::StateInterpretation::PosteriorState
 pub variant antecedent_design::scientific_source::ScientificConsumptionScope::IdentifiedCausal
@@ -13575,10 +13423,6 @@ pub variant antecedent_design::signal::SignalTrustLabel::NativeLicensed
 pub variant antecedent_design::signal::SignalUpdateMode::ExternalDecisionValues
 pub variant antecedent_design::signal::SignalUpdateMode::ExternalPosterior
 pub variant antecedent_design::signal::SignalUpdateMode::NativeUpdate
-pub variant antecedent_design::source_permission::PermissionError::DecisionMissing(alloc::string::String)
-pub variant antecedent_design::source_permission::PermissionError::Graph(antecedent_contract::composition_verification::graph::GraphError)
-pub variant antecedent_design::source_permission::PermissionError::Ledger(antecedent_contract::evidence_ledger::refusal::LedgerError)
-pub variant antecedent_design::source_permission::PermissionError::UnknownSource(antecedent_contract::evidence_ledger::ids::SourceId)
 pub variant antecedent_design::source_projection_artifact::ProjectionSource::ExternalClaim(alloc::vec::Vec<u8>)
 pub variant antecedent_design::source_projection_artifact::ProjectionSource::NativeResponse(alloc::vec::Vec<u8>)
 pub variant antecedent_design::source_projection_artifact::SourceProjection::AffineDecision { contract: alloc::string::String }

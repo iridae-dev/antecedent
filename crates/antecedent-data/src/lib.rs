@@ -97,10 +97,7 @@ pub use missing::{
 pub use multi_env::MultiEnvironmentData;
 pub use network::{NetworkData, NetworkEdge};
 pub use panel::{PanelData, PanelUnit, PanelUnitView};
-pub use panel_window::{
-    BorrowError, CalendarSpan, DeclaredSplit, LONGER_SPAN_OF_SAME_UNIT, LagRefusal, PanelWindow,
-    PopulationUnit, UnitPartition, WindowBoundary, WindowChunk, WindowNextAttempt,
-};
+pub use panel_window::PopulationUnit;
 pub use pooled_frame::{
     DEFAULT_MAX_TIME_ONE_HOT_LEVELS, DummyOptions, PooledLaggedFrame, TimeDummyEncoding,
     pool_multi_env_lagged_frame,

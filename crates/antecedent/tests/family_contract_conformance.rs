@@ -465,6 +465,69 @@ fn association_static() -> Rep {
     }
 }
 
+fn association_series(offset: usize) -> TimeSeriesData {
+    let n = 96;
+    let (mut x, mut y) = (vec![0.0; n], vec![0.0; n]);
+    for t in 1..n {
+        x[t] = 0.8 * x[t - 1] + noise(t + offset);
+        y[t] = 0.5 * x[t] + 0.6 * y[t - 1] + noise(t + 1000 + offset);
+    }
+    TimeSeriesData::from_f64_columns([("x", x.as_slice()), ("y", y.as_slice())], 1_000_000_000)
+        .unwrap()
+}
+
+fn association_query() -> AssociationQuery {
+    AssociationQuery::new(VariableId::from_raw(1), [VariableId::from_raw(0)])
+}
+
+fn association_temporal() -> Rep {
+    let study = Study::series(association_series(0))
+        .query(CausalQuery::Association(association_query()))
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    Rep {
+        label: "association_temporal",
+        family: RouteFamily::Associational,
+        study,
+        retained: Retained::Series {
+            same: || association_series(0),
+            changed: || association_series(500),
+        },
+    }
+}
+
+fn association_static_bayesian() -> Rep {
+    let study = Study::tabular(line_data(0))
+        .query(CausalQuery::Association(association_query()))
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(200)))
+        .build()
+        .unwrap();
+    Rep {
+        label: "association_static_bayesian",
+        family: RouteFamily::Associational,
+        study,
+        retained: Retained::Table { same: || line_data(0), changed: || line_data(500) },
+    }
+}
+
+fn association_temporal_bayesian() -> Rep {
+    let study = Study::series(association_series(0))
+        .query(CausalQuery::Association(association_query()))
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(200)))
+        .build()
+        .unwrap();
+    Rep {
+        label: "association_temporal_bayesian",
+        family: RouteFamily::Associational,
+        study,
+        retained: Retained::Series {
+            same: || association_series(0),
+            changed: || association_series(500),
+        },
+    }
+}
+
 fn discovery_data(shift: usize) -> TabularData {
     let n = 240;
     let z: Vec<f64> = (0..n).map(|i| noise(i + shift)).collect();
@@ -515,6 +578,9 @@ fn representatives() -> Vec<Rep> {
         graph_posterior_effect(),
         discovery_search(),
         association_static(),
+        association_temporal(),
+        association_static_bayesian(),
+        association_temporal_bayesian(),
     ]
 }
 

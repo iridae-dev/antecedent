@@ -49,15 +49,16 @@ def render(site):
                 if kind not in row:
                     continue
                 path = row[kind]
+                ref = "main" if row.get("unreleased") else f"v{version()}"
                 target = (
-                    f"https://github.com/iridae-dev/antecedent/blob/v{version()}/{path}"
+                    f"https://github.com/iridae-dev/antecedent/blob/{ref}/{path}"
                     if site
                     else path.removeprefix("examples/")
                 )
                 links.append(f"[{kind}]({target})")
                 if kind == "notebook":
                     links.append(
-                        f"[Colab](https://colab.research.google.com/github/iridae-dev/antecedent/blob/v{version()}/{path})"
+                        f"[Colab](https://colab.research.google.com/github/iridae-dev/antecedent/blob/{ref}/{path})"
                     )
                     if site:
                         links.append(f"[preview](notebook-previews/{Path(path).stem}.html)")

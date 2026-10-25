@@ -160,7 +160,8 @@ fn every_previous_route_gets_an_explicit_outcome_and_none_is_a_break() {
     }
     assert_eq!(kept + one + split + retired, routes.len());
     assert_eq!(retired, 0, "no previous route left the inventory");
-    assert!(kept > 0 && one > 0 && split > 0, "kept {kept}, one {one}, split {split}");
+    // Every previous refusal now executes, so the migration carries it as a method.
+    assert!(one > 0 && split > 0, "kept {kept}, one {one}, split {split}");
     // Every method that names a previous route is carried by exactly that route's outcome.
     let ids: Vec<&str> = routes.iter().map(|r| r.id.as_str()).collect();
     let added = added_methods(&methods, &ids);
@@ -222,7 +223,11 @@ fn a_frozen_previous_release_route_artifact_is_consumed_by_the_current_reader() 
         .map(|m| (m.id.as_str(), m.result.as_ref().expect("no fixture record is a break")))
         .collect();
     assert!(matches!(by_id["licensed.AverageEffect.Dag"], RouteRecordOutcome::Split { .. }));
-    assert!(matches!(by_id["closed.AnomalyAttribution.Admg"], RouteRecordOutcome::RefusalKept));
+    // The previous refusal executes now: it migrates to the method that carries it.
+    assert!(matches!(
+        by_id["closed.AnomalyAttribution.Admg"],
+        RouteRecordOutcome::OneToOne { .. } | RouteRecordOutcome::Split { .. }
+    ));
     let RouteRecordOutcome::Split { methods: response, .. } =
         by_id["licensed.InterventionResponse.CoDetermined"]
     else {

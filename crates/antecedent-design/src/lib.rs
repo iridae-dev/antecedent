@@ -49,7 +49,6 @@ pub mod ranking;
 pub mod repair;
 pub mod repair_artifact;
 pub mod result;
-pub mod robust_decision;
 pub mod rollout_artifact;
 pub mod scientific_source;
 pub mod sensitivity_decision;
@@ -152,7 +151,6 @@ pub mod inverse_forward_source;
 pub mod inverse_observational_scenarios;
 /// Independently consumed original source diagnostics and semantic mappings.
 pub mod source_evidence;
-pub mod source_permission;
 pub mod source_projection_artifact;
 pub mod temporal_policy_transport;
 pub mod transport_sensitivity;

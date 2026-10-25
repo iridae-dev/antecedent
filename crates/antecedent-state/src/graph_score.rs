@@ -9,7 +9,6 @@ use antecedent_core::Fnv1a64;
 use antecedent_kernels::{cholesky_spd_into, equilibrate_into, symmetric_scales};
 
 use crate::error::StateError;
-use crate::retention::RetentionPolicy;
 
 /// Score family for local graph scores.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -129,9 +128,6 @@ pub struct LocalScoreCache {
     running_total: Option<f64>,
     /// Approximate retained bytes.
     bytes: u64,
-    /// Retention policy.
-    #[allow(dead_code, reason = "declared policy with no in-crate reader")]
-    retention: RetentionPolicy,
 }
 
 impl LocalScoreCache {
@@ -146,7 +142,6 @@ impl LocalScoreCache {
             gram: None,
             running_total: None,
             bytes: 0,
-            retention: RetentionPolicy::SufficientStatisticsOnly,
         }
     }
 

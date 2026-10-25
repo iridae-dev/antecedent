@@ -422,6 +422,10 @@ name = "cross_surface_previous_release"
 path = "tests/cross_surface_previous_release.rs"
 
 [[test]]
+name = "cross_surface_prepared_journey"
+path = "tests/cross_surface_prepared_journey.rs"
+
+[[test]]
 name = "flagship_decision_fixture"
 path = "tests/flagship_decision_fixture.rs"
 

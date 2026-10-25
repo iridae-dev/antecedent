@@ -2,7 +2,8 @@
 # Measured by `cargo bench -p antecedent-stats --bench matching_spatial` (median of 10 samples,
 # milliseconds) on Darwin 25.5.0 arm64; answers are checked against a linear scan before timing.
 # Retained bytes are quoted by each index before allocation (see the bench's retained-bytes lines).
-# The production matching path keeps the split-plane index and its size guard: the bounding-box
+# The production matching path uses the bounding-box index from eight dimensions and keeps the
+# split-plane index and its size guard below that. The bounding-box
 # index wins on clustered data at every size and on uniform data from 8 dimensions, loses on
 # low-dimensional uniform data, and costs about twice the build time.
 

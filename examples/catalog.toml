@@ -707,9 +707,10 @@ claim = "Exact enumeration of a fully declared finite SCM whose mechanisms share
 
 [[example]]
 id = "general_cyclic_systems"
-title = "General cyclic systems (3.0 development)"
+title = "General cyclic systems"
 summary = "Fit overlapping nonlinear feedback loops, query a held-out joint intervention and replay a shared-noise counterfactual artifact."
 python = "examples/python/general_cyclic_systems.py"
+unreleased = true
 topic = "Mechanisms and counterfactuals"
 level = "advanced"
 dependencies = []
@@ -721,8 +722,21 @@ id = "cyclic_paper_experiments"
 title = "Independent cyclic paper protocols"
 summary = "Reproduce applicable nonlinear and stochastic feedback synthetic experiments with held-out joint interventions and fresh CPU artifact replay."
 python = "examples/python/cyclic_paper_experiments.py"
+unreleased = true
 topic = "Cyclic systems"
 level = "advanced"
 dependencies = ["numpy", "scipy"]
 runtime = "paper-size runs vary with feature and sample counts"
 claim = "Specified synthetic likelihood experiments with explicit deviations, optimizer diagnostics and independent numerical references; no calibration or latent recovery claim"
+
+[[example]]
+id = "joint_panel_workflow"
+title = "Joint responses on a panel"
+summary = "Compile a joint intervention-response question on an independent panel fixture, then fit it with frequentist and Bayesian inference."
+rust = "examples/rust/joint_panel_workflow.rs"
+unreleased = true
+topic = "Estimation and designs"
+level = "advanced"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Model-conditional joint responses under a declared period randomization; compilation performs no fit and the report carries numerical diagnostics, not calibrated coverage."

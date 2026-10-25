@@ -38,7 +38,7 @@ def check():
             errors.append(f"{uri}: {error}")
         if not uri.startswith("release-notes/"):
             for ref in re.findall(r"github.com/iridae-dev/antecedent/blob/([^/]+)/examples/", text):
-                if ref != current:
+                if ref not in (current, "main"):
                     errors.append(f"{uri}: example link pins {ref}, expected {current}")
             for target in re.findall(r"\]\(([^)]+)\)", text):
                 pathpart = target.split("#")[0]
@@ -68,6 +68,7 @@ def check():
             ("notebooks", "*.ipynb"),
         ]
         for p in (ROOT / "examples" / folder).glob(pattern)
+        if not p.name.endswith("_fixture.rs")  # modules included by an example, not examples
     }
     if set(declared) != shipped:
         errors.append(

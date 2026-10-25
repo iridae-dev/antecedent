@@ -96,6 +96,7 @@ All datasets are simulated. Runtime estimates assume a warm installed environmen
 | **How does the outcome change with dose?** — Inspect supported doses, response values and derivatives. <details><summary>Claim scope</summary>Supported response and derivative coordinates under an explicit dose-response model.</details> | intermediate / up to 5 min | pandas, matplotlib, ipykernel | [notebook](notebooks/continuous_causal_response.ipynb) · [Colab](https://colab.research.google.com/github/iridae-dev/antecedent/blob/v2.4.1/examples/notebooks/continuous_causal_response.ipynb) |
 | **Pricing, availability, and latent demand** — Distinguish inventory-limited sales from latent demand. <details><summary>Claim scope</summary>Demand response under an explicit censoring premise; unsupported derivative requests are refused.</details> | intermediate / up to 5 min | pandas, matplotlib, ipykernel | [notebook](notebooks/pricing_availability_latent_demand.ipynb) · [Colab](https://colab.research.google.com/github/iridae-dev/antecedent/blob/v2.4.1/examples/notebooks/pricing_availability_latent_demand.ipynb) |
 | **Shared hidden cause counterfactual** — Compute a counterfactual through an exogenous term shared by two mechanisms <details><summary>Claim scope</summary>Exact enumeration of a fully declared finite SCM whose mechanisms share an exogenous term; undeclared latent confounding is refused as not identified.</details> | intermediate / up to 1 min | none | [python](python/shared_exogenous_counterfactual.py) · [rust](rust/shared_exogenous_counterfactual.rs) |
+| **Joint responses on a panel** — Compile a joint intervention-response question on an independent panel fixture, then fit it with frequentist and Bayesian inference. <details><summary>Claim scope</summary>Model-conditional joint responses under a declared period randomization; compilation performs no fit and the report carries numerical diagnostics, not calibrated coverage.</details> | advanced / up to 1 min | none | [rust](rust/joint_panel_workflow.rs) |
 
 ## Graphical causal models
 
@@ -118,7 +119,7 @@ All datasets are simulated. Runtime estimates assume a warm installed environmen
 
 | Example and question | Level / estimated runtime | Dependencies beyond Antecedent | Run / open |
 | --- | --- | --- | --- |
-| **General cyclic systems (3.0 development)** — Fit overlapping nonlinear feedback loops, query a held-out joint intervention and replay a shared-noise counterfactual artifact. <details><summary>Claim scope</summary>Specified-structure/covariance nonlinear equilibrium likelihood and shared-disturbance counterfactuals; calibration unmeasured.</details> | advanced / up to 1 min | none | [python](python/general_cyclic_systems.py) |
+| **General cyclic systems** — Fit overlapping nonlinear feedback loops, query a held-out joint intervention and replay a shared-noise counterfactual artifact. <details><summary>Claim scope</summary>Specified-structure/covariance nonlinear equilibrium likelihood and shared-disturbance counterfactuals; calibration unmeasured.</details> | advanced / up to 1 min | none | [python](python/general_cyclic_systems.py) |
 
 ## Temporal and longitudinal
 

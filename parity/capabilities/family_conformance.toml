@@ -132,7 +132,7 @@ routes = ["measurement.static.frequentist", "measurement.static.bayesian", "meas
 [[family]]
 id = "associational"
 status = "covered"
-representatives = ["association_static"]
+representatives = ["association_static", "association_temporal", "association_static_bayesian", "association_temporal_bayesian"]
 uncertainty_ports = "uncertainty_is_published_through_typed_ports_or_refused_naming_the_next_attempt"
 reuse = "reuse_invalidates_exactly_the_dependency_keys"
 decision_demand = "a_decision_demand_is_satisfied_or_refused_by_carrier"

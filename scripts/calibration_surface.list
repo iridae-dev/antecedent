@@ -317,12 +317,11 @@ key estimator.experimental_recovery estimator hyttinen_eberhardt_hoyer.*
 evidence crates/antecedent-contract/src/evidence_envelope.rs
 evidence crates/antecedent-contract/src/evidence_ports.rs
 evidence crates/antecedent-contract/src/dependence.rs
-evidence crates/antecedent-contract/src/evidence_effects.rs
 key evidence estimator evidence.envelope.* evidence.dependence.*
 key evidence dependence evidence.dependence.*
 # Crate root re-exports the types. It does not run them for a record that
 # does not carry this facet.
-allow evidence crates/antecedent-contract/src/lib.rs AxisInterval CovarianceCombination CovarianceTerms DecisionRequest DependenceContract DependenceError DependenceSource DependenceSourceId DependenceStatus EFFECT_IDENTITY_VERSION EffectId EvidenceBinding EvidenceCalibration EvidenceEffect EvidenceEffectError EvidenceEffectLedger EvidenceEnvelope EvidenceEnvelopeError EvidenceOperator EvidenceOrigins EvidencePort EvidencePortError EvidenceSupport FactorDisclosure MAX_RECORDED_EFFECTS RECORD_DEPENDENT_POOLING RECORD_THEN_COMBINE NumericalAdmission RecordedEffect SharedFactor SharedFactorId SharedFactorKind SharedFactorSets UncertaintyAxes UncertaintyAxis WorldTime dependence evidence_effects evidence_envelope evidence_ports
+allow evidence crates/antecedent-contract/src/lib.rs AxisInterval CovarianceCombination CovarianceTerms DecisionRequest DependenceContract DependenceError DependenceSource DependenceSourceId DependenceStatus EvidenceBinding EvidenceCalibration EvidenceEnvelope EvidenceEnvelopeError EvidenceOrigins EvidencePort EvidencePortError EvidenceSupport FactorDisclosure SharedFactor SharedFactorId SharedFactorKind SharedFactorSets UncertaintyAxes UncertaintyAxis WorldTime dependence evidence_envelope evidence_ports
 
 # The propagation chain consumes the dependence contract and does not change it.
 allow evidence crates/antecedent-contract/src/propagation_chain.rs DependenceContract DependenceSource DependenceStatus SharedFactorKind SharedFactorSets dependence

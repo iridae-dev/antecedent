@@ -83,7 +83,12 @@ REPRESENTATIVES = {
     "cyclic": ["cyclic_feedback_pair"],
     "planning": ["planning_cluster_power"],
     "propagation_chain": ["propagation_chain_five_stage"],
-    "associational": ["association_static"],
+    "associational": [
+        "association_static",
+        "association_temporal",
+        "association_static_bayesian",
+        "association_temporal_bayesian",
+    ],
 }
 
 ORDER = [

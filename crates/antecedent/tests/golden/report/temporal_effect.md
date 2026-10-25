@@ -77,7 +77,7 @@ The uncertainty slot is unavailable: omitted.
 ### Uncertainty the program must publish
 
 - **claim\_kind:** point
-- **reading:** sampling
+- **reading:** none
 - **realization:** frequentist
 
 ### Calibration
@@ -161,7 +161,7 @@ This report restates the contract. It computes no estimate, grants no licence, a
 - **Family:** temporal
 - **Stage:** prepared
 - **Depth:** complete
-- **Program identity:** bd108d6124639209f5a80508778b963874711f4f5a11b1bf81db842f9508606a
+- **Program identity:** 4acf4d8dfd12839eaff99e42c8cfcbbb8fb68f7d5cf0d6be957db5a6e9e09917
 - **Sealed operation:** temporal\_dag\_effect
 
 ### Scientific problem

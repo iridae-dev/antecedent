@@ -11,7 +11,7 @@ combined, saved, transported, or consumed by other software.
 > [2.4.1 release notes](release-notes/v2.4.1.md) describe these workflows;
 > [2.4.0 notes](release-notes/v2.4.0.md) describe the previous release.
 
-Choose [an example](examples.md), use [support lookup](support-lookup.md), or read [the glossary](glossary.md) when a standing label is unfamiliar. For a complete 2.4 workflow, follow [notebook to system](guides/notebook-to-system.md) and [measurement to decision](tutorials/measurement-to-decision.md).
+Choose [an example](examples.md), use [support lookup](support-lookup.md), or read [the glossary](glossary.md) when a standing label is unfamiliar. For a complete workflow, follow [notebook to system](guides/notebook-to-system.md) and [measurement to decision](tutorials/measurement-to-decision.md).
 
 Most causal failures in software are semantic failures at boundaries. Read
 [the system model](system-model.md) first: it explains how Antecedent compiles
@@ -60,3 +60,5 @@ An implemented capability is not automatically a licensed analysis, and a
 licensed analysis does not establish that a real-world causal model is true.
 
 Read `result.calibration`: status `calibrated` requires a coverage record that matches the execution and attests the executing code. See the [measured-inference guide](population-time-uncertainty.md).
+
+Newer surfaces have their own guides: [cyclic systems](guides/cyclic-systems.md), [joint intervention responses](guides/joint-intervention-responses.md), [design ranking](design-ranking.md), [staleness and refresh](guides/staleness.md), the [readable report](guides/report.md), [embedding](embedding.md) and [large tables](guides/large-tables.md). Moving from the previous release: [migration](migration/from_previous_release.md).
