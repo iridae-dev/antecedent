@@ -54,6 +54,24 @@ def append(destination: Path, rel: str, text: str) -> None:
     path.write_text(path.read_text(encoding="utf-8") + text, encoding="utf-8")
 
 
+DISPATCH_GUARD = (
+    "        let lowered =\n"
+    "            physical.require_lowered(crate::analysis::lowering::expected_cell(self))?.identity();\n"
+    "        let ctx = &ctx.enter_lowered_dispatch(lowered);\n"
+)
+
+
+def decoy_dispatch_guard(destination: Path, nested: bool) -> None:
+    decoy = (
+        "physical.require_lowered(None)?; ctx.enter_lowered_dispatch(identity);"
+    )
+    replacement = "        let _decoy = || { " + decoy + " };\n" if nested else ""
+    replace(destination, f"{ANALYSIS}/execute/dispatch.rs", DISPATCH_GUARD, replacement)
+    if not nested:
+        append(destination, f"{ANALYSIS}/execute/dispatch.rs",
+               "\nfn unrelated_guard() { " + decoy + " }\n")
+
+
 MANIFEST = "parity/capabilities/route_manifest.toml"
 CASES = {
     "compile entry lost its reentry refusal": lambda d: replace(
@@ -63,6 +81,8 @@ CASES = {
         "        let lowered =\n            physical.require_lowered(crate::analysis::lowering::expected_cell(self))?.identity();\n"
         "        let ctx = &ctx.enter_lowered_dispatch(lowered);\n        let mut result = match data {",
         "        let mut result = match data {"),
+    "dispatch guard only appears in a neighboring helper": lambda d: decoy_dispatch_guard(d, False),
+    "dispatch guard only appears in a nested closure": lambda d: decoy_dispatch_guard(d, True),
     "reentry refusal code dropped": lambda d: replace(
         d, f"{LOWERING}/mod.rs", '"public_builder_reentry"', '"other_code"'),
     "route_not_lowered swallowed": lambda d: append(
@@ -114,6 +134,16 @@ CASES = {
     "retained test names no function": lambda d: replace(
         d, MANIFEST, "licensed_survival_scalar_intervals_round_trip_and_refuse_forgery",
         "no_such_test_function"),
+    "temporal mixed family regresses to a program-only payload": lambda d: replace(
+        d, f"{ANALYSIS}/prepared/execution.rs",
+        "TemporalAdmgEffect(crate::analysis::execute::CheckedTemporalAdmgOperation)",
+        "TemporalAdmgEffect(CheckedRouteOperation)"),
+    "closed coordinate id disagrees with its target and graph": lambda d: replace(
+        d, MANIFEST, 'id = "closed.Counterfactual.Admg"',
+        'id = "closed.Counterfactual.NotARealGraph"'),
+    "closed coordinate names an unreviewed target": lambda d: replace(
+        d, MANIFEST, 'id = "closed.Counterfactual.Admg"\ntarget = "Counterfactual"',
+        'id = "closed.UnreviewedTarget.Admg"\ntarget = "UnreviewedTarget"'),
     "executing route with no lowered program entry": lambda d: replace(
         d, MANIFEST, 'id = "bayesian.piecewise_survival"', 'id = "bayesian.unmapped_zz"'),
     "family operation click no longer requires its program": lambda d: replace(
@@ -157,6 +187,18 @@ def main() -> None:
         baseline = set(retained_route_problems(base))
         if baseline != set(retained_route_problems(ROOT)):
             raise SystemExit("FAIL: the overlay does not reproduce the repository's findings")
+        if baseline:
+            raise SystemExit("FAIL: the repository has retained-route findings before mutation:\n"
+                             + "\n".join(sorted(baseline)))
+        # A long legitimate entry must not become a baseline violation merely
+        # because its admission guard moved past an arbitrary source window.
+        with tempfile.TemporaryDirectory() as positive_scratch:
+            positive = Path(positive_scratch)
+            shutil.copytree(base, positive, dirs_exist_ok=True)
+            replace(positive, f"{ANALYSIS}/execute/dispatch.rs", DISPATCH_GUARD,
+                    "        let _padding = ();\n" * 100 + DISPATCH_GUARD)
+            if set(retained_route_problems(positive)) != baseline:
+                failures.append("long valid dispatch entry falsely refused")
         for label, inject in CASES.items():
             with tempfile.TemporaryDirectory() as case_scratch:
                 case = Path(case_scratch)

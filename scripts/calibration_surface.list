@@ -328,7 +328,11 @@ allow evidence crates/antecedent-contract/src/propagation_chain.rs DependenceCon
 allow evidence crates/antecedent-contract/src/propagation_chain_tests.rs DependenceStatus SharedFactorKind
 allow evidence crates/antecedent-io-core/src/propagation_chain_record.rs SharedFactorKind dependence
 allow evidence crates/antecedent-io-core/src/propagation_chain_record_tests.rs SharedFactorKind
-allow evidence crates/antecedent/src/analysis/propagation_chain.rs SharedFactorKind dependence
+# The chain's declared evidence checks run only for the explicit chain workflow;
+# its measurements must name that workflow, never borrow ordinary effect evidence.
+key evidence query PropagationChain*
+allow evidence crates/antecedent/src/analysis/propagation_chain.rs DependenceContract DependenceError DependenceSource SharedFactorKind SharedFactorSets dependence
+allow evidence crates/antecedent/src/analysis/propagation_chain_family_tests.rs SharedFactorKind
 allow evidence crates/antecedent/src/analysis/propagation_chain_tests.rs SharedFactorKind
 # A bridge expressed as a chain stage declares the shared factors of the dependence contract
 # it brings (the mapping's parameters, the declared slope-source covariance); it does not change them.
@@ -412,6 +416,10 @@ core crates/antecedent-model/src/scc_compile.rs
 core crates/antecedent-model/src/system_compile.rs
 mechanism crates/antecedent/src/analysis/execute/attribution_path.rs
 mechanism crates/antecedent/src/analysis/execute/checked_attribution.rs
+# Class members execute the same keyed counterfactual/attribution operations.
+# These are numerical implementations, not cross-facet type-only adapters.
+mechanism crates/antecedent/src/analysis/execute/class_attribution.rs
+mechanism crates/antecedent/src/analysis/execute/class_counterfactual.rs
 mechanism crates/antecedent-io-core/src/mechanism_wire.rs
 mechanism crates/antecedent-io/src/model_bundle.rs
 # Temporal counterfactual facades exclusively execute/replay the mechanism model.
@@ -428,7 +436,7 @@ key mechanism estimator gcm.*
 allow mechanism crates/antecedent/src/analysis/execute/dispatch.rs CheckedAttributionOperation NestedCounterfactualOperation attribute_runs_checked compile gcm
 # Sibling re-exports of the gcm entry points and the checked counterfactual /
 # attribution operation types; every caller is checked by name.
-allow mechanism crates/antecedent/src/analysis/execute/mod.rs CheckedAttributionInfo CheckedAttributionOperation CheckedCounterfactualPlan CounterfactualProcedure anomaly_attribution_query_with attribute_bootstrap_supported attribute_distribution_change attribute_posterior_draws attribute_posterior_supported attribute_runs_checked attribute_unit_change attribution_path checked_attribution fit_gcm gcm is_mechanism_change_query map_mechanism_fit mechanism_change_detection mechanism_change_posterior_declared
+allow mechanism crates/antecedent/src/analysis/execute/mod.rs CheckedAttributionInfo CheckedAttributionOperation CheckedCounterfactualPlan CounterfactualProcedure anomaly_attribution_query_with attribute_bootstrap_supported attribute_distribution_change attribute_posterior_draws attribute_posterior_supported attribute_runs_checked attribute_unit_change attribution_path checked_attribution fit_gcm gcm is_mechanism_change_query map_mechanism_fit mechanism_change_detection mechanism_change_posterior_declared class_attribution class_counterfactual
 # The contract's nested counterfactual fit snapshot, built only when the prepared
 # analysis retains a gcm::NestedCounterfactualOperation (the NestedCounterfactual
 # `key` query); every other contract leaves the slot empty.
@@ -504,7 +512,7 @@ allow design crates/antecedent/src/analysis/execute/temporal_class_point.rs eval
 allow design crates/antecedent/src/analysis/execute/temporal_path.rs evaluate
 allow design crates/antecedent/src/analysis/execute/temporal_point_uncertainty.rs evaluate
 allow design crates/antecedent/src/period_refresh.rs seal
-allow design crates/antecedent/src/planner/lowered.rs IdentifiedSet
+allow design crates/antecedent/src/planner/lowered.rs IdentifiedSet seal
 # Structure discovery, attribution and simulation (the Discover, Attribute, Simulate,
 # MechanismChange and UnitChange queries) run the fitted-model engines; each of those
 # queries carries mechanism by key. The joint-panel estimator, likelihood and source
@@ -650,6 +658,9 @@ design crates/antecedent/src/analysis/decision_claims.rs
 design crates/antecedent/src/analysis/decision_contract_facade.rs
 design crates/antecedent/src/analysis/design_exports.rs
 design crates/antecedent/src/analysis/design_ranking.rs
+# Hypothetical identification repair and decision-valued study ranking; public
+# re-exports belong to the owning facet as do the existing repair/planning facades.
+design crates/antecedent/src/analysis/evidence_plan.rs
 design crates/antecedent/src/analysis/inverse_query.rs
 design crates/antecedent/src/analysis/native_claims.rs
 design crates/antecedent/src/analysis/repair.rs
@@ -665,7 +676,7 @@ mechanism crates/antecedent-io-core/src/transported_counterfactual_artifact.rs
 
 # The analysis module root declares and re-exports the design facade modules; the
 # transport plan helper's `evaluate` is its own closure parameter.
-allow design crates/antecedent/src/analysis/mod.rs ActionRobustness AdaptedClaims AdaptedDecision AdapterError AdmissibilityError AdmissibilityRules AdmissibleContractArtifact AdmissibleDecisionContract AtomSupport BoundDecisionContract BoundTransportedDecision ClaimProbability ClaimProfile DecisionClaimKind DecisionDeclaredExclusion DecisionFacadeRefusal DecisionSupportRule DecisionUncertaintyKind ExternalCallbackReceipt ExternalTrustLimit IdentifiedActionRange IdentifiedSetDecision IdentifiedUtility IdentifiedVerdict InputSupport ReplayReceipt RobustDecisionResult RobustResultArtifact RobustVerdict RobustnessError SuppliedClaim SupportPolicy SupportShortfall TransportDeclaration TransportReceipt TransportedDecision TransportedDecisionInspection TransportedDemand TransportedRefusal TransportedRepresentation TransportedResponse TransportedRoute TransportedValue UncertaintyRequirement adapt_finite_scenarios adapt_graph_dependent_claims adapt_point_claim adapt_weighted_graph_atoms assess_robustness composition contract_needs_law decision_claims decision_contract_facade design_exports design_ranking evaluate_adapted evaluate_identified_sets evaluate_robust evaluate_transported_decision inverse_query native_claims planning repair sensitivity_decision source_evidence utility_interval
+allow design crates/antecedent/src/analysis/mod.rs ActionRobustness AdaptedClaims AdaptedDecision AdapterError AdmissibilityError AdmissibilityRules AdmissibleContractArtifact AdmissibleDecisionContract AtomSupport BoundDecisionContract BoundTransportedDecision ClaimProbability ClaimProfile DecisionClaimKind DecisionDeclaredExclusion DecisionFacadeRefusal DecisionSupportRule DecisionUncertaintyKind ExternalCallbackReceipt ExternalTrustLimit IdentifiedActionRange IdentifiedSetDecision IdentifiedUtility IdentifiedVerdict InputSupport ReplayReceipt RobustDecisionResult RobustResultArtifact RobustVerdict RobustnessError SuppliedClaim SupportPolicy SupportShortfall TransportDeclaration TransportReceipt TransportedDecision TransportedDecisionInspection TransportedDemand TransportedRefusal TransportedRepresentation TransportedResponse TransportedRoute TransportedValue UncertaintyRequirement adapt_finite_scenarios adapt_graph_dependent_claims adapt_point_claim adapt_weighted_graph_atoms assess_robustness composition contract_needs_law decision_claims decision_contract_facade design_exports design_ranking evaluate_adapted evaluate_identified_sets evaluate_robust evaluate_transported_decision inverse_query native_claims planning repair sensitivity_decision source_evidence utility_interval evidence_plan
 allow design crates/antecedent/src/analysis/transport_common.rs evaluate
 # Crate-root declarations and re-exports of the mechanism wire modules, and the
 # PolicyValue route-input variant: names, not mechanism execution.
@@ -815,7 +826,7 @@ allow registry_mirror crates/antecedent-io-core/src/contract_section/mod.rs Cove
 allow design crates/antecedent/src/analysis/mechanism_composition.rs antecedent_design artifact_kind_remedy inverse_query_artifact recognised_artifact_kind
 allow mechanism crates/antecedent-io-core/src/cross_world_execution_artifact.rs CrossWorldExecutionError ExogenousInference ExogenousVariable FactualUnit FiniteExecutionRequest FiniteExecutionResult FiniteQuantity FiniteScm FiniteScmExecutor FiniteVariable FiniteWorld MAX_JOINT_STATES MAX_UNITS MAX_VARIABLES NoiseCoupling WorldAtom WorldRoute antecedent_counterfactual finite_scm selective
 allow mechanism crates/antecedent-io-core/src/mechanism_composition_artifact.rs CoherenceFinding ComposedFinite ComposedLinearGaussian ComposedModelSpec CompositionError ContextCoordinate ContrastArm CrossCovarianceBlock Domain InvarianceDeclaration LatentDependence MAX_COMPOSED_MECHANISMS MeanContrast MechanismContext MechanismDescriptor MechanismFamily MechanismForm MechanismOrigin MechanismProvenance MechanismSlotWire MechanismUncertainty ParameterId ParameterTerm ParentBinding PosteriorDependence SelectionDiagramDeclaration SelectionNodeDeclaration TabularRow UncertaintyMeaning antecedent_model
-allow mechanism crates/antecedent-io-core/src/observation_query_artifact.rs BetaBernoulli ComposedFinite ComposedLinearGaussian ComposedModelSpec CompositionError Direction FiniteBayesModel FiniteLaw GaussianSufficient MAX_BAYES_HYPOTHESES MAX_BAYES_OBSERVATION_LEVELS MAX_BAYES_SEQUENCE MAX_COMPOSED_MECHANISMS MAX_LEVELS_PER_VARIABLE MAX_REDRAWS MAX_REDRAW_QUANTITIES MAX_RETAINED_REGRESSORS MechanismOrigin ObservationQueryError ParameterDraws RedrawPrior RedrawTarget RetainedMechanism TableCountRow TableCounts UnreachableBound antecedent_model condition condition_gaussian condition_on_measured conditioning_and_intervention intervene intervened_law observation_uncertainty observations_required_binary_signal observations_required_conjugate redraw_conditional required_bayes_factor threshold_crossing_observations
+allow mechanism crates/antecedent-io-core/src/observation_query_artifact.rs BetaBernoulli ComposedFinite ComposedLinearGaussian ComposedModelSpec CompositionError Direction FiniteBayesModel FiniteLaw GaussianSufficient MAX_BAYES_HYPOTHESES MAX_BAYES_OBSERVATION_LEVELS MAX_BAYES_SEQUENCE MAX_COMPOSED_MECHANISMS MAX_LEVELS_PER_VARIABLE MAX_REDRAWS MAX_REDRAW_QUANTITIES MAX_RETAINED_REGRESSORS MechanismOrigin ObservationQueryError ParameterDraws RedrawPrior RedrawTarget RetainedMechanism TableCountRow TableCounts UnreachableBound antecedent_model condition condition_gaussian condition_on_measured conditioning_and_intervention intervene intervened_law observations_required_binary_signal observations_required_conjugate redraw_conditional required_bayes_factor threshold_crossing_observations
 allow mechanism crates/antecedent/src/analysis/cross_world_execution.rs CapabilityStatus ConditioningKind CouplingKind CrossWorldExecutionError CrossWorldRefusal EvidenceKind ExecutionReceipt ExecutionStage ExogenousInference ExogenousVariable FactualUnit FiniteExecutionRequest FiniteExecutionResult FiniteQuantity FiniteScm FiniteScmExecutor FiniteVariable FiniteWorld HistoryKind InterventionKind MatrixDecision MatrixRefusal MatrixRequest MatrixRow ModelClass NoiseCoupling PopulationKind QuantityClass RetainedAbduction SourceAccount SourceTreatment StageReceipt StageStatus TemporalExecution TemporalExecutor UncertaintySource UnitAnswer UnitSampling UnitSpread WHOLE_PATH_UNCERTAINTY_VERSION WholePathUncertainty WorkCounters WorldAtom WorldRoute capability_matrix counterfactual_crate decide decide_capability derive_whole_path_uncertainty mechanism_exports rows selective stream_identity whole_path_uncertainty
 allow mechanism crates/antecedent/src/analysis/discretized_composition.rs ArmDiagnostic ArtifactRefusal BRIDGE_CALIBRATION BRIDGE_ERROR_SCOPE BRIDGE_INFERENCE BridgeRefusal DISCRETIZED_SCM_ARTIFACT_VERSION DISCRETIZED_SCM_VERSION DiscreteArm DiscreteContrast DiscretizationMethod DiscretizationPlan DiscretizedCompositionArtifactRefusal DiscretizedContrast DiscretizedLinearGaussian InferenceParadigm MAX_BRIDGE_LEVELS MIN_BRIDGE_LEVELS PARITY_TABLE ParadigmCell ParityRoute ParityRow antecedent_model consume_discretized_scm discretized_scm discretized_scm_artifact export_discretized_scm mechanism_exports model_crate parity_row require_paradigm
 allow mechanism crates/antecedent/src/analysis/inverse_sources.rs MechanismFamily antecedent_model
@@ -1070,3 +1081,33 @@ allow design crates/antecedent/src/analysis/joint_panel/selection.rs CandidateEs
 allow design crates/antecedent/src/analysis/joint_panel/selection/instrumented.rs CertificateOptions CertificateStop CertifiedControl CertifiedRestriction HeldoutProgramValue ObjectiveInterval ObservationalSpan PreparedCertifiedSearch ProgramSearchError ProgramSelectionProcedure RankedProgram SelectionDataBlock WholeProcedureSelection antecedent_design certified execute_heldout_selection procedure program_search selection
 
 allow design crates/antecedent/src/analysis/joint_panel/experiment/native.rs DecisionContract DecisionProblem DecisionResult JointPanelResponseFunctional ModelConditional ScientificConsumptionScope antecedent_design decision_contract decision_eval evaluate_contract scientific_source
+
+# Z06/Z07: fallback planning runs only after an identification refusal and only
+# when requested. A successful ordinary analysis never enters these design paths.
+allow design crates/antecedent/src/analysis/fallback.rs CandidateGeneration GraphIdentFlag antecedent_design failure_routes generate_candidates identifies structure_identification EvidencePlanRequest EvidencePlanResult STUDY_POPULATION evidence_plan plan_over_routes variable_names
+# Local closure/local binding names, not calls into antecedent-design.
+allow design crates/antecedent/src/analysis/execute/dbn_route_posterior.rs evaluate
+# Explicit JointPanel API methods: every corresponding record carries design via
+# the existing *JointPanel* query / *joint_panel* estimator keys.
+allow design crates/antecedent/src/analysis/joint_panel/experiment/future_regime.rs DecisionProblem JointPanelResponseFunctional antecedent_design decision
+allow design crates/antecedent/src/analysis/joint_panel/streamed.rs JointPanelResponseFunctional functional_weights ports
+# Type-only extraction of attribution components during an explicit functional
+# sensitivity check; no mechanism fit/attribution engine is dispatched here.
+allow mechanism crates/antecedent/src/analysis/functional_sensitivity.rs ChangeAttributionResult antecedent_attribution
+# Observation parameter intervals derive the same ComposedQuantity calibration
+# coordinate as joint-law intervals; ordinary observation points never resolve it.
+allow joint_law_composed crates/antecedent/src/analysis/observation_query.rs COMPOSED_LEVEL Resolution composed_basis joint_law_composed_basis resolve
+
+# evidence_plan::variable_names is a function; these unrelated references are
+# local parameters, local bindings or struct-field initializers of artifact names.
+allow design crates/antecedent/src/analysis/admg_conditional_transport.rs variable_names
+allow design crates/antecedent/src/analysis/counterfactual_transport.rs variable_names
+allow design crates/antecedent/src/analysis/learned_continuous.rs variable_names
+allow design crates/antecedent/src/analysis/mixed_source.rs variable_names
+allow design crates/antecedent/src/analysis/mz_transport.rs variable_names
+allow design crates/antecedent/src/analysis/recalc_static.rs variable_names
+allow design crates/antecedent/src/analysis/recovery.rs variable_names
+allow design crates/antecedent/src/analysis/recovery_chain.rs variable_names
+allow design crates/antecedent/src/analysis/smoothed_dose.rs variable_names
+allow design crates/antecedent/src/counterfactual_id/artifact.rs variable_names
+allow design crates/antecedent/src/cross_world/artifact.rs variable_names
