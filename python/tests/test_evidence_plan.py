@@ -301,15 +301,18 @@ def _valued(per_cost: float):
 def test_options_of_one_gate_are_ordered_by_value_net_of_the_declared_cost_map():
     plan = _valued(0.01)
     assert plan.basis == "net_value" and plan.utility_unit == "utility"
-    assert [o.labels[0] for o in plan.options] == ["large", "cheap"]
+    # The plan lists each study under every route; the verified gate holds the back-door pair.
+    verified = [o for o in plan.options if o.gate == "verified_sufficient"]
+    assert [o.labels[0] for o in verified] == ["large", "cheap"]
     first = plan.options[0].value
     assert first.evsi == pytest.approx(11 / 128, abs=1e-12)
     assert first.net_value == pytest.approx(11 / 128 - 0.03, abs=1e-12)
     assert first.evpi == pytest.approx(1 / 8, abs=1e-12)
     # A dearer cost map reverses the order of the verified pair.
     reversed_plan = _valued(0.02)
-    assert [o.labels[0] for o in reversed_plan.options] == ["cheap", "large"]
-    assert reversed_plan.options[0].value.net_value == pytest.approx(1 / 16 - 0.02, abs=1e-12)
+    reversed_verified = [o for o in reversed_plan.options if o.gate == "verified_sufficient"]
+    assert [o.labels[0] for o in reversed_verified] == ["cheap", "large"]
+    assert reversed_verified[0].value.net_value == pytest.approx(1 / 16 - 0.02, abs=1e-12)
     assert plan.cost_map["cost_unit"] == "usd" and plan.value_identity
 
 

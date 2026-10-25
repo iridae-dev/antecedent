@@ -22,7 +22,7 @@ MANIFEST = ROOT / "parity/joint_response_calibration.toml"
 
 
 def procedures() -> list[dict]:
-    document = tomllib.loads(MANIFEST.read_text())
+    document = tomllib.loads(MANIFEST.read_text(encoding="utf-8"))
     if document["schema"] != 1 or document["grants_release_license"]:
         raise ValueError("invalid unmeasured procedure registry")
     rows = document["procedure"]
@@ -33,7 +33,8 @@ def procedures() -> list[dict]:
         ids.add(row["id"])
         source = ROOT / row["source"]
         if not source.is_file() or not re.search(
-            rf"\bfn\s+{re.escape(row['test'].split('::')[-1])}\s*\(", source.read_text()
+            rf"\bfn\s+{re.escape(row['test'].split('::')[-1])}\s*\(",
+            source.read_text(encoding="utf-8"),
         ):
             raise ValueError(f"missing executable calibration test: {row['id']}")
         if row["minimum_replicates"] < 400 or not row["cells"] or not row["stages"]:
@@ -114,7 +115,7 @@ def main() -> int:
             "manifest_sha256": hashlib.sha256(MANIFEST.read_bytes()).hexdigest(),
             "grants_release_license": False,
         }
-        with log.open("w") as stream:
+        with log.open("w", encoding="utf-8") as stream:
             stream.write(json.dumps(metadata) + "\n")
             stream.flush()
             result = subprocess.run(

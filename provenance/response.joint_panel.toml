@@ -22,6 +22,7 @@ implementation_deviations = [
 ]
 upstream_implementations_observed = []
 test_sources = [
+  "crates/antecedent-estimate/src/joint_panel/time_varying.rs (time-varying coordinate paths, prespecified piecewise and smooth attempts, temporal bootstrap and Bayesian selection; unit tests in the same file)",
   "crates/antecedent-estimate/src/joint_panel/tests.rs (likelihood, uncertainty alignment, general expressions, resource and cancellation regressions)",
   "crates/antecedent-estimate/src/joint_panel/decomposition.rs (compiled hybrid evaluation, component separation, exact order averaging, paired slots and budgets)",
   "crates/antecedent-estimate/src/joint_panel/inference.rs (independent static Gaussian bootstrap reference and distinct procedure identity)",

@@ -166,7 +166,7 @@ This report restates the contract. It computes no estimate, grants no licence, a
 - **Family:** temporal
 - **Stage:** prepared
 - **Depth:** complete
-- **Program identity:** c42e35d2045525d672f976cb5daf8ec1bf553aa28cd4853d30e42c0a96a2c0b2
+- **Program identity:** b72447818dbaf6e76771af2a790494a7ef0b45b13872f0422ce528d8ea3c1d90
 - **Sealed operation:** temporal\_dag\_effect
 
 ### Scientific problem
@@ -194,12 +194,12 @@ This report restates the contract. It computes no estimate, grants no licence, a
 - **design.source:** not\_design\_based
 - **estimator:** temporal.linear.adjustment
 - **identifier:** temporal.backdoor.unfolded
-- **identity:** 917f121005605eb5bc0a3cd809facef2cf9ef80e8998cf01e09f991cdaf5fb59
+- **identity:** a6768793b0dd74f93230471aac150813dc924022c4b6221ef6b42ea8e6f6c849
 - **models\[0\].family:** temporal.linear.adjustment
 - **models\[0\].inputs:** pressure
 - **models\[0\].output:** defect
 - **models\[0\].role:** outcome
-- **operators:** 3
+- **operators:** 9
 - **realization:** frequentist
 - **resampling.method:** block\_bootstrap
 - **resampling.replicates:** 199
@@ -213,8 +213,51 @@ This report restates the contract. It computes no estimate, grants no licence, a
 
 ### Physical plan
 
+- **backend.quotes\[0\].alternative:** direct\_prepared\_numeric\_views
+- **backend.quotes\[0\].cost:** 2400
+- **backend.quotes\[0\].resident\_bytes:** 6400
+- **backend.quotes\[0\].work\_cells:** 1600
+- **backend.quotes\[1\].alternative:** streamed\_reduction
+- **backend.quotes\[1\].cost:** 2404
+- **backend.quotes\[1\].resident\_bytes:** 6432
+- **backend.quotes\[1\].work\_cells:** 1600
+- **backend.quotes\[2\].alternative:** materialized\_design
+- **backend.quotes\[2\].cost:** 4000
+- **backend.quotes\[2\].resident\_bytes:** 12800
+- **backend.quotes\[2\].work\_cells:** 2400
+- **backend.quotes\[3\].alternative:** optional\_lazy\_preparation
+- **backend.quotes\[3\].cost:** 2400
+- **backend.quotes\[3\].resident\_bytes:** 6400
+- **backend.quotes\[3\].work\_cells:** 1600
+- **backend.rejected\[0\].alternative:** direct\_prepared\_numeric\_views
+- **backend.rejected\[0\].reason:** missing operator capability prepared\_numeric\_view
+- **backend.rejected\[1\].alternative:** streamed\_reduction
+- **backend.rejected\[1\].reason:** missing operator capability streamed\_reduction
+- **backend.rejected\[2\].alternative:** optional\_lazy\_preparation
+- **backend.rejected\[2\].reason:** missing operator capability lazy\_preparation
+- **backend.selected:** materialized\_design
+- **backend.selected\_cost:** 4000
 - **design.reason:** the lagged adjustment design is assembled from the unfolded sample at execution
 - **design.source:** not\_design\_based
+- **memory.components\[0\].bytes:** 6400
+- **memory.components\[0\].component:** encoded\_width
+- **memory.components\[1\].bytes:** 100
+- **memory.components\[1\].component:** masks
+- **memory.components\[2\].bytes:** 0
+- **memory.components\[2\].component:** design\_expansion
+- **memory.components\[3\].bytes:** 0
+- **memory.components\[3\].component:** learner\_fold\_copies
+- **memory.components\[4\].bytes:** 9648
+- **memory.components\[4\].component:** solver\_scratch
+- **memory.components\[5\].bytes:** 0
+- **memory.components\[5\].component:** retained\_scores\_draws
+- **memory.components\[6\].bytes:** 3216
+- **memory.components\[6\].component:** output
+- **memory.components\[7\].bytes:** 86832
+- **memory.components\[7\].component:** concurrent\_workers
+- **memory.learner\_fold\_copies:** 0
+- **memory.total:** 106196
+- **memory.workers:** 10
 - **operators\[0\].capability:** cpu
 - **operators\[0\].designs:** 1
 - **operators\[0\].device\_work:** no
@@ -229,7 +272,7 @@ This report restates the contract. It computes no estimate, grants no licence, a
 - **operators\[1\].effect:** fit
 - **operators\[1\].output\_bytes:** 8
 - **operators\[1\].retained\_bytes:** 6400
-- **operators\[1\].scratch\_bytes:** 12800
+- **operators\[1\].scratch\_bytes:** 96480
 - **operators\[1\].sources:** 1
 - **operators\[2\].capability:** cpu
 - **operators\[2\].designs:** 1
@@ -239,9 +282,25 @@ This report restates the contract. It computes no estimate, grants no licence, a
 - **operators\[2\].retained\_bytes:** 0
 - **operators\[2\].scratch\_bytes:** 0
 - **operators\[2\].sources:** 1
+- **operators\[3\].capability:** cpu
+- **operators\[3\].designs:** 0
+- **operators\[3\].device\_work:** no
+- **operators\[3\].effect:** select
+- **operators\[3\].output\_bytes:** 0
+- **operators\[3\].retained\_bytes:** 0
+- **operators\[3\].scratch\_bytes:** 6400
+- **operators\[3\].sources:** 1
+- **operators\[4\].capability:** cpu
+- **operators\[4\].designs:** 1
+- **operators\[4\].device\_work:** no
+- **operators\[4\].effect:** scan
+- **operators\[4\].output\_bytes:** 0
+- **operators\[4\].retained\_bytes:** 0
+- **operators\[4\].scratch\_bytes:** 19200
+- **operators\[4\].sources:** 1
 - **output\_bytes:** 6408
 - **retained\_bytes:** 6400
-- **scratch\_bytes:** 12800
+- **scratch\_bytes:** 122080
 
 ## Identities
 

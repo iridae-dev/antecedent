@@ -570,13 +570,6 @@ def _refusal_call(kind: str, data: str, structure: str):
         kind in {"response_curve", "intervention_response"} and data != "tabular"
     )
     kwargs = _kwargs(kind, data, structure, "")
-    if kind == "path_specific" and structure == "graph_posterior":
-        from antecedent.discovery import ExactDagPosterior
-        from antecedent.inference import Bayesian
-
-        kwargs.pop("graph", None)
-        kwargs["discovery"] = ExactDagPosterior()
-        kwargs["inference"] = Bayesian(n_draws=32)
     return lambda: analyze(_frame(kind, data, temporal), **kwargs)
 
 

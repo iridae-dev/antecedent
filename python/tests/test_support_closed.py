@@ -26,8 +26,13 @@ _CURVE = antecedent.ResponseCurve("t", "y", grid=[0.5, 1.0, 1.5])
 
 
 def test_path_specific_graph_posterior_runs_and_is_never_licensed():
+    # A path-restricted effect reads a finite-discrete table, so the posterior runs on binary
+    # columns; every atom is answered by the executor its own structure has.
+    rng = np.random.default_rng(1)
+    treatment = (rng.random(400) < 0.5).astype(float)
+    outcome = (rng.random(400) < 0.3 + 0.4 * treatment).astype(float)
     result = antecedent.analyze(
-        _DATA,
+        {"t": treatment, "y": outcome},
         query=antecedent.PathSpecificEffect("t", "y"),
         discovery=antecedent.discovery.ExactDagPosterior(),
         refute=False,

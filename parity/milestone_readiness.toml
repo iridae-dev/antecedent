@@ -17,7 +17,7 @@ detail = ""
 [[condition]]
 id = "prerequisite.B02"
 met = true
-evidence = "parity/capabilities/route_manifest.toml: 372 method records verified against the implementation"
+evidence = "parity/capabilities/route_manifest.toml: 443 method records verified against the implementation"
 detail = ""
 
 [[condition]]
@@ -101,7 +101,7 @@ detail = ""
 [[condition]]
 id = "reviews.decided"
 met = true
-evidence = "review decisions: admitted=178, blocked_research=2, not_admitted=12, specification_only=16"
+evidence = "review decisions: admitted=180, not_admitted=12, specification_only=16"
 detail = ""
 
 [[condition]]

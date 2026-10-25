@@ -111,6 +111,10 @@ def test_column_ingest_and_arrow_probes():
     assert try_as_arrow_c_columns(SchemaTable())[0] == ["a"]
 
     class Chunked:
+        # A chunked column reports its length, which the copy ledger reads to size the join.
+        def __len__(self) -> int:
+            return 0
+
         def combine_chunks(self) -> ArrowCol:
             return ArrowCol()
 

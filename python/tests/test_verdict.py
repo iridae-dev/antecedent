@@ -24,7 +24,9 @@ def _assert_schema(instance: dict) -> None:
 
 
 def test_verdict_table_is_exhaustive():
-    assert set(VERDICTS) == set(identification_status_names()) | {"DesignBased"}
+    # DesignBased is a facade status; NotClaimed is the host's domain status for a noncausal
+    # association. Neither is a native IdentificationStatus, so both are listed by name.
+    assert set(VERDICTS) == set(identification_status_names()) | {"DesignBased", "NotClaimed"}
 
 
 def test_statement_lines_nonempty_when_assumptions_exist():

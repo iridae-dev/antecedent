@@ -519,14 +519,17 @@ def test_live_and_loaded_reports_share_one_contract_shape() -> None:
 # --- sharp RD and previews --------------------------------------------------------
 
 
-def test_sharp_rd_contract_names_per_execution_identification() -> None:
+def test_sharp_rd_identifies_at_prepare() -> None:
+    # Sharp RD identifies at compile and prepare (a design whose running variable does not
+    # assign treatment is refused at prepare), so a prepared design no longer defers
+    # identification to each execution.
     study = ant.prepare(
         _rd(0),
         query=ant.quasi.SharpRegressionDiscontinuity("y", "t", "x", 0.0, 0.3),
     )
     identification = study.inspect().identification
-    assert identification.available is False
-    assert identification.reason == "identified_per_execution"
+    assert identification.available is True
+    assert identification.summary == "nonparametrically_identified"
     assert study.estimate().inspect().identification.summary == "nonparametrically_identified"
 
 

@@ -120,6 +120,9 @@ pub(crate) struct ResponseAnalysisResult {
     /// Logical-plan identifier when the result came through Study prepare/estimate.
     #[pyo3(get)]
     identifier: Option<String>,
+    /// The missing-data report of the execution as JSON, when the route reports one.
+    #[pyo3(get)]
+    missing_data_json: Option<String>,
     /// What the native response fixes about each value coordinate (regime, horizon,
     /// functional), or the typed refusal that says why it has none. Units, population
     /// and scale are declared by the caller of [`Self::response_coordinates`].
@@ -705,6 +708,7 @@ pub(crate) fn response_result(
         allowlist_parent,
         diagnostics: Vec::new(),
         identifier: None,
+        missing_data_json: None,
         coordinates,
     })
 }
@@ -757,7 +761,9 @@ pub(crate) fn attach_study_response_meta(
     certificate_json: Option<String>,
     identifier: Option<String>,
     diagnostics: Vec<String>,
+    missing_data_json: Option<String>,
 ) -> ResponseAnalysisResult {
+    mapped.missing_data_json = missing_data_json;
     mapped.certificate_json = certificate_json;
     mapped.identifier = identifier;
     mapped.diagnostics = diagnostics;

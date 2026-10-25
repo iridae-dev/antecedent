@@ -131,7 +131,11 @@ def test_an_unmeasured_confounder_returns_the_refusal_the_description_and_the_ev
     assert section.refused_after == "effect_not_identified"
     assert section.ranks_actions is False and section.is_intervention_effect is False
     assert section.licensed is False and section.calibration == "unmeasured"
-    assert len(section.terms) == 3  # intercept, treatment and the held-fixed parent
+    # The report lists the intercept and the treatment; the held-fixed parent is a nuisance
+    # column adjusted arithmetically and not reported. The treatment coefficient (about 2.0,
+    # against about 2.8 unadjusted) shows the parent was held fixed.
+    assert [term.label for term in section.terms] == ["intercept", "t"]
+    assert section.terms[1].estimate == pytest.approx(2.0, abs=0.15)
     assert outcome.noncausal and not outcome.answers_causal_question
     assert outcome.ranks_actions is False
 

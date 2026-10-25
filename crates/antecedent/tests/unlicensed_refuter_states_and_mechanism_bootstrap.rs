@@ -486,7 +486,10 @@ const NOT_AN_ORDINARY_POSTERIOR: &[(&str, &str)] = &[
     ("P12.intervention.temporal.bayesian", "analytic"),
     ("P14.temporal.bayesian", "design_aware_resampling"),
     ("P15.conditional.static.bayesian", "design_aware_resampling"),
+    ("P15.conditional.temporal.bayesian", "design_aware_resampling"),
     ("P15.projection.temporal.bayesian", "design_aware_resampling"),
+    ("P15.pulse.temporal.bayesian", "design_aware_resampling"),
+    ("P15.sustained.temporal.bayesian", "design_aware_resampling"),
     ("P19.static.bayesian", "none"),
     ("P19.temporal.bayesian", "none"),
     ("P20.static.bayesian", "none"),
@@ -505,6 +508,11 @@ const NOT_AN_ORDINARY_POSTERIOR: &[(&str, &str)] = &[
 /// else is a geometric support cell, not a licence.
 const LICENSED_WITHOUT_DEFAULT_INTERVAL: &[&str] =
     &["P12.counterfactual.static.frequentist", "P13.attribution.static.frequentist"];
+
+/// Quadrants that execute on the Bayesian side only because the target does not exist for a
+/// sampling distribution: updating a prior by an experiment is a Bayesian operation and a
+/// bootstrap law is not a prior. The frequentist row must record that as a theory boundary.
+const BAYESIAN_ONLY_BY_THEORY: &[&str] = &["X05.temporal"];
 
 /// Quadrants whose two inference sides differ in licence: the licensed side has a measured
 /// or asserted interval, the other executes without a licence.
@@ -527,6 +535,14 @@ fn every_method_executes_on_both_inference_sides_or_records_why_not_on_both() {
         };
         // A method either executes on both sides or neither does, and a side the theory rules
         // out is ruled out with a recorded reason on that side.
+        if BAYESIAN_ONLY_BY_THEORY.contains(&format!("{method}.{design}").as_str()) {
+            assert!(
+                !executes(&frequentist.status) && executes(&bayesian.status),
+                "{method} {design} is pinned as Bayesian-only"
+            );
+            assert_eq!(frequentist.status, "not_applicable_with_theory_reason");
+            continue;
+        }
         assert_eq!(
             executes(&frequentist.status),
             executes(&bayesian.status),
@@ -576,6 +592,9 @@ fn bayesian_rows_that_are_not_ordinary_posteriors_are_exactly_the_classified_one
     for bayesian in rows.iter().filter(|r| {
         r.inference == "bayesian" && executes(&r.status) && r.uncertainty == "posterior"
     }) {
+        if BAYESIAN_ONLY_BY_THEORY.contains(&format!("{}.{}", bayesian.method, bayesian.design).as_str()) {
+            continue;
+        }
         let frequentist = rows
             .iter()
             .find(|r| {

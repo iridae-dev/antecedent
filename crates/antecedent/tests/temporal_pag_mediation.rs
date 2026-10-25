@@ -378,25 +378,69 @@ fn a_request_for_two_horizons_is_refused_with_the_next_attempt() {
 }
 
 /// The temporal PAG decomposition publishes a contracted result that an independent consumer
-/// reads back, for both inferences.
+/// reads back, on a one-period window and on a two-period (lagged) window, for both inferences.
 #[test]
 fn a_temporal_pag_decomposition_publishes_an_artifact_a_consumer_reads() {
     let ctx = ExecutionContext::for_tests(76);
-    let series = contemporaneous_series(20_000.0);
+    let cases = [
+        ("one-period", contemporaneous_series(20_000.0), contemporaneous_template()),
+        ("two-period", lagged_series(6_000, 29), lagged_template()),
+    ];
+    for (window, series, template) in cases {
+        for inference in [
+            InferenceMode::Frequentist,
+            InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(8)),
+        ] {
+            let built = study(
+                series.clone(),
+                template.clone(),
+                query(MediationContrast::NaturalDirect),
+                inference,
+                0,
+            );
+            let prepared = built.prepare(&ctx).unwrap();
+            let result = prepared.estimate_retained(&ctx).unwrap();
+            let artifact = prepared
+                .encode_contracted_result(&result, "temporal-pag-mediation", &ctx)
+                .unwrap_or_else(|e| panic!("{window}: {e}"));
+            let consumed = antecedent_io::consume_analysis_result(&artifact)
+                .unwrap_or_else(|e| panic!("{window}: {e}"));
+            assert_eq!(consumed.body.estimate, Some(result.effect()), "{window}");
+        }
+    }
+}
+
+/// The same lagged law read as a `TemporalAdmg` (a two-period window): the decomposition
+/// publishes a contracted result that an independent consumer reads back.
+#[test]
+fn a_two_period_temporal_admg_decomposition_publishes_an_artifact_a_consumer_reads() {
+    let ctx = ExecutionContext::for_tests(77);
+    let mut graph = antecedent_graph::TemporalAdmg::empty();
+    let c1 = graph.add_lagged(var(C), Lag::from_raw(1)).unwrap();
+    let x0 = graph.add_lagged(var(X), Lag::CONTEMPORANEOUS).unwrap();
+    let w0 = graph.add_lagged(var(W), Lag::CONTEMPORANEOUS).unwrap();
+    let m0 = graph.add_lagged(var(M), Lag::CONTEMPORANEOUS).unwrap();
+    let y0 = graph.add_lagged(var(Y), Lag::CONTEMPORANEOUS).unwrap();
+    for (from, to) in [(c1, x0), (x0, m0), (w0, m0), (m0, y0), (x0, y0)] {
+        graph.insert_directed(from, to).unwrap();
+    }
+    let series = lagged_series(6_000, 31);
     for inference in
         [InferenceMode::Frequentist, InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(8))]
     {
-        let built = study(
-            series.clone(),
-            contemporaneous_template(),
-            query(MediationContrast::NaturalDirect),
-            inference,
-            0,
-        );
+        let built = Study::series(series.clone())
+            .graph(graph.clone())
+            .query(CausalQuery::Mediation(query(MediationContrast::NaturalDirect)))
+            .inference(inference)
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap();
         let prepared = built.prepare(&ctx).unwrap();
         let result = prepared.estimate_retained(&ctx).unwrap();
+        assert!((result.effect() - structural_direct()).abs() < 0.05, "{}", result.effect());
         let artifact =
-            prepared.encode_contracted_result(&result, "temporal-pag-mediation", &ctx).unwrap();
+            prepared.encode_contracted_result(&result, "temporal-admg-mediation", &ctx).unwrap();
         let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
         assert_eq!(consumed.body.estimate, Some(result.effect()));
     }

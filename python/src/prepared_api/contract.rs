@@ -45,6 +45,7 @@ pub(crate) fn response_from_retained(
         crate::identification_details::analysis_to_json(result, names)?,
         result.logical_plan.identifier.as_deref().map(str::to_owned),
         result.diagnostics.iter().map(|d| format!("{}: {}", d.code, d.message)).collect(),
+        crate::missing_report::report_json(result.missing_data.as_ref()),
     )
     .with_authority(prepared, prepared.schema(), result, ctx))
 }

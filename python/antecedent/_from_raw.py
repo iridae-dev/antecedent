@@ -1241,6 +1241,17 @@ def _policy_value_from_raw(raw: Any) -> DoublyRobustPolicyEvaluation | None:
     )
 
 
+def _execution_slots(execution: Any | None) -> ReasoningSlots | None:
+    """The reasoning slots of a frozen execution, or ``None`` when it has no contract.
+
+    A functional-validation result (a vector refitted on perturbed data) is not described by
+    the handle's contract, which names a run with no validation, so it carries no slots.
+    """
+    if execution is None or not execution.has_execution_contract():
+        return None
+    return ReasoningSlots.from_contract(execution.execution_contract())
+
+
 def _wrap_ate(
     raw: AteAnalysisResult | TemporalAnalysisResult,
     prepared: Any | None = None,
@@ -1266,9 +1277,7 @@ def _wrap_ate(
     `_wrap_temporal` left them.
     """
     execution = None if prepared is None else prepared._native.snapshot()
-    slots = (
-        None if execution is None else ReasoningSlots.from_contract(execution.execution_contract())
-    )
+    slots = _execution_slots(execution)
 
     def _conflict_from_raw(r: Any) -> ConflictSummaryView | None:
         ids = getattr(r, "conflict_source_ids", None)

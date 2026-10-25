@@ -324,10 +324,10 @@ def test_class_mediation_preserves_functional_and_atom_posterior() -> None:
     # The 64-draw value below is a deterministic function of the hashed per-(horizon,
     # mechanism) mediation stream derivation, not a numerical truth: any change to that
     # derivation moves it by Monte Carlo scatter (sd ~7.6e-4 across seeds at 64 draws;
-    # the previous pin, 0.43924, and this one are each within one sd of the mean).
+    # the earlier pins, 0.43924 and 0.43824, and this one are each within one sd of the mean).
     # Re-baseline it on such a change, and rely on the large-n_draws reference below
     # for the estimand.
-    assert result.ate == pytest.approx(0.43824310512138803, abs=1e-9)
+    assert result.ate == pytest.approx(0.4378822213934731, abs=1e-9)
     # Stream-independent reference: the 8192-draw posterior mean is ~0.43873 (0.43875 at
     # 65536 draws), so the estimand is pinned loosely, independent of RNG streams.
     large = antecedent.estimation.PreparedAnalysis.prepare(

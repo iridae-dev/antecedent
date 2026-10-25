@@ -55,8 +55,10 @@ def grid(mean, sd, rows=ROWS):
     return np.array([mean + sd * _NORMAL.inv_cdf((i + 0.5) / rows) for i in range(rows)])
 
 
-def table(rows=ROWS, *, semantic="causal_functional_posterior", alignment="joint"):
-    source = grid(1.0, 0.3, rows)
+def table(
+    rows=ROWS, *, semantic="causal_functional_posterior", alignment="joint", source_mean=1.0
+):
+    source = grid(source_mean, 0.3, rows)
     partner = grid(0.2, 0.3, rows)[(np.arange(rows) * 12_487) % rows]
     identity = DistributionIdentity(
         semantic=semantic,
@@ -346,7 +348,9 @@ def test_a_predictive_line_is_a_stage_whose_residual_variance_is_added_once():
         mapping=sb.TrialLevelMapping(TRIALS, min_trials=5, min_r_squared=0.9),
         source_dependence=sb.SourceDependence.independent("disjoint-samples"),
     )
-    draws = table(4_001, semantic="posterior_predictive")
+    # Every source draw must lie inside the validated surrogate range of the trial-level line
+    # (0 to 4): the draws are centered so their tails stay inside it.
+    draws = table(4_001, semantic="posterior_predictive", source_mean=1.5)
     bridged = sb.prepare_distribution_bridge(bridge).derive(draws, seed=5)
     parts = bridged.chain_stage("line")
     assert [source.id for source in parts.sources] == [

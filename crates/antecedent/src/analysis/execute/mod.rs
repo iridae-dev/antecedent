@@ -255,6 +255,7 @@ mod checked_attribution;
 mod class_attribution;
 mod temporal_attribution;
 mod temporal_admg_mediation;
+pub(crate) use temporal_admg_mediation::mediation_window_namespace;
 mod temporal_pag_mediation;
 mod temporal_admg_posterior;
 pub(crate) use attribution_path::{CheckedCounterfactualPlan, CounterfactualProcedure};

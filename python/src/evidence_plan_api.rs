@@ -364,6 +364,7 @@ fn finding(sensitivity: Option<(String, f64, bool)>) -> PyResult<Option<Sensitiv
         .transpose()
 }
 
+#[allow(clippy::too_many_arguments)]
 fn failure_stage(
     graph: CoreAdmg,
     graph_names: Vec<String>,
@@ -372,23 +373,35 @@ fn failure_stage(
     population: String,
     observed: &[String],
     sensitivity: Option<(String, f64, bool)>,
+    from_observed: Option<CoreAdmg>,
 ) -> PyResult<FailureStage> {
     let t = resolve(&graph_names, treatment)?;
     let y = resolve(&graph_names, outcome)?;
     let observed_ids =
         observed.iter().map(|name| resolve(&graph_names, name)).collect::<PyResult<Vec<_>>>()?;
-    // A plan is for a failure: the complete ID algorithm must not identify the effect.
-    match antecedent_design::structure_identification::identifies(&graph, t, y) {
-        Ok(GraphIdentFlag::Unidentified) => {}
-        Ok(GraphIdentFlag::Identified) => {
-            return Err(crate::refusal(
-                antecedent_core::reason_code!("invalid_argument"),
-                "identification_repair.not_a_failure: the effect is identified by the graph; \
-                 there is no gap to plan for",
-            ));
-        }
-        Err(error) => {
-            return Err(crate::refusal(error.code, format!("{}: {}", error.detail, error.message)));
+    // A plan is for a failure: the complete ID algorithm must not identify the effect from the
+    // observed variables (the latent projection of the graph onto them when some are not), or
+    // a non-robust sensitivity finding must say that an unmeasured confounder would overturn
+    // the conclusion the graph identifies.
+    let finding = finding(sensitivity)?;
+    let overturned = finding.as_ref().is_some_and(|found| !found.robust);
+    if !overturned {
+        let identification_graph = from_observed.as_ref().unwrap_or(&graph);
+        match antecedent_design::structure_identification::identifies(identification_graph, t, y) {
+            Ok(GraphIdentFlag::Unidentified) => {}
+            Ok(GraphIdentFlag::Identified) => {
+                return Err(crate::refusal(
+                    antecedent_core::reason_code!("invalid_argument"),
+                    "identification_repair.not_a_failure: the effect is identified by the graph; \
+                     there is no gap to plan for",
+                ));
+            }
+            Err(error) => {
+                return Err(crate::refusal(
+                    error.code,
+                    format!("{}: {}", error.detail, error.message),
+                ));
+            }
         }
     }
     let result = IdentificationResult::not_identified(
@@ -397,7 +410,6 @@ fn failure_stage(
         AssumptionSet::new(),
         IdentificationPerformanceRecord::default(),
     );
-    let finding = finding(sensitivity)?;
     let routes = failure_routes(&result, &graph, &observed_ids, &population, finding.as_ref())
         .map_err(|e| crate::refusal(e.code, format!("{}: {}", e.detail, e.message)))?;
     let study_names: Vec<Arc<str>> = graph_names.iter().map(|n| Arc::from(n.as_str())).collect();
@@ -417,7 +429,37 @@ fn evidence_failure_dag(
     sensitivity: Option<(String, f64, bool)>,
 ) -> PyResult<FailureStage> {
     let admg = CoreAdmg::from_dag(&graph.dag).map_err(|e| crate::value_err(e.to_string()))?;
-    failure_stage(admg, graph.names.clone(), treatment, outcome, population, &observed, sensitivity)
+    // A variable that is not observed is latent: the effect is identified only when the
+    // projection of the graph onto the observed variables identifies it.
+    let projected = if observed.len() < graph.names.len()
+        && observed.iter().any(|name| name == treatment)
+        && observed.iter().any(|name| name == outcome)
+    {
+        let dense = observed
+            .iter()
+            .map(|name| {
+                let id = resolve(&graph.names, name)?;
+                antecedent_graph::DenseNodeId::try_from_usize(id.raw() as usize)
+                    .map_err(|e| crate::value_err(e.to_string()))
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        Some(
+            antecedent_graph::latent_project(&graph.dag, &dense)
+                .map_err(|e| crate::value_err(e.to_string()))?,
+        )
+    } else {
+        None
+    };
+    failure_stage(
+        admg,
+        graph.names.clone(),
+        treatment,
+        outcome,
+        population,
+        &observed,
+        sensitivity,
+        projected,
+    )
 }
 
 /// Freeze the failed identification of a graph with bidirected edges.
@@ -433,7 +475,7 @@ fn evidence_failure_admg(
 ) -> PyResult<FailureStage> {
     let names = graph.names.clone();
     let aligned = graph.aligned_to_names(&names)?;
-    failure_stage(aligned, names, treatment, outcome, population, &observed, sensitivity)
+    failure_stage(aligned, names, treatment, outcome, population, &observed, sensitivity, None)
 }
 
 /// A finished plan: the ordered options, the routes behind them and the artifact.

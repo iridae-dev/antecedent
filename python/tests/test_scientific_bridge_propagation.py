@@ -180,8 +180,8 @@ def test_an_undeclared_dependence_is_refused_not_assumed_independent():
 
 def test_the_artifact_replays_the_propagation_in_a_fresh_consumption():
     claim = derive(sb.SourceDependence.slope_covariance(0.0004, "shared-rows"), nonlinear="square")
-    exported = claim.export("propagated-bridge")
-    consumed = sb.consume_scientific_bridge_artifact(exported.artifact, exported.identity)
+    exported = claim.artifact("propagated-bridge")
+    consumed = sb.consume_scientific_bridge_artifact(exported.data, exported.expectation.identity)
     replayed = consumed.claim.propagated_uncertainty()
     held = claim.propagated_uncertainty()
     assert replayed.variance == held.variance
@@ -194,4 +194,6 @@ def test_the_artifact_replays_the_propagation_in_a_fresh_consumption():
         nonlinear="square",
     )
     assert other.claim_id != claim.claim_id
-    assert other.export("propagated-bridge").identity != exported.identity
+    assert (
+        other.artifact("propagated-bridge").expectation.identity != exported.expectation.identity
+    )

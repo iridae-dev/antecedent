@@ -2081,18 +2081,30 @@ class _PrepareRoute:
 
         query, graph = self.query, self.graph
         self._refuse_estimator_config("ConditionalEffect (fixed conditional estimator)")
-        class_graph = isinstance(graph, (Pag, Cpdag))
-        expected_identifier = "generalized.adjustment" if class_graph else "backdoor.adjustment"
-        expected_estimator = (
-            "conditional.bayesian"
-            if isinstance(self.inference, Bayesian)
-            else "conditional.linear.adjustment"
-        )
+        mixed_graph = isinstance(graph, Admg)
+        class_graph = isinstance(graph, (Pag, Cpdag)) or mixed_graph
+        if mixed_graph:
+            # A bidirected structure is read by IDC: the modifier-conditioned contrast.
+            expected_identifier = "general.id"
+            expected_estimator = "functional.effect"
+        else:
+            expected_identifier = "generalized.adjustment" if class_graph else "backdoor.adjustment"
+            expected_estimator = (
+                "conditional.bayesian"
+                if isinstance(self.inference, Bayesian)
+                else "conditional.linear.adjustment"
+            )
         if self.identifier not in (None, expected_identifier) or self.estimator not in (
             None,
             expected_estimator,
         ):
-            prefix = "Cpdag/Pag ConditionalEffect" if class_graph else "ConditionalEffect"
+            prefix = (
+                "Admg ConditionalEffect"
+                if mixed_graph
+                else "Cpdag/Pag ConditionalEffect"
+                if class_graph
+                else "ConditionalEffect"
+            )
             raise CausalUnsupportedError(
                 f"{prefix} requires {expected_identifier} and {expected_estimator}"
             )
@@ -2337,12 +2349,8 @@ class _PrepareRoute:
                 "applies to the Frequentist mechanism-refit bootstrap",
                 reason_code="option_not_applicable",
             )
-        if self._explicit_refute():
-            raise CausalUnsupportedError(
-                f"{route} has no refuter suite: GCM attribution scores are not "
-                "an average treatment effect, and the average-effect refuters do not apply",
-                reason_code="option_not_applicable",
-            )
+        # Cheap and full validation run the functional refuter state on the whole
+        # attribution vector (native, unlicensed); the ATE-shaped suites do not apply.
         if isinstance(self.graph, Dag):
             edges = [(str(a), str(b)) for a, b in self.graph.edges()]
         elif isinstance(self.graph, Sequence) and not isinstance(self.graph, (str, bytes)):

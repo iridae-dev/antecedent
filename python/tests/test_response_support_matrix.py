@@ -63,18 +63,12 @@ def test_accepted_graph_analyze_response_curve_threads_accepted():
     assert antecedent.artifacts.loads(result.export()).contract["structure_source"] == "explicit"
 
 
-def test_path_distribution_literals_match_support_closed_toml():
-    """The prepare routing-gate refusal must not drift from the TOML.
+def test_path_distribution_graph_posterior_rule_executes_and_the_prepare_gate_is_gone():
+    """A graph posterior of path-restricted effects or distributions executes, unlicensed.
 
-    It fires before the native support-matrix consultation, so it cannot be
-    derived from the TOML across the language boundary. Pin source text
-    against the TOML reason so either side changing alone fails loudly.
+    The rule in the TOML says every atom is answered by the executor its own structure has, so
+    the prepare routing gate that once refused the cell must not remain beside it.
     """
-    import inspect
-    import re
-
-    import antecedent._prepare_route as prepare_route
-
     rules = load_toml(_SUPPORT_CLOSED_TOML)["closed"]
     matches = [
         rule
@@ -83,14 +77,18 @@ def test_path_distribution_literals_match_support_closed_toml():
         and set(rule.get("structures", [])) == {"graph_posterior"}
     ]
     assert len(matches) == 1, matches
-    reason = matches[0]["reason"]
-    source = inspect.getsource(prepare_route)
-    # The literal is wrapped across adjacent string fragments; normalize.
-    collapsed = re.sub(r'"\s*\n\s*"', "", source)
-    count = collapsed.count(reason.rstrip("."))
-    assert count >= 1, (
-        f"expected the TOML reason at the prepare routing gate; found {count}: {reason!r}"
+    assert matches[0].get("executes_unlicensed") is True
+    rng = np.random.default_rng(5)
+    treatment = (rng.random(200) < 0.5).astype(float)
+    outcome = (rng.random(200) < 0.3 + 0.4 * treatment).astype(float)
+    prepared = antecedent.prepare(
+        {"t": treatment, "y": outcome},
+        query=antecedent.PathSpecificEffect("t", "y"),
+        discovery=antecedent.discovery.ExactDagPosterior(),
+        refute=False,
+        bootstrap=0,
     )
+    assert prepared is not None
 
 
 def _handle_response_kwargs(**overrides):

@@ -88,6 +88,12 @@ fn target_of(
         .map_err(py_err)
 }
 
+/// The family of a marginal structural model's exposure parameters: one parameter is a scalar
+/// average effect, several are a joint contrast.
+fn msm_family(labels: &[String]) -> &'static str {
+    if labels.len() == 1 { "scalar_average_effect" } else { "joint_contrast" }
+}
+
 fn parse_source(text: &str) -> PyResult<[u8; 32]> {
     if text.len() != 64 || !text.bytes().all(|b| b.is_ascii_hexdigit()) {
         return Err(value_err("a target source is 64 hexadecimal characters"));
@@ -803,7 +809,7 @@ fn sensitivity_msm_parameters(
     target_source: Option<String>,
 ) -> PyResult<String> {
     let summaries = msm_parameter_fit(&outcome, &exposures, &weights).map_err(py_err)?;
-    let target = target_of("scalar_average_effect", temporal, false, labels, target_source.as_deref())?;
+    let target = target_of(msm_family(&labels), temporal, false, labels, target_source.as_deref())?;
     let range = component_ovb_range(
         target,
         &summaries,
@@ -867,8 +873,7 @@ fn sensitivity_msm_parameters_refit(
         .collect();
     let fit = msm_parameter_fit_refitting_weights(&outcome, &exposures, &periods, replicates, seed)
         .map_err(py_err)?;
-    let target =
-        target_of("scalar_average_effect", temporal, false, labels, target_source.as_deref())?;
+    let target = target_of(msm_family(&labels), temporal, false, labels, target_source.as_deref())?;
     let range = component_ovb_range(
         target,
         &fit.refit,

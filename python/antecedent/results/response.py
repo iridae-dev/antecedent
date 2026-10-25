@@ -21,7 +21,7 @@ from ._execution import ResultAPI
 from ._format import fmt_float, fmt_pct
 from ._report import ResultModel
 from ._slots import ReasoningSlots, mass_limitation
-from ._views import IdentificationView
+from ._views import IdentificationView, MissingDataView
 
 #: Empirical support labels, weakest last. ``missing_evidence`` marks a coordinate
 #: whose required evidence (a supplied law, provider or declared domain) is absent; it is
@@ -440,6 +440,8 @@ class CausalResponseView(ResultModel, ResultAPI):
     diagnostics: Sequence[str] = ()
     certificate: Mapping[str, Any] | None = None
     reasoning: ReasoningSlots | None = None
+    #: The missing-data policy, its assumption and the row accounting, when the route reports it.
+    missing_data: MissingDataView | None = None
     #: Compiled program identity. Distinct from ``claim_id``.
     program_id: str | None = None
     #: Execution claim identity. Distinct from ``program_id``.

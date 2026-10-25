@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import TYPE_CHECKING, Any, Literal, Protocol, cast, overload
+from typing import Any, Literal, Protocol, cast, overload
 
 from ._api import attach_refusal_report, describe_refusal
 from ._temporal_design import TemporalDesignQuery
@@ -72,10 +72,8 @@ from .results import Analysis, ProviderAnalysisResult
 from .survival import CompetingRisksOutcome, SurvivalOutcome
 from .transport import Transport, TransportControls, TransportInference
 from .transport.advanced import TransportQuery
-
-if TYPE_CHECKING:
-    from .fallback import AnalysisWithFallback
-    from .repair import StudyCandidate
+from .fallback import AnalysisWithFallback
+from .repair import StudyCandidate
 
 
 class EstimatorConfigLike(Protocol):

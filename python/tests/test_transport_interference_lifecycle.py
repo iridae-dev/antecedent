@@ -474,18 +474,19 @@ def test_bayesian_trial_transport_and_unlicensed_axes_on_analyze():
     assert bayesian.evidence_status == "licensed"
     assert bayesian.posterior is not None
     assignment, data = _interference_design()
-    with pytest.raises(
-        CausalUnsupportedError, match="InterferenceQuery has no native refuter suite"
-    ):
-        ant.analyze(data, graph=[], query=_interference_query(assignment), refute="full")
-    with pytest.raises(
-        CausalUnsupportedError, match="InterferenceQuery is licensed only for an explicit Dag"
-    ):
-        ant.analyze(
-            data,
-            graph=ant.AcceptedGraph(ant.Dag.from_edges(["y"], [])),
-            query=_interference_query(assignment),
-        )
+    # Full validation runs the interference-native suite and an accepted structure runs the
+    # same known-assignment contrast as the explicit one; neither has an evidence row or a
+    # coverage record, so both execute unlicensed.
+    validated = ant.analyze(
+        data, graph=[], query=_interference_query(assignment), refute="full"
+    )
+    assert validated.evidence_status != "licensed"
+    accepted = ant.analyze(
+        data,
+        graph=ant.AcceptedGraph(ant.Dag.from_edges(["y"], [])),
+        query=_interference_query(assignment),
+    )
+    assert accepted.evidence_status != "licensed"
 
 
 def test_analyze_requires_the_design_facts():

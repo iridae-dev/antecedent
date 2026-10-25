@@ -4,9 +4,9 @@
 # (python3 scripts/closure_audit.py --require-zero).
 
 schema = 1
-missing_attempts = 6
+missing_attempts = 0
 missing_consumers = 0
-adjusted_claims = 70
+adjusted_claims = 67
 unresolved_mandatorys = 0
 families = 28
 
@@ -152,7 +152,7 @@ gaps = "validation = 4"
 id = "X03"
 children = 4
 unresolved_evidence = 0
-gaps = "target = 2, theory = 2"
+gaps = "target = 2, validation = 2"
 
 [[family]]
 id = "X04.1"
@@ -170,55 +170,13 @@ gaps = "validation = 4"
 id = "X05"
 children = 4
 unresolved_evidence = 0
-gaps = "target = 2, theory = 2"
+gaps = "target = 3, validation = 1"
 
 [[family]]
 id = "X06"
 children = 4
 unresolved_evidence = 0
 gaps = "target = 2, validation = 2"
-
-[[missing_attempt]]
-id = "X03.temporal.frequentist"
-method = "X03"
-side = "temporal.frequentist"
-route = "unlisted"
-next_attempt = "derive the identification result for this counterpart or record the boundary proof"
-
-[[missing_attempt]]
-id = "X03.temporal.bayesian"
-method = "X03"
-side = "temporal.bayesian"
-route = "unlisted"
-next_attempt = "derive the identification result for this counterpart or record the boundary proof"
-
-[[missing_attempt]]
-id = "X05.temporal.frequentist"
-method = "X05"
-side = "temporal.frequentist"
-route = "unlisted"
-next_attempt = "derive the identification result for this counterpart or record the boundary proof"
-
-[[missing_attempt]]
-id = "X05.temporal.bayesian"
-method = "X05"
-side = "temporal.bayesian"
-route = "unlisted"
-next_attempt = "derive the identification result for this counterpart or record the boundary proof"
-
-[[missing_attempt]]
-id = "closed.ConditionalEffect.TemporalAdmg#temporal.frequentist"
-method = "ConditionalEffect"
-side = "temporal.frequentist"
-route = "closed.ConditionalEffect.TemporalAdmg"
-next_attempt = "identify the target on this graph class and lower it through the compiler, or keep the typed refusal with the boundary proof"
-
-[[missing_attempt]]
-id = "closed.ConditionalEffect.TemporalAdmg#temporal.bayesian"
-method = "ConditionalEffect"
-side = "temporal.bayesian"
-route = "closed.ConditionalEffect.TemporalAdmg"
-next_attempt = "identify the target on this graph class and lower it through the compiler, or keep the typed refusal with the boundary proof"
 
 [[adjusted_claim]]
 id = "P02.penalized_propensity.temporal.frequentist"
@@ -576,17 +534,17 @@ next_attempt = "measure the whole-procedure coverage of this interval and record
 id = "X03.temporal.frequentist"
 method = "X03"
 side = "temporal.frequentist"
-status = "closed_with_next_attempt"
-reason = "Unique causal change attribution and whole-procedure calibration are not established by the implemented conditional model/selection law."
-next_attempt = "derive the identification result for this counterpart or record the boundary proof"
+status = "executing_unlicensed"
+reason = "Whole-procedure calibration of the selection-and-decomposition law is unmeasured, and a unique causal change attribution is not claimed: where the design proves no block the typed coarser contrast executes instead."
+next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
 id = "X03.temporal.bayesian"
 method = "X03"
 side = "temporal.bayesian"
-status = "closed_with_next_attempt"
-reason = "Unique causal change attribution and whole-procedure calibration are not established by the implemented conditional model/selection law."
-next_attempt = "derive the identification result for this counterpart or record the boundary proof"
+status = "executing_unlicensed"
+reason = "Whole-procedure calibration of the selection-and-decomposition law is unmeasured, and a unique causal change attribution is not claimed: where the design proves no block the typed coarser contrast executes instead."
+next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
 id = "X04.1.static.frequentist"
@@ -653,20 +611,12 @@ reason = "Whole-search Q09/E14 selected-decision reliability remains unmeasured.
 next_attempt = "derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin"
 
 [[adjusted_claim]]
-id = "X05.temporal.frequentist"
-method = "X05"
-side = "temporal.frequentist"
-status = "closed_with_next_attempt"
-reason = "a bootstrap sampling law is not a prior: the modular experiment update refuses it at both entry points with a typed reason, and the next design is the Bayesian selection posterior on the same temporal frame; a proved map from a windowed experiment estimand through recency, dose, transport and update to a frequentist decision is not claimed"
-next_attempt = "derive the identification result for this counterpart or record the boundary proof"
-
-[[adjusted_claim]]
 id = "X05.temporal.bayesian"
 method = "X05"
 side = "temporal.bayesian"
-status = "closed_with_next_attempt"
-reason = "Joint observational-experimental refitting, new-regime bridge proofs and whole-chain Q09/E14 calibration are not claimed."
-next_attempt = "derive the identification result for this counterpart or record the boundary proof"
+status = "executing_unlicensed"
+reason = "Joint observational-experimental refitting, new-regime bridge proofs and whole-chain Q09/E14 calibration are not claimed; the delivered chain is unmeasured as a whole procedure."
+next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
 id = "X06.temporal.frequentist"
@@ -723,22 +673,6 @@ side = "temporal.bayesian"
 status = "executing_unlicensed"
 reason = "the composition is a linear combination (compose_horizons) or an arbitrary nonlinear map (compose_horizons_with) of the horizons of one dose of a mean curve, reached from Study::compile with retain_joint_horizons (the option enters the contract inference binding, and the Bayesian program lowers to the block-weight posterior); it is a labelled uncalibrated spread, and no coverage record measures an interval at a horizon-indexed coordinate (the interval reading stays closed); gapped series, intervention responses and derivative responses retain no joint replicates"
 next_attempt = "measure the coverage of the composed interval at its horizon-indexed coordinate, and extend the joint replicates to intervention-level responses and series with gaps"
-
-[[adjusted_claim]]
-id = "closed.ConditionalEffect.TemporalAdmg#temporal.frequentist"
-method = "ConditionalEffect"
-side = "temporal.frequentist"
-status = "closed_with_next_attempt"
-reason = "Denoting coordinates refused: 18. n_a coordinates: 0. A ConditionalEffect on a TemporalAdmg reads tabular rows as the contemporaneous projection, which answers a different target than the temporal conditional contrast. The temporal conditional contrast is TemporalConditionalPulse or TemporalConditionalSustained on one series, identified by IDC on the unrolled window of the template, which executes unlicensed (closed.TemporalConditionalPulse.TemporalAdmg). The typed refusal names the next attempts: that temporal query, TemporalConditionalPulse or TemporalConditionalSustained on a TemporalDag when the lag structure has no latent confounding, or the static Admg for the contemporaneous conditional effect."
-next_attempt = "identify the target on this graph class and lower it through the compiler, or keep the typed refusal with the boundary proof"
-
-[[adjusted_claim]]
-id = "closed.ConditionalEffect.TemporalAdmg#temporal.bayesian"
-method = "ConditionalEffect"
-side = "temporal.bayesian"
-status = "closed_with_next_attempt"
-reason = "Denoting coordinates refused: 18. n_a coordinates: 0. A ConditionalEffect on a TemporalAdmg reads tabular rows as the contemporaneous projection, which answers a different target than the temporal conditional contrast. The temporal conditional contrast is TemporalConditionalPulse or TemporalConditionalSustained on one series, identified by IDC on the unrolled window of the template, which executes unlicensed (closed.TemporalConditionalPulse.TemporalAdmg). The typed refusal names the next attempts: that temporal query, TemporalConditionalPulse or TemporalConditionalSustained on a TemporalDag when the lag structure has no latent confounding, or the static Admg for the contemporaneous conditional effect."
-next_attempt = "identify the target on this graph class and lower it through the compiler, or keep the typed refusal with the boundary proof"
 
 [[adjusted_claim]]
 id = "licensed.Counterfactual.Dag#static.frequentist"

@@ -137,7 +137,7 @@ def reference_artifact():
     feasible = [True, True, False]
     means = [(v - a) / b for v, a, b in zip(targets, intercepts, slopes)]
     future = future_value(weights, means, utilities, feasible, 1.0, 4)
-    truth = json.loads((HERE / "expected.json").read_text())
+    truth = json.loads((HERE / "expected.json").read_text(encoding="utf-8"))
     groups = truth["variants"]["interaction"]["latent_truth"]
     estimands = []
     for duration in (2, 12, 24):
@@ -172,8 +172,8 @@ if __name__ == "__main__":
     rendered = json.dumps(reference_artifact(), indent=2, sort_keys=True) + "\n"
     target = HERE / "experiment_reference.json"
     if args.write:
-        target.write_text(rendered)
-    elif json.loads(target.read_text()) != json.loads(rendered):
+        target.write_text(rendered, encoding="utf-8")
+    elif json.loads(target.read_text(encoding="utf-8")) != json.loads(rendered):
         raise SystemExit(
             "independent experiment reference differs; review and regenerate"
         )

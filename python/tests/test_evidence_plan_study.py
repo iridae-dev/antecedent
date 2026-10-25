@@ -104,7 +104,7 @@ def _assert_gate_then_cost(plan) -> None:
     options = plan.options
     verified = [o for o in options if o.gate == "verified_sufficient"]
     assert [o.rank for o in options] == list(range(len(options)))
-    assert options[: len(verified)] == verified, "a verified option is ranked below another"
+    assert list(options[: len(verified)]) == verified, "a verified option is ranked below another"
     costs = [o.cost for o in verified]
     assert costs == sorted(costs)
 

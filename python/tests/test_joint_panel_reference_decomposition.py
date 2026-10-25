@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def fixture():
     return json.loads(
-        (ROOT / "conformance/response/joint_panel/population_reference.json").read_text()
+        (ROOT / "conformance/response/joint_panel/population_reference.json").read_text(encoding="utf-8")
     )
 
 

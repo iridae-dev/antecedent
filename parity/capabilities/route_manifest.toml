@@ -11200,8 +11200,8 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/query_license.rs"
 implementation = ["crates/antecedent/src/analysis/query_license.rs", "crates/antecedent/src/analysis/execute/temporal_pag_mediation.rs", "crates/antecedent/src/analysis/execute/temporal_admg_mediation.rs", "crates/antecedent/src/analysis/execute/mediation_mixed.rs"]
 provenance = []
-evidence = ["crates/antecedent/tests/mediation_mixed_graph.rs::a_temporal_admg_window_with_one_period_reproduces_the_counted_decomposition", "crates/antecedent/tests/mediation_mixed_graph.rs::mixed_graph_mediation_and_distribution_publish_an_artifact_a_consumer_reads", "crates/antecedent/tests/temporal_admg_posterior.rs::a_mediation_posterior_mixes_each_component_over_the_atoms_that_identify_it"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/mediation_mixed_graph.rs::a_temporal_admg_window_with_one_period_reproduces_the_counted_decomposition"]
+evidence = ["crates/antecedent/tests/temporal_pag_mediation.rs::a_two_period_temporal_admg_decomposition_publishes_an_artifact_a_consumer_reads", "crates/antecedent/tests/mediation_mixed_graph.rs::a_temporal_admg_window_with_one_period_reproduces_the_counted_decomposition", "crates/antecedent/tests/mediation_mixed_graph.rs::mixed_graph_mediation_and_distribution_publish_an_artifact_a_consumer_reads", "crates/antecedent/tests/temporal_admg_posterior.rs::a_mediation_posterior_mixes_each_component_over_the_atoms_that_identify_it"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_pag_mediation.rs::a_two_period_temporal_admg_decomposition_publishes_an_artifact_a_consumer_reads"]
 
 [[method]]
 id = "method.closed.TransportQuery.Dag"
@@ -16076,6 +16076,62 @@ evidence = ["crates/antecedent-estimate/src/joint_panel/time_varying.rs::broader
 artifact_consumer = ["crates/antecedent-io/src/joint_panel_artifact.rs::FrozenPanelFit", "crates/antecedent/src/analysis/joint_panel.rs", "crates/antecedent/tests/joint_panel_workflow.rs::fresh_process_panel_artifact_consumer"]
 
 [[method]]
+id = "method.time_varying.temporal.frequentist"
+kind = "facade_method"
+route = "unlisted"
+child = "X03.temporal.frequentist"
+target = "time-varying structural effectiveness"
+graph_class = "unlisted"
+design = "temporal"
+estimator = "unlisted"
+identifier = []
+lowering = []
+inference = "frequentist"
+design_time_model = "unlisted"
+status = "execution_only"
+structures = []
+validations = []
+coordinates = 0
+uncertainty = "design_aware_resampling"
+uncertainty_structure = "none"
+uncertainty_basis = "declared_and_corroborated"
+uncertainty_by_structure = []
+decision_ports = "unlisted"
+owning_module = "crates/antecedent-estimate/src/joint_panel/time_varying.rs"
+implementation = ["crates/antecedent-estimate/src/joint_panel/time_varying.rs"]
+provenance = []
+evidence = ["crates/antecedent-estimate/src/joint_panel/time_varying.rs::changed_mechanism_likelihood_and_response_share_lags_histories_and_reference_worlds", "crates/antecedent/tests/joint_panel_workflow.rs::temporal_panel_bootstrap_reruns_mechanism_selection_per_replicate", "crates/antecedent/tests/joint_panel_workflow.rs::temporal_frequentist_frame_decomposes_on_reference_worlds_and_translates_experiments"]
+artifact_consumer = ["crates/antecedent-io/src/joint_panel_artifact.rs::FrozenPanelFit", "crates/antecedent/src/analysis/joint_panel.rs", "crates/antecedent/tests/joint_panel_workflow.rs::fresh_process_panel_artifact_consumer"]
+
+[[method]]
+id = "method.time_varying.temporal.bayesian"
+kind = "facade_method"
+route = "unlisted"
+child = "X03.temporal.bayesian"
+target = "time-varying structural effectiveness"
+graph_class = "unlisted"
+design = "temporal"
+estimator = "unlisted"
+identifier = []
+lowering = []
+inference = "bayesian"
+design_time_model = "unlisted"
+status = "execution_only"
+structures = []
+validations = []
+coordinates = 0
+uncertainty = "posterior"
+uncertainty_structure = "none"
+uncertainty_basis = "declared_and_corroborated"
+uncertainty_by_structure = []
+decision_ports = "unlisted"
+owning_module = "crates/antecedent-estimate/src/joint_panel/time_varying.rs"
+implementation = ["crates/antecedent-estimate/src/joint_panel/time_varying.rs"]
+provenance = []
+evidence = ["crates/antecedent-estimate/src/joint_panel/time_varying.rs::smooth_path_and_selection_prior_are_explicit_not_selected_only_uncertainty", "crates/antecedent/tests/joint_panel_workflow.rs::temporal_panel_public_preparation_retains_attempts_and_reuses_selected_mechanism", "crates/antecedent/tests/joint_panel_workflow.rs::temporal_bayesian_frame_decomposes_on_reference_worlds_and_translates_experiments"]
+artifact_consumer = ["crates/antecedent-io/src/joint_panel_artifact.rs::FrozenPanelFit", "crates/antecedent/src/analysis/joint_panel.rs", "crates/antecedent/tests/joint_panel_workflow.rs::fresh_process_panel_artifact_consumer"]
+
+[[method]]
 id = "method.continuous.static.frequentist"
 kind = "facade_method"
 route = "unlisted"
@@ -16186,6 +16242,34 @@ implementation = ["crates/antecedent-design/src/program_search/continuous.rs"]
 provenance = []
 evidence = ["crates/antecedent/src/analysis/joint_panel/tests.rs::continuous_three_channel_search_reuses_fit_and_improves_a_budget_feasible_nonbinary_program", "python/tests/test_joint_panel.py::test_continuous_instrumented_selection_fits_searches_holds_out_and_replays", "crates/antecedent-design/src/program_search/certified.rs::resource_termination_never_claims_certification"]
 artifact_consumer = ["crates/antecedent/src/analysis/joint_panel/search.rs"]
+
+[[method]]
+id = "method.experiment.temporal.bayesian"
+kind = "facade_method"
+route = "unlisted"
+child = "X05.temporal.bayesian"
+target = "geo-experiment to longitudinal model to decision"
+graph_class = "unlisted"
+design = "temporal"
+estimator = "unlisted"
+identifier = []
+lowering = []
+inference = "bayesian"
+design_time_model = "unlisted"
+status = "execution_only"
+structures = []
+validations = []
+coordinates = 0
+uncertainty = "posterior"
+uncertainty_structure = "none"
+uncertainty_basis = "declared_and_corroborated"
+uncertainty_by_structure = []
+decision_ports = "unlisted"
+owning_module = "crates/antecedent/src/analysis/joint_panel/experiment.rs"
+implementation = ["crates/antecedent/src/analysis/joint_panel/experiment.rs"]
+provenance = []
+evidence = ["crates/antecedent/tests/joint_panel_workflow.rs::temporal_bayesian_frame_decomposes_on_reference_worlds_and_translates_experiments", "crates/antecedent/tests/joint_panel_experiment_chain.rs::fresh_process_experiment_artifact_consumer", "python/tests/test_joint_panel_experiment.py::test_native_target_experiment_update_decision_next_study_and_current_replay"]
+artifact_consumer = ["crates/antecedent-io/src/joint_panel_experiment_artifact.rs"]
 
 [[method]]
 id = "method.joint_panel.temporal.frequentist"

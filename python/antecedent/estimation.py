@@ -47,7 +47,7 @@ from ._estimate_helpers import (
     _not_applicable,
     _unwrap_estimator,
 )
-from ._from_raw import _wrap_ate
+from ._from_raw import _execution_slots, _missing_data_from_raw, _wrap_ate
 from ._native import (
     MediationEffectsSummary,
     mediation_effects_summary,
@@ -388,9 +388,7 @@ def _wrap_prepared_response(
 ) -> CausalResponseView:
     """Build a :class:`CausalResponseView` from a prepared-response native DTO."""
     execution = None if prepared is None else prepared._native.snapshot()
-    slots = (
-        None if execution is None else ReasoningSlots.from_contract(execution.execution_contract())
-    )
+    slots = _execution_slots(execution)
     from typing import cast
 
     response = (
@@ -531,6 +529,7 @@ def _wrap_prepared_response(
         allowlist_reason=getattr(raw, "allowlist_reason", None),
         allowlist_parent=getattr(raw, "allowlist_parent", None),
         diagnostics=tuple(getattr(raw, "diagnostics", ()) or ()),
+        missing_data=_missing_data_from_raw(raw, prepared),
         _prepared=prepared,
         _execution=execution,
         _raw=raw,

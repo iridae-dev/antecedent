@@ -62,6 +62,13 @@ impl PyPreparedAnalysis {
         inner.report(self.last.as_deref(), &ctx, format).map_err(py_err)
     }
 
+    /// Whether the last execution carries the contract it ran under. A functional-validation
+    /// result does not: the handle's contract names a run with no validation, which does not
+    /// describe it.
+    fn has_execution_contract(&self) -> bool {
+        self.last.as_ref().is_some_and(|result| result.executed_contract.is_some())
+    }
+
     /// Inspection of the frozen execution, using the executed reasoning slots.
     fn execution_contract(&self) -> PyResult<std::collections::HashMap<String, String>> {
         let result = self

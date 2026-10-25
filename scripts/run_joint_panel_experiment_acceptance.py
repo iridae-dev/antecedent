@@ -101,12 +101,12 @@ def source_identity() -> str:
 
 
 def collect(directory: Path, identity: str, commands: list[dict]) -> dict:
-    protocol = json.loads((directory / "protocol.json").read_text())
+    protocol = json.loads((directory / "protocol.json").read_text(encoding="utf-8"))
     records: dict[str, list] = {}
     for path in directory.glob("*.json"):
         if path.name == "protocol.json":
             continue
-        record = json.loads(path.read_text())
+        record = json.loads(path.read_text(encoding="utf-8"))
         if record["source_identity"] != identity:
             raise ValueError("stale acceptance evidence")
         records.setdefault(record["row"], []).append(record)
@@ -195,7 +195,7 @@ def main() -> int:
             "procedure source changed during execution; rerun on a stable candidate"
         )
     report = collect(directory, identity, executions)
-    REPORT.write_text(json.dumps(report, indent=2) + "\n")
+    REPORT.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(report["counts"], sort_keys=True), flush=True)
     return int(report["counts"]["unresolved_rows"] != 0)
 

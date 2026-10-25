@@ -241,3 +241,49 @@ impl super::Study {
         }
     }
 }
+
+/// The `(variable, offset)` of every coordinate of the window a mediation under a temporal ADMG
+/// or PAG unrolls, indexed by the window coordinate; `None` for any other graph or query.
+///
+/// An identification over the window names its nodes by window coordinate, so a reader needs
+/// this map to place them: the offset is the period relative to the policy origin.
+pub(crate) fn mediation_window_namespace(
+    graph: GraphRef<'_>,
+    query: &antecedent_core::CausalQuery,
+    variable_count: u32,
+) -> Option<Vec<(u32, i32)>> {
+    let antecedent_core::CausalQuery::Mediation(query) = query else {
+        return None;
+    };
+    match graph {
+        GraphRef::TemporalAdmg(template) => {
+            let problem = admg_window_problem(template, query, variable_count).ok()?;
+            let count = u32::try_from(problem.window.variables().len()).ok()?;
+            let origin = i32::try_from(problem.plan.origin).ok()?;
+            (0..problem.plan.periods * count)
+                .map(|coordinate| {
+                    let (variable, period) =
+                        problem.window.locate(VariableId::from_raw(coordinate))?;
+                    Some((variable.raw(), i32::try_from(period).ok()? - origin))
+                })
+                .collect()
+        }
+        GraphRef::TemporalPag(template) => {
+            let effect = window_effect_query(query).ok()?;
+            let window = antecedent_identify::temporal_pag_mediation_window(
+                template,
+                &effect,
+                query,
+                variable_count,
+            )
+            .ok()?;
+            (0..window.indexer.dense_len())
+                .map(|dense| {
+                    let key = window.indexer.key_of(u32::try_from(dense).ok()?).ok()?;
+                    Some((key.variable.raw(), key.offset))
+                })
+                .collect()
+        }
+        _ => None,
+    }
+}

@@ -331,6 +331,9 @@ pub(crate) struct BodyFrame {
     identification_status: Option<IdentificationStatus>,
     /// Horizon-specific identification and unfolded variable namespaces.
     temporal_identification: Vec<TemporalIdentificationWire>,
+    /// Window namespace of a mediation under a temporal ADMG or PAG, whose identification names
+    /// its nodes by window coordinate.
+    window_variables: Option<Vec<HorizonAdjustmentNodeWire>>,
     /// Bindings for named or custom populations the query references.
     registry: Option<antecedent_core::PopulationRegistry>,
 }
@@ -2075,8 +2078,9 @@ fn compile_with_payloads(
     }
     let reasoning = reasoning_view(study, prepared, cached, search_capped);
     let lagged = full_temporal_identification(study);
-    let body =
+    let mut body =
         body_frame(&study.query, lagged.as_deref(), cached, study.population_registry.as_ref())?;
+    body.window_variables = window_namespace(study);
     let (evidence_obligations, evidence_actions) = evidence_needs::derive(study, cached);
     let mut functional = match overlap_label(study, resolved_estimator.as_deref()) {
         Some(overlap) => format!("{}+{overlap}", functional_label(&study.query)),
@@ -3596,6 +3600,22 @@ fn executed_scalar(result: &StudyResult) -> Option<f64> {
     scalar.is_finite().then_some(scalar)
 }
 
+/// The window namespace of a mediation under a temporal ADMG or PAG.
+fn window_namespace(study: &Study) -> Option<Vec<HorizonAdjustmentNodeWire>> {
+    let (DataInput::Temporal(series) | DataInput::Event(series)) = &study.data else {
+        return None;
+    };
+    let count = u32::try_from(series.schema().len()).ok()?;
+    super::execute::mediation_window_namespace(study.graph.graph_ref(), &study.query, count).map(
+        |nodes| {
+            nodes
+                .into_iter()
+                .map(|(variable, offset)| HorizonAdjustmentNodeWire { variable, offset })
+                .collect()
+        },
+    )
+}
+
 fn body_frame(
     query: &antecedent_core::CausalQuery,
     temporal: Option<&CachedTemporalIdentification>,
@@ -3610,6 +3630,7 @@ fn body_frame(
             .map_err(|err| io_err(&err))?,
         identification_status: cached.map(|result| result.status),
         temporal_identification: temporal_identification_wires(temporal, registry)?,
+        window_variables: None,
         registry: registry.cloned(),
     })
 }
@@ -3628,7 +3649,8 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
         .iter()
         .find(|entry| entry.identification.query == identification.query)
         .or_else(|| temporal_identification.first())
-        .map(|entry| entry.variables.clone());
+        .map(|entry| entry.variables.clone())
+        .or_else(|| frame.window_variables.clone());
     identification.query = frame.query.clone();
     let effect = result.estimate.as_effect();
     let published = effect.map(crate::PublishedScalarUncertainty::select);

@@ -5033,22 +5033,22 @@ references = [
 [[spec]]
 id = "X03.temporal.frequentist"
 parent = "X03"
-gap = "theory"
-route = "none"
+gap = "validation"
+route = "method.time_varying.temporal.frequentist"
 target = "time-varying structural effectiveness"
-review_status = "blocked_research"
-admission = "refused"
-decision_basis = "closed with a named next attempt: derive the identification result for this counterpart or record the boundary proof"
+review_status = "admitted"
+admission = "executing_unlicensed"
+decision_basis = "executing_unlicensed per the counterpart inventory; execution crates/antecedent-estimate/src/joint_panel/time_varying.rs::changed_mechanism_likelihood_and_response_share_lags_histories_and_reference_worlds; consumer crates/antecedent-io/src/joint_panel_artifact.rs::FrozenPanelFit; uncertainty design_aware_resampling (declared_and_corroborated)"
 provenance = [
-  "not_applicable: no method executes on this axis",
+  "response.joint_panel",
 ]
-api_review = "none: no executing module"
+api_review = "parity/public_api/antecedent-estimate.txt: 16 of 16 public items reviewed"
 identifying_result = "Time-varying structural effectiveness"
 assumptions = "Piecewise-constant change points, or smooth parameters with regularization or priors. Not every change point is identifiable. A decomposition of exposure, saturation, population or geographic composition, and mechanism needs reference worlds and joint uncertainty. Carryover stays separate from Y equilibrium."
 sampling_units = "Independent observed groups with the same finite-history covariance law as X02."
-estimator = "Complete prespecified piecewise/smooth selection with full-selection parametric bootstrap, retaining failed slots."
+estimator = "Complete prespecified piecewise/smooth selection with full-selection parametric bootstrap, retaining failed slots.: Explicit model-conditional piecewise/smooth attempts on the same panel likelihood."
 diagnostics = "Retain all attempts, weak location evidence, smoothing choices and complete selection realizations. Calibration and unique structural attribution remain unmeasured."
-failure_policy = "Unique exposure/saturation/composition/mechanism attribution refuses without a separating design. The next coarser response contrast is evaluated only under its independently supported or explicitly conditional law; a selected change point is not causal identification."
+failure_policy = "Adjusted claim: Whole-procedure calibration of the selection-and-decomposition law is unmeasured, and a unique causal change attribution is not claimed: where the design proves no block the typed coarser contrast executes instead.."
 references = [
   "Release scope and gates",
   "X03 — Infer time-varying structural effectiveness",
@@ -5059,22 +5059,22 @@ references = [
 [[spec]]
 id = "X03.temporal.bayesian"
 parent = "X03"
-gap = "theory"
-route = "none"
+gap = "validation"
+route = "method.time_varying.temporal.bayesian"
 target = "time-varying structural effectiveness"
-review_status = "blocked_research"
-admission = "refused"
-decision_basis = "closed with a named next attempt: derive the identification result for this counterpart or record the boundary proof"
+review_status = "admitted"
+admission = "executing_unlicensed"
+decision_basis = "executing_unlicensed per the counterpart inventory; execution crates/antecedent-estimate/src/joint_panel/time_varying.rs::smooth_path_and_selection_prior_are_explicit_not_selected_only_uncertainty; consumer crates/antecedent-io/src/joint_panel_artifact.rs::FrozenPanelFit; uncertainty posterior (declared_and_corroborated)"
 provenance = [
-  "not_applicable: no method executes on this axis",
+  "response.joint_panel",
 ]
-api_review = "none: no executing module"
+api_review = "parity/public_api/antecedent-estimate.txt: 16 of 16 public items reviewed"
 identifying_result = "Time-varying structural effectiveness"
 assumptions = "Piecewise-constant change points, or smooth parameters with regularization or priors. Not every change point is identifiable. A decomposition of exposure, saturation, population or geographic composition, and mechanism needs reference worlds and joint uncertainty. Carryover stays separate from Y equilibrium."
 sampling_units = "Independent observed groups with the same finite-history covariance law as X02."
-estimator = "Proper fixed prior across the declared no-change/piecewise/smooth model union with Metropolis model/path realizations, unused-dimension priors and smoothing normalizers."
+estimator = "Proper fixed prior across the declared no-change/piecewise/smooth model union with Metropolis model/path realizations, unused-dimension priors and smoothing normalizers.: Explicit model-conditional piecewise/smooth attempts on the same panel likelihood."
 diagnostics = "Retain all attempts, weak location evidence, smoothing choices and complete selection realizations. Calibration and unique structural attribution remain unmeasured."
-failure_policy = "Unique exposure/saturation/composition/mechanism attribution refuses without a separating design. The next coarser response contrast is evaluated only under its independently supported or explicitly conditional law; a selected change point is not causal identification."
+failure_policy = "Adjusted claim: Whole-procedure calibration of the selection-and-decomposition law is unmeasured, and a unique causal change attribution is not claimed: where the design proves no block the typed coarser contrast executes instead.."
 references = [
   "Release scope and gates",
   "X03 — Infer time-varying structural effectiveness",
@@ -5328,12 +5328,12 @@ references = [
 [[spec]]
 id = "X05.temporal.frequentist"
 parent = "X05"
-gap = "theory"
+gap = "target"
 route = "none"
 target = "temporal experimental estimand to original typed design target, conditional update, constrained decision and next-study net value"
 review_status = "not_admitted"
 admission = "not_admitted"
-decision_basis = "closed with a named next attempt: derive the identification result for this counterpart or record the boundary proof"
+decision_basis = "settled axis boundary with a typed refusal; fixture crates/antecedent/tests/joint_panel_workflow.rs::temporal_frequentist_frame_decomposes_on_reference_worlds_and_translates_experiments; Theory boundary: the target does not exist for a sampling distribution. Updating a prior by an experiment is a Bayesian operation, and a bootstrap sampling law is not a prior, so the modular experimen"
 provenance = [
   "not_applicable: no method executes on this axis",
 ]
@@ -5343,7 +5343,7 @@ assumptions = "Explicit experimental population, time window, horizon, dose, dur
 sampling_units = "The actual source design units and original full histories, clustered geo assignments or donor/reference series are retained; the new Gaussian mean likelihood uses its separately declared independent experimental observations."
 estimator = "Actual frequentist native estimates retain their sampling law and typed target; attempting to use sampling uncertainty as a Bayesian prior produces a scoped refusal before downstream Bayesian updating. Proper native Bayesian counterparts provide the positive modular chain under the same original identification result."
 diagnostics = "The generated complete catalogue crosses statistical modes, deterministic/dependent mappings, five translations and three decision cases. Executed source-bound acceptance records retain independent original-target, posterior-weight/mean, constrained utility and nested EVSI reference checks, explicit quadrature bounds and Monte Carlo error, fresh-process original-data replay, evidence overlap/withdrawal and invalid premise counterexamples. Q08/E14 stable-candidate calibration procedures are registered and remain unmeasured."
-failure_policy = "Adjusted claim: no proved map from a windowed experiment estimand through recency, dose, transport, and update to a decision."
+failure_policy = "Adjusted claim: Theory boundary: the target does not exist for a sampling distribution. Updating a prior by an experiment is a Bayesian operation, and a bootstrap sampling law is not a prior, so the modular experiment update refuses it at both entry points with a typed reason. The executed next design is the Bayesian selection posterior on the same temporal frame (X05.temporal.bayesian).."
 references = [
   "conformance/response/joint_panel/experiment_reference.py (independent estimands, finite likelihood and bounded-error nested integration)",
   "scripts/run_joint_panel_experiment_acceptance.py (executed full matrix and retained source-bound row evidence)",
@@ -5383,12 +5383,12 @@ references = [
 [[spec]]
 id = "X05.temporal.bayesian"
 parent = "X05"
-gap = "theory"
-route = "none"
+gap = "validation"
+route = "method.experiment.temporal.bayesian"
 target = "temporal experimental estimand to original typed design target, conditional update, constrained decision and next-study net value"
 review_status = "not_admitted"
 admission = "not_admitted"
-decision_basis = "closed with a named next attempt: derive the identification result for this counterpart or record the boundary proof"
+decision_basis = "executing_unlicensed per the counterpart inventory; execution crates/antecedent/tests/joint_panel_workflow.rs::temporal_bayesian_frame_decomposes_on_reference_worlds_and_translates_experiments; consumer crates/antecedent-io/src/joint_panel_experiment_artifact.rs; uncertainty posterior (declared_and_corroborated)"
 provenance = [
   "not_applicable: no method executes on this axis",
 ]
@@ -5398,7 +5398,7 @@ assumptions = "Explicit experimental population, time window, horizon, dose, dur
 sampling_units = "The actual source design units and original full histories, clustered geo assignments or donor/reference series are retained; the new Gaussian mean likelihood uses its separately declared independent experimental observations."
 estimator = "FrozenJointImportance modular update of actual shared panel posterior realizations under a known-variance Gaussian experiment-mean likelihood and paired finite affine bridge uncertainty; weighted existing preposterior ranking for additional samples of the same mapped estimand.: Conditional experiment updates over one compiled panel posterior and existing decision ports."
 diagnostics = "The generated complete catalogue crosses statistical modes, deterministic/dependent mappings, five translations and three decision cases. Executed source-bound acceptance records retain independent original-target, posterior-weight/mean, constrained utility and nested EVSI reference checks, explicit quadrature bounds and Monte Carlo error, fresh-process original-data replay, evidence overlap/withdrawal and invalid premise counterexamples. Q08/E14 stable-candidate calibration procedures are registered and remain unmeasured."
-failure_policy = "Adjusted claim: Joint observational-experimental refitting, new-regime bridge proofs and whole-chain Q09/E14 calibration are not claimed.."
+failure_policy = "Adjusted claim: Joint observational-experimental refitting, new-regime bridge proofs and whole-chain Q09/E14 calibration are not claimed; the delivered chain is unmeasured as a whole procedure.."
 references = [
   "conformance/response/joint_panel/experiment_reference.py (independent estimands, finite likelihood and bounded-error nested integration)",
   "scripts/run_joint_panel_experiment_acceptance.py (executed full matrix and retained source-bound row evidence)",

@@ -887,12 +887,6 @@ structure = "graph_posterior"
 reason = "data_modality_not_licensed"
 test = "python/tests/test_python_products.py::test_refusal_pulse_multi_env_graph_posterior"
 
-[[refusal]]
-kind = "path_specific"
-data = "tabular"
-structure = "graph_posterior"
-reason = "option_not_applicable"
-test = "python/tests/test_python_products.py::test_refusal_path_specific_tabular_graph_posterior"
 [[parameter]]
 name = "data"
 entry_points = ["analyze", "prepare", "PreparedAnalysis.prepare"]

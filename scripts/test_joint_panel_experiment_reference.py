@@ -24,7 +24,7 @@ class ExperimentReference(unittest.TestCase):
     def test_retained_reference_reproduces(self):
         self.assertEqual(
             reference.reference_artifact(),
-            json.loads((HERE / "experiment_reference.json").read_text()),
+            json.loads((HERE / "experiment_reference.json").read_text(encoding="utf-8")),
         )
 
     def test_two_state_analytic_update_and_constrained_optimum(self):

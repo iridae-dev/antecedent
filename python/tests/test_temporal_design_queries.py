@@ -115,7 +115,7 @@ def test_prepare_and_estimate_on_the_same_table_reproduce_analyze() -> None:
     assert clicked.temporal_design == direct.temporal_design
 
 
-def _regime_table(subjects: int = 900, horizon: int = 3, seed: int = 11) -> dict[str, list]:
+def _survival_table(subjects: int = 900, horizon: int = 3, seed: int = 11) -> dict[str, list]:
     rng = np.random.default_rng(seed)
 
     def expit(x: float) -> float:
@@ -146,7 +146,7 @@ def _regime_table(subjects: int = 900, horizon: int = 3, seed: int = 11) -> dict
     return table
 
 
-def _regime_query() -> RegimeSurvivalContrast:
+def _survival_query() -> RegimeSurvivalContrast:
     return RegimeSurvivalContrast(
         "event",
         "unit",
@@ -160,7 +160,7 @@ def _regime_query() -> RegimeSurvivalContrast:
 
 
 def test_regime_survival_reports_its_bootstrap_standard_error() -> None:
-    result = antecedent.analyze(_regime_table(), query=_regime_query(), bootstrap=99)
+    result = antecedent.analyze(_survival_table(), query=_survival_query(), bootstrap=99)
     design = result.temporal_design
     assert design.design == "regime_survival"
     assert design.replicates is not None and design.replicates[0] >= 90
@@ -173,7 +173,7 @@ def test_regime_survival_reports_its_bootstrap_standard_error() -> None:
 
 def test_bayesian_regime_survival_reports_its_posterior_standard_deviation() -> None:
     result = antecedent.analyze(
-        _regime_table(), query=_regime_query(), inference=antecedent.Bayesian(n_draws=200)
+        _survival_table(), query=_survival_query(), inference=antecedent.Bayesian(n_draws=200)
     )
     design = result.temporal_design
     assert design.draws == 200

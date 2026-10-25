@@ -535,8 +535,10 @@ def test_v13_named_refusals():
     assert accepted_cf.effect == pytest.approx(
         ac.analyze(data, graph=dag, query=cf, refute="none").effect
     )
-    with pytest.raises(CausalUnsupportedError, match="cheap/full"):
-        ac.analyze(data, graph=dag, query=cf, refute="cheap")
+    # Cheap validation of a counterfactual on a supplied Dag runs the functional refuter state
+    # and stays unlicensed (no evidence row or coverage record names the cell).
+    validated_cf = ac.analyze(data, graph=dag, query=cf, refute="cheap")
+    assert validated_cf.evidence_status != "licensed"
     med_bayes = ac.analyze(
         data, graph=dag, query=med, inference=ac.Bayesian(n_draws=64), refute="none"
     )
@@ -574,10 +576,10 @@ def test_v13_named_refusals():
     )
     assert np.isfinite(mixed.effect)
     assert mixed.evidence_status != "licensed"
-    with pytest.raises(CausalUnsupportedError, match="no native ITE refuter"):
-        ac.analyze(data, graph=dag, query=cf, refute="full")
-    with pytest.raises(CausalUnsupportedError, match="no native ITE refuter"):
-        PreparedAnalysis.prepare(data, graph=dag, query=cf, refute="cheap")
+    # Full validation and a prepared cheap suite run the same functional refuter state.
+    assert ac.analyze(data, graph=dag, query=cf, refute="full").evidence_status != "licensed"
+    prepared_cf = PreparedAnalysis.prepare(data, graph=dag, query=cf, refute="cheap")
+    assert prepared_cf.estimate().evidence_status != "licensed"
     # A Frequentist replicate count runs the mechanism-refit row bootstrap, which is
     # unlicensed; the Bayesian cell keeps its posterior and refuses bootstrap=.
     bootstrapped = ac.analyze(data, graph=dag, query=cf, refute="none", bootstrap=10)

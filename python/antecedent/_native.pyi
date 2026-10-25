@@ -320,6 +320,7 @@ class ResponseAnalysisResult:
         self,
     ) -> list[tuple[str, bool, bool, float, float, str | None]]: ...
     def program_basis_json(self) -> str | None: ...
+    missing_data_json: str | None
     certificate_json: str | None
     treatments: list[str]
     outcomes: list[str]
@@ -1456,6 +1457,7 @@ class PreparedAnalysis:
         on_progress: Callable[..., Any] | None = None,
         on_stage: Callable[..., Any] | None = None,
     ) -> ResponseAnalysisResult: ...
+    def has_execution_contract(self) -> bool: ...
     def execution_contract(
         self,
     ) -> dict[str, str]: ...
@@ -2198,6 +2200,61 @@ class PreparedAnalysis:
         control_level: float = 0.0,
         active_level: float = 1.0,
         outcome_functional: dict[str, Any] | None = None,
+        posterior: GraphPosterior | None = None,
+        seed: int = 1,
+        threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_graph_posterior_kind(
+        names: list[str],
+        columns: Sequence[Any],
+        kind: str,
+        *,
+        treatment: str | None = None,
+        outcome: str | None = None,
+        mediators: list[str] = ...,
+        contrast: str = "mediated",
+        control_level: float = 0.0,
+        active_level: float = 1.0,
+        path_nodes: list[str] | None = None,
+        max_paths: int = 64,
+        max_len: int = 16,
+        interventions: dict[str, float] | None = None,
+        conditioning: list[str] | None = None,
+        targets: list[str] = ...,
+        max_units: int = 0,
+        reference: tuple[float, float] | None = None,
+        baseline_start: int = 0,
+        baseline_end: int = 0,
+        comparison_start: int = 0,
+        comparison_end: int = 0,
+        posterior: GraphPosterior | None = None,
+        seed: int = 1,
+        threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_graph_posterior_transport(
+        names: list[str],
+        columns: Sequence[Any],
+        selections: list[str],
+        source_population: str,
+        target_population: str,
+        source_experiments: list[str],
+        kind: str,
+        treatments: list[str],
+        outcomes: list[str],
+        trial: str,
+        selection_probability: str,
+        treatment_probability: str,
+        *,
+        grid: list[float] | None = None,
+        at: list[float] | None = None,
+        direction: list[float] | None = None,
+        order: int = 1,
+        scale: str = "identity",
+        weighting: str = "observed",
         posterior: GraphPosterior | None = None,
         seed: int = 1,
         threads: int | None = None,
