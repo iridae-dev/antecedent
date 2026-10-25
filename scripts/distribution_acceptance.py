@@ -201,6 +201,8 @@ def maturin_command(maturin: str) -> list[str]:
 
 def build_wheel(maturin: str, out: Path, *, accelerator: bool) -> Path:
     out.mkdir(parents=True, exist_ok=True)
+    for stale in out.glob("*.whl"):
+        stale.unlink()
     before = set(out.glob("*.whl"))
     cmd = [
         *maturin_command(maturin),
