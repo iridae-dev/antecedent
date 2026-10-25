@@ -259,6 +259,8 @@ fn bayesian_natural_direct_effect_publishes_the_posterior_mean_without_an_interv
     .graph(AcceptedGraph::from(graph))
     .query(CausalQuery::NestedCounterfactual(query))
     .inference(InferenceMode::Bayesian(BayesianConfig::conjugate()))
-    .build();
-    assert!(refused.is_err(), "accepted structures stay refused");
+    .build()
+    .expect("an accepted Dag executes the nested natural effect as a supplied one does");
+    // The cell is not licensed: it runs and the study states `refused`, with no coverage claim.
+    assert_eq!(refused.support_status(), Some(antecedent::support::CellStatus::Refused));
 }

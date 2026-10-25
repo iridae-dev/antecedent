@@ -1098,8 +1098,9 @@ fn path_specific_fixture() -> (TabularData, Dag, PathSpecificEffectQuery) {
     (data, dag, query)
 }
 
-/// A cell the route table still refuses: a path-specific effect on an explicit mixed graph. The
-/// conditional effect on that graph is licensed, so it cannot stand in for a refusal.
+/// A refused cell the route table lets execute: a path-specific effect on an explicit mixed
+/// graph. It builds and runs, and its result states `refused`; the conditional effect on that
+/// graph is licensed, so it cannot stand in for it.
 fn refused_admg_cell() -> antecedent::StudyBuilder {
     let (data, _, query) = path_specific_fixture();
     let mut admg = Admg::with_variables(3);
@@ -2253,8 +2254,9 @@ fn licensed_family_refused_cell_inspects_as_structured_refusal() {
     assert_eq!(inspected.support_status.unwrap().as_str(), "refused");
     assert!(matches!(inspected.reasoning.identification, SlotAvailability::Unavailable { .. }));
     assert!(inspected.identities.identification_product.is_none());
-    let err = builder.build().unwrap_err();
-    assert!(matches!(err, antecedent::CausalError::Support { .. }), "{err}");
+    // The closed rule marks the cell as executing: it builds and its status stays refused.
+    let study = builder.build().unwrap();
+    assert_eq!(study.support_status().unwrap().as_str(), "refused");
 }
 
 #[test]
@@ -2309,11 +2311,10 @@ fn capability_preflight_and_build_agree_on_refused_blockers() {
     assert_eq!(inspected.support_status.unwrap().as_str(), "refused");
     assert!(matches!(inspected.reasoning.identification, SlotAvailability::Unavailable { .. }));
     assert_eq!(inspected.capability().primary_blocker_id(), preflight.primary_blocker_id());
-    let err = builder.build().unwrap_err();
-    assert_eq!(
-        err.blocker_id().as_ref().map(|blocker| blocker.id.as_ref()),
-        preflight.primary_blocker_id()
-    );
+    // The cell executes unlicensed: build succeeds and carries the refused status the
+    // preflight reports as its blocker.
+    let study = builder.build().unwrap();
+    assert_eq!(study.support_status().unwrap().as_str(), "refused");
 }
 
 #[test]
@@ -2350,7 +2351,8 @@ fn capability_inspect_cannot_open_a_refused_cell() {
     assert!(!report.is_executable());
     assert!(matches!(inspected.reasoning.identification, SlotAvailability::Unavailable { .. }));
     assert!(inspected.identities.identification_product.is_none());
-    assert!(builder.build().is_err());
+    // Refused does not mean unbuildable here: the cell executes and reports `refused`.
+    assert_eq!(builder.build().unwrap().support_status().unwrap().as_str(), "refused");
 }
 
 #[test]

@@ -387,7 +387,11 @@ fn a_natural_direct_effect_is_bounded_by_its_cross_world_dependence_and_placebo(
     // the mediator and outcome equations correlate at exactly 0.3 in the sample. The structural
     // direct effect is 0.3; sequential ignorability would read 0.3 - 0.3 * 0.8 = 0.06.
     let n = 600;
-    let t: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
+    // The nested route fits every mechanism as linear Gaussian, which a two-level (low
+    // cardinality) column is not a candidate for, so the treatment is a continuous dose with the
+    // same two-level centre; the errors are orthogonal to it in the sample whatever its values.
+    let t: Vec<f64> =
+        (0..n).map(|i| (i % 2) as f64 + 0.3 * (i as f64 * 0.91).sin()).collect();
     let (a, b) = orthogonal_noise(n, &t);
     let m: Vec<f64> = t.iter().zip(&a).map(|(t, a)| 0.8 * t + 0.5 * a).collect();
     let y: Vec<f64> = (0..n)

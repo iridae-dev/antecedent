@@ -251,7 +251,8 @@ fn a_posterior_of_one_template_equals_the_supplied_temporal_pag() {
 }
 
 /// Several temporal-PAG atoms are re-run on shared resampled series, and the standard error is
-/// the spread of the weighted mixture over the replicates.
+/// the spread of the weighted mixture over the replicates. A standard error needs at least
+/// `PERCENTILE_95_MIN_REPLICATES` (40) surviving replicates, so fewer are withheld.
 #[test]
 fn a_frequentist_mixture_of_templates_has_the_standard_error_of_its_shared_series() {
     let series = lagged_series(3_000, 31);
@@ -261,7 +262,7 @@ fn a_frequentist_mixture_of_templates_has_the_standard_error_of_its_shared_serie
         .query(CausalQuery::Mediation(query(MediationContrast::Total)))
         .inference(InferenceMode::Frequentist)
         .refute(RefuteSuite::None)
-        .bootstrap_replicates(20)
+        .bootstrap_replicates(40)
         .build()
         .unwrap()
         .run(&ctx)
@@ -269,7 +270,7 @@ fn a_frequentist_mixture_of_templates_has_the_standard_error_of_its_shared_serie
     let effect = result.estimate.as_effect().unwrap();
     let se = effect.se_bootstrap().expect("the spread of the shared replicates");
     assert!(se > 0.0 && se < 0.5, "{se}");
-    assert!(effect.uncertainty.bootstrap.replicates_ok.unwrap() >= 15);
+    assert!(effect.uncertainty.bootstrap.replicates_ok.unwrap() >= 40);
     assert!(
         result
             .diagnostics

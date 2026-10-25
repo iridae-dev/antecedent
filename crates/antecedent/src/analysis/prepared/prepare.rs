@@ -115,7 +115,10 @@ impl Study {
             counterfactual: counterfactual.as_ref(),
             nested_counterfactual: nested_counterfactual.as_ref(),
         })?;
-        let score_table = analysis.prepare_score_table(ctx)?;
+        // A plan that streams its design holds no rows to cross-fit scores over: it keeps no
+        // score table, and a retarget refuses as unavailable.
+        let score_table =
+            if plan.streams_design() { None } else { analysis.prepare_score_table(ctx)? };
         Ok(PreparedStudy {
             state: SampledPreparedState {
                 analysis,

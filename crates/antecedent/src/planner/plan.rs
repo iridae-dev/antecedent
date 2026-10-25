@@ -162,11 +162,31 @@ impl LogicalAnalysisPlan {
         resolved_static_pag: Option<Pag>,
     ) -> Result<PhysicalExecutionPlan, CausalError> {
         self.validate()?;
-        let n_rows = self.row_count_hint.max(1);
-        let columns = self.design_columns_hint.max(1);
+        let mut n_rows = self.row_count_hint.max(1);
+        let mut columns = self.design_columns_hint.max(1);
         let requested_workers =
             ctx.parallelism.max_threads.get().min(ctx.admission().thread_budget());
         let workers = if requested_workers <= 1 { 0 } else { requested_workers };
+
+        // A nuisance-model route that reduces its rows in closed form streams them when the
+        // resident design does not fit; lowering decides that from the real design, so the
+        // starting record is quoted from one batch of one column and the resident quote is
+        // refused at installation for a route that cannot stream.
+        let streamable = self
+            .record
+            .estimator
+            .as_deref()
+            .and_then(|s| s.parse::<EstimatorId>().ok())
+            .is_some_and(PhysicalExecutionPlan::runs_streamed_reduction);
+        if streamable
+            && RouteMemoryProfile::design(n_rows, columns)
+                .workers(u64::from(requested_workers.max(1)))
+                .admit(RouteBudget::from_limit(ctx.memory_limit_bytes()))
+                .is_err()
+        {
+            n_rows = n_rows.min(1);
+            columns = 1;
+        }
 
         // The starting record is quoted from the planner's own row and column hints through
         // the same route-memory components a lowered program re-quotes with, and admitted

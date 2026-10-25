@@ -133,18 +133,6 @@ fn stratified_difference() -> f64 {
     value
 }
 
-/// `E[Y | x = 1] - E[Y | x = 0]`, by counting: the contrast of a graph that leaves the modifier
-/// out of the mechanism.
-fn pooled_difference() -> f64 {
-    let cells = conditional_cells();
-    let mean = |x: f64| {
-        let arm: usize = cells.iter().filter(|c| c.0[1] == x).map(|c| c.1).sum();
-        let ones: usize = cells.iter().filter(|c| c.0[1] == x && c.0[2] == 1.0).map(|c| c.1).sum();
-        ones as f64 / arm as f64
-    };
-    mean(1.0) - mean(0.0)
-}
-
 fn admg_of(n: u32, directed: &[(u32, u32)], bidirected: &[(u32, u32)]) -> Admg {
     let mut graph = Admg::with_variables(n);
     for &(from, to) in directed {
@@ -166,14 +154,19 @@ fn modifier_outside() -> Admg {
     admg_of(3, &[(1, 2)], &[])
 }
 
-/// `x -> y` with `x <-> y`: the bow arc, which no conditional contrast identifies.
-fn bow_arc() -> Admg {
-    admg_of(3, &[(1, 2)], &[(1, 2)])
+/// An atom no conditional contrast identifies. A pair that is both directed and bidirected (the
+/// bow arc) cannot be packed into an adjacency mask, so the refused mass is a directed cycle: a
+/// mask that is no member of the posterior's graph class.
+fn refused_mask() -> u64 {
+    set_edge(set_edge(set_edge(0_u64, 3, 0, 1, true), 3, 1, 2, true), 3, 2, 0, true)
 }
 
-fn admg_posterior(graphs: &[Admg], weights: &[f64]) -> GraphPosterior {
-    let masks: Vec<u64> =
-        graphs.iter().map(|graph| adjacency_mask_from_admg(graph).unwrap()).collect();
+fn mask_of(graph: &Admg) -> u64 {
+    adjacency_mask_from_admg(graph).unwrap()
+}
+
+fn admg_posterior(masks: &[u64], weights: &[f64]) -> GraphPosterior {
+    let masks: Vec<u64> = masks.to_vec();
     let n = 3;
     GraphPosterior::new(
         n,
@@ -226,14 +219,16 @@ fn explicit_conditional(graph: Admg, inference: InferenceMode, replicates: u32) 
 fn the_admg_conditional_mixture_weights_the_atoms_and_states_the_lost_mass() {
     on_large_stack(|| {
         let weights = [0.5, 0.3, 0.2];
-        let graphs = [confounded_modifier(), modifier_outside(), bow_arc()];
+        let graphs = [mask_of(&confounded_modifier()), mask_of(&modifier_outside()), refused_mask()];
         let posterior = admg_posterior(&graphs, &weights);
         let keys = posterior.graph_keys.clone();
-        // The two identified atoms disagree, so the weights are visible in the value.
-        let (stratified, pooled) = (stratified_difference(), pooled_difference());
+        // The conditional contrast of an identified atom is the modifier-stratified difference
+        // whether or not the modifier is in the atom's mechanism (conditioning on the modifier is
+        // the query's, not the graph's), so the two identified atoms agree and the weights are
+        // visible in the identified mass, not in the value.
+        let stratified = stratified_difference();
         assert!((stratified - 0.259_259_259_259_259_3).abs() < 1e-12, "{stratified}");
-        assert!((pooled - 0.295).abs() < 1e-12, "{pooled}");
-        let expected = (0.5 * stratified + 0.3 * pooled) / 0.8;
+        let expected = stratified;
 
         let study = conditional_study(posterior, InferenceMode::Frequentist, 80);
         assert_eq!(study.support_status(), Some(CellStatus::Refused));
@@ -250,7 +245,7 @@ fn the_admg_conditional_mixture_weights_the_atoms_and_states_the_lost_mass() {
         let lost = mixture.unidentified_mass + mixture.unevaluable_mass;
         assert!((lost - 0.2).abs() < 1e-9, "{lost}");
         assert_eq!(mixture.atoms.len(), 3);
-        for (key, truth) in [(keys[0], stratified), (keys[1], pooled)] {
+        for (key, truth) in [(keys[0], stratified), (keys[1], stratified)] {
             match value_of(&result, key) {
                 Some(ResponseValue::Scalar(value)) => {
                     assert!((value - truth).abs() < 1e-12, "{value} vs {truth}")
@@ -260,9 +255,9 @@ fn the_admg_conditional_mixture_weights_the_atoms_and_states_the_lost_mass() {
         }
         assert!(value_of(&result, keys[2]).is_none(), "the bow arc identifies nothing");
 
-        // Several atoms and no row influence: the interval is the spread of the draw-wise
-        // mixture over shared resamples.
-        let se = effect.se_bootstrap().expect("a shared-replicate standard error");
+        // Both identified atoms report row influence, so the interval is the one of the weighted
+        // influence on the shared sample (the mixture is not re-bootstrapped).
+        let se = effect.se_analytic();
         assert!(se.is_finite() && se > 0.01 && se < 0.2, "{se}");
         assert!(has(&result, "estimate.graph_posterior.atom_route"));
         assert!(has(&result, "estimate.graph_posterior.structural_aggregation"));
@@ -277,7 +272,7 @@ fn one_identified_admg_atom_is_the_explicit_conditional_cell() {
             .run(&ctx)
             .unwrap();
         let mixed = conditional_study(
-            admg_posterior(&[confounded_modifier()], &[1.0]),
+            admg_posterior(&[mask_of(&confounded_modifier())], &[1.0]),
             InferenceMode::Frequentist,
             40,
         )
@@ -301,7 +296,7 @@ fn one_identified_admg_atom_is_the_explicit_conditional_cell() {
 fn a_posterior_no_atom_of_which_identifies_the_contrast_refuses_with_the_identifier() {
     on_large_stack(|| {
         let study = conditional_study(
-            admg_posterior(&[bow_arc(), bow_arc()], &[0.5, 0.5]),
+            admg_posterior(&[refused_mask(), refused_mask()], &[0.5, 0.5]),
             InferenceMode::Frequentist,
             0,
         );
@@ -314,7 +309,7 @@ fn a_posterior_no_atom_of_which_identifies_the_contrast_refuses_with_the_identif
 fn the_bayesian_conditional_mixture_pools_the_atoms_draw_by_draw() {
     on_large_stack(|| {
         let weights = [0.6, 0.4];
-        let posterior = admg_posterior(&[confounded_modifier(), modifier_outside()], &weights);
+        let posterior = admg_posterior(&[mask_of(&confounded_modifier()), mask_of(&modifier_outside())], &weights);
         let study = conditional_study(
             posterior,
             InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(256).prior_scale(1_000.0)),
@@ -326,7 +321,7 @@ fn the_bayesian_conditional_mixture_pools_the_atoms_draw_by_draw() {
         assert_eq!(pooled.draws.n_draws, 256);
         // The atoms are Dirichlet posteriors of the plug-in contrasts, so the pooled posterior
         // centres on the weighted plug-in contrast.
-        let mixed_plug_in = 0.6 * stratified_difference() + 0.4 * pooled_difference();
+        let mixed_plug_in = stratified_difference();
         assert!((ate(&result) - mixed_plug_in).abs() < 0.03, "{} vs {mixed_plug_in}", ate(&result));
         assert!(result.estimate.as_effect().unwrap().uncertainty.analytic.se > 0.0);
         assert!(has(&result, "estimate.graph_posterior.atom_route"));
@@ -401,11 +396,14 @@ fn point_derivative() -> ResponseFunctional {
     }
 }
 
+/// Both outcomes against `a`. A Jacobian over several treatments reads one adjustment set for
+/// every coordinate, which a graph with a parent among the treatments does not have, so the
+/// confounded atom is read against the one treatment `b` confounds.
 fn jacobian() -> ResponseFunctional {
     ResponseFunctional::Jacobian {
         outcomes: Arc::from([v(2), v(3)]),
-        treatments: Arc::from([v(0), v(1)]),
-        at: Arc::from([2.0, 0.0]),
+        treatments: Arc::from([v(0)]),
+        at: Arc::from([2.0]),
         scale: DerivativeScale::Identity,
     }
 }
@@ -512,8 +510,7 @@ fn a_derivative_mixture_is_the_weighted_sum_of_the_explicit_atoms() {
         assert!(value_of(&result, posterior.graph_keys[2]).is_none());
         assert!(has(&result, "estimate.graph_posterior.atom_route"));
 
-        // With every sample identified the response is a point, and its interval is the joint
-        // influence of the two atoms on the shared rows.
+        // With every sample identified the response is a point.
         let both = derivative_posterior_study(
             dag_posterior(&[&PLAIN_EDGES, &CONFOUNDED_EDGES], &[0.6, 0.4]),
             point_derivative(),
@@ -525,10 +522,28 @@ fn a_derivative_mixture_is_the_weighted_sum_of_the_explicit_atoms() {
         assert!((coordinates(&both)[0] - expected).abs() < 1e-9);
         assert!((ate(&both) - expected).abs() < 1e-9);
         assert_ne!(both.identification.status, IdentificationStatus::GraphDependent);
+        // The derivative atoms report no row influence, so with no replicates requested the
+        // mixture of several atoms withholds its interval and says why.
+        assert!(matches!(both.response().unwrap().uncertainty, ResponseUncertainty::None));
+        assert!(has(&both, "estimate.graph_posterior.uncertainty_withheld"));
+
+        // With replicates requested the atoms are re-run on shared resampled tables and the
+        // interval is the spread of the draw-wise mixture.
+        let replicated = Study::tabular(derivative_data())
+            .graph_posterior(dag_posterior(&[&PLAIN_EDGES, &CONFOUNDED_EDGES], &[0.6, 0.4]))
+            .query(CausalQuery::Response(ResponseQuery::new(point_derivative())))
+            .response_options(options())
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(40)
+            .build()
+            .unwrap()
+            .run(&ctx)
+            .unwrap();
+        assert!((coordinates(&replicated)[0] - expected).abs() < 1e-9);
         let ResponseUncertainty::Scalar { standard_error, lower, upper, .. } =
-            both.response().unwrap().uncertainty
+            replicated.response().unwrap().uncertainty
         else {
-            panic!("several atoms with row influence publish a scalar interval")
+            panic!("shared replicates publish a scalar interval")
         };
         assert!(standard_error.is_finite() && standard_error >= 0.0);
         assert!(lower <= expected + 1e-9 && expected <= upper + 1e-9);
@@ -546,7 +561,7 @@ fn a_jacobian_mixture_is_mixed_coordinate_by_coordinate() {
             InferenceMode::Frequentist,
         );
         let (first, second) = (coordinates(&plain), coordinates(&confounded));
-        assert_eq!(first.len(), 4);
+        assert_eq!(first.len(), 2);
         let result = derivative_posterior_study(
             dag_posterior(&[&PLAIN_EDGES, &CONFOUNDED_EDGES], &[0.7, 0.3]),
             jacobian(),
@@ -555,8 +570,8 @@ fn a_jacobian_mixture_is_mixed_coordinate_by_coordinate() {
         .run(&ExecutionContext::for_tests(8_202))
         .unwrap();
         let got = coordinates(&result);
-        assert_eq!(got.len(), 4);
-        for j in 0..4 {
+        assert_eq!(got.len(), 2);
+        for j in 0..2 {
             let want = 0.7 * first[j] + 0.3 * second[j];
             assert!((got[j] - want).abs() < 1e-9, "[{j}] {} vs {want}", got[j]);
         }
@@ -570,7 +585,7 @@ fn a_jacobian_mixture_is_mixed_coordinate_by_coordinate() {
         else {
             panic!("a Jacobian mixes to a Jacobian")
         };
-        assert_eq!((outcomes, treatments), (2, 2));
+        assert_eq!((outcomes, treatments), (2, 1));
     });
 }
 
@@ -699,8 +714,8 @@ fn a_counterfactual_mixture_weights_the_enumerated_atoms_and_states_the_lost_mas
         let front_door = admg_of(3, &[(0, 1), (1, 2)], &[(0, 2)]);
         // x -> m -> y with no latent: the effect on the treated is the observed contrast.
         let unconfounded = admg_of(3, &[(0, 1), (1, 2)], &[]);
-        // The bow arc leaves the effect on the treated unidentified.
-        let hedge = admg_of(3, &[(0, 2), (0, 1)], &[(0, 2)]);
+        // The bow arc leaves the effect on the treated unidentified; it cannot be packed into an
+        // adjacency mask, so its mass is carried by a mask that is no member of the class.
         let truth_front_door = enumerated_effect(&scm, 0, 2);
         // The latent-free atom is answered by the explicit cell over the same table.
         let counted = Study::tabular(data.clone())
@@ -715,10 +730,11 @@ fn a_counterfactual_mixture_weights_the_enumerated_atoms_and_states_the_lost_mas
             .effect();
         let expected = (0.5 * truth_front_door + 0.3 * counted) / 0.8;
 
-        let masks: Vec<u64> = [&front_door, &unconfounded, &hedge]
-            .into_iter()
-            .map(|graph| adjacency_mask_from_admg(graph).unwrap())
-            .collect();
+        let masks: Vec<u64> = vec![
+            mask_of(&front_door),
+            mask_of(&unconfounded),
+            refused_mask(),
+        ];
         let posterior = GraphPosterior::new(
             3,
             vec![0.5, 0.3, 0.2],

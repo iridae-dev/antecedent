@@ -450,26 +450,6 @@
     },
     {
       "queries": [
-        "AverageDerivative",
-        "DirectionalDerivative",
-        "Elasticity",
-        "PointDerivative",
-        "ResponseJacobian",
-        "SemiElasticity"
-      ],
-      "graph_classes": [
-        "Admg",
-        "TemporalAdmg",
-        "Cpdag",
-        "Pag"
-      ],
-      "structures": null,
-      "inferences": null,
-      "validations": null,
-      "reason": "Graph-posterior derivative mixtures on a Cpdag, Pag, Admg or TemporalAdmg are refused: a posterior over structures has no single adjustment set to difference."
-    },
-    {
-      "queries": [
         "PathSpecificEffect",
         "InterventionalDistribution"
       ],

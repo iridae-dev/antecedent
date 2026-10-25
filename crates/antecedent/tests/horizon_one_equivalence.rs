@@ -1939,6 +1939,14 @@ const ESTABLISHED: &[(&str, &[&str])] = &[
         &["horizon_one_joint_interaction_is_the_static_decision_world_contrast_but_not_its_licence"],
     ),
     (
+        "X02",
+        &["horizon_one_joint_panel_fit_at_lag_zero_is_the_static_cell_response_and_a_lagged_frame_is_another_target"],
+    ),
+    (
+        "X02.broader",
+        &["horizon_one_broader_panel_family_at_lag_zero_is_the_static_hill_fit_and_geometric_adstock_needs_the_lag_frame"],
+    ),
+    (
         "X04.1",
         &["horizon_one_finite_program_search_ranks_exactly_as_the_static_search"],
     ),

@@ -231,7 +231,8 @@ fn frequentist_body() {
         .expect("support axis"),
         "every temporal MAG completion",
     );
-    // A posterior over structures has no member to attribute: those cells stay refused outright.
+    // A posterior over structures attributes every atom as a supplied structure of its kind and
+    // mixes them by posterior probability: the cell executes, and stays unlicensed.
     refuse(
         SupportCell::from_labels(
             "AnomalyAttribution",
@@ -241,7 +242,7 @@ fn frequentist_body() {
             "none",
         )
         .expect("support axis"),
-        "graph-posterior structures",
+        "attributes every atom as a supplied structure",
     );
 }
 

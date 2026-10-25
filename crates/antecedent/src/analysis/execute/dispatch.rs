@@ -1944,7 +1944,16 @@ impl super::Study {
         retained: impl FnOnce(&crate::PreparedStudy) -> bool,
         message: &str,
     ) -> Result<Option<Box<StudyResult>>, CausalError> {
-        self.run_sealed_tabular(data, ctx, retained, message).map(Box::new).map(Some)
+        let prepared = self.prepare(ctx)?;
+        if !retained(&prepared) {
+            // A design over the resident budget streams through a closed-form reduction and
+            // retains no operation; the ordinary dispatcher runs it.
+            if prepared.plan().streams_design() {
+                return Ok(None);
+            }
+            return Err(CausalError::Compile { message: message.into() });
+        }
+        prepared.estimate(data, ctx).map(Box::new).map(Some)
     }
 
     /// Series twin of [`Self::admit_sealed_tabular`].

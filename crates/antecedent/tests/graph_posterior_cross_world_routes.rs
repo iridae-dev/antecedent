@@ -139,10 +139,16 @@ fn front_door() -> Admg {
     admg_of(&[(0, 1), (1, 2)], &[(0, 2)])
 }
 
-/// `t -> m -> y`, `t -> y` and `t <-> y`: the total effect has no adjustment, instrument or
-/// front door.
-fn confounded() -> Admg {
-    admg_of(&[(0, 1), (0, 2), (1, 2)], &[(0, 2)])
+/// An atom whose identifier refuses every component. A pair that is both directed and
+/// bidirected cannot be packed into an adjacency mask, and no three-variable mixed graph that
+/// packs leaves the total effect unidentified, so the refused mass is a directed cycle: a mask
+/// that is no member of the posterior's graph class and so identifies nothing.
+fn refused_mask() -> u64 {
+    dag_mask(&[(0, 1), (1, 2), (2, 0)])
+}
+
+fn mask_of(graph: &Admg) -> u64 {
+    adjacency_mask_from_admg(graph).unwrap()
 }
 
 fn dag_mask(edges: &[(usize, usize)]) -> u64 {
@@ -161,9 +167,8 @@ fn posterior_of(
         .with_atom_kind(kind)
 }
 
-fn admg_posterior(weights: &[f64], graphs: &[Admg]) -> GraphPosterior {
-    let masks = graphs.iter().map(|graph| adjacency_mask_from_admg(graph).unwrap()).collect();
-    posterior_of(GraphPosteriorAtomKind::Admg, weights, masks)
+fn admg_posterior(weights: &[f64], masks: &[u64]) -> GraphPosterior {
+    posterior_of(GraphPosteriorAtomKind::Admg, weights, masks.to_vec())
 }
 
 fn mediation(contrast: MediationContrast) -> MediationQuery {
@@ -210,7 +215,7 @@ fn mean_of_atoms(result: &antecedent::StudyResult) -> f64 {
 fn each_mediation_component_is_mixed_over_the_atoms_that_identify_it() {
     on_large_stack(|| {
         let ctx = ExecutionContext::for_tests(8_001);
-        let graphs = admg_posterior(&[0.5, 0.3, 0.2], &[latent_free(), front_door(), confounded()]);
+        let graphs = admg_posterior(&[0.5, 0.3, 0.2], &[mask_of(&latent_free()), mask_of(&front_door()), refused_mask()]);
         let keys = graphs.graph_keys.clone();
         let query = CausalQuery::Mediation(mediation(MediationContrast::Total));
         let built = study(graphs, query, InferenceMode::Frequentist).build().unwrap();
@@ -259,7 +264,7 @@ fn each_mediation_component_is_mixed_over_the_atoms_that_identify_it() {
 fn the_requested_direct_component_is_the_posterior_weighted_mean_of_the_atoms_values() {
     on_large_stack(|| {
         let ctx = ExecutionContext::for_tests(8_002);
-        let graphs = admg_posterior(&[0.6, 0.4], &[latent_free(), confounded()]);
+        let graphs = admg_posterior(&[0.6, 0.4], &[mask_of(&latent_free()), refused_mask()]);
         let keys = graphs.graph_keys.clone();
         let query = CausalQuery::Mediation(mediation(MediationContrast::NaturalDirect));
         let result =
@@ -280,7 +285,7 @@ fn the_requested_direct_component_is_the_posterior_weighted_mean_of_the_atoms_va
 fn a_posterior_with_no_atom_that_identifies_the_requested_effect_is_not_identified() {
     on_large_stack(|| {
         let ctx = ExecutionContext::for_tests(8_003);
-        let graphs = admg_posterior(&[1.0], &[confounded()]);
+        let graphs = admg_posterior(&[1.0], &[refused_mask()]);
         let query = CausalQuery::Mediation(mediation(MediationContrast::Total));
         let refusal = study(graphs, query, InferenceMode::Frequentist)
             .build()
@@ -401,7 +406,7 @@ fn a_natural_direct_effect_over_dag_and_admg_atoms_is_the_counted_direct_effect(
         assert!((mixture.unidentified_mass - 0.3).abs() < 1e-9);
 
         // An Admg atom beside a confounded one.
-        let graphs = admg_posterior(&[0.6, 0.4], &[latent_free(), confounded()]);
+        let graphs = admg_posterior(&[0.6, 0.4], &[mask_of(&latent_free()), refused_mask()]);
         let keys = graphs.graph_keys.clone();
         let result =
             study(graphs, nested, InferenceMode::Frequentist).build().unwrap().run(&ctx).unwrap();
@@ -416,7 +421,7 @@ fn a_path_restricted_effect_over_a_posterior_equals_the_explicit_cell_per_atom()
         let ctx = ExecutionContext::for_tests(8_007);
         let path = PathSpecificEffectQuery::binary(v(0), v(2)).with_path_nodes([v(1)]);
         let query = CausalQuery::PathSpecific(path);
-        let graphs = admg_posterior(&[0.75, 0.25], &[latent_free(), confounded()]);
+        let graphs = admg_posterior(&[0.75, 0.25], &[mask_of(&latent_free()), refused_mask()]);
         let keys = graphs.graph_keys.clone();
         let result = study(graphs, query.clone(), InferenceMode::Frequentist)
             .build()
@@ -445,7 +450,7 @@ fn a_path_restricted_effect_over_a_posterior_equals_the_explicit_cell_per_atom()
 fn an_interventional_distribution_is_the_posterior_weighted_mean_probability_of_each_level() {
     on_large_stack(|| {
         let ctx = ExecutionContext::for_tests(8_008);
-        let graphs = admg_posterior(&[0.5, 0.3, 0.2], &[latent_free(), front_door(), confounded()]);
+        let graphs = admg_posterior(&[0.5, 0.3, 0.2], &[mask_of(&latent_free()), mask_of(&front_door()), refused_mask()]);
         let keys = graphs.graph_keys.clone();
         let query = CausalQuery::Distribution(InterventionalDistributionQuery::new(
             v(2),
@@ -538,7 +543,7 @@ fn a_bayesian_mixture_keeps_one_atoms_posterior_and_pools_several() {
 
         // One atom that covers the whole posterior keeps its own Bayesian-bootstrap posterior.
         let single =
-            study(admg_posterior(&[1.0], &[latent_free()]), query.clone(), inference.clone())
+            study(admg_posterior(&[1.0], &[mask_of(&latent_free())]), query.clone(), inference.clone())
                 .build()
                 .unwrap()
                 .run(&ctx)
@@ -551,7 +556,7 @@ fn a_bayesian_mixture_keeps_one_atoms_posterior_and_pools_several() {
         // atoms that identify; the one contributing atom carries its own posterior, with the
         // mass the identifier refused stated on it.
         let lost = study(
-            admg_posterior(&[0.7, 0.3], &[latent_free(), confounded()]),
+            admg_posterior(&[0.7, 0.3], &[mask_of(&latent_free()), refused_mask()]),
             CausalQuery::Mediation(mediation(MediationContrast::Total)),
             inference.clone(),
         )
@@ -571,7 +576,7 @@ fn a_bayesian_mixture_keeps_one_atoms_posterior_and_pools_several() {
         // Several contributing atoms run in one context, so draw `d` of each is the same draw of
         // the row weights and the pooled posterior is the draw-wise weighted mixture.
         let pooled = study(
-            admg_posterior(&[0.5, 0.5], &[latent_free(), front_door()]),
+            admg_posterior(&[0.5, 0.5], &[mask_of(&latent_free()), mask_of(&front_door())]),
             CausalQuery::Mediation(mediation(MediationContrast::Total)),
             inference,
         )
@@ -606,7 +611,7 @@ fn a_frequentist_mixture_of_several_atoms_has_the_standard_error_of_its_shared_r
                 .run(&ctx)
                 .unwrap()
         };
-        let mixture = run(admg_posterior(&[0.5, 0.5], &[latent_free(), front_door()]));
+        let mixture = run(admg_posterior(&[0.5, 0.5], &[mask_of(&latent_free()), mask_of(&front_door())]));
         let effect = mixture.estimate.as_effect().unwrap();
         let se = effect.se_bootstrap().expect("the spread of the shared replicates");
         assert!(se > 0.0 && se < 0.5, "{se}");
@@ -619,7 +624,7 @@ fn a_frequentist_mixture_of_several_atoms_has_the_standard_error_of_its_shared_r
                 .any(|d| d.code.as_ref() == "estimate.graph_posterior.cross_world_uncertainty")
         );
         // One atom carries its own bootstrap interval, which the mixture of a single atom keeps.
-        let single = run(admg_posterior(&[1.0], &[latent_free()]));
+        let single = run(admg_posterior(&[1.0], &[mask_of(&latent_free())]));
         let own = single.estimate.as_effect().unwrap().se_bootstrap().expect("a bootstrap SE");
         assert!(own > 0.0 && own < 0.5, "{own}");
     });
@@ -629,7 +634,7 @@ fn a_frequentist_mixture_of_several_atoms_has_the_standard_error_of_its_shared_r
 fn a_prepared_handle_answers_the_same_mixture() {
     on_large_stack(|| {
         let ctx = ExecutionContext::for_tests(8_010);
-        let graphs = admg_posterior(&[0.5, 0.3, 0.2], &[latent_free(), front_door(), confounded()]);
+        let graphs = admg_posterior(&[0.5, 0.3, 0.2], &[mask_of(&latent_free()), mask_of(&front_door()), refused_mask()]);
         let built = study(
             graphs,
             CausalQuery::Mediation(mediation(MediationContrast::Total)),
@@ -655,7 +660,7 @@ fn each_atom_runs_its_own_suite_and_the_reports_mix_by_posterior_weight() {
         let query = CausalQuery::Mediation(mediation(MediationContrast::Total));
         let run = |suite: RefuteSuite| {
             Study::tabular(table())
-                .graph_posterior(admg_posterior(&[0.7, 0.3], &[latent_free(), confounded()]))
+                .graph_posterior(admg_posterior(&[0.7, 0.3], &[mask_of(&latent_free()), refused_mask()]))
                 .query(query.clone())
                 .refute(suite)
                 .bootstrap_replicates(0)

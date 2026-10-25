@@ -1222,10 +1222,10 @@ fn graph_posterior_response_failed_atom_is_graph_dependent() {
     );
 }
 
-/// The prepared handle refuses what every graph-posterior response click
-/// refuses, before building the posterior identification cache.
+/// The prepared handle does not refuse a several-coordinate level of a graph-posterior response:
+/// each atom answers it with its own executor, and identification waits for the estimate.
 #[test]
-fn prepared_graph_posterior_response_refuses_multi_coordinate_intervention() {
+fn prepared_graph_posterior_response_answers_multi_coordinate_intervention_atom_by_atom() {
     let data = two_covariate_response_data(80, [&|_| true, &|_| true]);
     let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
         outcome: VariableId::from_raw(1),
@@ -1234,7 +1234,7 @@ fn prepared_graph_posterior_response_refuses_multi_coordinate_intervention() {
             Intervention::set(VariableId::from_raw(2), Value::f64(0.0)),
         ]),
     });
-    let study = Study::tabular(data)
+    let study = Study::tabular(data.clone())
         .graph_posterior(two_adjustment_posterior([0.5, 0.5]))
         .query(CausalQuery::Response(query))
         .inference(InferenceMode::Frequentist)
@@ -1242,25 +1242,14 @@ fn prepared_graph_posterior_response_refuses_multi_coordinate_intervention() {
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    let (ctx, stages) = {
-        #[derive(Default)]
-        struct Stages(std::sync::Mutex<Vec<String>>);
-        impl antecedent_core::ProgressSink for Stages {
-            fn report(&self, _fraction: f64, stage: &str) {
-                self.0.lock().unwrap().push(stage.to_owned());
-            }
-        }
-        let stages = Arc::new(Stages::default());
-        let mut ctx = ExecutionContext::for_tests(1);
-        ctx.progress = Some(Arc::clone(&stages) as Arc<dyn antecedent_core::ProgressSink>);
-        (ctx, stages)
-    };
-    let err = study.prepare(&ctx).unwrap_err();
-    assert!(err.to_string().contains("one intervention coordinate"), "{err}");
-    assert!(
-        stages.0.lock().unwrap().iter().all(|stage| stage != "identify.compute"),
-        "no posterior identification before the refusal"
-    );
+    let ctx = ExecutionContext::for_tests(1);
+    // A several-coordinate level is answered atom by atom through each atom's own executor, so
+    // preparing it is not refused up front.
+    let prepared = study.prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let mixture = result.structural_response.as_ref().expect("a structural mixture");
+    assert_eq!(mixture.atoms.len(), 2);
+    assert!((mixture.identified_mass - 1.0).abs() < 1e-12, "{}", mixture.identified_mass);
 }
 
 /// Graph posterior with twice the Interactive cap of distinct backdoor-identified

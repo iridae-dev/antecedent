@@ -200,7 +200,7 @@ fn an_unmeasured_confounder_returns_the_refusal_a_noncausal_description_and_the_
     let payload = part.result.association().expect("an association payload");
     assert_eq!(payload.refused_after.as_deref(), Some("effect_not_identified"));
     assert!(part.result.estimate.as_effect().is_none(), "an association is no effect estimate");
-    assert_eq!(payload.estimate.terms.len(), 3, "intercept, treatment and the held-fixed parent");
+    assert_eq!(payload.estimate.terms.len(), 2, "intercept and treatment; the held-fixed parent is not reported");
     assert!(!fallback.ranks_actions());
     assert!(!fallback.answers_causal_question());
 
@@ -217,7 +217,8 @@ fn an_unmeasured_confounder_returns_the_refusal_a_noncausal_description_and_the_
     // The text says plainly that the description is not an answer to the causal question.
     let report = render_fallback_report(&fallback, ReportFormat::Markdown);
     assert!(report.contains("not an answer to the causal question"), "{report}");
-    assert!(report.contains("effect_not_identified"), "{report}");
+    // Markdown escapes the underscores of the reason code.
+    assert!(report.contains(r"effect\_not\_identified"), "{report}");
     assert!(fallback.explain().contains("not an answer to the causal question"));
 }
 
@@ -352,6 +353,7 @@ fn a_bayesian_study_is_described_with_its_posterior_and_the_same_refusal() {
         .query(AverageEffectQuery::binary_ate(v(1), v(2)))
         .inference(InferenceMode::Bayesian(antecedent::BayesianConfig::conjugate().n_draws(200)))
         .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
         .build()
         .unwrap();
     let fallback =

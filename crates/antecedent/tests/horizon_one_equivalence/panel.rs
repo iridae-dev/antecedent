@@ -343,3 +343,91 @@ fn horizon_one_continuous_program_search_polls_static_decision_worlds_on_one_reu
     assert_eq!(found.search.reliability, "unmeasured");
     assert_eq!(prepared.fits_performed(), 1);
 }
+
+/// The raw-row reference of the four cells of [`panel_data`]: the generating mean of the
+/// outcome, with the mean group offset taken from the groups themselves.
+fn panel_cell_reference(a: f64, b: f64) -> f64 {
+    let offsets: f64 = (0..GROUPS).map(|group| 0.3 * f64::from(group)).sum::<f64>() / f64::from(GROUPS);
+    1.0 + 0.8 * a + 0.5 * b + offsets
+}
+
+/// The terminal fitted mean of each cell world, in request order, and the second difference.
+fn fitted_cells(request: JointPanelRequest, panel: &PanelData) -> (Vec<f64>, f64) {
+    let context = ExecutionContext::for_tests(281);
+    let prepared = Study::prepare_joint_panel(panel.clone(), request, &context).unwrap();
+    assert!(!prepared.inspect().identification.is_identified_claim());
+    let result = prepared.estimate(&context).unwrap();
+    let cells: Vec<f64> =
+        result.point.iter().map(|response| *response.means.last().unwrap()).collect();
+    let interaction = cells[3] - cells[1] - cells[2] + cells[0];
+    (cells, interaction)
+}
+
+/// The fitted panel mechanism at lag zero with one-step programs is the static response: each
+/// cell world's mean is the raw-row mean of its cell (the generating equation has a null
+/// interaction), and the second difference of the cells is the static interaction contrast. The
+/// same programs under a lag order are a temporal frame of horizon one, another target by
+/// construction; neither is an identified claim, because the fitted mechanism is model-conditional.
+#[test]
+fn horizon_one_joint_panel_fit_at_lag_zero_is_the_static_cell_response_and_a_lagged_frame_is_another_target(
+) {
+    let panel = panel_data();
+    let (cells, interaction) = fitted_cells(panel_request(&panel, 0, 1), &panel);
+    for (index, (a, b)) in [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0)].into_iter().enumerate() {
+        let reference = panel_cell_reference(a, b);
+        assert!(
+            (cells[index] - reference).abs() < 0.08,
+            "cell {index}: fitted {} vs raw-row reference {reference}",
+            cells[index]
+        );
+    }
+    assert!(interaction.abs() < 0.05, "the generating interaction is null: {interaction}");
+
+    let worlds = cell_worlds(1);
+    let static_frame = interaction_target(&panel, 0, &worlds);
+    let temporal_frame = interaction_target(&panel, 2, &worlds);
+    let TargetForm::Contrast(temporal_contrast) = temporal_frame.form() else {
+        panic!("a contrast")
+    };
+    for world in temporal_contrast.worlds().worlds() {
+        assert!(!world.time().is_static());
+        assert_eq!(world.time().horizon_steps(), Some(1));
+    }
+    assert_ne!(static_frame.identity(), temporal_frame.identity());
+}
+
+/// The broader mechanism family changes the fitted mechanism only. At lag zero the static twin
+/// is the Hill saturation with a half-saturation per group: it recovers the same raw-row cells
+/// and null interaction as the reviewed family and leaves the target untouched. Geometric
+/// adstock decays over lags, so it exists only in the lagged frame and is refused at lag zero.
+#[test]
+fn horizon_one_broader_panel_family_at_lag_zero_is_the_static_hill_fit_and_geometric_adstock_needs_the_lag_frame(
+) {
+    use antecedent_estimate::joint_panel::{PanelAdstock, PanelFamily, PanelSaturation};
+    let panel = panel_data();
+    let reviewed = panel_request(&panel, 0, 1);
+    let mut broader = panel_request(&panel, 0, 1);
+    broader.family = PanelFamily {
+        adstock: PanelAdstock::Simplex,
+        saturation: PanelSaturation::Hill,
+        scope: PanelFamily::per_group_saturation(GROUPS as usize),
+        spatial: None,
+    };
+    assert_eq!(reviewed.target.identity(), broader.target.identity());
+    let (cells, interaction) = fitted_cells(broader.clone(), &panel);
+    for (index, (a, b)) in [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0)].into_iter().enumerate() {
+        let reference = panel_cell_reference(a, b);
+        assert!(
+            (cells[index] - reference).abs() < 0.08,
+            "cell {index}: fitted {} vs raw-row reference {reference}",
+            cells[index]
+        );
+    }
+    assert!(interaction.abs() < 0.05, "the generating interaction is null: {interaction}");
+
+    let mut geometric = broader;
+    geometric.family.adstock = PanelAdstock::Geometric;
+    let context = ExecutionContext::for_tests(282);
+    let refusal = Study::prepare_joint_panel(panel.clone(), geometric, &context).unwrap_err();
+    assert!(refusal.to_string().contains("carryover lag order two"), "{refusal}");
+}

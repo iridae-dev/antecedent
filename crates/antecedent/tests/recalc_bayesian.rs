@@ -306,7 +306,15 @@ fn independently_bound_prior_transfer_body() {
         })
     });
     assert_eq!(out.receipt.totals().identifications, checks);
-    assert!(checks >= 4); // actual independent source proof replay and target proof
+    // The target study identifies once; the bound prior's source proof is replayed once more
+    // on the source graph, so the transfer costs exactly two identifications of this graph.
+    let mut plain = target.clone();
+    plain.inference.prior_artifact = None;
+    let (_, plain_checks) = count_checked_identifications(|| {
+        execute_bayesian_with_receipt(&mut BayesianSession::new(), &plain, &ctx).unwrap()
+    });
+    assert!(plain_checks >= 1, "{plain_checks}");
+    assert_eq!(checks, 2 * plain_checks, "source proof replay plus target proof");
     assert_eq!(work.model_fits, 2);
     assert_eq!(work.posterior_draws, 1024);
     let transfer = &oracle()["prior_transfer"];

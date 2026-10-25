@@ -757,7 +757,19 @@ impl super::Study {
                         max_lag,
                         &variables,
                     ) {
-                        Ok(dag) => {
+                        Ok(mut dag) => {
+                            // A template with no edge holds no node; its variables are
+                            // isolated contemporaneous nodes, each its own exogenous mechanism.
+                            if dag.nodes().is_empty() {
+                                for &target in &targets {
+                                    antecedent_graph::unfold::ensure_lagged(
+                                        &mut dag,
+                                        target,
+                                        antecedent_core::Lag::CONTEMPORANEOUS,
+                                    )
+                                    .map_err(CausalError::rejected)?;
+                                }
+                            }
                             kinds.push((
                                 weight,
                                 MemberKind::Directed(AcceptedGraph::temporal_dag(dag)),

@@ -889,11 +889,13 @@ fn open_pag() -> Pag {
     pag
 }
 
-/// `a -> y <- z` as a Pag: its one MAG completion is itself and it standardizes over `z`.
-fn collider_pag() -> Pag {
+/// `a -> y` as a Pag: its MAG completion is itself, and the ADMGs that share its m-separation
+/// model (with and without `a <-> y`) all certify the direct formula when the selection target
+/// is not an ancestor of the outcome. (With `z -> y` as well, the candidate with `a <-> y` leaves
+/// the standardization uncertified, so the class is not.)
+fn direct_pag() -> Pag {
     let mut pag = Pag::with_variables(NODES);
     pag.insert_directed(node(A), node(Y)).unwrap();
-    pag.insert_directed(node(Z), node(Y)).unwrap();
     pag
 }
 
@@ -1004,7 +1006,7 @@ fn a_posterior_of_pag_atoms_states_the_mass_sid_does_not_certify() {
     on_large_stack(|| {
         let ctx = ExecutionContext::for_tests(7_303);
         let graphs =
-            pag_posterior(&[0.5, 0.25, 0.25], &[open_pag(), uncertified_pag(), collider_pag()]);
+            pag_posterior(&[0.5, 0.25, 0.25], &[open_pag(), uncertified_pag(), direct_pag()]);
         let study =
             transport_study(graphs.clone(), &[Z], InferenceMode::Frequentist, RefuteSuite::None);
         let result = study.run(&ctx).unwrap();
@@ -1024,7 +1026,7 @@ fn a_posterior_of_pag_atoms_states_the_mass_sid_does_not_certify() {
 
         // Moving the posterior mass moves the lost mass by exactly the shift.
         let shifted = transport_study(
-            pag_posterior(&[0.1, 0.8, 0.1], &[open_pag(), uncertified_pag(), collider_pag()]),
+            pag_posterior(&[0.1, 0.8, 0.1], &[open_pag(), uncertified_pag(), direct_pag()]),
             &[Z],
             InferenceMode::Frequentist,
             RefuteSuite::None,

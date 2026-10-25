@@ -391,6 +391,11 @@ fn conditional_class_target(
 
 pub(super) fn checked_propensity(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
+    // A plan that streams its design retains no operation: the closed-form reduction runs on
+    // the fresh path, so there is nothing to seal.
+    if plan.streams_design() {
+        return Ok(None);
+    }
     let sealed =
         match (cx.static_ate_dag(), analysis.identification_cache.as_ref(), &analysis.inference) {
             (Some((data, query)), Some(cache), InferenceMode::Frequentist)

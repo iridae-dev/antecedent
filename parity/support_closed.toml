@@ -116,19 +116,6 @@ executes_unlicensed = true
 reason = "Cheap and full derivative, elasticity, directional-derivative and Jacobian validation on a supplied or accepted Cpdag, Pag, Admg or TemporalAdmg run a refuter state and stay unlicensed: no evidence row or coverage record names it. Each identified completion (or the identified ADMG) is checked against its own estimand: an adjustment-identified derivative runs the derivative state (support at the evaluation point, the central finite difference of the identified intervention levels, under full a whole-procedure resampling stability check, and for Bayesian studies the predictive checks and prior sensitivity of the outcome regression); a front-door-identified derivative runs the front-door state (support, sensitivity of the slope to the additive smoothers of both stages, under full resampling stability on rows or circular window blocks); a TemporalAdmg horizon runs the temporal derivative state on its Pulse witness. Completion reports are mixed by weight only when every completion publishes the same derivative, and a disagreement diagnostic states how far they spread; a completion identified only by the general ID algorithm has no plug-in to refit and is reported as unchecked mass."
 
 [[closed]]
-queries = [
-  "AverageDerivative",
-  "DirectionalDerivative",
-  "Elasticity",
-  "PointDerivative",
-  "ResponseJacobian",
-  "SemiElasticity",
-]
-graph_classes = ["Admg", "TemporalAdmg", "Cpdag", "Pag"]
-reason = "Graph-posterior derivative mixtures on a Cpdag, Pag, Admg or TemporalAdmg are refused: a posterior over structures has no single adjustment set to difference."
-
-
-[[closed]]
 queries = ["PathSpecificEffect", "InterventionalDistribution"]
 graph_classes = ["Dag", "Admg", "TemporalAdmg", "Cpdag", "Pag"]
 structures = ["graph_posterior"]

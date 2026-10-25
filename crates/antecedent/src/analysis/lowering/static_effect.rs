@@ -921,8 +921,13 @@ fn physical_operators(
     // A plan that streams its design holds no resident design to re-quote.
     if design.source() == WidthSource::Quoted && !cx.plan.streams_design() {
         let mut planned = cx.plan.clone();
-        planned.requote(design, cx.ctx)?;
-        return linear_gaussian_physical_operators(&planned, resample);
+        match planned.requote(design, cx.ctx) {
+            Ok(()) => return linear_gaussian_physical_operators(&planned, resample),
+            // The resident design does not fit. Installation decides whether the route
+            // streams its rows or refuses the limit.
+            Err(CausalError::Resource { .. }) => {}
+            Err(error) => return Err(error),
+        }
     }
     linear_gaussian_physical_operators(cx.plan, resample)
 }

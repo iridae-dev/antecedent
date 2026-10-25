@@ -692,7 +692,11 @@ impl Core {
         base_law: impl IntoIterator<Item = VariableId>,
     ) -> Result<Self, RepairError> {
         let failure = Failure::try_new(dag, treatment, outcome, population, base_law)?;
-        if failure.usable(&failure.base_law)
+        // An instrument's validity (relevance, exclusion, the effect restriction) is an
+        // assumption no observed law establishes, so a measured instrument never makes the
+        // route "already identified": the route keeps owing those assumptions.
+        if route != Route::Instrument
+            && failure.usable(&failure.base_law)
             && matches!(route.analyze(&failure, &failure.base_law), Analysis::Identified(_))
         {
             return Err(RepairError::not_a_failure(format!(

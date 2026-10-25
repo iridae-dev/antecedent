@@ -3472,10 +3472,15 @@ fn codetermined_joint_many_cofacets_uses_closure_shortcut() {
         "cap keeps NotIdentified, honesty is the Execution diagnostic: {:?}",
         generic.diagnostics
     );
-    assert!(generic.diagnostics.iter().any(|d| {
-        d.kind == antecedent_core::DiagnosticKind::Execution
-            && d.code.as_ref() == antecedent_identify::CAPPED_COMPLETION_DIAGNOSTIC_CODE
-    }));
+    assert!(
+        generic.diagnostics.iter().any(|d| {
+            d.kind == antecedent_core::DiagnosticKind::Execution
+                && d.code.as_ref() == "identify.joint.search_bounded"
+        }),
+        "{:?} {:?}",
+        generic.diagnostics,
+        generic.performance
+    );
     assert!(
         !generic.diagnostics.iter().any(|d| d.kind == antecedent_core::DiagnosticKind::Scientific)
     );
