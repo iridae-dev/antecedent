@@ -240,6 +240,7 @@ def venv_probe(
     index_args: list[str] | None = None,
 ) -> dict[str, object]:
     """Install ``wheel`` in a fresh environment and run the probe there."""
+    work = work.resolve()
     venv = work / f"venv-{expect}-{'hidden' if env_extra else 'visible'}-{os.getpid()}"
     if venv.exists():
         shutil.rmtree(venv)
