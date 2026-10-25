@@ -9,8 +9,14 @@ b = .001 + (y'y/κ - m'Pm)/2, Cov(beta) = b V/(a-1).
 This is every row weighted 1/κ, an effective sample of n/κ rows; the prior keeps
 its full weight.
 
-The mediation reference uses independent-product moments, including the product
-of variances. The sustained reference projects the *sum* of both lag coefficients
+The mediation reference is the moments of the product a·b of one joint Gaussian
+draw of both mechanisms: each keeps its tempered NIG mean and covariance, and the
+cross-covariance is the Bartlett long-run covariance (block `joint_block`) of the
+stacked OLS normal-equation scores, pushed through the sandwich A C A' with
+A = blockdiag(Cov β_m, Cov β_o), each diagonal block whitened by its own Cholesky
+factor and mapped back through the mechanism's posterior covariance factor. With
+means μ, variances σ² and covariance c between a and b: E[ab] = μaμb + c and
+Var[ab] = σa²σb² + c² + σa²μb² + σb²μa² + 2μaμb c. The sustained reference projects the *sum* of both lag coefficients
 with their covariance. Both informative scale .1 and weak scale 10 are pinned.
 This is an independent equation oracle, not external-package behavioral parity.
 Tests compare actual retained posterior draws to these moments and round-trip

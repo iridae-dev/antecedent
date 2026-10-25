@@ -60,7 +60,11 @@ pub fn query_axis_name(query: &CausalQuery, graph_class: GraphClass) -> Option<&
             );
             // Static response on a temporal graph (and temporal attachment on a
             // static graph) are typed impossibilities, not matrix cells.
-            if q.is_temporal() != temporal_graph {
+            // A TemporalAdmg carries both: a static response is read on its contemporaneous
+            // projection and a temporal derivative runs on its lagged template.
+            if q.is_temporal() != temporal_graph
+                && !(q.is_temporal() && graph_class == GraphClass::TemporalAdmg)
+            {
                 return None;
             }
             match &q.functional {

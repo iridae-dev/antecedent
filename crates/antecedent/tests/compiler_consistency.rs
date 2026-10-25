@@ -320,11 +320,21 @@ fn inspection_reports_no_program_before_identification() {
     assert!(contract.identities.refs().iter().any(|id| id.digest == program));
 }
 
+// Sharp RD identifies at compile and prepare: a design that identifies retains its product
+// (the next test), and one that does not (the running variable is not a parent of the
+// treatment, so no threshold rule assigns it) is refused at prepare rather than deferred to
+// each execution, so no prepared sharp RD names identification as per-execution.
 #[test]
-fn sharp_rd_contract_names_per_execution_identification() {
+fn sharp_rd_that_cannot_identify_is_refused_at_prepare_not_deferred_to_execution() {
+    use antecedent_graph::Dag;
+
     let ctx = ExecutionContext::for_tests(1);
-    let (data, dag, query) = confounded_scm(96, 10);
-    let prepared = Study::tabular(data)
+    let (data, _, query) = confounded_scm(96, 10);
+    let mut dag = Dag::with_variables(3);
+    for (from, to) in [(0, 1), (2, 1)] {
+        dag.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
+    }
+    let refusal = Study::tabular(data)
         .graph(dag)
         .query(query)
         .identifier(IdentifierId::RdSharp)
@@ -334,16 +344,9 @@ fn sharp_rd_contract_names_per_execution_identification() {
         .build()
         .unwrap()
         .prepare(&ctx)
-        .unwrap();
-    match &prepared.contract().unwrap().reasoning.identification {
-        SlotAvailability::Unavailable { reason } => {
-            assert_eq!(&**reason, "identified_per_execution");
-        }
-        SlotAvailability::Available(slot) => {
-            panic!("sharp RD caches no identification product, got {slot:?}")
-        }
-        other => panic!("unexpected slot {other:?}"),
-    }
+        .unwrap_err();
+    assert_eq!(refusal.reason_code(), Some("effect_not_identified"), "{refusal}");
+    assert!(refusal.to_string().contains("threshold assignment"), "{refusal}");
 }
 
 #[test]

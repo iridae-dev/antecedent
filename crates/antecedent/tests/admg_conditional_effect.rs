@@ -360,9 +360,12 @@ fn a_temporal_admg_conditional_is_the_contemporaneous_projection_contrast() {
     let earlier = repeated.add_lagged(var(0), antecedent_core::Lag::from_raw(1)).unwrap();
     let now = repeated.add_lagged(var(0), antecedent_core::Lag::CONTEMPORANEOUS).unwrap();
     repeated.insert_directed(earlier, now).unwrap();
+    for column in [1, 2] {
+        repeated.add_lagged(var(column), antecedent_core::Lag::CONTEMPORANEOUS).unwrap();
+    }
     let refused = Study::tabular(data)
         .graph(repeated)
-        .query(conditional(0, 0, &[]))
+        .query(conditional(1, 2, &[0]))
         .refute(RefuteSuite::None)
         .build()
         .and_then(|study| study.run(&ctx));

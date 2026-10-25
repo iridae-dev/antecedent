@@ -141,8 +141,17 @@ fn columns(data: &TabularData, ids: &[VariableId]) -> Option<Vec<Vec<f64>>> {
     cols.iter().all(|c| c.iter().all(|v| v.is_finite())).then_some(cols)
 }
 
-fn first_value(result: &StudyResult) -> Option<f64> {
-    result_target_values(result).ok().and_then(|(_, _, values)| values.first().copied())
+/// The scalar the query's functional reads from `result`. A natural direct effect that carries
+/// the whole mediation decomposition (total, direct, indirect) is its `direct` coordinate, not
+/// the first coordinate.
+fn first_value(study: &Study, result: &StudyResult) -> Option<f64> {
+    let (_, labels, values) = result_target_values(result).ok()?;
+    if matches!(study.query, CausalQuery::NestedCounterfactual(_)) {
+        if let Some(at) = labels.iter().position(|label| label.as_ref() == "direct") {
+            return values.get(at).copied();
+        }
+    }
+    values.first().copied()
 }
 
 fn target_of(input: &ExtraInput<'_>) -> Result<RefutationTarget, CausalError> {
@@ -186,7 +195,7 @@ fn cross_world_range(input: &ExtraInput<'_>) -> Extras {
     let (Some(treatment), outcome) = (input.result.treatment, input.result.outcome) else {
         return (Vec::new(), notes);
     };
-    let Some(effect) = first_value(input.result) else {
+    let Some(effect) = first_value(input.study, input.result) else {
         notes.push(not_applicable(
             NAME,
             "the result has no scalar effect",
@@ -335,7 +344,7 @@ fn mediator_placebo(input: &ExtraInput<'_>) -> Result<Extras, CausalError> {
     let (Some(treatment), outcome) = (input.result.treatment, input.result.outcome) else {
         return Ok((Vec::new(), notes));
     };
-    let Some(original) = first_value(input.result) else {
+    let Some(original) = first_value(input.study, input.result) else {
         return Ok((Vec::new(), notes));
     };
     let Some(mut covariate_ids) = graph_parents(input.study, treatment) else {
@@ -382,7 +391,7 @@ fn mediator_placebo(input: &ExtraInput<'_>) -> Result<Extras, CausalError> {
             .with_replaced_float(mediator, permuted.into())
             .map_err(|e| CausalError::Compile { message: e.to_string() })?;
         let refit = input.prepared.estimate(&data, input.ctx)?;
-        if let Some(value) = first_value(&refit) {
+        if let Some(value) = first_value(input.study, &refit) {
             values.push(value);
         }
     }

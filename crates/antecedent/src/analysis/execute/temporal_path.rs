@@ -1340,6 +1340,10 @@ impl super::Study {
                 refuted.0.extend(reports);
                 refuted.1.extend(checks);
                 refuted.2.extend(notes);
+                refuted.2.push(super::temporal_response_refutation::state_note(
+                    "derivative",
+                    witness_sites.len(),
+                ));
             }
         }
         Ok(self.finish_temporal_admg_response(

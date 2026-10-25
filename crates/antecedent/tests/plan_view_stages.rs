@@ -366,10 +366,22 @@ fn a_graph_posterior_mixture_is_one_evidence_composition_over_its_atoms() {
     assert!(!from_plan.operations().is_empty());
 }
 
+// The estimator is one with no streamed reduction: a streamable estimator takes the streamed
+// route under a tight limit instead of refusing (a graph posterior fits each atom's own design
+// and always takes the streamable default), so the claim pinned here is the refusal of a
+// resident design whose quote exceeds the limit.
 #[test]
 fn a_memory_quote_over_the_limit_is_refused_before_anything_is_copied() {
     let ctx = ExecutionContext::for_tests(73);
-    let study = graph_posterior_study();
+    let (data, dag, query) = confounded_scm(128, 41);
+    let study = Study::tabular(data)
+        .graph(dag)
+        .query(query)
+        .estimator(antecedent::EstimatorId::GlmAdjustment)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
     let view = study.plan_view(&ctx).unwrap();
     let quoted = view.physical().memory_quote().unwrap().total();
     assert!(quoted > 1);

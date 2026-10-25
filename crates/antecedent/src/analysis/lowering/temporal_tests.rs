@@ -123,6 +123,54 @@ fn xmy_pag() -> TemporalPag {
     graph
 }
 
+const PAG_C: VariableId = VariableId::from_raw(0);
+const PAG_X: VariableId = VariableId::from_raw(1);
+const PAG_W: VariableId = VariableId::from_raw(2);
+const PAG_M: VariableId = VariableId::from_raw(3);
+const PAG_Y: VariableId = VariableId::from_raw(4);
+
+/// Five deterministic columns: `c`, `x`, `w`, `m` and `y`.
+fn pag_mediation_series() -> TimeSeriesData {
+    let column = |frequency: f64, phase: f64| -> Vec<f64> {
+        (0..ROWS).map(|t| (frequency * t as f64 + phase).sin()).collect()
+    };
+    let (c, x, w, m, y) = (
+        column(0.37, 0.0),
+        column(0.53, 0.4),
+        column(0.71, 1.1),
+        column(0.29, 2.3),
+        column(0.43, 0.9),
+    );
+    TimeSeriesData::from_f64_columns(
+        [
+            ("c", c.as_slice()),
+            ("x", x.as_slice()),
+            ("w", w.as_slice()),
+            ("m", m.as_slice()),
+            ("y", y.as_slice()),
+        ],
+        1,
+    )
+    .unwrap()
+}
+
+/// `c(t-1) -> x`, `x -> m`, `w -> m`, `m -> y`, `x -> y` within a period. A PAG leaves latent
+/// confounding of two adjacent variables open, so the indirect effect identifies in every
+/// model the PAG represents only when a visible cause separates the treatment from its
+/// mediator (`c` into `x`, `w` into `m`).
+fn pag_mediation_template() -> TemporalPag {
+    let mut graph = TemporalPag::empty();
+    let c1 = graph.add_lagged(PAG_C, Lag::from_raw(1)).unwrap();
+    let x0 = graph.add_lagged(PAG_X, Lag::CONTEMPORANEOUS).unwrap();
+    let w0 = graph.add_lagged(PAG_W, Lag::CONTEMPORANEOUS).unwrap();
+    let m0 = graph.add_lagged(PAG_M, Lag::CONTEMPORANEOUS).unwrap();
+    let y0 = graph.add_lagged(PAG_Y, Lag::CONTEMPORANEOUS).unwrap();
+    for (from, to) in [(c1, x0), (x0, m0), (w0, m0), (m0, y0), (x0, y0)] {
+        graph.insert_directed(from, to).unwrap();
+    }
+    graph
+}
+
 fn panel() -> PanelData {
     PanelData::try_new(Arc::<[PanelUnit]>::from(vec![
         PanelUnit { unit_id: 0, series: xy_series(0.1) },
@@ -176,6 +224,12 @@ fn derivative_query() -> CausalQuery {
 
 fn mediation_query() -> MediationQuery {
     MediationQuery::binary(X, XMY_OUTCOME, [M], MediationContrast::Mediated)
+}
+
+/// The pulse origin sits at the treated period and the outcome at `origin + horizon - 1`, so a
+/// treatment whose only edge into the mediator is lagged by one reaches it at horizon two.
+fn window_mediation_query() -> MediationQuery {
+    mediation_query().with_horizons(vec![2]).unwrap()
 }
 
 fn nested_query() -> CausalQuery {
@@ -544,16 +598,20 @@ fn cross_world_identifies_once_at_compile_and_retains_the_probe() {
     let program = plan.lowered().unwrap();
     assert!(program.identification_retained());
     let retained = program.retained_identification().unwrap();
+    // The probe rides the program as an execution proof (identification and indexer), not as a
+    // preparation cache: execution reads it back instead of identifying again.
     assert!(
-        retained.caches().iter().any(|cache| matches!(
-            cache,
-            crate::analysis::IdentificationCache::Temporal(temporal)
-                if temporal.get(1).is_some()
-        )),
+        matches!(
+            retained.execution_proof(),
+            Some(crate::planner::lowered::RetainedExecutionProof::CrossWorld {
+                identification,
+                ..
+            }) if !identification.estimands.is_empty()
+        ),
         "the one-step probe is identified at compile"
     );
+    assert!(retained.caches().is_empty());
     assert!(retained.static_seal().is_none());
-    assert!(retained.temporal_seal().is_some(), "the retained probe is sealed");
     assert!(matches!(
         program.scientific().target(),
         ProblemTarget::QueryFunctional {
@@ -573,13 +631,18 @@ fn window_mediation_identifies_once_at_compile_and_retains_the_components() {
             "TemporalMediationAdmg",
             Study::series(xmy_series())
                 .graph(xmy_admg())
-                .query(CausalQuery::Mediation(mediation_query())),
+                .query(CausalQuery::Mediation(window_mediation_query())),
         ),
         (
             "TemporalMediationPag",
-            Study::series(xmy_series())
-                .graph(xmy_pag())
-                .query(CausalQuery::Mediation(mediation_query())),
+            Study::series(pag_mediation_series()).graph(pag_mediation_template()).query(
+                CausalQuery::Mediation(MediationQuery::binary(
+                    PAG_X,
+                    PAG_Y,
+                    [PAG_M],
+                    MediationContrast::Mediated,
+                )),
+            ),
         ),
     ] {
         let study = point(builder).build().unwrap();

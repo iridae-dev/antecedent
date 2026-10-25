@@ -655,17 +655,26 @@ impl antecedent_core::ProgressSink for Stages {
     }
 }
 
+// A multi-coordinate intervention level over a graph posterior is a supported cell (it is
+// answered atom by atom; see the closed support entry for interventional distributions over a
+// graph posterior), so the refusal this test pins is a coordinate the cell does not answer: a
+// response whose outcome is not completely observed.
 #[test]
 fn a_refused_response_coordinate_is_refused_before_any_atom_is_identified() {
     let t = VariableId::from_raw(0);
-    let z = VariableId::from_raw(2);
     let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
         outcome: VariableId::from_raw(1),
-        interventions: Arc::from([
-            Intervention::set(t, Value::f64(1.0)),
-            Intervention::set(z, Value::f64(0.0)),
-        ]),
-    });
+        interventions: Arc::from([Intervention::set(t, Value::f64(1.0))]),
+    })
+    .with_observation(
+        antecedent_core::ObservationSpec::RightCensored {
+            latent: VariableId::from_raw(1),
+            observed: VariableId::from_raw(1),
+            censoring: VariableId::from_raw(2),
+            event: VariableId::from_raw(2),
+        },
+        Vec::new(),
+    );
     let study = tabular_study(
         CausalQuery::Response(query),
         tabular_posterior(false),
@@ -676,7 +685,7 @@ fn a_refused_response_coordinate_is_refused_before_any_atom_is_identified() {
     let mut ctx = ExecutionContext::for_tests(41);
     ctx.progress = Some(Arc::clone(&stages) as Arc<dyn antecedent_core::ProgressSink>);
     let refusal = study.compile(&ctx).unwrap_err();
-    assert!(refusal.to_string().contains("intervention"), "{refusal}");
+    assert!(refusal.to_string().contains("complete observations"), "{refusal}");
     assert!(
         stages.0.lock().unwrap().iter().all(|stage| stage != "identify.compute"),
         "no posterior atom is identified before the refusal"

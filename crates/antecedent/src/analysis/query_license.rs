@@ -141,8 +141,13 @@ const SELECTION_DIAGRAM: &[GraphClass] = &[
     GraphClass::Cpdag,
     GraphClass::Pag,
 ];
-const STATIC_CONDITIONAL: &[GraphClass] =
-    &[GraphClass::Dag, GraphClass::Cpdag, GraphClass::Pag, GraphClass::Admg];
+const STATIC_CONDITIONAL: &[GraphClass] = &[
+    GraphClass::Dag,
+    GraphClass::Cpdag,
+    GraphClass::Pag,
+    GraphClass::Admg,
+    GraphClass::TemporalAdmg,
+];
 const STATIC_DISTRIBUTION: &[GraphClass] = &[
     GraphClass::Dag,
     GraphClass::Admg,
@@ -361,10 +366,9 @@ fn kind_license(kind: CausalQueryKind) -> KindLicense {
         K::ConditionalEffect => KindLicense {
             tabular: rule(STATIC_CONDITIONAL, || CausalError::Unsupported {
                 message: "PreparedStudy supports ConditionalEffect on a supplied Dag, Cpdag, Pag, \
-                          or Admg. A TemporalAdmg contrast is not identified; use \
-                          TemporalConditionalPulse or TemporalConditionalSustained on a \
-                          TemporalDag, or supply the static Admg for the contemporaneous \
-                          conditional effect",
+                          Admg, or a TemporalAdmg (its contemporaneous projection); the \
+                          temporal conditional contrast is TemporalConditionalPulse or \
+                          TemporalConditionalSustained on a TemporalDag",
             }),
             ..UNLICENSED
         },

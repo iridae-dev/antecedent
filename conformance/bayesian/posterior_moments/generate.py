@@ -48,6 +48,49 @@ def posterior(x, y, scale, kappa=1.0):
     return mean, v * b / (a - 1)
 
 
+# The two mediation mechanisms are fitted to one series, so their coefficients are one joint
+# Gaussian draw: each keeps its own tempered NIG mean and covariance and the cross-covariance
+# comes from the Bartlett long-run covariance of the stacked OLS normal-equation scores
+# (x_tj * e_t of both regressions on the shared rows), pushed through the sandwich
+# A C A' with A = blockdiag(Cov(beta_m), Cov(beta_o)), each diagonal block whitened by its own
+# Cholesky factor and mapped back through the mechanism's posterior covariance factor.
+# The Bartlett block length is the score-dependence block length the estimator reports for
+# this 95-row series (3 sqrt(n) rounded up, the cap of the data-driven rule); the Rust test
+# asserts that the run reports the same length.
+JOINT_BLOCK = {'mediation': 30, 'confounded_mediation': 5}
+
+
+def joint_product_moments(xa, ya, xb, yb, scale, kappa_a, kappa_b, ia, ib, block):
+    """Mean and variance of the path product a_ia * b_ib under the joint Gaussian law."""
+    ma, ca = posterior(xa, ya, scale, kappa_a)
+    mb, cb = posterior(xb, yb, scale, kappa_b)
+
+    def scores(x, y):
+        residual = y - x @ np.linalg.lstsq(x, y, rcond=None)[0]
+        return x * residual[:, None]
+
+    stacked = np.hstack([scores(xa, ya), scores(xb, yb)])
+    rows, total = stacked.shape
+    width_a = xa.shape[1]
+    long_run = stacked.T @ stacked
+    for lag in range(1, block):
+        gamma = stacked[lag:].T @ stacked[:rows - lag]
+        long_run += (1 - lag / block) * (gamma + gamma.T)
+    a_matrix = np.zeros((total, total))
+    a_matrix[:width_a, :width_a] = ca
+    a_matrix[width_a:, width_a:] = cb
+    sandwich = a_matrix @ long_run @ a_matrix.T
+    chol_a = np.linalg.cholesky(sandwich[:width_a, :width_a])
+    chol_b = np.linalg.cholesky(sandwich[width_a:, width_a:])
+    correlation = np.linalg.solve(chol_a, sandwich[:width_a, width_a:]) @ np.linalg.inv(chol_b).T
+    cross = np.linalg.cholesky(ca) @ correlation @ np.linalg.cholesky(cb).T
+    c = cross[ia, ib]
+    va, vb, mu_a, mu_b = ca[ia, ia], cb[ib, ib], ma[ia], mb[ib]
+    mean = mu_a * mu_b + c
+    var = va * vb + c * c + va * mu_b**2 + vb * mu_a**2 + 2 * mu_a * mu_b * c
+    return float(mean), float(var)
+
+
 def kendall_rho(e):
     """Uncentred lag-1 autocorrelation with the Kendall bias correction, clamped to +-.97."""
     rho = (e[1:] @ e[:-1]) / (e[:-1] @ e[:-1])
@@ -386,10 +429,10 @@ for scale in [0.1, 10.0]:
     expected[str(scale)] = {
         'conditional': [cm[1], conditional_var],
         'response': [[float(np.array([1, level]) @ rm), float(np.array([1, level]) @ rv @ np.array([1, level]))] for level in [0, 1]],
-        'mediation': [am[1] * bm[2], av[1, 1] * bv[2, 2] + av[1, 1] * bm[2]**2 + bv[2, 2] * am[1]**2],
+        'mediation': list(joint_product_moments(x_ma, y_ma, x_mb, y_mb, scale, k_ma, k_mb, 1, 2, JOINT_BLOCK['mediation'])),
         'window': [contrast @ sm, contrast @ sv @ contrast],
         'stationary_window': [tam[1] * b_mean, tav[1, 1] * b_var + tav[1, 1] * b_mean**2 + b_var * tam[1]**2],
-        'confounded_mediation': [cam[1] * cbm[2], cav[1, 1] * cbv[2, 2] + cav[1, 1] * cbm[2]**2 + cbv[2, 2] * cam[1]**2],
+        'confounded_mediation': list(joint_product_moments(x_ca, y_ca, x_cb, y_cb, scale, k_ca, k_cb, 1, 2, JOINT_BLOCK['confounded_mediation'])),
         'dependent_pulse': [dm[1], dv[1, 1]],
     }
 ORACLE = {
@@ -433,7 +476,7 @@ def _worst_gap(left, right, path=''):
     return worst
 
 
-_text = json.dumps({'data': {k: v.tolist() for k,v in dict(t=t,w=w,y=y,r=r,m=m,o=o,s=s,u=u,z=z,tc=tc,mc=mc,oc=oc,td=td,yd=yd).items()}, 'posterior': expected, 'tempering': kappas, 'oracle': ORACLE}, indent=2)+'\n'
+_text = json.dumps({'data': {k: v.tolist() for k,v in dict(t=t,w=w,y=y,r=r,m=m,o=o,s=s,u=u,z=z,tc=tc,mc=mc,oc=oc,td=td,yd=yd).items()}, 'posterior': expected, 'joint_block': JOINT_BLOCK, 'tempering': kappas, 'oracle': ORACLE}, indent=2)+'\n'
 _path = Path(__file__).with_name('expected.json')
 if __name__ == '__main__' and '--check' in sys.argv:
     if not _values_close(json.loads(_path.read_text(encoding='utf-8')), json.loads(_text)):

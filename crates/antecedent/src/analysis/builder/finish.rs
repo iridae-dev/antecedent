@@ -1790,17 +1790,20 @@ fn classify_support(settled: SettledRefute) -> Result<ClassifiedSupport, CausalE
         };
         // The matrix's InterferenceQuery/Frequentist cell licenses only Bernoulli +
         // NeighborCount and its Young-bound calibration. A cluster total effect has
-        // separate execution evidence but no matrix cell or interval calibration yet.
-        if matches!(
-            query,
-            CausalQuery::Interference(q)
-                if matches!(
-                    q.assignment,
-                    antecedent_core::AssignmentDesign::ClusterRandomization { .. }
-                        | antecedent_core::AssignmentDesign::TwoStageSaturation { .. }
-                        | antecedent_core::AssignmentDesign::ObservedExposure { .. }
-                )
-        ) {
+        // separate execution evidence but no matrix cell or interval calibration yet. A cell
+        // the closed rules already mark as executing unlicensed keeps its refused status.
+        if support_status != Some(CellStatus::Refused)
+            && matches!(
+                query,
+                CausalQuery::Interference(q)
+                    if matches!(
+                        q.assignment,
+                        antecedent_core::AssignmentDesign::ClusterRandomization { .. }
+                            | antecedent_core::AssignmentDesign::TwoStageSaturation { .. }
+                            | antecedent_core::AssignmentDesign::ObservedExposure { .. }
+                    )
+            )
+        {
             support_status = None;
         }
         // The untempered posterior of a declared white-innovation premise is a different

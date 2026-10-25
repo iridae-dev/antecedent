@@ -381,13 +381,16 @@ impl TemporalLinearAdjustment {
                 message: "temporal linear adjustment requires ExplicitOverride overlap policy",
             });
         }
+        // A window adjustment set from the generalized adjustment criterion (a latent-confounded
+        // template whose adjustment set blocks the open paths) is read exactly as a backdoor set.
         if !matches!(
             estimand.method_kind().ok(),
             Some(
                 antecedent_expr::EstimandMethod::TemporalBackdoorUnfolded
                     | antecedent_expr::EstimandMethod::BackdoorAdjustment
             )
-        ) {
+        ) && !estimand.is_adjustment_shaped()
+        {
             return Err(EstimationError::IncompatibleEstimand {
                 message: "TemporalLinearAdjustment expects temporal.backdoor.unfolded",
             });

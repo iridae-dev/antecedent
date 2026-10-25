@@ -208,7 +208,7 @@ pub(super) fn refute_temporal_derivative(
     Ok((reports, checks, notes))
 }
 
-fn state_note(target: &str, witnesses: usize) -> Diagnostic {
+pub(super) fn state_note(target: &str, witnesses: usize) -> Diagnostic {
     Diagnostic::new(
         "refute.temporal_response.pulse_witness_state",
         DiagnosticKind::Scientific,

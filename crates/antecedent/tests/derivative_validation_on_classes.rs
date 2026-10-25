@@ -390,8 +390,17 @@ fn a_temporal_front_door_slope_runs_the_front_door_state_on_its_window() {
         assert_eq!(result.support_status, Some(CellStatus::Refused), "{label}");
         assert!(report(&result, "derivative.support", &label).passed, "{label}");
         let sensitivity = report(&result, "derivative.front_door_smoothness_sensitivity", &label);
+        // The published slope is the front-door product; the report carries the refit that
+        // moved furthest under a stiffer or richer smoother, which the state passes only
+        // within its documented relative tolerance of the published slope.
         assert!(
-            (sensitivity.refuted_ate - reference).abs() < 0.2,
+            (sensitivity.original_ate - reference).abs() < 0.05,
+            "{label}: published slope {} vs the front-door product {reference}",
+            sensitivity.original_ate
+        );
+        assert!(sensitivity.passed, "{label}: {sensitivity:?}");
+        assert!(
+            (sensitivity.refuted_ate - reference).abs() < 0.25 * reference.abs(),
             "{label}: refit slope {} vs the front-door product {reference}",
             sensitivity.refuted_ate
         );

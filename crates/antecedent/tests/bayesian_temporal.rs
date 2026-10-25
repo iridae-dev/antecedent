@@ -676,7 +676,13 @@ fn bayesian_temporal_mediation_tempers_both_mechanisms() {
             _ => None,
         })
         .expect("gaussian product assumption");
-    assert!(product.contains("tempered"), "{product}");
+    // The tempered mechanisms are composed as one joint law, not an independent product.
+    assert!(product.contains("one joint Gaussian draw"), "{product}");
+    assert!(
+        post.diagnostics.notes.iter().any(|n| n.starts_with("mediation.joint_mechanisms")),
+        "{:?}",
+        post.diagnostics.notes
+    );
 }
 
 /// `conformance/bayesian/posterior_moments`: the tempered mediation posteriors
@@ -770,6 +776,14 @@ fn posterior_mediation_moments_and_tempering_match_the_reference() {
                 (sd * sd / var - 1.0).abs() < 0.06,
                 "{family} scale {scale}: variance {} vs {var}",
                 sd * sd
+            );
+            // The reference ties the mechanisms with the same Bartlett block the run reports.
+            let pinned_block = fixture["joint_block"][family].as_u64().unwrap();
+            let joint_note = format!("(block length {pinned_block})");
+            assert!(
+                post.diagnostics.notes.iter().any(|n| n.ends_with(&joint_note)),
+                "{family} scale {scale}: {:?}",
+                post.diagnostics.notes
             );
             let mut reported: Vec<f64> = post
                 .diagnostics
