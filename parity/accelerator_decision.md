@@ -162,3 +162,7 @@ is the same package built with `accelerator-wgpu` and labelled `+wgpu`.
 installs each in a clean virtual environment, checks the missing-runtime and hidden-device
 refusals, provenance, the downstream effect and standard error, and that each wheel's exported
 model is consumed by the other.
+
+## Distribution acceptance
+
+Driver-free CPU wheel and the accelerator wheel were built, installed in clean environments and probed (version, labels, missing-runtime refusal, hidden-device refusal, device/CPU agreement, CPU artifact consumed by the accelerator wheel and the reverse). All four runs pass; the retained report is `parity/accelerator_distribution_acceptance.json`.

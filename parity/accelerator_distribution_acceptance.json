@@ -1,0 +1,216 @@
+{
+  "ok": true,
+  "inspection": {
+    "cpu": [],
+    "accelerator": []
+  },
+  "runs": [
+    {
+      "expect": "cpu",
+      "ok": true,
+      "checks": [
+        {
+          "name": "imports_from_the_clean_environment",
+          "ok": true,
+          "detail": "/Users/charleshinshaw/Desktop/antecedent/target/measure/dist/work/venv-cpu-visible-77077/lib/python3.11/site-packages/antecedent/__init__.py"
+        },
+        {
+          "name": "version_matches_the_wheel",
+          "ok": true,
+          "detail": "2.4.1"
+        },
+        {
+          "name": "cpu_default_label_is_plain",
+          "ok": true,
+          "detail": "{'burn'}"
+        },
+        {
+          "name": "auto_small_fit_stays_on_the_cpu_and_says_why",
+          "ok": true,
+          "detail": "burn-ndarray-0.16 device=host-cpu dtype=f32 requested=auto fallback=runtime_not_compiled"
+        },
+        {
+          "name": "auto_fallback_replays_the_cpu_estimate",
+          "ok": true,
+          "detail": "(2.0236975796721413, 2.0236975796721413)"
+        },
+        {
+          "name": "gpu_is_refused_with_the_missing_runtime",
+          "ok": true,
+          "detail": "CausalEstimateError: backend error: backend error: neural_net device=gpu: the device runtime is not linked in this build; install the accelerator distribution [runtime_not_compiled]"
+        },
+        {
+          "name": "artifact_written",
+          "ok": true,
+          "detail": "/Users/charleshinshaw/Desktop/antecedent/target/measure/dist/work/cpu_model.json"
+        }
+      ],
+      "returncode": 0,
+      "wheel": "antecedent-2.4.1-cp311-cp311-macosx_11_0_arm64.whl",
+      "hidden_device": false
+    },
+    {
+      "expect": "accelerator",
+      "ok": true,
+      "checks": [
+        {
+          "name": "imports_from_the_clean_environment",
+          "ok": true,
+          "detail": "/Users/charleshinshaw/Desktop/antecedent/target/measure/dist/work/venv-accelerator-visible-77077/lib/python3.11/site-packages/antecedent/__init__.py"
+        },
+        {
+          "name": "version_matches_the_wheel",
+          "ok": true,
+          "detail": "2.4.1"
+        },
+        {
+          "name": "cpu_default_label_is_plain",
+          "ok": true,
+          "detail": "{'burn'}"
+        },
+        {
+          "name": "auto_small_fit_stays_on_the_cpu_and_says_why",
+          "ok": true,
+          "detail": "burn-ndarray-0.16 device=host-cpu dtype=f32 requested=auto fallback=below_crossover"
+        },
+        {
+          "name": "auto_fallback_replays_the_cpu_estimate",
+          "ok": true,
+          "detail": "(2.0236975796721413, 2.0236975796721413)"
+        },
+        {
+          "name": "gpu_fit_runs",
+          "ok": true,
+          "detail": "None"
+        },
+        {
+          "name": "gpu_label_names_library_and_device",
+          "ok": true,
+          "detail": "burn-wgpu-0.16 device=Metal:Apple M1 Max dtype=f32 requested=gpu"
+        },
+        {
+          "name": "downstream_effect_agrees_within_half_a_standard_error",
+          "ok": true,
+          "detail": "{'cpu': 1.9859364449431949, 'gpu': 1.9859364463399238, 'se_cpu': 0.0160800128409188}"
+        },
+        {
+          "name": "downstream_uncertainty_agrees_within_a_quarter",
+          "ok": true,
+          "detail": "{'se_cpu': 0.0160800128409188, 'se_gpu': 0.01608001322332959}"
+        },
+        {
+          "name": "both_estimates_cover_the_known_effect",
+          "ok": true,
+          "detail": "{'truth': 2.0}"
+        },
+        {
+          "name": "auto_selects_the_device_for_a_large_fit",
+          "ok": true,
+          "detail": "burn-wgpu-0.16 device=Metal:Apple M1 Max dtype=f32 requested=auto"
+        },
+        {
+          "name": "artifact_written",
+          "ok": true,
+          "detail": "/Users/charleshinshaw/Desktop/antecedent/target/measure/dist/work/accelerator_model.json"
+        }
+      ],
+      "returncode": 0,
+      "wheel": "antecedent-2.4.1+wgpu-cp311-cp311-macosx_11_0_arm64.whl",
+      "hidden_device": false
+    },
+    {
+      "expect": "accelerator",
+      "ok": true,
+      "checks": [
+        {
+          "name": "imports_from_the_clean_environment",
+          "ok": true,
+          "detail": "/Users/charleshinshaw/Desktop/antecedent/target/measure/dist/work/venv-accelerator-hidden-77077/lib/python3.11/site-packages/antecedent/__init__.py"
+        },
+        {
+          "name": "version_matches_the_wheel",
+          "ok": true,
+          "detail": "2.4.1"
+        },
+        {
+          "name": "cpu_default_label_is_plain",
+          "ok": true,
+          "detail": "{'burn'}"
+        },
+        {
+          "name": "auto_small_fit_stays_on_the_cpu_and_says_why",
+          "ok": true,
+          "detail": "burn-ndarray-0.16 device=host-cpu dtype=f32 requested=auto fallback=no_device"
+        },
+        {
+          "name": "auto_fallback_replays_the_cpu_estimate",
+          "ok": true,
+          "detail": "(2.0236975796721413, 2.0236975796721413)"
+        },
+        {
+          "name": "gpu_is_refused_when_the_device_is_hidden",
+          "ok": true,
+          "detail": "CausalEstimateError: backend error: backend error: neural_net device=gpu: no usable device: the device is disabled by ANTECEDENT_DISABLE_DEVICE [no_device]"
+        },
+        {
+          "name": "auto_records_no_device",
+          "ok": true,
+          "detail": "burn-ndarray-0.16 device=host-cpu dtype=f32 requested=auto fallback=no_device"
+        },
+        {
+          "name": "artifact_from_the_other_distribution_predicts_identically",
+          "ok": true,
+          "detail": "{'got': [2.3711404908436666, 2.01983993547983, 1.6685393801159938], 'expected': [2.3711404908436666, 2.01983993547983, 1.6685393801159938]}"
+        }
+      ],
+      "returncode": 0,
+      "wheel": "antecedent-2.4.1+wgpu-cp311-cp311-macosx_11_0_arm64.whl",
+      "hidden_device": true
+    },
+    {
+      "expect": "cpu",
+      "ok": true,
+      "checks": [
+        {
+          "name": "imports_from_the_clean_environment",
+          "ok": true,
+          "detail": "/Users/charleshinshaw/Desktop/antecedent/target/measure/dist/work/venv-cpu-visible-77077/lib/python3.11/site-packages/antecedent/__init__.py"
+        },
+        {
+          "name": "version_matches_the_wheel",
+          "ok": true,
+          "detail": "2.4.1"
+        },
+        {
+          "name": "cpu_default_label_is_plain",
+          "ok": true,
+          "detail": "{'burn'}"
+        },
+        {
+          "name": "auto_small_fit_stays_on_the_cpu_and_says_why",
+          "ok": true,
+          "detail": "burn-ndarray-0.16 device=host-cpu dtype=f32 requested=auto fallback=runtime_not_compiled"
+        },
+        {
+          "name": "auto_fallback_replays_the_cpu_estimate",
+          "ok": true,
+          "detail": "(2.0236975796721413, 2.0236975796721413)"
+        },
+        {
+          "name": "gpu_is_refused_with_the_missing_runtime",
+          "ok": true,
+          "detail": "CausalEstimateError: backend error: backend error: neural_net device=gpu: the device runtime is not linked in this build; install the accelerator distribution [runtime_not_compiled]"
+        },
+        {
+          "name": "artifact_from_the_other_distribution_predicts_identically",
+          "ok": true,
+          "detail": "{'got': [2.3711404908436666, 2.01983993547983, 1.6685393801159938], 'expected': [2.3711404908436666, 2.01983993547983, 1.6685393801159938]}"
+        }
+      ],
+      "returncode": 0,
+      "wheel": "antecedent-2.4.1-cp311-cp311-macosx_11_0_arm64.whl",
+      "hidden_device": false
+    }
+  ],
+  "host": "macOS-26.5.2-arm64-arm-64bit"
+}
