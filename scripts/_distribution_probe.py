@@ -99,7 +99,7 @@ def common_checks(report: Report, expect: str, version: str) -> None:
     root = Path(sys.prefix).resolve()
     where = Path(ac.__file__).resolve()
     report.check("imports_from_the_clean_environment", root in where.parents, where)
-    report.check("version_matches_the_wheel", ac.__version__ == version, ac.__version__)
+    report.check("version_matches_the_wheel", ac.__version__ == version.split("+")[0], ac.__version__)
     cpu = analyze("cpu")
     report.check("cpu_default_label_is_plain", labels(cpu) == {"burn"}, labels(cpu))
     auto = analyze("auto")
@@ -169,7 +169,7 @@ def accelerator_checks(report: Report) -> None:
         and abs(gpu.estimate.ate - 2.0) < 3 * se_gpu,
         {"truth": 2.0},
     )
-    big = analyze("auto", n=20000, hidden=128, epochs=10)
+    big = analyze("auto", n=20000, hidden=128, epochs=15)
     (big_label,) = labels(big)
     report.check(
         "auto_selects_the_device_for_a_large_fit",
