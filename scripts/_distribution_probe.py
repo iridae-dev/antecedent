@@ -169,7 +169,7 @@ def accelerator_checks(report: Report) -> None:
         and abs(gpu.estimate.ate - 2.0) < 3 * se_gpu,
         {"truth": 2.0},
     )
-    big = analyze("auto", n=60000, hidden=128, epochs=15)
+    big = analyze("auto", n=200000, hidden=128, epochs=15)
     (big_label,) = labels(big)
     report.check(
         "auto_selects_the_device_for_a_large_fit",
