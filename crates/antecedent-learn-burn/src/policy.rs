@@ -604,9 +604,10 @@ pub fn fit_with_policy(
     }
     if plan.route == Route::Wgpu {
         let lease = match context.device_pool {
-            Some(pool) => match pool.try_grant(plan.footprint.device_bytes, 0, false) {
-                Ok(lease) => Some(lease),
-                Err(_) => {
+            Some(pool) => {
+                if let Ok(lease) = pool.try_grant(plan.footprint.device_bytes, 0, false) {
+                    Some(lease)
+                } else {
                     let reason = FallbackReason::DeviceMemory {
                         requested: plan.footprint.device_bytes,
                         available: pool.available().device_bytes(),
@@ -615,7 +616,7 @@ pub fn fit_with_policy(
                         request, reason, x_colmajor, nrows, ncols, y, spec, context,
                     );
                 }
-            },
+            }
             None => None,
         };
         let outcome = run_device(x_colmajor, nrows, ncols, y, spec, context.stop);

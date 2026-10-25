@@ -669,12 +669,14 @@ pub(super) fn draws_not_aligned() -> BridgeRefusal {
 
 /// Draws that cannot be bridged: empty, non-finite, or without the spread a
 /// declared covariance needs.
+#[must_use]
 pub fn draws_unusable(field: &str, remedy: &'static str) -> BridgeRefusal {
     invalid("scientific_bridge.draws_unusable", remedy).with_offending(field)
 }
 
 /// A draw outside the range the mapping is licensed for. The first offending
 /// draw is named.
+#[must_use]
 pub fn draws_outside_domain(count: usize, total: usize, first: f64) -> BridgeRefusal {
     ExternalRefusal::new(
         antecedent_core::reason_code!("bridge_mapping_not_licensed"),
@@ -688,6 +690,7 @@ pub fn draws_outside_domain(count: usize, total: usize, first: f64) -> BridgeRef
 }
 
 /// A mapping that has no propagation through a chain stage.
+#[must_use]
 pub fn chain_stage_not_affine(supplied: &str) -> BridgeRefusal {
     ExternalRefusal::new(
         antecedent_core::reason_code!("route_not_supported"),

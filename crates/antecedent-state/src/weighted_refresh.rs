@@ -162,9 +162,9 @@ impl WeightedStats {
         for (mean, step) in self.mean.iter_mut().zip(&delta) {
             *mean += step * (w / sw_next);
         }
-        for i in 0..dim {
-            for j in 0..dim {
-                self.m2[i * dim + j] += w * delta[i] * (z[j] - self.mean[j]);
+        for (i, &delta_i) in delta.iter().enumerate() {
+            for (j, (&z_j, &mean_j)) in z.iter().zip(&self.mean).enumerate() {
+                self.m2[i * dim + j] += w * delta_i * (z_j - mean_j);
             }
         }
         self.sw = sw_next;
@@ -222,8 +222,8 @@ impl WeightedStats {
             }
         }
         let mut r_bar = self.mean[p];
-        for i in 0..p {
-            r_bar -= beta[i] * self.mean[i];
+        for (i, &coefficient) in beta.iter().enumerate() {
+            r_bar -= coefficient * self.mean[i];
         }
         sse += self.sw * r_bar * r_bar;
         if !sse.is_finite() {

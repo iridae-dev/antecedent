@@ -1438,7 +1438,7 @@ pub fn evaluate_enclosures(
 /// Most variables one joint normal table may carry.
 pub const MAX_TABLE_VARIABLES: usize = 64;
 
-/// SplitMix64 stream, so a seed reproduces the table on every platform.
+/// `SplitMix64` stream, so a seed reproduces the table on every platform.
 struct SeedStream(u64);
 
 impl SeedStream {

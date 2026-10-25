@@ -351,7 +351,7 @@ impl<B: Backend> Mlp<B> {
     }
 }
 
-/// SplitMix64: a small deterministic generator whose stream is the same on every host.
+/// `SplitMix64`: a small deterministic generator whose stream is the same on every host.
 struct HostRng(u64);
 
 impl HostRng {

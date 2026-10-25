@@ -652,19 +652,27 @@ impl RouteWork {
 /// This is an operator declaration, not a preference: an alternative that is
 /// not declared here is rejected for its missing operator capability whatever
 /// it would cost.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct BackendSupport {
-    direct: bool,
-    streamed: bool,
-    materialized: bool,
-    lazy: bool,
+    /// Closed set of implemented `PhysicalAlternative` capabilities.
+    alternatives: u8,
+}
+
+impl std::hash::Hash for BackendSupport {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        // Preserve the previous four-field hash input order across the private
+        // representation change; the set does not change capability identity.
+        for alternative in PhysicalAlternative::ALL {
+            std::hash::Hash::hash(&self.implements(alternative), state);
+        }
+    }
 }
 
 impl BackendSupport {
     /// No backend implemented.
     #[must_use]
     pub const fn none() -> Self {
-        Self { direct: false, streamed: false, materialized: false, lazy: false }
+        Self { alternatives: 0 }
     }
 
     /// Only the materialized design is implemented.
@@ -676,11 +684,11 @@ impl BackendSupport {
     /// Declare whether `alternative` is implemented.
     #[must_use]
     pub const fn with(mut self, alternative: PhysicalAlternative, implemented: bool) -> Self {
-        match alternative {
-            PhysicalAlternative::DirectPreparedNumericViews => self.direct = implemented,
-            PhysicalAlternative::StreamedReduction => self.streamed = implemented,
-            PhysicalAlternative::MaterializedDesign => self.materialized = implemented,
-            PhysicalAlternative::OptionalLazyPreparation => self.lazy = implemented,
+        let mask = Self::mask(alternative);
+        if implemented {
+            self.alternatives |= mask;
+        } else {
+            self.alternatives &= !mask;
         }
         self
     }
@@ -688,11 +696,15 @@ impl BackendSupport {
     /// Whether `alternative` is implemented.
     #[must_use]
     pub const fn implements(self, alternative: PhysicalAlternative) -> bool {
+        self.alternatives & Self::mask(alternative) != 0
+    }
+
+    const fn mask(alternative: PhysicalAlternative) -> u8 {
         match alternative {
-            PhysicalAlternative::DirectPreparedNumericViews => self.direct,
-            PhysicalAlternative::StreamedReduction => self.streamed,
-            PhysicalAlternative::MaterializedDesign => self.materialized,
-            PhysicalAlternative::OptionalLazyPreparation => self.lazy,
+            PhysicalAlternative::DirectPreparedNumericViews => 1,
+            PhysicalAlternative::StreamedReduction => 2,
+            PhysicalAlternative::MaterializedDesign => 4,
+            PhysicalAlternative::OptionalLazyPreparation => 8,
         }
     }
 }
@@ -808,19 +820,20 @@ impl RouteChoice {
             (PhysicalAlternative::MaterializedDesign, materialized_work, materialized_bytes),
             (PhysicalAlternative::OptionalLazyPreparation, direct_work, design_bytes),
         ];
-        let mut quotes = [None; 4];
-        for (slot, (alternative, work_cells, resident_bytes)) in raw.into_iter().enumerate() {
-            let cost = work_cells
-                .checked_add(resident_bytes.div_ceil(work.element_bytes))
-                .ok_or_else(overflow)?;
-            quotes[slot] = Some(AlternativeQuote {
-                alternative,
-                work_cells,
-                resident_bytes,
-                cost: DeclaredCost::from_raw(cost),
-            });
-        }
-        let quotes = quotes.map(|quote| quote.expect("every alternative is quoted"));
+        let [direct, streamed, materialized, lazy] = raw.map(
+            |(alternative, work_cells, resident_bytes)| -> Result<AlternativeQuote, RouteChoiceError> {
+                let cost = work_cells
+                    .checked_add(resident_bytes.div_ceil(work.element_bytes))
+                    .ok_or_else(overflow)?;
+                Ok(AlternativeQuote {
+                    alternative,
+                    work_cells,
+                    resident_bytes,
+                    cost: DeclaredCost::from_raw(cost),
+                })
+            },
+        );
+        let quotes = [direct?, streamed?, materialized?, lazy?];
         let mut available = AvailableCapabilities::empty();
         for quote in quotes {
             let alternative = quote.alternative;

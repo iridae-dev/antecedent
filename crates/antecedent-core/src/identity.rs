@@ -662,19 +662,7 @@ impl ReusableProduct {
                 A::Options,
                 A::Numerical,
             ],
-            Self::LearnerBundle => &[
-                A::Design,
-                A::Rows,
-                A::Folds,
-                A::Outcome,
-                A::Treatment,
-                A::Weights,
-                A::Provider,
-                A::Options,
-                A::Seed,
-                A::Numerical,
-            ],
-            Self::PolicyNuisance => &[
+            Self::LearnerBundle | Self::PolicyNuisance => &[
                 A::Design,
                 A::Rows,
                 A::Folds,

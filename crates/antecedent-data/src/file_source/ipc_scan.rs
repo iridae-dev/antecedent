@@ -59,13 +59,13 @@ pub(crate) fn scan_file(path: &Path) -> Result<IpcCosts, FileSourceError> {
     let footer = root_as_footer(&footer_bytes).map_err(|error| format_error(path, &error))?;
     let mut costs = IpcCosts::default();
     if let Some(dictionaries) = footer.dictionaries() {
-        for block in dictionaries.iter() {
+        for block in dictionaries {
             let cost = block_cost(&mut file, block.offset(), block.bodyLength(), length, path)?;
             costs.dictionaries = checked_sum(costs.dictionaries, cost, path)?;
         }
     }
     if let Some(blocks) = footer.recordBatches() {
-        for block in blocks.iter() {
+        for block in blocks {
             let cost = block_cost(&mut file, block.offset(), block.bodyLength(), length, path)?;
             costs.batches.push(cost);
         }
@@ -138,7 +138,7 @@ fn read_metadata(
     path: &Path,
 ) -> Result<Vec<u8>, FileSourceError> {
     if meta_len > MAX_METADATA_BYTES
-        || !meta_start.checked_add(meta_len).is_some_and(|end| end <= length)
+        || meta_start.checked_add(meta_len).is_none_or(|end| end > length)
     {
         return Err(format_error(path, &"a message's metadata runs past the end of the file"));
     }
@@ -200,7 +200,7 @@ fn message_cost(
     let mut inflated = 0_u64;
     if batch.compression().is_some() {
         if let Some(buffers) = batch.buffers() {
-            for buffer in buffers.iter() {
+            for buffer in buffers {
                 let (offset, len) = (buffer.offset(), buffer.length());
                 let (Ok(offset), Ok(len)) = (u64::try_from(offset), u64::try_from(len)) else {
                     return Err(format_error(path, &"a buffer has a negative extent"));
@@ -225,7 +225,7 @@ fn message_cost(
         .ok_or_else(|| format_error(path, &"an array node count overflows"))?;
     let cost = [meta_len, body, inflated, structure]
         .into_iter()
-        .try_fold(0_u64, |sum, part| sum.checked_add(part))
+        .try_fold(0_u64, u64::checked_add)
         .ok_or_else(|| format_error(path, &"a batch decode cost overflows"))?;
     Ok((kind, cost, body))
 }

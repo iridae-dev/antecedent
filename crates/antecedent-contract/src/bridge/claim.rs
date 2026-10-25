@@ -167,6 +167,34 @@ pub(super) fn obligation(assumption: &BridgeAssumption) -> ObligationRecord {
     record
 }
 
+/// Admit the source point at its declared scientific coordinate before any
+/// mapping or uncertainty propagation. Licensing remains the caller's first check.
+fn source_point_value(
+    contract: &BridgeContract,
+    source: &BridgeSource<'_>,
+) -> Result<f64, BridgeRefusal> {
+    if let Err(mismatch) = source.quantity.require_same_coordinate(&contract.source.quantity) {
+        return Err(quantity_mismatch(
+            mismatch_name(mismatch),
+            contract.source.quantity.canonical_identity(),
+            source.quantity.canonical_identity(),
+        ));
+    }
+    if let Some(units) = &source.claim.outcome_units {
+        if &**units != source.quantity.units.as_str() {
+            return Err(units_mismatch(source.quantity.units.clone(), units.to_string()));
+        }
+    }
+    if source.claim.kind != ClaimKind::Point {
+        return Err(source_not_point(source.claim.kind.as_str()));
+    }
+    source
+        .claim
+        .value
+        .filter(|value| value.is_finite())
+        .ok_or_else(|| source_not_point("no_finite_value"))
+}
+
 /// Derive the claim a contract licenses from a source claim.
 ///
 /// Nothing is derived unless the contract licenses its bridge
@@ -206,24 +234,7 @@ pub fn derive_bridged_claim_propagating(
     nonlinear: Option<NonlinearMap>,
 ) -> Result<BridgedClaim, BridgeRefusal> {
     let licensing = contract.check_licensing()?;
-    if let Err(mismatch) = source.quantity.require_same_coordinate(&contract.source.quantity) {
-        return Err(quantity_mismatch(
-            mismatch_name(mismatch),
-            contract.source.quantity.canonical_identity(),
-            source.quantity.canonical_identity(),
-        ));
-    }
-    if let Some(units) = &source.claim.outcome_units {
-        if &**units != source.quantity.units.as_str() {
-            return Err(units_mismatch(source.quantity.units.clone(), units.to_string()));
-        }
-    }
-    if source.claim.kind != ClaimKind::Point {
-        return Err(source_not_point(source.claim.kind.as_str()));
-    }
-    let Some(source_value) = source.claim.value.filter(|value| value.is_finite()) else {
-        return Err(source_not_point("no_finite_value"));
-    };
+    let source_value = source_point_value(contract, source)?;
     let applied = contract.mapping.apply(source_value, licensing.direction)?;
     let propagation = super::contract::propagate_point(
         contract,

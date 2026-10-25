@@ -622,7 +622,9 @@ impl SpillHandle {
         self.registry.reload_generation::<T>(&self.key, Some(self.generation))
     }
 
-    /// Remove the artifact from disk and return its reservation.
+    /// Remove this generation's artifact from disk and return its reservation.
+    /// Returns false if the generation was already removed or replaced.
+    #[must_use = "false means this handle's generation was not removed"]
     pub fn remove(self) -> bool {
         self.registry.remove_generation(&self.key, Some(self.generation))
     }

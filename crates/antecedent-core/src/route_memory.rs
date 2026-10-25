@@ -848,10 +848,7 @@ fn checked(value: Option<u64>) -> Result<u64, RouteMemoryError> {
 }
 
 fn sum_checked<const N: usize>(parts: [u64; N]) -> Result<u64, RouteMemoryError> {
-    parts
-        .into_iter()
-        .try_fold(0u64, |total, part| total.checked_add(part))
-        .ok_or(RouteMemoryError::Unrepresentable)
+    parts.into_iter().try_fold(0u64, u64::checked_add).ok_or(RouteMemoryError::Unrepresentable)
 }
 
 const fn missing(component: RouteMemoryComponent) -> RouteMemoryError {

@@ -1112,10 +1112,7 @@ fn second_order_delta(
     })
 }
 
-fn unscented(
-    law: &JointLaw,
-    g: &dyn Fn(&[f64]) -> f64,
-) -> Result<JointPropagation, BridgeRefusal> {
+fn unscented(law: &JointLaw, g: &dyn Fn(&[f64]) -> f64) -> Result<JointPropagation, BridgeRefusal> {
     let n = law.dimension();
     let factor = law.factor();
     let center = law.mean();
@@ -1156,7 +1153,7 @@ fn unscented(
     })
 }
 
-/// SplitMix64 stream: a fixed seed reproduces the draws on every platform.
+/// `SplitMix64` stream: a fixed seed reproduces the draws on every platform.
 struct DrawStream(u64);
 
 impl DrawStream {
@@ -2370,11 +2367,9 @@ mod joint_tests {
     #[test]
     fn an_infeasible_joint_covariance_or_missing_declaration_is_refused() {
         let names = || vec!["a".to_owned(), "b".to_owned()];
-        let error =
-            JointLaw::new(names(), vec![0.0, 0.0], vec![1.0, 2.0, 2.0, 1.0]).unwrap_err();
+        let error = JointLaw::new(names(), vec![0.0, 0.0], vec![1.0, 2.0, 2.0, 1.0]).unwrap_err();
         assert_eq!(error.detail, "scientific_bridge.mapping_uncertainty_invalid");
-        let error =
-            JointLaw::new(names(), vec![0.0, 0.0], vec![1.0, 0.5, 0.0, 1.0]).unwrap_err();
+        let error = JointLaw::new(names(), vec![0.0, 0.0], vec![1.0, 0.5, 0.0, 1.0]).unwrap_err();
         assert_eq!(error.detail, "scientific_bridge.mapping_uncertainty_invalid");
         // Each pairwise covariance is feasible but the three together are not.
         let uncertainty = MappingUncertainty {
@@ -2404,8 +2399,9 @@ mod joint_tests {
         .unwrap_err();
         assert_eq!(error.detail, "scientific_bridge.source_dependence_missing");
         let (law, ..) = lognormal_law();
-        let error = propagate_joint(&law, &exp_sum, PropagationMethod::Simulation { draws: 3, seed: 1 })
-            .unwrap_err();
+        let error =
+            propagate_joint(&law, &exp_sum, PropagationMethod::Simulation { draws: 3, seed: 1 })
+                .unwrap_err();
         assert_eq!(error.detail, "scientific_bridge.malformed_mapping");
         let error = propagate_joint(&law, &|_| f64::NAN, PropagationMethod::Unscented).unwrap_err();
         assert_eq!(error.detail, "scientific_bridge.propagation_overflow");
