@@ -165,6 +165,8 @@ def test_a_hedge_returns_the_refusal_the_description_and_a_ranked_plan():
     assert outcome.refusal.reason_code == "effect_not_identified"
     assert outcome.roles is not None and outcome.roles.adjustment == ()
     assert _association(outcome).refused_after == "effect_not_identified"
+    assert outcome.ranks_actions is False and not outcome.answers_causal_question
+    assert _association(outcome).ranks_actions is False
     needs = outcome.evidence_plan
     assert isinstance(needs, EvidenceNeeds)
     plan = needs.plan

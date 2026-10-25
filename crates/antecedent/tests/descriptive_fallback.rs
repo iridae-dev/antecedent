@@ -19,12 +19,12 @@ use std::sync::Arc;
 
 use antecedent::analysis::evidence_plan::{EvidencePlanRequest, STUDY_POPULATION};
 use antecedent::analysis::fallback::{
-    FallbackOutcome, FallbackPart, FallbackRequest, RankedPlan, fallback_roles,
+    fallback_roles, FallbackOutcome, FallbackPart, FallbackRequest, RankedPlan,
 };
-use antecedent::host::{HostStatus, fallback_response, host_schema};
-use antecedent::report::{ReportFormat, render_fallback_report};
+use antecedent::host::{fallback_response, host_schema, HostStatus};
+use antecedent::report::{render_fallback_report, ReportFormat};
 use antecedent::{
-    CausalError, IDENTIFICATION_REFUSAL_CODES, InferenceMode, RefuteSuite, Study, StudyResult,
+    CausalError, InferenceMode, RefuteSuite, Study, StudyResult, IDENTIFICATION_REFUSAL_CODES,
 };
 use antecedent_contract::{ClaimKind, DomainStatus};
 use antecedent_core::{
@@ -200,7 +200,11 @@ fn an_unmeasured_confounder_returns_the_refusal_a_noncausal_description_and_the_
     let payload = part.result.association().expect("an association payload");
     assert_eq!(payload.refused_after.as_deref(), Some("effect_not_identified"));
     assert!(part.result.estimate.as_effect().is_none(), "an association is no effect estimate");
-    assert_eq!(payload.estimate.terms.len(), 2, "intercept and treatment; the held-fixed parent is not reported");
+    assert_eq!(
+        payload.estimate.terms.len(),
+        2,
+        "intercept and treatment; the held-fixed parent is not reported"
+    );
     assert!(!fallback.ranks_actions());
     assert!(!fallback.answers_causal_question());
 
@@ -251,13 +255,11 @@ fn a_hedge_returns_the_refusal_the_description_and_a_ranked_plan_over_declared_s
     let actions: Vec<&str> = needs.next_actions.iter().map(|a| a.id.as_ref()).collect();
     assert!(actions.iter().any(|id| id.starts_with("run_experiment:")), "{actions:?}");
     // A study supplies data, never an assumption: an assumption obligation is not satisfiable.
-    assert!(
-        needs
-            .obligations
-            .iter()
-            .filter(|o| o.kind == antecedent_contract::EvidenceObligationKind::EstablishAssumption)
-            .all(|o| !o.satisfiable_by_study())
-    );
+    assert!(needs
+        .obligations
+        .iter()
+        .filter(|o| o.kind == antecedent_contract::EvidenceObligationKind::EstablishAssumption)
+        .all(|o| !o.satisfiable_by_study()));
 }
 
 #[test]
@@ -361,4 +363,98 @@ fn a_bayesian_study_is_described_with_its_posterior_and_the_same_refusal() {
     assert_eq!(fallback.refusal.reason_code(), Some("effect_not_identified"));
     let payload = fallback.associational.as_ref().unwrap().result.association().unwrap();
     assert!(payload.estimate.posterior.is_some(), "the Bayesian reading carries its posterior");
+}
+
+#[test]
+fn a_completed_search_refusal_points_at_the_option_and_a_capped_one_does_not() {
+    let status = antecedent_core::IdentificationStatus::NotIdentified;
+    let completed = CausalError::not_identified(status, false, "bow").to_string();
+    assert!(completed.contains("analyze_with_fallback"), "{completed}");
+    assert!(completed.contains("on_refusal=\"describe\""), "{completed}");
+    assert!(completed.contains("not an answer to the causal question"), "{completed}");
+    // A capped search is not converted, so its text offers nothing it will not deliver.
+    let capped = CausalError::not_identified(status, true, "capped").to_string();
+    assert!(!capped.contains("analyze_with_fallback"), "{capped}");
+
+    // The refusal a real study raises says the same thing, with and without the option.
+    let study = confounded_study(zxy());
+    let direct = study.run(&ctx(5)).unwrap_err();
+    assert!(direct.to_string().contains("analyze_with_fallback"), "{direct}");
+    let fallback =
+        described(study.analyze_with_fallback(&FallbackRequest::default(), &ctx(5)).unwrap());
+    assert_eq!(fallback.refusal.to_string(), direct.to_string());
+}
+
+#[test]
+fn without_the_option_a_refusal_and_a_success_are_reproduced_exactly() {
+    // The plain path is the one the option wraps: two runs of the same refused study raise the
+    // same bytes, and a successful one never gains a fallback or an association.
+    let study = hedge_study(twy());
+    let first = study.run(&ctx(6)).unwrap_err().to_string();
+    let second = study.run(&ctx(6)).unwrap_err().to_string();
+    assert_eq!(first, second);
+    let wrapped =
+        described(study.analyze_with_fallback(&FallbackRequest::default(), &ctx(6)).unwrap());
+    assert_eq!(wrapped.refusal.to_string(), first);
+
+    let x: Vec<f64> = (0..120).map(|i| f64::from(u8::from(noise(i) > 0.0))).collect();
+    let y: Vec<f64> = (0..120).map(|i| 1.0 + 2.0 * x[i] + noise(i + 40)).collect();
+    let data = TabularData::from_f64_columns([("x", &x[..]), ("y", &y[..])]).unwrap();
+    let mut graph = Admg::with_variables(2);
+    graph.insert_directed(node(0), node(1)).unwrap();
+    let identified = Study::tabular(data)
+        .graph(graph)
+        .query(AverageEffectQuery::binary_ate(v(0), v(1)))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let plain = identified.run(&ctx(7)).unwrap();
+    let FallbackOutcome::Causal(with_option) =
+        identified.analyze_with_fallback(&FallbackRequest::default(), &ctx(7)).unwrap()
+    else {
+        panic!("an identified query is never described");
+    };
+    assert_eq!(
+        plain.estimate.as_effect().unwrap().ate.to_bits(),
+        with_option.estimate.as_effect().unwrap().ate.to_bits()
+    );
+    assert!(with_option.association().is_none());
+}
+
+#[test]
+fn the_association_ranks_no_action_for_either_fixture() {
+    let trial = candidate("randomized trial", StudyKind::Experiment, &[0], &[2], 9);
+    let request = FallbackRequest { evidence: Some(plan_request(vec![trial])) };
+    for study in [confounded_study(zxy()), hedge_study(twy())] {
+        let fallback = described(study.analyze_with_fallback(&request, &ctx(8)).unwrap());
+        assert!(!fallback.ranks_actions());
+        assert!(!fallback.answers_causal_question());
+        let part = fallback.associational.as_ref().expect("an association form exists");
+        assert!(!part.claim.kind.is_causal());
+        assert!(part.result.estimate.as_effect().is_none());
+        // Only the evidence plan orders anything, and it orders studies, not actions on the
+        // outcome; the host record states the association's own flag.
+        let record = fallback_response(&fallback);
+        assert_eq!(record["associational"]["ranks_actions"], false);
+    }
+}
+
+#[test]
+fn the_guide_and_the_manifest_rows_for_the_option_are_present() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let read = |path: &str| std::fs::read_to_string(root.join(path)).expect(path);
+    let guide = read("docs/guides/fallback.md");
+    assert!(guide.contains("on_refusal=\"describe\"") && guide.contains("analyze_with_fallback"));
+    let surface = read("parity/python_facade_surface.toml");
+    for row in [
+        "antecedent::report::render_fallback_report",
+        "antecedent::host::fallback_response",
+        "antecedent::analysis::fallback::fallback_roles",
+    ] {
+        assert!(surface.contains(row), "{row}");
+    }
+    let products = read("parity/python_products.toml");
+    assert!(products.contains("name = \"on_refusal\""));
+    assert!(read("python/antecedent/__init__.py").contains("fallback"));
 }

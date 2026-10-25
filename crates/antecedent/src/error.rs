@@ -678,11 +678,20 @@ impl CausalError {
         } else {
             "the search completed"
         };
+        // A completed search can be described; a capped one is not converted, so it offers nothing.
+        let opt_in = if search_capped {
+            ""
+        } else {
+            ". To keep this refusal and also get a noncausal description of the observed data \
+             and the evidence that would resolve it, use Study::analyze_with_fallback \
+             (Python: analyze(..., on_refusal=\"describe\")); the description is not an answer \
+             to the causal question"
+        };
         Self::NotIdentified {
             status,
             search_capped,
             message: format!(
-                "{REASON_PREFIX}effect_not_identified: {detail} (identification status {}; {search})",
+                "{REASON_PREFIX}effect_not_identified: {detail} (identification status {}; {search}){opt_in}",
                 status.as_str()
             ),
         }
