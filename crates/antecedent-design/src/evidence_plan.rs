@@ -382,24 +382,43 @@ fn compare(a: &PlanOption, b: &PlanOption, basis: PlanValueBasis) -> Ordering {
         .then_with(|| a.route.cmp(b.route))
 }
 
-impl EvidencePlan {
-    /// Build the plan from per-route repair reports.
-    ///
-    /// # Errors
-    /// `evidence_plan.invalid_request` for no reports, or a report that names a
-    /// study that was not declared; `evidence_plan.cost_units_mismatch` (reason
-    /// `design_cost_units_mismatch`) when the declared studies do not share one cost
-    /// unit, or the cost map's cost unit is not that unit.
-    pub fn build(
-        inputs: PlanInputs<'_>,
-        unverified: Vec<UnverifiedRoute>,
-    ) -> Result<Self, EvidencePlanError> {
+/// Apply the declared gate/value ordering, then classify the complete plan.
+fn rank_options(
+    options: &mut [PlanOption],
+    routes: &[PlanRoute],
+    basis: PlanValueBasis,
+) -> PlanOutcome {
+    options.sort_by(|a, b| compare(a, b, basis));
+    for (rank, option) in options.iter_mut().enumerate() {
+        option.rank = rank;
+    }
+    mark_close_calls(options, basis);
+    if options.iter().any(|o| o.gate == RepairClassification::VerifiedSufficient) {
+        PlanOutcome::Closing
+    } else if routes.iter().any(|r| r.budget.stop.is_some()) {
+        PlanOutcome::BudgetExhausted
+    } else {
+        PlanOutcome::NoneCertified
+    }
+}
+
+/// Validated common units and optional valuation used by every route option.
+struct PlanValuation {
+    cost_unit: Arc<str>,
+    basis: PlanValueBasis,
+    cost_map: Option<CostToUtilityMap>,
+    utility_unit: Option<String>,
+    value_identity: Option<String>,
+}
+
+impl PlanValuation {
+    fn of(inputs: &PlanInputs<'_>) -> Result<Self, EvidencePlanError> {
         if inputs.reports.is_empty() {
             return Err(EvidencePlanError::invalid("a plan needs at least one route report"));
         }
         let units: BTreeSet<&str> =
             inputs.candidates.iter().map(|c| c.cost.unit_label.as_ref()).collect();
-        let cost_unit: Arc<str> = match units.len() {
+        let cost_unit = match units.len() {
             0 => return Err(EvidencePlanError::invalid("a plan needs declared studies")),
             1 => Arc::clone(&inputs.candidates[0].cost.unit_label),
             _ => {
@@ -428,6 +447,24 @@ impl EvidencePlan {
                 )
             }
         };
+        Ok(Self { cost_unit, basis, cost_map, utility_unit, value_identity })
+    }
+}
+
+impl EvidencePlan {
+    /// Build the plan from per-route repair reports.
+    ///
+    /// # Errors
+    /// `evidence_plan.invalid_request` for no reports, or a report that names a
+    /// study that was not declared; `evidence_plan.cost_units_mismatch` (reason
+    /// `design_cost_units_mismatch`) when the declared studies do not share one cost
+    /// unit, or the cost map's cost unit is not that unit.
+    pub fn build(
+        inputs: PlanInputs<'_>,
+        unverified: Vec<UnverifiedRoute>,
+    ) -> Result<Self, EvidencePlanError> {
+        let PlanValuation { cost_unit, basis, cost_map, utility_unit, value_identity } =
+            PlanValuation::of(&inputs)?;
         let label_of = |id: &Arc<str>| -> Arc<str> {
             inputs
                 .candidates
@@ -515,19 +552,7 @@ impl EvidencePlan {
                 },
             });
         }
-        options.sort_by(|a, b| compare(a, b, basis));
-        for (rank, option) in options.iter_mut().enumerate() {
-            option.rank = rank;
-        }
-        mark_close_calls(&mut options, basis);
-        let outcome = if options.iter().any(|o| o.gate == RepairClassification::VerifiedSufficient)
-        {
-            PlanOutcome::Closing
-        } else if routes.iter().any(|r| r.budget.stop.is_some()) {
-            PlanOutcome::BudgetExhausted
-        } else {
-            PlanOutcome::NoneCertified
-        };
+        let outcome = rank_options(&mut options, &routes, basis);
         Ok(Self {
             routes,
             unverified,

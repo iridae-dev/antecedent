@@ -1307,11 +1307,11 @@ fn check_receipts(inspected: &Inspected, upstream: &[UpstreamNode<'_>]) -> Resul
     Ok(())
 }
 
-fn cross_check(
-    inspected: &mut Inspected,
+/// Frozen scores must describe the same fit as every upstream execution receipt.
+fn check_recalculation_binding(
+    inspected: &Inspected,
     upstream: &[UpstreamNode<'_>],
 ) -> Result<(), NodeFailure> {
-    check_rollout_binding(inspected, upstream)?;
     if let Some(expected) = inspected.facts.get("recalc_score_identity") {
         for source in upstream {
             if let Some(actual) = source.facts.get("recalc_score_identity") {
@@ -1324,6 +1324,15 @@ fn cross_check(
             }
         }
     }
+    Ok(())
+}
+
+fn cross_check(
+    inspected: &mut Inspected,
+    upstream: &[UpstreamNode<'_>],
+) -> Result<(), NodeFailure> {
+    check_rollout_binding(inspected, upstream)?;
+    check_recalculation_binding(inspected, upstream)?;
     check_relationship(inspected, upstream)?;
     check_receipts(inspected, upstream)?;
     let contracts: Vec<&UpstreamNode<'_>> =

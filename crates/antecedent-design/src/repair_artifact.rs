@@ -1627,6 +1627,14 @@ fn rebuild(
             ));
         }
     };
+    check_rebuilt_contract(&rebuilt, premises)?;
+    Ok(rebuilt)
+}
+
+fn check_rebuilt_contract(
+    rebuilt: &Rebuilt,
+    premises: &RepairPremisesWire,
+) -> Result<(), RepairArtifactError> {
     let family = rebuilt.family();
     if family.family_id() != premises.family || family.contract_id() != premises.contract {
         return Err(RepairArtifactError::mismatch(
@@ -1634,7 +1642,7 @@ fn rebuild(
             "the stored contract identity differs from the contract its premises describe",
         ));
     }
-    Ok(rebuilt)
+    Ok(())
 }
 
 fn first_difference<T: PartialEq>(

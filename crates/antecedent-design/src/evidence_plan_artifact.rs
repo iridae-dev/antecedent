@@ -439,7 +439,10 @@ impl EvidencePlanArtifact {
             let artifact = RepairReportArtifact::from_bytes(bytes)?;
             let report = artifact.consume(limits, ctx)?;
             let declared = artifact.candidates()?;
-            let ids: Vec<Arc<str>> = declared.iter().map(|c| c.semantic_id()).collect();
+            let ids: Vec<Arc<str>> = declared
+                .iter()
+                .map(crate::study_candidate::DurableStudyCandidate::semantic_id)
+                .collect();
             match &universe {
                 None => {
                     universe = Some(ids);
