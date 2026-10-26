@@ -48,8 +48,9 @@ struct Scope {
     /// IDs retained by callbacks on this worker, including errors a native fallback
     /// suppresses or a pending signal supersedes before attribution.
     failures: Mutex<Vec<u64>>,
-    /// First callback BaseException: native fallback/report conversion must not
-    /// swallow a Python request to interrupt or exit. Bounded independently of STASH.
+    /// First observer exception or callback BaseException. Native success/fallback
+    /// must not swallow an observer failure or a request to interrupt or exit.
+    /// Bounded independently of STASH.
     interruption: Mutex<Option<PyErr>>,
 }
 
@@ -218,6 +219,33 @@ pub(crate) fn callback_failure(what: &str, err: PyErr) -> String {
     format!("{description} {TAG_OPEN}{id}]")
 }
 
+/// Retain an observer's original exception at the executing run boundary.
+/// Progress/stage traits return `()`, so cancel the native work and let [`run`]
+/// raise this exact object, including its Python traceback, even after native success.
+/// An observer invoked outside a run has no safe exception owner; return it to
+/// the caller rather than retaining it in an unrelated future run.
+pub(crate) fn observer_failure(err: PyErr) -> Result<(), PyErr> {
+    // Keep the exact exception object and traceback, while distinguishing a user
+    // observer's exception from an identically typed native scientific refusal.
+    Python::attach(|py| {
+        let _ = err.value(py).setattr("_antecedent_operational_callback", true);
+    });
+    let scope = ACTIVE.with(|active| active.borrow().clone());
+    let Some(scope) = scope else { return Err(err) };
+    let discarded = {
+        let mut first = scope.interruption.lock().unwrap_or_else(PoisonError::into_inner);
+        if first.is_none() {
+            *first = Some(err);
+            None
+        } else {
+            Some(err)
+        }
+    };
+    drop(discarded);
+    scope.cancel_all();
+    Ok(())
+}
+
 /// An outer error that could not retain its original must not attribute a nested
 /// callback's tag copied into its __str__ output. Keep its readable diagnostics,
 /// but neutralize the private lookup syntax before returning the unretained error.
@@ -266,7 +294,7 @@ fn attribute(py: Python<'_>, err: PyErr, scope: &Scope) -> PyErr {
 ///
 /// Panics become [`CausalError`]. A signal observed while `f` ran always wins over `f`'s own
 /// result: the user asked for the run to stop. Without an observed signal, a callback's first
-/// non-Exception also wins over native fallback/report conversion.
+/// non-Exception or observer failure also wins over native fallback/report conversion.
 pub(crate) fn run<F, T>(py: Python<'_>, f: F) -> PyResult<T>
 where
     F: FnOnce() -> PyResult<T> + Send,
@@ -407,6 +435,29 @@ mod tests {
             .unwrap_err();
             assert!(error.is_instance_of::<PyKeyboardInterrupt>(py));
             assert!(!STASH.lock().unwrap().contains_key(&id.load(super::Ordering::Relaxed)));
+        });
+    }
+
+    #[test]
+    fn observer_exceptions_survive_native_success_with_original_identity() {
+        use super::{ambient_token, observer_failure, run};
+        use pyo3::exceptions::{PyKeyboardInterrupt, PyValueError};
+        use pyo3::prelude::*;
+
+        Python::initialize();
+        Python::attach(|py| {
+            for original in
+                [PyValueError::new_err("observer failed"), PyKeyboardInterrupt::new_err("stop")]
+            {
+                let expected = original.clone_ref(py);
+                let error = run::<_, ()>(py, move || {
+                    observer_failure(original)?;
+                    assert!(ambient_token().unwrap().is_requested());
+                    Ok(())
+                })
+                .unwrap_err();
+                assert!(error.value(py).is(expected.value(py)));
+            }
         });
     }
 

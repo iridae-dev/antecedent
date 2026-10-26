@@ -703,19 +703,11 @@ impl PyProgressSink {
 impl antecedent_core::ProgressSink for PyProgressSink {
     fn report(&self, fraction: f64, stage: &str) {
         Python::attach(|py| {
-            // `ProgressSink::report` returns `()` and is invoked from hot per-replicate
-            // / per-sample loops (bootstrap, Shapley, discovery search) across several
-            // crates, so propagating a `Result` here would mean threading a fallible
-            // signature through every call site outside the files this change owns.
-            // Surface the failure the same way an uncaught Python exception normally
-            // would instead of silently discarding it: print the traceback to stderr
-            // (this also sets `sys.last_*`), so a broken `on_progress` callback is
-            // diagnosable rather than appearing to just stop firing.
             if let Err(err) = self.callback.bind(py).call1((fraction, stage)) {
-                if err.is_instance_of::<pyo3::exceptions::PyException>(py) {
-                    err.print(py);
-                } else {
-                    let _ = callback_failure("Python on_progress interrupted", err);
+                if let Err(unscoped) = crate::interrupt::observer_failure(err) {
+                    // Outside an executing run no Result boundary owns this observer.
+                    // Keep the historical diagnostic without leaking it into another run.
+                    unscoped.print(py);
                 }
             }
         });
@@ -774,14 +766,9 @@ impl antecedent::StageResultSink for PyStageResultSink {
                     d
                 }
             };
-            // See `PyProgressSink::report` above: `StageResultSink::on_stage` also
-            // returns `()`, so surface a failing `on_stage` callback via PyO3's
-            // traceback-to-stderr path rather than discarding it silently.
             if let Err(err) = self.callback.bind(py).call1((event.stage_id(), payload)) {
-                if err.is_instance_of::<pyo3::exceptions::PyException>(py) {
-                    err.print(py);
-                } else {
-                    let _ = callback_failure("Python on_stage interrupted", err);
+                if let Err(unscoped) = crate::interrupt::observer_failure(err) {
+                    unscoped.print(py);
                 }
             }
         });
