@@ -524,18 +524,36 @@ def test_background_knowledge_is_carried_through_dispatch_refresh_serialization_
         # through a refresh and a replayed preparation, and states the changed knowledge when
         # that is what it was built on.
         def stated(study) -> str:
-            return study.inspect_plan().to_dict()["contract"]["discovery_algorithm"]
+            return study.inspect().to_dict()["contract"]["discovery_algorithm"]
 
-        study = ant.prepare(table, query=query, discovery=config, bootstrap=0, refute=False)
+        study = ant.prepare(
+            table,
+            query=query,
+            graph=ant.discovery.discover(
+                table, method=config, execution=ant.Execution(seed=1), accept_discovered=True
+            ),
+            inference=ant.Frequentist(bootstrap=0),
+            refute=False,
+        )
         first = require_success(study.estimate())
         assert stated(study) == f"{algorithm}+knowledge:{digest}"
-        refreshed = require_success(study.refresh(refreshed_table))
+        refreshed_study = study.rebind(data=refreshed_table)
+        refreshed = require_success(refreshed_study.estimate())
         assert refreshed.program_id == first.program_id
         assert stated(study) == f"{algorithm}+knowledge:{digest}"
-        replayed = study.reprepare(table)
+        assert stated(refreshed_study) == stated(study)
+        replayed = refreshed_study.rebind(data=table)
         require_success(replayed.estimate())
         assert stated(replayed) == stated(study)
-        altered = ant.prepare(table, query=query, discovery=other, bootstrap=0, refute=False)
+        altered = ant.prepare(
+            table,
+            query=query,
+            graph=ant.discovery.discover(
+                table, method=other, execution=ant.Execution(seed=1), accept_discovered=True
+            ),
+            inference=ant.Frequentist(bootstrap=0),
+            refute=False,
+        )
         assert stated(altered) == f"{algorithm}+knowledge:{replaced.background_knowledge}"
         assert stated(altered) != stated(study)
     # One statement has one digest, whichever algorithm read it.

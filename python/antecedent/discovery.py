@@ -1,4 +1,7 @@
-"""Discovery algorithm configuration and helpers.
+"""Explicit discovery, algorithm configurations, and structural review helpers.
+
+``discover(data, method=..., execution=...)`` runs the existing native discovery
+and review authority. Pass its accepted artifact as ``graph=`` to preparation.
 
 Each config dataclass below owns its own wire-serialization (``_wire``),
 native dispatch (``run``), and — for the algorithms that produce a holdable
@@ -97,6 +100,7 @@ from ._native import (
 )
 from ._validate import count as _count
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from .execution import Execution
 
 # Re-exported. The definitions live in `graph`, a leaf importing only `_native` and
 # `errors`, so `_coerce` can reach `cpdag_oriented_edges` without importing this module.
@@ -1679,6 +1683,52 @@ _ALL_DISCOVERY_TYPES = (
 )
 
 
+def discover(
+    data: Any,
+    *,
+    method: ReviewedDiscovery,
+    execution: Execution | None = None,
+    accept_discovered: bool = False,
+    regimes: Sequence[int] | None = None,
+) -> AcceptedGraph:
+    """Execute discovery explicitly through its native structure review gate.
+
+    Pending review raises ``ReviewRequired`` unless ``accept_discovered=True``
+    explicitly permits the native gate to accept it. Equivalence-class marks
+    remain unresolved class information. Pass the accepted structure as
+    ``prepare(data, graph=structure, ...)``; estimation never reruns discovery.
+    """
+    from .estimation import _accept_live_discovery, _Controls
+
+    policy = Execution() if execution is None else execution
+    if not isinstance(policy, Execution):
+        raise CausalTypeError("execution must be an Execution declaration")
+    if not isinstance(
+        method, (*_STATIC_DISCOVERY_TYPES, *_TEMPORAL_DISCOVERY_TYPES, JPCMCIPlus, RPCMCI)
+    ):
+        raise CausalTypeError("method must be a reviewed discovery configuration")
+    if not isinstance(accept_discovered, bool):
+        raise CausalTypeError("accept_discovered must be a boolean")
+    if regimes is not None and not isinstance(method, RPCMCI):
+        raise CausalUnsupportedError(
+            "regimes labels RPCMCI discovery only", reason_code="option_not_applicable"
+        )
+    return policy._call(
+        _accept_live_discovery,
+        data,
+        method,
+        accept_discovered=accept_discovered,
+        regimes=regimes,
+        seed=policy.seed,
+        threads=policy.threads,
+        controls=_Controls(
+            cancel=policy.cancel,
+            on_progress=policy.on_progress,
+            on_stage=policy.on_stage,
+        ),
+    )
+
+
 def run_static_discovery(
     data: Any,
     discovery: StaticDiscovery,
@@ -1787,6 +1837,7 @@ __all__ = [
     "RegimeStabilityResult",
     "StructureStabilityResult",
     "cpdag_oriented_edges",
+    "discover",
     "discovery_algorithm",
     "discovery_to_dag",
     "graph_posterior_map_dag",
