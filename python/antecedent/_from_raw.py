@@ -1249,7 +1249,11 @@ def _execution_slots(execution: Any | None) -> ReasoningSlots | None:
     """
     if execution is None or not execution.has_execution_contract():
         return None
-    return ReasoningSlots.from_contract(execution.execution_contract())
+    # Capture the native contract and scientific evidence once, at execution.
+    # Inspection reads these immutable presentation records; it never exports an
+    # artifact or reaches back into the native execution to materialize a payload.
+    record = json.loads(execution.execution_record_json())
+    return ReasoningSlots.from_result_section(record["contract"], record["evidence"])
 
 
 def _wrap_ate(

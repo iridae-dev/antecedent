@@ -1486,6 +1486,13 @@ class PreparedAnalysis:
         on_stage: Callable[..., Any] | None = None,
     ) -> ResponseAnalysisResult: ...
     def has_execution_contract(self) -> bool: ...
+    def execution_record_json(
+        self,
+        *,
+        outcome_units: str | None = None,
+        population: str = "target",
+        transform: str = "identity",
+    ) -> str: ...
     def execution_contract(
         self,
         *,

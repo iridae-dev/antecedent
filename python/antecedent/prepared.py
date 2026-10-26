@@ -65,6 +65,17 @@ class PreparedAnalysis(Generic[T]):
     def refute(self, *, suite: Any = "placebo") -> Outcome[Any]:
         return refute(self, suite=suite)
 
+    def preflight(self) -> Any:
+        return preflight(self)
+
+    def preview_transform(self, intent: str) -> Mapping[str, Any]:
+        return preview_transform(self, intent)
+
+    @property
+    def participants(self) -> tuple[str, ...] | None:
+        """The retained original row labels, without reading or fitting observations."""
+        return self._engine.participants
+
     def inspect(self) -> Any:
         if self._refused is not None:
             return self._refused.inspect().model_copy(
@@ -220,8 +231,23 @@ def prepare(
     if transport or isinstance(data, (Table, PanelFrame, MultiEnvFrame, EventFrame)):
         owned = data
     else:
-        owned = policy._call(table, data)
+        from ._owned_input import project_prepared_input
+
+        projected = project_prepared_input(
+            data,
+            query=query,
+            graph=graph,
+            estimator=estimator,
+            estimator_config=estimator_config,
+            participant=participant,
+        )
+        owned = policy._call(table, projected)
     options = replay_declaration(declarations)
+    if options["validators"] is not None and not isinstance(options["validators"], Mapping):
+        # Request collections are frozen on the public handle. The native
+        # callback boundary accepts a concrete list and retains each original
+        # callable, so only the small declaration container is materialized.
+        options["validators"] = list(options["validators"])
     for name in (
         "on_refusal",
         "evidence_candidates",
@@ -408,20 +434,20 @@ def _finish_outcome(study: PreparedAnalysis[T], outcome: Outcome[T]) -> Outcome[
             population=population,
             transform=transform,
         )
-        contract = study.execution._call(
-            study._engine._native.execution_contract,
-            outcome_units=units,
-            population=population,
-            transform=transform,
+        import json
+
+        record = json.loads(
+            study.execution._call(
+                study._engine._native.execution_record_json,
+                outcome_units=units,
+                population=population,
+                transform=transform,
+            )
         )
         # Labels change the canonical claim, but never trigger artifact encoding.
         from .results._slots import ReasoningSlots
 
-        reasoning = (
-            replace(result.reasoning, claim_id=contract["claim_id"], contract=contract)
-            if result.reasoning is not None
-            else ReasoningSlots.from_contract(contract)
-        )
+        reasoning = ReasoningSlots.from_result_section(record["contract"], record["evidence"])
         result = copy_model(
             result, quantities=quantities, reasoning=reasoning, claim_id=reasoning.claim_id
         )
@@ -460,6 +486,27 @@ def plan_view(study: PreparedAnalysis[Any]) -> Any:
             reason_code="plan_view_unavailable",
         )
     return study._engine.plan_view()
+
+
+def preflight(study: PreparedAnalysis[Any]) -> Any:
+    """Read native structural obligations without fitting or compiling another program."""
+    if not isinstance(study, PreparedAnalysis):
+        raise CausalTypeError("preflight requires a PreparedAnalysis")
+    return study.inspect() if study._refused is not None else study._engine.preflight()
+
+
+def preview_transform(study: PreparedAnalysis[Any], intent: str) -> Mapping[str, Any]:
+    """Read native transformation obligations; do not execute or mutate the study."""
+    from .errors import CausalUnsupportedError
+
+    if not isinstance(study, PreparedAnalysis):
+        raise CausalTypeError("preview_transform requires a PreparedAnalysis")
+    if study._refused is not None:
+        raise CausalUnsupportedError(
+            "a refused preparation has no executable program to transform",
+            reason_code="option_not_applicable",
+        )
+    return freeze(study._engine.preview_transform(intent))
 
 
 def refute(study: PreparedAnalysis[Any], *, suite: Any = "placebo") -> Outcome[Any]:
@@ -541,7 +588,20 @@ def rebind(study: Any, *, data: Any) -> Any:
     if getattr(engine, "_transport", None) is None and not isinstance(
         data, (Table, EventFrame, MultiEnvFrame, PanelFrame)
     ):
-        data = study.execution._call(table, data)
+        from ._owned_input import project_prepared_input
+
+        declaration = study._declarations
+        data = study.execution._call(
+            table,
+            project_prepared_input(
+                data,
+                query=declaration["query"],
+                graph=declaration["graph"],
+                estimator=declaration["estimator"],
+                estimator_config=declaration["estimator_config"],
+                participant=declaration["participant"],
+            ),
+        )
     bind = getattr(engine, "_bind", None)
     if callable(bind):
         return replace(

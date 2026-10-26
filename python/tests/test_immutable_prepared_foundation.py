@@ -125,3 +125,26 @@ def test_refutation_executes_on_an_independent_completed_study():
     assert outcome.study.inspect() == original_inspection
     assert bytes(outcome.export()) == before
     assert value.study is outcome.study
+
+
+def test_declared_response_units_keep_the_same_native_record_after_loading():
+    treatment = np.linspace(-1.0, 1.0, 128)
+    covariate = np.sin(np.arange(128))
+    outcome = ant.analyze(
+        {"t": treatment, "z": covariate, "y": 2 * treatment + covariate},
+        graph=[("z", "t"), ("z", "y"), ("t", "y")],
+        query=ant.ResponseCurve("t", "y", grid=[0.0, 0.5, 1.0]),
+        inference=ant.Frequentist(bootstrap=0),
+        refute=False,
+        outcome_units="kg",
+        quantity_population="clinic",
+    )
+    require_success(outcome)
+    artifact = outcome.export()
+    loaded = ant.load(artifact, expected=artifact.expectation)
+    require_success(loaded)
+    assert outcome.inspect().contract["format"] == 2
+    assert outcome.inspect().contract == loaded.inspect().contract
+    assert outcome.inspect().claim_id == loaded.inspect().claim_id
+    assert outcome.value.quantities is not None
+    assert all(quantity.units == "kg" for quantity in outcome.value.quantities)

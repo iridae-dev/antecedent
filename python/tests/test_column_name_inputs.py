@@ -139,7 +139,9 @@ def test_refresh_reuses_the_frozen_design_with_outcome_only_data():
     )
     rng = np.random.default_rng(1)
     updated = require_success(
-        result.study.refresh({"y": assign.astype(float) + rng.normal(size=len(assign))})
+        result.study.rebind(
+            data={"y": assign.astype(float) + rng.normal(size=len(assign))}
+        ).estimate()
     )
     assert updated.answer.kind == "point"
     assert updated.program_id == result.program_id
@@ -152,9 +154,9 @@ def test_refresh_accepts_the_table_used_at_analyze():
     table = {"y": outcome, "arm": assign, "id": ids}
     for data in (table, pd.DataFrame(table)):
         result = require_success(ant.analyze(data, query=_randomized_named_query()))
-        refreshed = require_success(result.study.refresh(data))
+        refreshed = require_success(result.study.rebind(data=data).estimate())
         assert refreshed.answer.value == pytest.approx(result.answer.value)
-        outcome_only = require_success(result.study.refresh({"y": outcome}))
+        outcome_only = require_success(result.study.rebind(data={"y": outcome}).estimate())
         assert outcome_only.answer.value == pytest.approx(result.answer.value)
 
 
@@ -164,12 +166,20 @@ def test_refresh_checks_named_design_columns_without_rebinding_them():
         ant.analyze({"y": outcome, "arm": assign, "id": ids}, query=_randomized_named_query())
     )
     shifted = outcome + 5.0
-    frozen = require_success(result.study.refresh({"y": shifted}))
+    original_inspection = result.study.inspect()
+    original_export = bytes(result.export())
+    frozen = require_success(result.study.rebind(data={"y": shifted}).estimate())
     with pytest.raises(ant.errors.CausalValueError, match="frozen design column.*arm"):
-        require_success(result.study.refresh({"y": shifted, "arm": ~assign, "id": ids}))
-    assert result.study.last_result is frozen
+        require_success(
+            result.study.rebind(data={"y": shifted, "arm": ~assign, "id": ids}).estimate()
+        )
+    assert result.study.inspect() == original_inspection
+    assert bytes(result.export()) == original_export
+    assert require_success(result.study.estimate()).answer == result.answer
     rebound = require_success(
-        result.study.reprepare({"y": shifted, "arm": ~assign, "id": ids}).estimate()
+        ant.prepare(
+            {"y": shifted, "arm": ~assign, "id": ids}, query=_randomized_named_query()
+        ).estimate()
     )
     assert rebound.answer.value == pytest.approx(-frozen.answer.value)
 

@@ -103,13 +103,15 @@ def test_prepared_aipw_refresh_and_independent_artifact_consumption() -> None:
         refute="none",
         inference=ant.Frequentist(bootstrap=0),
     )
-    first = require_success(prepared.estimate(data))
+    original = prepared.inspect()
+    first = require_success(prepared.estimate())
     assert first.effect == pytest.approx(1.5, abs=0.3)
     accepted = ant.artifacts.accept(bytes(first.export()))
     assert accepted["accepts_as_verified_program"] == "true"
 
     changed = {**data, "outcome": data["outcome"] + 0.75 * data["treatment"]}
-    refreshed = require_success(prepared.refresh(changed))
+    refreshed = require_success(prepared.rebind(data=changed).estimate())
+    assert prepared.inspect() == original
     assert refreshed.effect == pytest.approx(first.effect + 0.75, abs=0.05)
     accepted_refresh = ant.artifacts.accept(bytes(refreshed.export()))
     assert accepted_refresh["accepts_as_verified_program"] == "true"
@@ -129,13 +131,15 @@ def test_prepared_frontdoor_refresh_and_independent_artifact_consumption() -> No
         refute="none",
         inference=ant.Frequentist(bootstrap=0),
     )
-    first = require_success(prepared.estimate(data))
+    original = prepared.inspect()
+    first = require_success(prepared.estimate())
     assert first.effect == pytest.approx(1.0, abs=0.15)
     accepted = ant.artifacts.accept(bytes(first.export()))
     assert accepted["accepts_as_verified_program"] == "true"
 
     changed = {**data, "y": data["y"] + 0.4}
-    refreshed = require_success(prepared.refresh(changed))
+    refreshed = require_success(prepared.rebind(data=changed).estimate())
+    assert prepared.inspect() == original
     assert refreshed.effect == pytest.approx(first.effect, abs=1e-10)
     accepted_refresh = ant.artifacts.accept(bytes(refreshed.export()))
     assert accepted_refresh["accepts_as_verified_program"] == "true"
@@ -158,13 +162,15 @@ def test_prepared_binary_iv_refresh_and_independent_artifact_consumption(
         refute="none",
         inference=ant.Frequentist(bootstrap=0),
     )
-    first = require_success(prepared.estimate(data))
+    original = prepared.inspect()
+    first = require_success(prepared.estimate())
     assert first.effect == pytest.approx(1.5, abs=0.35)
     accepted = ant.artifacts.accept(bytes(first.export()))
     assert accepted["accepts_as_verified_program"] == "true"
 
     changed = {**data, "y": data["y"] + 0.5}
-    refreshed = require_success(prepared.refresh(changed))
+    refreshed = require_success(prepared.rebind(data=changed).estimate())
+    assert prepared.inspect() == original
     assert refreshed.effect == pytest.approx(first.effect, abs=1e-10)
     accepted_refresh = ant.artifacts.accept(bytes(refreshed.export()))
     assert accepted_refresh["accepts_as_verified_program"] == "true"
@@ -384,15 +390,20 @@ def _refusals() -> list[tuple[str, Callable[[], Any]]]:
         ),
         (
             "retarget on Bayesian",
-            lambda: ant.prepare(
-                data, graph=GRAPH, query=query, inference=ant.Bayesian(n_draws=32)
-            ).retarget(np.ones(n), []),
-        ),
-        ("retarget without scores", lambda: linear.retarget(np.linspace(1, 2, n), [])),
-        (
-            "refresh with a missing column",
             lambda: require_success(
-                linear.refresh({"z": data["z"], "treatment": data["treatment"]})
+                ant.prepare(
+                    data, graph=GRAPH, query=query, inference=ant.Bayesian(n_draws=32)
+                ).retarget(np.ones(n), depends_on=[])
+            ),
+        ),
+        (
+            "retarget without scores",
+            lambda: require_success(linear.retarget(np.linspace(1, 2, n), depends_on=[])),
+        ),
+        (
+            "rebind with a missing column",
+            lambda: require_success(
+                linear.rebind(data={"z": data["z"], "treatment": data["treatment"]})
             ),
         ),
         (
@@ -424,7 +435,13 @@ def _refusals() -> list[tuple[str, Callable[[], Any]]]:
 def test_every_probed_refusal_carries_a_registered_reason_code(
     label: str, call: Callable[[], Any]
 ) -> None:
-    with pytest.raises((ant.errors.CausalError, ValueError, TypeError)) as caught:
+    if label in ("unknown keyword", "interactive discovery"):
+        # Root Python call-shape errors precede the native scientific boundary.
+        with pytest.raises(TypeError, match="unexpected keyword argument") as caught:
+            call()
+        assert type(caught.value) is TypeError
+        return
+    with pytest.raises(ant.errors.CausalError) as caught:
         call()
     error = caught.value
     assert error.reason_code in REGISTERED, (label, error.reason_code, str(error))
@@ -469,9 +486,14 @@ def test_unidentified_question_is_a_typed_refusal_with_its_outcome() -> None:
 
 def test_preflight_reports_no_program_it_has_not_compiled() -> None:
     study = ant.prepare(_static(0), graph=GRAPH, query=ant.AverageEffect("treatment", "outcome"))
-    assert study.inspect().program_id is not None
+    original = study.inspect()
+    assert original.program_id is not None
     assert study.preflight().program_id is None
-    assert require_success(study.estimate()).program_id == study.inspect().program_id
+    result = require_success(study.estimate())
+    assert study.inspect() == original
+    assert result.study.inspect().program_id == result.program_id
+    loaded = require_success(ant.load(bytes(result.export())))
+    assert loaded.inspect().program_id == result.program_id
 
 
 def _failing(*, ate: float, se_analytic: float, method: str, adjustment_set: Any) -> dict[str, Any]:
@@ -588,12 +610,51 @@ def test_retarget_preview_reports_the_refusal_the_retarget_raises() -> None:
     assert preview["refused"] == "true"
     assert preview["refusal_code"] == "score_table_unavailable"
     with pytest.raises(ant.errors.CausalUnsupportedError) as caught:
-        linear.retarget(np.ones(n), [])
+        require_success(linear.retarget(np.ones(n), depends_on=[]))
     assert caught.value.reason_code == preview["refusal_code"]
     assert str(caught.value) == preview["refusal"]
 
-    aipw = ant.prepare(data, graph=GRAPH, query=query, estimator="aipw")
+    aipw = require_success(
+        ant.prepare(data, graph=GRAPH, query=query, estimator="aipw").estimate()
+    ).study
     preview = aipw.preview_transform("retarget")
     assert preview["refused"] == "false"
     assert "refusal" not in preview
-    aipw.retarget(np.ones(n), [])
+    require_success(aipw.retarget(np.ones(n), depends_on=[]))
+
+
+@pytest.mark.parametrize("counterfactual", [False, True])
+def test_execution_inspection_uses_metadata_captured_before_display(monkeypatch, counterfactual):
+    query = (
+        ant.Counterfactual("treatment", "outcome")
+        if counterfactual
+        else ant.AverageEffect("treatment", "outcome")
+    )
+    result = require_success(
+        ant.analyze(
+            _static(9, 200),
+            graph=GRAPH,
+            query=query,
+            inference=ant.Bayesian(n_draws=64),
+            refute="none",
+        )
+    )
+
+    class NoNativeReads:
+        def execution_record_json(self):
+            pytest.fail("inspection materialized native execution metadata")
+
+        def export_contracted_artifact(self, **kwargs):
+            pytest.fail("inspection exported an artifact")
+
+        def export_artifact(self, **kwargs):
+            pytest.fail("inspection exported a result payload")
+
+    monkeypatch.setattr(result, "_execution", NoNativeReads())
+    report = result.inspect()
+    assert report.contract["format"] == 2
+    assert report.inference_binding["bayesian"]["n_draws"] == 64
+    assert result.inspect().contract == report.contract
+    if counterfactual:
+        assert report.uncertainty.payload["unit_effects"]["effects"] == tuple(result.unit_effects)
+    assert len(repr(result)) < 1000

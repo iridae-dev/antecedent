@@ -157,15 +157,28 @@ def _raw_columns(data: Any) -> tuple[list[str], list[Any]] | None:
         return list(data), list(data.values())
     if hasattr(data, "columns") and hasattr(data, "to_numpy"):
         names = [str(name) for name in data.columns]
-        if len(set(names)) != len(names):
-            raise CausalValueError("data has duplicate column names")
+        _require_distinct_names(names)
         return names, [data[name].to_numpy() for name in data.columns]
     # Keep numeric Arrow tables on their chunk-preserving native path. A table
     # with labels exposes its original columns without decoding numeric buffers.
     if hasattr(data, "column_names") and hasattr(data, "column"):
         names = list(data.column_names)
+        _require_distinct_names(names)
         return names, [data.column(i) for i in range(len(names))]
     return None
+
+
+def _require_distinct_names(names: Sequence[str]) -> None:
+    seen: set[str] = set()
+    duplicates: set[str] = set()
+    for name in names:
+        if name in seen:
+            duplicates.add(name)
+        seen.add(name)
+    if duplicates:
+        raise CausalValueError(
+            f"data has duplicate column names: {sorted(duplicates)}", reason_code="invalid_argument"
+        )
 
 
 def _design_array(column: Any) -> NDArray[Any] | None:

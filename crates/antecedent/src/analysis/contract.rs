@@ -500,6 +500,15 @@ struct ReuseSection {
     checked_aipw_rows: Option<antecedent_io::CheckedAipwRowsWire>,
 }
 
+/// One canonical derivation shared by native inspection records and artifacts.
+struct ExecutedRecordParts {
+    contract: CausalContract,
+    payloads: ContractPayloads,
+    claim: ClaimEnvelope,
+    body: AnalysisResultWire,
+    reuse: ReuseSection,
+}
+
 /// Refusal when row weights meet a snapshot or score table they do not index.
 ///
 /// Built by [`crate::unsupported_reason!`] so the code is checked against
@@ -720,6 +729,39 @@ impl PreparedStudy {
         ctx: &ExecutionContext,
         labels: Option<&antecedent_contract::ResponseCoordinateLabels<'_>>,
     ) -> Result<(CausalContract, ClaimEnvelope), CausalError> {
+        let parts = self.execution_record_parts(result, ctx, labels)?;
+        Ok((parts.contract, parts.claim))
+    }
+
+    /// Derive the executed native contract section and scientific body without
+    /// encoding an artifact. Execution adapters can retain presentation metadata
+    /// now so later inspection need not serialize or revisit native execution.
+    ///
+    /// # Errors
+    /// The same identity, coordinate and claim checks as contracted export.
+    pub fn execution_record_with_quantity_labels(
+        &self,
+        result: &StudyResult,
+        ctx: &ExecutionContext,
+        labels: Option<&antecedent_contract::ResponseCoordinateLabels<'_>>,
+    ) -> Result<(AnalysisResultContractWire, AnalysisResultWire), CausalError> {
+        let parts = self.execution_record_parts(result, ctx, labels)?;
+        let execution = execution_identity_from_context(ctx);
+        let section = parts.contract.section_from_payloads(
+            &parts.payloads,
+            Some(&parts.claim),
+            Some(&execution),
+            &parts.reuse,
+        )?;
+        Ok((section, parts.body))
+    }
+
+    fn execution_record_parts(
+        &self,
+        result: &StudyResult,
+        ctx: &ExecutionContext,
+        labels: Option<&antecedent_contract::ResponseCoordinateLabels<'_>>,
+    ) -> Result<ExecutedRecordParts, CausalError> {
         let quantities = labels
             .map(|labels| {
                 let response = result.response().ok_or_else(|| CausalError::Compile {
@@ -740,10 +782,10 @@ impl PreparedStudy {
                 })
             })
             .transpose()?;
-        let (mut contract, _payloads) = self.contract_and_payloads_for_result(result)?;
-        self.bind_reuse(&mut contract, result)?;
-        let (claim, _) = result.claim_with_body(&contract, ctx, quantities.as_deref())?;
-        Ok((contract, claim))
+        let (mut contract, payloads) = self.contract_and_payloads_for_result(result)?;
+        let reuse = self.bind_reuse(&mut contract, result)?;
+        let (claim, body) = result.claim_with_body(&contract, ctx, quantities.as_deref())?;
+        Ok(ExecutedRecordParts { contract, payloads, claim, body, reuse })
     }
 
     /// The contract `result` was executed under, recompiled on this handle.
@@ -1050,34 +1092,7 @@ impl PreparedStudy {
         ctx: &ExecutionContext,
         labels: Option<&antecedent_contract::ResponseCoordinateLabels<'_>>,
     ) -> Result<Vec<u8>, CausalError> {
-        let quantities = labels
-            .map(|labels| {
-                let response = result.response().ok_or_else(|| CausalError::Compile {
-                    message: "scientific coordinates require a native response".into(),
-                })?;
-                antecedent_contract::response_coordinates(
-                    response,
-                    &|id| {
-                        self.schema()
-                            .variables()
-                            .get(id.as_usize())
-                            .map(|variable| variable.name.to_string())
-                    },
-                    labels,
-                )
-                .map_err(|refusal| CausalError::Compile {
-                    message: format!("{}: {}", refusal.code, refusal.detail),
-                })
-            })
-            .transpose()?;
-        let (mut contract, payloads) = self.contract_and_payloads_for_result(result)?;
-        // Bind the reuse layers before the claim: the claim id covers the seal,
-        // and the seal covers every advertised identity.
-        let reuse = self.bind_reuse(&mut contract, result)?;
-        let (claim, body) = result.claim_with_body(&contract, ctx, quantities.as_deref())?;
-        let execution = execution_identity_from_context(ctx);
-        let section =
-            contract.section_from_payloads(&payloads, Some(&claim), Some(&execution), &reuse)?;
+        let (section, body) = self.execution_record_with_quantity_labels(result, ctx, labels)?;
         let names: Vec<String> =
             self.schema().variables().iter().map(|variable| variable.name.to_string()).collect();
         let artifact = encode_analysis_result_artifact_with_contract(
@@ -4522,6 +4537,8 @@ mod frontdoor_artifact_tests {
         );
         assert!(matches!(wrong_binding, Err(CausalError::Compile { .. })));
         let result = prepared.estimate(&data, &context).unwrap();
+        let (record_section, record_body) =
+            prepared.execution_record_with_quantity_labels(&result, &context, None).unwrap();
         let bytes = prepared.encode_contracted_result(&result, "frontdoor", &context).unwrap();
         let intact = antecedent_io::consume_analysis_result(&bytes).unwrap();
         assert!(
@@ -4534,6 +4551,8 @@ mod frontdoor_artifact_tests {
             antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
         let mut contract =
             antecedent_io::decode_analysis_result_contract(&artifact).unwrap().unwrap();
+        assert_eq!(record_section, contract);
+        assert_eq!(record_body, body);
         let lowering =
             contract.program.as_mut().unwrap().checked_frontdoor_lowering.as_mut().unwrap();
         lowering.procedure = "frontdoor_functional".into();

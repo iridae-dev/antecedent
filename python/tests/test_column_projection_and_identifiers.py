@@ -29,7 +29,11 @@ from antecedent.outcomes import require_success
 
 EDGES = [("z", "t"), ("z", "y"), ("t", "y")]
 QUERY = ant.AverageEffect(treatment="t", outcome="y")
-ONE_SHOT = {"bootstrap": 0, "refute": False, "seed": 1}
+ONE_SHOT = {
+    "inference": ant.Frequentist(bootstrap=0),
+    "refute": False,
+    "execution": ant.Execution(seed=1),
+}
 
 
 def _numeric(n: int = 120, seed: int = 3) -> dict[str, np.ndarray]:
@@ -100,13 +104,16 @@ def test_a_typed_graph_binds_columns_by_name_and_graph_order(kind):
 def test_refresh_accepts_reordered_and_extra_columns():
     numeric = _numeric()
     study = ant.prepare(numeric, graph=EDGES, query=QUERY, **ONE_SHOT)
-    require_success(study.estimate())
+    original_inspection = study.inspect()
+    original = require_success(study.estimate())
     changed = _numeric(seed=4)
-    plain = require_success(study.refresh(changed))
+    plain = require_success(study.rebind(data=changed).estimate())
     shuffled = {"note": ["x"] * 120, "y": changed["y"], "z": changed["z"], "t": changed["t"]}
-    _same(require_success(study.refresh(shuffled)), plain)
-    _same(require_success(study.refresh(pd.DataFrame(shuffled))), plain)
-    _same(require_success(study.refresh(pa.table(shuffled))), plain)
+    _same(require_success(study.rebind(data=shuffled).estimate()), plain)
+    _same(require_success(study.rebind(data=pd.DataFrame(shuffled)).estimate()), plain)
+    _same(require_success(study.rebind(data=pa.table(shuffled)).estimate()), plain)
+    assert study.inspect() == original_inspection
+    _same(require_success(study.estimate()), original)
 
 
 # --- filtered frames and indexes -------------------------------------------------------
@@ -235,7 +242,7 @@ def test_one_shot_and_prepared_agree_on_a_named_cluster():
     study = ant.prepare(data, graph=EDGES, query=QUERY, estimator=estimator, **ONE_SHOT)
     _same(require_success(study.estimate()), one_shot)
     # Replay against the same table rebuilds the same identifiers.
-    _same(require_success(study.reprepare(data).estimate()), one_shot)
+    _same(require_success(study.rebind(data=data).estimate()), one_shot)
 
 
 def test_refresh_with_changed_identifiers_is_refused_and_leaves_the_study_unchanged():
@@ -247,26 +254,30 @@ def test_refresh_with_changed_identifiers_is_refused_and_leaves_the_study_unchan
         estimator=LinearAdjustment(se="cluster", cluster="site"),
         **ONE_SHOT,
     )
+    original_inspection = study.inspect()
     first = require_success(study.estimate())
 
     swapped = {**data, "site": list(data["site"])}
     swapped["site"][0], swapped["site"][1] = data["site"][1], data["site"][0]
     assert swapped["site"] != data["site"]
     with pytest.raises(CausalValueError, match="frozen identifier column 'site'"):
-        require_success(study.refresh(swapped))
+        require_success(study.rebind(data=swapped).estimate())
     renamed = {**data, "site": [label.upper() for label in data["site"]]}
     with pytest.raises(CausalValueError, match="frozen identifier column 'site'"):
-        require_success(study.refresh(renamed))
-    assert study.last_result is first
+        require_success(study.rebind(data=renamed).estimate())
+    assert study.inspect() == original_inspection
+    assert require_success(study.estimate()).answer == first.answer
     _same(require_success(study.estimate()), first)
 
     # Unchanged identifiers, changed outcomes, extra and reordered columns: accepted.
     updated = _clustered(seed=12)
     updated["site"] = data["site"]
-    refreshed = require_success(study.refresh({"note": ["x"] * 72, **updated}))
+    refreshed = require_success(study.rebind(data={"note": ["x"] * 72, **updated}).estimate())
     assert refreshed.estimate.ate != pytest.approx(first.estimate.ate)
     _, expected_se = _cluster_robust_se(updated)
     assert refreshed.estimate.se_analytic == pytest.approx(expected_se, rel=1e-9)
+    assert study.inspect() == original_inspection
+    _same(require_success(study.estimate()), first)
 
 
 def test_cluster_misuse_is_refused_with_a_precise_message():
@@ -358,12 +369,12 @@ def test_refresh_without_the_cluster_column_keeps_the_frozen_labels():
     updated = _clustered(seed=12)
     without = {name: updated[name] for name in ("z", "t", "y")}
     _, expected_se = _cluster_robust_se({**updated, "site": data["site"]})
-    refreshed = require_success(study.refresh(without))
+    refreshed = require_success(study.rebind(data=without).estimate())
     assert refreshed.estimate.se_analytic == pytest.approx(expected_se, rel=1e-9)
     # A table with another number of rows cannot carry the frozen labels.
     shorter = {name: values[:-1] for name, values in without.items()}
     with pytest.raises(CausalValueError, match="frozen identifier column 'site' labels 72 rows"):
-        require_success(study.refresh(shorter))
+        require_success(study.rebind(data=shorter).estimate())
 
 
 def test_participant_labels_are_preserved_and_identity_checked():
@@ -371,19 +382,25 @@ def test_participant_labels_are_preserved_and_identity_checked():
     data["pid"] = [f"P{i // 2:03d}" for i in range(72)]
     baseline = _run({name: data[name] for name in ("z", "t", "y")})
     study = ant.prepare(data, graph=EDGES, query=QUERY, participant="pid", **ONE_SHOT)
-    _same(require_success(study.estimate()), baseline)
+    original_inspection = study.inspect()
+    first = require_success(study.estimate())
+    _same(first, baseline)
     assert study.participants == tuple(data["pid"])
     assert ant.prepare(data, graph=EDGES, query=QUERY, **ONE_SHOT).participants is None
 
-    first = study.last_result
     moved = {**data, "pid": ["P999", *data["pid"][1:]]}
     with pytest.raises(CausalValueError, match="frozen identifier column 'pid'"):
-        require_success(study.refresh(moved))
+        require_success(study.rebind(data=moved).estimate())
     with pytest.raises(CausalValueError, match="frozen identifier column 'pid'"):
-        require_success(study.refresh({name: values[:-1] for name, values in data.items()}))
-    assert study.last_result is first
-    require_success(study.refresh({name: data[name] for name in ("z", "t", "y")}))
-    assert study.reprepare(moved).participants == tuple(moved["pid"])
+        require_success(
+            study.rebind(data={name: values[:-1] for name, values in data.items()}).estimate()
+        )
+    assert study.inspect() == original_inspection
+    assert require_success(study.estimate()).answer == first.answer
+    require_success(study.rebind(data={name: data[name] for name in ("z", "t", "y")}).estimate())
+    assert ant.prepare(
+        moved, graph=EDGES, query=QUERY, participant="pid", **ONE_SHOT
+    ).participants == tuple(moved["pid"])
     with pytest.raises(CausalValueError, match="identifier column .pid. is missing"):
         ant.prepare(
             {**data, "pid": [None, *data["pid"][1:]]},
@@ -457,3 +474,54 @@ def test_cluster_dml_validation_names_one_kind_of_labels():
         ClusterDml(cluster="a", unit="dyad")
     with pytest.raises(CausalValueError, match="AIPW score"):
         DML(score="partially_linear", cluster_dml=ClusterDml(cluster="site"))
+
+
+@pytest.mark.parametrize("kind", ["pandas", "arrow"])
+def test_standalone_owned_table_refuses_all_duplicated_columns_by_name(kind):
+    numeric = _numeric()
+    if kind == "pandas":
+        data = pd.DataFrame({**numeric, "first": 1.0, "second": 2.0})
+        data.columns = [*numeric, "note", "note"]
+    else:
+        data = pa.table(numeric).append_column("note", pa.array(["a"] * 120))
+        data = data.append_column("note", pa.array(["b"] * 120))
+    with pytest.raises(CausalValueError, match=r"duplicate column names: \['note'\]"):
+        ant.data.table(data)
+
+
+def test_preownership_projection_keeps_design_and_identifier_columns_without_reading_extras():
+    from antecedent._owned_input import project_prepared_input
+
+    assigned, outcome = [True, False] * 4, np.arange(8, dtype=float)
+    query = ant.experiment.RandomizedEffect(
+        "y",
+        ant.experiment.ExperimentDesign(
+            ant.interference.BernoulliAssignment(0.5), "arm", "unit", "unit"
+        ),
+    )
+    data = pd.DataFrame(
+        {
+            "y": outcome,
+            "arm": assigned,
+            "unit": [f"u{i}" for i in range(8)],
+            "person": [f"p{i}" for i in range(8)],
+            "site": [f"s{i % 2}" for i in range(8)],
+            "a": 1.0,
+            "b": 2.0,
+        }
+    )
+    data.columns = ["y", "arm", "unit", "person", "site", "unused", "unused"]
+    projected = project_prepared_input(
+        data,
+        query=query,
+        graph=ant.Dag.from_edges(["y"], []),
+        estimator=LinearAdjustment(se="cluster", cluster="site"),
+        participant="person",
+    )
+    owned = ant.data.table(projected)
+    assert owned.column_names == ("y", "arm", "unit", "person", "site")
+    assert tuple(owned["unit"]) == tuple(data["unit"])
+    data.loc[0, "y"] = -1.0
+    data.loc[0, "unit"] = "changed"
+    assert owned["y"][0] == outcome[0]
+    assert owned["unit"][0] == "u0"

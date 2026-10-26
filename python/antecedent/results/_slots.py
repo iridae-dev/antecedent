@@ -271,7 +271,7 @@ class ReasoningSlots:
     execution_id: str | None = None
     score_reuse_id: str | None = None
     target_weights_id: str | None = None
-    contract: dict[str, Any] | None = None
+    contract: Mapping[str, Any] | None = None
     answer: Any = None
     calibration: Any = None
     diagnostics: tuple[str, ...] = ()

@@ -881,7 +881,8 @@ class ResultAPI:
             assumption_payload["certificate"] = certificate
         support_payload = dict(slots.support.payload)
         support_payload["execution"] = _payload(getattr(self, "support", None))
-        support_payload["validation"] = _payload(getattr(self, "validation", None))
+        if "validation" not in support_payload:
+            support_payload["validation"] = _payload(getattr(self, "validation", None))
         report = replace(
             slots,
             identification=SlotView(
@@ -922,12 +923,14 @@ class ResultAPI:
         Portable evidence, when captured at execution/load, is retained separately;
         inspection never invents missing evidence or silently catches export errors.
         """
-        section = getattr(self, "_contract", None)
-        if not isinstance(section, Mapping):
-            section = report.contract
+        section: Mapping[str, Any] | None = report.contract
+        if not isinstance(section, Mapping) or section.get("format") != 2:
+            retained = getattr(self, "_contract", None)
+            if isinstance(retained, Mapping):
+                section = retained
         if not isinstance(section, Mapping):
             return report
-        return replace(report, contract=dict(section))
+        return replace(report, contract=section)
 
     @property
     def fitted_model(self) -> FittedEffectModel:

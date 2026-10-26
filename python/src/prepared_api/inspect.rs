@@ -145,6 +145,64 @@ impl PyPreparedAnalysis {
         self.last.as_ref().is_some_and(|result| result.executed_contract.is_some())
     }
 
+    /// Capture native contract and evidence at the explicit execution boundary.
+    /// Posterior draw payloads and response values are not serialized into this record.
+    #[pyo3(signature = (*, outcome_units=None, population="target", transform="identity"))]
+    fn execution_record_json(
+        &self,
+        outcome_units: Option<&str>,
+        population: &str,
+        transform: &str,
+    ) -> PyResult<String> {
+        let result = self
+            .last
+            .as_ref()
+            .ok_or_else(|| crate::value_err("estimate before capturing an execution record"))?;
+        let inner = self.last_study.as_ref().unwrap_or(&self.inner);
+        let ctx = py_execution_context_ext(
+            self.last_seed,
+            self.last_threads,
+            None,
+            None,
+            Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+        );
+        let labels =
+            outcome_units.map(|outcome_units| antecedent_contract::ResponseCoordinateLabels {
+                outcome_units,
+                population_id: population,
+                transform_id: transform,
+            });
+        let (section, body) = inner
+            .execution_record_with_quantity_labels(result, &ctx, labels.as_ref())
+            .map_err(py_err)?;
+        let response = body.response.as_ref().map(|response| {
+            serde_json::json!({
+                "uncertainty": response.uncertainty,
+                "support": response.support,
+            })
+        });
+        let structural = body.structural_response.as_ref().map(|response| {
+            serde_json::json!({
+                "identified_set_interval": response.identified_set_interval,
+            })
+        });
+        serde_json::to_string(&serde_json::json!({
+            "contract": section,
+            "evidence": {
+                "identification": body.identification,
+                "identification_variables": body.identification_variables,
+                "assumptions": body.assumptions,
+                "refutations": body.refutations,
+                "diagnostics": body.diagnostics,
+                "standard_error": body.standard_error,
+                "unit_effects": body.unit_effects,
+                "response": response,
+                "structural_response": structural,
+            },
+        }))
+        .map_err(|error| crate::value_err(error.to_string()))
+    }
+
     /// Inspection of the frozen execution, using the executed reasoning slots.
     #[pyo3(signature = (*, outcome_units=None, population="target", transform="identity"))]
     fn execution_contract(

@@ -93,14 +93,15 @@ def test_likelihood_reaches_rust_and_is_bound_into_the_inference_identity(likeli
     # The fitted outcome model is the declared one, not a Gaussian regression.
     family = {"logit": "Bernoulli logit", "probit": "Bernoulli probit", "poisson": "Poisson log"}
     assert family[likelihood] in str(chosen["assumptions"])
-    assert rust_name[likelihood] in str(chosen_result.inspect().to_dict()["contract"])
+    assert chosen["inference_binding"]["bayesian"]["likelihood"] == rust_name[likelihood]
 
     loaded = require_success(ant.load(bytes(chosen_result.export())))
     loaded_report = loaded.inspect().to_dict()
     assert_answer_kept(loaded)
     assert loaded_report["inference_binding_id"] == chosen["inference_binding_id"]
     assert loaded.answer == chosen_result.answer
-    assert rust_name[likelihood] in str(loaded_report["contract"])
+    assert loaded_report["inference_binding"]["bayesian"]["likelihood"] == rust_name[likelihood]
+    assert loaded_report["inference_binding"] == chosen["inference_binding"]
 
 
 def test_gaussian_fit_to_a_discrete_outcome_is_disclosed() -> None:
