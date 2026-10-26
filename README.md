@@ -99,6 +99,8 @@ Expect an estimate near two; the update adds one. The bootstrap budget is small:
 
 When the declared structure does not identify a valid question, `analyze` returns an `Outcome` with a typed `refusal`. Invalid arguments and operational failures raise errors. Opt in with `on_refusal="describe"` to retain the refusal beside a separately labelled `associational` outcome and the evidence that would resolve it. See [the fallback guide](docs/guides/fallback.md) and [the Python migration guide](docs/migrations/2.4-to-3.0-python.md).
 
+For a family of compatible questions, `ant.estimation.prepare_many(...)` prepares one shared-fit batch. `ant.estimate(batch)` returns a structured outcome whose completed family retains its own scores and exposes explicit `member(index)` selection. The same `ant.rebind` and `ant.reconfigure` operations create independent branches. See [shared-fit batch exploration](docs/migrations/2.4-to-3.0-python.md#shared-fit-batch-exploration).
+
 Continue with the [Python workflow](docs/python-workflow.md), [Rust quickstart](docs/rust-quickstart.md) or [examples](examples/README.md). 
 
 ### Antecedent capabilities

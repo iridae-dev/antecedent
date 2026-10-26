@@ -9,6 +9,15 @@ Read the Docs builds this reference from the matching Antecedent release (and
 falls back to the checked-out source only before that release reaches PyPI).
 The link stays within the documentation version you are reading.
 
+`discovery.GraphPosterior.from_graphs()` requires atoms of one graph class and
+matching variable order. Its packed ADMG representation supports bow-free
+graphs: a pair may carry a directed edge or a bidirected edge, but cannot carry
+both. A bow raises an argument error rather than dropping its directed edge or
+changing the posterior's scientific identity. Use an explicit `Admg` with
+`identify(graph=..., query=...)` or `prepare(data, graph=..., query=...)` to
+retain such a graph; identification can still refuse an unidentifiable effect.
+This encoding limit does not prohibit bows in the native ADMG graph model.
+
 To generate a local reference for the installed package, run:
 
 ```bash

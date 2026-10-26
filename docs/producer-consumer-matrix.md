@@ -38,7 +38,7 @@ requiring an exception, with the exact type where the consumer types its input
 | --- | --- | --- |
 | `native_response` | a native response claim | `program_claims.native_claim(view, program)` (`NativeClaim`) |
 | `fitted_effect_model` | a fitted effect model | `compact_export.CompactExport.build(...)` (coefficients, covariance, support, mask) |
-| `retargeted_batch` | a retargeted batch result | `PreparedBatch.retarget(...)` (`BatchRetarget`); `recalc.RecalcSession.execute(...)` with `TargetWeights` |
+| `retargeted_batch` | a retargeted batch result | `require_success(batch.retarget(...))` after `batch = require_success(ant.estimate(ant.estimation.prepare_many(...)))` (`BatchRetarget`, immutable completed scores); `recalc.RecalcSession.execute(...)` with `TargetWeights` |
 | `external_claim` | an external bound claim | `external.response(...).bind(response)` (`BoundExternalClaim`) |
 | `joint_draws` | aligned joint draws | `joint_distribution.JointDistributionArtifact` |
 | `bayesian_prior` | Bayesian prior inputs | `inference.PosteriorArtifact` (learned posterior), `priors.PriorCatalog`, `priors.ComposedPrior` |

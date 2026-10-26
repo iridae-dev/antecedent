@@ -6,7 +6,7 @@ Use this page when you need to configure or integrate an analysis.
 ## Prepare explicitly when useful
 
 ```python
-study = ant.prepare(data, graph=graph, query=query, seed=19)
+study = ant.prepare(data, graph=graph, query=query, execution=ant.Execution(seed=19))
 report = study.inspect()        # includes cached identification; does not estimate
 result = study.estimate()      # uses retained data and preparation's seed/threads
 ```
@@ -15,23 +15,27 @@ result = study.estimate()      # uses retained data and preparation's seed/threa
 
 `ant.prepare(data, graph=dag, query=PolicyProgramValue(programs, outcome, n_draws=...))`
 (from `antecedent.intervention_programs`) prepares the value of an intervention program such as
-`price := max(1, 0.85 * price)` on a fitted structural model. The model is fitted and the program
-compiled and licensed once; `estimate(seed=...)` and `refresh(new_data)` rerun the value without
-compiling the program again (`study.preparation.program_compilations` stays 1), and each result
-equals `policy_value` on the same model and seed. The result reports the support decision of the
+`price := max(1, 0.85 * price)` on a fitted structural model. The program is
+compiled during preparation, while mechanism fitting and Monte Carlo evaluation require
+explicit execution. Use `ant.estimate(study)`, `ant.rebind(study, data=new_data)`, or
+`ant.reconfigure(study, execution=ant.Execution(seed=...))` for execution and independent
+branches. The result reports the support decision of the
 simulation, counterfactual and identification routes, the contract (the structural assumptions the
 value rests on) and the provenance record. Estimand options such as `estimator=` and `refute=`
 do not apply and are refused; see the [intervention programs guide](guides/intervention-programs.md).
 
-### Defaults and latency
+### Scientific defaults and execution policy
 
-`analyze` and `prepare` use the same defaults. Set `bootstrap`, `refute`, or
-`n_draws` explicitly when you need a particular budget. `latency=` selects a
-budget tier only for values you omit; it never overrides an explicit value.
+`analyze` and `prepare` resolve the same native scientific defaults. Declare
+bootstrap counts and posterior draws on `Frequentist` or `Bayesian`; validation
+budgets belong to the applicable validation declaration. Scientific profiles
+such as `Frequentist(profile="interactive")` select presets only for omitted
+values. An explicit scientific budget takes precedence over its profile.
 
-For integrations, the shared default table is available through
-`antecedent._native.omitted_defaults()`. The Rust study builder owns it, and
-`antecedent.estimation.PreparedAnalysis.prepare(...)` uses it too.
+Seeds, threads, cancellation, resource limits, cache policy, and observers
+belong to reusable `Execution` declarations. Replace a policy through an
+immutable `reconfigure` branch. The shared default table is available through
+`antecedent._native.omitted_defaults()`; Rust owns the resolved numerical defaults.
 
 ### Inspect and preview a study
 
@@ -82,8 +86,8 @@ all-observed population on every graph class). Every other population-scoped
 query refuses a declared population with `reason_code="population_not_estimable"`
 instead of answering for the all-observed rows; for a reweighted response or
 average effect, prepare the all-observed AIPW or cell-AIPW study and `retarget`
-its frozen scores. `analyze_many` and `PreparedBatch.prepare` estimate each
-query's own population.
+its frozen scores. `estimation.analyze_many` and `estimation.prepare_many` preserve each
+query's own population declaration.
 
 ## Read counterfactual unit effects
 
@@ -112,15 +116,20 @@ the CATE `tau(x)` at prespecified covariate profiles, use the Rust
 
 ## Estimate a family of average effects
 
-`antecedent.estimation.analyze_many(data, graph=..., queries=[...])` ingests
-the table once and returns one result per `AverageEffect` query, in query
-order. `antecedent.estimation.PreparedBatch.prepare` freezes the same batch for
-`estimate(new_data)`, and `PreparedBatch.prepare_cells` batches discrete joint
-`InterventionResponse` cells. Run any other query through `ant.analyze`.
+`ant.estimation.prepare_many(data, graph=..., queries=[...], inference=...,
+execution=ant.Execution(seed=19))` owns one table and prepares an immutable batch
+without fitting. `ant.estimate(study)` returns `Outcome[BatchResult]`;
+`require_success(outcome).members` contains one typed outcome per query, in query order.
+`ant.estimation.analyze_many(...)` combines preparation and execution.
+The same operations accept homogeneous `AverageEffect` queries or static discrete joint
+`InterventionResponse` cells. Select `batch.member(index)` explicitly for downstream
+composition or export. Branch with `ant.rebind(batch.study, data=new_data)` or
+`ant.reconfigure(batch.study, queries=other_queries)`; earlier completions stay unchanged.
+Run other query families through `ant.analyze`.
 
 - **One seed for the family.** Every query cross-fits with the batch's `seed`
   and fold count, so it draws the same fold plan as the same query passed to
-  `ant.analyze(..., seed=seed)` and returns the same estimate.
+  `ant.analyze(..., execution=ant.Execution(seed=seed))` and returns the same estimate.
 - **Shared nuisance fits.** Queries that would fit the identical cross-fitted
   AIPW nuisance share one fit. The propensity model is shared when the
   treatment coding, adjustment set, complete-case rows, fold plan and learner
@@ -156,25 +165,26 @@ without an influence function), the joint fields stay `None` and each result
 carries `batch.joint_if.unavailable`. If only the max-t critical value fails,
 the p-values remain and each result carries `batch.joint_if.max_t_unavailable`.
 For joint cells, `simultaneous_interval` is on the cell levels, and the
-p-values test the declared `family_contrast` (default `cell_minus_control`;
-`None` publishes no p-values).
+p-values test `family=ant.estimation.CellFamily(contrast="cell_minus_control")`
+(the default); `CellFamily(contrast=None)` publishes no p-values.
+`CellFamily(posterior_draws=300)` requests aligned score-posterior draws for joint
+cells. Supplying `family` to an average-effect batch raises an argument error.
 
-**What a batch covers.** `analyze_many` and `PreparedBatch.prepare` take
-`AverageEffect` queries; `PreparedBatch.prepare_cells` takes static discrete
-joint `InterventionResponse` cells (two or more `Set` interventions). Any other
-query (a single-variable or temporal `InterventionResponse`, a
-`ResponseCurve`, a `ConditionalEffect`, and so on) is refused before any data is
-read with `CausalUnsupportedError`, `reason_code="route_not_supported"`, and a
-`remedy` naming `ant.analyze`, which estimates it one query at a time. The Rust
-`BatchStudy` has the same boundary: `estimate_many` and `prepare` take
-`AverageEffectQuery`, and `prepare_cells` refuses any other response query with
-`route_not_supported`.
+**What a batch covers.** `estimation.analyze_many` and `estimation.prepare_many`
+accept homogeneous `AverageEffect` queries or static discrete joint
+`InterventionResponse` cells (two or more `Set` interventions). Other queries have
+`reason_code="route_not_supported"` and a remedy naming `ant.analyze`.
+The concise execution boundary returns a typed refusal; malformed arguments and
+operational failures raise typed errors. Native identification refusals remain visible
+on prepared handles before explicit execution. No unsupported query silently executes
+as another scientific method.
 
 **Configured batches and retarget.** The batch entry points take `estimator=` as a string
 id or a typed configuration (`Aipw(...)`) and the `estimator_config=` dict, exactly as
-`ant.analyze` does; one configuration governs the batch. `PreparedBatch.retarget` reports the
+`ant.analyze` does; one configuration governs the batch. The completed `BatchResult.retarget` returns `Outcome[BatchRetarget]` with the
 points, joint score covariance and named contrasts of a declared family over one row snapshot
-(`point_only`; the simultaneous interval is closed). See
+(points and plug-in covariance remain distinct from the simultaneous interval). Preparation has no
+scores to retarget; every completed result keeps its own row snapshot. See
 [the guide](guides/batch-retarget.md).
 
 ## Configure response estimates
@@ -335,19 +345,21 @@ human-readable state on the object (`identification.to_dict()` includes them).
 `statement` uses it. That is readable identification data, not a notebook
 renderer.
 
-## Reuse data and refresh a study
+## Reuse data and branch a study
 
-| Operation | Data used | Changes the study's retained data? |
+| Operation | Data used | Returned object |
 |---|---|---|
-| `study.estimate()` | Retained data | No |
-| `study.estimate(other_data)` | Supplied data | No |
-| `study.refresh(new_data)` | Supplied data | Yes, after successful execution |
-| `result.inspect()` | That result's execution | No |
-| `result.export()` | That result's execution | No |
+| `ant.estimate(study)` | Retained data | A new outcome |
+| `ant.rebind(study, data=new_data)` | Newly declared observations | A new prepared branch |
+| `ant.reconfigure(study, query=other_query)` | Compatible retained observations | A new prepared branch |
+| `result.inspect()` | That outcome's scientific record | An inspection report |
+| `result.export()` | The explicitly selected scientific product | A typed artifact |
 
-A failed refresh leaves the study usable. Refresh does not mutate an earlier
-result or its exported bytes. A study is a live, in-process resource; retain it
-while repeated estimation is useful and release references when done.
+Earlier studies, outcomes, and exported bytes stay unchanged. Inspect
+`branch.reuse` for retained and invalidated work. A scientific branch can
+explicitly reprepare when native reuse is unsupported; it cannot silently
+substitute another scientific method. Streaming and adaptive sessions keep
+their explicitly stateful domain interfaces.
 
 ## Software and agent consumers
 
@@ -355,18 +367,18 @@ while repeated estimation is useful and release references when done.
 report = result.inspect().to_dict()
 # json.dumps(report, allow_nan=False) is supported.
 
-try:
-    next_result = study.refresh(new_data)
-except ant.CausalError as error:
-    refusal = error.report.to_dict()
-    # Original exception type and descriptive message are preserved.
-    # The failed study operation also retains error.study for recovery.
+branch = ant.rebind(study, data=new_data)
+next_result = ant.estimate(branch)
+if next_result.refusal is not None:
+    print(next_result.refusal.code, next_result.refusal.message)
+    print(next_result.refusal.obligations, next_result.refusal.next_actions)
 ```
 
-Refusals contain the operation, code, message, query and available review hint /
-pending edges. Unknown scientific evidence stays unavailable. Existing Python
-argument-validation `ValueError` and `TypeError` exceptions also receive reports;
-their original exception types remain unchanged.
+Scientific refusals retain stable codes, details, obligations and available next actions.
+Unknown scientific evidence stays unavailable. Invalid arguments, resource failures,
+cancellation and implementation failures raise typed errors; callback exceptions
+retain their original object and traceback. These failures do not publish a successful
+scientific outcome.
 
 Reports retain identification mass, uncertainty sources and targets (including
 omitted components), assumption obligations, and support evidence. A licensed
@@ -375,13 +387,14 @@ matrix cell does not establish empirical support or validate its assumptions.
 ## Portable executions
 
 ```python
-encoded = result.export()
-loaded = ant.load(encoded)
+artifact = result.export()
+encoded = bytes(artifact)
+loaded = ant.load(encoded, expected=artifact.expectation)
 loaded.acceptance.status  # "verified", "sealed", or "unavailable"
 loaded.acceptance.unresolved  # sealed checked operations the consumer cannot replay
 loaded.answer
 loaded.inspect().to_dict()
-assert loaded.export() == encoded
+assert bytes(loaded.export()) == encoded
 ```
 
 `load` runs the Rust semantic consumer. Malformed contracts fail closed;
@@ -392,13 +405,13 @@ kept the recorded answer, and names the sealed checked operation it cannot
 replay from bytes alone; `acceptance.verified` and `acceptance.replayable`
 stay `False` for it. Acceptance verifies the artifact's semantic
 contract, not the truth of causal assumptions. Loading does not reconstruct a
-live study or recover the source dataset. The original decoded body is available
-as `loaded.decoded_artifact.payload`.
+live study or recover the source dataset. Use the common inspection report to read acceptance and retained scientific standing;
+requested specialized conversions are explicit materialization boundaries.
 
-For prior transfer, `Bayesian(prior_from=...)` still expects the posterior-only
-payload from `result.study.export_artifact()`, taken before the study changes.
-The full `result.export()` archive is intended for execution inspection and
-forwarding. See [artifact examples](artifacts.md#exporting-prepared-results).
+For prior transfer, select `posterior = result.export(quantity="posterior")` and
+pass that typed artifact as `Bayesian(prior_from=posterior)`. This selection
+materializes the retained posterior without another fit. The full result artifact
+preserves its own execution and acceptance standing. See [artifact examples](artifacts.md#exporting-prepared-results).
 
 `program_id` is the compiled program identity (`contract["program"]`).
 `claim_id` is the execution claim identity (`contract["claim"]["claim_id"]`).
@@ -414,15 +427,17 @@ claim → consume on the Rust compiler path
 synthetic licensed-coordinate fixtures (`internal_cross_check`). Parent
 estimator evidence is not inherited.
 
-**Reusable studies.** `analyze` is `prepare(...).estimate()`. Every licensed
-Python product-matrix route retains a study and a contracted export. Custom
-validator results travel as caller-attested evidence. A result with no
-execution (prepared-only, cancelled, or a body-only load) refuses `.study` /
-`.export()` with `not_executed` or `cancelled_no_claim`. It never silently
-reruns discovery.
+**Reusable studies.** `analyze` performs preparation followed by explicit
+estimation. Completed analysis outcomes retain their applicable immutable study;
+independently loaded outcomes have no live study or dataset. Read the outcome's
+inspection and applicable operations for its actual retained capabilities.
+Custom-validator findings remain caller-declared evidence. Scientific refusals
+and unsupported exports do not silently rerun discovery or estimation.
 
-Retargeting remains available from frozen scores of the execution it follows:
-after `estimate(new_data)`, `retarget` reweights the scores fitted on `new_data`.
+Retargeting uses the frozen scores belonging to a completed outcome. Prepare
+new data through `ant.rebind`, execute that branch, and use its completed
+`outcome.study.retarget(weights, depends_on=...)`; earlier completed outcomes
+retain their own scores.
 A nonconstant-weight retarget exports under a `RowWeights` target whose
 `target_weights` identity binds the exact weight bits, their row count, the data
 snapshot, the score table (`score_reuse`) and `depends_on`. The weights travel in
@@ -430,5 +445,6 @@ the artifact, so a consumer re-derives the identity and confirms the population
 the answer is about; `inspect().target_weights_id` shows it. Constant weights of
 any scale keep the original target. The binding belongs to the retargeted
 result, not to the plan: the plan is still an AllObserved study and re-estimates
-on new data, while `reexecute_retarget(artifact)` re-runs the carried weights and
-raises `row_weights_bound_to_snapshot` on a different snapshot.
+on new data, while `population.replay_retarget(completed, artifact)` independently consumes
+the artifact and reuses the completed source's exact scores. A different snapshot
+or score identity returns the scientific refusal `row_weights_bound_to_snapshot`.
