@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import json
 import threading
-from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
@@ -32,6 +31,8 @@ from ._artifact_protocol import (
     artifact_from_receipt,
     container_bytes,
 )
+from ._cyclic_read_models import CyclicPage as CyclicPage
+from ._cyclic_read_models import RecoveredCyclicLaw as RecoveredCyclicLaw
 from ._cyclic_typed import (
     AsymptoticNormal,
     CyclicInterventions,
@@ -188,153 +189,151 @@ class FitOptions:
 
 @dataclass(frozen=True)
 class CyclicResult(ScientificResult):
-    """Model-conditional worlds, diagnostics, and independent replay artifact."""
+    """Immutable native-owned scientific output; materialization is explicit."""
 
-    report: Mapping[str, Any] = field(repr=False)
-    artifact: bytes = field(repr=False)
+    _native: Any = field(repr=False)
     execution_facts: Any = field(default=None, repr=False, compare=False)
     _prepared: Any = field(default=None, repr=False, compare=False)
-    _contract: Any = field(default=None, repr=False, compare=False)
+    execution: Execution = field(default_factory=Execution, repr=False, compare=False)
+    _metadata: Any = field(default=None, init=False, repr=False, compare=False)
     _inspection: Any = field(default=None, init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "report", freeze(self.report))
-        object.__setattr__(self, "_contract", freeze(self._contract))
-        object.__setattr__(self, "_inspection", self._make_inspection())
+        from ._cyclic_read_models import result_inspection
+        from .errors import CausalTypeError
+
+        if not isinstance(self._native, _native._CyclicExecution):
+            raise CausalTypeError("CyclicResult requires a retained native execution owner")
+        if not isinstance(self.execution, Execution):
+            raise CausalTypeError("execution must be an Execution")
+        metadata = json.loads(self._native.metadata_json())
+        object.__setattr__(self, "_metadata", freeze(metadata))
+        object.__setattr__(
+            self,
+            "_inspection",
+            result_inspection(metadata, stage="consumed" if metadata["loaded"] else "executed"),
+        )
 
     def _summary_fields(self) -> dict[str, Any]:
         return {
-            "identity": self.identity,
-            "family": self.report.get("answer", {}).get("family"),
-            "claim": self.report.get("claim"),
-            "calibration": self.report.get("calibration"),
+            name: self._metadata.get(name)
+            for name in ("identity", "family", "claim", "calibration", "world_count")
         }
 
-    def to_dict(self) -> dict[str, Any]:
-        """Explicit mutable JSON-compatible copy of the native execution report."""
-        return thaw(self.report)
+    @property
+    def identity(self) -> str:
+        """Exact native request identity, read without report conversion."""
+        return str(self._native.identity())
 
     @property
     def identities(self):
-        contract = self._contract or {}
-        native = self._native_report_metadata()
+        contract = self._metadata.get("contract") or {}
         return freeze(
             {
                 **contract.get("identities", {}),
-                **{key: native[key] for key in ("source_identity",) if key in native},
                 **{
                     key: contract[key]
                     for key in ("cyclic_solution", "recovery", "lowered_program_identity")
                     if contract.get(key) is not None
                 },
+                "source_identity": self._metadata.get("source_identity"),
             }
         )
 
     @property
     def provenance(self):
-        """Retained native contract coordinates, without a reconstructed source history."""
-        native = self._native_report_metadata()
         return freeze(
             {
-                **({"native_contract": self._contract} if self._contract else {}),
-                **{
-                    key: native[key]
-                    for key in ("source_identity", "derivation", "scope")
-                    if key in native
-                },
+                "source_identity": self._metadata.get("source_identity"),
+                "scope": self._metadata["scope"],
+                "native_contract": self._metadata.get("contract"),
+                "native_contract_is_summary": self._metadata.get("contract") is not None,
+                "graph_metadata": self._metadata["diagnostics"].get("graph"),
             }
         )
 
-    def _native_report_metadata(self):
-        native = self.report.get("answer", {}).get("result", self.report)
-        return native if isinstance(native, Mapping) else self.report
-
     def inspect(self):
-        """Return retained native metadata without serializing a payload or running work."""
         return self._inspection
 
-    def _make_inspection(self):
-        from .outcomes import Answer
-        from .results._report import InspectionReport, SlotModel
-
-        contract = self._contract or {}
-        layers = contract.get("layers", {})
-        identification = layers.get("identification")
-        inference = layers.get("inference_binding")
-        target = layers.get("target")
-        # Only native metadata is exposed: no certificate, interval or assumption is
-        # inferred from successful numerical execution or from a mean-valued target.
-        unavailable = SlotModel(
-            available=False, reason="not_retained_by_native_report", summary="unavailable"
-        )
-        native = self._native_report_metadata()
-        assumptions = native.get("assumptions")
-        if assumptions is None and target is not None:
-            assumptions = target.get("assumptions")
-            if assumptions is None and "targets" in target:
-                assumptions = tuple(
-                    item["assumptions"] for item in target["targets"] if "assumptions" in item
-                )
-        diagnostics = native.get("diagnostics", ())
-        if not isinstance(diagnostics, (list, tuple)):
-            diagnostics = ()
-        ids = {
-            f"{key}_id": value
-            for key, value in contract.get("identities", {}).items()
-            if value is not None
-        }
-        return InspectionReport(
-            identification=SlotModel(
-                available=True, summary=contract["identification_kind"], payload=identification
-            )
-            if identification
-            else unavailable,
-            support=unavailable,
-            uncertainty=SlotModel(
-                available=inference is not None and inference.get("method") != "none",
-                summary=str(inference.get("method")) if inference else "unavailable",
-                reason="no_uncertainty_claim"
-                if inference and inference.get("method") == "none"
-                else None
-                if inference
-                else "not_retained_by_native_report",
-                payload=inference or {},
-            ),
-            assumptions=SlotModel(
-                available=True, summary="native assumptions", payload={"assumptions": assumptions}
-            )
-            if assumptions is not None
-            else unavailable,
-            contract=contract or None,
-            target=target,
-            inference_binding=inference,
-            answer=Answer("structured"),
-            calibration=self.report.get("calibration"),
-            diagnostics=tuple(item for item in diagnostics if isinstance(item, str)),
-            native_diagnostics=freeze(native.get("diagnostics")),
-            details={
-                **self._summary_fields(),
-                **{
-                    key: native[key]
-                    for key in ("derivation", "scope", "source_identity")
-                    if key in native
-                },
-            },
-            family=contract.get("family", self.report.get("answer", {}).get("family", "system")),
-            stage="executed" if self._prepared is not None else "consumed",
-            operations=("inspect", "to_dict", "export"),
-            **ids,
-        )
-
-    @property
-    def identity(self) -> str:
-        """Request digest to retain separately from the artifact."""
-        return str(self.report["identity"])
+    @_with_execution
+    def to_dict(self, *, execution: Execution | None = None) -> dict[str, Any]:
+        """Explicitly materialize the complete native execution report."""
+        return dict(json.loads(self._native.report_json()))
 
     @artifact_export
-    def export(self) -> ExportedArtifact:
-        """Return the checksummed native artifact."""
-        return artifact_from_receipt(self, self.artifact)
+    @_with_execution
+    def export(self, *, execution: Execution | None = None) -> ExportedArtifact:
+        """Encode the retained native result only at this explicit boundary."""
+        return artifact_from_receipt(self, self._native.export(max_bytes=None, cancel=None))
+
+    def assumptions(self, *, offset: int = 0, limit: int = 64):
+        from ._cyclic_read_models import native_page
+
+        return native_page(self._native.assumptions_json, "assumptions", offset, limit)
+
+    @property
+    def law(self):
+        from ._cyclic_read_models import RecoveredCyclicLaw
+
+        summary = json.loads(self._native.recovery_summary_json())
+        if summary is None:
+            from .errors import CausalTypeError
+
+            raise CausalTypeError("this cyclic result has no experimental recovered law")
+        return RecoveredCyclicLaw(
+            self._native,
+            self.execution,
+            summary,
+            _stage="consumed" if self._metadata["loaded"] else "executed",
+        )
+
+    @outcome_operation
+    def interventions(self):
+        """Select native worlds without fitting, solving or serializing them again."""
+        names = getattr(self._prepared, "variable_names", None)
+        if names is None:
+            names = self._native.variable_names()
+        return CyclicInterventions._from_native(
+            self._native, names, self.execution_facts, self._prepared, execution=self.execution
+        )
+
+    def numeric(
+        self,
+        world: int,
+        *,
+        row: int = 0,
+        draw: int = 0,
+        counterfactual: bool = False,
+        field: str = "values",
+    ):
+        """Borrow one selected native readonly buffer, retaining its exact owner."""
+        selected = self._native.world_values(
+            world, row=row, draw=draw, counterfactual=counterfactual, field=field
+        )
+        return None if selected is None else memoryview(selected)
+
+    @outcome_operation
+    @_with_execution
+    def evidence(self, schema, selectors, *, execution: Execution | None = None):
+        """Project retained evidence with explicit quantities, units and population."""
+        names = getattr(self._prepared, "variable_names", None)
+        if names is None:
+            names = self._native.variable_names()
+        wire = [item._wire(names) if hasattr(item, "_wire") else item for item in selectors]
+        assert execution is not None  # _with_execution resolves the retained policy.
+        return CyclicEvidence(
+            self._native.evidence(
+                json.dumps(
+                    schema._wire() if isinstance(schema, EvidenceSchema) else schema,
+                    allow_nan=False,
+                ),
+                json.dumps(wire, allow_nan=False),
+                max_bytes=None,
+                cancel=None,
+            ),
+            execution=execution,
+            _prepared=self._prepared,
+        )
 
 
 @outcome_operation
@@ -354,10 +353,10 @@ def consume_artifact(
     max_bytes = None
     cancel = None
     artifact = container_bytes(artifact)
-    report, facts = _native.consume_cyclic_system(
+    owner, facts = _native.consume_cyclic_system(
         artifact, expected_identity, max_bytes=max_bytes, cancel=cancel
     )
-    return CyclicResult(json.loads(report), artifact, facts)
+    return CyclicResult(owner, facts, execution=execution)
 
 
 @dataclass(frozen=True)
@@ -589,7 +588,6 @@ class PreparedCyclicSystem:
         result = object.__new__(cls)
         object.__setattr__(result, "request_json", None)
         object.__setattr__(result, "_handle", handle)
-        object.__setattr__(result, "_use_buffers", noise.size * len(request["worlds"]) >= 64)
         return result
 
     def __getattribute__(self, name):
@@ -670,7 +668,6 @@ class PreparedCyclicSystem:
         object.__setattr__(
             result, "_handle", self._handle.rebind(json.dumps(request, allow_nan=False))
         )
-        object.__setattr__(result, "_use_buffers", self.__dict__.get("_use_buffers", False))
         return result
 
     @_with_execution
@@ -691,7 +688,6 @@ class PreparedCyclicSystem:
         result = object.__new__(PreparedCyclicSystem)
         object.__setattr__(result, "request_json", None)
         object.__setattr__(result, "_handle", handle)
-        object.__setattr__(result, "_use_buffers", self.__dict__.get("_use_buffers", False))
         return result
 
     @outcome_operation
@@ -702,29 +698,9 @@ class PreparedCyclicSystem:
         execution: Execution | None = None,
     ) -> CyclicResult:
         """Execute the retained native product and produce its independent replay artifact."""
-        # Tiny results are cheaper to decode directly; bulk values use NumPy buffers.
         assert execution is not None
-        if not self.__dict__.get("_use_buffers", False):
-            report, artifact, facts = self._handle.execute(
-                max_bytes=None,
-                cancel=None,
-            )
-            return CyclicResult(json.loads(report), artifact, facts, self, self.contract())
-        report, artifact, values, counterfactuals, width, facts = self._handle.execute_buffers(
-            max_bytes=None,
-            cancel=None,
-        )
-        report = json.loads(report)
-        offset = 0
-        for world in report["worlds"]:
-            for row in world:
-                row["values"] = values[offset : offset + width].tolist()
-                offset += width
-        offset = 0
-        for row in report["counterfactuals"] or []:
-            row["values"] = counterfactuals[offset : offset + width].tolist()
-            offset += width
-        return CyclicResult(report, artifact, facts, self, self.contract())
+        owner, facts = self._handle.execute(max_bytes=None, cancel=None)
+        return CyclicResult(owner, facts, self, execution)
 
     @outcome_operation
     @_with_execution
@@ -781,8 +757,8 @@ class PreparedCyclicFamily:
     execution: Execution = field(default_factory=Execution, repr=False, compare=False)
     _handle: Any = field(default=None, init=False, repr=False, compare=False)
     _lock: Any = field(default_factory=threading.Lock, init=False, repr=False, compare=False)
-    _law: Any = field(default=None, init=False, repr=False, compare=False)
     _inspection_facts: Any = field(default=None, init=False, repr=False, compare=False)
+    _retained_law_declaration: Any = field(default=None, init=False, repr=False, compare=False)
 
     def __repr__(self) -> str:
         return "PreparedCyclicFamily()"
@@ -791,13 +767,38 @@ class PreparedCyclicFamily:
         self.execution._call(self._prepare, execution=self.execution)
         self._cache_inspection_facts()
 
+    @classmethod
+    def _from_retained_law(cls, law, worlds, names, outcome, handle, execution):
+        result = object.__new__(cls)
+        for name, value in (
+            ("request_json", None),
+            ("variable_names", tuple(names)),
+            ("execution", execution),
+            ("_handle", handle),
+            ("_lock", threading.Lock()),
+            ("_retained_law_declaration", (law, tuple(worlds), tuple(names), outcome)),
+            (
+                "_inspection_facts",
+                freeze(
+                    {
+                        "draw_origin": law._metadata["draw_origin"],
+                        "law_meaning": law._metadata["law_meaning"],
+                        "retained_law": True,
+                        "worlds": tuple(world.id for world in worlds),
+                        "draw_count": law._metadata["draw_count"],
+                        "failed_mass": law._metadata["failed_mass"],
+                    }
+                ),
+            ),
+        ):
+            object.__setattr__(result, name, value)
+        return result
+
     def _cache_inspection_facts(self) -> None:
         from ._cyclic_typed import family_facts
 
         native = json.loads(self._handle.inspect())
-        facts = family_facts(
-            json.loads(self.request_json), self._law, native.get("design_unresolved")
-        )
+        facts = family_facts(json.loads(self.request_json), None, native.get("design_unresolved"))
         object.__setattr__(self, "_inspection_facts", freeze(facts))
 
     @classmethod
@@ -809,7 +810,7 @@ class PreparedCyclicFamily:
             ("execution", execution),
             ("_handle", handle),
             ("_lock", threading.Lock()),
-            ("_law", None),
+            ("_retained_law_declaration", None),
         ):
             object.__setattr__(result, name, value)
         result._cache_inspection_facts()
@@ -824,11 +825,10 @@ class PreparedCyclicFamily:
         invalidates a retained fit (``fit_dependencies``; ``*`` is the whole request), and the
         world ids of a typed-world family.
 
-        For an experimental recovery, ``design_unresolved`` lists the coefficient rows the
-        clamp design leaves unresolved (``{"target", "missing_clamps"}`` by unit id), read from
-        the native compiler before any fit; it is None for other families. Before a fit on this
-        handle ``unresolved_directions`` reports those rows; after one it reports the recovered
-        law's directions, which also name rank deficiencies the fit found.
+        For experimental recovery, ``design_unresolved`` and ``unresolved_directions``
+        keep the clamp design's original unresolved rows. A completed execution's
+        actual recovered law, draw statuses and unresolved directions belong to
+        ``result.law``; execution never rewrites the preparation's declarations.
         """
         facts = dict(json.loads(self._handle.inspect()))
         facts.update(thaw(self._inspection_facts))
@@ -858,14 +858,14 @@ class PreparedCyclicFamily:
         with self._lock:
             self._prepare(execution=execution)
             try:
-                payload, facts = self._handle.interventions(max_bytes=max_bytes, cancel=cancel)
+                owner, facts = self._handle.execute(max_bytes=max_bytes, cancel=cancel)
             except ValueError as error:
                 refusal = _next_attempt_refusal(error, "cyclic_family.interventions")
                 if refusal is None:
                     raise
                 raise refusal from error
         return CyclicInterventions._from_native(
-            json.loads(payload), self.variable_names, facts, self
+            owner, self.variable_names, facts, self, execution=execution
         )
 
     @_with_execution
@@ -918,6 +918,8 @@ class PreparedCyclicFamily:
     ) -> IdentifiedCyclicFunctional:
         """Retain the checked functional and its exact graph/assumption source."""
         assert execution is not None
+        if self._retained_law_declaration is not None:
+            raise CausalValueError("a recovered law is not a graph-identification preparation")
         source = json.loads(self.request_json)
         if source.get("family") != "graph" or source["request"].get("operation") not in (
             "identify",
@@ -926,7 +928,7 @@ class PreparedCyclicFamily:
         ):
             raise CausalValueError("expected a graph identification preparation")
         result = require_success(self.execute(execution=execution))
-        answer = result.report["answer"]
+        answer = result.to_dict()["answer"]
         # Serde's tagged answer stores the operation report in `result`.
         graph = answer.get("result", answer.get("answer", answer))
         if (
@@ -985,6 +987,10 @@ class PreparedCyclicFamily:
     ) -> PreparedCyclicFamily:
         """Replace declared observation fields on a new native preparation."""
         assert execution is not None
+        if self._retained_law_declaration is not None:
+            raise CausalValueError(
+                "a retained law has no rebindable observations; prepare the original experiment declarations to fit new data"
+            )
         request = json.loads(self.request_json)
         target = request["request"] if request["family"] == "system" else request
         if request["family"] == "dynamic_inference":
@@ -1030,6 +1036,21 @@ class PreparedCyclicFamily:
     ) -> PreparedCyclicFamily:
         """Branch scientific declarations or named worlds, retaining compatible fits."""
         assert execution is not None
+        if self._retained_law_declaration is not None:
+            law, original_worlds, names, original_outcome = self._retained_law_declaration
+            if method is not None or uncertainty is not None:
+                raise CausalValueError(
+                    "changing a retained law's inference requires the original experiment preparation"
+                )
+            declarations = {} if scientific is None else dict(scientific)
+            if set(declarations) - {"outcome"}:
+                raise CausalValueError("retained-law reconfiguration supports worlds and outcome")
+            return law.prepare(
+                original_worlds if worlds is None else worlds,
+                variables=names,
+                outcome=declarations.get("outcome", original_outcome),
+                execution=execution,
+            )
         from ._cyclic_typed import _worlds
 
         request = json.loads(self.request_json)
@@ -1118,13 +1139,8 @@ class PreparedCyclicFamily:
         cancel = None
         with self._lock:
             self._prepare(execution=execution)
-            report, artifact, facts = self._handle.execute(max_bytes=max_bytes, cancel=cancel)
-            decoded = json.loads(report)
-            answer = decoded.get("answer", {})
-            if answer.get("family") == "experimental_recovery":
-                object.__setattr__(self, "_law", answer["result"]["law"])
-                self._cache_inspection_facts()
-        return CyclicResult(decoded, artifact, facts, self, self.contract())
+            owner, facts = self._handle.execute(max_bytes=max_bytes, cancel=cancel)
+        return CyclicResult(owner, facts, self, execution)
 
 
 @_with_execution
@@ -1181,10 +1197,10 @@ def consume_family_artifact(
     max_bytes = None
     cancel = None
     artifact = container_bytes(artifact)
-    report, facts = _native.consume_cyclic_family(
+    owner, facts = _native.consume_cyclic_family(
         artifact, expected_identity, max_bytes=max_bytes, cancel=cancel
     )
-    return CyclicResult(json.loads(report), artifact, facts)
+    return CyclicResult(owner, facts, execution=execution)
 
 
 @dataclass(frozen=True)
@@ -2350,25 +2366,95 @@ class CyclicEvidence:
     _handle: Any = field(repr=False)
     execution: Execution = field(default_factory=Execution, repr=False, compare=False)
     _prepared: Any = field(default=None, repr=False, compare=False)
+    _metadata: Any = field(default=None, init=False, repr=False, compare=False)
+    _inspection: Any = field(default=None, init=False, repr=False, compare=False)
 
-    @property
-    def report(self) -> dict[str, Any]:
-        """Return derived scientific coordinates, original diagnostics and failed slots."""
+    def __post_init__(self) -> None:
+        from .errors import CausalTypeError
+        from .outcomes import Answer
+        from .results._report import InspectionReport, SlotModel
+
+        if not isinstance(self._handle, _native._CyclicEvidence):
+            raise CausalTypeError("CyclicEvidence requires a retained native evidence owner")
+        metadata = json.loads(self._handle.metadata_json(offset=0, limit=0))
+        object.__setattr__(self, "_metadata", freeze(metadata))
+        unavailable = SlotModel(
+            available=False, reason="select_native_evidence_columns", summary="unavailable"
+        )
+        object.__setattr__(
+            self,
+            "_inspection",
+            InspectionReport(
+                identification=SlotModel(
+                    available=False, reason="source_bound_projection", summary=metadata["scope"]
+                ),
+                support=unavailable,
+                uncertainty=unavailable,
+                assumptions=unavailable,
+                answer=Answer("structured"),
+                stage="executed" if self._prepared is not None else "consumed",
+                family="cyclic_evidence",
+                details={key: value for key, value in metadata.items() if key != "columns"},
+                operations=(
+                    "inspect",
+                    "columns",
+                    "to_dict",
+                    "export",
+                    "joint_law",
+                    "decide_means",
+                    "decide_enclosures",
+                ),
+            ),
+        )
+
+    def __repr__(self) -> str:
+        return (
+            f"CyclicEvidence(identity={self.identity!r}, columns={self._metadata['column_count']})"
+        )
+
+    def inspect(self):
+        """Bounded native source and projection metadata, without samples or columns."""
+        return self._inspection
+
+    @_with_execution
+    def to_dict(self, *, execution: Execution | None = None) -> dict[str, Any]:
+        """Explicitly convert the complete native projection and original failed slots."""
         return dict(json.loads(self._handle.report()))
+
+    def columns(self, *, offset: int = 0, limit: int = 64):
+        """Explicitly page original quantity and uncertainty-port metadata."""
+        from ._cyclic_read_models import native_page
+
+        return native_page(self._handle.metadata_json, "columns", offset, limit)
 
     @property
     def quantities(self) -> tuple[Any, ...]:
         """Typed scientific coordinates issued by the native evidence projection."""
         from .joint_distribution import ScientificQuantity
 
-        return tuple(
-            ScientificQuantity.from_wire(column["quantity"]) for column in self.report["columns"]
-        )
+        quantities: list[ScientificQuantity] = []
+        page = self.columns()
+        while page is not None:
+            quantities.extend(
+                ScientificQuantity.from_wire(column["quantity"]) for column in page.items
+            )
+            page = page.next()
+        return tuple(quantities)
 
     @property
     def identity(self) -> str:
         """Source/schema/world/time/selector identity for independent consumption."""
-        return str(self.report["identity"])
+        return str(self._handle.identity())
+
+    @property
+    def provenance(self):
+        return freeze(
+            {
+                key: self._metadata[key]
+                for key in ("identity", "source_identity", "scope", "source_bridge")
+                if key in self._metadata
+            }
+        )
 
     @artifact_export
     @_with_execution
@@ -2448,7 +2534,8 @@ def consume_evidence(
     return CyclicEvidence(
         _native.consume_cyclic_evidence(
             artifact, expected_identity, max_bytes=max_bytes, cancel=cancel
-        )
+        ),
+        execution=execution,
     )
 
 
@@ -2567,8 +2654,10 @@ __all__ = [
     "CyclicEvidence",
     "CyclicGraph",
     "CyclicInterventions",
+    "CyclicPage",
     "CyclicRefusal",
     "CyclicResult",
+    "RecoveredCyclicLaw",
     "DynamicBootstrap",
     "DynamicMethod",
     "DynamicPosterior",

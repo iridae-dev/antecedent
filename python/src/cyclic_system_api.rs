@@ -1,18 +1,13 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Nonlinear cyclic systems: bounded Rust execution, fitting and artifact replay.
 use antecedent_core::ExecutionContext;
-use antecedent_core::execution_attempt::{PhysicalEvent, record_physical};
-use antecedent_io::cyclic_system_artifact::{
-    CyclicExecutionRequest, MAX_CYCLIC_ARTIFACT_BYTES, consume_cyclic_artifact,
-};
-use numpy::{PyArray1, PyReadonlyArray2};
+use antecedent_io::cyclic_system_artifact::{CyclicExecutionRequest, MAX_CYCLIC_ARTIFACT_BYTES};
+use numpy::PyReadonlyArray2;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
 type NativeFacts = Py<crate::inspect_receipt_api::PyExecutionFacts>;
 type CyclicExecution = (String, Py<PyBytes>, NativeFacts);
-type BufferedCyclicExecution =
-    (String, Py<PyBytes>, Py<PyArray1<f64>>, Py<PyArray1<f64>>, usize, NativeFacts);
 
 fn execution_context(
     max_bytes: Option<u64>,
@@ -129,20 +124,27 @@ fn consume_cyclic_system(
     expected_identity: &str,
     max_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
-) -> PyResult<(String, NativeFacts)> {
+) -> PyResult<(PyCyclicExecution, NativeFacts)> {
     let ctx = execution_context(max_bytes, cancel);
     let attempt = py.detach(|| {
         antecedent_core::execution_attempt::observe_with_context(&ctx, || {
-            consume_cyclic_artifact(bytes, expected_identity, &ctx)
+            antecedent::analysis::cyclic_evidence::ConsumedCyclicSystem::consume(
+                bytes,
+                expected_identity,
+                &ctx,
+            )
+            .map(CyclicExecutionOwner::ConsumedSystem)
         })
     });
-    let (report, facts) = crate::inspect_receipt_api::finish_observed(
+    let (owner, facts) = crate::inspect_receipt_api::finish_observed(
         py,
-        attempt.result.map_err(|e| replay_error(e, &ctx)),
+        attempt.result.map_err(|error| replay_error(error, &ctx)),
         attempt.facts,
     )?;
     Ok((
-        serde_json::to_string(&report).map_err(|e| crate::serialization_err(e.to_string()))?,
+        PyCyclicExecution {
+            owner: std::sync::Arc::new(CyclicExecutionState::new(owner, facts.clone_ref(py))),
+        },
         facts,
     ))
 }
@@ -190,6 +192,8 @@ fn cyclic_parameter_posterior(
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyCyclicEvidence>()?;
+    m.add_class::<PyCyclicExecution>()?;
+    m.add_class::<PyCyclicNumericView>()?;
     m.add_function(wrap_pyfunction!(consume_cyclic_evidence, m)?)?;
     m.add_function(wrap_pyfunction!(execute_local_cyclic, m)?)?;
     m.add_class::<PyPreparedCyclicSystem>()?;
@@ -329,26 +333,878 @@ fn consume_cyclic_family(
     expected_identity: &str,
     max_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
-) -> PyResult<(String, NativeFacts)> {
+) -> PyResult<(PyCyclicExecution, NativeFacts)> {
     let ctx = execution_context(max_bytes, cancel);
     let attempt = py.detach(|| {
         antecedent_core::execution_attempt::observe_with_context(&ctx, || {
-            antecedent_io::cyclic_family_artifact::consume_cyclic_family(
+            antecedent::analysis::cyclic_evidence::ConsumedCyclicFamily::consume(
                 bytes,
                 expected_identity,
                 &ctx,
             )
         })
     });
-    let (report, facts) = crate::inspect_receipt_api::finish_observed(
+    let (owner, facts) = crate::inspect_receipt_api::finish_observed(
         py,
-        attempt.result.map_err(|e| replay_error(e, &ctx)),
+        attempt.result.map_err(|error| replay_error(error, &ctx)),
         attempt.facts,
     )?;
     Ok((
-        serde_json::to_string(&report).map_err(|e| crate::serialization_err(e.to_string()))?,
+        PyCyclicExecution {
+            owner: std::sync::Arc::new(CyclicExecutionState::new(
+                CyclicExecutionOwner::ConsumedFamily(owner),
+                facts.clone_ref(py),
+            )),
+        },
         facts,
     ))
+}
+
+enum CyclicExecutionOwner {
+    System(antecedent::analysis::cyclic::ExecutedCyclicSystem),
+    Family(antecedent::analysis::cyclic::ExecutedCyclicFamily),
+    ConsumedSystem(antecedent::analysis::cyclic_evidence::ConsumedCyclicSystem),
+    ConsumedFamily(antecedent::analysis::cyclic_evidence::ConsumedCyclicFamily),
+}
+
+struct CyclicExecutionState {
+    source: CyclicExecutionOwner,
+    _facts: NativeFacts,
+    recovery_summary: Option<serde_json::Value>,
+}
+
+impl CyclicExecutionState {
+    fn new(source: CyclicExecutionOwner, facts: NativeFacts) -> Self {
+        let recovery_summary = source.recovery_summary();
+        Self { source, _facts: facts, recovery_summary }
+    }
+}
+
+impl std::ops::Deref for CyclicExecutionState {
+    type Target = CyclicExecutionOwner;
+    fn deref(&self) -> &Self::Target {
+        &self.source
+    }
+}
+
+impl CyclicExecutionOwner {
+    fn system(&self) -> Option<&antecedent_io::cyclic_system_artifact::CyclicExecutionReport> {
+        use antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer as A;
+        match self {
+            Self::System(owner) => Some(owner.report()),
+            Self::ConsumedSystem(owner) => Some(owner.report()),
+            Self::Family(owner) => match &owner.report().answer {
+                A::System(report) => Some(report),
+                _ => None,
+            },
+            Self::ConsumedFamily(owner) => match &owner.report().answer {
+                A::System(report) => Some(report),
+                _ => None,
+            },
+        }
+    }
+
+    fn family(&self) -> Option<&antecedent_io::cyclic_family_artifact::CyclicFamilyReport> {
+        match self {
+            Self::Family(owner) => Some(owner.report()),
+            Self::ConsumedFamily(owner) => Some(owner.report()),
+            _ => None,
+        }
+    }
+
+    fn family_request(
+        &self,
+    ) -> Option<&antecedent_io::cyclic_family_artifact::CyclicFamilyRequest> {
+        match self {
+            Self::Family(owner) => Some(owner.request()),
+            Self::ConsumedFamily(owner) => Some(owner.request()),
+            _ => None,
+        }
+    }
+
+    fn source_identity(&self) -> &str {
+        use antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer as A;
+        match self.family().map(|report| &report.answer) {
+            Some(A::GaussianFunctional(report)) => &report.source_identity,
+            Some(A::Functional(report)) => &report.source_identity,
+            _ => self.identity(),
+        }
+    }
+
+    fn recovered_origin(
+        &self,
+    ) -> Option<&antecedent_io::cyclic_family_artifact::RecoveredDrawOriginWire> {
+        use antecedent_io::cyclic_family_artifact::{
+            CyclicFamilyAnswer as A, CyclicFamilyRequest as R,
+        };
+        match self.family().map(|report| &report.answer) {
+            Some(A::ExperimentalRecovery(report)) => Some(&report.law.origin),
+            Some(A::RecoveredLinear(_)) => match self.family_request() {
+                Some(R::RecoveredLinear { uncertainty, .. }) => Some(uncertainty),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    fn identity(&self) -> &str {
+        match self {
+            Self::System(owner) => owner.identity(),
+            Self::Family(owner) => owner.identity(),
+            Self::ConsumedSystem(owner) => owner.identity(),
+            Self::ConsumedFamily(owner) => owner.identity(),
+        }
+    }
+
+    fn family_name(&self) -> &'static str {
+        self.family_request().map_or("system", |request| request.family_name())
+    }
+
+    fn scope(&self) -> &'static str {
+        use antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer as A;
+        match self.family().map(|report| &report.answer) {
+            Some(A::GaussianFunctional(_)) => {
+                "theorem_identified_conditional_on_declared_Gaussian_observational_density"
+            }
+            Some(A::Functional(_)) => {
+                "theorem_identified_conditional_on_declared_observational_law"
+            }
+            Some(A::Graph(_)) => "theorem_scoped_graphical_evidence",
+            Some(A::ExperimentalRecovery(_)) => {
+                "recovered_from_declared_clamp_experiments_conditional_on_the_recipe"
+            }
+            _ => "specified_or_fitted_model_conditional",
+        }
+    }
+
+    fn world_count(&self) -> usize {
+        use antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer as A;
+        if let Some(system) = self.system() {
+            return system.worlds.len();
+        }
+        match self.family().map(|report| &report.answer) {
+            Some(A::Worlds(worlds)) => worlds.len(),
+            Some(A::RecoveredLinear(report)) => report.worlds.len(),
+            Some(A::ExperimentalRecovery(report)) => report.worlds.len(),
+            Some(A::EquilibriumActions(worlds)) => worlds.len(),
+            Some(A::ParameterPosterior { worlds, .. }) => worlds.len(),
+            Some(A::FrequentistBootstrap { worlds, .. }) => worlds.len(),
+            Some(
+                A::JointCounterfactual { worlds, .. } | A::PartialCounterfactual { worlds, .. },
+            ) => worlds.len(),
+            Some(A::OuMechanisms { laws, .. }) => laws.len(),
+            Some(A::Ode(_) | A::OuStationary(_) | A::OuTransient(_)) => 1,
+            _ => 0,
+        }
+    }
+
+    fn world_id(&self, position: usize) -> PyResult<u32> {
+        use antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer as A;
+        match self.family().map(|report| &report.answer) {
+            Some(A::Worlds(worlds)) => worlds.get(position).map(|world| world.world),
+            Some(A::ExperimentalRecovery(report)) => {
+                report.worlds.get(position).map(|world| world.world)
+            }
+            _ => u32::try_from(position).ok().filter(|_| position < self.world_count()),
+        }
+        .ok_or_else(|| crate::value_err("cyclic world position out of range"))
+    }
+
+    fn position(&self, world: u32) -> PyResult<usize> {
+        use antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer as A;
+        match self.family().map(|report| &report.answer) {
+            Some(A::Worlds(worlds)) => worlds.iter().position(|item| item.world == world),
+            Some(A::ExperimentalRecovery(report)) => {
+                report.worlds.iter().position(|item| item.world == world)
+            }
+            _ => usize::try_from(world).ok().filter(|position| *position < self.world_count()),
+        }
+        .ok_or_else(|| crate::value_err("unknown cyclic world id"))
+    }
+
+    fn values(&self, coordinate: &CyclicValueCoordinate) -> PyResult<Option<&[f64]>> {
+        use antecedent_io::cyclic_family_artifact::{
+            CyclicFamilyAnswer as A, CyclicWorldOutcomeAnswer as W,
+        };
+        let position = self.position(coordinate.world)?;
+        let row = coordinate.row;
+        let draw = coordinate.draw;
+        let field = coordinate.field.as_str();
+        let invalid = || crate::value_err("cyclic numeric coordinate/field out of range");
+        if !matches!(
+            field,
+            "values"
+                | "mean"
+                | "covariance"
+                | "disturbance_mean"
+                | "disturbance_covariance"
+                | "times"
+        ) {
+            return Err(invalid());
+        }
+        if let Some(system) = self.system() {
+            if field != "values" || draw != 0 {
+                return Err(invalid());
+            }
+            let solution = if coordinate.counterfactual {
+                if row != 0 {
+                    return Err(invalid());
+                }
+                system.counterfactuals.as_ref().and_then(|worlds| worlds.get(position))
+            } else {
+                system.worlds.get(position).and_then(|rows| rows.get(row))
+            }
+            .ok_or_else(invalid)?;
+            return Ok(Some(&solution.values));
+        }
+        let report = self.family().ok_or_else(invalid)?;
+        if coordinate.counterfactual && !matches!(&report.answer, A::EquilibriumActions(_)) {
+            return Err(invalid());
+        }
+        match &report.answer {
+            A::Worlds(worlds) if draw == 0 => match &worlds[position].outcome {
+                W::GaussianLaw { mean, covariance, .. } if row == 0 => match field {
+                    "mean" => Ok(Some(mean)),
+                    "covariance" => Ok(Some(covariance)),
+                    _ => Err(invalid()),
+                },
+                W::EquilibriumDraws { outcomes } => {
+                    equilibrium_values(outcomes.get(row).ok_or_else(invalid)?, field)
+                }
+                W::Trajectory { trajectory } => match field {
+                    "values" => Ok(Some(trajectory.states.get(row).ok_or_else(invalid)?)),
+                    "times" if row == 0 => Ok(Some(&trajectory.times)),
+                    _ => Err(invalid()),
+                },
+                W::NoSolution { .. } | W::Withheld => Ok(None),
+                _ => Err(invalid()),
+            },
+            A::EquilibriumActions(worlds) if draw == 0 => {
+                if coordinate.counterfactual {
+                    if row != 0 {
+                        return Err(invalid());
+                    }
+                    match &worlds[position].counterfactual {
+                        Some(value) => equilibrium_values(value, field),
+                        None => Err(invalid()),
+                    }
+                } else {
+                    equilibrium_values(worlds[position].rows.get(row).ok_or_else(invalid)?, field)
+                }
+            }
+            A::ParameterPosterior { worlds, .. } => equilibrium_values(
+                worlds[position].get(draw).and_then(|rows| rows.get(row)).ok_or_else(invalid)?,
+                field,
+            ),
+            A::FrequentistBootstrap { worlds, .. } => {
+                match worlds[position].get(draw).ok_or_else(invalid)? {
+                    Some(rows) => equilibrium_values(rows.get(row).ok_or_else(invalid)?, field),
+                    None => Ok(None),
+                }
+            }
+            A::JointCounterfactual { worlds, .. } | A::PartialCounterfactual { worlds, .. }
+                if row == 0 =>
+            {
+                equilibrium_values(worlds[position].get(draw).ok_or_else(invalid)?, field)
+            }
+            A::RecoveredLinear(report) => {
+                recovered_values(&report.worlds[position], draw, row, field)
+            }
+            A::ExperimentalRecovery(report) => {
+                recovered_values(&report.worlds[position].answer, draw, row, field)
+            }
+            A::Ode(trajectory) if draw == 0 => match field {
+                "values" => Ok(Some(trajectory.states.get(row).ok_or_else(invalid)?)),
+                "times" if row == 0 => Ok(Some(&trajectory.times)),
+                _ => Err(invalid()),
+            },
+            A::OuMechanisms { laws, .. } if draw == 0 && row == 0 => match &laws[position] {
+                antecedent_estimate::ou_mechanisms::OuMechanismOutcome::Stationary(law) => {
+                    match field {
+                        "mean" => Ok(Some(&law.mean)),
+                        "covariance" => Ok(Some(&law.covariance)),
+                        _ => Err(invalid()),
+                    }
+                }
+                antecedent_estimate::ou_mechanisms::OuMechanismOutcome::Failed { .. } => Ok(None),
+            },
+            A::OuStationary(covariance) if draw == 0 && row == 0 && field == "covariance" => {
+                Ok(Some(covariance))
+            }
+            A::OuTransient(moments) if draw == 0 => match field {
+                "mean" => Ok(Some(moments.means.get(row).ok_or_else(invalid)?)),
+                "covariance" => Ok(Some(moments.covariances.get(row).ok_or_else(invalid)?)),
+                "times" if row == 0 => Ok(Some(&moments.times)),
+                _ => Err(invalid()),
+            },
+            _ => Err(invalid()),
+        }
+    }
+}
+
+fn equilibrium_values<'a>(
+    outcome: &'a antecedent_model::nonlinear_equilibrium::EquilibriumOutcome,
+    field: &str,
+) -> PyResult<Option<&'a [f64]>> {
+    use antecedent_model::nonlinear_equilibrium::EquilibriumOutcome as E;
+    match outcome {
+        E::Solved(value) if field == "values" => Ok(Some(&value.values)),
+        E::Failed(_) => Ok(None),
+        _ => Err(crate::value_err("unknown equilibrium numeric field")),
+    }
+}
+
+fn recovered_values<'a>(
+    world: &'a antecedent_io::cyclic_family_artifact::RecoveredWorldAnswer,
+    draw: usize,
+    row: usize,
+    field: &str,
+) -> PyResult<Option<&'a [f64]>> {
+    use antecedent_io::cyclic_family_artifact::RecoveredDrawAnswer as D;
+    if row != 0 {
+        return Err(crate::value_err("recovered world has no noise-row axis"));
+    }
+    let slot = world.draws.get(draw).ok_or_else(|| crate::value_err("cyclic draw out of range"))?;
+    match &slot.outcome {
+        D::Equilibrium { mean, covariance, disturbance_mean, disturbance_covariance, .. } => {
+            match field {
+                "mean" => Ok(Some(mean)),
+                "covariance" => Ok(Some(covariance)),
+                "disturbance_mean" => Ok(Some(disturbance_mean)),
+                "disturbance_covariance" => Ok(Some(disturbance_covariance)),
+                _ => Err(crate::value_err("unknown recovered world numeric field")),
+            }
+        }
+        D::Inadmissible { .. } | D::NotCertified { .. } => Ok(None),
+    }
+}
+
+struct CyclicValueCoordinate {
+    world: u32,
+    row: usize,
+    draw: usize,
+    counterfactual: bool,
+    field: String,
+}
+
+#[pyclass(name = "_CyclicNumericView", frozen)]
+pub(crate) struct PyCyclicNumericView {
+    owner: std::sync::Arc<CyclicExecutionState>,
+    coordinate: CyclicValueCoordinate,
+}
+
+impl PyCyclicNumericView {
+    pub(crate) fn values(&self) -> PyResult<&[f64]> {
+        self.owner
+            .values(&self.coordinate)?
+            .ok_or_else(|| crate::value_err("cyclic failed slot has no numeric values"))
+    }
+}
+
+#[pymethods]
+impl PyCyclicNumericView {
+    fn __len__(&self) -> PyResult<usize> {
+        Ok(self.values()?.len())
+    }
+}
+
+#[pyclass(name = "_CyclicExecution", frozen)]
+struct PyCyclicExecution {
+    owner: std::sync::Arc<CyclicExecutionState>,
+}
+
+#[pymethods]
+impl PyCyclicExecution {
+    fn identity(&self) -> &str {
+        self.owner.identity()
+    }
+
+    fn metadata_json(&self) -> PyResult<String> {
+        let system = self.owner.system();
+        let retained = match self.owner.family() {
+            Some(report) => report.retained_admitted_bytes(),
+            None => system.map_or(0, |report| report.retained_admitted_bytes()),
+        };
+        Ok(serde_json::json!({
+            "identity":self.owner.identity(), "family":self.owner.family_name(),
+            "claim":system.map(|report|report.claim.as_str()).unwrap_or(self.owner.scope()),
+            "calibration":system.map(|report|report.calibration.as_str()).unwrap_or("unmeasured"),
+            "source_identity":self.owner.source_identity(), "scope":self.owner.scope(),
+            "draw_origin":self.owner.recovered_origin().map(origin_metadata),
+            "law_meaning":self.owner.recovered_origin().and_then(|origin|origin.law_meaning()),
+            "world_count":self.owner.world_count(),
+            "contract":self.owner.contract_summary(),
+            "recovery":&self.owner.recovery_summary,
+            "diagnostics":{"retained_admitted_bytes":retained,"graph":self.owner.graph_metadata()},
+            "loaded":matches!(&self.owner.source,CyclicExecutionOwner::ConsumedSystem(_)|CyclicExecutionOwner::ConsumedFamily(_)),
+        }).to_string())
+    }
+
+    /// Retained unit ids, preserving the original source namespace (including gaps).
+    fn recovery_nodes(&self) -> PyResult<Vec<u32>> {
+        Ok(self
+            .owner
+            .recovery()
+            .ok_or_else(|| crate::value_err("expected an experimental recovered law"))?
+            .law
+            .nodes
+            .clone())
+    }
+
+    #[pyo3(signature=(worlds_json,outcome,*,max_bytes=None,cancel=None))]
+    fn prepare_recovered_worlds(
+        &self,
+        py: Python<'_>,
+        worlds_json: &str,
+        outcome: u32,
+        max_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<PyPreparedCyclicFamily> {
+        let ctx = execution_context(max_bytes, cancel);
+        let _input = input_admission(worlds_json, &ctx)?;
+        let worlds =
+            serde_json::from_str(worlds_json).map_err(|error| operation_error(error, &ctx))?;
+        let inner = match &self.owner.source {
+            CyclicExecutionOwner::Family(owner) => {
+                py.detach(|| owner.prepare_recovered_worlds(worlds, outcome, &ctx))
+            }
+            CyclicExecutionOwner::ConsumedFamily(owner) => {
+                py.detach(|| owner.prepare_recovered_worlds(worlds, outcome, &ctx))
+            }
+            _ => return Err(crate::value_err("expected an experimental recovered law")),
+        }
+        .map_err(|error| operation_error(error, &ctx))?;
+        Ok(PyPreparedCyclicFamily { inner })
+    }
+
+    fn recovery_law_report_json(&self) -> PyResult<String> {
+        let law = &self
+            .owner
+            .recovery()
+            .ok_or_else(|| crate::value_err("expected an experimental recovery result"))?
+            .law;
+        serde_json::to_string(law.as_ref())
+            .map_err(|error| crate::serialization_err(error.to_string()))
+    }
+
+    fn recovery_summary_json(&self) -> String {
+        self.owner
+            .recovery_summary
+            .as_ref()
+            .map_or_else(|| "null".into(), serde_json::Value::to_string)
+    }
+
+    #[pyo3(signature=(*,offset=0,limit=64))]
+    fn recovery_draw_status_json(&self, offset: usize, limit: usize) -> PyResult<String> {
+        if limit > 256 {
+            return Err(crate::value_err("cyclic recovery page limit exceeds256"));
+        }
+        let law = &self
+            .owner
+            .recovery()
+            .ok_or_else(|| crate::value_err("expected an experimental recovery result"))?
+            .law;
+        let end = offset.saturating_add(limit).min(law.draw_status.len());
+        let page = law.draw_status.get(offset..end).unwrap_or(&[]);
+        Ok(serde_json::json!({"count":law.draw_status.len(),"offset":offset,"draw_status":page,"next_offset":(end<law.draw_status.len()).then_some(end)}).to_string())
+    }
+
+    #[pyo3(signature=(draw,*,offset=0,limit=64))]
+    fn recovery_unresolved_json(
+        &self,
+        draw: usize,
+        offset: usize,
+        limit: usize,
+    ) -> PyResult<String> {
+        if limit > 256 {
+            return Err(crate::value_err("cyclic recovery page limit exceeds256"));
+        }
+        let law = &self
+            .owner
+            .recovery()
+            .ok_or_else(|| crate::value_err("expected an experimental recovery result"))?
+            .law;
+        let directions = &law
+            .draws
+            .get(draw)
+            .ok_or_else(|| crate::value_err("cyclic recovery draw out of range"))?
+            .unresolved;
+        let end = offset.saturating_add(limit).min(directions.len());
+        let page = directions.get(offset..end).unwrap_or(&[]);
+        Ok(serde_json::json!({"draw":draw,"count":directions.len(),"offset":offset,"unresolved_directions":page,"next_offset":(end<directions.len()).then_some(end)}).to_string())
+    }
+
+    fn contract_metadata_json(&self) -> String {
+        self.owner.contract_summary().to_string()
+    }
+
+    #[pyo3(signature=(*,offset=0,limit=64))]
+    fn assumptions_json(&self, offset: usize, limit: usize) -> PyResult<String> {
+        use antecedent_io::contract_section::cyclic::CyclicTargetWire as T;
+        if limit > 256 {
+            return Err(crate::value_err("cyclic assumption page limit exceeds256"));
+        }
+        let Some(contract) = self.owner.contract_metadata() else {
+            return Ok(serde_json::json!({"available":false,"reason":"not_present_in_source_artifact","assumptions":[],"count":0}).to_string());
+        };
+        let count = assumption_count(&contract.target);
+        let mut page = Vec::new();
+        let mut position = 0;
+        let mut append =
+            |target_index: usize,
+             target: &antecedent_io::scientific_target_wire::ScientificTargetWire| {
+                for record in target.assumptions() {
+                    if position >= offset && page.len() < limit {
+                        page.push(serde_json::json!({"target_index":target_index,"record":record}));
+                    }
+                    position += 1;
+                }
+            };
+        match &contract.target {
+            T::Worlds { target } => append(0, target),
+            T::JointWorlds { targets } => {
+                for (index, target) in targets.iter().enumerate() {
+                    append(index, target);
+                }
+            }
+            T::Functional { .. } => {}
+        }
+        let end = offset.saturating_add(page.len());
+        Ok(serde_json::json!({"available":true,"count":count,"offset":offset,"assumptions":page,"next_offset":(end<count).then_some(end)}).to_string())
+    }
+
+    fn report_json(&self) -> PyResult<String> {
+        if let Some(report) = self.owner.family() {
+            serde_json::to_string(report)
+        } else {
+            let report = self
+                .owner
+                .system()
+                .ok_or_else(|| crate::value_err("missing cyclic execution report"))?;
+            serde_json::to_string(report)
+        }
+        .map_err(|error| crate::serialization_err(error.to_string()))
+    }
+
+    #[pyo3(signature=(*,offset=0,limit=64))]
+    fn world_ids(&self, offset: usize, limit: usize) -> PyResult<Vec<u32>> {
+        if limit > 256 {
+            return Err(crate::value_err("cyclic metadata page limit exceeds256"));
+        }
+        (offset..offset.saturating_add(limit).min(self.owner.world_count()))
+            .map(|position| self.owner.world_id(position))
+            .collect()
+    }
+
+    fn variable_names(&self) -> Option<Vec<String>> {
+        use antecedent_io::cyclic_family_artifact::CyclicFamilyRequest as R;
+        let request = match &self.owner.source {
+            CyclicExecutionOwner::System(owner) => Some(owner.prepared().request()),
+            CyclicExecutionOwner::ConsumedSystem(owner) => Some(owner.request()),
+            _ => match self.owner.family_request() {
+                Some(R::System { request }) => Some(request),
+                _ => None,
+            },
+        }?;
+        Some(request.model.equations.iter().map(|equation| equation.id.clone()).collect())
+    }
+
+    fn require_intervention_worlds(&self) -> PyResult<()> {
+        if self.world_view_kind().is_some() {
+            return Ok(());
+        }
+        Err(crate::value_err(format!(
+            "cyclic artifact invalid: family `{}` has no intervention worlds; next attempt: declare the worlds as typed interventions with `linear_worlds`, `equilibrium_worlds`, `ode_worlds`, `recovered_linear` or `experimental_recovery`",
+            self.owner.family_name(),
+        )))
+    }
+
+    fn world_view_kind(&self) -> Option<&'static str> {
+        use antecedent_io::cyclic_family_artifact::{
+            CyclicFamilyAnswer as A, CyclicFamilyRequest as R,
+        };
+        match self.owner.family().map(|report| &report.answer) {
+            Some(A::Worlds(_)) => Some("specified"),
+            Some(A::ExperimentalRecovery(_)) => Some("recovered"),
+            Some(A::RecoveredLinear(_))
+                if matches!(self.owner.family_request(), Some(R::RecoveredLinear { .. })) =>
+            {
+                Some("recovered")
+            }
+            _ => None,
+        }
+    }
+
+    fn world_metadata_json(&self, world: u32) -> PyResult<String> {
+        self.owner.world_metadata(world).map(|value| value.to_string())
+    }
+
+    fn world_report_json(&self, world: u32) -> PyResult<String> {
+        use antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer as A;
+        let position = self.owner.position(world)?;
+        let value = match self.owner.family().map(|report| &report.answer) {
+            Some(A::Worlds(worlds)) => {
+                serde_json::json!({"source":"specified","answer":worlds[position]})
+            }
+            Some(A::RecoveredLinear(report)) => {
+                serde_json::json!({"source":"recovered","world":world,"origin":self.owner.recovered_origin(),"answer":report.worlds[position]})
+            }
+            Some(A::ExperimentalRecovery(report)) => {
+                serde_json::json!({"source":"recovered","world":world,"origin":report.law.origin,"answer":report.worlds[position].answer})
+            }
+            _ => {
+                let system = self.owner.system().ok_or_else(|| {
+                    crate::value_err("this cyclic family has no typed intervention-world report")
+                })?;
+                serde_json::json!({"world":world,"rows":system.worlds[position],"counterfactual":system.counterfactuals.as_ref().and_then(|rows|rows.get(position))})
+            }
+        };
+        Ok(value.to_string())
+    }
+
+    #[pyo3(signature=(world,*,row=0,draw=0,counterfactual=false))]
+    fn world_slot_metadata_json(
+        &self,
+        world: u32,
+        row: usize,
+        draw: usize,
+        counterfactual: bool,
+    ) -> PyResult<String> {
+        self.owner.slot_metadata(world, row, draw, counterfactual).map(|value| value.to_string())
+    }
+
+    #[pyo3(signature=(world,*,row=0,draw=0,counterfactual=false,field="values"))]
+    fn world_values(
+        &self,
+        world: u32,
+        row: usize,
+        draw: usize,
+        counterfactual: bool,
+        field: &str,
+    ) -> PyResult<Option<PyCyclicNumericView>> {
+        let coordinate =
+            CyclicValueCoordinate { world, row, draw, counterfactual, field: field.into() };
+        if self.owner.values(&coordinate)?.is_none() {
+            return Ok(None);
+        }
+        Ok(Some(PyCyclicNumericView { owner: std::sync::Arc::clone(&self.owner), coordinate }))
+    }
+
+    #[pyo3(signature=(*,max_bytes=None,cancel=None))]
+    fn export(
+        &self,
+        py: Python<'_>,
+        max_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<Py<PyBytes>> {
+        let ctx = execution_context(max_bytes, cancel);
+        if ctx.cancellation.is_cancelled() {
+            return Err(crate::CausalCancelledError::new_err("cancelled"));
+        }
+        match &self.owner.source {
+            CyclicExecutionOwner::System(owner) => {
+                let bytes = py
+                    .detach(|| owner.export("cyclic_equilibrium", &ctx))
+                    .map_err(|error| operation_error(error, &ctx))?;
+                Ok(PyBytes::new(py, &bytes).unbind())
+            }
+            CyclicExecutionOwner::Family(owner) => {
+                let bytes = py
+                    .detach(|| owner.export(&ctx))
+                    .map_err(|error| operation_error(error, &ctx))?;
+                Ok(PyBytes::new(py, &bytes).unbind())
+            }
+            CyclicExecutionOwner::ConsumedSystem(owner) => {
+                let bytes = owner.artifact();
+                let _output = ctx
+                    .acquire_admission(0, bytes.len() as u64)
+                    .map_err(|error| operation_error(error, &ctx))?;
+                Ok(PyBytes::new(py, bytes).unbind())
+            }
+            CyclicExecutionOwner::ConsumedFamily(owner) => {
+                let bytes = owner.artifact();
+                let _output = ctx
+                    .acquire_admission(0, bytes.len() as u64)
+                    .map_err(|error| operation_error(error, &ctx))?;
+                Ok(PyBytes::new(py, bytes).unbind())
+            }
+        }
+    }
+
+    #[pyo3(signature=(schema_json,selectors_json,*,max_bytes=None,cancel=None))]
+    fn evidence(
+        &self,
+        py: Python<'_>,
+        schema_json: &str,
+        selectors_json: &str,
+        max_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<PyCyclicEvidence> {
+        let ctx = execution_context(max_bytes, cancel);
+        let _schema = input_admission(schema_json, &ctx)?;
+        let _selectors = input_admission(selectors_json, &ctx)?;
+        let schema =
+            serde_json::from_str(schema_json).map_err(|error| operation_error(error, &ctx))?;
+        let selectors =
+            serde_json::from_str(selectors_json).map_err(|error| operation_error(error, &ctx))?;
+        let inner = match &self.owner.source {
+            CyclicExecutionOwner::Family(owner) => {
+                py.detach(|| owner.evidence(schema, selectors, &ctx))
+            }
+            CyclicExecutionOwner::ConsumedFamily(owner) => {
+                py.detach(|| owner.evidence(schema, selectors, &ctx))
+            }
+            CyclicExecutionOwner::System(owner) => {
+                py.detach(|| owner.evidence(schema, selectors, &ctx))
+            }
+            CyclicExecutionOwner::ConsumedSystem(owner) => {
+                py.detach(|| owner.evidence(schema, selectors, &ctx))
+            }
+        }
+        .map_err(|error| operation_error(error, &ctx))?;
+        Ok(PyCyclicEvidence { inner })
+    }
+}
+
+impl CyclicExecutionOwner {
+    fn world_metadata(&self, world: u32) -> PyResult<serde_json::Value> {
+        use antecedent_io::cyclic_family_artifact::{
+            CyclicFamilyAnswer as A, CyclicWorldOutcomeAnswer as W,
+        };
+        let position = self.position(world)?;
+        if let Some(system) = self.system() {
+            return Ok(
+                serde_json::json!({"world":world,"family":"system","status":"equilibrium_draws","row_count":system.worlds[position].len(),"counterfactual":system.counterfactuals.is_some()}),
+            );
+        }
+        let report = self.family().ok_or_else(|| crate::value_err("expected cyclic family"))?;
+        match &report.answer {
+            A::Worlds(worlds) => {
+                let value = &worlds[position];
+                let outcome = match &value.outcome {
+                    W::GaussianLaw { mean, .. } => {
+                        serde_json::json!({"status":"gaussian_law","dimension":mean.len()})
+                    }
+                    W::EquilibriumDraws { outcomes } => {
+                        serde_json::json!({"status":"equilibrium_draws","row_count":outcomes.len()})
+                    }
+                    W::Trajectory { trajectory } => {
+                        serde_json::json!({"status":"trajectory","row_count":trajectory.states.len(),"dimension":trajectory.states.first().map(Vec::len)})
+                    }
+                    W::NoSolution { cause, next_attempt } => {
+                        serde_json::json!({"status":"no_solution","cause":cause,"next_attempt":next_attempt})
+                    }
+                    W::Withheld => serde_json::json!({"status":"withheld"}),
+                };
+                Ok(
+                    serde_json::json!({"source":"specified","world":value.world,"family":value.family,"variables":value.variables,"actions":value.actions,"outcome":outcome,"certificate":value.certificate,"solved_by":value.solved_by,"failed_mass":value.failed_mass,"withheld_mass":value.withheld_mass,"physical_stability":value.physical_stability}),
+                )
+            }
+            A::RecoveredLinear(report) => {
+                Ok(recovered_metadata(world, &report.worlds[position], self.recovered_origin()))
+            }
+            A::ExperimentalRecovery(report) => Ok(recovered_metadata(
+                world,
+                &report.worlds[position].answer,
+                Some(&report.law.origin),
+            )),
+            A::ParameterPosterior { worlds, .. } => Ok(
+                serde_json::json!({"world":world,"family":self.family_name(),"draw_count":worlds[position].len(),"row_count":worlds[position].first().map(Vec::len),"law_meaning":"parameter_posterior"}),
+            ),
+            A::FrequentistBootstrap { worlds, .. } => Ok(
+                serde_json::json!({"world":world,"family":self.family_name(),"draw_count":worlds[position].len(),"law_meaning":"sampling_law"}),
+            ),
+            A::JointCounterfactual { worlds, .. } => Ok(
+                serde_json::json!({"world":world,"family":self.family_name(),"draw_count":worlds[position].len(),"law_meaning":"joint_parameter_factual_posterior"}),
+            ),
+            A::PartialCounterfactual { worlds, .. } => Ok(
+                serde_json::json!({"world":world,"family":self.family_name(),"draw_count":worlds[position].len(),"law_meaning":"factual_abduction_posterior"}),
+            ),
+            A::EquilibriumActions(worlds) => Ok(
+                serde_json::json!({"world":world,"family":self.family_name(),"row_count":worlds[position].rows.len(),"counterfactual":worlds[position].counterfactual.is_some()}),
+            ),
+            A::Ode(trajectory) => Ok(
+                serde_json::json!({"world":world,"family":"ode","status":"trajectory","row_count":trajectory.states.len(),"accepted_steps":trajectory.accepted_steps,"rejected_steps":trajectory.rejected_steps}),
+            ),
+            A::OuTransient(moments) => Ok(
+                serde_json::json!({"world":world,"family":"ou_transient","row_count":moments.times.len()}),
+            ),
+            A::OuStationary(covariance) => Ok(
+                serde_json::json!({"world":world,"family":"ou_stationary","covariance_entries":covariance.len()}),
+            ),
+            A::OuMechanisms { laws, .. } => match &laws[position] {
+                antecedent_estimate::ou_mechanisms::OuMechanismOutcome::Stationary(law) => Ok(
+                    serde_json::json!({"world":world,"family":"ou_mechanisms","status":"gaussian_law","dimension":law.mean.len()}),
+                ),
+                antecedent_estimate::ou_mechanisms::OuMechanismOutcome::Failed {
+                    failure,
+                    detail,
+                } => Ok(
+                    serde_json::json!({"world":world,"family":"ou_mechanisms","status":"failed","failure":failure,"detail":detail}),
+                ),
+            },
+            _ => Err(crate::value_err("this cyclic execution has no world view")),
+        }
+    }
+
+    fn graph_metadata(&self) -> serde_json::Value {
+        use antecedent_io::{
+            cyclic_family_artifact::CyclicFamilyAnswer as A, cyclic_graph::CyclicGraphReport as G,
+        };
+        let bounded = |values: &[String]| {
+            values
+                .iter()
+                .take(16)
+                .map(|value| value.chars().take(512).collect::<String>())
+                .collect::<Vec<_>>()
+        };
+        match self.family().map(|report| &report.answer) {
+            Some(A::GaussianFunctional(report)) => {
+                serde_json::json!({"source_identity":report.source_identity,"derivation":bounded(&report.derivation),"derivation_count":report.derivation.len(),"fitted_rows":report.fitted_rows,"covariance_condition_estimate":report.covariance_condition_estimate,"operations":report.operations})
+            }
+            Some(A::Functional(report)) => {
+                serde_json::json!({"source_identity":report.source_identity,"derivation":bounded(&report.derivation),"derivation_count":report.derivation.len()})
+            }
+            Some(A::Graph(G::Identify { status, program, derivation, .. })) => {
+                serde_json::json!({"status":status,"has_functional":program.is_some(),"derivation":bounded(derivation),"derivation_count":derivation.len()})
+            }
+            Some(A::Graph(G::Calculus {
+                status,
+                fully_observational,
+                program,
+                sigma_checks,
+                derivation,
+                ..
+            })) => {
+                serde_json::json!({"status":status,"fully_observational":fully_observational,"has_functional":program.is_some(),"sigma_checks":sigma_checks,"derivation":bounded(derivation),"derivation_count":derivation.len()})
+            }
+            Some(A::Graph(G::Bipartite { separated, assumptions, .. })) => {
+                serde_json::json!({"separated":separated,"assumptions":assumptions.chars().take(2048).collect::<String>()})
+            }
+            Some(A::Graph(G::DomainInvariance { invariant, assumptions })) => {
+                serde_json::json!({"invariant":invariant,"assumptions":assumptions.chars().take(2048).collect::<String>()})
+            }
+            Some(A::Graph(G::Backdoor { valid })) => serde_json::json!({"valid":valid}),
+            Some(A::Graph(G::Discover {
+                conclusions,
+                edges,
+                diagnostics,
+                interpretation,
+                ci_source,
+            })) => {
+                serde_json::json!({"conclusion_count":conclusions.len(),"edge_count":edges.len(),"diagnostics":bounded(diagnostics),"diagnostic_count":diagnostics.len(),"interpretation":interpretation.chars().take(2048).collect::<String>(),"ci_source":ci_source})
+            }
+            _ => serde_json::Value::Null,
+        }
+    }
+}
+
+fn recovered_metadata(
+    world: u32,
+    value: &antecedent_io::cyclic_family_artifact::RecoveredWorldAnswer,
+    origin: Option<&antecedent_io::cyclic_family_artifact::RecoveredDrawOriginWire>,
+) -> serde_json::Value {
+    serde_json::json!({"source":"recovered","world":world,"origin":origin.map(origin_metadata),"draw_count":value.draws.len(),"outcome":value.outcome,"total_mass":value.total_mass,"withheld_mass":value.withheld_mass,"mixture_mean":value.mixture_mean,"mixture_variance":value.mixture_variance,"between_draw_variance":value.between_draw_variance})
 }
 
 #[pyclass(name = "_PreparedCyclicSystem")]
@@ -364,95 +1220,31 @@ impl PyPreparedCyclicSystem {
         py: Python<'_>,
         max_bytes: Option<u64>,
         cancel: Option<crate::PyCancellationToken>,
-    ) -> PyResult<CyclicExecution> {
+    ) -> PyResult<(PyCyclicExecution, NativeFacts)> {
         let ctx = execution_context(max_bytes, cancel);
         let attempt = py.detach(|| {
             antecedent_core::execution_attempt::observe_with_context(&ctx, || {
-                self.inner.export("cyclic_equilibrium", &ctx)
+                self.inner.execute_retained(&ctx)
             })
         });
-        let ((report, bytes), facts) = crate::inspect_receipt_api::finish_observed(
+        let (owner, facts) = crate::inspect_receipt_api::finish_observed(
             py,
             attempt.result.map_err(|e| operation_error(e, &ctx)),
             attempt.facts,
         )?;
         Ok((
-            serde_json::to_string(&report).map_err(|e| crate::serialization_err(e.to_string()))?,
-            PyBytes::new(py, &bytes).unbind(),
+            PyCyclicExecution {
+                owner: std::sync::Arc::new(CyclicExecutionState::new(
+                    CyclicExecutionOwner::System(owner),
+                    facts.clone_ref(py),
+                )),
+            },
             facts,
         ))
     }
     fn request_json(&self) -> PyResult<String> {
         serde_json::to_string(self.inner.request())
             .map_err(|e| crate::serialization_err(e.to_string()))
-    }
-
-    #[pyo3(signature=(*,max_bytes=None,cancel=None))]
-    fn execute_buffers(
-        &self,
-        py: Python<'_>,
-        max_bytes: Option<u64>,
-        cancel: Option<crate::PyCancellationToken>,
-    ) -> PyResult<BufferedCyclicExecution> {
-        let ctx = execution_context(max_bytes, cancel);
-        let attempt = antecedent_core::execution_attempt::observe_with_context(&ctx, || {
-            let (mut report, bytes) = py
-                .detach(|| self.inner.export("cyclic_equilibrium", &ctx))
-                .map_err(|e| operation_error(e, &ctx))?;
-            let width = self.inner.request().model.order();
-            let count = report
-                .worlds
-                .iter()
-                .try_fold(0_usize, |n, world| n.checked_add(world.len()))
-                .and_then(|n| n.checked_mul(width))
-                .ok_or_else(|| crate::value_err("cyclic output size overflow"))?;
-            let counterfactual_count = report
-                .counterfactuals
-                .as_ref()
-                .map_or(0, Vec::len)
-                .checked_mul(width)
-                .ok_or_else(|| crate::value_err("cyclic output size overflow"))?;
-            let transferred = count
-                .checked_add(counterfactual_count)
-                .and_then(|n| n.checked_mul(8))
-                .and_then(|n| u64::try_from(n).ok())
-                .ok_or_else(|| crate::value_err("cyclic output byte overflow"))?;
-            if ctx.cancellation.is_cancelled() {
-                return Err(crate::CausalCancelledError::new_err("cancelled"));
-            }
-            let retention = std::sync::Arc::new(
-                ctx.acquire_admission(0, transferred).map_err(|e| operation_error(e, &ctx))?,
-            );
-            let mut values = Vec::with_capacity(count);
-            for world in &mut report.worlds {
-                for row in world {
-                    values.extend(std::mem::take(&mut row.values));
-                }
-            }
-            let mut counterfactuals = Vec::with_capacity(counterfactual_count);
-            if let Some(worlds) = &mut report.counterfactuals {
-                for row in worlds {
-                    counterfactuals.extend(std::mem::take(&mut row.values));
-                }
-            }
-            record_physical(PhysicalEvent::Copy, 2);
-            record_physical(PhysicalEvent::CopiedBytes, transferred);
-            record_physical(PhysicalEvent::RetainedBytes, transferred);
-            record_physical(PhysicalEvent::RetainedFull, 1);
-            let json = serde_json::to_string(&report)
-                .map_err(|e| crate::serialization_err(e.to_string()))?;
-            Ok((json, bytes, values, counterfactuals, width, retention))
-        });
-        let ((json, bytes, values, counterfactuals, width, retention), facts) =
-            crate::inspect_receipt_api::finish_observed(py, attempt.result, attempt.facts)?;
-        Ok((
-            json,
-            PyBytes::new(py, &bytes).unbind(),
-            crate::ffi::admitted_numeric_array(py, values, std::sync::Arc::clone(&retention))?,
-            crate::ffi::admitted_numeric_array(py, counterfactuals, retention)?,
-            width,
-            facts,
-        ))
     }
 
     /// Contract of this handle, derived through the `system` family it is carried as
@@ -707,21 +1499,25 @@ impl PyPreparedCyclicFamily {
         py: Python<'_>,
         max_bytes: Option<u64>,
         cancel: Option<crate::PyCancellationToken>,
-    ) -> PyResult<CyclicExecution> {
+    ) -> PyResult<(PyCyclicExecution, NativeFacts)> {
         let ctx = execution_context(max_bytes, cancel);
         let attempt = py.detach(|| {
             antecedent_core::execution_attempt::observe_with_context(&ctx, || {
-                self.inner.export(&ctx)
+                self.inner.execute_retained(&ctx)
             })
         });
-        let ((report, artifact), facts) = crate::inspect_receipt_api::finish_observed(
+        let (owner, facts) = crate::inspect_receipt_api::finish_observed(
             py,
             attempt.result.map_err(|e| operation_error(e, &ctx)),
             attempt.facts,
         )?;
         Ok((
-            serde_json::to_string(&report).map_err(|e| crate::serialization_err(e.to_string()))?,
-            PyBytes::new(py, &artifact).unbind(),
+            PyCyclicExecution {
+                owner: std::sync::Arc::new(CyclicExecutionState::new(
+                    CyclicExecutionOwner::Family(owner),
+                    facts.clone_ref(py),
+                )),
+            },
             facts,
         ))
     }
@@ -939,6 +1735,34 @@ struct PyCyclicEvidence {
 }
 #[pymethods]
 impl PyCyclicEvidence {
+    fn identity(&self) -> &str {
+        self.inner.identity()
+    }
+
+    #[pyo3(signature=(*,offset=0,limit=64))]
+    fn metadata_json(&self, offset: usize, limit: usize) -> PyResult<String> {
+        if limit > 256 {
+            return Err(crate::value_err("cyclic evidence metadata page limit exceeds256"));
+        }
+        let columns = self.inner.columns();
+        let end = offset.saturating_add(limit).min(columns.len());
+        let page = columns
+            .get(offset..end)
+            .unwrap_or(&[])
+            .iter()
+            .map(|column| {
+                serde_json::json!({
+                    "quantity":column.quantity,"envelope_identity":column.envelope_identity,
+                    "port":column.port,"uncertainty_axes":column.uncertainty_axes,
+                    "world":column.world,"time":column.time,"sample_count":column.samples.len(),
+                    "enclosure_count":column.numerical_enclosures.len(),
+                    "mass_bound_count":column.mass_bounds.as_ref().map_or(0,Vec::len),
+                })
+            })
+            .collect::<Vec<_>>();
+        Ok(serde_json::json!({"identity":self.inner.identity(),"source_identity":self.inner.source_identity(),"scope":self.inner.scope(),"source_bridge":self.inner.system_bridge(),"column_count":columns.len(),"offset":offset,"columns":page,"next_offset":(end<columns.len()).then_some(end)}).to_string())
+    }
+
     fn report(&self) -> PyResult<String> {
         serde_json::to_string(self.inner.report())
             .map_err(|e| crate::serialization_err(e.to_string()))
@@ -1065,4 +1889,280 @@ fn consume_cyclic_evidence(
         })
         .map_err(|e| replay_error(e, &ctx))?;
     Ok(PyCyclicEvidence { inner })
+}
+
+fn origin_metadata(
+    origin: &antecedent_io::cyclic_family_artifact::RecoveredDrawOriginWire,
+) -> serde_json::Value {
+    use antecedent_io::cyclic_family_artifact::RecoveredDrawOriginWire as O;
+    match origin {
+        O::Supplied => serde_json::json!({"origin":"supplied"}),
+        O::AsymptoticNormal { draws, seed } => {
+            serde_json::json!({"origin":"asymptotic_normal","draws":draws,"seed":seed})
+        }
+        O::Bootstrap { replicates, seed, design, rule } => {
+            serde_json::json!({"origin":"bootstrap","replicates":replicates,"seed":seed,"design":design,"rule":rule})
+        }
+        O::Posterior { draws, burn_in, seed, .. } => {
+            serde_json::json!({"origin":"posterior","draws":draws,"burn_in":burn_in,"seed":seed,"prior":"retained_in_source_declaration"})
+        }
+    }
+}
+
+impl CyclicExecutionOwner {
+    fn slot_metadata(
+        &self,
+        world: u32,
+        row: usize,
+        draw: usize,
+        counterfactual: bool,
+    ) -> PyResult<serde_json::Value> {
+        use antecedent_io::cyclic_family_artifact::{
+            CyclicFamilyAnswer as A, CyclicWorldOutcomeAnswer as W,
+        };
+        let position = self.position(world)?;
+        let invalid = || crate::value_err("cyclic slot coordinate out of range");
+        if let Some(system) = self.system() {
+            if draw != 0 {
+                return Err(invalid());
+            }
+            let value = if counterfactual {
+                if row != 0 {
+                    return Err(invalid());
+                }
+                system.counterfactuals.as_ref().and_then(|rows| rows.get(position))
+            } else {
+                system.worlds[position].get(row)
+            }
+            .ok_or_else(invalid)?;
+            return Ok(solution_metadata(value));
+        }
+        let answer = &self.family().ok_or_else(invalid)?.answer;
+        if counterfactual && !matches!(answer, A::EquilibriumActions(_)) {
+            return Err(invalid());
+        }
+        match answer {
+            A::Worlds(worlds) if draw == 0 => match &worlds[position].outcome {
+                W::EquilibriumDraws { outcomes } => {
+                    outcomes.get(row).map(equilibrium_metadata).ok_or_else(invalid)
+                }
+                W::GaussianLaw { residual_inf, .. } if row == 0 => {
+                    Ok(serde_json::json!({"status":"gaussian_law","residual_inf":residual_inf}))
+                }
+                W::Trajectory { trajectory } => trajectory
+                    .times
+                    .get(row)
+                    .map(|time| serde_json::json!({"status":"trajectory","time":time}))
+                    .ok_or_else(invalid),
+                W::NoSolution { cause, next_attempt } if row == 0 => Ok(
+                    serde_json::json!({"status":"no_solution","cause":cause,"next_attempt":next_attempt}),
+                ),
+                W::Withheld if row == 0 => Ok(serde_json::json!({"status":"withheld"})),
+                _ => Err(invalid()),
+            },
+            A::EquilibriumActions(worlds) if draw == 0 => {
+                let value = if counterfactual {
+                    if row != 0 {
+                        return Err(invalid());
+                    }
+                    worlds[position].counterfactual.as_ref()
+                } else {
+                    worlds[position].rows.get(row)
+                }
+                .ok_or_else(invalid)?;
+                Ok(equilibrium_metadata(value))
+            }
+            A::ParameterPosterior { worlds, .. } => worlds[position]
+                .get(draw)
+                .and_then(|rows| rows.get(row))
+                .map(equilibrium_metadata)
+                .ok_or_else(invalid),
+            A::FrequentistBootstrap { worlds, .. } => {
+                match worlds[position].get(draw).ok_or_else(invalid)? {
+                    Some(rows) => rows.get(row).map(equilibrium_metadata).ok_or_else(invalid),
+                    None => Ok(serde_json::json!({"status":"failed_fit"})),
+                }
+            }
+            A::JointCounterfactual { worlds, .. } | A::PartialCounterfactual { worlds, .. }
+                if row == 0 =>
+            {
+                worlds[position].get(draw).map(equilibrium_metadata).ok_or_else(invalid)
+            }
+            A::RecoveredLinear(report) if row == 0 => {
+                recovered_slot_metadata(&report.worlds[position], draw)
+            }
+            A::ExperimentalRecovery(report) if row == 0 => {
+                recovered_slot_metadata(&report.worlds[position].answer, draw)
+            }
+            A::Ode(trajectory) if draw == 0 => trajectory
+                .times
+                .get(row)
+                .map(|time| serde_json::json!({"status":"trajectory","time":time}))
+                .ok_or_else(invalid),
+            A::OuTransient(moments) if draw == 0 => moments
+                .times
+                .get(row)
+                .map(|time| serde_json::json!({"status":"gaussian_law","time":time}))
+                .ok_or_else(invalid),
+            A::OuStationary(_) if draw == 0 && row == 0 => {
+                Ok(serde_json::json!({"status":"stationary_covariance"}))
+            }
+            A::OuMechanisms { laws, .. } if draw == 0 && row == 0 => match &laws[position] {
+                antecedent_estimate::ou_mechanisms::OuMechanismOutcome::Stationary(_) => {
+                    Ok(serde_json::json!({"status":"gaussian_law"}))
+                }
+                antecedent_estimate::ou_mechanisms::OuMechanismOutcome::Failed {
+                    failure,
+                    detail,
+                } => Ok(serde_json::json!({"status":"failed","failure":failure,"detail":detail})),
+            },
+            _ => Err(invalid()),
+        }
+    }
+}
+
+fn solution_metadata(
+    value: &antecedent_model::nonlinear_equilibrium::EquilibriumResult,
+) -> serde_json::Value {
+    serde_json::json!({"status":"solved","dimension":value.values.len(),"residual":value.residual,"iterations":value.iterations,"globally_unique":value.globally_unique,"existence_certified":value.existence_certified,"numerical_converged":value.numerical_converged,"dynamic_stability":value.dynamic_stability,"jacobian_condition_estimate":value.jacobian_condition_estimate,"blocks":value.blocks})
+}
+
+fn equilibrium_metadata(
+    value: &antecedent_model::nonlinear_equilibrium::EquilibriumOutcome,
+) -> serde_json::Value {
+    match value {
+        antecedent_model::nonlinear_equilibrium::EquilibriumOutcome::Solved(value) => {
+            solution_metadata(value)
+        }
+        antecedent_model::nonlinear_equilibrium::EquilibriumOutcome::Failed(value) => {
+            serde_json::json!({"status":"failed","failure":value.failure,"detail":value.detail})
+        }
+    }
+}
+
+fn recovered_slot_metadata(
+    world: &antecedent_io::cyclic_family_artifact::RecoveredWorldAnswer,
+    draw: usize,
+) -> PyResult<serde_json::Value> {
+    use antecedent_io::cyclic_family_artifact::RecoveredDrawAnswer as D;
+    let value = world
+        .draws
+        .get(draw)
+        .ok_or_else(|| crate::value_err("cyclic recovered draw out of range"))?;
+    let outcome = match &value.outcome {
+        D::Equilibrium { mean, solved_by, .. } => {
+            serde_json::json!({"status":"equilibrium","dimension":mean.len(),"solved_by":solved_by})
+        }
+        D::Inadmissible { reason } => serde_json::json!({"status":"inadmissible","reason":reason}),
+        D::NotCertified { fault } => serde_json::json!({"status":"not_certified","fault":fault}),
+    };
+    Ok(serde_json::json!({"weight":value.weight,"outcome":outcome}))
+}
+
+impl CyclicExecutionOwner {
+    fn contract_metadata(
+        &self,
+    ) -> Option<&antecedent_io::contract_section::cyclic::CyclicContractWire> {
+        match self {
+            Self::System(owner) => Some(&owner.contract_metadata().section),
+            Self::Family(owner) => Some(&owner.contract_metadata().section),
+            Self::ConsumedFamily(owner) => owner.contract_metadata(),
+            Self::ConsumedSystem(_) => None,
+        }
+    }
+
+    fn contract_summary(&self) -> serde_json::Value {
+        use antecedent_io::contract_section::cyclic::{
+            CyclicIdentificationWire as I, CyclicTargetWire as T,
+        };
+        let Some(contract) = self.contract_metadata() else {
+            return serde_json::Value::Null;
+        };
+        let hex = |bytes: [u8; 32]| antecedent_core::SemanticDigest::from_bytes(bytes).to_hex();
+        let ids = &contract.identities;
+        let identification = match &contract.identification {
+            I::SpecifiedModelConditional { model } => {
+                serde_json::json!({"kind":contract.identification.kind(),"model":hex(*model)})
+            }
+            I::ExperimentalRecovery { design, unresolved } => {
+                serde_json::json!({"kind":contract.identification.kind(),"design":hex(*design),"unresolved_count":unresolved.len()})
+            }
+            I::CyclicIoScm { source } => {
+                serde_json::json!({"kind":contract.identification.kind(),"source":hex(*source)})
+            }
+        };
+        let count = assumption_count(&contract.target);
+        let assumptions =
+            serde_json::json!({"count":count,"operation":"assumptions_json","paged":true});
+        let target = match &contract.target {
+            T::Worlds { .. } => {
+                serde_json::json!({"kind":"worlds","target_count":1,"assumptions":assumptions})
+            }
+            T::JointWorlds { targets } => {
+                serde_json::json!({"kind":"joint_worlds","target_count":targets.len(),"assumptions":assumptions})
+            }
+            T::Functional { kind, outcome, query } => {
+                serde_json::json!({"kind":kind,"outcome":outcome,"query":hex(*query)})
+            }
+        };
+        let lowered = match self {
+            Self::System(owner) => {
+                Some(owner.contract_metadata().lowered_program_identity.to_hex())
+            }
+            Self::Family(owner) => {
+                Some(owner.contract_metadata().lowered_program_identity.to_hex())
+            }
+            _ => None,
+        };
+        serde_json::json!({
+            "family":contract.family,"request_identity":contract.request_identity,
+            "identification_kind":contract.identification.kind(),
+            "identities":{"target":hex(ids.target),"identification":hex(ids.identification),"identification_product":ids.identification_product.map(hex),"program":hex(ids.program),"inference_binding":hex(ids.inference_binding),"observation":hex(ids.observation),"data_snapshot":hex(ids.data_snapshot)},
+            "cyclic_solution":hex(contract.cyclic_solution),"recovery":contract.recovery.map(hex),
+            "lowered_program_identity":lowered,
+            "layers":{"identification":identification,"target":target,"inference_binding":{"method":contract.inference_binding.method,"settings":hex(contract.inference_binding.settings)},"program":{"family":contract.program.family,"realization":contract.program.realization,"fit_dependencies":hex(contract.program.fit_dependencies)},"observation":{"modality":contract.observation.modality,"variable_count":contract.observation.variables.len(),"unit_count":contract.observation.units.len()}},
+        })
+    }
+}
+
+fn assumption_count(target: &antecedent_io::contract_section::cyclic::CyclicTargetWire) -> usize {
+    use antecedent_io::contract_section::cyclic::CyclicTargetWire as T;
+    match target {
+        T::Worlds { target } => target.assumptions().len(),
+        T::JointWorlds { targets } => targets.iter().map(|target| target.assumptions().len()).sum(),
+        T::Functional { .. } => 0,
+    }
+}
+
+impl CyclicExecutionOwner {
+    fn recovery(
+        &self,
+    ) -> Option<&antecedent_io::cyclic_family_artifact::ExperimentalRecoveryReport> {
+        match self.family().map(|report| &report.answer) {
+            Some(
+                antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer::ExperimentalRecovery(
+                    report,
+                ),
+            ) => Some(report),
+            _ => None,
+        }
+    }
+
+    fn recovery_summary(&self) -> Option<serde_json::Value> {
+        use antecedent_io::cyclic_family_artifact::RecoveredDrawStatusWire as S;
+        let report = self.recovery()?;
+        let (mut complete, mut unresolved, mut failed, mut marked) =
+            (0usize, 0usize, 0usize, 0usize);
+        for status in &report.law.draw_status {
+            match status {
+                S::Complete { .. } => complete += 1,
+                S::Unresolved { .. } => unresolved += 1,
+                S::Failed { .. } => failed += 1,
+                S::Marked => marked += 1,
+            }
+        }
+        Some(
+            serde_json::json!({"draw_count":report.law.draws.len(),"node_count":report.law.nodes.len(),"failed_mass":report.law.failed_mass,"draw_status_counts":{"complete":complete,"unresolved":unresolved,"failed":failed,"marked":marked},"unresolved_direction_count":report.law.draws.iter().map(|draw|draw.unresolved.len()).sum::<usize>(),"draw_origin":origin_metadata(&report.law.origin),"law_meaning":report.law.origin.law_meaning()}),
+        )
+    }
 }

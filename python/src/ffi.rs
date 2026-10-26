@@ -17,7 +17,7 @@ use pyo3::types::PyCapsule;
 use crate::{CausalDataError, PosteriorArtifact};
 
 /// Read-only buffers retain their exporting Python owner until CPython releases them.
-/// The two callers below own immutable storage whose allocation cannot move.
+/// Every caller below owns immutable storage whose allocation cannot move.
 unsafe fn readonly_numeric_buffer(
     owner: Bound<'_, PyAny>,
     data: *const std::ffi::c_void,
@@ -89,6 +89,42 @@ unsafe fn release_readonly_buffer(view: *mut pyo3::ffi::Py_buffer) {
         if !(*view).strides.is_null() {
             drop(Box::from_raw((*view).strides.cast::<[isize; 1]>()));
             (*view).strides = std::ptr::null_mut();
+        }
+    }
+}
+
+/// Cyclic views borrow immutable native report rows and pin their execution owner.
+#[pymethods]
+impl crate::cyclic_system_api::PyCyclicNumericView {
+    unsafe fn __getbuffer__(
+        slf: Bound<'_, Self>,
+        view: *mut pyo3::ffi::Py_buffer,
+        flags: std::os::raw::c_int,
+    ) -> PyResult<()> {
+        let borrowed = slf.borrow();
+        let values = borrowed.values()?;
+        // SAFETY: the view pins an immutable Arc-owned execution report. No exposed
+        // method can replace, resize or mutate its row; the buffer retains this view.
+        unsafe {
+            readonly_numeric_buffer(
+                slf.clone().into_any(),
+                values.as_ptr().cast(),
+                values.len(),
+                c"d",
+                view,
+                flags,
+            )
+        }
+    }
+
+    #[allow(
+        clippy::unused_self,
+        reason = "CPython buffer-release protocol requires an instance receiver"
+    )]
+    unsafe fn __releasebuffer__(&self, view: *mut pyo3::ffi::Py_buffer) {
+        // SAFETY: CPython returns the view initialized by __getbuffer__ exactly once.
+        unsafe {
+            release_readonly_buffer(view);
         }
     }
 }
@@ -235,8 +271,12 @@ fn take_chunk_pairs(
     if obj.cast::<pyo3::types::PyTuple>().is_ok() {
         return Ok(None);
     }
-    let Ok(chunks) = obj.getattr("chunks") else { return Ok(None) };
-    let Ok(iter) = chunks.try_iter() else { return Ok(None) };
+    let Ok(chunks) = obj.getattr("chunks") else {
+        return Ok(None);
+    };
+    let Ok(iter) = chunks.try_iter() else {
+        return Ok(None);
+    };
     let items = iter.collect::<PyResult<Vec<Bound<'_, PyAny>>>>()?;
     if items.len() < 2 || !items.iter().all(|c| c.hasattr("__arrow_c_array__").unwrap_or(false)) {
         return Ok(None);
@@ -335,44 +375,4 @@ fn take_arrow_c_stream(obj: &Bound<'_, PyAny>) -> PyResult<ArrowCStream> {
         std::ptr::write(ptr, FfiArrowArrayStream::empty());
     }
     Ok(unsafe { ArrowCStream::from_ffi(stream) })
-}
-
-/// Owns an immutable allocation and its admission until the final NumPy view is dropped.
-/// Python may mutate elements, but no Rust method can resize or access the allocation.
-#[pyclass(frozen)]
-struct AdmittedNumericBuffer {
-    array: numpy::ndarray::Array1<f64>,
-    retention: std::sync::Arc<antecedent_core::execution::AdmissionLease>,
-}
-
-#[pymethods]
-impl AdmittedNumericBuffer {
-    #[getter]
-    fn admitted_bytes(&self) -> u64 {
-        self.retention.remainder().bytes()
-    }
-}
-
-/// Expose the buffer owner class so its `admitted_bytes` is documented and typed.
-pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<AdmittedNumericBuffer>()
-}
-
-/// Convert an owned vector without copying, retaining admission in the array's base owner.
-pub(crate) fn admitted_numeric_array(
-    py: Python<'_>,
-    values: Vec<f64>,
-    retention: std::sync::Arc<antecedent_core::execution::AdmissionLease>,
-) -> PyResult<Py<numpy::PyArray1<f64>>> {
-    let owner = Bound::new(
-        py,
-        AdmittedNumericBuffer { array: numpy::ndarray::Array1::from_vec(values), retention },
-    )?;
-    let buffer = owner.borrow();
-    // SAFETY: NumPy retains `owner` as its base. The allocation is private and no
-    // exposed Rust method can access, resize, or replace it. Python element writes
-    // do not reallocate it. Slices retain the base transitively, along with its lease.
-    let array =
-        unsafe { numpy::PyArray1::borrow_from_array(&buffer.array, owner.clone().into_any()) };
-    Ok(array.unbind())
 }

@@ -83,6 +83,8 @@ Fitting needs independent equilibrium replicates with known hard clamps.
 joint-likelihood fit; the held-out joint intervention is evaluation only.
 
 ```python
+from antecedent.outcomes import require_success
+
 prepared = template.prepare(
     [[], joint_clamps],          # worlds: no intervention, then a joint clamp
     [[0.0, 0.0, 0.0]],           # disturbance draws shared by the worlds
@@ -90,8 +92,8 @@ prepared = template.prepare(
     parameters=[{"kind": "weight", "equation": 0, "parent": 1}],
     rows=rows,                   # {"values": [...], "clamps": [...]}
 )
-result = prepared.execute()
-result.report["fit"]["converged"]
+result = require_success(prepared.execute())
+result.to_dict()["fit"]["converged"]
 ```
 
 `examples/python/general_cyclic_systems.py` is the complete runnable version: an
@@ -102,25 +104,31 @@ linear law recovered from clamp experiments, use `prepare_experimental_recovery`
 with an explicit draw origin; `inspect()` reports the rows a clamp design leaves
 unresolved before any fit.
 
-## Reuse, refresh and artifacts
+## Reuse, branches and artifacts
 
 - `inspect()` is cheap after execution; it reports preparation work, fits actually
   performed and the SCC schedules.
-- `retarget(...)` changes worlds without refitting; `refresh(rows)` replaces the
+- `reconfigure(...)` changes worlds without refitting; `rebind(rows)` replaces the
   training observations through a new preparation and refits.
-- `execute()` returns a `CyclicResult` with `report`, `artifact` and `identity`.
-  Store the identity separately from the artifact bytes.
+- `execute()` returns an outcome containing a native-owned `CyclicResult`.
+  `result.to_dict()` explicitly materializes its report; `result.export()` produces
+  a typed artifact, and `bytes(artifact)` exposes its encoding. Store the identity
+  separately from those bytes. Evidence projections use `evidence.to_dict()` for
+  their explicit report conversion too.
 - `consume_artifact(artifact, expected_identity=...)` checks identity and integrity
   and recomputes in a fresh process. Built-in mechanisms are portable; process-local
   callbacks refuse export.
-- `max_bytes` bounds retained memory, including output copies, and `cancel` stops
-  a long solve.
+- Pass resource limits and cancellation through `execution=Execution(...)`.
 
 ```python
 from antecedent.cyclic import consume_artifact
+from antecedent.outcomes import require_success
 
-replayed = consume_artifact(result.export(), expected_identity=result.identity)
-assert replayed.report == result.report
+artifact = result.export()
+replayed = require_success(
+    consume_artifact(bytes(artifact), expected_identity=result.identity)
+)
+assert replayed.to_dict() == result.to_dict()
 ```
 
 ## From a result to a decision

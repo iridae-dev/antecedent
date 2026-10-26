@@ -5,6 +5,8 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 from antecedent.cyclic import (
+    BipartiteCausalGraph,
+    CyclicGraph,
     CyclicResult,
     Equation,
     EquilibriumModel,
@@ -28,23 +30,26 @@ def _worlds():
 
 
 def test_large_payload_repr_and_inspect_only_read_retained_metadata(monkeypatch):
-    payload = {
-        "identity": "a" * 64,
-        "worlds": [[{"values": [3.0] * 100_000}]],
-        "claim": "specified_or_fitted_model_conditional",
-        "calibration": "unmeasured",
-    }
-    value = CyclicResult(payload, b"large artifact" * 100_000)
-    monkeypatch.setattr(CyclicResult, "to_dict", lambda self: pytest.fail("materialized report"))
-    monkeypatch.setattr(CyclicResult, "export", lambda self: pytest.fail("exported artifact"))
-    for _ in range(2):
-        assert len(repr(value)) < 300
-        assert len(value.inspect()._repr_html_()) < 3000
-        assert value.inspect() is value.inspect()
-    with pytest.raises(TypeError, match="does not support item assignment"):
-        value.report["worlds"][0][0]["values"][0] = 4.0
-    payload["worlds"][0][0]["values"][0] = 5.0
-    assert value.report["worlds"][0][0]["values"][0] == 3.0
+    noise = [[3.0] for _ in range(4096)]
+    prepared = EquilibriumModel((Equation("A", 0.0, (0.0,), "identity"),), (1.0,)).prepare(
+        [[]], noise
+    )
+    value = require_success(prepared.execute())
+    with monkeypatch.context() as bounded:
+        bounded.setattr(CyclicResult, "to_dict", lambda self: pytest.fail("materialized report"))
+        bounded.setattr(CyclicResult, "export", lambda self: pytest.fail("exported artifact"))
+        for _ in range(2):
+            assert len(value.identity) == 64
+            assert len(repr(value)) < 300
+            assert len(value.inspect()._repr_html_()) < 3000
+            assert value.inspect() is value.inspect()
+    # Explicit conversion returns an editable copy; it cannot mutate native
+    # output or alias the mutable observations supplied before preparation.
+    materialized = value.to_dict()
+    assert len(materialized["worlds"][0]) == 4096
+    materialized["worlds"][0][0]["values"][0] = 4.0
+    noise[0][0] = 5.0
+    assert value.to_dict()["worlds"][0][0]["values"][0] == 3.0
 
 
 def test_prepared_repr_does_not_read_request_or_run_solver(monkeypatch):
@@ -71,8 +76,11 @@ def test_live_common_inspection_retains_actual_contract_and_loaded_has_no_study(
     assert outcome.study is prepared
     report = outcome.inspect()
     assert report.identification.summary == expected["identification_kind"]
-    assert report.contract["identities"] == expected["identities"]
-    assert report.to_dict()["target"] == expected["layers"]["target"]
+    assert report.contract is None
+    assert report.details["contract_is_summary"]
+    assert report.details["contract"]["identities"] == expected["identities"]
+    assert report.target["kind"] == expected["layers"]["target"]["kind"]
+    assert report.target["target_count"] == 1
     assert report.uncertainty.payload["method"] == "none"
     assert not report.uncertainty.available
     assert outcome.answer.kind == "structured"
@@ -85,7 +93,9 @@ def test_live_common_inspection_retains_actual_contract_and_loaded_has_no_study(
     assert loaded.value.to_dict() == value.to_dict()
     assert bytes(loaded.export()) == bytes(value.export())
     assert loaded.inspect().stage == "consumed"
-    assert not loaded.inspect().identification.available
+    assert loaded.inspect().identification.available
+    assert loaded.inspect().identification.summary == report.identification.summary
+    assert loaded.inspect().details["contract"]["identities"] == expected["identities"]
 
 
 def test_system_live_study_and_native_scientific_metadata():
@@ -99,19 +109,19 @@ def test_system_live_study_and_native_scientific_metadata():
     loaded = consume_artifact(bytes(value.export()), expected_identity=value.identity)
     assert loaded.study is None
     assert loaded.value.to_dict() == value.to_dict()
-    native = CyclicResult(
-        {
-            "identity": "b" * 64,
-            "answer": {
-                "family": "graph",
-                "result": {"assumptions": ["declared ioSCM"], "diagnostics": ["native warning"]},
-            },
-        },
-        b"",
-    )
+    graph = BipartiteCausalGraph(3, (2,), ((0, 2), (0, 1)))
+    native = require_success(graph.b_separation(0, 1, [2]).execute())
+    assumptions = native.to_dict()["answer"]["result"]["assumptions"]
+    assert "unique" in assumptions.lower()
     inspection = Outcome(value=native).inspect()
-    assert inspection.assumptions.payload["assumptions"] == ("declared ioSCM",)
-    assert inspection.diagnostics == ("native warning",)
+    assert inspection.assumptions.payload["assumptions"] == assumptions
+    discovery = require_success(
+        CyclicGraph(3, ((0, 1), (1, 2), (2, 1)))
+        .oracle_discovery(simple_scm=True, sigma_faithful=True)
+        .execute()
+    )
+    diagnostics = discovery.to_dict()["answer"]["result"]["diagnostics"]
+    assert Outcome(value=discovery).inspect().diagnostics == tuple(diagnostics)
 
 
 def test_typed_world_read_models_preserve_law_and_declared_evidence_coordinates():
@@ -120,7 +130,7 @@ def test_typed_world_read_models_preserve_law_and_declared_evidence_coordinates(
     assert worlds.study is prepared
     world = worlds.value[7]
     assert len(repr(world)) < 300
-    with pytest.raises(TypeError, match="does not support item assignment"):
+    with pytest.raises(TypeError, match="read.only"):
         world.outcome["mean"][0] = 9.0
     with pytest.raises(FrozenInstanceError):
         world.world = 9
@@ -143,4 +153,4 @@ def test_typed_world_read_models_preserve_law_and_declared_evidence_coordinates(
     evidence = evidence_outcome.value
     assert evidence.quantities[0].units == "meter"
     assert evidence.quantities[0].population_id == "bench population"
-    assert evidence.report["columns"][0]["samples"] == pytest.approx([world.mean("B")])
+    assert evidence.to_dict()["columns"][0]["samples"] == pytest.approx([world.mean("B")])

@@ -65,7 +65,6 @@ mod decision_api;
 mod decision_reliability_api;
 #[cfg(test)]
 mod defaults;
-mod errors;
 mod derived_treatment_api;
 mod descriptive_api;
 mod design_api;
@@ -79,6 +78,7 @@ mod distribution_api;
 mod dose_grid_api;
 mod effect_constancy_api;
 mod effect_constancy_review_api;
+mod errors;
 mod estimator_config;
 mod evidence_ledger_api;
 mod evidence_plan_api;
@@ -131,9 +131,9 @@ mod observational_interference_api;
 mod observational_policy_api;
 mod observational_survival_api;
 mod planning_api;
-mod posterior;
 mod policy_api;
 mod pooled_measurement_api;
+mod posterior;
 mod predictive_assessment_api;
 mod preflight_api;
 mod prepared_api;
@@ -221,16 +221,16 @@ mod transported_response_api;
 mod vector_treatment_api;
 
 pub(crate) use ate_api::{GraphEdge, ate_result_from_analysis};
-pub(crate) use errors::*;
-pub(crate) use ingest::*;
-pub(crate) use posterior::*;
 pub(crate) use discovery_api::{
     DiscoveredLink, PcmciDiscoveryResult, series_from_batch, tabular_from_batch,
 };
+pub(crate) use errors::*;
 pub(crate) use graph_build::{
     dag_from_named_edges, parse_dummy_ci_modes, require_named_graph_order, schema_var_id,
     series_from_tabular, temporal_dag_from_lagged_edges, temporal_dag_from_schema_edges,
 };
+pub(crate) use ingest::*;
+pub(crate) use posterior::*;
 pub(crate) use temporal_api::{
     AnalysisResult, GcmIteResult, GcmSampleResult, MediationEffectsSummary, PredictSummary,
     RpcmciDiscoverySummary,
@@ -1969,7 +1969,6 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     contract_refusals_api::register(m)?;
     inspect_receipt_api::register(m)?;
     release_migration_api::register(m)?;
-    ffi::register(m)?;
     registry::register_module(m)
 }
 

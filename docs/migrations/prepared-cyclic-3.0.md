@@ -18,8 +18,12 @@ The numerical component APIs accept caller-established program metadata and gran
 no identification or scientific authority by themselves. Existing version-one artifacts retain their replay
 semantics and request identity checks.
 
-Rust `rebind` and Python family `refresh` share a frozen statistical product only
-when its fit dependencies match. Changing response worlds can reuse bootstrap parameters, posterior draws
+Python `rebind(data)` changes observation fields on a new prepared family;
+`reconfigure(worlds=..., scientific=..., method=..., uncertainty=...)` changes
+scientific declarations on a new branch. System handles use `rebind(rows)` for
+training rows and `reconfigure(worlds=..., noise=..., initial=..., model=..., policy=...)`
+for their declarations. Compatible branches share a frozen statistical product only
+when its native fit dependencies match. Changing response worlds can reuse bootstrap parameters, posterior draws
 or an OU mechanism fit. Changing observations, mechanism parameters, priors,
 factual initial laws or fitting policies invalidates the relevant fit. Changing
 the execution kernel also refits. Numerical initialization used only to propagate
@@ -105,8 +109,10 @@ never rewritten into one another. Identification is not a graphical product: a
 specified or fitted model stays conditional on that model, a clamp-experiment
 recovery carries its design digest and the directions the design leaves
 unresolved, and a theorem-scoped cyclic input/output SCM identification keeps its
-source. `inspect()` and every report carry the lowered program identity. The stamp
-is local: it is not written to an artifact and is ignored by report equality.
+source. Live preparation and execution metadata retain a local lowered program
+identity. That stamp is not written to an artifact and is ignored by report
+equality. A loaded result does not reconstruct a prepared handle or invent that
+local identity.
 
 Prepared cyclic handles expose `contract()` with layered identities (target,
 identification, identification product, program, inference binding, observation,
@@ -138,8 +144,153 @@ fit options for a row-independent origin and no longer decides the rule itself;
 the refusal keeps its reason code and next attempt.
 
 `PreparedStudy::design_unresolved` returns the rows a clamp design leaves
-unresolved before any fit. Python `inspect()` reports them as `design_unresolved`
-and, until a fit on the handle, as `unresolved_directions` (previously `None`).
+unresolved before any fit. Python preparation `inspect()` reports the declared
+`design_unresolved` and `unresolved_directions`. Execution does not rewrite these
+declarations: the fitted law's actual draw statuses and unresolved directions
+belong to `result.law`.
 Python `PreparedCyclicFamily.contract()` and `PreparedCyclicSystem.contract()`
 return the native contract, and `interface_contract.check_composition_with_cyclic`
 binds `check_interface_composition_with_cyclic`.
+
+## Retained Python results and bounded exploration
+
+`prepared.execute()` returns an `Outcome[CyclicResult]`; use
+`antecedent.outcomes.require_success` to select its successful result, or inspect
+the outcome's refusal. Executing retains a native report without immediately
+encoding an artifact. `result.inspect()` returns bounded metadata, while
+`result.to_dict(execution=...)` explicitly materializes the complete report.
+`result.export(execution=...)` returns an `ExportedArtifact`; `bytes(artifact)`
+selects its encoding. These are separate materialization boundaries.
+
+`result.assumptions(offset=0, limit=64)` returns a `CyclicPage` of retained native
+assumption records. `evidence.columns(offset=0, limit=64)` pages selected quantity,
+world and uncertainty-port metadata. Each immutable page exposes `items`, `count`,
+`offset`, `next_offset`, and `metadata`; `page.next()` reads the next page or returns
+`None`. The maximum limit is 256. `page.to_dict()` converts only that selected
+page. Reading summaries, pages, representations or already executed worlds does
+not fit, sample or solve again.
+
+For experimental recovery, `result.law` is a `RecoveredCyclicLaw` sharing the
+execution owner. Its `inspect()` preserves draw origin, draw count and failed
+mass. `law.draw_status(offset=0, limit=64)` and
+`law.unresolved(draw, offset=0, limit=64)` page actual retained draw records;
+`law.to_dict(execution=...)` explicitly converts the full law. A result without
+an experimental recovered law raises a typed argument error for `.law`.
+Prepare additional hard-clamp targets directly from that retained owner:
+
+```python
+branch = result.law.prepare(
+    [World(47, Set("A", 3.0))], variables=["A", "B"], outcome="B",
+)
+continued = ant.estimate(branch)
+```
+
+This continuation assumes the variables declared by the original experiment.
+The branch retains the original recovery recipe, draw order, failed slots and
+uncertainty origin. Changing its worlds does not fit or sample another law.
+A law from `ant.load(...)` supports the same operation without reconstructing
+a live study. New observations or a different inference declaration require
+the original experimental preparation. See the runnable
+[recovered feedback law example](../../examples/python/recovered_feedback_law.py)
+for the experiments, analytic intervention checks and independent load.
+Cross-branch composition still requires explicit shared-evidence and draw
+alignment declarations; sharing a law does not establish independence.
+
+`result.interventions()` selects the existing native worlds without executing
+them again. A `WorldAnswer` exposes its status and certificate; a
+`RecoveredWorldAnswer` retains draw origin and the original weighted failed or
+inadmissible slots. Numerical readers select the appropriate kind of answer:
+`world.mean("B")` applies to a Gaussian-law world, while
+`world.numeric(row=0, field="values")` borrows one equilibrium row. A failed slot
+has no numeric buffer and returns `None`. `result.numeric(world, row=0, draw=0,
+counterfactual=False, field="values")` selects a buffer directly. Returned
+memoryviews are read-only and keep their exact native execution owner alive
+after the result and preparation are dropped. `world.to_dict()` converts that
+world explicitly; it does not convert its siblings.
+
+Selected-world evidence composes through `world.evidence(schema, variable,
+time=None, execution=...)`, or through `result.evidence(schema, selectors,
+execution=...)` for several explicit selectors. `EvidenceSchema` declares the
+population and physical units; selectors retain world ids, time coordinates and
+the scientific uncertainty port. A Gaussian-world selector projects its mean,
+with variance retained as a diagnostic; it does not silently pass its entire
+Gaussian distribution. `evidence.decide_means(contract)` accepts the applicable
+point/mean decision contract, and `evidence.joint_law()` requires an eligible
+complete aligned law. Failed posterior slots, bootstrap sampling laws and
+numerical root sets cannot silently become outcome distributions. Numerical
+enclosure decisions use the distinct `evidence.decide_enclosures(contract)`
+operation and preserve unresolved regions.
+
+## A specified feedback model, selected evidence and independent loading
+
+This model has feedback A→B→A with coefficient product 0.2. Its observational
+equilibrium mean is zero. Clamping A to 2 removes A's equation and gives a mean
+of 1 for B. The calculation is conditional on the specified linear model and
+disturbance covariance.
+
+```python
+import math
+
+import antecedent as ant
+from antecedent.cyclic import (
+    EvidenceSchema, EvidenceVariable, LinearCyclicModel, World,
+)
+from antecedent.intervention import Set
+from antecedent.outcomes import require_success
+
+policy = ant.Execution(seed=19, threads=1)
+model = LinearCyclicModel(
+    ("A", "B"),
+    (0.0, 0.4, 0.5, 0.0),
+    (1.0, 0.0, 0.0, 1.0),
+)
+prepared = model.worlds(
+    [World(0), World(7, Set("A", 2.0))],
+    component_id="feedback",
+    source_id="specified-linear-model",
+    certifying_evidence=["coefficient product 0.2; invertible free system"],
+    execution=policy,
+)
+result = require_success(prepared.execute(execution=policy))
+worlds = require_success(result.interventions())
+assert math.isclose(worlds[0].mean("B"), 0.0, abs_tol=1e-10)
+assert math.isclose(worlds[7].mean("B"), 1.0, abs_tol=1e-10)
+
+schema = EvidenceSchema(
+    "feedback-B-means",
+    "specified model population",
+    (EvidenceVariable("A", "meter"), EvidenceVariable("B", "meter")),
+)
+evidence = require_success(worlds[7].evidence(schema, "B", execution=policy))
+assert evidence.quantities[0].units == "meter"
+assert evidence.quantities[0].population_id == "specified model population"
+assert evidence.columns(limit=1).items[0]["world"] == 7
+
+selected = worlds[7].numeric(field="mean")
+assert selected.readonly
+artifact = result.export(execution=policy)
+# Retain this producer-side expectation independently when exchanging bytes.
+expected = artifact.expectation
+loaded = require_success(ant.load(bytes(artifact), expected=expected, execution=policy))
+loaded_worlds = require_success(loaded.interventions())
+assert math.isclose(loaded_worlds[7].mean("B"), 1.0, abs_tol=1e-10)
+assert loaded.inspect().stage == "consumed"
+del prepared, result, worlds
+assert math.isclose(selected[1], 1.0, abs_tol=1e-10)
+```
+
+`ant.load` invokes the independent native consumer, including the format's
+verification and replay. Passing an artifact does not implicitly supply an
+expected identity; expectations remain explicit inputs. Loaded results expose
+acceptance through the enclosing outcome and inspection through the common
+interface, without restoring a live study or dataset.
+
+Version-two family artifacts retain their verified contract identities. Supported
+version-one family records and standalone system records retain their actual
+source/request identity but do not contain that family contract. Inspection marks
+missing contract metadata unavailable, and assumption pages carry
+`available=False` with `reason="not_present_in_source_artifact"`; no substitute
+digest is presented as the missing scientific identity. The local lowered
+program identity is absent after loading even when a version-two contract is
+available. Independent replay checks the encoded claim; it does not supply
+calibration or release attestation.

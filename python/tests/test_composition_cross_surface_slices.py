@@ -515,11 +515,13 @@ def test_reduced_retention_serves_only_the_summary():
     producer = started(invariant=True)
     live = producer.least_squares
     full_ledger = bytes(producer.export())
-    artifact = producer.export_summary_only()
+    artifact = producer.export(retention="summary-only")
     del producer
     consumer = require_success(transport.PeriodRefreshSummary.consume(artifact))
     assert consumer.retention == retention["reduced"]
     assert consumer.n == live.n
+    assert consumer.source == "v@snap_1"
+    assert consumer.row_counts.to_dict() == {"rows": 4, "live_rows": 4, "effective_n": 4}
     assert consumer.beta == pytest.approx(live.beta, abs=1e-9)
     assert consumer.residual_variance == pytest.approx(live.residual_variance, abs=1e-9)
 
@@ -546,8 +548,9 @@ def test_reduced_retention_serves_only_the_summary():
     assert consumer.n == live.n
 
     # A changed byte never yields a different summary, and neither form is read as the other.
-    for position in range(len(artifact)):
-        changed = bytearray(artifact)
+    encoded = bytes(artifact)
+    for position in range(len(encoded)):
+        changed = bytearray(encoded)
         changed[position] ^= 0x01
         try:
             other = require_success(transport.PeriodRefreshSummary.consume(bytes(changed)))

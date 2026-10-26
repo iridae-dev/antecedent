@@ -68,22 +68,22 @@ def run(output_dir: Path) -> None:
         rows=rows,
     )
     result = require_success(prepared.execute(execution=Execution(seed=826)))
-    assert result.report["fit"]["converged"]
-    prediction = result.report["worlds"][1][0]["values"][0]
-    counterfactual = result.report["counterfactuals"][1]["values"][0]
+    assert result.to_dict()["fit"]["converged"]
+    prediction = result.to_dict()["worlds"][1][0]["values"][0]
+    counterfactual = result.to_dict()["counterfactuals"][1]["values"][0]
     assert abs(prediction - math.tanh(0.12)) < 0.035
     assert abs(counterfactual - (math.tanh(0.12) + 0.2 - math.tanh(0.07))) < 0.035
     output_dir.mkdir(parents=True, exist_ok=True)
     artifact = output_dir / "nonlinear.ant"
-    artifact.write_bytes(result.artifact)
+    artifact.write_bytes(bytes(result.export()))
     (output_dir / "expected-identity.json").write_text(
         json.dumps({"identity": result.identity}) + "\n"
     )
     (output_dir / "request.json").write_text(prepared.request_json + "\n")
-    (output_dir / "report.json").write_text(json.dumps(result.report, indent=2) + "\n")
+    (output_dir / "report.json").write_text(json.dumps(result.to_dict(), indent=2) + "\n")
     consumer = (
         "import json,pathlib;from antecedent.cyclic import consume_artifact;from antecedent.outcomes import require_success;"
-        + f"r=require_success(consume_artifact(pathlib.Path({str(artifact.resolve())!r}).read_bytes(),expected_identity={result.identity!r}));print(json.dumps(r.report,sort_keys=True))"
+        + f"r=require_success(consume_artifact(pathlib.Path({str(artifact.resolve())!r}).read_bytes(),expected_identity={result.identity!r}));print(json.dumps(r.to_dict(),sort_keys=True))"
     )
     replay = subprocess.run(
         [sys.executable, "-c", consumer],
@@ -93,15 +93,15 @@ def run(output_dir: Path) -> None:
         text=True,
         check=True,
     )
-    assert json.loads(replay.stdout) == result.report
+    assert json.loads(replay.stdout) == result.to_dict()
     print(
         json.dumps(
             {
                 "identity": result.identity,
                 "joint_intervention_prediction": prediction,
                 "counterfactual_prediction": counterfactual,
-                "claim": result.report["claim"],
-                "calibration": result.report["calibration"],
+                "claim": result.to_dict()["claim"],
+                "calibration": result.to_dict()["calibration"],
                 "fresh_process_replay": True,
             },
             indent=2,

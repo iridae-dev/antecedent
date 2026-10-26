@@ -34,6 +34,7 @@ from ._scientific import ScientificResult
 from .errors import CausalValueError
 from .execution import Execution
 from .intervention import Set, Shift, Soft
+from .outcomes import outcome_operation
 
 if TYPE_CHECKING:
     from .cyclic import (
@@ -568,27 +569,94 @@ _READERS = {
 
 @dataclass(frozen=True)
 class WorldAnswer(ScientificResult):
-    """One evaluated world of a specified model, keyed by its scientific world id.
-
-    ``outcome`` keeps the native status: ``gaussian_law`` (mean and row-major covariance in
-    variable order and units), ``equilibrium_draws`` (one outcome per shared disturbance draw,
-    failed draws in place), ``trajectory`` (states at the declared times), ``no_solution`` or
-    ``withheld``. ``failed_mass`` and ``withheld_mass`` are never renormalized away.
-    ``physical_stability`` is never claimed by these evaluators.
-    """
+    """One selected native world; numeric readers share its retained owner."""
 
     world: int
-    family: str
-    variables: tuple[str, ...]
-    actions: tuple[Mapping[str, Any], ...]
-    outcome: Mapping[str, Any]
-    certificate: Mapping[str, Any]
-    solved_by: Mapping[str, Any]
-    failed_mass: float
-    withheld_mass: float
-    physical_stability: str
+    _native: Any = field(repr=False, compare=False)
+    _names: tuple[str, ...] | None = field(default=None, repr=False, compare=False)
+    execution: Execution = field(default_factory=Execution, repr=False, compare=False)
+    _prepared: Any = field(default=None, repr=False, compare=False)
+    _metadata: Any = field(default=None, init=False, repr=False, compare=False)
+    _loaded: bool = field(default=False, init=False, repr=False, compare=False)
 
-    def _summary_fields(self) -> dict[str, Any]:
+    def __post_init__(self):
+        from ._freeze import freeze
+
+        metadata = json.loads(self._native.world_metadata_json(self.world))
+        object.__setattr__(self, "_metadata", freeze(metadata))
+        object.__setattr__(self, "_loaded", json.loads(self._native.metadata_json())["loaded"])
+
+    @property
+    def family(self):
+        return self._metadata["family"]
+
+    @property
+    def variables(self):
+        return tuple(
+            self._names[index]
+            if self._names is not None and index < len(self._names)
+            else str(index)
+            for index in self._metadata["variables"]
+        )
+
+    @property
+    def actions(self):
+        from ._freeze import freeze
+
+        return tuple(
+            freeze(
+                {
+                    **action,
+                    **(
+                        {"name": self._names[action["variable"]]}
+                        if self._names is not None and action["variable"] < len(self._names)
+                        else {}
+                    ),
+                }
+            )
+            for action in self._metadata["actions"]
+        )
+
+    @property
+    def certificate(self):
+        return self._metadata["certificate"]
+
+    @property
+    def solved_by(self):
+        return self._metadata["solved_by"]
+
+    @property
+    def failed_mass(self):
+        return self._metadata["failed_mass"]
+
+    @property
+    def withheld_mass(self):
+        return self._metadata["withheld_mass"]
+
+    @property
+    def physical_stability(self):
+        return self._metadata["physical_stability"]
+
+    @property
+    def status(self):
+        return self._metadata["outcome"]["status"]
+
+    @property
+    def certified(self):
+        return self.certificate["certified"]
+
+    @property
+    def outcome(self):
+        """Native status and readonly Gaussian buffers; full conversion is to_dict()."""
+        from types import MappingProxyType
+
+        values = dict(self._metadata["outcome"])
+        if self.status == "gaussian_law":
+            values["mean"] = self.numeric(field="mean")
+            values["covariance"] = self.numeric(field="covariance")
+        return MappingProxyType(values)
+
+    def _summary_fields(self):
         return {
             "world": self.world,
             "family": self.family,
@@ -619,29 +687,15 @@ class WorldAnswer(ScientificResult):
             assumptions=unavailable,
             answer=Answer("structured"),
             family=self.family,
-            details={
-                **self._summary_fields(),
-                "solved_by": self.solved_by,
-                "physical_stability": self.physical_stability,
-            },
-            stage="executed",
-            operations=("inspect", "to_dict")
+            details=self._metadata,
+            stage="consumed" if self._loaded else "executed",
+            operations=("inspect", "to_dict", "numeric", "evidence")
             + {
                 "gaussian_law": ("mean", "covariance"),
                 "equilibrium_draws": ("draws",),
                 "trajectory": ("trajectory",),
             }.get(self.status, ()),
         )
-
-    @property
-    def status(self) -> str:
-        """Native outcome status."""
-        return str(self.outcome["status"])
-
-    @property
-    def certified(self) -> bool:
-        """Whether the world's uniqueness certificate was shown for the declared model."""
-        return bool(self.certificate["certified"])
 
     def _position(self, variable: int | str) -> int:
         if isinstance(variable, str):
@@ -653,13 +707,17 @@ class WorldAnswer(ScientificResult):
                     next_attempt="name one of " + ", ".join(map(repr, self.variables)),
                 )
             return self.variables.index(variable)
-        if isinstance(variable, bool) or not 0 <= variable < len(self.variables):
+        if (
+            isinstance(variable, bool)
+            or not isinstance(variable, int)
+            or not 0 <= variable < len(self.variables)
+        ):
             raise CausalValueError("variable position out of range")
         return variable
 
-    def _require(self, status: str) -> Mapping[str, Any]:
+    def _require(self, status: str):
         if self.status == status:
-            return self.outcome
+            return
         if self.status in ("no_solution", "withheld"):
             attempt = (self.certificate.get("next_attempt") or {}).get(
                 "sentence"
@@ -678,87 +736,126 @@ class WorldAnswer(ScientificResult):
             next_attempt=f"read this {self.status} world with {_READERS.get(self.status, 'its outcome')}",
         )
 
-    def mean(self, variable: int | str) -> float:
-        """Equilibrium mean of ``variable`` in a ``gaussian_law`` world, in its units.
+    def numeric(self, *, row: int = 0, field: str = "values"):
+        """Borrow one readonly native numeric buffer, or None for a failed slot."""
+        value = self._native.world_values(self.world, row=row, field=field)
+        return None if value is None else memoryview(value)
 
-        Raises :class:`CyclicRefusal` naming the next attempt for a world without a solution,
-        a withheld world, or a world of another outcome kind.
-        """
+    def mean(self, variable: int | str) -> float:
         position = self._position(variable)
-        outcome = self._require("gaussian_law")
-        return float(outcome["mean"][position])
+        self._require("gaussian_law")
+        return float(self.numeric(field="mean")[position])
 
     def covariance(self, variable: int | str, other: int | str) -> float:
-        """Equilibrium covariance entry of a ``gaussian_law`` world."""
         row, column = self._position(variable), self._position(other)
-        outcome = self._require("gaussian_law")
-        return float(outcome["covariance"][row * len(self.variables) + column])
+        self._require("gaussian_law")
+        return float(self.numeric(field="covariance")[row * len(self.variables) + column])
 
     def draws(self, variable: int | str) -> tuple[float | None, ...]:
-        """Per-draw equilibrium value of an ``equilibrium_draws`` world; failed draws are None."""
+        """Explicitly copy one coordinate across native disturbance rows; keep failures."""
         position = self._position(variable)
-        outcome = self._require("equilibrium_draws")
-        return tuple(
-            float(item["values"][position]) if "values" in item else None
-            for item in outcome["outcomes"]
-        )
+        self._require("equilibrium_draws")
+        values = []
+        for row in range(self._metadata["outcome"]["row_count"]):
+            selected = self.numeric(row=row)
+            values.append(None if selected is None else float(selected[position]))
+        return tuple(values)
 
     def trajectory(self, variable: int | str) -> tuple[float, ...]:
-        """State of ``variable`` at each declared observation time of a ``trajectory`` world."""
+        """Explicitly copy one state coordinate at every retained observation time."""
         position = self._position(variable)
-        outcome = self._require("trajectory")
-        return tuple(float(state[position]) for state in outcome["trajectory"]["states"])
+        self._require("trajectory")
+        return tuple(
+            float(self.numeric(row=row)[position])
+            for row in range(self._metadata["outcome"]["row_count"])
+        )
 
-    @classmethod
-    def _from_wire(cls, answer: Mapping[str, Any], names: Sequence[str] | None) -> WorldAnswer:
-        ids = list(answer["variables"])
-        labels = tuple(
-            names[i] if names is not None and 0 <= i < len(names) else str(i) for i in ids
+    @_with_execution
+    def to_dict(self, *, execution: Execution | None = None):
+        """Explicitly convert this selected native world, never its siblings."""
+        return json.loads(self._native.world_report_json(self.world))["answer"]
+
+    @_with_execution
+    @outcome_operation
+    def evidence(
+        self,
+        schema,
+        variable: int | str,
+        *,
+        time: int | None = None,
+        execution: Execution | None = None,
+    ):
+        """Compose this selected native world through declared units and population."""
+        from .cyclic import CyclicEvidence
+
+        self._position(variable)
+        selector = WorldSelector(self.world, variable, time)._wire(self._names)
+        handle = self._native.evidence(
+            json.dumps(schema._wire() if hasattr(schema, "_wire") else schema, allow_nan=False),
+            json.dumps([selector], allow_nan=False),
+            max_bytes=None,
+            cancel=None,
         )
-        actions = []
-        for action in answer["actions"]:
-            item = dict(action)
-            variable = item["variable"]
-            if names is not None and 0 <= variable < len(names):
-                item["name"] = names[variable]
-            actions.append(item)
-        return cls(
-            world=int(answer["world"]),
-            family=str(answer["family"]),
-            variables=labels,
-            actions=tuple(actions),
-            outcome=dict(answer["outcome"]),
-            certificate=dict(answer["certificate"]),
-            solved_by=dict(answer["solved_by"]),
-            failed_mass=float(answer["failed_mass"]),
-            withheld_mass=float(answer["withheld_mass"]),
-            physical_stability=str(answer["physical_stability"]),
-        )
+        assert execution is not None  # _with_execution resolves the retained policy.
+        return CyclicEvidence(handle, execution=execution, _prepared=self._prepared)
 
 
 @dataclass(frozen=True)
 class RecoveredWorldAnswer(ScientificResult):
-    """One hard-clamp world of a recovered law, draw-aligned, keyed by world id.
-
-    ``origin`` is how the draws were produced and ``law_meaning`` its evidence meaning:
-    ``sampling_law`` (asymptotic normal or bootstrap), ``parameter_posterior``, or None for
-    supplied draws. ``draws`` keep failed, inadmissible and uncertified draws at their weights;
-    ``withheld_mass`` is the mass that did not enter the outcome mixture. ``outcome`` is the
-    outcome's position among the law's retained units.
-    """
+    """One native recovered-law world, retaining every original weighted draw slot."""
 
     world: int
-    origin: Mapping[str, Any]
-    law_meaning: str | None
-    outcome: int
-    draws: tuple[Mapping[str, Any], ...]
-    total_mass: float
-    withheld_mass: float
-    mixture_mean: float | None
-    mixture_variance: float | None
-    between_draw_variance: float | None
+    _native: Any = field(repr=False, compare=False)
+    execution: Execution = field(default_factory=Execution, repr=False, compare=False)
+    _prepared: Any = field(default=None, repr=False, compare=False)
+    _names: tuple[str, ...] | None = field(default=None, repr=False, compare=False)
+    _metadata: Any = field(default=None, init=False, repr=False, compare=False)
+    _meaning: str | None = field(default=None, init=False, repr=False, compare=False)
+    _loaded: bool = field(default=False, init=False, repr=False, compare=False)
 
-    def _summary_fields(self) -> dict[str, Any]:
+    def __post_init__(self):
+        from ._freeze import freeze
+
+        object.__setattr__(
+            self, "_metadata", freeze(json.loads(self._native.world_metadata_json(self.world)))
+        )
+        owner = json.loads(self._native.metadata_json())
+        object.__setattr__(self, "_meaning", owner["law_meaning"])
+        object.__setattr__(self, "_loaded", owner["loaded"])
+
+    @property
+    def origin(self):
+        return self._metadata["origin"]
+
+    @property
+    def law_meaning(self):
+        return self._meaning
+
+    @property
+    def outcome(self):
+        return self._metadata["outcome"]
+
+    @property
+    def total_mass(self):
+        return self._metadata["total_mass"]
+
+    @property
+    def withheld_mass(self):
+        return self._metadata["withheld_mass"]
+
+    @property
+    def mixture_mean(self):
+        return self._metadata["mixture_mean"]
+
+    @property
+    def mixture_variance(self):
+        return self._metadata["mixture_variance"]
+
+    @property
+    def between_draw_variance(self):
+        return self._metadata["between_draw_variance"]
+
+    def _summary_fields(self):
         return {
             "world": self.world,
             "law_meaning": self.law_meaning,
@@ -779,7 +876,10 @@ class RecoveredWorldAnswer(ScientificResult):
             support=SlotModel(
                 available=True,
                 summary="retained draw mass",
-                payload={"total_mass": self.total_mass, "withheld_mass": self.withheld_mass},
+                payload={
+                    "total_mass": self.total_mass,
+                    "withheld_mass": self.withheld_mass,
+                },
             ),
             uncertainty=SlotModel(
                 available=self.law_meaning is not None,
@@ -790,17 +890,12 @@ class RecoveredWorldAnswer(ScientificResult):
             assumptions=unavailable,
             answer=Answer("structured"),
             family=type(self).__name__,
-            details=self._summary_fields(),
-            stage="executed",
-            operations=("inspect", "to_dict", "mean"),
+            details=self._metadata,
+            stage="consumed" if self._loaded else "executed",
+            operations=("inspect", "to_dict", "mean", "draw_values", "evidence"),
         )
 
     def mean(self) -> float:
-        """Weighted mean of certified draw means of the outcome, in its units.
-
-        Raises :class:`CyclicRefusal` naming the next attempt when every draw was withheld
-        (unresolved, inadmissible or uncertified).
-        """
         if self.mixture_mean is None:
             raise _refusal(
                 f"recovered world {self.world}: all {self.withheld_mass:g} of the law's mass "
@@ -812,85 +907,131 @@ class RecoveredWorldAnswer(ScientificResult):
             )
         return float(self.mixture_mean)
 
-    @classmethod
-    def _from_wire(
-        cls, world: int, origin: Mapping[str, Any], answer: Mapping[str, Any]
-    ) -> RecoveredWorldAnswer:
-        def optional(key: str) -> float | None:
-            value = answer.get(key)
-            return None if value is None else float(value)
+    def draw_values(self, draw: int, *, field: str = "mean"):
+        """Borrow one draw's original readonly law buffer; preserve failed slots."""
+        value = self._native.world_values(self.world, draw=draw, field=field)
+        return None if value is None else memoryview(value)
 
-        return cls(
-            world=int(world),
-            origin=dict(origin),
-            law_meaning=_law_meaning(origin),
-            outcome=int(answer["outcome"]),
-            draws=tuple(dict(draw) for draw in answer["draws"]),
-            total_mass=float(answer["total_mass"]),
-            withheld_mass=float(answer["withheld_mass"]),
-            mixture_mean=optional("mixture_mean"),
-            mixture_variance=optional("mixture_variance"),
-            between_draw_variance=optional("between_draw_variance"),
-        )
+    def draw_status(self, draw: int):
+        from ._freeze import freeze
 
+        return freeze(json.loads(self._native.world_slot_metadata_json(self.world, draw=draw)))
 
-class CyclicInterventions(ScientificResult, Mapping[int, "WorldAnswer | RecoveredWorldAnswer"]):
-    """Evaluated intervention worlds keyed by scientific world id, in request order."""
+    @_with_execution
+    def to_dict(self, *, execution: Execution | None = None):
+        return json.loads(self._native.world_report_json(self.world))
 
-    __slots__ = ("_worlds", "execution_facts", "_prepared")
-
-    def __init__(
+    @_with_execution
+    @outcome_operation
+    def evidence(
         self,
-        worlds: Mapping[int, WorldAnswer | RecoveredWorldAnswer],
-        execution_facts: Any = None,
-        prepared: Any = None,
-    ) -> None:
-        from types import MappingProxyType
+        schema,
+        *,
+        variable: int,
+        port: Literal["response", "within_draw"],
+        draw: int | None = None,
+        execution: Execution | None = None,
+    ):
+        """Select a native response/draw port explicitly; no mean-to-law conversion."""
+        from .cyclic import CyclicEvidence
 
-        self._worlds = MappingProxyType(dict(worlds))
-        self._prepared = prepared
-        #: Native execution facts of the evaluation.
-        self.execution_facts = execution_facts
+        # Native response selectors use request positions; scientific world IDs
+        # need not be contiguous or equal those positions. Resolve from the exact
+        # native world order, never from sorted IDs or a reconstructed report.
+        position = None
+        count = json.loads(self._native.metadata_json())["world_count"]
+        for offset in range(0, count, 64):
+            ids = self._native.world_ids(offset=offset, limit=64)
+            if self.world in ids:
+                position = offset + ids.index(self.world)
+                break
+        if position is None:
+            from .errors import CausalStateError
+
+            raise CausalStateError("selected recovered world is absent from its native owner")
+        if port == "response" and draw is None:
+            wire = RecoveredResponseSelector(position, variable)._wire(self._names)
+        elif port == "within_draw" and draw is not None:
+            wire = RecoveredDrawSelector(position, draw, variable)._wire(self._names)
+        else:
+            raise CausalValueError(
+                "select response without draw, or within_draw with an explicit draw"
+            )
+        handle = self._native.evidence(
+            json.dumps(schema._wire() if hasattr(schema, "_wire") else schema, allow_nan=False),
+            json.dumps([wire], allow_nan=False),
+            max_bytes=None,
+            cancel=None,
+        )
+        assert execution is not None  # _with_execution resolves the retained policy.
+        return CyclicEvidence(handle, execution=execution, _prepared=self._prepared)
+
+
+@dataclass(frozen=True, repr=False)
+class CyclicInterventions(ScientificResult, Mapping[int, "WorldAnswer | RecoveredWorldAnswer"]):
+    """Lazy selected-world readers sharing one exact native execution owner."""
+
+    _native: Any = field(repr=False)
+    _names: tuple[str, ...] | None = field(default=None, repr=False)
+    execution_facts: Any = field(default=None, repr=False)
+    _prepared: Any = field(default=None, repr=False)
+    execution: Execution = field(default_factory=Execution, repr=False)
+    _count: int = field(default=0, init=False, repr=False)
+
+    def __post_init__(self):
+        object.__setattr__(self, "_count", json.loads(self._native.metadata_json())["world_count"])
 
     def __getitem__(self, world: int) -> WorldAnswer | RecoveredWorldAnswer:
         try:
-            return self._worlds[world]
-        except KeyError:
-            raise KeyError(f"no world with id {world!r}; ids are {list(self._worlds)}") from None
+            metadata = json.loads(self._native.world_metadata_json(world))
+        except ValueError as error:
+            if "unknown cyclic world id" not in str(error):
+                raise
+            raise KeyError(f"no world with id {world!r}") from error
+        if metadata.get("source") == "specified":
+            return WorldAnswer(world, self._native, self._names, self.execution, self._prepared)
+        if metadata.get("source") == "recovered":
+            return RecoveredWorldAnswer(
+                world, self._native, self.execution, self._prepared, self._names
+            )
+        from .errors import CausalStateError
+
+        raise CausalStateError(
+            "native execution does not expose a typed intervention-world adapter"
+        )
 
     def __iter__(self) -> Iterator[int]:
-        return iter(self._worlds)
+        for offset in range(0, len(self), 64):
+            yield from self._native.world_ids(offset=offset, limit=64)
 
     def __len__(self) -> int:
-        return len(self._worlds)
+        return self._count
 
     def __repr__(self) -> str:
-        return f"CyclicInterventions(worlds={len(self._worlds)})"
+        return f"CyclicInterventions(worlds={len(self)})"
 
-    def _summary_fields(self) -> dict[str, Any]:
+    def _summary_fields(self):
         return {"world_count": len(self)}
 
-    def to_dict(self) -> dict[str, Any]:
-        return {str(world): answer.to_dict() for world, answer in self.items()}
+    def to_dict(self):
+        return {str(world): self[world].to_dict() for world in self}
 
     @classmethod
-    def _from_native(
-        cls,
-        payload: Sequence[Mapping[str, Any]],
-        names: Sequence[str] | None,
-        facts: Any,
-        prepared: Any = None,
-    ) -> CyclicInterventions:
-        worlds: dict[int, WorldAnswer | RecoveredWorldAnswer] = {}
-        for item in payload:
-            if item["source"] == "specified":
-                answer = WorldAnswer._from_wire(item["answer"], names)
-                worlds[answer.world] = answer
-            else:
-                worlds[int(item["world"])] = RecoveredWorldAnswer._from_wire(
-                    item["world"], item["origin"], item["answer"]
-                )
-        return cls(worlds, facts, prepared)
+    def _from_native(cls, owner, names, facts, prepared=None, *, execution=None):
+        try:
+            owner.require_intervention_worlds()
+        except ValueError as error:
+            refusal = _next_attempt_refusal(error, "cyclic_family.interventions")
+            if refusal is None:
+                raise
+            raise refusal from error
+        return cls(
+            owner,
+            None if names is None else tuple(names),
+            facts,
+            prepared,
+            Execution() if execution is None else execution,
+        )
 
 
 # ---------------------------------------------------------------------------

@@ -26,6 +26,7 @@ from pathlib import Path
 
 import numpy as np
 from antecedent.cyclic import AdamPolicy, Equation, EquilibriumModel, OuMechanisms
+from antecedent.outcomes import require_success
 from scipy.linalg import solve_continuous_lyapunov
 
 PAPERS = {
@@ -57,12 +58,14 @@ def average_precision(truth, scores):
 
 def replay(result, directory):
     artifact = directory / "fit.ant"
-    artifact.write_bytes(result.artifact)
+    encoded = bytes(result.export())
+    artifact.write_bytes(encoded)
     (directory / "expected_identity.txt").write_text(result.identity + "\n")
     code = (
         "import json,pathlib;from antecedent.cyclic import consume_family_artifact;"
-        f"r=consume_family_artifact(pathlib.Path({str(artifact)!r}).read_bytes(),expected_identity={result.identity!r});"
-        "print(json.dumps(r.report,sort_keys=True,separators=(',',':')))"
+        "from antecedent.outcomes import require_success;"
+        f"r=require_success(consume_family_artifact(pathlib.Path({str(artifact)!r}).read_bytes(),expected_identity={result.identity!r}));"
+        "print(json.dumps(r.to_dict(),sort_keys=True,separators=(',',':')))"
     )
     process = subprocess.run(
         [sys.executable, "-c", code],
@@ -73,12 +76,12 @@ def replay(result, directory):
         check=True,
     )
     reconstructed = json.loads(process.stdout)
-    if reconstructed != result.report:
+    if reconstructed != result.to_dict():
         raise AssertionError("fresh-process scientific replay differs")
     return {
         "identity": result.identity,
-        "bytes": len(result.artifact),
-        "artifact_sha256": hashlib.sha256(result.artifact).hexdigest(),
+        "bytes": len(encoded),
+        "artifact_sha256": hashlib.sha256(encoded).hexdigest(),
         "fresh_process_cpu_replay": True,
     }
 
@@ -233,8 +236,8 @@ def nodags(args, seed, output):
                 l1_penalty=penalty * len(training),
             )
         )
-        result = prepared.execute()
-        fit = result.report["answer"]["result"]
+        result = require_success(prepared.execute())
+        fit = result.to_dict()["answer"]["result"]
         if activation == "relu":
             fit = dict(
                 fit,
@@ -266,7 +269,7 @@ def nodags(args, seed, output):
         raise AssertionError("all likelihood candidates failed")
     _, result, fit, estimated, intercepts, prepared = best
     write(output / "request.json", json.loads(prepared.request_json))
-    write(output / "native_report.json", result.report)
+    write(output / "native_report.json", result.to_dict())
     off = ~np.eye(n, dtype=bool)
     baseline = nonlinear_nll(np.zeros_like(weights), np.zeros(n), heldout, activation)
     fitted = nonlinear_nll(estimated, intercepts, heldout, activation)
@@ -402,8 +405,8 @@ def bicycle(args, seed, output):
             score_tolerance=0.001 * sum(len(r["values"]) for r in regimes),
             max_iterations=args.max_iterations,
         )
-        result = prepared.execute()
-        answer = result.report["answer"]["result"]
+        result = require_success(prepared.execute())
+        answer = result.to_dict()["answer"]["result"]
         fit = answer["fit"]
         estimated = np.array(fit["model"]["drift"]).reshape(n, n)
         nll, oracle, mae, failed = 0.0, 0.0, [], []
@@ -459,7 +462,7 @@ def bicycle(args, seed, output):
         if reference_error > 1e-7:
             raise AssertionError("native OU law differs from independent SciPy reference")
         write(case / "request.json", json.loads(prepared.request_json))
-        write(case / "native_report.json", result.report)
+        write(case / "native_report.json", result.to_dict())
         write(case / "metrics.json", row)
         summaries.append(row)
         print(json.dumps({"seed": seed, "lane": "bicycle", "case": row}), flush=True)

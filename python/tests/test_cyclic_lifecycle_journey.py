@@ -51,7 +51,7 @@ def test_system_family_views_share_native_fit_in_both_directions(family_first):
     branch = source.reconfigure([[{"variable": 0, "value": 2.0}]], [[0.0, 0.0]])
     changed = require_success(branch.execute())
     assert changed.execution_facts.observed_model_fits == 0
-    assert changed.report["worlds"][0][0]["values"][1] == pytest.approx(1.4, abs=1e-4)
+    assert changed.to_dict()["worlds"][0][0]["values"][1] == pytest.approx(1.4, abs=1e-4)
     rebound = source.rebind(
         [{"values": [x, 0.6 * x], "clamps": [{"variable": 0, "value": x}]} for x in (-1.0, 1.0)]
     )
@@ -78,7 +78,7 @@ def test_typed_world_branch_selects_units_population_and_replays_without_live_so
     outcome = branch.evidence(schema, [WorldSelector(2, "B")])
     assert isinstance(outcome, Outcome) and outcome.accepted
     evidence = require_success(outcome)
-    assert evidence.report["columns"][0]["samples"] == pytest.approx([1.0])
+    assert evidence.to_dict()["columns"][0]["samples"] == pytest.approx([1.0])
     assert evidence.quantities[0].units == "meter"
     assert evidence.quantities[0].population_id == "specified population"
     expected = evidence.identity
@@ -91,7 +91,7 @@ from antecedent.outcomes import require_success
 value=require_success(load(pathlib.Path({str(path)!r}).read_bytes(),expected={expected!r}))
 assert value.acceptance.verified and value.acceptance.identity_bound
 assert value.acceptance.replayable and not value.acceptance.resumable
-print(json.dumps(value.report['columns'][0]['samples']))
+print(json.dumps(value.to_dict()['columns'][0]['samples']))
 """
     completed = subprocess.run(
         [sys.executable, "-c", script],
@@ -124,8 +124,8 @@ def test_common_operations_delegate_to_the_same_immutable_cyclic_lifecycle():
     original = require_success(ant.estimate(source))
     assert changed.execution_facts.observed_model_fits == 1
     assert original.execution_facts.observed_model_fits == 0
-    assert changed.report["worlds"][0][0]["values"][1] == pytest.approx(1.4, abs=1e-4)
-    assert original.report["worlds"][0][0]["values"][0] == pytest.approx(0.0)
+    assert changed.to_dict()["worlds"][0][0]["values"][1] == pytest.approx(1.4, abs=1e-4)
+    assert original.to_dict()["worlds"][0][0]["values"][0] == pytest.approx(0.0)
     rebound = ant.rebind(
         source,
         data=[

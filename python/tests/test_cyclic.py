@@ -45,14 +45,14 @@ def test_nonlinear_shared_worlds_counterfactual_and_fresh_artifact(tmp_path: Pat
         factual=[0.3, 0.7],
     )
     result = require_success(prepared.execute())
-    assert result.report["worlds"][1][0]["values"][1] == pytest.approx(math.tanh(1.0) + 0.2)
-    assert result.report["worlds"][0][0]["globally_unique"] is True
-    assert result.report["claim"] == "specified_or_fitted_model_conditional"
-    assert result.report["calibration"] == "unmeasured"
+    assert result.to_dict()["worlds"][1][0]["values"][1] == pytest.approx(math.tanh(1.0) + 0.2)
+    assert result.to_dict()["worlds"][0][0]["globally_unique"] is True
+    assert result.to_dict()["claim"] == "specified_or_fitted_model_conditional"
+    assert result.to_dict()["calibration"] == "unmeasured"
     loaded = require_success(
         consume_artifact(bytes(result.export()), expected_identity=result.identity)
     )
-    assert loaded.report == result.report
+    assert loaded.to_dict() == result.to_dict()
     artifact = tmp_path / "cyclic.ant"
     artifact.write_bytes(bytes(result.export()))
     script = f"from antecedent.outcomes import require_success\nimport json, pathlib\nfrom antecedent.cyclic import consume_artifact\nr = require_success(consume_artifact(pathlib.Path({str(artifact)!r}).read_bytes(), expected_identity={result.identity!r}))\nprint(json.dumps(r.to_dict(), sort_keys=True))\n"
@@ -75,7 +75,7 @@ def test_linear_limit_joint_clamp_and_retained_fit() -> None:
         (1.0, 0.0, 0.0, 1.0),
     )
     result = require_success(linear.prepare([[]], [[1.0, 0.0]]).execute())
-    assert result.report["worlds"][0][0]["values"] == pytest.approx([1.25, 0.625])
+    assert result.to_dict()["worlds"][0][0]["values"] == pytest.approx([1.25, 0.625])
     fitted = require_success(
         linear.prepare(
             [[{"variable": 0, "value": 2.0}]],
@@ -88,13 +88,13 @@ def test_linear_limit_joint_clamp_and_retained_fit() -> None:
             fit_options=FitOptions(),
         ).execute()
     )
-    assert fitted.report["fit"]["converged"]
-    assert fitted.report["worlds"][0][0]["values"][1] == pytest.approx(1.4, abs=1e-4)
+    assert fitted.to_dict()["fit"]["converged"]
+    assert fitted.to_dict()["worlds"][0][0]["values"][1] == pytest.approx(1.4, abs=1e-4)
     assert (
         require_success(
             consume_artifact(bytes(fitted.export()), expected_identity=fitted.identity)
-        ).report
-        == fitted.report
+        ).to_dict()
+        == fitted.to_dict()
     )
 
 
@@ -109,8 +109,8 @@ def test_uncertified_roots_are_numerical_only() -> None:
             [[]], [[0.0, 0.0]], initial=[1.0, 1.0], policy=SolvePolicy(require_contraction=False)
         ).execute()
     )
-    assert numerical.report["worlds"][0][0]["values"][0] > 0.9
-    assert numerical.report["worlds"][0][0]["globally_unique"] is False
+    assert numerical.to_dict()["worlds"][0][0]["values"][0] > 0.9
+    assert numerical.to_dict()["worlds"][0][0]["globally_unique"] is False
 
 
 def test_continuous_time_families_and_replay() -> None:
@@ -119,20 +119,20 @@ def test_continuous_time_families_and_replay() -> None:
         (0.0, 0.0),
     )
     path = require_success(ode.prepare([1.0, 0.0], [0.0, 1.0]).execute())
-    assert path.report["answer"]["result"]["states"][1] == pytest.approx(
+    assert path.to_dict()["answer"]["result"]["states"][1] == pytest.approx(
         [math.cos(1.0), math.sin(1.0)], abs=1e-6
     )
     assert (
         require_success(
-            consume_family_artifact(path.artifact, expected_identity=path.identity)
-        ).report
-        == path.report
+            consume_family_artifact(bytes(path.export()), expected_identity=path.identity)
+        ).to_dict()
+        == path.to_dict()
     )
     ou = OrnsteinUhlenbeck((-2.0,), (3.0,), (4.0,))
     stationary = require_success(ou.stationary().execute())
-    assert stationary.report["answer"]["result"] == pytest.approx([1.0])
+    assert stationary.to_dict()["answer"]["result"] == pytest.approx([1.0])
     transient = require_success(ou.transient([0.0], [0.0], [0.0, 1.0]).execute())
-    assert transient.report["answer"]["result"]["means"][1][0] == pytest.approx(
+    assert transient.to_dict()["answer"]["result"]["means"][1][0] == pytest.approx(
         3.0 * (1.0 - math.exp(-2.0)), abs=1e-6
     )
     with pytest.raises(ValueError, match="stability"):
@@ -154,18 +154,18 @@ def test_polynomial_solution_sets_retain_unresolved_regions() -> None:
         ({"lower": -2.0, "upper": 2.0},),
     )
     result = require_success(system.prepare().execute())
-    assert len(result.report["answer"]["result"]["roots"]) == 3
-    assert result.report["answer"]["result"]["unresolved"] == ()
+    assert len(result.to_dict()["answer"]["result"]["roots"]) == 3
+    assert result.to_dict()["answer"]["result"]["unresolved"] == []
     assert (
         require_success(
-            consume_family_artifact(result.artifact, expected_identity=result.identity)
-        ).report
-        == result.report
+            consume_family_artifact(bytes(result.export()), expected_identity=result.identity)
+        ).to_dict()
+        == result.to_dict()
     )
     short = require_success(system.prepare(max_boxes=1).execute())
-    assert short.report["answer"]["result"]["unresolved"]
+    assert short.to_dict()["answer"]["result"]["unresolved"]
     replaced = require_success(system.replace_equation("cubic", 0, 0.5).prepare().execute())
-    assert len(replaced.report["answer"]["result"]["roots"]) == 1
+    assert len(replaced.to_dict()["answer"]["result"]["roots"]) == 1
 
 
 def test_prepared_fit_retarget_has_zero_refits_and_refresh_changes_identity() -> None:
@@ -183,13 +183,13 @@ def test_prepared_fit_retarget_has_zero_refits_and_refresh_changes_identity() ->
     retargeted = prepared.reconfigure([[{"variable": 0, "value": 2.0}]], [[0.0, 0.0]])
     assert retargeted.inspect()["fits_performed"] == 0
     result = require_success(retargeted.execute())
-    assert result.report["fit"] == original.report["fit"]
-    assert result.report["worlds"][0][0]["values"][1] == pytest.approx(1.4, abs=1e-4)
+    assert result.to_dict()["fit"] == original.to_dict()["fit"]
+    assert result.to_dict()["worlds"][0][0]["values"][1] == pytest.approx(1.4, abs=1e-4)
     assert (
         require_success(
             consume_artifact(bytes(result.export()), expected_identity=result.identity)
-        ).report
-        == result.report
+        ).to_dict()
+        == result.to_dict()
     )
     refreshed = require_success(
         prepared.rebind(
@@ -209,30 +209,32 @@ def test_graph_identification_fci_bipartite_and_domain_invariance_replay() -> No
     identified = require_success(
         graph.identify([2], [0], io_scm=True, scc_product_density=True).execute()
     )
-    assert identified.report["answer"]["result"]["status"] == "identified"
-    assert identified.report["answer"]["result"]["expression"]
+    assert identified.to_dict()["answer"]["result"]["status"] == "identified"
+    assert identified.to_dict()["answer"]["result"]["expression"]
     assert (
         require_success(
-            consume_family_artifact(identified.artifact, expected_identity=identified.identity)
-        ).report
-        == identified.report
+            consume_family_artifact(
+                bytes(identified.export()), expected_identity=identified.identity
+            )
+        ).to_dict()
+        == identified.to_dict()
     )
     failed = require_success(
         graph.identify([2], [1], io_scm=True, scc_product_density=True).execute()
     )
-    assert failed.report["answer"]["result"]["status"] == "not_identified_by_procedure"
+    assert failed.to_dict()["answer"]["result"]["status"] == "not_identified_by_procedure"
     discovered = require_success(
         graph.oracle_discovery(simple_scm=True, sigma_faithful=True).execute()
     )
-    assert discovered.report["answer"]["result"]["ci_source"] == "sigma_oracle"
-    assert "inducing path" in discovered.report["answer"]["result"]["interpretation"]
+    assert discovered.to_dict()["answer"]["result"]["ci_source"] == "sigma_oracle"
+    assert "inducing path" in discovered.to_dict()["answer"]["result"]["interpretation"]
     bipartite = BipartiteCausalGraph(3, (2,), ((0, 2), (0, 1)))
     determined = require_success(bipartite.b_separation(0, 1, [2]).execute())
-    assert determined.report["answer"]["result"]["separated"]
+    assert determined.to_dict()["answer"]["result"]["separated"]
     invariant = require_success(bipartite.domain_invariance([1], [0], []).execute())
-    assert invariant.report["answer"]["result"]["invariant"]
+    assert invariant.to_dict()["answer"]["result"]["invariant"]
     changed = require_success(bipartite.domain_invariance([1], [1], []).execute())
-    assert not changed.report["answer"]["result"]["invariant"]
+    assert not changed.to_dict()["answer"]["result"]["invariant"]
 
 
 def test_aligned_parameter_and_partial_counterfactual_posterior_artifacts() -> None:
@@ -255,7 +257,7 @@ def test_aligned_parameter_and_partial_counterfactual_posterior_artifacts() -> N
             execution=Execution(seed=91),
         ).execute()
     )
-    result = partial.report["answer"]["result"]
+    result = partial.to_dict()["answer"]["result"]
     assert not result["abduction"]["diagnostics_pass"]
     for factual, counterfactual in zip(
         result["abduction"]["states"], result["worlds"][1], strict=True
@@ -263,9 +265,9 @@ def test_aligned_parameter_and_partial_counterfactual_posterior_artifacts() -> N
         assert counterfactual["values"][1] == pytest.approx(factual[1] + 0.5, abs=1e-9)
     assert (
         require_success(
-            consume_family_artifact(partial.artifact, expected_identity=partial.identity)
-        ).report
-        == partial.report
+            consume_family_artifact(bytes(partial.export()), expected_identity=partial.identity)
+        ).to_dict()
+        == partial.to_dict()
     )
     rows = [{"values": [x, 0.5 * x], "clamps": [{"variable": 0, "value": x}]} for x in [-1.0, 1.0]]
     posterior = require_success(
@@ -280,12 +282,12 @@ def test_aligned_parameter_and_partial_counterfactual_posterior_artifacts() -> N
             execution=Execution(seed=91),
         ).execute()
     )
-    assert len(posterior.report["answer"]["result"]["worlds"][1]) == 32
+    assert len(posterior.to_dict()["answer"]["result"]["worlds"][1]) == 32
     assert (
         require_success(
-            consume_family_artifact(posterior.artifact, expected_identity=posterior.identity)
-        ).report
-        == posterior.report
+            consume_family_artifact(bytes(posterior.export()), expected_identity=posterior.identity)
+        ).to_dict()
+        == posterior.to_dict()
     )
 
 
@@ -305,8 +307,8 @@ def test_dynamic_fitting_and_explicit_selection_equation_likelihood() -> None:
     fit = require_success(
         ode.fit([{"kind": "decay", "equation": 0}], [observation], score_tolerance=1e-5).execute()
     )
-    assert fit.report["answer"]["result"]["converged"]
-    assert fit.report["answer"]["result"]["model"]["decay"][0] == pytest.approx(2.0, abs=0.05)
+    assert fit.to_dict()["answer"]["result"]["converged"]
+    assert fit.to_dict()["answer"]["result"]["model"]["decay"][0] == pytest.approx(2.0, abs=0.05)
     ou = OrnsteinUhlenbeck((-1.0,), (0.0,), (4.0,))
     rows = [{"values": [value], "clamps": []} for value in [-0.5, 1.5] * 10]
     fitted_ou = require_success(
@@ -314,12 +316,12 @@ def test_dynamic_fitting_and_explicit_selection_equation_likelihood() -> None:
             [{"kind": "drift", "row": 0, "column": 0}, {"kind": "center", "variable": 0}], rows
         ).execute()
     )
-    assert fitted_ou.report["answer"]["result"]["converged"]
+    assert fitted_ou.to_dict()["answer"]["result"]["converged"]
     assert (
         require_success(
-            consume_family_artifact(fitted_ou.artifact, expected_identity=fitted_ou.identity)
-        ).report
-        == fitted_ou.report
+            consume_family_artifact(bytes(fitted_ou.export()), expected_identity=fitted_ou.identity)
+        ).to_dict()
+        == fitted_ou.to_dict()
     )
     candidates = []
     for a in [0.25, 0.81]:
@@ -349,8 +351,8 @@ def test_dynamic_fitting_and_explicit_selection_equation_likelihood() -> None:
     result = require_success(
         fit_polynomial_candidates(candidates, [{"values": [0.9], "variances": [0.01]}]).execute()
     )
-    assert result.report["answer"]["result"]["best_candidate"] == "a=0.81"
-    assert result.report["answer"]["result"]["finite_set_optimum_certified"]
+    assert result.to_dict()["answer"]["result"]["best_candidate"] == "a=0.81"
+    assert result.to_dict()["answer"]["result"]["finite_set_optimum_certified"]
 
 
 def test_cyclic_execution_honors_resource_and_cancellation_controls() -> None:
@@ -400,7 +402,7 @@ def test_recovered_linear_keeps_failed_draws_and_replays_in_a_fresh_process(tmp_
     assert prepared.inspect()["family"] == "recovered_linear"
     result = require_success(prepared.execute())
     assert prepared.inspect()["preparation_evaluations"] == 0
-    worlds = result.report["answer"]["result"]["worlds"]
+    worlds = result.to_dict()["answer"]["result"]["worlds"]
     open_draw, marked, failed = worlds[0]["draws"]
     assert open_draw["outcome"]["solved_by"]["algorithm"] == "cyclic"
     assert "condensation" in open_draw["outcome"]["solved_by"]["next_attempt"]
@@ -413,7 +415,7 @@ def test_recovered_linear_keeps_failed_draws_and_replays_in_a_fresh_process(tmp_
     assert clamped["mean"] == pytest.approx([2.0, 1.0])
     assert len(worlds[0]["draws"]) == 3
     path = tmp_path / "recovered-linear.ant"
-    path.write_bytes(result.artifact)
+    path.write_bytes(bytes(result.export()))
     program = (
         "from antecedent.outcomes import require_success; import json,pathlib; from antecedent.cyclic import consume_family_artifact; "
         + f"print(json.dumps(require_success(consume_family_artifact(pathlib.Path({str(path)!r}).read_bytes(),"
@@ -459,7 +461,7 @@ def test_all_cyclic_family_artifacts_replay_in_fresh_process(tmp_path: Path) -> 
     for i, request in enumerate(requests):
         result = require_success(request.execute())
         path = tmp_path / f"family-{i}.ant"
-        path.write_bytes(result.artifact)
+        path.write_bytes(bytes(result.export()))
         expected.append(result.to_dict())
         paths.append((str(path), result.identity))
     program = (
@@ -495,7 +497,7 @@ def test_joint_parameter_factual_abduction_preserves_coupling_and_replays() -> N
             execution=Execution(seed=932),
         ).execute()
     )
-    answer = result.report["answer"]["result"]
+    answer = result.to_dict()["answer"]["result"]
     posterior = answer["posterior"]
     assert not posterior["factual"]["diagnostics_pass"]
     for theta, state, noise, factual, clamped in zip(
@@ -511,9 +513,9 @@ def test_joint_parameter_factual_abduction_preserves_coupling_and_replays() -> N
         assert clamped["values"][0] == 3.0
     assert (
         require_success(
-            consume_family_artifact(result.artifact, expected_identity=result.identity)
-        ).report
-        == result.report
+            consume_family_artifact(bytes(result.export()), expected_identity=result.identity)
+        ).to_dict()
+        == result.to_dict()
     )
 
 
@@ -563,7 +565,7 @@ def test_named_structural_actions_keep_distinct_semantics_and_failed_mass() -> N
             policy=SolvePolicy(require_contraction=False),
         ).execute()
     )
-    answers = result.report["answer"]["result"]
+    answers = result.to_dict()["answer"]["result"]
     for answer, expected in zip(
         answers[:4], [[2.0, 1.0], [2.5, 1.25], [1.0, 0.0], [4.0, 2.0]], strict=True
     ):
@@ -574,9 +576,9 @@ def test_named_structural_actions_keep_distinct_semantics_and_failed_mass() -> N
     assert answers[4]["counterfactual"]["failure"] == "singular"
     assert (
         require_success(
-            consume_family_artifact(result.artifact, expected_identity=result.identity)
-        ).report
-        == result.report
+            consume_family_artifact(bytes(result.export()), expected_identity=result.identity)
+        ).to_dict()
+        == result.to_dict()
     )
 
 
@@ -622,15 +624,17 @@ def test_nonlinear_end_to_end_milestone_with_overlapping_feedback_loops(tmp_path
         rows=rows,
     )
     result = require_success(prepared.execute())
-    assert result.report["fit"]["converged"]
-    assert result.report["worlds"][1][0]["values"][0] == pytest.approx(math.tanh(0.12), abs=0.035)
+    assert result.to_dict()["fit"]["converged"]
+    assert result.to_dict()["worlds"][1][0]["values"][0] == pytest.approx(
+        math.tanh(0.12), abs=0.035
+    )
     expected_counterfactual = math.tanh(0.12) + 0.2 - math.tanh(0.07)
-    assert result.report["counterfactuals"][1]["values"][0] == pytest.approx(
+    assert result.to_dict()["counterfactuals"][1]["values"][0] == pytest.approx(
         expected_counterfactual, abs=0.035
     )
     assert prepared.inspect()["fits_performed"] == 1
     path = tmp_path / "nonlinear-milestone.ant"
-    path.write_bytes(result.artifact)
+    path.write_bytes(bytes(result.export()))
     program = (
         "from antecedent.outcomes import require_success; import json,pathlib; from antecedent.cyclic import consume_artifact; "
         + f"r=require_success(consume_artifact(pathlib.Path({str(path)!r}).read_bytes(),expected_identity={result.identity!r}));print(json.dumps(r.to_dict(),sort_keys=True))"
@@ -651,11 +655,11 @@ def test_family_preparation_reuses_products_and_refresh_invalidates_binding() ->
     assert request.inspect()["preparation_evaluations"] == 0
     first = require_success(request.execute())
     assert request.inspect()["preparation_evaluations"] == 0
-    assert require_success(request.execute()).report == first.report
+    assert require_success(request.execute()).to_dict() == first.to_dict()
     # Refreshing an already compiled family preserves the same public contract.
     same = require_success(request.reconfigure())
     assert same.inspect()["preparation_evaluations"] == 0
-    assert require_success(same.execute()).report == first.report
+    assert require_success(same.execute()).to_dict() == first.to_dict()
     with pytest.raises(CausalResourceError, match="(?i)(memory|limit|budget|admission)"):
         require_success(request.execute(execution=Execution(limits=ResourceLimits(1))))
     replacement = json.loads(request.request_json)
@@ -681,7 +685,7 @@ def test_frequentist_bootstrap_responses_keep_failed_replicate_slots() -> None:
     result = require_success(
         bootstrap_responses(*inputs, replicates=6, execution=Execution(seed=91)).execute()
     )
-    answer = result.report["answer"]["result"]
+    answer = result.to_dict()["answer"]["result"]
     assert len(answer["parameters"]) == 6
     for values, observational, clamped in zip(
         answer["parameters"], answer["worlds"][0], answer["worlds"][1], strict=True
@@ -691,15 +695,15 @@ def test_frequentist_bootstrap_responses_keep_failed_replicate_slots() -> None:
         assert clamped[0]["values"][0] == 3.0
     assert (
         require_success(
-            consume_family_artifact(result.artifact, expected_identity=result.identity)
-        ).report
-        == result.report
+            consume_family_artifact(bytes(result.export()), expected_identity=result.identity)
+        ).to_dict()
+        == result.to_dict()
     )
     failed = require_success(
         bootstrap_responses(
             *inputs, replicates=4, execution=Execution(seed=91), policy=FitOptions(max_sweeps=1)
         ).execute()
-    ).report["answer"]["result"]
+    ).to_dict()["answer"]["result"]
     assert failed["parameters"] == (None,) * 4
     assert failed["worlds"][0] == (None,) * 4
 
@@ -728,7 +732,7 @@ def test_sampled_gaussian_ci_discovery_keeps_cyclic_interpretation() -> None:
             alpha=0.001,
         ).execute()
     )
-    answer = result.report["answer"]["result"]
+    answer = result.to_dict()["answer"]["result"]
     pairs = {(a, b) for a, b, _, _ in answer["edges"]}
     assert (0, 1) in pairs and (1, 2) in pairs
     assert all(3 not in pair for pair in pairs)
@@ -736,9 +740,9 @@ def test_sampled_gaussian_ci_discovery_keeps_cyclic_interpretation() -> None:
     assert "inducing path" in answer["interpretation"]
     assert (
         require_success(
-            consume_family_artifact(result.artifact, expected_identity=result.identity)
-        ).report
-        == result.report
+            consume_family_artifact(bytes(result.export()), expected_identity=result.identity)
+        ).to_dict()
+        == result.to_dict()
     )
 
 
@@ -852,7 +856,7 @@ def test_multiple_equilibrium_joint_selection_law_abduction_and_artifact(tmp_pat
             .prepare(PolynomialObservation("factual", (None,), "positive_sensor"))
             .execute()
         )
-        answer = result.report["answer"]["result"]
+        answer = result.to_dict()["answer"]["result"]
         assert answer["positive_evidence_certified"]
         assert not answer["impossible_evidence"]
         assert (
@@ -872,9 +876,9 @@ def test_multiple_equilibrium_joint_selection_law_abduction_and_artifact(tmp_pat
         assert expected == pytest.approx(-1.2 if flipped else 1.2, abs=1e-7)
         assert (
             require_success(
-                consume_family_artifact(result.artifact, expected_identity=result.identity)
-            ).report
-            == result.report
+                consume_family_artifact(bytes(result.export()), expected_identity=result.identity)
+            ).to_dict()
+            == result.to_dict()
         )
         answers.append(result)
     from antecedent import decision
@@ -887,7 +891,7 @@ def test_multiple_equilibrium_joint_selection_law_abduction_and_artifact(tmp_pat
             [{"kind": "polynomial_world", "world": "counterfactual", "variable": 0}],
         )
     )
-    q = ScientificQuantity.from_wire(impossible_evidence.report["columns"][0]["quantity"])
+    q = ScientificQuantity.from_wire(impossible_evidence.to_dict()["columns"][0]["quantity"])
     c = decision.Contract(
         (
             decision.Action("act", inputs=(q,), utility=decision.x(0)),
@@ -901,7 +905,7 @@ def test_multiple_equilibrium_joint_selection_law_abduction_and_artifact(tmp_pat
     with pytest.raises(ValueError, match="positive"):
         require_success(impossible_evidence.decide_enclosures(c))
     path = tmp_path / "joint-selection.ant"
-    path.write_bytes(answers[0].artifact)
+    path.write_bytes(bytes(answers[0].export()))
     program = (
         "from antecedent.outcomes import require_success; import json,pathlib;from antecedent.cyclic import consume_family_artifact;"
         + f"r=require_success(consume_family_artifact(pathlib.Path({str(path)!r}).read_bytes(),expected_identity={answers[0].identity!r}));print(json.dumps(r.to_dict(),sort_keys=True))"
@@ -945,14 +949,14 @@ def test_compositional_feedback_gradient_fit_counterfactual_and_artifact(tmp_pat
         [{"kind": "expression_parameter", "equation": 0, "parameter": 0}], rows
     )
     result = require_success(prepared.execute())
-    fit = result.report["answer"]["result"]
+    fit = result.to_dict()["answer"]["result"]
     assert fit["converged"]
     assert abs(fit["model"]["equations"][0]["parameters"][0] - 0.7) < 1e-6
     assert (
         require_success(
-            consume_family_artifact(result.artifact, expected_identity=result.identity)
-        ).report
-        == result.report
+            consume_family_artifact(bytes(result.export()), expected_identity=result.identity)
+        ).to_dict()
+        == result.to_dict()
     )
     fitted = EquilibriumModel(
         (
@@ -971,7 +975,7 @@ def test_compositional_feedback_gradient_fit_counterfactual_and_artifact(tmp_pat
             [[{"variable": 1, "value": 1.0}]], [[0.0, 0.0]], factual=[0.3, -0.2]
         ).execute()
     )
-    assert answer.report["worlds"][0][0]["globally_unique"]
+    assert answer.to_dict()["worlds"][0][0]["globally_unique"]
 
 
 def test_typed_identified_cyclic_functional_evaluation_and_replay():
@@ -993,15 +997,15 @@ def test_typed_identified_cyclic_functional_evaluation_and_replay():
             [[(0, 0.0), (2, 1.0)], [(0, 1.0), (2, 1.0)], [(0, 2.0), (2, 1.0)]],
         ).execute()
     )
-    values = result.report["answer"]["result"]["values"]
+    values = result.to_dict()["answer"]["result"]["values"]
     assert abs(values[0]["value"] - 0.2) < 1e-12
     assert abs(values[1]["value"] - 0.5) < 1e-12
     assert values[2]["value"] is None and values[2]["failure"]
     assert (
         require_success(
-            consume_family_artifact(result.artifact, expected_identity=result.identity)
-        ).report
-        == result.report
+            consume_family_artifact(bytes(result.export()), expected_identity=result.identity)
+        ).to_dict()
+        == result.to_dict()
     )
 
 
@@ -1047,9 +1051,9 @@ def test_native_cyclic_evidence_decision_and_fresh_process_replay(tmp_path):
         prepared.evidence(schema, [{"kind": "ou_mean", "time": None, "variable": 0}])
     )
     assert prepared.inspect()["preparation_evaluations"] == 0
-    assert evidence.report["columns"][0]["samples"] == [3.0]
-    assert evidence.report["columns"][0]["port"] == "mean"
-    quantity = ScientificQuantity.from_wire(evidence.report["columns"][0]["quantity"])
+    assert evidence.to_dict()["columns"][0]["samples"] == [3.0]
+    assert evidence.to_dict()["columns"][0]["port"] == "mean"
+    quantity = ScientificQuantity.from_wire(evidence.to_dict()["columns"][0]["quantity"])
     contract = decision.Contract(
         (
             decision.Action("keep", inputs=(quantity,), utility=decision.x(0)),
@@ -1064,16 +1068,16 @@ def test_native_cyclic_evidence_decision_and_fresh_process_replay(tmp_path):
     assert result["evidence_identity"] == evidence.identity
     artifact = bytes(evidence.export())
     assert (
-        require_success(consume_evidence(artifact, expected_identity=evidence.identity)).report
-        == evidence.report
+        require_success(consume_evidence(artifact, expected_identity=evidence.identity)).to_dict()
+        == evidence.to_dict()
     )
     path = tmp_path / "evidence.ant"
     path.write_bytes(artifact)
-    code = f"from antecedent.outcomes import require_success\nimport pathlib, json\nfrom antecedent.cyclic import consume_evidence\ne = require_success(consume_evidence(pathlib.Path({str(path)!r}).read_bytes(), expected_identity={evidence.identity!r}))\nprint(json.dumps(e.report, sort_keys=True))\n"
+    code = f"from antecedent.outcomes import require_success\nimport pathlib, json\nfrom antecedent.cyclic import consume_evidence\ne = require_success(consume_evidence(pathlib.Path({str(path)!r}).read_bytes(), expected_identity={evidence.identity!r}))\nprint(json.dumps(e.to_dict(), sort_keys=True))\n"
     process = subprocess.run(
         [sys.executable, "-c", code], cwd=tmp_path, capture_output=True, text=True, check=True
     )
-    assert json.loads(process.stdout) == evidence.report
+    assert json.loads(process.stdout) == evidence.to_dict()
     changed = require_success(
         prepared.evidence(
             {**schema, "population": "other-system"},
@@ -1111,14 +1115,14 @@ def test_cyclic_evidence_retains_posterior_bootstrap_and_algebraic_meanings():
         execution=Execution(seed=2),
     )
     evidence = require_success(posterior.evidence(schema, selectors))
-    assert evidence.report["columns"][0]["port"] == "parameter_posterior"
-    assert evidence.report["columns"][0]["uncertainty_axes"] == ["parameter"]
+    assert evidence.to_dict()["columns"][0]["port"] == "parameter_posterior"
+    assert evidence.to_dict()["columns"][0]["uncertainty_axes"] == ["parameter"]
     law = require_success(evidence.joint_law())
     assert law.to_dict()["identity"]["semantic"] == "causal_functional_posterior"
     from antecedent import decision
     from antecedent.joint_distribution import ScientificQuantity
 
-    q = ScientificQuantity.from_wire(evidence.report["columns"][0]["quantity"])
+    q = ScientificQuantity.from_wire(evidence.to_dict()["columns"][0]["quantity"])
     contract = decision.Contract(
         (
             decision.Action("nonlinear", inputs=(q,), utility=decision.x(0) * decision.x(0)),
@@ -1146,7 +1150,7 @@ def test_cyclic_evidence_retains_posterior_bootstrap_and_algebraic_meanings():
         replicates=2,
     )
     resampling = require_success(bootstrap.evidence(schema, selectors))
-    assert resampling.report["columns"][0]["port"] == "sampling_law"
+    assert resampling.to_dict()["columns"][0]["port"] == "sampling_law"
     with pytest.raises(ValueError, match="port"):
         require_success(resampling.joint_law())
 
@@ -1173,9 +1177,9 @@ def test_equilibrium_polynomial_bridge_and_robust_solution_decisions():
     schema = {"id": "cubic", "population": "physical", "variables": [["x", "unit"]]}
     prepared = model.isolate([{"lower": -2.0, "upper": 2.0}], [0.0])
     answer = require_success(prepared.execute())
-    assert len(answer.report["answer"]["result"]["roots"]) == 3
+    assert len(answer.to_dict()["answer"]["result"]["roots"]) == 3
     evidence = require_success(prepared.evidence(schema, [{"kind": "solution_set", "variable": 0}]))
-    quantity = ScientificQuantity.from_wire(evidence.report["columns"][0]["quantity"])
+    quantity = ScientificQuantity.from_wire(evidence.to_dict()["columns"][0]["quantity"])
     contract = decision.Contract(
         (
             decision.Action("root_action", inputs=(quantity,), utility=decision.x(0)),
@@ -1194,8 +1198,8 @@ def test_equilibrium_polynomial_bridge_and_robust_solution_decisions():
     retained = require_success(
         unresolved.evidence(schema, [{"kind": "solution_set", "variable": 0}])
     )
-    assert retained.report["columns"][0]["diagnostics"]["unresolved_regions"] > 0
-    other = ScientificQuantity.from_wire(retained.report["columns"][0]["quantity"])
+    assert retained.to_dict()["columns"][0]["diagnostics"]["unresolved_regions"] > 0
+    other = ScientificQuantity.from_wire(retained.to_dict()["columns"][0]["quantity"])
     other_contract = decision.Contract(
         (
             decision.Action("root_action", inputs=(other,), utility=decision.x(0)),
@@ -1222,22 +1226,22 @@ def test_ou_equation_replacements_preserve_world_failures_and_artifact():
     unstable = {**changed, "drift": [1.0, 0.0]}
     prepared = model.prepare([[], [changed], [unstable]])
     answer = require_success(prepared.execute())
-    laws = answer.report["answer"]["result"]["laws"]
+    laws = answer.to_dict()["answer"]["result"]["laws"]
     assert laws[1]["mean"][0] == pytest.approx(0.1)
     assert laws[1]["mean"][1] == pytest.approx(0.68)
     assert "failure" in laws[2]
     assert (
         require_success(
-            consume_family_artifact(answer.artifact, expected_identity=answer.identity)
-        ).report
-        == answer.report
+            consume_family_artifact(bytes(answer.export()), expected_identity=answer.identity)
+        ).to_dict()
+        == answer.to_dict()
     )
     schema = {"id": "sde", "population": "physical", "variables": [["a", "unit"], ["b", "unit"]]}
     evidence = require_success(
         prepared.evidence(schema, [{"kind": "ou_regime", "world": 2, "variable": 0, "other": None}])
     )
-    assert evidence.report["columns"][0]["samples"] == [None]
-    assert evidence.report["columns"][0]["diagnostics"]["failure"]
+    assert evidence.to_dict()["columns"][0]["samples"] == [None]
+    assert evidence.to_dict()["columns"][0]["diagnostics"]["failure"]
 
 
 def test_calculus_adjustment_functional_and_bounded_status_replay():
@@ -1247,7 +1251,9 @@ def test_calculus_adjustment_functional_and_bounded_status_replay():
     source = graph.calculus(
         "exchange", [0], [1], [], [], io_scm=True, standard_measurable_spaces=True
     )
-    assert require_success(source.execute()).report["answer"]["result"]["status"] == "verified_rule"
+    assert (
+        require_success(source.execute()).to_dict()["answer"]["result"]["status"] == "verified_rule"
+    )
     result = require_success(
         require_success(source.identified_functional())
         .evaluate(
@@ -1255,14 +1261,14 @@ def test_calculus_adjustment_functional_and_bounded_status_replay():
         )
         .execute()
     )
-    assert [x["value"] for x in result.report["answer"]["result"]["values"]] == pytest.approx(
+    assert [x["value"] for x in result.to_dict()["answer"]["result"]["values"]] == pytest.approx(
         [0.2, 0.8]
     )
     assert (
         require_success(
-            consume_family_artifact(result.artifact, expected_identity=result.identity)
-        ).report
-        == result.report
+            consume_family_artifact(bytes(result.export()), expected_identity=result.identity)
+        ).to_dict()
+        == result.to_dict()
     )
     adjusted = graph.adjust(
         [1], [0], [], io_scm=True, standard_measurable_spaces=True, continuous=False
@@ -1272,19 +1278,19 @@ def test_calculus_adjustment_functional_and_bounded_status_replay():
         .evaluate([[0.0, 1.0]] * 2, [0.4, 0.1, 0.1, 0.4], [[(0, 1.0), (1, 1.0)]])
         .execute()
     )
-    assert answer.report["answer"]["result"]["values"][0]["value"] == pytest.approx(0.8)
+    assert answer.to_dict()["answer"]["result"]["values"][0]["value"] == pytest.approx(0.8)
     exhausted = require_success(
         graph.calculus(
             "exchange", [0], [1], [], [], io_scm=True, standard_measurable_spaces=True, max_checks=0
         ).execute()
     )
-    assert exhausted.report["answer"]["result"]["status"] == "budget_exhausted"
+    assert exhausted.to_dict()["answer"]["result"]["status"] == "budget_exhausted"
     failed = require_success(
         graph.calculus(
             "action", [0], [1], [], [], io_scm=True, standard_measurable_spaces=True
         ).execute()
     )
-    assert failed.report["answer"]["result"]["status"] == "not_licensed_by_criterion"
+    assert failed.to_dict()["answer"]["result"]["status"] == "not_licensed_by_criterion"
 
 
 @pytest.mark.parametrize(
@@ -1314,7 +1320,7 @@ def test_unavailable_cyclic_functional_is_a_scientific_refusal_with_native_evide
     assert refused.refusal.detail == "cyclic.observational_functional_unavailable"
     assert refused.refusal.fields["native_identification"]["status"] == status
     assert refused.refusal.fields["source_identity"] == original.identity
-    assert refused.refusal.fields["native_identification"] == original.report["answer"]["result"]
+    assert refused.refusal.fields["native_identification"] == original.to_dict()["answer"]["result"]
     assert refused.refusal.remedy
     assert require_success(study.execute()).to_dict() == original.to_dict()
 
@@ -1327,13 +1333,13 @@ def test_adam_public_replay_and_policy_data_invalidation():
     p = AdamPolicy(max_epochs=25, minimum_epochs=3, patience=3)
     prepared = m.fit_adam([{"kind": "intercept", "equation": 0}], training, training, policy=p)
     result = require_success(prepared.execute())
-    fit = result.report["answer"]["result"]
+    fit = result.to_dict()["answer"]["result"]
     assert fit["epochs"] <= 25 and fit["nonsmooth_convention"]
     assert (
         require_success(
-            consume_family_artifact(result.artifact, expected_identity=result.identity)
-        ).report
-        == result.report
+            consume_family_artifact(bytes(result.export()), expected_identity=result.identity)
+        ).to_dict()
+        == result.to_dict()
     )
     assert (
         require_success(
@@ -1401,13 +1407,13 @@ def test_whole_family_scientific_identity_invalidation_and_fresh_consumers(tmp_p
             changed["initial"][0] = 2.0
         fresh = require_success(PreparedCyclicFamily(json.dumps(changed)).execute())
         assert fresh.identity != result.identity
-        assert require_success(prepared.execute()).report == result.report
+        assert require_success(prepared.execute()).to_dict() == result.to_dict()
         with pytest.raises(Exception, match="identity|mismatch"):
             require_success(
-                consume_family_artifact(fresh.artifact, expected_identity=result.identity)
+                consume_family_artifact(bytes(fresh.export()), expected_identity=result.identity)
             )
         path = tmp_path / f"inventory-{i}.ant"
-        path.write_bytes(result.artifact)
+        path.write_bytes(bytes(result.export()))
         pairs.append((str(path), result.identity))
         expected.append(result.to_dict())
     script = f"from antecedent.outcomes import require_success\nimport json, pathlib\nfrom antecedent.cyclic import consume_family_artifact\npairs = {pairs!r}\nprint(json.dumps([require_success(consume_family_artifact(pathlib.Path(p).read_bytes(), expected_identity=i)).to_dict() for p, i in pairs], sort_keys=True))\n"
@@ -1441,8 +1447,8 @@ def test_numerical_roots_never_acquire_solution_enclosure_decision_contract():
             ],
         )
     )
-    assert e.report["columns"][0]["numerical_enclosures"] == []
-    assert e.report["columns"][0]["diagnostics"]["globally_unique"] is False
+    assert e.to_dict()["columns"][0]["numerical_enclosures"] == []
+    assert e.to_dict()["columns"][0]["diagnostics"]["globally_unique"] is False
     with pytest.raises(CausalResourceError, match="admission|resource|limit|budget"):
         bytes(e.export(execution=Execution(limits=ResourceLimits(1))))
 
@@ -1466,7 +1472,7 @@ def test_continuous_identification_gaussian_fitting_evidence_and_fresh_replay(tm
         [[(0, 1.0), (2, 0.0)], [(0, 1.0)]],
     )
     result = require_success(prepared.execute())
-    answer = result.report["answer"]["result"]
+    answer = result.to_dict()["answer"]["result"]
     truth = math.exp(-0.5 * 0.4**2 / 2.13) / math.sqrt(2 * math.pi * 2.13)
     assert answer["fitted_rows"] == 16
     assert answer["values"][0]["value"] == pytest.approx(truth, abs=1e-12)
@@ -1481,11 +1487,11 @@ def test_continuous_identification_gaussian_fitting_evidence_and_fresh_replay(tm
             [{"kind": "functional", "assignment": 0}],
         )
     )
-    assert evidence.report["columns"][0]["port"] == "likelihood"
-    assert evidence.report["columns"][0]["quantity"]["variable_name"] == "y"
-    assert evidence.report["columns"][0]["quantity"]["units"] == "1/(unit)"
+    assert evidence.to_dict()["columns"][0]["port"] == "likelihood"
+    assert evidence.to_dict()["columns"][0]["quantity"]["variable_name"] == "y"
+    assert evidence.to_dict()["columns"][0]["quantity"]["units"] == "1/(unit)"
     path = tmp_path / "continuous.ant"
-    path.write_bytes(result.artifact)
+    path.write_bytes(bytes(result.export()))
     code = f"from antecedent.outcomes import require_success\nimport pathlib, json\nfrom antecedent.cyclic import consume_family_artifact\nr = require_success(consume_family_artifact(pathlib.Path({str(path)!r}).read_bytes(), expected_identity={result.identity!r}))\nprint(json.dumps(r.to_dict(), sort_keys=True))\n"
     replay = subprocess.run(
         [sys.executable, "-c", code], cwd=tmp_path, capture_output=True, text=True, check=True
@@ -1521,12 +1527,12 @@ def test_structure_and_discovery_semantic_seeds_bind_replay():
     }
     prepared = learn_structure(m, rows, execution=Execution(seed=71), **kwargs)
     result = require_success(prepared.execute())
-    assert any(value is not None for value in result.report["answer"]["result"]["bootstrap"])
+    assert any(value is not None for value in result.to_dict()["answer"]["result"]["bootstrap"])
     assert (
         require_success(
-            consume_family_artifact(result.artifact, expected_identity=result.identity)
-        ).report
-        == result.report
+            consume_family_artifact(bytes(result.export()), expected_identity=result.identity)
+        ).to_dict()
+        == result.to_dict()
     )
     assert (
         require_success(
@@ -1545,9 +1551,9 @@ def test_structure_and_discovery_semantic_seeds_bind_replay():
     )
     assert (
         require_success(
-            consume_family_artifact(graph.artifact, expected_identity=graph.identity)
-        ).report
-        == graph.report
+            consume_family_artifact(bytes(graph.export()), expected_identity=graph.identity)
+        ).to_dict()
+        == graph.to_dict()
     )
 
 
@@ -1559,7 +1565,7 @@ def test_cyclic_logical_retention_and_projection_resource_limits():
     # The prepared owner retains the compiled request, not the exported artifact.
     retained = prepared.inspect()["retained_bytes"]
     assert retained > 0
-    assert require_success(prepared.execute()).artifact == result.artifact
+    assert bytes(require_success(prepared.execute()).export()) == bytes(result.export())
     assert prepared.inspect()["retained_bytes"] == retained
     schema = {"id": "physical", "population": "system", "variables": [["position", "meter"]]}
     selector = {"kind": "ou_mean", "time": None, "variable": 0}
@@ -1596,7 +1602,9 @@ def test_cyclic_native_facts_survive_execution_cancellation_and_bad_artifact():
     assert result.execution_facts.is_native
     assert result.execution_facts.status() == "completed"
     assert result.execution_facts.peak_admitted_bytes > 0
-    replay = require_success(consume_artifact(result.artifact, expected_identity=result.identity))
+    replay = require_success(
+        consume_artifact(bytes(result.export()), expected_identity=result.identity)
+    )
     assert replay.execution_facts.is_native
     assert replay.execution_facts.status() == "completed"
 
@@ -1736,15 +1744,15 @@ def test_linear_worlds_reproduce_the_analytic_feedback_pair_and_replay(tmp_path:
     result = require_success(prepared.execute())
     assert require_success(
         consume_family_artifact(bytes(result.export()), expected_identity=result.identity)
-    ).report == (result.report)
+    ).to_dict() == (result.to_dict())
     schema = {"id": "feedback", "population": "model", "variables": [["A", "unit"], ["B", "unit"]]}
     evidence = require_success(prepared.evidence(schema, [WorldSelector(3, "B")]))
-    column = evidence.report["columns"][0]
+    column = evidence.to_dict()["columns"][0]
     assert column["port"] == "interventional_law"
     assert column["samples"][0] == pytest.approx(0.625, abs=1e-10)
     assert require_success(
         consume_evidence(bytes(evidence.export()), expected_identity=evidence.identity)
-    ).report == (evidence.report)
+    ).to_dict() == (evidence.to_dict())
     path = tmp_path / "linear-worlds.ant"
     path.write_bytes(bytes(result.export()))
     replayed = _fresh_replay(
@@ -1873,7 +1881,7 @@ def test_experimental_recovery_keeps_each_draw_origin_through_worlds_evidence_an
             assert facts["draw_origin"]["rule"] == "row_subject_iid"
 
         result = require_success(prepared.execute())
-        law = result.report["answer"]["result"]
+        law = result.to_dict()["answer"]["result"]
         assert law["law_meaning"] == meaning
         assert law["law"]["origin"]["origin"] == origin
         assert len(law["law"]["draws"]) == draws
@@ -1886,20 +1894,20 @@ def test_experimental_recovery_keeps_each_draw_origin_through_worlds_evidence_an
         assert clamped.mean() == pytest.approx(1.0, abs=0.2)
         assert require_success(
             consume_family_artifact(bytes(result.export()), expected_identity=result.identity)
-        ).report == (result.report)
+        ).to_dict() == (result.to_dict())
         evidence = require_success(
             prepared.evidence(
                 schema,
                 [RecoveredResponseSelector(1, 1), RecoveredDrawSelector(1, 0, 1)],
             )
         )
-        response, within = evidence.report["columns"]
+        response, within = evidence.to_dict()["columns"]
         assert response["port"] == meaning
         assert len(response["samples"]) == draws
         assert within["port"] == "interventional_law"
         assert require_success(
             consume_evidence(bytes(evidence.export()), expected_identity=evidence.identity)
-        ).report == (evidence.report)
+        ).to_dict() == (evidence.to_dict())
 
 
 def test_uncovered_recovery_rows_stay_unresolved_and_withhold_their_mass() -> None:
@@ -1912,10 +1920,15 @@ def test_uncovered_recovery_rows_stay_unresolved_and_withhold_their_mass() -> No
     assert before["design_unresolved"] == [{"target": 0, "missing_clamps": [1]}]
     assert before["unresolved_directions"] == before["design_unresolved"]
     assert "draw_status" not in before
-    require_success(prepared.execute())
+    result = require_success(prepared.execute())
     facts = prepared.inspect()
     assert facts["unresolved_directions"]
-    assert set(facts["draw_status"]) == {"unresolved"}
+    assert facts["unresolved_directions"] == before["unresolved_directions"]
+    assert "draw_status" not in facts
+    statuses = result.law.draw_status()
+    assert statuses.count == len(statuses.items) == 16
+    assert {item["status"] for item in statuses.items} == {"unresolved"}
+    assert result.law.unresolved(0).items
     clamped = require_success(prepared.interventions())[2]
     assert clamped.mixture_mean is None
     assert clamped.withheld_mass == pytest.approx(1.0, abs=1e-12)
@@ -1986,14 +1999,14 @@ def test_system_family_and_families_without_worlds_refuse_interventions() -> Non
     assert facts["fit_dependencies"] == ["request.model", "request.fit"]
     assert facts["variables"] == ["a", "b"]
     answer = require_success(family.execute())
-    assert answer.report["answer"]["family"] == "system"
+    assert answer.to_dict()["answer"]["family"] == "system"
     assert (
-        answer.report["answer"]["result"]["worlds"]
-        == require_success(system.execute()).report["worlds"]
+        answer.to_dict()["answer"]["result"]["worlds"]
+        == require_success(system.execute()).to_dict()["worlds"]
     )
     assert require_success(
         consume_family_artifact(bytes(answer.export()), expected_identity=answer.identity)
-    ).report == (answer.report)
+    ).to_dict() == (answer.to_dict())
     with pytest.raises(CyclicRefusal, match="no intervention worlds") as refused:
         require_success(family.interventions())
     assert "linear_worlds" in refused.value.next_attempt
@@ -2038,7 +2051,7 @@ def test_dynamic_inference_shares_its_fit_across_methods_and_binds_its_port(
     assert facts["uncertainty_method"] == "information"
     assert facts["law_meaning"] == "covariance_influence"
     assert facts["fit_dependencies"] == ["problem"]
-    first = require_success(information.execute()).report["answer"]["result"]
+    first = require_success(information.execute()).to_dict()["answer"]["result"]
     observed = first["inference"]["result"]
     assert first["inference"]["method"] == "information"
     assert observed["quantity_estimates"][0] == pytest.approx(0.5, abs=0.25)
@@ -2048,21 +2061,23 @@ def test_dynamic_inference_shares_its_fit_across_methods_and_binds_its_port(
         information.reconfigure(method=DynamicBootstrap(20), execution=Execution(seed=11))
     )
     result = require_success(bootstrap.execute())
-    second = result.report["answer"]["result"]
+    second = result.to_dict()["answer"]["result"]
     assert second["fit"] == first["fit"]
     assert len(second["inference"]["result"]["replicates"]) == 20
     schema = {"id": "process", "population": "system", "variables": [["x", "unit"]]}
     evidence = require_success(bootstrap.evidence(schema, [DynamicQuantitySelector(0)]))
-    assert evidence.report["columns"][0]["port"] == "sampling_law"
-    assert len(evidence.report["columns"][0]["samples"]) == 20
+    assert evidence.to_dict()["columns"][0]["port"] == "sampling_law"
+    assert len(evidence.to_dict()["columns"][0]["samples"]) == 20
 
     posterior = infer(
         DynamicPosterior((-1.0, 0.0), (10.0, 10.0), chains=2, warmup=50, draws=50),
         execution=Execution(seed=13),
     )
-    draws = require_success(posterior.execute()).report["answer"]["result"]["inference"]["result"]
+    draws = require_success(posterior.execute()).to_dict()["answer"]["result"]["inference"][
+        "result"
+    ]
     assert len(draws["quantity_draws"]) == 100
-    assert require_success(posterior.evidence(schema, [DynamicQuantitySelector(0)])).report[
+    assert require_success(posterior.evidence(schema, [DynamicQuantitySelector(0)])).to_dict()[
         "columns"
     ][0]["port"] == ("parameter_posterior")
 
@@ -2104,11 +2119,11 @@ def test_recovered_law_and_its_evidence_replay_in_a_fresh_process(tmp_path: Path
         + f"expected_identity={result.identity!r})); "
         + f"e=require_success(consume_evidence(pathlib.Path({str(evidence_path)!r}).read_bytes(),"
         + f"expected_identity={evidence.identity!r})); "
-        + "print(json.dumps([f.to_dict(),e.report],sort_keys=True))",
+        + "print(json.dumps([f.to_dict(),e.to_dict()],sort_keys=True))",
     )
     family_report, evidence_report = json.loads(replayed)
     assert family_report == result.to_dict()
-    assert evidence_report == evidence.report
+    assert evidence_report == evidence.to_dict()
     assert evidence_report["columns"][0]["port"] == "sampling_law"
 
 
