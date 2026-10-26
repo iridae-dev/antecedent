@@ -200,7 +200,7 @@ impl PreparedStudy {
         } else {
             self.estimate_click(data, shared, &scoped, notes)?
         };
-        result.lowered_identity = Some(lowered);
+        result.stamp_lowered_program(self.plan.require_lowered(None)?);
         crate::analysis::target_validation::stamp_route_refutations(&mut result);
         Ok(result)
     }

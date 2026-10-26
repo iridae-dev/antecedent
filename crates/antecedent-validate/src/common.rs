@@ -1176,16 +1176,18 @@ pub(crate) fn admit_cells(
         .checked_mul(width)
         .and_then(|cells| cells.checked_mul(size_of::<f64>()))
         .and_then(|bytes| u64::try_from(bytes).ok())
-        .ok_or_else(|| ValidationError::estimation_msg("check buffer size overflow"))?;
+        .ok_or_else(|| ValidationError::Resource {
+            message: "check buffer size overflow".into(),
+        })?;
     let outcome = match ctx {
         Some(ctx) => Some(ctx.acquire_admission(0, bytes)),
         None => antecedent_core::numerical_admission::acquire(bytes),
     };
     outcome.transpose().map_err(|error| match error {
         antecedent_core::execution::AdmissionError::Cancelled => ValidationError::Cancelled,
-        other => ValidationError::estimation_msg(format!(
-            "admission pool cannot fund the check buffers: {other}"
-        )),
+        other => ValidationError::Resource {
+            message: format!("admission pool cannot fund the check buffers: {other}"),
+        },
     })
 }
 
@@ -1206,12 +1208,14 @@ pub(crate) fn admit_replicate_results<T>(
     let bytes = u64::from(replicates)
         .checked_mul(size_of::<T>().max(1) as u64)
         .and_then(|bytes| bytes.checked_mul(2))
-        .ok_or_else(|| ValidationError::estimation_msg("replicate result size overflow"))?;
+        .ok_or_else(|| ValidationError::Resource {
+            message: "replicate result size overflow".into(),
+        })?;
     ctx.acquire_admission(0, bytes).map_err(|error| match error {
         antecedent_core::execution::AdmissionError::Cancelled => ValidationError::Cancelled,
-        other => ValidationError::estimation_msg(format!(
-            "admission pool cannot fund the replicate results: {other}"
-        )),
+        other => ValidationError::Resource {
+            message: format!("admission pool cannot fund the replicate results: {other}"),
+        },
     })
 }
 

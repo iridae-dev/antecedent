@@ -81,13 +81,14 @@ pub(crate) fn stamp_route_refutations(result: &mut StudyResult) {
 
 impl LoweredProgram {
     /// Quadrant of this program: temporal when the scientific problem reads series, panel or
-    /// event data; Bayesian when the claim reads a posterior.
+    /// event data, or multiple environments under a temporal structure; Bayesian when the
+    /// claim reads a posterior.
     #[must_use]
     pub fn refutation_quadrant(&self) -> TargetQuadrant {
         TargetQuadrant {
-            temporal: !matches!(
+            temporal: temporal_refutation_data(
                 self.scientific().data(),
-                DataClassification::Tabular | DataClassification::MultiEnvironment
+                Some(self.scientific().graph_class()),
             ),
             bayesian: self.claim().uncertainty() == UncertaintyReading::Posterior,
         }
@@ -349,15 +350,39 @@ pub fn result_target_values(
     Ok((family, labels, values))
 }
 
-/// Quadrant of `result`: its data classification and whether it carries a posterior.
+/// Quadrant of `result`: its data classification, retained structure for multiple
+/// environments, and whether it carries a posterior.
 #[must_use]
 pub fn result_quadrant(result: &StudyResult) -> TargetQuadrant {
+    if let Some(quadrant) = result.lowered_quadrant {
+        return quadrant;
+    }
     TargetQuadrant {
-        temporal: !matches!(
+        temporal: temporal_refutation_data(
             result.logical_plan.data_classification,
-            DataClassification::Tabular | DataClassification::MultiEnvironment
+            result.certificate.as_ref().map(|certificate| certificate.graph_class.as_str()),
         ),
         bayesian: result.posterior.is_some(),
+    }
+}
+
+// Multi-environment is a partitioning declaration, not a declaration of iid rows:
+// both static populations and lagged systems use it. Read the retained structure
+// class rather than labeling every environment collection static (or temporal).
+fn temporal_refutation_data(data: DataClassification, graph_class: Option<&str>) -> bool {
+    match data {
+        DataClassification::Tabular => false,
+        DataClassification::Temporal | DataClassification::Panel | DataClassification::Event => {
+            true
+        }
+        DataClassification::MultiEnvironment => [
+            crate::GraphClass::TemporalDag,
+            crate::GraphClass::TemporalCpdag,
+            crate::GraphClass::TemporalPag,
+            crate::GraphClass::TemporalAdmg,
+        ]
+        .iter()
+        .any(|class| Some(class.as_str()) == graph_class),
     }
 }
 
@@ -557,6 +582,77 @@ mod repack_tests {
 
     use super::*;
 
+    #[test]
+    fn multi_environment_refutation_quadrant_preserves_the_retained_structure_kind() {
+        let data = DataClassification::MultiEnvironment;
+        for class in [
+            crate::GraphClass::TemporalDag,
+            crate::GraphClass::TemporalCpdag,
+            crate::GraphClass::TemporalPag,
+            crate::GraphClass::TemporalAdmg,
+        ] {
+            assert!(temporal_refutation_data(data, Some(class.as_str())));
+        }
+        for class in [
+            crate::GraphClass::Dag,
+            crate::GraphClass::Admg,
+            crate::GraphClass::Cpdag,
+            crate::GraphClass::Pag,
+        ] {
+            assert!(!temporal_refutation_data(data, Some(class.as_str())));
+        }
+        assert!(!temporal_refutation_data(data, Some("cyclic")));
+        assert!(!temporal_refutation_data(data, None));
+        assert!(temporal_refutation_data(DataClassification::Temporal, None));
+    }
+
+    #[test]
+    fn retained_multi_environment_pulse_and_its_lowered_plan_are_both_temporal() {
+        let environments = (0..3)
+            .map(|environment| {
+                let x: Vec<_> = (0..160)
+                    .map(|row| (f64::from(row) * 1.37 + f64::from(environment)).sin())
+                    .collect();
+                let y: Vec<_> = (0..160)
+                    .map(|row| {
+                        let past = if row == 0 { 0.0 } else { x[row - 1] };
+                        let time = f64::from(u32::try_from(row).unwrap());
+                        1.0 + 2.0 * past + 0.1 * (time * 2.17).cos()
+                    })
+                    .collect();
+                TimeSeriesData::from_f64_columns([("x", x.as_slice()), ("y", y.as_slice())], 1)
+                    .unwrap()
+            })
+            .collect::<Vec<_>>();
+        let data = antecedent_data::MultiEnvironmentData::try_new(environments).unwrap();
+        let treatment = VariableId::from_raw(0);
+        let outcome = VariableId::from_raw(1);
+        let mut graph = TemporalDag::empty();
+        let x1 = ensure_lagged(&mut graph, treatment, Lag::from_raw(1)).unwrap();
+        let y0 = ensure_lagged(&mut graph, outcome, Lag::CONTEMPORANEOUS).unwrap();
+        graph.insert_directed(x1, y0).unwrap();
+        let query = antecedent_core::TemporalEffectQuery::pulse(treatment, outcome, 1.0)
+            .with_policy(antecedent_core::TemporalPolicy::pulse(-1))
+            .with_horizon_steps(1);
+        let ctx = ExecutionContext::for_tests(38);
+        let prepared = crate::Study::series_multi(data.clone())
+            .graph(graph)
+            .temporal_query(query)
+            .refute(crate::RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .prepare(&ctx)
+            .unwrap();
+        let plan = prepared.plan().lowered().unwrap();
+        assert_eq!(plan.refutation_quadrant(), TargetQuadrant::TEMPORAL_FREQUENTIST);
+        let result = prepared.estimate_multi_env(&data, &ctx).unwrap();
+        assert_eq!(result_quadrant(&result), plan.refutation_quadrant());
+        let target = result_refutation_target(&result).unwrap();
+        assert_eq!(target.source(), result.lowered_program_identity().unwrap().as_bytes());
+        assert_eq!(target.quadrant(), TargetQuadrant::TEMPORAL_FREQUENTIST);
+    }
+
     /// A target with one coordinate per horizon.
     fn horizon_target(horizons: usize) -> RefutationTarget {
         RefutationTarget::new(
@@ -732,8 +828,11 @@ impl ClassSample {
         }
         // A position never repeats, so the ranks of two members differ unless the hash
         // collides; the position breaks such a tie.
-        let Some((worst, _)) =
-            self.members.iter().enumerate().max_by_key(|(_, (rank, position, _))| (*rank, *position))
+        let Some((worst, _)) = self
+            .members
+            .iter()
+            .enumerate()
+            .max_by_key(|(_, (rank, position, _))| (*rank, *position))
         else {
             return;
         };
@@ -862,6 +961,32 @@ pub fn refute_prepared_target(
     let certificate = certify_target_refutations(&target, &run.reports)
         .map_err(|error| CausalError::Compile { message: error.to_string() })?;
     Ok(TargetRefutationOutcome { plan, run, certificate })
+}
+
+impl PreparedStudy {
+    /// Refute the supplied result on this preparation's exact retained observations.
+    ///
+    /// The caller must supply the result produced by this handle. The existing target
+    /// certification checks bind the result to the lowered program; no data is re-ingested.
+    ///
+    /// # Errors
+    /// The same target, modality, execution and admission errors as [`refute_prepared_target`].
+    pub fn refute_retained_target(
+        &self,
+        result: &StudyResult,
+        suite: TargetSuite,
+        config: &TargetRefutationConfig,
+        options: &TargetRefitOptions,
+        ctx: &ExecutionContext,
+    ) -> Result<TargetRefutationOutcome, CausalError> {
+        let data = match &self.study().data {
+            DataInput::Tabular(data) => PreparedTargetData::Tabular(data),
+            DataInput::Temporal(data) | DataInput::Event(data) => PreparedTargetData::Series(data),
+            DataInput::Panel(data) => PreparedTargetData::Panel(data),
+            DataInput::MultiEnv(data) => PreparedTargetData::MultiEnv(data),
+        };
+        refute_prepared_target(self, result, data, suite, config, options, ctx)
+    }
 }
 
 /// Data of one refit, owned.

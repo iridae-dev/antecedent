@@ -101,7 +101,7 @@ pub(crate) fn finish_family_result(
     plan: &PhysicalExecutionPlan,
     result: &mut crate::result::StudyResult,
 ) -> Result<(), CausalError> {
-    let lowered = plan.require_lowered(expected_cell(study))?.identity();
+    let lowered = plan.require_lowered(expected_cell(study))?;
     super::dispatch::push_gaussian_likelihood_disclosure(result, &study.inference, input);
     super::dispatch::push_lag_zero_average_effect_disclosure(study, result);
     result.custom_validator_names = study
@@ -109,7 +109,7 @@ pub(crate) fn finish_family_result(
         .iter()
         .map(|validator| Arc::<str>::from(validator.name()))
         .collect();
-    result.lowered_identity = Some(lowered);
+    result.stamp_lowered_program(lowered);
     crate::analysis::target_validation::stamp_route_refutations(result);
     Ok(())
 }

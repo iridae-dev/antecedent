@@ -111,6 +111,7 @@ pub(crate) fn assemble_result(args: AssembleArgs<'_>) -> StudyResult {
         executed_contract: None,
         population_registry: None,
         lowered_identity: None,
+        lowered_quadrant: None,
     };
     result.rebind_interval(args.bayesian);
     result

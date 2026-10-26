@@ -947,7 +947,10 @@ impl PartialEq for ImputationReport {
             && estimator == other_estimator
             && pooling == other_pooling
             && same_bits(points, other_points)
-            && same_bits(&[*within, *between, *total], &[*other_within, *other_between, *other_total])
+            && same_bits(
+                &[*within, *between, *total],
+                &[*other_within, *other_between, *other_total],
+            )
             && same_option_bits(*df, *other_df)
             && same_option_bits(*df_complete, *other_df_complete)
             && same_option_bits(*fraction_missing_information, *other_fraction)
@@ -1462,9 +1465,20 @@ pub struct StudyResult {
     pub population_registry: Option<antecedent_core::PopulationRegistry>,
     /// Identity of the lowered program whose dispatch produced this result.
     pub(crate) lowered_identity: Option<antecedent_core::SemanticDigest>,
+    /// The producing program's scientific data and uncertainty classification.
+    /// Dedicated response posteriors need not occupy the scalar posterior slot.
+    pub(crate) lowered_quadrant: Option<antecedent_validate::target_native::TargetQuadrant>,
 }
 
 impl StudyResult {
+    pub(crate) fn stamp_lowered_program(
+        &mut self,
+        program: &crate::planner::lowered::LoweredProgram,
+    ) {
+        self.lowered_identity = Some(program.identity());
+        self.lowered_quadrant = Some(program.refutation_quadrant());
+    }
+
     /// Route-native diagnostic records the result carries, in diagnostic order.
     ///
     /// Passed and failed checks are both included, each with its measured or unreported

@@ -748,7 +748,9 @@ impl super::Study {
             .iter()
             .map(|validator| std::sync::Arc::from(validator.name()))
             .collect();
-        result.lowered_identity = Some(lowered);
+        result.stamp_lowered_program(
+            physical.require_lowered(crate::analysis::lowering::expected_cell(self))?,
+        );
         crate::analysis::target_validation::stamp_route_refutations(&mut result);
         Ok(result)
     }
@@ -1119,7 +1121,9 @@ impl super::Study {
             let call = TabularCall::of(route, &self.query)?;
             self.execute_tabular_route(call, data, physical, execution, ctx)?
         };
-        result.lowered_identity = Some(lowered);
+        result.stamp_lowered_program(
+            physical.require_lowered(crate::analysis::lowering::expected_cell(self))?,
+        );
         crate::analysis::target_validation::stamp_route_refutations(&mut result);
         Ok(result)
     }
@@ -2286,7 +2290,10 @@ impl super::Study {
                 );
             }
         }
-        if self.graph_posterior.as_ref().is_some_and(|posterior| is_class_atom(posterior.atom_kind()))
+        if self
+            .graph_posterior
+            .as_ref()
+            .is_some_and(|posterior| is_class_atom(posterior.atom_kind()))
             && self.inference.is_frequentist()
             && self.estimator.is_none_or(|id| id == EstimatorId::LinearAdjustmentAte)
         {
