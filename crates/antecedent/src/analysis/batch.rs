@@ -57,7 +57,7 @@ use super::batch_retarget::{
     BatchRetargetError, BatchRetargetReport, BatchRetargetRequest, BatchScores, ScoreSource,
     retarget_family,
 };
-use super::builder::{RefuteSuite, StudyBuilder};
+use super::builder::{DataInput, RefuteSuite, StudyBuilder};
 use super::execute::Study;
 use super::latency::LatencyMode;
 use super::prepared::PreparedStudy;
@@ -665,6 +665,27 @@ impl BatchStudy {
         queries: &[AverageEffectQuery],
         ctx: &ExecutionContext,
     ) -> Result<PreparedBatch, CausalError> {
+        self.prepare_mode(queries, ctx, true)
+    }
+
+    /// Identify, lower and quote a batch without fitting operations or score tables.
+    ///
+    /// # Errors
+    /// Empty query list, unsupported declarations, or preparation admission failures.
+    pub fn prepare_deferred(
+        &self,
+        queries: &[AverageEffectQuery],
+        ctx: &ExecutionContext,
+    ) -> Result<PreparedBatch, CausalError> {
+        self.prepare_mode(queries, ctx, false)
+    }
+
+    fn prepare_mode(
+        &self,
+        queries: &[AverageEffectQuery],
+        ctx: &ExecutionContext,
+        materialized: bool,
+    ) -> Result<PreparedBatch, CausalError> {
         if queries.is_empty() {
             return Err(CausalError::Compile {
                 message: "batch prepare requires at least one query".into(),
@@ -678,7 +699,13 @@ impl BatchStudy {
         for query in queries {
             let mut study = self.study_for_data(&data, query)?;
             study.shared_batch_design.clone_from(&shared);
-            plans.push(nuisances.scope(|| study.prepare(ctx)).0?);
+            plans.push(
+                nuisances
+                    .scope(|| {
+                        if materialized { study.prepare(ctx) } else { study.prepare_deferred(ctx) }
+                    })
+                    .0?,
+            );
         }
         Ok(PreparedBatch {
             retention: self.retention,
@@ -689,6 +716,7 @@ impl BatchStudy {
             family_contrast: None,
             family_posterior: None,
             estimator_fingerprint: Arc::from(fingerprint),
+            execution_owner: materialized.then(|| BatchExecutionOwner::capture(ctx)).transpose()?,
         })
     }
 
@@ -716,6 +744,27 @@ impl BatchStudy {
         queries: &[ResponseQuery],
         ctx: &ExecutionContext,
     ) -> Result<PreparedBatch, CausalError> {
+        self.prepare_cells_mode(queries, ctx, true)
+    }
+
+    /// Prepare supported joint-cell declarations without fitting operations or scores.
+    ///
+    /// # Errors
+    /// Empty or unsupported query family, or preparation admission failures.
+    pub fn prepare_cells_deferred(
+        &self,
+        queries: &[ResponseQuery],
+        ctx: &ExecutionContext,
+    ) -> Result<PreparedBatch, CausalError> {
+        self.prepare_cells_mode(queries, ctx, false)
+    }
+
+    fn prepare_cells_mode(
+        &self,
+        queries: &[ResponseQuery],
+        ctx: &ExecutionContext,
+        materialized: bool,
+    ) -> Result<PreparedBatch, CausalError> {
         if queries.is_empty() {
             return Err(CausalError::Compile {
                 message: "batch prepare_cells requires at least one query".into(),
@@ -737,7 +786,11 @@ impl BatchStudy {
         for query in queries {
             let mut study = self.study_for_response_on(&data, query)?;
             study.shared_batch_design.clone_from(&shared);
-            plans.push(study.prepare(ctx)?);
+            plans.push(if materialized {
+                study.prepare(ctx)?
+            } else {
+                study.prepare_deferred(ctx)?
+            });
             frozen.push(BatchQuery::Response(query.clone()));
         }
         Ok(PreparedBatch {
@@ -749,6 +802,7 @@ impl BatchStudy {
             family_contrast: self.family_contrast,
             family_posterior: self.family_posterior,
             estimator_fingerprint: Arc::from(fingerprint),
+            execution_owner: materialized.then(|| BatchExecutionOwner::capture(ctx)).transpose()?,
         })
     }
 
@@ -910,6 +964,42 @@ fn is_discrete_joint_cell(query: &ResponseQuery) -> bool {
         )
 }
 
+/// Ownership and numerical policies under which retained batch state was materialized.
+///
+/// The zero-sized lease is only a pool-identity witness; it does not claim to reserve fit
+/// bytes. Actual numerical allocations keep their own leases in that same admission pool.
+#[derive(Clone, Debug)]
+struct BatchExecutionOwner {
+    pool_identity: Arc<antecedent_core::execution::AdmissionLease>,
+    cache_policy: antecedent_core::execution::CachePolicy,
+    kernel_policy: antecedent_core::execution::KernelPolicy,
+    determinism: antecedent_core::execution::Determinism,
+}
+
+impl BatchExecutionOwner {
+    fn capture(ctx: &ExecutionContext) -> Result<Self, CausalError> {
+        let lease = ctx.acquire_admission(0, 0).map_err(|error| match error {
+            antecedent_core::execution::AdmissionError::Cancelled => {
+                CausalError::Cancelled { stage: crate::analysis::stage::STAGE_ESTIMATE_POINT }
+            }
+            other => CausalError::Resource { message: other.to_string() },
+        })?;
+        Ok(Self {
+            pool_identity: Arc::new(lease),
+            cache_policy: ctx.cache_policy,
+            kernel_policy: ctx.kernel_policy,
+            determinism: ctx.determinism,
+        })
+    }
+
+    fn compatible(&self, ctx: &ExecutionContext) -> bool {
+        self.pool_identity.belongs_to(&ctx.admission())
+            && self.cache_policy == ctx.cache_policy
+            && self.kernel_policy == ctx.kernel_policy
+            && self.determinism == ctx.determinism
+    }
+}
+
 /// Frozen batch of prepared average-effect (and joint-cell) plans.
 #[derive(Clone, Debug)]
 pub struct PreparedBatch {
@@ -922,6 +1012,64 @@ pub struct PreparedBatch {
     family_posterior: Option<ScorePosteriorOptions>,
     /// [`BatchStudy::estimator_fingerprint`] of the batch this was prepared from.
     estimator_fingerprint: Arc<str>,
+    execution_owner: Option<BatchExecutionOwner>,
+}
+
+/// Immutable executed family, retaining the exact materialized plans and estimated scores.
+///
+/// Results include the final family covariance, contrasts and sharing diagnostics. Retargets
+/// read this execution's score snapshot; another execution cannot replace those scores.
+#[derive(Clone, Debug)]
+pub struct CompletedBatch {
+    prepared: PreparedBatch,
+    results: Vec<Arc<StudyResult>>,
+    scores: BatchScores,
+}
+
+impl CompletedBatch {
+    /// The exact executed observations, shared without copying their column storage.
+    ///
+    /// # Errors
+    /// A malformed family with no bound tabular plan.
+    pub fn bound_table(&self) -> Result<&TabularData, CausalError> {
+        self.prepared.bound_data()
+    }
+
+    /// Materialized plans bound to the observations this execution used.
+    #[must_use]
+    pub fn prepared(&self) -> &PreparedBatch {
+        &self.prepared
+    }
+
+    /// Final scientific results in declared query order.
+    #[must_use]
+    pub fn results(&self) -> &[Arc<StudyResult>] {
+        &self.results
+    }
+
+    /// Estimated score tables, including empty slots where retention was unavailable.
+    #[must_use]
+    pub fn scores(&self) -> &BatchScores {
+        &self.scores
+    }
+
+    /// Consume the execution without copying its retained state.
+    #[must_use]
+    pub fn into_parts(self) -> (PreparedBatch, Vec<Arc<StudyResult>>, BatchScores) {
+        (self.prepared, self.results, self.scores)
+    }
+
+    /// Retarget this execution's retained scores under an explicit population declaration.
+    ///
+    /// # Errors
+    /// Invalid families, unavailable scores, incompatible row snapshots, or cancellation.
+    pub fn retarget(
+        &self,
+        request: &BatchRetargetRequest,
+        ctx: &ExecutionContext,
+    ) -> Result<BatchRetargetReport, BatchRetargetError> {
+        self.prepared.retarget(&self.scores, request, ctx)
+    }
 }
 
 impl PreparedBatch {
@@ -941,6 +1089,229 @@ impl PreparedBatch {
     #[must_use]
     pub fn shared_design(&self) -> Option<&SharedBatchDesign> {
         self.shared_design.as_deref()
+    }
+
+    /// Install per-member observers, allowing adapters to attach query identity to events.
+    ///
+    /// The sinks are execution controls and are stripped from completed native plans.
+    ///
+    /// # Errors
+    /// The observer count differs from the family size, or a member cannot stream stages.
+    pub fn with_stage_sinks(
+        &self,
+        sinks: Vec<Arc<dyn crate::analysis::stage::StageResultSink>>,
+    ) -> Result<Self, CausalError> {
+        if sinks.len() != self.plans.len() {
+            return Err(CausalError::Compile {
+                message: "batch stage observers require one sink per query".into(),
+            });
+        }
+        if self.plans.iter().any(|plan| !plan.streams_stages()) {
+            return Err(crate::unsupported_reason!(
+                "stage_stream_unavailable",
+                "batch stage observers require every member to support progressive scalar stages"
+            ));
+        }
+        let plans = self
+            .plans
+            .iter()
+            .zip(sinks)
+            .map(|(plan, sink)| {
+                let mut private = plan.clone();
+                private.set_stage_sink(Some(sink));
+                private
+            })
+            .collect();
+        Ok(self.with_plans(plans))
+    }
+
+    /// Branch onto new observations without fitting or changing this handle.
+    ///
+    /// The declared candidate-screen estimate subset is applied once, before binding plans.
+    /// Identification can be retained; row-bound fits and scores are invalidated.
+    ///
+    /// # Errors
+    /// Incompatible schema or screen rows, preparation admission failures, or cancellation.
+    pub fn rebind_data(
+        &self,
+        data: TabularData,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, CausalError> {
+        let data = subset_estimate_rows(&data, self.screen.as_ref())?;
+        self.branch_bound(data, ctx)
+    }
+
+    /// Requote the bound observations and shared design under execution controls, fit-free.
+    ///
+    /// A new seed rebuilds the shared fold fingerprint and all seed-bound statistical plans.
+    ///
+    /// # Errors
+    /// Preparation admission failures or cancellation.
+    pub fn reconfigure_execution(&self, ctx: &ExecutionContext) -> Result<Self, CausalError> {
+        if self
+            .shared_design
+            .as_ref()
+            .is_some_and(|design| design.fold_seed != ctx.rng.master_seed())
+            || self.execution_owner.as_ref().is_some_and(|owner| !owner.compatible(ctx))
+        {
+            return self.branch_bound(self.bound_data()?.clone(), ctx);
+        }
+        let plans = self
+            .plans
+            .iter()
+            .map(|plan| plan.requote_batch_execution(ctx))
+            .collect::<Result<Vec<_>, _>>()?;
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_IDENTIFY });
+        }
+        Ok(self.with_plans(plans))
+    }
+
+    /// Count of materialized member operations retained by this immutable branch.
+    #[must_use]
+    pub fn materialized_plan_count(&self) -> usize {
+        self.plans.iter().filter(|plan| plan.is_materialized()).count()
+    }
+
+    /// Count of retained per-member score tables; a deferred branch has none.
+    #[must_use]
+    pub fn retained_score_table_count(&self) -> usize {
+        self.plans.iter().filter(|plan| plan.score_table().is_some()).count()
+    }
+
+    /// Copy family declarations without cloning plans that the caller is replacing.
+    fn with_plans(&self, plans: Vec<PreparedStudy>) -> Self {
+        Self {
+            retention: self.retention,
+            plans,
+            queries: self.queries.clone(),
+            screen: self.screen.clone(),
+            shared_design: self.shared_design.clone(),
+            family_contrast: self.family_contrast,
+            family_posterior: self.family_posterior,
+            estimator_fingerprint: Arc::clone(&self.estimator_fingerprint),
+            execution_owner: self.execution_owner.clone(),
+        }
+    }
+
+    fn bound_data(&self) -> Result<&TabularData, CausalError> {
+        match self.plans.first().map(|plan| &plan.study().data) {
+            Some(DataInput::Tabular(data)) => Ok(data),
+            _ => Err(CausalError::Compile {
+                message: "a prepared batch requires at least one bound tabular plan".into(),
+            }),
+        }
+    }
+
+    fn branch_bound(&self, data: TabularData, ctx: &ExecutionContext) -> Result<Self, CausalError> {
+        let shared = self
+            .shared_design
+            .as_ref()
+            .map(|design| {
+                let adjustment_sets = design
+                    .covariate
+                    .as_ref()
+                    .map(|covariate| vec![Arc::clone(&covariate.adjustment_set)])
+                    .unwrap_or_default();
+                SharedBatchDesign::compile(
+                    &data,
+                    &adjustment_sets,
+                    design.n_folds,
+                    ctx.rng.master_seed(),
+                )
+                .map(Arc::new)
+            })
+            .transpose()?;
+        let plans = self
+            .plans
+            .iter()
+            .map(|plan| plan.rebind_batch_data(data.clone(), shared.clone(), ctx))
+            .collect::<Result<Vec<_>, _>>()?;
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_IDENTIFY });
+        }
+        let mut branch = self.with_plans(plans);
+        branch.shared_design = shared;
+        branch.execution_owner = None;
+        Ok(branch)
+    }
+
+    /// Explicitly execute the bound family, retaining the exact materialized native plans.
+    ///
+    /// Materialization and execution share one nuisance scope per member. Family inference
+    /// is attached before any result is frozen. Failure or cancellation publishes no state.
+    ///
+    /// # Errors
+    /// Statistical, resource or cancellation failures from any family member.
+    pub fn execute_retained(&self, ctx: &ExecutionContext) -> Result<CompletedBatch, CausalError> {
+        // Requote admission even when the seed agrees. Retained state may only cross an
+        // execution boundary under its original admission ownership and numerical policies.
+        let bound = self.reconfigure_execution(ctx)?;
+        let data = bound.bound_data()?;
+        let shared = bound.shared_design.clone();
+        let nuisances = batch_nuisance_cache(ctx, bound.retention);
+        let completed = ctx
+            .try_map_indexed(bound.plans.len(), |index, inner| {
+                if inner.cancellation.is_cancelled() {
+                    return Err(CausalError::Cancelled {
+                        stage: crate::analysis::stage::STAGE_ESTIMATE_POINT,
+                    });
+                }
+                let (result, used) = nuisances.scope(|| {
+                    let mut ready = bound.plans[index].materialize(inner)?;
+                    let result = ready.estimate_with_shared(data, shared.clone(), inner)?;
+                    ready.set_stage_sink(None);
+                    Ok::<_, CausalError>((ready, result))
+                });
+                result.map(|(ready, result)| (ready, result, used))
+            })
+            .map_err(batch_map_error)?;
+        let mut plans = Vec::with_capacity(completed.len());
+        let mut results = Vec::with_capacity(completed.len());
+        let mut uses = Vec::with_capacity(completed.len());
+        for (plan, result, used) in completed {
+            plans.push(plan);
+            results.push(result);
+            uses.push(used);
+        }
+        attach_prepared_batch_joint_inference(
+            &mut results,
+            data,
+            &bound.queries,
+            bound.screen.as_ref(),
+            bound.family_contrast,
+            bound.family_posterior.map(|options| (options, ctx)),
+        );
+        attach_shared_design_diagnostics(
+            &mut results,
+            shared.as_ref(),
+            &nuisances,
+            &uses,
+            &bound.estimator_fingerprint,
+        );
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled {
+                stage: crate::analysis::stage::STAGE_ESTIMATE_POINT,
+            });
+        }
+        let scores = BatchScores::new(
+            ScoreSource::Estimated,
+            results
+                .iter()
+                .map(|result| {
+                    result.estimate.as_effect().and_then(|effect| effect.scores.table.clone())
+                })
+                .collect(),
+        );
+        Ok(CompletedBatch {
+            prepared: Self {
+                plans,
+                execution_owner: Some(BatchExecutionOwner::capture(ctx)?),
+                ..bound
+            },
+            results: results.into_iter().map(Arc::new).collect(),
+            scores,
+        })
     }
 
     /// Re-estimate every frozen plan on `data` and attach joint-family inference.
@@ -1359,15 +1730,16 @@ fn attach_contrast_family(
     let mut contrast_scores = Vec::with_capacity(results.len());
     let mut contrast_bindings = Vec::with_capacity(results.len());
     for ((result, query), rows) in results.iter().zip(queries).zip(row_sets) {
-        let CellFamilyClaim { value, scores, binding } =
-            match cell_family_contrast_claim(data, result, query, kind) {
-                Ok(claim) => claim,
-                Err(reason) => {
-                    return FamilyOutcome::Withheld(FamilyWithheld::Inference(format!(
-                        "shared-row joint IF on cell levels; {kind} contrast withheld: {reason}; p-values omitted"
-                    )));
-                }
-            };
+        let CellFamilyClaim { value, scores, binding } = match cell_family_contrast_claim(
+            data, result, query, kind,
+        ) {
+            Ok(claim) => claim,
+            Err(reason) => {
+                return FamilyOutcome::Withheld(FamilyWithheld::Inference(format!(
+                    "shared-row joint IF on cell levels; {kind} contrast withheld: {reason}; p-values omitted"
+                )));
+            }
+        };
         contrast_bindings.push(binding);
         if scores.len() != rows.len() {
             return FamilyOutcome::Withheld(FamilyWithheld::Unavailable(

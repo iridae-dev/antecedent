@@ -958,17 +958,60 @@ impl CheckedAipwOperation {
         data: &TabularData,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        self.execute_observed(data, ctx, None)
+    }
+
+    /// Execute the retained procedure with optional progressive boundaries, using the same
+    /// final diagnostics, certificate and provenance as an unobserved checked execution.
+    pub(super) fn execute_observed(
+        &self,
+        data: &TabularData,
+        ctx: &ExecutionContext,
+        sink: Option<&Arc<dyn crate::analysis::stage::StageResultSink>>,
+    ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         if ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: STAGE_ESTIMATE_POINT });
         }
         self.check_retained_target()?;
+        let mut clock = StageClock::new();
+        if sink.is_some() {
+            clock.begin(ctx, STAGE_IDENTIFY, 0.05)?;
+            clock.finish(STAGE_IDENTIFY);
+            crate::analysis::stage::emit_stage(
+                sink,
+                &crate::analysis::stage::StageEvent::Identify {
+                    identification: self.cache.identification.clone(),
+                    estimand: self.cache.estimand.clone(),
+                },
+            );
+            clock.begin(ctx, STAGE_ESTIMATE_POINT, 0.25)?;
+        }
         let mut workspace = antecedent_estimate::AipwWorkspace::default();
-        let estimate = self
-            .fitter
-            .fit_checked(&self.preparation, &mut workspace, ctx)
-            .map_err(CausalError::from)?;
+        let estimate = if sink.is_some() {
+            let point = self.fitter.fit_checked_point(&self.preparation, &mut workspace, ctx)?;
+            clock.finish(STAGE_ESTIMATE_POINT);
+            crate::analysis::stage::emit_stage(
+                sink,
+                &crate::analysis::stage::StageEvent::Point { estimate: point.clone() },
+            );
+            clock.begin(ctx, crate::analysis::stage::STAGE_UNCERTAINTY, 0.55)?;
+            let filled = self.fitter.attach_bootstrap(
+                self.preparation.problem(),
+                &mut workspace,
+                ctx,
+                point,
+            )?;
+            clock.finish(crate::analysis::stage::STAGE_UNCERTAINTY);
+            crate::analysis::stage::emit_uncertainty(sink, &filled);
+            filled
+        } else {
+            self.fitter.fit_checked(&self.preparation, &mut workspace, ctx)?
+        };
         let cancelled = estimate.uncertainty.bootstrap.cancelled || ctx.cancellation.is_cancelled();
+        if sink.is_some() && !cancelled {
+            clock.begin(ctx, STAGE_VALIDATE, 0.8)?;
+        }
         let (refutations, refute_diagnostics) = if cancelled || self.refute == RefuteSuite::None {
             (Vec::new(), Vec::new())
         } else {
@@ -986,6 +1029,16 @@ impl CheckedAipwOperation {
             .reports(&mut estimate_workspace, Some(&mut workspace.propensity), ctx)?;
             (reports, diagnostics)
         };
+        if sink.is_some() && !cancelled {
+            clock.finish(STAGE_VALIDATE);
+            crate::analysis::stage::emit_stage(
+                sink,
+                &crate::analysis::stage::StageEvent::Validate {
+                    refutations: refutations.clone(),
+                    predictive_checks: Vec::new(),
+                },
+            );
+        }
         let diagnostics = self.fit_diagnostics(&estimate, refute_diagnostics);
         let (identify_artifact, identify_operation) =
             crate::strategy_table::identify_provenance_step(self.identifier);
@@ -1022,7 +1075,7 @@ impl CheckedAipwOperation {
             outcome: self.query.outcome,
             wall_time_ns: elapsed_ns(started),
             latency_mode: self.latency_mode.map(|mode| Arc::from(mode.as_str())),
-            stage_timings_ns: Vec::new(),
+            stage_timings_ns: if sink.is_some() { clock.timings() } else { Vec::new() },
             bootstrap_replicates_requested: Some(self.fitter.inference.bootstrap_replicates),
             bootstrap_replicates_ok: bootstrap_ok,
             n_draws: None,

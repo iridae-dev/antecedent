@@ -628,6 +628,33 @@ impl AipwAte {
         workspace: &mut AipwWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<EffectEstimate, EstimationError> {
+        self.validate_checked_configuration(checked)?;
+        self.fit(&checked.problem, workspace, ctx, checked.required_assumptions.clone())
+    }
+
+    /// Execute only the point and analytic uncertainty of the checked procedure.
+    ///
+    /// The receipt keeps its complete inference declaration. Call [`Self::attach_bootstrap`]
+    /// with this same fitter, receipt's problem and workspace at the uncertainty boundary;
+    /// the point fit is not repeated.
+    ///
+    /// # Errors
+    /// A changed checked configuration, unsupported target, or numerical fit failure.
+    pub fn fit_checked_point(
+        &self,
+        checked: &CheckedAipwPreparation,
+        workspace: &mut AipwWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<EffectEstimate, EstimationError> {
+        self.validate_checked_configuration(checked)?;
+        self.fit_point(&checked.problem, workspace, ctx, checked.required_assumptions.clone())
+            .map(|point| point.with_treatment_levels(checked.problem.treatment_levels))
+    }
+
+    fn validate_checked_configuration(
+        &self,
+        checked: &CheckedAipwPreparation,
+    ) -> Result<(), EstimationError> {
         if checked.lowering.se_kind != self.inference.se_kind
             || checked.lowering.bootstrap_replicates != self.inference.bootstrap_replicates
             || checked.lowering.propensity != self.propensity
@@ -640,7 +667,7 @@ impl AipwAte {
                 "AIPW estimator configuration differs from the checked procedure receipt",
             ));
         }
-        self.fit(&checked.problem, workspace, ctx, checked.required_assumptions.clone())
+        Ok(())
     }
 
     /// Fit propensity + outcome nuisance models and compute the AIPW effect, with optional

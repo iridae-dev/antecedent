@@ -15,9 +15,9 @@ pub use super::structure_route::{
 };
 pub use super::{
     ActionConstraint, ActionOutcome, ActionReason, ActionSpec, ActionStatus, EnumeratedStatus,
-    ForwardEvaluation,
-    ForwardInterval, INVERSE_SCOPE_NOTE, IntervalMeta, IntervalScope, InverseOutcomeError,
-    InverseOutcomeReport, InverseQuery, SupportBasis, TargetDirection, classify_inverse_outcome,
+    ForwardEvaluation, ForwardInterval, INVERSE_SCOPE_NOTE, IntervalMeta, IntervalScope,
+    InverseOutcomeError, InverseOutcomeReport, InverseQuery, SupportBasis, TargetDirection,
+    classify_inverse_outcome,
 };
 pub use super::{
     ActionRobustness, AdaptedClaims, AdaptedDecision, AdapterError, AdmissibilityError,
@@ -43,18 +43,18 @@ pub use super::{
 };
 pub use super::{
     ArmCount, ArmSpec, ArmWeightEss, BatchCostEstimate, BatchPreflightReport, ColumnMissingness,
-    ColumnPriority, ColumnWeight, CostEstimate, CostModel, CostModelError, DependentColumn, DroppedColumn, DuplicateGroup,
-    FindingSeverity, FittedPropensity, InferenceDefault, JointCellCostEstimate,
-    NuisanceFitDiagnostics, PreflightFinding, PreflightInput, PreflightReport, PropensityOutcome,
-    RankDropEstimate, RankDropPlan, RankDropPolicy, RankReport, RetargetCostEstimate,
-    ScoreQuantile, SpanCheck, estimate_joint_cell_cost, estimate_with_rank_drop,
-    fit_diagnostics_design, plan_rank_drop, preflight_design,
+    ColumnPriority, ColumnWeight, CostEstimate, CostModel, CostModelError, DependentColumn,
+    DroppedColumn, DuplicateGroup, FindingSeverity, FittedPropensity, InferenceDefault,
+    JointCellCostEstimate, NuisanceFitDiagnostics, PreflightFinding, PreflightInput,
+    PreflightReport, PropensityOutcome, RankDropEstimate, RankDropPlan, RankDropPolicy, RankReport,
+    RetargetCostEstimate, ScoreQuantile, SpanCheck, estimate_joint_cell_cost,
+    estimate_with_rank_drop, fit_diagnostics_design, plan_rank_drop, preflight_design,
 };
 pub use super::{
     BATCH_RETARGET_SCOPE_NOTE, BandMember, BatchRetargetError, BatchRetargetReport,
     BatchRetargetRequest, BatchScores, ClaimPoint, ClaimReport, ContrastPoint, ContrastReport,
-    FamilyCovariance, MemberFailure, RetargetClaim,
-    RetargetContrast, ScoreSource, SimultaneousBand, TidyKind, TidyRow, UncertaintyKind,
+    FamilyCovariance, MemberFailure, RetargetClaim, RetargetContrast, ScoreSource,
+    SimultaneousBand, TidyKind, TidyRow, UncertaintyKind,
 };
 pub use super::{
     BatchQuery, BatchStudy, BlockedOperation, CandidateProcedure, CandidateScreen,
@@ -62,16 +62,15 @@ pub use super::{
     CheckedBayesianSpecialistInfo, CheckedGraphPosteriorResponseInfo, CheckedInterferenceInfo,
     CheckedStaticClassResponseInfo, CheckedTemporalClassMediationInfo,
     CheckedTemporalMediationInfo, CheckedTemporalMediationTargetInfo, CheckedTransportTrialInfo,
-    CheckedUnknownTieredAverageInfo, ComputeBudget, ExactFactorRequirement, ExactPreparedState,
-    ExactStudyIdentities, ExactStudyInspection, ExactStudyResult, IntoSharedPlan, InterferenceSpec,
-    LatencyMode,
-    LearnedTrialResult, LearnedTrialState, LicensedNeighbor, NextAction, OperationKind,
-    OperationReadiness, OperationReport, PremiseChange, PreparedBatch, PreparedStudy,
-    PreparedZTransport, RdConfig, RefuteSuite, SemanticApplicability, SharedBatchDesign,
-    SharedCovariateDesign, StageEvent, StageResultSink, StatisticalBindingView,
-    StatisticalContrast, StatisticalPreparedState, StatisticalStudyInspection,
-    StatisticalStudyResult, Study, StudyBuilder, TransportTrialSpec, ZTransportResult,
-    ZTransportSensitivityArtifactWire, consume_z_transport_artifact,
+    CheckedUnknownTieredAverageInfo, CompletedBatch, ComputeBudget, ExactFactorRequirement,
+    ExactPreparedState, ExactStudyIdentities, ExactStudyInspection, ExactStudyResult,
+    InterferenceSpec, IntoSharedPlan, LatencyMode, LearnedTrialResult, LearnedTrialState,
+    LicensedNeighbor, NextAction, OperationKind, OperationReadiness, OperationReport,
+    PremiseChange, PreparedBatch, PreparedStudy, PreparedZTransport, RdConfig, RefuteSuite,
+    SemanticApplicability, SharedBatchDesign, SharedCovariateDesign, StageEvent, StageResultSink,
+    StatisticalBindingView, StatisticalContrast, StatisticalPreparedState,
+    StatisticalStudyInspection, StatisticalStudyResult, Study, StudyBuilder, TransportTrialSpec,
+    ZTransportResult, ZTransportSensitivityArtifactWire, consume_z_transport_artifact,
 };
 pub use super::{
     BetweenStudy, BorrowingRequest, ConsumedEvidenceLedger, DependenceRangeRequest,

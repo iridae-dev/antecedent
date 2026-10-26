@@ -217,7 +217,10 @@ impl SealedOperation for CheckedAipwOperation {
             return Ok(None);
         }
         let rebound = self.rebind(data)?;
-        let mut result = rebound.execute(data, ctx)?;
+        let mut result = match handle.study().stage_sink.as_ref() {
+            Some(sink) => rebound.execute_observed(data, ctx, Some(sink))?,
+            None => rebound.execute(data, ctx)?,
+        };
         result.custom_validator_names = rebound.custom_validator_names.to_vec();
         let result = handle.stamp_aipw(
             &DataInput::Tabular(data.clone()),

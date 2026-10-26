@@ -41,7 +41,58 @@ impl PreparedStudy {
         ctx: &ExecutionContext,
     ) -> Result<Self, CausalError> {
         self.ensure_schema_compatible(&data)?;
+        if let Some(design) = self.analysis.shared_batch_design.as_ref() {
+            // An individual result from a batch is also a scalar prepared study. Its
+            // materialization must see covariates and fold metadata for the new rows,
+            // rather than the data-dependent design frozen on the original batch.
+            let shared = Arc::new(design.rebind(&data)?);
+            return self.rebind_batch_data(data, Some(shared), ctx);
+        }
         self.rebind_input(DataInput::Tabular(data), ctx)
+    }
+
+    /// Bind a batch member and its shared design before materializing statistical state.
+    pub(crate) fn rebind_batch_data(
+        &self,
+        data: TabularData,
+        shared: Option<Arc<crate::analysis::batch::SharedBatchDesign>>,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, CausalError> {
+        self.ensure_schema_compatible(&data)?;
+        let mut analysis = self.analysis.clone();
+        analysis.data = DataInput::Tabular(data);
+        analysis.shared_batch_design = shared;
+        analysis.prepare_deferred_retaining(&self.plan, ctx)
+    }
+
+    /// Whether the branch already owns a materialized statistical operation.
+    pub(crate) fn is_materialized(&self) -> bool {
+        self.materialized
+    }
+
+    /// Requote unchanged batch observations, retaining only compatible statistical state.
+    ///
+    /// The batch checks seed equality before calling this operation. A physical backend or
+    /// lowered-program change keeps the explicitly rebuilt deferred plan instead of using
+    /// an operation sealed for a different execution strategy.
+    pub(crate) fn requote_batch_execution(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, CausalError> {
+        let mut next = self.analysis.prepare_deferred_retaining(&self.plan, ctx)?;
+        if self.materialized
+            && self.plan.lowered_program_identity().is_some()
+            && self.plan.lowered_program_identity() == next.plan.lowered_program_identity()
+            && self.plan.binding() == next.plan.binding()
+            && self.plan.choice.selected() == next.plan.choice.selected()
+        {
+            next.execution = self.execution.clone();
+            next.score_table = self.score_table.clone();
+            next.materialized = true;
+            next.program_cache = std::sync::OnceLock::new();
+            next.contract_cache = std::sync::OnceLock::new();
+        }
+        Ok(next)
     }
 
     /// Branch onto compatible temporal observations without fitting.

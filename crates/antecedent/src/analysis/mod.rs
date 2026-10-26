@@ -351,8 +351,9 @@ pub use interface_contract::{
 };
 pub use inverse_outcome::{
     ActionConstraint, ActionOutcome, ActionReason, ActionSpec, ActionStatus, EnumeratedStatus,
-    ForwardEvaluation, ForwardInterval, INVERSE_SCOPE_NOTE, IntervalMeta, IntervalScope, InverseOutcomeError,
-    InverseOutcomeReport, InverseQuery, SupportBasis, TargetDirection, classify_inverse_outcome,
+    ForwardEvaluation, ForwardInterval, INVERSE_SCOPE_NOTE, IntervalMeta, IntervalScope,
+    InverseOutcomeError, InverseOutcomeReport, InverseQuery, SupportBasis, TargetDirection,
+    classify_inverse_outcome,
 };
 pub use joint_law_propagation::{
     ComposedInterval, CorrelationRangeSummary, ExceedanceQuery, JointLawPropagationRefusal,
@@ -479,14 +480,14 @@ pub use antecedent_contract::{
 };
 pub use batch::{
     BatchQuery, BatchStudy, CandidateProcedure, CandidateScreen, CandidateSelection,
-    CellFamilyContrast, PreparedBatch, SharedBatchDesign, SharedCovariateDesign,
+    CellFamilyContrast, CompletedBatch, PreparedBatch, SharedBatchDesign, SharedCovariateDesign,
 };
 pub use batch_export::{TidyKind, TidyRow};
 pub use batch_retarget::{
     BATCH_RETARGET_SCOPE_NOTE, BandMember, BatchRetargetError, BatchRetargetReport,
     BatchRetargetRequest, BatchScores, ClaimPoint, ClaimReport, ContrastPoint, ContrastReport,
-    FamilyCovariance, MemberFailure, RetargetClaim,
-    RetargetContrast, ScoreSource, SimultaneousBand, UncertaintyKind,
+    FamilyCovariance, MemberFailure, RetargetClaim, RetargetContrast, ScoreSource,
+    SimultaneousBand, UncertaintyKind,
 };
 // Max-t evaluator entries kept for the calibration wiring (the published route is
 // `BatchRetargetReport::simultaneous_interval`).
