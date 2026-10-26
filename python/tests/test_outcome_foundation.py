@@ -18,10 +18,12 @@ from antecedent.errors import (
     CausalResourceError,
     CausalSerializationError,
     CausalStateError,
+    CausalUnsupportedError,
     CausalValueError,
     EffectNotIdentified,
     StructuredRefusal,
 )
+from antecedent.execution import Execution
 from antecedent.outcomes import (
     Answer,
     Outcome,
@@ -66,6 +68,32 @@ def test_scientific_refusal_has_an_explicit_answer_and_original_error():
         require_success(outcome)
     assert error.value is original
     assert outcome.inspect().stage == "refused"
+
+
+def test_undeclared_treatment_support_is_a_refusal_but_observer_errors_are_operational():
+    original = CausalUnsupportedError(
+        "observed treatment lies outside the declared contrast",
+        reason_code="treatment_level_undeclared",
+    )
+    result = capture_outcome(fail, original)
+    assert result.value is None and result.refusal is not None
+    assert result.refusal.code == "treatment_level_undeclared"
+    with pytest.raises(CausalUnsupportedError) as raised:
+        require_success(result)
+    assert raised.value is original
+
+    observer_error = CausalUnsupportedError(
+        "the observer failed", reason_code="treatment_level_undeclared"
+    )
+
+    def observer(_fraction, _stage):
+        raise observer_error
+
+    policy = Execution(on_progress=observer)
+    with pytest.raises(CausalUnsupportedError) as raised:
+        capture_outcome(policy._report_progress, 0.5, "test")
+    assert raised.value is observer_error
+    assert any(frame.name == "observer" for frame in raised.traceback)
 
 
 @pytest.mark.parametrize(
