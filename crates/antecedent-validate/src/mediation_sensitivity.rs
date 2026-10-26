@@ -332,7 +332,7 @@ pub fn cross_world_noise_range(
     effect: f64,
     residual_correlation: f64,
 ) -> Result<AssumptionRange, ValidationError> {
-    if !effect.is_finite() || !(residual_correlation > -1.0 && residual_correlation < 1.0) {
+    if !(effect.is_finite() && residual_correlation > -1.0 && residual_correlation < 1.0) {
         return Err(ValidationError::NotApplicable {
             message: "the cross-world range needs a finite effect and a residual correlation \
                       inside (-1, 1)",

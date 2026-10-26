@@ -381,9 +381,9 @@ pub fn mediation_posterior_range(
     for &rho in &RHO_GRID {
         let mut remaining = f64::INFINITY;
         let mut kept = vec![true; n];
-        for j in 0..k {
+        for (j, &median) in base_median.iter().enumerate() {
             let values = oriented(j, rho);
-            remaining = remaining.min(quantile_of(&values, 0.5) / base_median[j]);
+            remaining = remaining.min(quantile_of(&values, 0.5) / median);
             for (flag, value) in kept.iter_mut().zip(&values) {
                 *flag &= *value > 0.0;
             }
@@ -631,10 +631,9 @@ pub fn mediation_path_ovb_range(
 ) -> Result<AssumptionRange, ValidationError> {
     require_dimension(&target, coordinates.len())?;
     let select = |paths: &MediationPaths| match path {
-        MediationPath::TreatmentMediator => paths.treatment_mediator,
+        MediationPath::TreatmentMediator | MediationPath::Indirect => paths.treatment_mediator,
         MediationPath::MediatorOutcome => paths.mediator_outcome,
         MediationPath::TreatmentOutcome => paths.treatment_outcome,
-        MediationPath::Indirect => paths.treatment_mediator,
     };
     if path != MediationPath::Indirect {
         let summaries: Vec<LinearAdjustmentSummary> = coordinates.iter().map(select).collect();
@@ -865,7 +864,7 @@ pub struct MsmRefitFit {
 /// Fewest bootstrap replicates of the refit standard error.
 pub const MIN_MSM_REPLICATES: usize = 99;
 
-/// SplitMix64 stream of the weight-refit bootstrap.
+/// `SplitMix64` stream of the weight-refit bootstrap.
 struct SplitMix(u64);
 
 impl SplitMix {

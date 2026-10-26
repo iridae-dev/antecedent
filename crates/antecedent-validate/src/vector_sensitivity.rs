@@ -121,8 +121,7 @@ pub fn evalue_vector_range(
     Ok((bounds, range))
 }
 
-/// Linear-interpolated quantile of an ascending sample.
-
+/// Copy a sample and sort it in ascending total floating-point order.
 fn sorted_copy(values: &[f64]) -> Vec<f64> {
     let mut sorted = values.to_vec();
     sorted.sort_by(f64::total_cmp);
@@ -403,9 +402,9 @@ pub fn ovb_posterior_range(
             let multiplier = shift(r2dz, r2yz_extreme);
             let mut remaining = f64::INFINITY;
             let mut kept = vec![true; n];
-            for j in 0..k {
+            for (j, &median) in medians.iter().enumerate() {
                 let draws = adjusted(j, multiplier);
-                remaining = remaining.min(quantile_sorted(&sorted_copy(&draws), 0.5) / medians[j]);
+                remaining = remaining.min(quantile_sorted(&sorted_copy(&draws), 0.5) / median);
                 for (flag, value) in kept.iter_mut().zip(&draws) {
                     *flag &= *value > 0.0;
                 }
