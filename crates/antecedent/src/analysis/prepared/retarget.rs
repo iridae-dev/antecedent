@@ -79,12 +79,17 @@ impl PreparedStudy {
         &self,
         weights: &[f64],
         depends_on: &[antecedent_core::VariableId],
-        _ctx: &ExecutionContext,
+        ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        check_retarget_cancelled(ctx)?;
         let table = self.retarget_score_table()?;
         let out = self.retarget_table(table, weights, depends_on)?;
+        check_retarget_cancelled(ctx)?;
         let inference = table.inference(Some(weights))?;
-        self.retarget_to_result(out, inference, weights, depends_on)
+        check_retarget_cancelled(ctx)?;
+        let result = self.retarget_to_result(out, inference, weights, depends_on)?;
+        check_retarget_cancelled(ctx)?;
+        Ok(result)
     }
 
     /// Reweight `table` (this handle's prepare-time table, or the scores of a later
@@ -508,6 +513,14 @@ impl PreparedStudy {
             retargeted.as_ref(),
         )?);
         Ok(result)
+    }
+}
+
+fn check_retarget_cancelled(ctx: &ExecutionContext) -> Result<(), CausalError> {
+    if ctx.cancellation.is_cancelled() {
+        Err(CausalError::Cancelled { stage: "retarget" })
+    } else {
+        Ok(())
     }
 }
 

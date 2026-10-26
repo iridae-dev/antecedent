@@ -1060,6 +1060,9 @@ impl PreparedStudy {
         section: &TargetWeightsSectionWire,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "reexecute_retarget" });
+        }
         let depends_on: Vec<antecedent_core::VariableId> = section
             .identity
             .depends_on

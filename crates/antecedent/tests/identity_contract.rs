@@ -6026,6 +6026,41 @@ fn consume_rederives_target_weights_and_refuses_substitutions() {
 }
 
 #[test]
+fn row_weights_retarget_cancellation_never_publishes_a_partial_result() {
+    let ctx = ExecutionContext::for_tests(17);
+    let (data, dag, query) = confounded_scm(96, 17);
+    let prepared = aipw_prepared(&data, dag, query);
+    let z = [VariableId::from_raw(2)];
+    let weights = z_weights(&data, 3.0);
+    let original = prepared.retarget(&weights, &z, &ctx).unwrap();
+    let bytes = prepared.encode_contracted_result(&original, "reweight", &ctx).unwrap();
+    let carried = contract_of(&bytes).target_weights.expect("weights travel");
+
+    // Exercise cancellation before work and between every scalar retarget phase.
+    // No thread sleeps or timing races are needed to stop after numerical work.
+    for checks in 0..4 {
+        let mut cancelled = ExecutionContext::for_tests(17);
+        cancelled.cancellation = antecedent_core::CancellationToken::cancel_after_checks(checks);
+        assert!(matches!(
+            prepared.retarget(&weights, &z, &cancelled),
+            Err(antecedent::CausalError::Cancelled { stage: "retarget" })
+        ));
+    }
+    let cancelled = ExecutionContext::for_tests(17);
+    cancelled.cancellation.cancel();
+    let mut mismatched = carried.clone();
+    mismatched.identity.data_snapshot[0] ^= 0xff;
+    assert!(matches!(
+        prepared.reexecute_retarget(&mismatched, &cancelled),
+        Err(antecedent::CausalError::Cancelled { stage: "reexecute_retarget" })
+    ));
+    // Cancelled attempts leave the retained scores and exact replay unchanged.
+    let again = prepared.reexecute_retarget(&carried, &ctx).unwrap();
+    assert_eq!(again.effect().to_bits(), original.effect().to_bits());
+    assert_eq!(again.row_weights, original.row_weights);
+}
+
+#[test]
 fn row_weights_reexecute_only_on_their_own_snapshot() {
     let ctx = ExecutionContext::for_tests(17);
     let (data, dag, query) = confounded_scm(96, 17);
