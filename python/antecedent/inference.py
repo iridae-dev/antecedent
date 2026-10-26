@@ -18,18 +18,30 @@ if TYPE_CHECKING:
     from .priors import ComposedPrior, PriorMapping
 
 
+def _validate_profile(profile: str | None) -> None:
+    if profile is not None and profile not in ("interactive", "standard", "report"):
+        from .errors import CausalValueError
+
+        raise CausalValueError("inference profile must be interactive, standard, report or None")
+
+
 @dataclass(frozen=True, slots=True)
 class Frequentist:
     """Frequentist point estimate with the estimator's own standard error.
 
     Which standard error is reported, and when it is valid, is scoped by the chosen
-    estimator (see its docstring), not by this marker.
+    estimator (see its docstring), not by this marker. ``profile`` selects the
+    native scientific budget preset, including default validation depth. Explicit
+    inference and validation declarations take precedence. Omission preserves
+    the native resolved defaults; profiles are unrelated to resource limits.
     """
 
     kind: Literal["frequentist"] = "frequentist"
     bootstrap: int | None = None
+    profile: Literal["interactive", "standard", "report"] | None = None
 
     def __post_init__(self) -> None:
+        _validate_profile(self.profile)
         if self.bootstrap is not None:
             from .execution import _integer
 
@@ -44,6 +56,11 @@ class Bayesian:
     ----------
     n_draws:
         Posterior draw count.
+    profile:
+        Native scientific budget preset (``interactive``, ``standard`` or ``report``),
+        including default validation depth. Explicit draw counts, inference and
+        validation declarations take precedence. Omission preserves native defaults.
+        Resource limits and observers remain in :class:`~antecedent.execution.Execution`.
     prior_scale:
         Isotropic Gaussian coefficient prior scale when ``prior_from`` is unset.
         Ignored when ``prior_from`` is provided.
@@ -125,6 +142,10 @@ class Bayesian:
     draw_controls: Literal["measured"] | None = None
     white_innovation: tuple[int, float] | None = None
     design_model: DesignModel | None = None
+    profile: Literal["interactive", "standard", "report"] | None = None
+
+    def __post_init__(self) -> None:
+        _validate_profile(self.profile)
 
     @property
     def n_draws_explicit(self) -> bool:

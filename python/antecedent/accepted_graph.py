@@ -13,7 +13,8 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterator, Mapping, Sequence
-from typing import Any
+from dataclasses import replace
+from typing import TYPE_CHECKING, Any
 
 from .discovery import (
     LPCMCI,
@@ -27,6 +28,7 @@ from .discovery import (
     run_temporal_discovery,
 )
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError, PendingEdge
+from .execution import Execution
 from .graph import (
     Admg,
     Cpdag,
@@ -38,6 +40,11 @@ from .graph import (
     _discovery_variable_names,
     discovery_to_dag,
 )
+from .inference import Bayesian, Frequentist
+
+if TYPE_CHECKING:
+    from .outcomes import Outcome
+    from .prepared import PreparedAnalysis
 
 _AnyDiscovery = ReviewedDiscovery
 #: The configurations `rediscover` can rerun on one table or one series; the
@@ -173,10 +180,19 @@ def _result_to_temporal_graph(
     return _plain_pcmci_temporal_dag(result)
 
 
+def _interactive_inference(inference: Frequentist | Bayesian | None) -> Frequentist | Bayesian:
+    """Supply the historical scientific preset without changing explicit declarations."""
+    if inference is None:
+        return Frequentist(profile="interactive")
+    if isinstance(inference, (Frequentist, Bayesian)) and inference.profile is None:
+        return replace(inference, profile="interactive")
+    return inference
+
+
 class AcceptedGraph:
     """Versioned accepted CPDAG/PAG/DAG/temporal completion for estimate-only clicks.
 
-    Estimate / prepare / refresh never call discovery. Only :meth:`rediscover`
+    Estimate and prepare never call discovery. Only :meth:`rediscover`
     or constructing a new handle may replace structure and bump :attr:`version`.
     """
 
@@ -336,29 +352,62 @@ class AcceptedGraph:
         """
         return _review_graph(self, marks)
 
-    def analyze(self, data: Any, query: Any, **kwargs: Any) -> Any:
-        """Estimate on the held graph (default ``latency="interactive"``).
+    def analyze(
+        self,
+        data: Any,
+        query: Any,
+        *,
+        inference: Frequentist | Bayesian | None = None,
+        execution: Execution | None = None,
+        **declarations: Any,
+    ) -> Outcome[Any]:
+        """Prepare and estimate on accepted structure through the common lifecycle.
 
-        Rejects caller ``discovery=``. Does not bump :attr:`version`.
+        The interactive inference profile preserves native estimate-click defaults. Statistical
+        budgets belong to inference; execution controls belong to ``Execution``.
+        Discovery remains an explicit separate operation.
         """
-        from ._analyze import analyze
+        from .prepared import analyze
 
-        if "discovery" in kwargs and kwargs["discovery"] is not None:
+        if declarations.get("discovery") is not None:
             raise CausalUnsupportedError(
                 "AcceptedGraph.analyze rejects discovery=; structure is already accepted "
                 "(call rediscover() for an explicit structure refresh)"
             )
-        kwargs.pop("discovery", None)
-        kwargs.setdefault("latency", "interactive")
-        kwargs["graph"] = self
-        return analyze(data, query=query, **kwargs)
+        return analyze(
+            data,
+            graph=self,
+            query=query,
+            inference=_interactive_inference(inference),
+            execution=execution,
+            **declarations,
+        )
 
-    def prepare(self, data: Any, *, query: Any, **kwargs: Any) -> Any:
-        """Compile-once prepared handle on the held graph."""
-        from .estimation import PreparedAnalysis
+    def prepare(
+        self,
+        data: Any,
+        *,
+        query: Any,
+        inference: Frequentist | Bayesian | None = None,
+        execution: Execution | None = None,
+        **declarations: Any,
+    ) -> PreparedAnalysis[Any]:
+        """Bind an immutable study without fitting, sampling or rediscovery."""
+        from .prepared import prepare
 
-        kwargs.setdefault("latency", "interactive")
-        return PreparedAnalysis.prepare(data, query=query, graph=self, **kwargs)
+        if declarations.get("discovery") is not None:
+            raise CausalUnsupportedError(
+                "AcceptedGraph.prepare rejects discovery=; structure is already accepted "
+                "(call rediscover() for an explicit structure refresh)"
+            )
+        return prepare(
+            data,
+            graph=self,
+            query=query,
+            inference=_interactive_inference(inference),
+            execution=execution,
+            **declarations,
+        )
 
     def to_json(self) -> str:
         """Serialize for durable hold (JSON interchange, not CBOR wire)."""

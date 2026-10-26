@@ -282,6 +282,7 @@ def prepare(
             owned,
             **options,
             bootstrap=bootstrap,
+            latency=getattr(inference, "profile", None),
             # Legacy transport lowering rejects ordinary loose controls. The
             # active Execution owns its native context; execution forks bind
             # the requested RNG/thread policy before any statistical run.
