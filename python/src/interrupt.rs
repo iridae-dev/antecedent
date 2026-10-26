@@ -61,11 +61,10 @@ impl Scope {
             token.cancel();
         }
     }
-}
 
-impl Drop for Scope {
-    fn drop(&mut self) {
-        let ids = std::mem::take(self.failures.get_mut().unwrap_or_else(PoisonError::into_inner));
+    fn release_failures(&self) {
+        let ids =
+            std::mem::take(&mut *self.failures.lock().unwrap_or_else(PoisonError::into_inner));
         // Never release Python exceptions while holding the stash mutex: their
         // destruction may execute Python finalizers and re-enter a callback.
         let discarded = {
@@ -73,6 +72,14 @@ impl Drop for Scope {
             ids.into_iter().filter_map(|id| stash.remove(&id)).collect::<Vec<_>>()
         };
         drop(discarded);
+        let superseded = self.interruption.lock().unwrap_or_else(PoisonError::into_inner).take();
+        drop(superseded);
+    }
+}
+
+impl Drop for Scope {
+    fn drop(&mut self) {
+        self.release_failures();
     }
 }
 
@@ -355,7 +362,12 @@ where
             }
         }
     });
-    outcome.map_err(|e| attribute(py, e, &scope))
+    let outcome = outcome.map_err(|e| attribute(py, e, &scope));
+    // A worker's thread-local Arc may outlive joining its scoped work. Release
+    // unconsumed Python failures at this run boundary, after cause attribution,
+    // rather than depending on the final Arc/thread-local destructor timing.
+    scope.release_failures();
+    outcome
 }
 
 #[cfg(test)]
@@ -394,7 +406,13 @@ mod tests {
         Python::initialize();
         Python::attach(|py| {
             for _ in 0..=MAX_STASHED {
+                let retained = std::sync::Arc::new(std::sync::Mutex::new(None));
+                let worker_retained = std::sync::Arc::clone(&retained);
                 let id = run(py, || {
+                    // Cleanup belongs to the completed run, even when a native
+                    // owner still holds its scope after the worker returns.
+                    *worker_retained.lock().unwrap() =
+                        super::ACTIVE.with(|active| active.borrow().clone());
                     let message =
                         callback_failure("suppressed callback", PyValueError::new_err("boom"));
                     Ok(tagged_ids(&message)
@@ -403,6 +421,7 @@ mod tests {
                 })
                 .unwrap();
                 assert!(!STASH.lock().unwrap().contains_key(&id));
+                assert!(retained.lock().unwrap().is_some());
             }
         });
     }
