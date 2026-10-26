@@ -190,7 +190,7 @@ fn graph_posterior_records_its_real_algorithm() {
 
     let exact =
         crate::discovery::discover_exact_dag_posterior(&data, &vars, &params, &ctx).unwrap();
-    assert_eq!(exact.algorithm.as_deref(), Some("exact_dag_posterior"));
+    assert_eq!(exact.algorithm().map(|name| name.as_ref()), Some("exact_dag_posterior"));
 
     let schedule = crate::discovery::GraphMcmcSchedule {
         n_chains: 2,
@@ -202,7 +202,7 @@ fn graph_posterior_records_its_real_algorithm() {
         crate::discovery::discover_order_mcmc(&data, &vars, &params, &schedule, false, &ctx)
             .unwrap();
     assert_eq!(
-        order.algorithm.as_deref(),
+        order.algorithm().map(|name| name.as_ref()),
         Some("order_mcmc"),
         "order MCMC must not report a generic posterior label"
     );

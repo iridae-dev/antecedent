@@ -15,7 +15,7 @@ use antecedent_core::{
 };
 use antecedent_data::{TabularData, TimeSeriesData};
 use antecedent_discovery::{
-    AdjacencyMask, GraphPosterior, GraphPosteriorAtomKind, LagMask, SamplingSummary, set_edge,
+    GraphPosterior, GraphPosteriorAtomKind, LagMask, SamplingSummary, set_edge,
 };
 use antecedent_prob::InferenceDiagnostics;
 
@@ -75,8 +75,7 @@ fn tabular_data() -> TabularData {
 /// `reverse`, an unidentified `y -> t` atom carrying weight 0.2.
 fn tabular_posterior(reverse: bool) -> GraphPosterior {
     let direct = set_edge(0_u64, 3, 0, 1, true);
-    let adjusted =
-        set_edge(set_edge(set_edge(0_u64, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true);
+    let adjusted = set_edge(set_edge(set_edge(0_u64, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true);
     let (weights, atoms) = if reverse {
         (vec![0.5, 0.3, 0.2], vec![direct, adjusted, set_edge(0_u64, 3, 1, 0, true)])
     } else {
@@ -86,7 +85,7 @@ fn tabular_posterior(reverse: bool) -> GraphPosterior {
     for (weight, atom) in weights.iter().zip(&atoms) {
         for from in 0..3 {
             for to in 0..3 {
-                if from != to && set_edge(atom, 3, from, to, true) == *atom {
+                if from != to && set_edge(*atom, 3, from, to, true) == *atom {
                     marginals[from * 3 + to] += weight;
                 }
             }
@@ -365,7 +364,7 @@ fn interference_study(inference: InferenceMode) -> Study {
         weights,
         vec![
             set_edge(0_u64, 2, 0, 1, true),
-            AdjacencyMask::EMPTY,
+            0_u64,
             set_edge(set_edge(0_u64, 2, 0, 1, true), 2, 1, 0, true),
         ],
         vec![0.0; 4],

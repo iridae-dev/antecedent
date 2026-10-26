@@ -1645,7 +1645,7 @@ pub fn mz_transport_bootstrap_interval(
                 atom_intervals: intervals.atoms,
                 mean_intervals: intervals.means,
             }),
-            Err(reason) => return Ok(Err(reason)),
+            Err(reason) => return Ok(Err(reason.as_str())),
         }
     }
     let base = &drawn.columns[0];

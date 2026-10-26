@@ -694,7 +694,7 @@ fn an_accepted_structure_posterior_carries_its_provenance_downstream() {
         let map_provenance = map.provenance().expect("the MAP graph keeps the provenance");
         assert_eq!(&*map_provenance.review, "posterior_map");
         assert_eq!(map_provenance.claim, accepted.provenance().claim);
-        let best = accepted.posterior().weights.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        let best = accepted.posterior().weights().iter().copied().fold(f64::NEG_INFINITY, f64::max);
         assert!(best > 0.0);
         // A frequentist search has no posterior to accept.
         let pc = Study::tabular(data)

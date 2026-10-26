@@ -143,7 +143,8 @@ mod envelope_refuter_target_tests {
     /// Z-adjusted (effect 2), at weights 0.5 / 0.3.
     fn fitted_atoms(data: &TabularData, ctx: &ExecutionContext) -> Vec<EnvelopeRefuteAtom> {
         let direct = set_edge(0u64, 3, 0, 1, true);
-        let adjusted = set_edge(set_edge(set_edge(0u64, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true);
+        let adjusted =
+            set_edge(set_edge(set_edge(0u64, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true);
         let gp = GraphPosterior::from_atoms(
             3,
             vec![0.5, 0.3],
@@ -599,11 +600,12 @@ mod identify_only_tests {
         assert!((weights[2] - unidentified_truth).abs() < 1e-12);
 
         let direct = set_edge(0u64, 3, 0, 1, true); // T -> Y; no adjustment.
-        let adjusted = set_edge(set_edge(set_edge(0u64, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true); // Z -> T, Z -> Y, T -> Y.
+        let adjusted =
+            set_edge(set_edge(set_edge(0u64, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true); // Z -> T, Z -> Y, T -> Y.
         let unidentified = set_edge(0u64, 3, 1, 0, true); // Y -> T; no admissible adjustment.
-        assert!(mask_is_dag(&direct, 3));
-        assert!(mask_is_dag(&adjusted, 3));
-        assert!(mask_is_dag(&unidentified, 3));
+        assert!(mask_is_dag(direct, 3));
+        assert!(mask_is_dag(adjusted, 3));
+        assert!(mask_is_dag(unidentified, 3));
 
         // Keep marginals consistent with the three frozen atoms even though
         // effect execution consumes their masks and weights directly.
@@ -789,7 +791,8 @@ mod identify_only_tests {
         let unidentified_truth = pin["expected_unidentified_mass"].as_f64().unwrap();
 
         let direct = set_edge(0u64, 3, 0, 1, true);
-        let adjusted = set_edge(set_edge(set_edge(0u64, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true);
+        let adjusted =
+            set_edge(set_edge(set_edge(0u64, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true);
         let unidentified = set_edge(0u64, 3, 1, 0, true);
         let mut marginals = vec![0.0; 9];
         marginals[1] = weights[0] + weights[1];
@@ -940,7 +943,8 @@ mod identify_only_tests {
         // the first contributing atom, Bayesian and Frequentist alike.
         let n = 64;
         let direct = set_edge(0u64, 3, 0, 1, true);
-        let adjusted = set_edge(set_edge(set_edge(0u64, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true);
+        let adjusted =
+            set_edge(set_edge(set_edge(0u64, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true);
         let unidentified = set_edge(0u64, 3, 1, 0, true);
         let mix = GraphPosterior::from_atoms(
             3,
@@ -982,7 +986,8 @@ mod identify_only_tests {
         // first contributing atom only, not a mass-weighted mix.
         let n = 64;
         let direct = set_edge(0u64, 3, 0, 1, true);
-        let adjusted = set_edge(set_edge(set_edge(0u64, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true);
+        let adjusted =
+            set_edge(set_edge(set_edge(0u64, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true);
         let unidentified = set_edge(0u64, 3, 1, 0, true);
         let mix = GraphPosterior::from_atoms(
             3,
@@ -1021,7 +1026,8 @@ mod identify_only_tests {
     #[test]
     fn fresh_graph_posterior_cancelled_during_identification_returns_typed_error() {
         let direct = set_edge(0u64, 3, 0, 1, true);
-        let adjusted = set_edge(set_edge(set_edge(0u64, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true);
+        let adjusted =
+            set_edge(set_edge(set_edge(0u64, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true);
         let gp = GraphPosterior::from_atoms(
             3,
             vec![0.5, 0.5],
