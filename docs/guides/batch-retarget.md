@@ -1,7 +1,7 @@
 # Configured batches and batch retarget
 
 A batch answers many average-effect questions on one table. Two additions: the batch
-entry points take the same typed estimator configurations as `analyze`, and a prepared batch
+entry points take the same typed estimator configurations as `analyze`, and a completed batch
 can **retarget** a declared family of claims to caller-declared populations and report their
 joint covariance and named contrasts. The points and plug-in covariance are `point_only`;
 the 95% max-t simultaneous band is licensed for complete families at its measured
@@ -10,17 +10,38 @@ coordinate (see [The simultaneous interval](#the-simultaneous-interval)). The re
 
 ## Typed estimator configurations
 
-`analyze_many`, `PreparedBatch.prepare` and `PreparedBatch.prepare_cells` accept
+`ant.estimation.analyze_many` and `ant.estimation.prepare_many` accept
 `estimator=` as a string id (unchanged), an `antecedent.estimators` configuration such as
 `Aipw(bootstrap=0, propensity_penalty=PropensityPenalty(...))`, or the `estimator_config=`
 dict `analyze` takes (same keys, same refusals). Rust: `BatchStudy::estimator_spec(spec)`.
-One configuration governs every query.
+One configuration governs every query. Joint-cell batches additionally accept
+`family=ant.estimation.CellFamily(contrast="interaction", posterior_draws=300)`;
+`contrast=None` omits family contrast testing. `CellFamily` settings are rejected on
+average-effect batches, so a scientific request cannot be silently ignored.
 
 ```python
+import antecedent as ant
+import numpy as np
+from antecedent.estimation import RetargetClaim, RetargetContrast
 from antecedent.estimators import Aipw, PropensityPenalty
+from antecedent.outcomes import require_success
 
+rng = np.random.default_rng(19)
+z = rng.normal(size=800)
+t = (rng.random(800) < 1 / (1 + np.exp(-0.4 * z))).astype(float)
+y = 2 * t + z + rng.normal(scale=0.3, size=800)
+data = ant.data.table({"t": t, "y": y, "y2": 0.5 * y - z, "z": z})
+graph = [("z", "t"), ("z", "y"), ("z", "y2"), ("t", "y"), ("t", "y2")]
+queries = [ant.AverageEffect("t", "y"), ant.AverageEffect("t", "y2")]
+execution = ant.Execution(seed=19, threads=2)
 cfg = Aipw(bootstrap=0, propensity_penalty=PropensityPenalty())
-results = ant.estimation.analyze_many(data, graph=graph, queries=queries, estimator=cfg)
+outcome = ant.estimation.analyze_many(
+    data, graph=graph, queries=queries, estimator=cfg,
+    execution=execution, refute=False,
+)
+results = require_success(outcome)
+first = require_success(results.member(0))  # explicit quantity selection
+assert abs(first.effect - 2) < 0.3
 ```
 
 A nuisance fit is shared between two queries only when every input it reads is
@@ -36,17 +57,35 @@ including the propensity nuisance's canonical key); it is recorded on every resu
 ## Batch retarget
 
 ```python
-batch = ant.estimation.PreparedBatch.prepare(data, graph=graph, queries=queries,
-                                             estimator="aipw", bootstrap=0)
-rows = batch.retarget_rows()          # original rows the weights must align with
-report = batch.retarget(
+study = ant.estimation.prepare_many(
+    data, graph=graph, queries=queries, estimator="aipw",
+    inference=ant.Frequentist(bootstrap=0), execution=execution, refute=False,
+)
+# Preparation, inspection and branching do not fit nuisance models.
+assert study.inspect().stage == "prepared"
+batch = require_success(ant.estimate(study))
+rows = batch.retarget_rows()  # original rows this completion's weights must align with
+assert rows is not None
+w_a = np.exp(0.2 * np.asarray(data["z"])[list(rows)])
+w_b = np.exp(-0.2 * np.asarray(data["z"])[list(rows)])
+report = require_success(batch.retarget(
     [RetargetClaim("holder_a", queries[0], w_a, depends_on=["z"]),
      RetargetClaim("holder_b", queries[0], w_b, depends_on=["z"])],
     [RetargetContrast("a_minus_b", {"holder_a": 1.0, "holder_b": -1.0})],
-)
-report.claims, report.contrasts       # points and plug-in standard errors
-report.covariance_between("holder_a", "holder_b")
-report.to_rows()                      # tidy export
+    expected_snapshot=batch.retarget_snapshot(),
+))
+assert report.complete and report.scores_source == "estimated"
+assert report.covariance_between("holder_a", "holder_b") > 0
+report.to_rows()  # explicit tidy materialization
+
+new_data = {**data, "y": np.asarray(data["y"]) + 1}
+branch = ant.rebind(batch.study, data=new_data)
+updated = require_success(ant.estimate(branch))
+assert batch is not updated
+assert batch.member(0).inspect().data_snapshot_id != updated.member(0).inspect().data_snapshot_id
+# A retarget snapshot identifies row alignment; the native data identity also tracks values.
+# The earlier batch and its scores still refer to their original observations.
+assert report.snapshot_id == batch.retarget_snapshot()
 ```
 
 A claim reweights one plan's cross-fitted score table `phi` (an `AllObserved` iid AIPW or
@@ -88,7 +127,7 @@ For a cluster-DML family the sampler gives every Gaussian draw one shared
 degrees of freedom; one claim then has the ordinary two-sided Student-t critical. Rust:
 `BatchRetargetReport::simultaneous_interval(level, seed, draws, ctx)` returning a
 `SimultaneousBand`; Python: `BatchRetarget.simultaneous_interval()`, computed at
-`PreparedBatch.retarget(..., simultaneous_level=0.95, simultaneous_seed=0,
+`batch.retarget(..., simultaneous_level=0.95, simultaneous_seed=0,
 simultaneous_draws=100000)`. The band is a nominal asymptotic construction (the Gaussian
 limit of the studentized retargeted points, plug-in `Sigma`) under the single-claim
 retarget's conditions: iid rows or the declared independent cluster units, fixed declared
@@ -125,18 +164,33 @@ band is strictly wider than each marginal band. It is a test, not a coverage rec
 
 ### Score-table lifetime
 
-`PreparedBatch.estimate(data)` retains the score tables of that estimate on the handle, so a
-later `retarget` reweights that estimate's rows (`retarget_rows()` and `retarget_snapshot()`
-describe them; `report.scores_source` is `"estimated"`). Before any estimate the
-prepare-time tables are used (`"prepared"`). A plan whose estimate kept no table (a trimmed
-or non-iid AIPW, or an estimator that keeps no cross-fitted scores) fails its members with
-`score_table_unavailable` (`batch_retarget.scores_unavailable_after_estimate`); the
-prepare-time rows are never substituted. Weights aligned with other rows (a different length)
-fail their member (`batch_retarget.incompatible_target`).
+`ant.estimation.prepare_many(...)` owns the input once and identifies plans without
+fitting. `ant.estimate(study)` returns `Outcome[BatchResult]`; the successful result owns
+its immutable completed score snapshot. `batch.retarget(...)` also returns a common
+`Outcome[BatchRetarget]`; use `require_success` or inspect its typed scientific refusal. `batch.retarget_rows()` and
+`batch.retarget_snapshot()` describe that completion, and `report.scores_source` is
+`"estimated"`. Retargeting belongs to the completed result, so preparation has no
+prepare-time scores to reweight.
 
-In Rust, `PreparedBatch::estimate_scored` returns the results with the `BatchScores` to pass to
-`PreparedBatch::retarget`. A single `PreparedStudy::retarget` still reweights the table frozen
-at prepare (or rebuilt by `refresh`); `estimate(&self)` never replaces it.
+Use `ant.rebind(batch.study, data=new_data)` to branch onto different observations;
+use `ant.reconfigure(batch.study, queries=other_queries)` for a scientific alternative.
+Both operations return new preparations. Earlier results and their score snapshots remain
+unchanged. Rebinding invalidates dependent fits and scores; compatible completed branches
+share native retained state, with reuse and invalidation exposed on `study.reuse`.
+A plan whose completion kept no score table fails its retarget members with
+`score_table_unavailable`. Weights aligned with another row snapshot fail their member
+(`batch_retarget.incompatible_target`); old rows are never substituted.
+
+`batch.member(index)` selects one typed outcome for composition or `export()`.
+Its native artifact preserves joint covariance, simultaneous intervals and declared family
+contrasts. Loading the artifact checks acceptance through the independent native consumer
+and reconstructs no live dataset or executable study. The current artifact encoding does
+not retain `family_contrast_posterior` draws; those aligned draws remain a live-result
+capability, and loading a member does not supply that distribution.
+
+In Rust, `PreparedBatch::execute_retained` produces a `CompletedBatch` whose preparation
+and `BatchScores` share native ownership. The legacy Rust `estimate_scored` operation also
+returns results alongside explicit scores; Python uses the retained completion lifecycle.
 
 ### Cluster-DML families
 

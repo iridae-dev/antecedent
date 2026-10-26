@@ -3,8 +3,81 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
-from typing import TypedDict
+from dataclasses import dataclass, field, replace
+from typing import TYPE_CHECKING, Any, TypedDict
+
+from .errors import CausalStateError, CausalTypeError, CausalUnsupportedError
+from .execution import Execution
+from .outcomes import Outcome, capture_outcome
+
+if TYPE_CHECKING:
+    from .prepared import PreparedAnalysis
+    from .results import AnalysisResult
+
+
+def replay_retarget(
+    study: PreparedAnalysis[Any] | Outcome[Any],
+    artifact: Any,
+    *,
+    execution: Execution | None = None,
+) -> Outcome[AnalysisResult]:
+    """Replay carried population weights against their exact retained native scores.
+
+    ``study`` may be a completed outcome or its immutable study. ``artifact``
+    accepts bytes or a typed exported artifact, including an outcome containing
+    an artifact. The independent native consumer verifies the artifact, then
+    native replay checks its complete data-snapshot, score-table and dependency
+    identity before reweighting. No nuisance model is refitted and no source
+    study or earlier result is replaced.
+
+    Independent loads have no live data or scores; they cannot supply ``study``.
+    A different snapshot or score identity produces the scientific refusal
+    ``row_weights_bound_to_snapshot``. Invalid artifacts and operational failures
+    remain typed exceptions. Omitted execution uses the source study's policy.
+    """
+    from ._artifact_protocol import container_bytes
+    from .prepared import PreparedAnalysis, _finish_outcome, _fork
+
+    if isinstance(study, Outcome):
+        if study.refusal is not None:
+            return Outcome(refusal=study.refusal, _study=study.study)
+        retained = study.study
+        if retained is None:
+            raise CausalStateError(
+                "population replay requires a live completed study with retained native scores; "
+                "an independently loaded outcome has no applicable replay operation"
+            )
+        if not isinstance(retained, PreparedAnalysis):
+            raise CausalTypeError("population replay requires one scalar completed study")
+        study = retained
+    if not isinstance(study, PreparedAnalysis):
+        raise CausalTypeError("population replay requires one immutable prepared study or outcome")
+    policy = study.execution if execution is None else execution
+    if not isinstance(policy, Execution):
+        raise CausalTypeError("execution must be an Execution declaration")
+    if policy.on_stage is not None:
+        raise CausalUnsupportedError(
+            "population replay reuses completed scores and exposes no causal fitting stages",
+            reason_code="stage_stream_unavailable",
+        )
+    source = replace(study, execution=policy)
+    if source._refused is not None:
+        return _finish_outcome(source, source._refused)
+    encoded = capture_outcome(container_bytes, artifact)
+    if encoded.refusal is not None:
+        return _finish_outcome(source, Outcome(refusal=encoded.refusal))
+    assert encoded.value is not None
+    engine = _fork(source)
+    policy._report_progress(0.0, "replay_retarget")
+    outcome = capture_outcome(
+        policy._call,
+        engine.reexecute_retarget,
+        encoded.value,
+        seed=policy.seed,
+        threads=policy.threads,
+    )
+    policy._report_progress(1.0, "replay_retarget")
+    return _finish_outcome(replace(source, _engine=engine), outcome)
 
 
 class DistributionBinding(TypedDict):
@@ -194,6 +267,7 @@ __all__ = [
     "Untreated",
     "coerce_target_population",
     "registry_wire",
+    "replay_retarget",
     "target_all",
     "target_custom_distribution",
     "target_named",

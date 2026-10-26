@@ -2,8 +2,8 @@
 //!
 //! The Rust [`BatchRetargetReport`] crosses as a dictionary (points, joint covariance,
 //! contrasts, failed members, the max-t simultaneous interval, and the tidy rows) and the
-//! Python wrapper parses it into frozen dataclasses. The handle keeps the score tables of
-//! its last `estimate`, so a retarget after an estimate reweights that estimate's rows.
+//! Python wrapper parses it into frozen dataclasses. Each immutable completion retains
+//! exactly the score tables of its own execution.
 
 use antecedent::{
     BatchRetargetError, BatchRetargetReport, BatchRetargetRequest, BatchScores, MemberFailure,
@@ -12,7 +12,7 @@ use antecedent::{
 use antecedent_core::{ExecutionContext, VariableId};
 use pyo3::prelude::*;
 
-use crate::ate_api::PyPreparedBatch;
+use crate::ate_api::PyCompletedBatch;
 use crate::transport_z_api::to_py_json;
 
 /// `(name, query index, weights, depends_on names)` of one claim.
@@ -195,12 +195,10 @@ fn report_json(report: &BatchRetargetReport, simultaneous: serde_json::Value) ->
     })
 }
 
-impl PyPreparedBatch {
-    /// The scores a retarget now reads: the last estimate's, else the prepare-time tables.
-    fn current_scores(&self) -> PyResult<BatchScores> {
-        let retained =
-            self.last_scores.lock().map_err(|_| crate::value_err("batch scores lock poisoned"))?;
-        Ok(retained.as_ref().map_or_else(|| self.inner.prepared_scores(), |s| s.as_ref().clone()))
+impl PyCompletedBatch {
+    /// Scores belong to this completed execution and never fall back to another run.
+    fn current_scores(&self) -> &BatchScores {
+        self.inner.scores()
     }
 
     fn variable_id(&self, name: &str) -> PyResult<VariableId> {
@@ -216,26 +214,26 @@ impl PyPreparedBatch {
 }
 
 #[pymethods]
-impl PyPreparedBatch {
+impl PyCompletedBatch {
     /// Original-row index every claim's weights must align with: the rows of the scores a
-    /// retarget now reads (the last `estimate`'s, else the prepare-time rows). `None` when no
+    /// this completion retains. `None` when no
     /// plan has scores; refuses `row_weights_bound_to_snapshot` when plans disagree.
     fn retarget_rows(&self) -> PyResult<Option<Vec<u64>>> {
-        let scores = self.current_scores()?;
+        let scores = self.current_scores();
         Ok(scores
             .common_rows()
             .map_err(retarget_error)?
             .map(|rows| rows.iter().map(|id| id.get()).collect()))
     }
 
-    /// `prepared` or `estimated`: where the scores a retarget now reads came from.
+    /// Always `estimated`: score tables belong to this completed execution.
     fn retarget_scores_source(&self) -> PyResult<String> {
-        Ok(self.current_scores()?.source().as_str().to_string())
+        Ok(self.current_scores().source().as_str().to_string())
     }
 
     /// Identity of the row snapshot the scores a retarget now reads share.
     fn retarget_snapshot(&self) -> PyResult<Option<String>> {
-        self.current_scores()?.snapshot_id().map_err(retarget_error)
+        self.current_scores().snapshot_id().map_err(retarget_error)
     }
 
     /// Retarget a declared family of claims; the report as a dictionary.
@@ -259,7 +257,6 @@ impl PyPreparedBatch {
         simultaneous_seed: u64,
         simultaneous_draws: u32,
     ) -> PyResult<Py<PyAny>> {
-        let scores = self.current_scores()?;
         let claims = claims
             .into_iter()
             .map(|(name, query_index, weights, depends_on)| {
@@ -279,10 +276,19 @@ impl PyPreparedBatch {
             .map(|(name, coefficients)| RetargetContrast { name, coefficients })
             .collect();
         let request = BatchRetargetRequest { claims, contrasts, expected_snapshot };
-        let ctx = crate::py_execution_context(1, 1);
-        let report = self.inner.retarget(&scores, &request, &ctx).map_err(retarget_error)?;
-        let band =
-            band_json(&report, simultaneous_level, simultaneous_seed, simultaneous_draws, &ctx)?;
-        to_py_json(py, &report_json(&report, band))
+        let inner = std::sync::Arc::clone(&self.inner);
+        let payload = crate::detach_catch(py, move || {
+            let ctx = crate::py_execution_context(1, 1);
+            let report = inner.retarget(&request, &ctx).map_err(retarget_error)?;
+            let band = band_json(
+                &report,
+                simultaneous_level,
+                simultaneous_seed,
+                simultaneous_draws,
+                &ctx,
+            )?;
+            Ok(report_json(&report, band))
+        })?;
+        to_py_json(py, &payload)
     }
 }
