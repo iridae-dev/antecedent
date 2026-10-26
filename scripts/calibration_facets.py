@@ -1058,7 +1058,9 @@ def references(surface: Surface) -> References:
                     if n not in sourced[rel] or facet_of.get(sourced[rel][n]) == facet
                 }
 
-                def importable(root: str) -> bool:
+                def importable(
+                    root: str, *, crate=crate, member=member, member_anchor=member_anchor
+                ) -> bool:
                     if root in ("crate", "self", "super"):
                         return crate == _crate(member)
                     if root in workspace:
@@ -1105,7 +1107,7 @@ def references(surface: Surface) -> References:
                 member_crate = _crate(member)
                 stem_code = re.sub(
                     rf"\b([A-Za-z_][A-Za-z0-9_]*)(\s*::\s*){re.escape(stem)}\b",
-                    lambda m: (
+                    lambda m, stem=stem, member_crate=member_crate, crate=crate: (
                         m.group(1) + m.group(2) + " " * len(stem)
                         if member_crate is not None
                         and (
@@ -1126,7 +1128,7 @@ def references(surface: Surface) -> References:
                 # resolves to another file of the crate is that file, not the member.
                 stem_code = re.sub(
                     rf"\b((?:crate|self|super)(?:\s*::\s*[A-Za-z_][A-Za-z0-9_]*)*?)(\s*::\s*){re.escape(stem)}\b",
-                    lambda m: (
+                    lambda m, stem=stem, rel=rel, member=member: (
                         m.group(1) + m.group(2) + " " * len(stem)
                         if (
                             target := resolve_module(

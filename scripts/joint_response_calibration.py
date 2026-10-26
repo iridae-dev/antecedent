@@ -13,9 +13,8 @@ import json
 import os
 import re
 import subprocess
-from pathlib import Path
-
 import tomllib
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "parity/joint_response_calibration.toml"

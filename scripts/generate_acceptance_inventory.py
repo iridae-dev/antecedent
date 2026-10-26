@@ -270,9 +270,8 @@ def counterpart_row(row: dict, ix: Index) -> dict:
             str(o["calibration_license"]).startswith("records:") for o in licensed
         ):
             conflicts.append("uncertainty rests on a measured record but no obligation cites a coverage record (unsupported licensing evidence)")
-        if not split:
-            if row["uncertainty_basis"] not in ("measured_record", "estimator_records", "point_only_cell"):
-                conflicts.append(f"licensed row without a route obligation rests on {row['uncertainty_basis']!r} (unsupported licensing evidence)")
+        if not split and row["uncertainty_basis"] not in ("measured_record", "estimator_records", "point_only_cell"):
+            conflicts.append(f"licensed row without a route obligation rests on {row['uncertainty_basis']!r} (unsupported licensing evidence)")
     else:
         if licensed:
             conflicts.append("row is not licensed although an explicit licence obligation exists for its coordinate")

@@ -40,7 +40,13 @@ from _repo import ensure_scripts_on_path
 
 ensure_scripts_on_path()
 import provenance_links  # noqa: E402
-from method_evidence import INTERVAL_KIND, INTERVAL_REF, TOKEN, VARIANT_METHOD, Evidence  # noqa: E402
+from method_evidence import (  # noqa: E402
+    INTERVAL_KIND,
+    INTERVAL_REF,
+    TOKEN,
+    VARIANT_METHOD,
+    Evidence,
+)
 
 MANIFEST = "parity/capabilities/route_manifest.toml"
 SUPPORT_LICENSED = "parity/support_licensed.toml"
@@ -501,7 +507,7 @@ def licensed_methods(src: Sources) -> list[dict]:
         return kinds
 
     sibling: dict[tuple[str, str, str, str], set[str]] = defaultdict(set)
-    for (query, graph, estimator, inference), cells in groups.items():
+    for (_query, graph, estimator, inference), cells in groups.items():
         for structure in STRUCTURE_ORDER:
             sibling[(estimator, inference, design_of(graph), structure)] |= measured(
                 [c for c in cells if c["structure"] == structure]

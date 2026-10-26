@@ -126,7 +126,7 @@ def conditions(ev: Evidence) -> list[dict]:
     for child in children:
         parts = child["id"].split(".")
         families.setdefault(".".join(parts[:-2]), set()).add(".".join(parts[-2:]))
-    incomplete = sorted(f for f, seen in families.items() if not QUADRANTS <= seen)
+    incomplete = sorted(f for f, seen in families.items() if not seen >= QUADRANTS)
     add(
         "children.complete",
         len(ids) == len(set(ids)) and not incomplete and {s["id"] for s in specs} == set(ids),

@@ -238,7 +238,7 @@ def _unlicensed_search(axes, closed_rules, na_rules, licensed_keys):
     keys = list(AXIS)
     pools = [axes[key] for key in keys]
     for values in product(*pools):
-        cell = dict(zip(keys, values))
+        cell = dict(zip(keys, values, strict=False))
         if standing(cell, closed_rules, na_rules, licensed_keys) == "unlicensed":
             yield cell
             return

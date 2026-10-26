@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import re
 import tomllib
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 
 from _repo import REPO_ROOT as ROOT
@@ -99,10 +99,7 @@ class Evidence:
     # ---- tokens -------------------------------------------------------------------------
     @staticmethod
     def tokens(value: object) -> list[str]:
-        if isinstance(value, list):
-            parts = [str(v) for v in value]
-        else:
-            parts = str(value).split(";")
+        parts = [str(v) for v in value] if isinstance(value, list) else str(value).split(";")
         return [p.strip() for p in parts if p.strip()]
 
     @staticmethod
@@ -197,7 +194,7 @@ class Evidence:
         return any(a in body or re.sub(r"[^a-z0-9]", "", a.lower()) in squashed for a in anchors)
 
     # ---- uncertainty --------------------------------------------------------------------
-    @lru_cache(maxsize=None)  # noqa: B019
+    @cache  # noqa: B019
     def coverage_records(self) -> list[dict]:
         return tomllib.loads(self.text("parity/coverage_records.toml")).get("record", [])
 

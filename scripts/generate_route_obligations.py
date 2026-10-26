@@ -115,13 +115,13 @@ def closed_rows(sources: dict) -> list[dict]:
     counts = [0] * len(rules)
     axes = sources["axes"]
     for values in product(*(axes[a] for a in AXES)):
-        cell = dict(zip(AXES, values))
+        cell = dict(zip(AXES, values, strict=False))
         for i, rule in enumerate(rules):
             if gate.rule_matches(rule, cell):
                 counts[i] += 1
                 break
     rows = []
-    for rule, count in zip(rules, counts):
+    for rule, count in zip(rules, counts, strict=False):
         if not rule.get("executes_unlicensed"):
             continue
         first = (rule.get("queries") or ["*"])[0]
